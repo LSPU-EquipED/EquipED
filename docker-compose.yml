@@ -1,0 +1,4 @@
+# Scaffold only — compose services will be added later.
+services: {}
+volumes: {}
+networks: {}

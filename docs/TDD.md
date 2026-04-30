@@ -321,7 +321,7 @@ The following rules apply across all server modules and must be respected throug
 
 3. **`core/` is read-only infrastructure.** No business logic lives in `core/`. Modules call `core/database.py` for sessions, `core/chroma.py` for the ChromaDB client, and `core/llm.py` for the Anthropic client — that is all.
 
-4. **Features in `client/features/` do not import from each other.** If two features need the same data shape, that type belongs in `shared/types/`. If two features need the same UI element, that component belongs in `shared/components/`.
+4. **Features in `client/src/features/` do not import from each other.** If two features need the same data shape, that type belongs in `client/src/shared/types/`. If two features need the same UI element, that component belongs in `client/src/shared/components/`.
 
 5. **`shared/` on the client is strictly policed.** Before adding to `shared/`, confirm the item is used by at least two features. Single-feature utilities stay inside their feature folder.
 
@@ -330,7 +330,7 @@ The following rules apply across all server modules and must be respected throug
 ## 3. Layer 1 — Document Ingestion & Preprocessing
 
 **PRD References:** FR-01 to FR-05  
-**Module:** `backend/pipeline/ingestion.py`
+**Module:** `server/modules/documents/ingestion.py`
 
 ### 3.1 Responsibilities
 
@@ -472,7 +472,7 @@ def compute_tfidf_corpus(slm_chunks: list[DocumentChunk]) -> dict[str, float]:
 ## 4. Layer 2 — Embedding & Vector Storage
 
 **PRD References:** FR-06 (implied), NFR-02, NFR-03, NFR-04  
-**Module:** `backend/pipeline/embedding.py`, `backend/core/chroma.py`
+**Module:** `server/modules/embeddings/service.py`, `server/core/chroma.py`
 
 ### 4.1 Embedding Model
 
@@ -487,7 +487,7 @@ def compute_tfidf_corpus(slm_chunks: list[DocumentChunk]) -> dict[str, float]:
 The model is loaded once at application startup as a singleton and shared across all ingestion jobs:
 
 ```python
-# backend/core/embedding.py
+# server/core/embedding.py
 
 from sentence_transformers import SentenceTransformer
 from functools import lru_cache
@@ -616,7 +616,7 @@ def retrieve_context(
 ## 5. Layer 3 — Multi-Agent Evaluation
 
 **PRD References:** FR-06 to FR-11, NFR-01  
-**Modules:** `backend/pipeline/agents/`
+**Modules:** `server/modules/agents/`
 
 ### 5.1 Agent Architecture Overview
 
@@ -836,7 +836,7 @@ The same pattern applies to `run_coordinator_agent`, `run_gad_agent`, and `run_i
 ## 6. Layer 4 — Synthesis & Scoring
 
 **PRD References:** FR-12 to FR-15, D-01, D-02, D-03, D-04  
-**Module:** `backend/pipeline/synthesis.py`
+**Module:** `server/modules/synthesis/service.py`
 
 ### 6.1 Score Aggregation
 
@@ -967,7 +967,7 @@ def update_monitoring_matrix(
 ## 7. Layer 5 — Preference Logging & Prompt Optimization
 
 **PRD References:** FR-22 to FR-25, D-06  
-**Module:** `backend/pipeline/feedback.py`
+**Module:** `server/modules/feedback/service.py`
 
 ### 7.1 Preference Logging
 
@@ -1579,25 +1579,25 @@ Routes are defined in `client/src/app/router.tsx` and import page-level componen
 
 ```
 /                         → redirect to /dashboard
-/login                    → features/auth — LoginForm
-/dashboard                → app/layout — DashboardPage (overview, recent evaluations)
-/upload                   → features/upload — UploadForm
-/evaluations              → features/history — EvaluationHistoryTable
-/evaluations/:id          → features/evaluation — Scorecard + FlagList + FeedbackPanel
-/evaluations/:id/report   → features/evaluation — ReportView (full report, printable)
-/matrix                   → features/matrix — MonitoringTable [coordinator + admin only]
-/admin                    → features/admin — AdminLayout [admin only]
-  /admin/prompts          → features/admin — AgentPromptEditor (list view)
-  /admin/prompts/:agentId → features/admin — AgentPromptEditor (detail + version history)
-  /admin/preferences      → features/admin — PreferenceLogTable
+/login                    → client/src/features/auth — LoginForm
+/dashboard                → client/src/app/layout — DashboardPage (overview, recent evaluations)
+/upload                   → client/src/features/upload — UploadForm
+/evaluations              → client/src/features/history — EvaluationHistoryTable
+/evaluations/:id          → client/src/features/evaluation — Scorecard + FlagList + FeedbackPanel
+/evaluations/:id/report   → client/src/features/evaluation — ReportView (full report, printable)
+/matrix                   → client/src/features/matrix — MonitoringTable [coordinator + admin only]
+/admin                    → client/src/features/admin — AdminLayout [admin only]
+  /admin/prompts          → client/src/features/admin — AgentPromptEditor (list view)
+  /admin/prompts/:agentId → client/src/features/admin — AgentPromptEditor (detail + version history)
+  /admin/preferences      → client/src/features/admin — PreferenceLogTable
 ```
 
 ### 10.2 TanStack Query Hook Contracts
 
-All hooks live inside their feature folder (`features/<name>/hooks/`). The contracts below are the source of truth for data fetching behavior:
+All hooks live inside their feature folder (`client/src/features/<name>/hooks/`). The contracts below are the source of truth for data fetching behavior:
 
 ```typescript
-// features/evaluation/hooks/useEvaluationStatus.ts
+// client/src/features/evaluation/hooks/useEvaluationStatus.ts
 // Polls job status every 3 seconds until COMPLETED or FAILED
 export function useEvaluationStatus(evaluationId: string) {
   return useQuery({
@@ -1609,7 +1609,7 @@ export function useEvaluationStatus(evaluationId: string) {
   })
 }
 
-// features/evaluation/hooks/useEvaluationReport.ts
+// client/src/features/evaluation/hooks/useEvaluationReport.ts
 // Only enabled once job status is COMPLETED
 export function useEvaluationReport(evaluationId: string, enabled: boolean) {
   return useQuery({
@@ -1620,7 +1620,7 @@ export function useEvaluationReport(evaluationId: string, enabled: boolean) {
   })
 }
 
-// features/evaluation/hooks/useSubmitFeedback.ts
+// client/src/features/evaluation/hooks/useSubmitFeedback.ts
 export function useSubmitFeedback() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -1636,7 +1636,7 @@ export function useSubmitFeedback() {
   })
 }
 
-// features/matrix/hooks/useMonitoringMatrix.ts
+// client/src/features/matrix/hooks/useMonitoringMatrix.ts
 export function useMonitoringMatrix(filters: MatrixFilters) {
   return useQuery({
     queryKey: ['matrix', filters],
@@ -1662,10 +1662,10 @@ export function useMonitoringMatrix(filters: MatrixFilters) {
 
 ### 10.4 Role-Based Access Control
 
-Route-level access is enforced via a `RoleGuard` component (`features/auth/guards/RoleGuard.tsx`) used in TanStack Router's `beforeLoad`:
+Route-level access is enforced via a `RoleGuard` component (`client/src/features/auth/guards/RoleGuard.tsx`) used in TanStack Router's `beforeLoad`:
 
 ```typescript
-// features/auth/guards/RoleGuard.tsx
+// client/src/features/auth/guards/RoleGuard.tsx
 // Used in router.tsx beforeLoad for protected routes
 export function requireRole(allowedRoles: UserRole[]) {
   return ({ context }: { context: RouterContext }) => {
@@ -1676,7 +1676,7 @@ export function requireRole(allowedRoles: UserRole[]) {
   }
 }
 
-// app/router.tsx — usage example
+// client/src/app/router.tsx — usage example
 const matrixRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/matrix',
