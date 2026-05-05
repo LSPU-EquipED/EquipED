@@ -1,7 +1,9 @@
 # Tools
+.agents/
 .omg/
 .opencode/
 openspec
+skills-lock.json
 
 # Environment files
 .env

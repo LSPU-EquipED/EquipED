@@ -1,4 +1,59 @@
-# Scaffold only — compose services will be added later.
-services: {}
-volumes: {}
-networks: {}
+# Scaffold-only docker-compose for local infrastructure + app containers.
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: equiped
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d equiped"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:0.5.0
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/equiped
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
+    depends_on:
+      - db
+      - chroma
+    ports:
+      - "8000:8000"
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    depends_on:
+      - server
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data: {}
+  chroma_data: {}
