@@ -1796,10 +1796,10 @@ This map shows data flow between all major components, tracing the full path of 
 |---|---|---|---|---|
 | OTI-01 | Custom bilingual (EN + Filipino) stop word list for TF-IDF | Section 3.4 | Research team | Pending corpus collection |
 | OTI-02 | Exact institutional score aggregation formula from CID rubric documents | Section 6.1 | Research team | Pending CID document release |
-| OTI-03 | Criterion ID naming convention (`OP-01`, `A-01`, etc.) — must match rubric document structure exactly | Sections 5.3, 8.5 | Research team | Pending rubric finalization |
-| OTI-04 | Authentication strategy (session-based vs JWT) | Section 9, Section 10.4 | Development team | Pending decision |
+| OTI-03 | Criterion ID naming convention (`OP-01`, `A-01`, etc.) — must match rubric document structure exactly | Sections 5.3, 8.5 | Research team | **Decided: use `OP-01` / `A-01` style** |
+| OTI-04 | Authentication strategy (session-based vs JWT) | Section 9, Section 10.4 | Development team | **Decided: session-based (Phase 1)** |
 | OTI-05 | File size upload limit | Section 9.1 | Development team | Pending benchmarking |
-| OTI-06 | API data handling policy confirmation for Anthropic API calls (RA 10173 compliance) | Section 2.2 | LSPU SCC IT | Pending institutional review |
+| OTI-06 | API data handling policy confirmation for Anthropic API calls (RA 10173 compliance) | Section 2.2 | LSPU SCC IT | Pending institutional review (not confirmed yet) |
 | OTI-07 | Minimum preference log volume threshold before prompt update is actionable | Section 7.1 | Research team + advisor | Pending advisor input |
 | OTI-08 | Exact SemanticChunker breakpoint threshold value — 95th percentile is initial default, may need tuning per corpus | Section 3.3 | Development team | Pending corpus testing |
 | OTI-09 | PDF report generation for D-03 download — library selection (WeasyPrint vs ReportLab) | Section 6.3 | Development team | Pending decision |
