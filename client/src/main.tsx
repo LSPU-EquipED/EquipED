@@ -1,8 +1,10 @@
-// Phase 4 placeholder entrypoint; app wiring is deferred.
 import { createRoot } from 'react-dom/client';
+import { AppProviders } from './app/providers';
 
 const root = document.getElementById('root');
 
-if (root) {
-  createRoot(root).render(null);
+if (!root) {
+  throw new Error('Missing #root element. The app cannot boot without a mount point.');
 }
+
+createRoot(root).render(<AppProviders />);
