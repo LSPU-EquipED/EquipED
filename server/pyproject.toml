@@ -1,0 +1,28 @@
+[project]
+name = "equiped-server"
+version = "0.1.0"
+description = "EquipEd backend scaffold (FastAPI modular monolith)."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.111",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "alembic>=1.18.4",
+  "asyncpg>=0.31.0",
+  "psycopg2-binary>=2.9.12",
+]
+
+# Note: run with `uvicorn server.main:app --reload --host 0.0.0.0 --port 8000`
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
