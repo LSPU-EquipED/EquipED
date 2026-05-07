@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from contextlib import asynccontextmanager
 from importlib import import_module
-from typing import Iterable
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
-from server.core.config import get_settings
-from server.core.exceptions import CoreError
 from server.core.chroma import get_chroma_client
-from server.core.database import get_engine
+from server.core.config import get_settings
+from server.core.database import get_engine, get_session_factory
+from server.core.exceptions import CoreError, InfrastructureUnavailableError
 from server.core.llm import get_llm_client
+from server.db.metadata import import_model_modules
+from server.modules.auth.service import bootstrap_admin_if_configured
 
 MODULE_ROUTER_PATHS = (
     "server.modules.documents.router",
+    "server.modules.auth.router",
     "server.modules.evaluations.router",
     "server.modules.synthesis.router",
     "server.modules.feedback.router",
@@ -48,9 +53,37 @@ def _probe_runtime_dependency(name: str, loader: callable) -> tuple[bool, str]:
     return True, "ok"
 
 
+def _bootstrap_admin_if_needed() -> None:
+    settings = get_settings()
+    if not settings.database_configured:
+        return
+
+    session_factory = get_session_factory()
+    session: Session = session_factory()
+    try:
+        bootstrap_admin_if_configured(session, settings)
+    except Exception as exc:  # pragma: no cover - startup guard
+        raise InfrastructureUnavailableError(
+            "Initial admin bootstrap could not be completed"
+        ) from exc
+    finally:
+        session.close()
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, version=settings.app_version)
+    import_model_modules()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        _bootstrap_admin_if_needed()
+        yield
+
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        lifespan=lifespan,
+    )
     app.state.settings = settings
 
     if settings.cors_origins:
@@ -118,7 +151,10 @@ def create_app() -> FastAPI:
             "status": "ready" if ready else "not_ready",
             "checks": checks,
             "notes": {
-                "embedding": "Embedding model loading is intentionally deferred to avoid heavy startup work."
+                "embedding": (
+                    "Embedding model loading is intentionally deferred to "
+                    "avoid heavy startup work."
+                )
             },
         }
         if not ready:

@@ -10,13 +10,16 @@ dependencies = [
   "alembic>=1.18.4",
   "asyncpg>=0.31.0",
   "psycopg2-binary>=2.9.12",
+  "python-dotenv>=1.0.1",
 ]
 
 # Note: run with `uvicorn server.main:app --reload --host 0.0.0.0 --port 8000`
 
-[tool.uv]
-dev-dependencies = [
-    "ruff>=0.6",
+[dependency-groups]
+dev = [
+  "httpx>=0.28.1",
+  "pytest>=8.4.2",
+  "ruff>=0.6",
 ]
 
 [tool.ruff]

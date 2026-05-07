@@ -2,7 +2,7 @@
 .agents/
 .omg/
 .opencode/
-openspec
+openspec/changes
 skills-lock.json
 
 # Environment files
@@ -16,6 +16,7 @@ __pycache__/
 *.pyo
 *.pyd
 .python-version
+!server/.python-version
 .venv/
 venv/
 env/
