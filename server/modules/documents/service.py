@@ -10,6 +10,9 @@ from typing import Any
 
 from fastapi import UploadFile
 
+from server.core.config import get_settings
+from server.core.database import get_session_factory
+
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
@@ -24,6 +27,7 @@ from .schemas import (
     DocumentUploadResponse,
 )
 from .tfidf import compute_tfidf_corpus
+from server.modules.embeddings.service import embed_and_store_chunks
 
 UPLOAD_ROOT = Path("uploads")
 
@@ -242,6 +246,35 @@ def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[A
     return list(_MEM_CHUNKS.get(document_id, []))
 
 
+def embed_document_chunks(document_id: uuid.UUID) -> int:
+    """Embed a document's chunks and mark them as stored in Chroma."""
+
+    settings = get_settings()
+    db = None
+    session = None
+
+    if settings.database_configured:
+        session = get_session_factory()()
+        db = session
+
+    try:
+        chunks = get_document_chunks(document_id, db=db)
+        upserted = embed_and_store_chunks(chunks)
+        if db is not None and upserted:
+            _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
+        return upserted
+    finally:
+        if session is not None:
+            session.close()
+
+
+def _mark_chunks_chroma_stored(db: Any, chunk_ids: list[uuid.UUID]) -> None:
+    rows = db.query(DocumentChunk).filter(DocumentChunk.chunk_id.in_(chunk_ids)).all()
+    for row in rows:
+        row.chroma_stored = True
+    db.commit()
+
+
 def _refresh_tfidf_if_needed(source_type: str) -> None:
     if source_type != "slm":
         return
@@ -255,4 +288,10 @@ def _refresh_tfidf_if_needed(source_type: str) -> None:
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
 
 
-__all__ = ["create_document", "get_document", "get_document_chunks", "list_documents"]
+__all__ = [
+    "create_document",
+    "embed_document_chunks",
+    "get_document",
+    "get_document_chunks",
+    "list_documents",
+]

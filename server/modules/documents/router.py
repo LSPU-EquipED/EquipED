@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -16,6 +17,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+
 from server.core.database import get_db_session
 from server.core.exceptions import CoreError
 
@@ -26,7 +28,7 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .schemas import DocumentListResponse, DocumentResponse, DocumentUploadResponse
-from .service import create_document, get_document, list_documents
+from .service import create_document, embed_document_chunks, get_document, list_documents
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -46,6 +48,7 @@ def get_optional_db_session() -> Iterator[Any | None]:
     status_code=status.HTTP_201_CREATED,
 )
 def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     source_type: str = Form(...),
     title: str = Form(...),
@@ -55,7 +58,7 @@ def upload_document(
     db: Any | None = Depends(get_optional_db_session),
 ) -> DocumentUploadResponse:
     try:
-        return create_document(
+        response = create_document(
             file=file,
             source_type=source_type,
             title=title,
@@ -64,6 +67,9 @@ def upload_document(
             program=program,
             db=db,
         )
+        if response.processing_status == "PROCESSED":
+            background_tasks.add_task(embed_document_chunks, response.document_id)
+        return response
     except (UnsupportedFileTypeError, PasswordProtectedPDFError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
