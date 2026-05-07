@@ -1,32 +1,78 @@
+import { useState } from 'react';
+import { Button } from '@/shared/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { Input } from '@/shared/components/ui/input';
+import { Label } from '@/shared/components/ui/label';
+import { cn } from '@/shared/components/utils';
+
 export function UploadForm() {
+  const [sourceType, setSourceType] = useState<'slm' | 'syllabus' | 'curriculum'>('slm');
+  const [file, setFile] = useState<File | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // TODO: Handle form submission
+    console.log({ file, sourceType });
+  };
+
   return (
-    <section style={{ maxWidth: '44rem', display: 'grid', gap: '1rem' }}>
-      <div>
-        <div style={{ fontSize: '0.75rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#8ba4d6' }}>
-          Upload
-        </div>
-        <h1 style={{ margin: '0.35rem 0 0', fontSize: '1.55rem' }}>Document submission scaffold</h1>
+    <div className="max-w-2xl space-y-6">
+      <div className="space-y-2">
+        <span className="text-xs uppercase tracking-wider text-primary/70">Upload</span>
+        <h1 className="text-2xl font-semibold">Document submission</h1>
       </div>
 
-      <div style={{ borderRadius: '1rem', border: '1px solid rgba(148, 163, 184, 0.14)', background: 'rgba(15, 23, 42, 0.72)', padding: '1rem', display: 'grid', gap: '0.9rem' }}>
-        <label style={{ display: 'grid', gap: '0.4rem' }}>
-          <span style={{ color: '#bfd0f7' }}>PDF file</span>
-          <input type="file" accept="application/pdf" style={{ color: '#d8e4fb' }} />
-        </label>
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Documents</CardTitle>
+          <CardDescription>Upload PDF files for evaluation</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="pdf-file">PDF file</Label>
+              <Input
+                id="pdf-file"
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="cursor-pointer"
+              />
+              {file && <p className="text-sm text-muted-foreground">{file.name}</p>}
+            </div>
 
-        <label style={{ display: 'grid', gap: '0.4rem' }}>
-          <span style={{ color: '#bfd0f7' }}>Source type</span>
-          <select defaultValue="slm" style={{ borderRadius: '0.75rem', border: '1px solid rgba(148, 163, 184, 0.2)', background: 'rgba(8, 15, 30, 0.95)', color: '#e5eefc', padding: '0.75rem 0.9rem' }}>
-            <option value="slm">SLM</option>
-            <option value="syllabus">Syllabus</option>
-            <option value="curriculum">Curriculum</option>
-          </select>
-        </label>
+            <div className="space-y-2">
+              <Label htmlFor="source-type">Source type</Label>
+              <select
+                id="source-type"
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value as 'slm' | 'syllabus' | 'curriculum')}
+                className={cn(
+                  'flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none',
+                  'focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+                  'disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50',
+                  'aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20',
+                  'dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40'
+                )}
+              >
+                <option value="slm">SLM</option>
+                <option value="syllabus">Syllabus</option>
+                <option value="curriculum">Curriculum</option>
+              </select>
+            </div>
 
-        <button type="button" style={{ width: 'fit-content', borderRadius: '999px', border: 'none', background: '#60a5fa', color: '#081120', padding: '0.75rem 1.1rem', fontWeight: 700 }}>
-          Save scaffold
-        </button>
-      </div>
-    </section>
+            <Button type="submit" className="w-fit">
+              Upload Document
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
