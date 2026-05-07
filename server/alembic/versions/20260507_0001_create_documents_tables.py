@@ -8,8 +8,8 @@ Create Date: 2026-05-07 00:00:00.000000
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
 
+from alembic import op
 
 revision = "20260507_0003"
 down_revision = "20260507_0002"
@@ -58,7 +58,12 @@ def upgrade() -> None:
         sa.Column("page_number", sa.Integer(), nullable=True),
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("token_count", sa.Integer(), nullable=True),
-        sa.Column("is_ocr", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "is_ocr",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
         sa.Column(
             "chroma_stored",
             sa.Boolean(),

@@ -18,10 +18,10 @@ from .exceptions import (
 from .ingestion import ingest_document
 from .models import Document, DocumentChunk
 from .schemas import (
+    SOURCE_TYPES,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
-    SOURCE_TYPES,
 )
 from .tfidf import compute_tfidf_corpus
 
@@ -149,7 +149,12 @@ def list_documents(
             )
             for row in rows
         ]
-        return DocumentListResponse(items=items, total=total, page=page, page_size=page_size)
+        return DocumentListResponse(
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
 
     mem_items = list(_MEM_DOCUMENTS.values())
     if source_type:
@@ -159,7 +164,12 @@ def list_documents(
     total = len(mem_items)
     start = (page - 1) * page_size
     end = start + page_size
-    return DocumentListResponse(items=mem_items[start:end], total=total, page=page, page_size=page_size)
+    return DocumentListResponse(
+        items=mem_items[start:end],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 def _validate_upload(file: UploadFile, source_type: str, program: str | None) -> None:
@@ -172,7 +182,11 @@ def _validate_upload(file: UploadFile, source_type: str, program: str | None) ->
         raise UnsupportedFileTypeError("program is required when source_type is 'slm'")
 
 
-def _persist_document(db: Any | None, response: DocumentResponse, file_path: str) -> None:
+def _persist_document(
+    db: Any | None,
+    response: DocumentResponse,
+    file_path: str,
+) -> None:
     _MEM_DOCUMENTS[response.document_id] = response
     if db is None:
         return
