@@ -5,12 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from server.core.database import Base
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-
-class Base(DeclarativeBase):
-    """Module-local declarative base for document tables."""
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class Document(Base):
@@ -20,6 +17,8 @@ class Document(Base):
 
     document_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
+    course_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    lesson_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     program: Mapped[str | None] = mapped_column(String(300), nullable=True)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)

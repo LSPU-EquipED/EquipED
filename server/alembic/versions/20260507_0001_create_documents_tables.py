@@ -1,7 +1,7 @@
 """create documents and document_chunks tables
 
-Revision ID: 20260507_0001
-Revises:
+Revision ID: 20260507_0003
+Revises: 20260507_0002
 Create Date: 2026-05-07 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "20260507_0001"
-down_revision = None
+revision = "20260507_0003"
+down_revision = "20260507_0002"
 branch_labels = None
 depends_on = None
 
@@ -22,6 +22,8 @@ def upgrade() -> None:
         "documents",
         sa.Column("document_id", sa.Uuid(), primary_key=True, nullable=False),
         sa.Column("title", sa.String(length=500), nullable=False),
+        sa.Column("course_title", sa.String(length=500), nullable=True),
+        sa.Column("lesson_title", sa.String(length=500), nullable=True),
         sa.Column("program", sa.String(length=300), nullable=True),
         sa.Column("source_type", sa.String(length=50), nullable=False),
         sa.Column("file_path", sa.Text(), nullable=False),

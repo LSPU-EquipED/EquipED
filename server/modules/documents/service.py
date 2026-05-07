@@ -36,6 +36,8 @@ def create_document(
     file: UploadFile,
     source_type: str,
     title: str,
+    course_title: str | None,
+    lesson_title: str | None,
     program: str | None,
     db: Any | None = None,
 ) -> DocumentUploadResponse:
@@ -64,6 +66,8 @@ def create_document(
     response = DocumentResponse(
         document_id=doc_id,
         title=title,
+        course_title=course_title,
+        lesson_title=lesson_title,
         source_type=source_type,
         program=program,
         page_count=page_count,
@@ -79,6 +83,8 @@ def create_document(
     return DocumentUploadResponse(
         document_id=doc_id,
         title=title,
+        course_title=course_title,
+        lesson_title=lesson_title,
         source_type=source_type,
         processing_status=status,
     )
@@ -91,6 +97,8 @@ def get_document(document_id: uuid.UUID, db: Any | None = None) -> DocumentRespo
             return DocumentResponse(
                 document_id=row.document_id,
                 title=row.title,
+                course_title=row.course_title,
+                lesson_title=row.lesson_title,
                 source_type=row.source_type,
                 program=row.program,
                 page_count=row.page_count,
@@ -130,6 +138,8 @@ def list_documents(
             DocumentResponse(
                 document_id=row.document_id,
                 title=row.title,
+                course_title=row.course_title,
+                lesson_title=row.lesson_title,
                 source_type=row.source_type,
                 program=row.program,
                 page_count=row.page_count,
@@ -170,6 +180,8 @@ def _persist_document(db: Any | None, response: DocumentResponse, file_path: str
     db_row = Document(
         document_id=response.document_id,
         title=response.title,
+        course_title=response.course_title,
+        lesson_title=response.lesson_title,
         program=response.program,
         source_type=response.source_type,
         file_path=file_path,
@@ -204,6 +216,18 @@ def _persist_chunks(db: Any | None, document_id: uuid.UUID, chunks: list[Any]) -
     db.commit()
 
 
+def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[Any]:
+    if db is not None:
+        return (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.page_number.asc(), DocumentChunk.created_at.asc())
+            .all()
+        )
+
+    return list(_MEM_CHUNKS.get(document_id, []))
+
+
 def _refresh_tfidf_if_needed(source_type: str) -> None:
     if source_type != "slm":
         return
@@ -217,4 +241,4 @@ def _refresh_tfidf_if_needed(source_type: str) -> None:
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
 
 
-__all__ = ["create_document", "get_document", "list_documents"]
+__all__ = ["create_document", "get_document", "get_document_chunks", "list_documents"]

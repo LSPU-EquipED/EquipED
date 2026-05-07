@@ -36,6 +36,8 @@ class DocumentChunkData(BaseModel):
 class DocumentUploadResponse(BaseModel):
     document_id: UUID
     title: str
+    course_title: str | None = None
+    lesson_title: str | None = None
     source_type: str
     processing_status: str
 
@@ -43,6 +45,8 @@ class DocumentUploadResponse(BaseModel):
 class DocumentResponse(BaseModel):
     document_id: UUID
     title: str
+    course_title: str | None = None
+    lesson_title: str | None = None
     source_type: str
     program: str | None = None
     page_count: int | None = None

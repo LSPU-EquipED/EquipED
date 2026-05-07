@@ -8,6 +8,7 @@ from server.core.database import Base
 def import_model_modules() -> None:
     """Import model modules so SQLAlchemy metadata is fully registered."""
 
+    from server.modules.documents import models as _document_models  # noqa: F401
     from server.modules.auth import models as _auth_models  # noqa: F401
 
 
