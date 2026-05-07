@@ -1,70 +1,145 @@
 import { Link } from '@tanstack/react-router';
+import {
+  Archive,
+  BookOpen,
+  ChevronDown,
+  ChevronsUpDown,
+  FilePlus2,
+  FolderOpen,
+  GraduationCap,
+  LayoutDashboard,
+  Library,
+  Settings,
+  ShieldCheck,
+} from 'lucide-react';
+import { cn } from '@/shared/components/utils';
 
-const navLinkBase = {
-  display: 'block',
-  borderRadius: '0.85rem',
-  padding: '0.8rem 0.95rem',
-  textDecoration: 'none',
-  transition: 'background-color 160ms ease, color 160ms ease, transform 160ms ease',
-};
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
 
-const navActiveStyle = {
-  ...navLinkBase,
-  background: 'rgba(96, 165, 250, 0.18)',
-  color: '#f8fbff',
-};
+const navItems = [
+  { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
+  { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
+  { to: '/evaluations', label: 'Reviews', icon: Archive, exact: false },
+  { to: '/matrix', label: 'Matrix', icon: LayoutDashboard, exact: true },
+  { to: '/admin/prompts', label: 'Admin', icon: ShieldCheck, exact: false },
+] as const;
 
-const navInactiveStyle = {
-  ...navLinkBase,
-  color: '#bfd0f7',
-};
+const resourceItems = [
+  { label: 'Rubrics', icon: BookOpen },
+  { label: 'Guidelines', icon: GraduationCap },
+  { label: 'Settings', icon: Settings },
+] as const;
 
-export function Sidebar() {
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+  const asideWidth = collapsed ? 'w-[5.75rem]' : 'w-72 max-md:w-[5.75rem]';
+
   return (
     <aside
-      style={{
-        borderRight: '1px solid rgba(148, 163, 184, 0.16)',
-        background: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
-        padding: '1.25rem',
-      }}
+      className={cn(
+        'fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+        asideWidth
+      )}
     >
-      <div style={{ marginBottom: '1.25rem' }}>
-        <div style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '0.04em' }}>EquipEd</div>
-        <div style={{ marginTop: '0.35rem', color: '#8ba4d6', fontSize: '0.88rem' }}>
-          client shell scaffold
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex h-20 items-center gap-3 px-4 text-left transition-colors hover:bg-sidebar-accent"
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background shadow-sm">
+          <Library className="size-5" aria-hidden="true" />
         </div>
-      </div>
 
-      <nav aria-label="Primary" style={{ display: 'grid', gap: '0.4rem' }}>
-        <Link to="/dashboard" activeOptions={{ exact: true }} activeProps={{ style: navActiveStyle }} inactiveProps={{ style: navInactiveStyle }}>
-          Dashboard
-        </Link>
-        <Link to="/upload" activeOptions={{ exact: true }} activeProps={{ style: navActiveStyle }} inactiveProps={{ style: navInactiveStyle }}>
-          Upload
-        </Link>
-        <Link to="/evaluations" activeOptions={{ exact: false }} activeProps={{ style: navActiveStyle }} inactiveProps={{ style: navInactiveStyle }}>
-          Evaluations
-        </Link>
-        <Link to="/matrix" activeOptions={{ exact: true }} activeProps={{ style: navActiveStyle }} inactiveProps={{ style: navInactiveStyle }}>
-          Matrix
-        </Link>
-        <Link to="/admin/prompts" activeOptions={{ exact: false }} activeProps={{ style: navActiveStyle }} inactiveProps={{ style: navInactiveStyle }}>
-          Admin
-        </Link>
+        {!collapsed && (
+          <>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">EquipEd</div>
+              <div className="truncate text-sm text-muted-foreground">LSPU SCC</div>
+            </div>
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </>
+        )}
+      </button>
+
+      <nav aria-label="Primary" className="mt-3 grid gap-1 px-3">
+        {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Workspace</div>}
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const baseClass = cn(
+            'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+          );
+
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              activeOptions={{ exact: item.exact }}
+              className={baseClass}
+              activeProps={{
+                className: cn(baseClass, 'bg-sidebar-accent text-foreground'),
+              }}
+              title={collapsed ? item.label : undefined}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
+            </Link>
+          );
+        })}
       </nav>
 
-      <div
-        style={{
-          marginTop: '1.5rem',
-          borderRadius: '1rem',
-          border: '1px solid rgba(148, 163, 184, 0.14)',
-          background: 'rgba(15, 23, 42, 0.72)',
-          padding: '1rem',
-          color: '#c9d8f6',
-          fontSize: '0.9rem',
-        }}
-      >
-        Role gating is provisional; admin and matrix routes will redirect until auth is wired.
+      <div className="mt-7 grid gap-1 px-3">
+        {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Resources</div>}
+        {resourceItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              className={cn(
+                'flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+              )}
+              title={collapsed ? item.label : undefined}
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              {!collapsed && (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                  <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-auto border-t p-3">
+        <button
+          type="button"
+          className={cn(
+            'flex w-full items-center rounded-lg text-left transition-colors hover:bg-sidebar-accent',
+            collapsed ? 'justify-center p-2' : 'gap-3 p-2'
+          )}
+          title={collapsed ? 'Marc Alberto' : undefined}
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground">
+            MA
+          </span>
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">Marc Alberto</span>
+                <span className="block truncate text-xs text-muted-foreground">m@example.com</span>
+              </span>
+              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </>
+          )}
+        </button>
       </div>
     </aside>
   );
