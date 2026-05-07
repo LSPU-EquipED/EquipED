@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from functools import lru_cache
-from typing import Any, Iterator
+from typing import Any
+
+from sqlalchemy.orm import DeclarativeBase
 
 from .config import get_settings
 from .exceptions import (
@@ -11,6 +14,10 @@ from .exceptions import (
     DependencyUnavailableError,
     InfrastructureUnavailableError,
 )
+
+
+class Base(DeclarativeBase):
+    """Shared declarative base for server-side SQLAlchemy models."""
 
 
 @lru_cache(maxsize=1)
@@ -66,4 +73,4 @@ def get_db_session() -> Iterator[Any]:
         session.close()
 
 
-__all__ = ["get_engine", "get_session_factory", "get_db_session"]
+__all__ = ["Base", "get_engine", "get_session_factory", "get_db_session"]

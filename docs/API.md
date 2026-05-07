@@ -50,7 +50,55 @@ Exact payload shape will be defined when the first feature endpoints are impleme
 }
 ```
 
+## Authentication
+
+Authentication is session-based for Phase 1 and uses an HTTP-only session cookie.
+
+### `POST /api/v1/auth/login`
+
+Authenticates a local user with email and password.
+
+**Request shape:**
+
+```json
+{
+  "email": "admin@example.com",
+  "password": "example-password"
+}
+```
+
+**Response shape:**
+
+```json
+{
+  "authenticated": true,
+  "user": {
+    "id": "uuid",
+    "displayName": "Platform Admin",
+    "email": "admin@example.com",
+    "role": "admin"
+  }
+}
+```
+
+### `POST /api/v1/auth/logout`
+
+Revokes the active server-side session for the current cookie, if present.
+
+### `GET /api/v1/auth/me`
+
+Returns the current authenticated user when a valid session cookie is present.
+
+**Anonymous response shape:**
+
+```json
+{
+  "authenticated": false,
+  "user": null
+}
+```
+
 ## Notes
 
-- Authentication is session-based for Phase 1, but auth endpoints are not yet wired.
-- Feature endpoints (documents, evaluations, admin, feedback) will be added later.
+- Public self-service registration is intentionally out of scope.
+- Feature endpoints (documents, evaluations, admin, feedback) will expand later.
