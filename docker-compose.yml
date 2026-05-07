@@ -1,7 +1,10 @@
-# Scaffold-only docker-compose for local infrastructure + app containers.
+# Scaffold-only docker-compose for local infrastructure.
+# Current official dev topology is local frontend + local backend + shared Neon + local Chroma.
+# The app containers below are placeholders and are not the canonical runtime path yet.
 
 services:
   db:
+    # Optional local PostgreSQL fallback for validation and future pre-production checks.
     image: postgres:15
     environment:
       POSTGRES_DB: equiped
@@ -18,6 +21,7 @@ services:
       retries: 5
 
   chroma:
+    # Canonical local vector store for development.
     image: ghcr.io/chroma-core/chroma:0.5.0
     ports:
       - "8001:8000"
@@ -31,6 +35,7 @@ services:
       retries: 5
 
   server:
+    # Placeholder container only; local backend runtime remains the default workflow.
     build:
       context: .
       dockerfile: server/Dockerfile
@@ -46,6 +51,7 @@ services:
       - "8000:8000"
 
   client:
+    # Placeholder container only; local frontend runtime remains the default workflow.
     build:
       context: .
       dockerfile: client/Dockerfile

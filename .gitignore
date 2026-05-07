@@ -4,6 +4,7 @@
 .opencode/
 openspec/changes
 skills-lock.json
+.slim/
 
 # Environment files
 .env
