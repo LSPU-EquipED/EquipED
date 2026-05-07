@@ -40,6 +40,8 @@ def upload_document(
     file: UploadFile = File(...),
     source_type: str = Form(...),
     title: str = Form(...),
+    course_title: str | None = Form(default=None),
+    lesson_title: str | None = Form(default=None),
     program: str | None = Form(default=None),
     db: Any | None = Depends(get_optional_db_session),
 ) -> DocumentUploadResponse:
@@ -48,6 +50,8 @@ def upload_document(
             file=file,
             source_type=source_type,
             title=title,
+            course_title=course_title,
+            lesson_title=lesson_title,
             program=program,
             db=db,
         )
