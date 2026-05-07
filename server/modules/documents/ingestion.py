@@ -36,7 +36,11 @@ def resolve_agent_domain(source_type: str) -> str:
     return domain_map.get(source_type, "all")
 
 
-def ingest_document(file_path: str, source_type: str, document_id: str) -> list[DocumentChunkData]:
+def ingest_document(
+    file_path: str,
+    source_type: str,
+    document_id: str,
+) -> list[DocumentChunkData]:
     """Extract text from a PDF and return Layer-1 chunks."""
 
     pages = _extract_pages(file_path)
@@ -157,7 +161,10 @@ def _overlap_tail(text: str, overlap_tokens: int) -> str:
 
 def _hard_split(text: str, max_tokens: int) -> list[str]:
     words = text.split()
-    return [" ".join(words[index : index + max_tokens]) for index in range(0, len(words), max_tokens)]
+    return [
+        " ".join(words[index : index + max_tokens])
+        for index in range(0, len(words), max_tokens)
+    ]
 
 
 def _token_count(text: str) -> int:
