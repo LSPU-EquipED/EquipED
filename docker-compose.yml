@@ -1,6 +1,6 @@
-# Scaffold-only docker-compose for local infrastructure.
+# Docker Compose for local infrastructure plus optional server/client container flows.
 # Current official dev topology is local frontend + local backend + shared Neon + local Chroma.
-# The app containers below are placeholders and are not the canonical runtime path yet.
+# The container services below are optional local runtime and smoke-test helpers.
 
 services:
   db:
@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -35,30 +35,75 @@ services:
       retries: 5
 
   server:
-    # Placeholder container only; local backend runtime remains the default workflow.
+    # Optional backend dev container for local FastAPI runtime.
     build:
       context: .
       dockerfile: server/Dockerfile
+      target: dev
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/equiped
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/equiped}
       CHROMA_HOST: chroma
       CHROMA_PORT: "8000"
       CHROMA_SSL: "false"
     depends_on:
-      - db
-      - chroma
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server-smoke:
+    # Optional smoke-test container: boots the backend and exposes /health.
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: smoke
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/equiped}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   client:
-    # Placeholder container only; local frontend runtime remains the default workflow.
+    # Optional client dev container for local Vite runtime.
     build:
       context: .
       dockerfile: client/Dockerfile
-    depends_on:
-      - server
+      target: dev
     ports:
       - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+
+  client-smoke:
+    # Optional smoke-test container: builds the client and serves the preview build.
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      target: smoke
+    ports:
+      - "4173:4173"
 
 volumes:
   postgres_data: {}
