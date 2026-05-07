@@ -16,7 +16,7 @@ interface ReferenceDocLinkerProps {
   onLink?: (refIds: string[]) => void;
 }
 
-export function ReferenceDocLinker({ evaluationId, onLink }: ReferenceDocLinkerProps) {
+export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
