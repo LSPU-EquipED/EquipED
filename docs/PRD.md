@@ -65,14 +65,27 @@ EquipEd addresses these problems by automating the initial evaluation layer — 
 
 ## 3. Users & Roles
 
+### 3.1 Human System Roles
+
 | Role | Description | System Access |
 |---|---|---|
 | **Faculty Member** | Submits SLMs for evaluation; reviews flagged sections and scores to guide revisions | Upload SLMs; view own evaluation results and feedback |
-| **Subject Matter Expert** | Reviews and validates system-generated content accuracy and coherence evaluations | View SME evaluation outputs; submit Accept / Reject / Edit feedback |
-| **Program Coordinator** | Reviews curriculum alignment and OBE compliance evaluations | View Program Coordinator outputs; submit feedback; access monitoring matrix |
-| **GAD Unit Evaluator** | Reviews gender sensitivity and inclusivity evaluations | View GAD outputs; submit feedback |
-| **ITSO Evaluator** | Reviews IP compliance and data privacy evaluations | View ITSO outputs; submit feedback |
-| **Admin / CID Staff** | Manages the system, reviews preference logs, updates agent configurations, monitors the full evaluation inventory | Full system access including evaluation history, preference logs, and prompt management |
+| **Admin / CID Staff** | Manages the system, reviews evaluator feedback, validates agent-generated outputs, updates agent configurations, monitors the full evaluation inventory | Full system access including evaluation history, preference logs, prompt management, and monitoring matrix |
+
+### 3.2 Evaluator Agent Domains
+
+The system includes four internal evaluator subagents that operate on institutional rubric domains. These are **not human login roles** but rather **automated agent domains** that generate evaluation perspectives:
+
+| Agent Domain | Institutional Stakeholder | Evaluation Focus |
+|---|---|---|
+| **SME** | Subject Matter Expert | Content accuracy, coherence, and instructional organization |
+| **Coordinator** | Program Coordinator | Curriculum alignment and OBE compliance |
+| **GAD** | Gender and Development Unit | Gender sensitivity and inclusivity |
+| **ITSO** | Innovation and Technology Support Office | IP compliance and data privacy |
+
+**Terminology Note:** "Evaluator" in this document refers to the automated agent domains (SME, Coordinator, GAD, ITSO) unless explicitly qualified as "human evaluator" or "admin user." Human system roles are limited to Faculty Member and Admin / CID Staff (Section 3.1).
+
+**Note:** Admin users review and validate all agent-generated outputs. Feedback submitted by admin users on agent outputs is logged for iterative prompt refinement. Faculty members may view evaluation results but do not submit formal feedback on agent outputs.
 
 ---
 
@@ -189,15 +202,15 @@ A persistent record of:
 | FR-16 | The dashboard shall provide a document upload interface for submitting SLMs and associating reference documents | D-05 | High |
 | FR-17 | The dashboard shall display the evaluation scorecard, per-agent scores, document highlights, and final report upon evaluation completion | D-05 | High |
 | FR-18 | The dashboard shall indicate evaluation pipeline progress to the user while processing is underway | D-05 | Medium |
-| FR-19 | The dashboard shall provide Accept, Reject, and Edit controls on each generated evaluation output, accessible to users with evaluator roles | D-05 | High |
-| FR-20 | The dashboard shall display the Instructional Materials Monitoring Matrix to users with Program Coordinator and Admin roles | D-04, D-05 | Medium |
+| FR-19 | The dashboard shall provide Accept, Reject, and Edit controls on each generated evaluation output, accessible exclusively to admin users for validating and refining agent outputs | D-05 | High |
+| FR-20 | The dashboard shall display the Instructional Materials Monitoring Matrix exclusively to admin users | D-04, D-05 | Medium |
 | FR-21 | The dashboard shall maintain a searchable evaluation history accessible to authorized users | D-04, D-05 | Medium |
 
 ### 6.5 Preference Logging & Prompt Optimization
 
 | ID | Requirement | Deliverable | Priority |
 |---|---|---|---|
-| FR-22 | The system shall log all evaluator Accept / Reject / Edit interactions as preference records, capturing the user role, timestamp, agent domain, and original output | D-06 | High |
+| FR-22 | The system shall log all admin Accept / Reject / Edit interactions as preference records, capturing the admin user role, timestamp, agent domain, and original output | D-06 | High |
 | FR-23 | The system shall version all agent evaluation prompts, associating each evaluation result with the prompt version that produced it | D-06 | Medium |
 | FR-24 | The system shall provide an admin interface for reviewing accumulated preference logs and applying prompt updates based on identified patterns | D-05, D-06 | Medium |
 | FR-25 | The system shall record a traceable history of prompt updates, linking each change to the preference data that motivated it | D-06 | Medium |
@@ -280,13 +293,13 @@ Individual criterion scores within each domain are summed per rubric. The instit
 | **Postcondition** | Evaluation report is stored in the system and the SLM entry appears in the Monitoring Matrix (D-04). |
 | **Exception** | If text extraction fails on one or more pages, the system flags those pages as unprocessable and proceeds with available content. |
 
-### UC-02: Evaluator Submits Feedback on Generated Output
+### UC-02: Admin Validates and Submits Feedback on Generated Outputs
 
 | | |
 |---|---|
-| **Actor** | SME / Program Coordinator / GAD / ITSO Evaluator |
+| **Actor** | Admin / CID Staff |
 | **Precondition** | A completed evaluation report exists for an SLM. |
-| **Flow** | 1. Evaluator reviews the scorecard and highlights in the dashboard. 2. For each output item, evaluator selects Accept, Reject, or submits an Edit with a correction. 3. System logs the interaction as a preference record in D-06, capturing the evaluator role, timestamp, and original output. |
+| **Flow** | 1. Admin reviews the scorecard and highlights in the dashboard. 2. For each output item, admin selects Accept, Reject, or submits an Edit with a correction. 3. System logs the interaction as a preference record in D-06, capturing the admin user role, timestamp, agent domain, and original output. |
 | **Postcondition** | Preference record stored. The SLM's feedback status in the Monitoring Matrix updates accordingly. |
 | **Exception** | If no feedback is submitted, the evaluation record remains unchanged and the prompt configuration is retained. |
 
@@ -300,14 +313,14 @@ Individual criterion scores within each domain are summed per rubric. The instit
 | **Postcondition** | New prompt version is active for subsequent evaluations. Change is traceable in the prompt version history. |
 | **Exception** | If the update produces worse outcomes in subsequent evaluations, the admin can revert to a prior prompt version using the version history. |
 
-### UC-04: Program Coordinator Reviews Monitoring Matrix
+### UC-04: Admin Reviews Monitoring Matrix
 
 | | |
 |---|---|
-| **Actor** | Program Coordinator |
+| **Actor** | Admin / CID Staff |
 | **Precondition** | One or more SLMs have been evaluated and recorded in the system. |
-| **Flow** | 1. Program Coordinator opens the Monitoring Matrix view on the dashboard. 2. Coordinator filters the matrix by program, evaluation status, or score range. 3. Coordinator identifies SLMs with low scores or incomplete feedback and follows up with relevant faculty. |
-| **Postcondition** | No state change in the system. Coordinator uses the matrix as a management tool for tracking SLM review progress. |
+| **Flow** | 1. Admin opens the Monitoring Matrix view on the dashboard. 2. Admin filters the matrix by program, evaluation status, or score range. 3. Admin identifies SLMs with low scores or incomplete feedback and follows up with relevant faculty or coordinates with program coordinators. |
+| **Postcondition** | No state change in the system. Admin uses the matrix as a management tool for tracking SLM review progress and institutional evaluation inventory. |
 
 ---
 
@@ -349,5 +362,4 @@ Individual criterion scores within each domain are summed per rubric. The instit
 
 ---
 
-*EquipEd PRD v0.3 — For Development Team Reference*  
 *LSPU SCC, College of Computer Studies*

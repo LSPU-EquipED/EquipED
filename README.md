@@ -108,15 +108,19 @@ See `docs/API.md` for the minimal Phase 1 API contract.
 
 ### Server (Python 3.12)
 
+From the **repo root**:
+
 ```bash
-cd server
-uv sync
-uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+uv sync --project server
+uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Notes:
 - `server/.python-version` pins the intended local Python version to `3.12.10`
 - `uv.lock` already exists, so `uv sync` is the preferred backend install path
+- **Do NOT use** `python main.py runserver` — this repo uses FastAPI with `uvicorn`, not Django
+- **Do NOT run from inside `server/`** — `server/main.py` uses absolute imports (`from server.core...`) that require the repo root to be in `PYTHONPATH`
+- **Do NOT run** `uv sync` from the repo root without `--project server` — there is no root `pyproject.toml`
 
 ### Client (Node 20 + pnpm 9.12.0)
 

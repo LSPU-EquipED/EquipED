@@ -135,6 +135,8 @@ Job state is persisted in PostgreSQL (`evaluation_jobs` table). The frontend pol
 
 **Client — Feature-Driven Architecture.** The frontend is organized by feature, not by file type. Each feature folder is self-contained — it holds its own components, hooks, API calls, and types. Only genuinely shared code (layout, design system primitives, global auth state) lives outside feature folders. This prevents the common failure mode of a `components/` folder that becomes a dumping ground for everything.
 
+**Authentication & Authorization.** The system supports two human login roles: `faculty` and `admin`. Faculty members can upload SLMs and view their own evaluation results. Admin users have full system access including preference log review, prompt management, and the monitoring matrix. Evaluator agent domains (`sme`, `coordinator`, `gad`, `itso`) are internal system subagents, not login roles.
+
 ---
 
 ```
@@ -971,7 +973,7 @@ def update_monitoring_matrix(
 
 ### 7.1 Preference Logging
 
-Every evaluator interaction with a generated output is logged as a preference record:
+Every admin interaction with a generated output is logged as a preference record:
 
 ```python
 def log_preference(
@@ -982,7 +984,7 @@ def log_preference(
     original_output: dict,  # The criterion score dict as shown to the user
     edited_output: dict | None,  # Non-null only for EDIT feedback type
     user_id: str,
-    user_role: str
+    user_role: str          # Human login role: "admin" (or "faculty" if explicitly enabled later)
 ) -> PreferenceRecord:
 
     record = PreferenceRecord(
@@ -1002,6 +1004,8 @@ def log_preference(
     db.save(record)
     return record
 ```
+
+**Note:** `user_role` captures the human login role of the person submitting feedback (currently `admin`). This is distinct from `agent_id`, which identifies the evaluator agent domain (`sme`, `coordinator`, `gad`, `itso`) that produced the output being reviewed.
 
 ### 7.2 Prompt Version Management
 
@@ -1220,6 +1224,7 @@ CREATE TABLE preference_logs (
     preference_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evaluation_id       UUID NOT NULL REFERENCES evaluation_jobs(evaluation_id),
     agent_id            VARCHAR(50) NOT NULL,
+        -- Evaluator agent domain: "sme" | "coordinator" | "gad" | "itso"
     criterion_id        VARCHAR(20) NOT NULL,
     prompt_version_id   UUID REFERENCES prompt_versions(version_id),
     feedback_type       VARCHAR(10) NOT NULL CHECK (feedback_type IN ('ACCEPT','REJECT','EDIT')),
@@ -1227,6 +1232,7 @@ CREATE TABLE preference_logs (
     edited_output       JSONB,          -- non-null only for EDIT
     user_id             UUID REFERENCES users(user_id),
     user_role           VARCHAR(50),
+        -- Human login role: "admin" (or "faculty" if explicitly enabled later)
     created_at          TIMESTAMPTZ DEFAULT now()
 );
 
@@ -1262,7 +1268,8 @@ CREATE TABLE users (
     name        VARCHAR(300) NOT NULL,
     email       VARCHAR(300) UNIQUE NOT NULL,
     role        VARCHAR(50) NOT NULL,
-        -- "faculty" | "sme" | "coordinator" | "gad" | "itso" | "admin"
+        -- "faculty" | "admin"
+        -- (evaluator agent domains sme/coordinator/gad/itso are not login roles)
     is_active   BOOLEAN DEFAULT TRUE,
     created_at  TIMESTAMPTZ DEFAULT now()
 );
@@ -1585,7 +1592,7 @@ Routes are defined in `client/src/app/router.tsx` and import page-level componen
 /evaluations              → client/src/features/history — EvaluationHistoryTable
 /evaluations/:id          → client/src/features/evaluation — Scorecard + FlagList + FeedbackPanel
 /evaluations/:id/report   → client/src/features/evaluation — ReportView (full report, printable)
-/matrix                   → client/src/features/matrix — MonitoringTable [coordinator + admin only]
+/matrix                   → client/src/features/matrix — MonitoringTable [admin only]
 /admin                    → client/src/features/admin — AdminLayout [admin only]
   /admin/prompts          → client/src/features/admin — AgentPromptEditor (list view)
   /admin/prompts/:agentId → client/src/features/admin — AgentPromptEditor (detail + version history)
@@ -1662,7 +1669,7 @@ export function useMonitoringMatrix(filters: MatrixFilters) {
 
 ### 10.4 Role-Based Access Control
 
-Route-level access is enforced via a `RoleGuard` component (`client/src/features/auth/guards/RoleGuard.tsx`) used in TanStack Router's `beforeLoad`:
+Route-level access is enforced via a `RoleGuard` component (`client/src/features/auth/guards/RoleGuard.tsx`) used in TanStack Router's `beforeLoad`. The system recognizes two human login roles: `faculty` and `admin`. Faculty members have scoped access to their own submissions; admin users have full system access.
 
 ```typescript
 // client/src/features/auth/guards/RoleGuard.tsx
@@ -1680,17 +1687,19 @@ export function requireRole(allowedRoles: UserRole[]) {
 const matrixRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/matrix',
-  beforeLoad: requireRole(['coordinator', 'admin']),
+  beforeLoad: requireRole(['admin']),
   component: lazy(() => import('../features/matrix/components/MonitoringTable')),
 })
 ```
 
-| Route | faculty | sme | coordinator | gad | itso | admin |
-|---|---|---|---|---|---|---|
-| `/upload` | ✓ | — | ✓ | — | — | ✓ |
-| `/evaluations/:id` | Own only | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `/matrix` | — | — | ✓ | — | — | ✓ |
-| `/admin/*` | — | — | — | — | — | ✓ |
+| Route | faculty | admin |
+|---|---|---|
+| `/upload` | ✓ | ✓ |
+| `/evaluations/:id` | Own only | ✓ |
+| `/matrix` | — | ✓ |
+| `/admin/*` | — | ✓ |
+
+**Note:** Evaluator agent domains (`sme`, `coordinator`, `gad`, `itso`) are internal system subagents and do not correspond to login roles. All feedback on agent outputs is submitted by admin users.
 
 ---
 
@@ -1806,5 +1815,4 @@ This map shows data flow between all major components, tracing the full path of 
 
 ---
 
-*EquipEd TDD v0.1 — For Development Team and AI Agent Reference*  
 *LSPU SCC, College of Computer Studies*
