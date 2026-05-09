@@ -21,12 +21,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 
 class UserRole(StrEnum):
-    FACULTY = "faculty"
-    SME = "sme"
-    COORDINATOR = "coordinator"
-    GAD = "gad"
-    ITSO = "itso"
     ADMIN = "admin"
+    FACULTY = "faculty"
 
 
 class User(Base):
