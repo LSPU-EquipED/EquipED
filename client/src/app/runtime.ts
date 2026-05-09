@@ -21,6 +21,11 @@ export const appRouterContext: AppRouterContext = {
     status: 'anonymous',
     source: 'provisional',
     ready: false,
+    error: null,
     user: null,
+    login: async () => undefined,
+    logout: async () => undefined,
+    refresh: async () => undefined,
+    clearError: () => undefined,
   },
 };

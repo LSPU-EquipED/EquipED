@@ -4,10 +4,18 @@ import { Bell, ChevronDown, GraduationCap, Search } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/components/utils';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
 export function AppShell() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { user } = useAuth();
+  const initials = user?.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 2) || 'EA';
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -33,7 +41,7 @@ export function AppShell() {
           <div className="hidden w-full max-w-sm items-center md:flex">
             <div className="relative w-full">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="h-9 rounded-lg bg-muted/40 pl-9" placeholder="Search documents or reports" />
+              <Input className="h-9 rounded-lg bg-muted/40 pl-9" placeholder="Search documents" />
             </div>
           </div>
 
@@ -43,9 +51,9 @@ export function AppShell() {
             </Button>
             <Button variant="outline" className="h-9 gap-2 px-2.5">
               <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                MA
+                {initials}
               </span>
-              <span className="hidden text-sm sm:inline">Marc Alberto</span>
+              <span className="hidden text-sm sm:inline">{user?.displayName ?? 'EquipEd User'}</span>
               <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
             </Button>
           </div>
