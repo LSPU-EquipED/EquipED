@@ -20,6 +20,8 @@ from fastapi import (
 
 from server.core.database import get_db_session
 from server.core.exceptions import CoreError
+from server.modules.auth.dependencies import require_authenticated_user
+from server.modules.auth.service import AuthenticatedUser
 
 from .exceptions import (
     DocumentNotFoundError,
@@ -36,10 +38,17 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 def get_optional_db_session() -> Iterator[Any | None]:
     """Provide DB session when configured; fallback to in-memory mode."""
 
+    session_generator = get_db_session()
     try:
-        yield from get_db_session()
+        session = next(session_generator)
     except CoreError:
+        session_generator.close()
         yield None
+        return
+    try:
+        yield session
+    finally:
+        session_generator.close()
 
 
 @router.post(
@@ -55,6 +64,7 @@ def upload_document(
     course_title: str | None = Form(default=None),
     lesson_title: str | None = Form(default=None),
     program: str | None = Form(default=None),
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any | None = Depends(get_optional_db_session),
 ) -> DocumentUploadResponse:
     try:
@@ -65,6 +75,7 @@ def upload_document(
             course_title=course_title,
             lesson_title=lesson_title,
             program=program,
+            uploaded_by=_current_user.id,
             db=db,
         )
         if response.processing_status == "PROCESSED":
@@ -85,10 +96,16 @@ def upload_document(
 @router.get("/{document_id}", response_model=DocumentResponse)
 def get_document_by_id(
     document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any | None = Depends(get_optional_db_session),
 ) -> DocumentResponse:
     try:
-        return get_document(document_id=document_id, db=db)
+        return get_document(
+            document_id=document_id,
+            current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
+            db=db,
+        )
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -102,6 +119,7 @@ def list_documents_endpoint(
     program: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any | None = Depends(get_optional_db_session),
 ) -> DocumentListResponse:
     return list_documents(
@@ -109,6 +127,8 @@ def list_documents_endpoint(
         program=program,
         page=page,
         page_size=page_size,
+        current_user_id=_current_user.id,
+        current_user_role=_current_user.role.value,
         db=db,
     )
 

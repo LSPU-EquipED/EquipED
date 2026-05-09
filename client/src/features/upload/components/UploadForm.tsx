@@ -1,16 +1,8 @@
-import { useState } from 'react';
-import {
-  ArrowRight,
-  BookOpenCheck,
-  Check,
-  CheckSquare,
-  FileSearch,
-  FileText,
-  GraduationCap,
-  Link2,
-  Sparkles,
-  Upload,
-} from 'lucide-react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { ArrowRight, FileText, GraduationCap, Upload } from 'lucide-react';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -22,35 +14,19 @@ import {
   SelectValue,
 } from '@/shared/components/ui/select';
 import { cn } from '@/shared/components/utils';
+import type { DocumentSourceType } from '@/shared/types/documents';
 
 type ProgramId = 'bsit' | 'bscs' | 'bsis';
 
-const scanOptions = [
-  {
-    id: 'sme',
-    title: 'SME Review',
-    description: 'Learning outcomes, content quality, assessment fit',
-    icon: BookOpenCheck,
-  },
-  {
-    id: 'coordinator',
-    title: 'Coordinator Check',
-    description: 'Program alignment and curriculum consistency',
-    icon: GraduationCap,
-  },
-  {
-    id: 'gad',
-    title: 'GAD Review',
-    description: 'Gender sensitivity and inclusive language',
-    icon: Sparkles,
-  },
-  {
-    id: 'itso',
-    title: 'ITSO Review',
-    description: 'Originality, citation, and technical compliance',
-    icon: FileSearch,
-  },
-];
+const sourceTypeLabels: Record<DocumentSourceType, string> = {
+  slm: 'SLM',
+  syllabus: 'Syllabus',
+  rubric_sme: 'SME Rubric',
+  rubric_coord: 'Coordinator Rubric',
+  rubric_gad: 'GAD Rubric',
+  rubric_itso: 'ITSO Rubric',
+  curriculum: 'Curriculum',
+};
 
 const subjectsByProgram: Record<ProgramId, string[]> = {
   bsit: ['Capstone Project 1', 'Web Systems and Technologies', 'Systems Integration and Architecture'],
@@ -65,24 +41,40 @@ const programLabels: Record<ProgramId, string> = {
 };
 
 export function UploadForm() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { uploadDocument, isLoading, errorMessage } = useUploadDocument();
   const [program, setProgram] = useState<ProgramId>('bsit');
   const [subject, setSubject] = useState(subjectsByProgram.bsit[0]);
+  const [sourceType, setSourceType] = useState<DocumentSourceType>('slm');
+  const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [selectedChecks, setSelectedChecks] = useState(['sme', 'coordinator', 'gad', 'itso']);
 
-  const toggleCheck = (id: string) => {
-    setSelectedChecks((current) =>
-      current.includes(id) ? current.filter((check) => check !== id) : [...current, id]
-    );
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null;
+    setFile(nextFile);
+
+    if (nextFile && !title.trim()) {
+      setTitle(nextFile.name.replace(/\.pdf$/i, ''));
+    }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFile(e.target.files?.[0] ?? null);
-  };
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log({ file, program, subject, selectedChecks });
+    if (!file || !title.trim()) {
+      return;
+    }
+
+    await uploadDocument({
+      file,
+      sourceType,
+      title,
+      courseTitle: subject,
+      program: sourceType === 'slm' ? program : null,
+    });
+
+    await navigate({ to: '/dashboard' });
   };
 
   const handleProgramChange = (value: string) => {
@@ -90,6 +82,8 @@ export function UploadForm() {
     setProgram(nextProgram);
     setSubject(subjectsByProgram[nextProgram][0]);
   };
+
+  const requiresProgram = sourceType === 'slm';
 
   return (
     <form
@@ -100,12 +94,9 @@ export function UploadForm() {
         <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Document workspace</p>
-            <h2 className="truncate text-lg font-semibold">Untitled SLM Evaluation</h2>
+            <h2 className="truncate text-lg font-semibold">{title.trim() || 'Untitled document upload'}</h2>
           </div>
-          <Button variant="outline" className="h-9 gap-2">
-            <Upload className="size-4" aria-hidden="true" />
-            Upload
-          </Button>
+          <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">Upload only • evaluation later</div>
         </div>
 
         <div className="grid flex-1 place-items-center px-4 py-8 sm:px-6 lg:px-8">
@@ -117,7 +108,7 @@ export function UploadForm() {
             <div className="space-y-2">
               <h3 className="text-2xl font-semibold">Upload an SLM or reference document</h3>
               <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                Add the document that will move through preprocessing, embedding, evaluator agents, and synthesis.
+                Add the document to the authenticated inventory. Processing status will appear in the dashboard after upload.
               </p>
             </div>
 
@@ -135,9 +126,37 @@ export function UploadForm() {
             </Label>
 
             <div className="grid gap-4 text-left md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="document-title">Title</Label>
+                <Input
+                  id="document-title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Enter the document title"
+                  className="h-10 rounded-lg"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Source type</Label>
+                <Select value={sourceType} onValueChange={(value) => setSourceType(value as DocumentSourceType)}>
+                  <SelectTrigger className="h-10 rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(sourceTypeLabels) as DocumentSourceType[]).map((sourceTypeKey) => (
+                      <SelectItem key={sourceTypeKey} value={sourceTypeKey}>
+                        {sourceTypeLabels[sourceTypeKey]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2">
                 <Label>Program</Label>
-                <Select value={program} onValueChange={handleProgramChange}>
+                <Select value={program} onValueChange={handleProgramChange} disabled={!requiresProgram}>
                   <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
@@ -149,10 +168,11 @@ export function UploadForm() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">{requiresProgram ? 'Program is required for SLM uploads.' : 'Program is optional for this source type.'}</p>
               </div>
 
-              <div className="space-y-2">
-                <Label>Subject</Label>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Course title</Label>
                 <Select value={subject} onValueChange={setSubject}>
                   <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
@@ -173,76 +193,54 @@ export function UploadForm() {
         <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:px-6">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2">
-              <Link2 className="size-4" aria-hidden="true" />
-              Reference links
+              <GraduationCap className="size-4" aria-hidden="true" />
+              Reference links stay out of scope in this phase.
             </span>
-            <span className="min-w-0">Syllabus and curriculum can be associated before evaluation.</span>
           </div>
-          <Button variant="ghost" className="h-9 gap-2 text-primary">
-            Proofread
-            <CheckSquare className="size-4" aria-hidden="true" />
-          </Button>
+          <span>Evaluations and reports will be wired in a later change.</span>
         </div>
       </section>
 
       <aside className="flex min-h-[34rem] flex-col bg-muted/20">
         <div className="border-b px-4 py-7 sm:px-7 sm:py-8">
-          <h3 className="text-2xl font-semibold">Welcome back, Marc.</h3>
-          <p className="mt-2 text-sm text-muted-foreground">Select evaluator checks and submit the document to start.</p>
+          <h3 className="text-2xl font-semibold">Welcome back, {user?.displayName?.split(' ')[0] ?? 'there'}.</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Review the upload details, then add the document to the dashboard inventory.</p>
         </div>
 
         <div className="grid gap-4 px-4 py-6 sm:px-7">
-          {scanOptions.map((option) => {
-            const Icon = option.icon;
-            const checked = selectedChecks.includes(option.id);
+          <div className="rounded-lg border bg-card px-5 py-4">
+            <p className="text-sm font-medium text-muted-foreground">Source type</p>
+            <p className="mt-1 text-base font-semibold">{sourceTypeLabels[sourceType]}</p>
+          </div>
 
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => toggleCheck(option.id)}
-                className={cn(
-                  'flex min-h-24 items-center gap-4 rounded-lg border px-5 text-left shadow-sm transition-colors',
-                  checked
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100'
-                    : 'border-border bg-card text-foreground hover:bg-muted/40'
-                )}
-              >
-                <Icon className={cn('size-8 shrink-0', checked ? 'text-emerald-700' : 'text-foreground')} aria-hidden="true" />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-base font-semibold">{option.title}</span>
-                  <span className={cn('block text-sm leading-5', checked ? 'text-emerald-800/75' : 'text-muted-foreground')}>
-                    {option.description}
-                  </span>
-                </span>
-                <span
-                  className={cn(
-                    'flex size-6 shrink-0 items-center justify-center rounded-md border',
-                    checked
-                      ? 'border-emerald-600 bg-emerald-600 text-white'
-                      : 'border-foreground/30 bg-background text-transparent'
-                  )}
-                  aria-hidden="true"
-                >
-                  {checked ? <Check className="size-4" /> : null}
-                </span>
-              </button>
-            );
-          })}
+          <div className="rounded-lg border bg-card px-5 py-4">
+            <p className="text-sm font-medium text-muted-foreground">Current file</p>
+            <p className="mt-1 truncate text-base font-semibold">{file?.name ?? 'No PDF selected yet'}</p>
+          </div>
+
+          <div className="rounded-lg border bg-card px-5 py-4">
+            <p className="text-sm font-medium text-muted-foreground">Program and course</p>
+            <p className="mt-1 text-base font-semibold">{requiresProgram ? programLabels[program] : 'Optional program context'}</p>
+            <p className="text-sm text-muted-foreground">{subject}</p>
+          </div>
+
+          {errorMessage ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMessage}</div>
+          ) : null}
         </div>
 
         <div className="sticky bottom-0 mt-auto border-t bg-card/95 px-4 py-4 shadow-[0_-10px_30px_rgba(0,0,0,0.04)] backdrop-blur sm:px-7">
           <div className="space-y-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Selected checks</span>
-              <span className="font-medium">{selectedChecks.length} of 4</span>
+              <span className="text-muted-foreground">Upload readiness</span>
+              <span className="font-medium">{file && title.trim() ? 'Ready' : 'Missing details'}</span>
             </div>
-            <Button type="submit" className="h-14 w-full justify-between rounded-lg px-5 text-base">
-              Start evaluation
+            <Button type="submit" className="h-14 w-full justify-between rounded-lg px-5 text-base" disabled={isLoading || !file || !title.trim()}>
+              {isLoading ? 'Uploading document…' : 'Upload document'}
               <ArrowRight className="size-5" aria-hidden="true" />
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              Generated evaluations are advisory; human review remains authoritative.
+              Uploading adds the document to inventory only. Evaluation remains a later workflow.
             </p>
           </div>
         </div>

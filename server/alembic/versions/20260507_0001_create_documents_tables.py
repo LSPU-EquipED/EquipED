@@ -27,7 +27,12 @@ def upgrade() -> None:
         sa.Column("program", sa.String(length=300), nullable=True),
         sa.Column("source_type", sa.String(length=50), nullable=False),
         sa.Column("file_path", sa.Text(), nullable=False),
-        sa.Column("uploaded_by", sa.Uuid(), nullable=True),
+        sa.Column(
+            "uploaded_by",
+            sa.Uuid(),
+            sa.ForeignKey("users.user_id"),
+            nullable=False,
+        ),
         sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("page_count", sa.Integer(), nullable=True),
         sa.Column(
