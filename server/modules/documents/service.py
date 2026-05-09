@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,8 +31,10 @@ from .tfidf import compute_tfidf_corpus
 from server.modules.embeddings.service import embed_and_store_chunks
 
 UPLOAD_ROOT = Path("uploads")
+logger = logging.getLogger(__name__)
 
 _MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
+_MEM_DOCUMENT_OWNERS: dict[uuid.UUID, uuid.UUID] = {}
 _MEM_CHUNKS: dict[uuid.UUID, list[Any]] = {}
 _MEM_TFIDF: dict[str, float] = {}
 
@@ -43,6 +46,7 @@ def create_document(
     course_title: str | None,
     lesson_title: str | None,
     program: str | None,
+    uploaded_by: uuid.UUID,
     db: Any | None = None,
 ) -> DocumentUploadResponse:
     """Persist an upload and run Layer-1 ingestion."""
@@ -60,7 +64,18 @@ def create_document(
         page_count = max((chunk.page_number for chunk in chunk_data), default=0)
         has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
         status = "PROCESSED" if chunk_data else "FAILED"
-    except ExtractionFailedError:
+    except ExtractionFailedError as exc:
+        logger.warning(
+            "Document upload processing failed",
+            extra={
+                "document_id": str(doc_id),
+                "file_path": str(target_path),
+                "original_filename": file.filename,
+                "source_type": source_type,
+                "exception_class": exc.__class__.__name__,
+                "exception_message": str(exc),
+            },
+        )
         page_count = None
         has_ocr_pages = False
         status = "FAILED"
@@ -78,9 +93,10 @@ def create_document(
         processing_status=status,
         has_ocr_pages=has_ocr_pages,
         uploaded_at=uploaded_at,
+        uploaded_by=uploaded_by,
     )
 
-    _persist_document(db, response, str(target_path))
+    _persist_document(db, response, str(target_path), uploaded_by)
     _persist_chunks(db, doc_id, chunk_data)
     _refresh_tfidf_if_needed(source_type)
 
@@ -94,10 +110,18 @@ def create_document(
     )
 
 
-def get_document(document_id: uuid.UUID, db: Any | None = None) -> DocumentResponse:
+def get_document(
+    document_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
+    db: Any | None = None,
+) -> DocumentResponse:
     if db is not None:
         row = db.get(Document, document_id)
         if row is not None:
+            # Check access: admin can access all, faculty can only access own
+            if current_user_role != "admin" and row.uploaded_by != current_user_id:
+                raise DocumentNotFoundError(f"Document {document_id} not found")
             return DocumentResponse(
                 document_id=row.document_id,
                 title=row.title,
@@ -109,10 +133,14 @@ def get_document(document_id: uuid.UUID, db: Any | None = None) -> DocumentRespo
                 processing_status=row.processing_status,
                 has_ocr_pages=row.has_ocr_pages,
                 uploaded_at=row.uploaded_at,
+                uploaded_by=row.uploaded_by,
             )
 
     fallback = _MEM_DOCUMENTS.get(document_id)
     if fallback is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+    owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
+    if current_user_role != "admin" and owner_id != current_user_id:
         raise DocumentNotFoundError(f"Document {document_id} not found")
     return fallback
 
@@ -122,11 +150,16 @@ def list_documents(
     program: str | None,
     page: int,
     page_size: int,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
     db: Any | None = None,
 ) -> DocumentListResponse:
     items: list[DocumentResponse]
     if db is not None:
         query = db.query(Document)
+        # Role-aware scoping: faculty can only see own documents
+        if current_user_role != "admin":
+            query = query.filter(Document.uploaded_by == current_user_id)
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -150,6 +183,7 @@ def list_documents(
                 processing_status=row.processing_status,
                 has_ocr_pages=row.has_ocr_pages,
                 uploaded_at=row.uploaded_at,
+                uploaded_by=row.uploaded_by,
             )
             for row in rows
         ]
@@ -161,6 +195,13 @@ def list_documents(
         )
 
     mem_items = list(_MEM_DOCUMENTS.values())
+    # Role-aware scoping for in-memory mode: faculty can only see own documents
+    if current_user_role != "admin":
+        mem_items = [
+            item
+            for item in mem_items
+            if _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
+        ]
     if source_type:
         mem_items = [item for item in mem_items if item.source_type == source_type]
     if program:
@@ -190,8 +231,10 @@ def _persist_document(
     db: Any | None,
     response: DocumentResponse,
     file_path: str,
+    uploaded_by: uuid.UUID,
 ) -> None:
     _MEM_DOCUMENTS[response.document_id] = response
+    _MEM_DOCUMENT_OWNERS[response.document_id] = uploaded_by
     if db is None:
         return
 
@@ -203,6 +246,7 @@ def _persist_document(
         program=response.program,
         source_type=response.source_type,
         file_path=file_path,
+        uploaded_by=uploaded_by,
         uploaded_at=response.uploaded_at,
         page_count=response.page_count,
         has_ocr_pages=response.has_ocr_pages,

@@ -20,8 +20,8 @@ const rootRoute = createRootRouteWithContext<AppRouterContext>()({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: '/dashboard' });
+  beforeLoad: ({ context }) => {
+    throw redirect({ to: context.auth.status === 'authenticated' ? '/dashboard' : '/login' });
   },
   component: () => null,
 });
@@ -29,12 +29,22 @@ const indexRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
+  beforeLoad: ({ context }) => {
+    if (context.auth.status === 'authenticated') {
+      throw redirect({ to: '/dashboard' });
+    }
+  },
   component: LoginForm,
 });
 
 const shellRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'shell',
+  beforeLoad: ({ context }) => {
+    if (context.auth.status !== 'authenticated' || !context.auth.user) {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: AppShell,
 });
 
@@ -71,7 +81,7 @@ const evaluationReportRoute = createRoute({
 const matrixRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'matrix',
-  beforeLoad: requireRole(['coordinator', 'admin']),
+  beforeLoad: requireRole(['admin']),
   component: MonitoringTable,
 });
 

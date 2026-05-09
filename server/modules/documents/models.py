@@ -25,7 +25,9 @@ class Document(Base):
     program: Mapped[str | None] = mapped_column(String(300), nullable=True)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.user_id"), nullable=False
+    )
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,

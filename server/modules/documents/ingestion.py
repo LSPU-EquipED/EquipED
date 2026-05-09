@@ -6,6 +6,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+import logging
 
 from .exceptions import ExtractionFailedError, PasswordProtectedPDFError
 from .schemas import DocumentChunkData
@@ -14,6 +15,8 @@ _MIN_SELECTABLE_TEXT_LEN = 20
 _MAX_CHUNK_TOKENS = 2000
 _DEFAULT_CHUNK_TOKENS = 450
 _DEFAULT_CHUNK_OVERLAP = 60
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -97,6 +100,14 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
     except PasswordProtectedPDFError:
         raise
     except Exception as exc:
+        logger.exception(
+            "Document extraction failed",
+            extra={
+                "file_path": str(pdf),
+                "exception_class": exc.__class__.__name__,
+                "exception_message": str(exc),
+            },
+        )
         raise ExtractionFailedError("Failed to extract document pages") from exc
 
     return [page for page in pages if page.text.strip()]

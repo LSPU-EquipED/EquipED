@@ -1,4 +1,8 @@
-## ADDED Requirements
+## Purpose
+
+Establish server-side authentication and session management for the EquipED backend using local credentials and persisted sessions.
+
+## Requirements
 
 ### Requirement: Server authentication module
 The backend SHALL provide a dedicated authentication module under the modular monolith for server-side identity and session handling.
@@ -27,7 +31,7 @@ The backend SHALL authenticate locally managed users using email and password cr
 - **THEN** the system SHALL reject the login attempt
 
 ### Requirement: Persisted session-based authentication
-The backend SHALL use persisted server-managed sessions for Phase 1 authentication.
+The backend SHALL use persisted server-managed sessions for Phase 1 authentication, including browser-based clients.
 
 #### Scenario: Session is persisted on login
 - **WHEN** a user successfully logs in
@@ -36,6 +40,10 @@ The backend SHALL use persisted server-managed sessions for Phase 1 authenticati
 #### Scenario: Session is transported by cookie
 - **WHEN** a login succeeds
 - **THEN** the system SHALL issue an HTTP-only session cookie representing the authenticated session
+
+#### Scenario: Browser session can be reused on later authenticated requests
+- **WHEN** a browser client sends a later request with the valid session cookie
+- **THEN** the backend resolves it against the active persisted session instead of requiring re-authentication credentials
 
 #### Scenario: Logout invalidates session
 - **WHEN** an authenticated user calls the logout endpoint

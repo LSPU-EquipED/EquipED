@@ -53,6 +53,7 @@ class DocumentResponse(BaseModel):
     processing_status: str
     has_ocr_pages: bool
     uploaded_at: datetime
+    uploaded_by: UUID | None
 
 
 class DocumentListResponse(BaseModel):

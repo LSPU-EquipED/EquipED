@@ -20,12 +20,8 @@ depends_on = None
 
 
 user_role_enum = postgresql.ENUM(
-    "faculty",
-    "sme",
-    "coordinator",
-    "gad",
-    "itso",
     "admin",
+    "faculty",
     name="user_role",
     create_type=False,
 )

@@ -1,4 +1,6 @@
 import { Link } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import {
   Archive,
   BookOpen,
@@ -9,9 +11,14 @@ import {
   GraduationCap,
   LayoutDashboard,
   Library,
+  LogOut,
   Settings,
   ShieldCheck,
+  type LucideIcon,
 } from 'lucide-react';
+import { useAuth } from '@/features/auth/hooks/useAuth';
+import type { UserRole } from '@/features/auth/types';
+import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/components/utils';
 
 interface SidebarProps {
@@ -19,12 +26,20 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const navItems = [
+type NavItem = {
+  to: '/dashboard' | '/upload' | '/evaluations' | '/matrix' | '/admin/prompts';
+  label: string;
+  icon: LucideIcon;
+  exact: boolean;
+  allowedRoles?: readonly UserRole[];
+};
+
+const navItems: readonly NavItem[] = [
   { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
   { to: '/evaluations', label: 'Reviews', icon: Archive, exact: false },
-  { to: '/matrix', label: 'Matrix', icon: LayoutDashboard, exact: true },
-  { to: '/admin/prompts', label: 'Admin', icon: ShieldCheck, exact: false },
+  { to: '/matrix', label: 'Matrix', icon: LayoutDashboard, exact: true, allowedRoles: ['admin'] },
+  { to: '/admin/prompts', label: 'Admin', icon: ShieldCheck, exact: false, allowedRoles: ['admin'] },
 ] as const;
 
 const resourceItems = [
@@ -35,6 +50,28 @@ const resourceItems = [
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const asideWidth = collapsed ? 'w-[5.75rem]' : 'w-72 max-md:w-[5.75rem]';
+  const auth = useAuth();
+  const { logout, user } = auth;
+  const navigate = useNavigate();
+  const visibleNavItems = navItems.filter(
+    (item) => !item.allowedRoles || (user && item.allowedRoles.includes(user.role)),
+  );
+  const initials = user?.displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('')
+    .slice(0, 2) || 'EA';
+
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  useEffect(() => {
+    if (auth.status === 'anonymous') {
+      void navigate({ to: '/login' });
+    }
+  }, [auth.status, navigate]);
 
   return (
     <aside
@@ -66,7 +103,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       <nav aria-label="Primary" className="mt-3 grid gap-1 px-3">
         {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Workspace</div>}
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const baseClass = cn(
             'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -125,21 +162,34 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             'flex w-full items-center rounded-lg text-left transition-colors hover:bg-sidebar-accent',
             collapsed ? 'justify-center p-2' : 'gap-3 p-2'
           )}
-          title={collapsed ? 'Marc Alberto' : undefined}
+          title={collapsed ? user?.displayName ?? 'EquipEd User' : undefined}
         >
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground">
-            MA
+            {initials}
           </span>
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold">Marc Alberto</span>
-                <span className="block truncate text-xs text-muted-foreground">m@example.com</span>
+                <span className="block truncate text-sm font-semibold">{user?.displayName ?? 'EquipEd User'}</span>
+                <span className="block truncate text-xs text-muted-foreground">{user?.email ?? 'No email available'}</span>
               </span>
               <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             </>
           )}
         </button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn('mt-2 w-full justify-start gap-2', collapsed && 'justify-center px-0')}
+          onClick={() => {
+            void handleLogout();
+          }}
+          title={collapsed ? 'Sign out' : undefined}
+        >
+          <LogOut className="size-4" aria-hidden="true" />
+          {!collapsed && <span>Sign out</span>}
+        </Button>
       </div>
     </aside>
   );
