@@ -20,7 +20,13 @@ def run_evaluation_job(
     try:
         if db_session_factory is None:
             raise RuntimeError("No DB session factory provided to orchestrator.")
-        session = db_session_factory()
+        session_or_factory = db_session_factory()
+        if hasattr(session_or_factory, "get") and hasattr(session_or_factory, "close"):
+            session = session_or_factory
+        elif callable(session_or_factory):
+            session = session_or_factory()
+        else:
+            raise RuntimeError("DB session factory did not return a valid session.")
         # PREPROCESSING
         transition_evaluation_status(
             evaluation_id, EvaluationStatus.PREPROCESSING, session
