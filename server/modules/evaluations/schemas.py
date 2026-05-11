@@ -1,5 +1,6 @@
 """
 Evaluations Pydantic schemas. Request/response objects for evaluation endpoints.
+Strict typing and status enforced per implementation plan.
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ from server.modules.evaluations.models import EvaluationStatus
 
 class EvaluationSubmitRequest(BaseModel):
     document_id: UUID = Field(..., description="ID of the document to evaluate.")
-    # Optionally extend later with evaluation parameters (rubric, etc)
 
 class EvaluationResponse(BaseModel):
     evaluation_id: UUID
@@ -33,8 +33,8 @@ class EvaluationListItem(BaseModel):
 class EvaluationListResponse(BaseModel):
     items: list[EvaluationListItem]
     total: int
-    page: int = Field(ge=1, default=1)
-    page_size: int = Field(ge=1, le=200, default=20)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=200)
 
 class EvaluationStatusResponse(BaseModel):
     evaluation_id: UUID

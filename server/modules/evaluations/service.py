@@ -1,5 +1,5 @@
 """
-Evaluations business logic layer. Job lifecycle orchestration, role-based scoping enforced.
+Evaluations business logic layer. Enforces job lifecycle, role/ownership, and status transitions (including helpers for orchestrator use). Unauthorized access is always 404 (masked) for non-owners.
 """
 
 from __future__ import annotations
@@ -19,9 +19,8 @@ from server.modules.evaluations.exceptions import (
 def create_evaluation(
     req: EvaluationSubmitRequest,
     submitted_by: uuid.UUID,
-    db: Any = None
+    db: Any = None,
 ) -> EvaluationResponse:
-    """Create and submit an evaluation job for a document."""
     evaluation_id = uuid.uuid4()
     submitted_at = datetime.now(UTC)
     job = EvaluationJob(
@@ -46,18 +45,21 @@ def create_evaluation(
         completed_at=None,
     )
 
+def _check_ownership_or_404(row: EvaluationJob, current_user_id: uuid.UUID, current_user_role: str):
+    if current_user_role != "admin" and row.submitted_by != current_user_id:
+        # Always mask existence as 404 if not the owner.
+        raise EvaluationNotFoundError("Not found.")
+
 def get_evaluation(
     evaluation_id: uuid.UUID,
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any = None,
 ) -> EvaluationResponse:
-    """Return job details if visible to the user (role/ownership aware)."""
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
-    if current_user_role != "admin" and row.submitted_by != current_user_id:
-        raise ForbiddenEvaluationAccessError()
+    _check_ownership_or_404(row, current_user_id, current_user_role)
     return EvaluationResponse(
         evaluation_id=row.evaluation_id,
         document_id=row.document_id,
@@ -75,7 +77,6 @@ def list_evaluations(
     current_user_role: str,
     db: Any = None,
 ) -> EvaluationListResponse:
-    """List jobs (admins see all, faculty see only theirs)."""
     if db is not None:
         query = db.query(EvaluationJob)
         if current_user_role != "admin":
@@ -99,26 +100,49 @@ def list_evaluations(
         return EvaluationListResponse(
             items=items, total=total, page=page, page_size=page_size
         )
-    # For in-memory, not needed yet
     return EvaluationListResponse(items=[], total=0, page=page, page_size=page_size)
 
-def update_evaluation_status(
+def get_evaluation_status(
     evaluation_id: uuid.UUID,
-    new_status: EvaluationStatus,
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any = None,
 ) -> EvaluationStatusResponse:
-    """Transition a job's status (supervisor/agent only)."""
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
-    if current_user_role != "admin" and row.submitted_by != current_user_id:
-        raise ForbiddenEvaluationAccessError()
+    _check_ownership_or_404(row, current_user_id, current_user_role)
+    return EvaluationStatusResponse(
+        evaluation_id=row.evaluation_id,
+        status=row.status,
+        error_message=row.error_message,
+        completed_at=row.completed_at,
+    )
+
+def transition_evaluation_status(
+    evaluation_id: uuid.UUID,
+    new_status: EvaluationStatus,
+    db: Any,
+    *,
+    error_message: str | None = None,
+) -> EvaluationStatusResponse:
+    row = db.get(EvaluationJob, evaluation_id) if db is not None else None
+    if row is None:
+        raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
+    if row.status in [EvaluationStatus.COMPLETED, EvaluationStatus.FAILED]:
+        # No transitions out of terminal state
+        return EvaluationStatusResponse(
+            evaluation_id=row.evaluation_id,
+            status=row.status,
+            error_message=row.error_message,
+            completed_at=row.completed_at,
+        )
     if not can_transition_status(row.status, new_status):
         raise InvalidStatusTransitionError(f"Cannot move {row.status} -> {new_status}")
     row.status = new_status
-    if new_status in (EvaluationStatus.COMPLETED, EvaluationStatus.FAILED):
+    if error_message:
+        row.error_message = error_message
+    if new_status in [EvaluationStatus.COMPLETED, EvaluationStatus.FAILED]:
         row.completed_at = datetime.now(UTC)
     db.commit()
     return EvaluationStatusResponse(
@@ -132,5 +156,6 @@ __all__ = [
     "create_evaluation",
     "get_evaluation",
     "list_evaluations",
-    "update_evaluation_status",
+    "get_evaluation_status",
+    "transition_evaluation_status",
 ]
