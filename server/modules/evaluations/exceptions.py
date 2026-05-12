@@ -17,10 +17,20 @@ class InvalidStatusTransitionError(EvaluationsError):
 class EvaluationJobStillRunningError(EvaluationsError):
     """Raised if client requests final results before job is complete."""
 
+
+class EvaluationPipelineUnavailableError(EvaluationsError):
+    """Raised when the evaluation pipeline is not ready to accept work."""
+
+
+class InvalidEvaluationTargetError(EvaluationsError):
+    """Raised when the target document is not eligible for evaluation."""
+
 __all__ = [
     "EvaluationsError",
     "EvaluationNotFoundError",
     "ForbiddenEvaluationAccessError",
     "InvalidStatusTransitionError",
     "EvaluationJobStillRunningError",
+    "EvaluationPipelineUnavailableError",
+    "InvalidEvaluationTargetError",
 ]

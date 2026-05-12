@@ -22,6 +22,8 @@ def upgrade() -> None:
         "evaluation_jobs",
         sa.Column("evaluation_id", sa.Uuid(), nullable=False),
         sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("syllabus_id", sa.Uuid(), nullable=False),
+        sa.Column("curriculum_id", sa.Uuid(), nullable=False),
         sa.Column("status", sa.String(length=50), nullable=False),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("submitted_by", sa.Uuid(), nullable=True),
@@ -33,6 +35,8 @@ def upgrade() -> None:
         ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["document_id"], ["documents.document_id"]),
+        sa.ForeignKeyConstraint(["syllabus_id"], ["documents.document_id"]),
+        sa.ForeignKeyConstraint(["curriculum_id"], ["documents.document_id"]),
         sa.ForeignKeyConstraint(["submitted_by"], ["users.user_id"]),
         sa.PrimaryKeyConstraint("evaluation_id"),
     )

@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, BackgroundTasks, status, HTTPException
-from server.core.database import get_session_factory
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.evaluations.schemas import (
@@ -16,29 +15,35 @@ from server.modules.evaluations.schemas import (
 from server.modules.evaluations.service import (
     create_evaluation, get_evaluation, list_evaluations, get_evaluation_status
 )
-from server.modules.evaluations.exceptions import EvaluationNotFoundError
 from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.documents.exceptions import DocumentNotFoundError
+from server.modules.evaluations.exceptions import (
+    EvaluationNotFoundError,
+    EvaluationPipelineUnavailableError,
+    InvalidEvaluationTargetError,
+)
 
 from server.core.database import get_db_session
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
-@router.post("/", response_model=EvaluationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=EvaluationResponse, status_code=status.HTTP_202_ACCEPTED)
 def submit_evaluation(
-    req: EvaluationSubmitRequest,
     background_tasks: BackgroundTasks,
+    req: EvaluationSubmitRequest,
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationResponse:
-    resp = create_evaluation(req, submitted_by=current_user.id, db=db)
-    # Dispatch orchestration as background task (Phase 1; pass session factory, not session)
-    background_tasks.add_task(
-        run_evaluation_job,
-        resp.evaluation_id,
-        resp.document_id,
-        get_session_factory,  # pass factory; orchestrator will obtain a fresh session when it runs
-    )
-    return resp
+    try:
+        response = create_evaluation(req, submitted_by=current_user.id, db=db)
+        background_tasks.add_task(run_evaluation_job, response.evaluation_id)
+        return response
+    except DocumentNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    except InvalidEvaluationTargetError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    except EvaluationPipelineUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
 @router.get("/", response_model=EvaluationListResponse)
 def list_evals(

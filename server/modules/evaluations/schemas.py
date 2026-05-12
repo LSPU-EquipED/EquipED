@@ -13,10 +13,14 @@ from server.modules.evaluations.models import EvaluationStatus
 
 class EvaluationSubmitRequest(BaseModel):
     document_id: UUID = Field(..., description="ID of the document to evaluate.")
+    syllabus_id: UUID = Field(..., description="ID of the syllabus document.")
+    curriculum_id: UUID = Field(..., description="ID of the curriculum document.")
 
 class EvaluationResponse(BaseModel):
     evaluation_id: UUID
     document_id: UUID
+    syllabus_id: UUID
+    curriculum_id: UUID
     status: EvaluationStatus
     error_message: Optional[str] = None
     submitted_by: Optional[UUID] = Field(None, description="User who submitted job.")
@@ -26,6 +30,8 @@ class EvaluationResponse(BaseModel):
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
     document_id: UUID
+    syllabus_id: UUID
+    curriculum_id: UUID
     status: EvaluationStatus
     submitted_at: datetime
     completed_at: Optional[datetime] = None

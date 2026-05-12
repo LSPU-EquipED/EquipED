@@ -1,226 +1,343 @@
-"""Evaluations module tests for lifecycle, scoping, and dispatch behavior."""
+"""Evaluations module tests for ownership, lifecycle, and polling."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
+from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.modules.evaluations.service import (
     create_evaluation,
     get_evaluation,
     get_evaluation_status,
     list_evaluations,
-    transition_evaluation_status,
 )
-from server.modules.evaluations.schemas import EvaluationSubmitRequest
 
 
-class FakeSession:
-    def __init__(self) -> None:
-        self.jobs: dict[object, EvaluationJob] = {}
-        self.added: list[EvaluationJob] = []
-        self.committed = 0
-
-    def add(self, row: EvaluationJob) -> None:
-        self.jobs[row.evaluation_id] = row
-        self.added.append(row)
-
-    def commit(self) -> None:
-        self.committed += 1
-
-    def close(self) -> None:
-        pass
-
-    def get(self, model, key):
-        return self.jobs.get(key)
-
-    def query(self, model):
-        return FakeQuery(list(self.jobs.values()))
-
-
-class FakeQuery:
-    def __init__(self, rows: list[EvaluationJob]) -> None:
-        self.rows = rows
-
-    def filter(self, predicate):
-        if hasattr(predicate, "left") and hasattr(predicate, "right"):
-            field_name = predicate.left.key
-            value = predicate.right.value
-            return FakeQuery([row for row in self.rows if getattr(row, field_name) == value])
-        return self
-
-    def count(self) -> int:
-        return len(self.rows)
-
-    def order_by(self, *args, **kwargs):
-        return self
-
-    def offset(self, *args, **kwargs):
-        return self
-
-    def limit(self, *args, **kwargs):
-        return self
-
-    def all(self):
-        return list(self.rows)
+def _add_document(
+    db_session,
+    *,
+    owner_id,
+    source_type: str,
+    processing_status: str = "PROCESSED",
+    with_chunks: bool = True,
+    chroma_stored: bool = True,
+):
+    document_id = uuid4()
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title=f"{source_type} doc",
+            program="bsit",
+            source_type=source_type,
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=owner_id,
+            uploaded_at=datetime.now(UTC),
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status=processing_status,
+        )
+    )
+    if with_chunks:
+        db_session.add(
+            DocumentChunk(
+                chunk_id=uuid4(),
+                document_id=document_id,
+                source_type=source_type,
+                agent_domain="all",
+                page_number=1,
+                text=f"chunk for {source_type}",
+                token_count=4,
+                is_ocr=False,
+                chroma_stored=chroma_stored,
+            )
+        )
+    db_session.commit()
+    return document_id
 
 
-def test_create_evaluation_defaults_to_submitted() -> None:
-    db = FakeSession()
-    request = EvaluationSubmitRequest(document_id=uuid4())
-    user_id = uuid4()
+def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-submit@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
 
-    response = create_evaluation(request, submitted_by=user_id, db=db)
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
+    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            syllabus_id=syllabus_id,
+            curriculum_id=curriculum_id,
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
 
     assert response.status == EvaluationStatus.SUBMITTED
-    assert response.document_id == request.document_id
-    assert response.submitted_by == user_id
-    assert db.committed == 1
-    assert len(db.added) == 1
+    assert response.document_id == slm_id
+    assert response.syllabus_id == syllabus_id
+    assert response.curriculum_id == curriculum_id
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.status == EvaluationStatus.SUBMITTED.value
+    assert row.submitted_by == owner.user_id
 
 
-def test_transition_rejects_invalid_state_change() -> None:
-    db = FakeSession()
-    job = EvaluationJob(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        status=EvaluationStatus.SUBMITTED,
-        error_message=None,
-        submitted_by=uuid4(),
-        submitted_at=datetime.now(UTC),
-        completed_at=None,
+def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-ineligible@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
     )
-    db.add(job)
+    db_session.commit()
 
-    try:
-        transition_evaluation_status(job.evaluation_id, EvaluationStatus.EVALUATING, db)
-    except Exception as exc:
-        assert exc.__class__.__name__ == "InvalidStatusTransitionError"
-    else:
-        raise AssertionError("expected InvalidStatusTransitionError")
-
-
-def test_transition_marks_terminal_completion_time() -> None:
-    db = FakeSession()
-    job = EvaluationJob(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        status=EvaluationStatus.SYNTHESIZING,
-        error_message=None,
-        submitted_by=uuid4(),
-        submitted_at=datetime.now(UTC),
-        completed_at=None,
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    syllabus_id = _add_document(
+        db_session,
+        owner_id=owner.user_id,
+        source_type="syllabus",
+        processing_status="PENDING",
     )
-    db.add(job)
+    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
 
-    result = transition_evaluation_status(job.evaluation_id, EvaluationStatus.COMPLETED, db)
-
-    assert result.status == EvaluationStatus.COMPLETED
-    assert result.completed_at is not None
-
-
-def test_get_evaluation_masks_non_owner_as_not_found() -> None:
-    db = FakeSession()
-    owner = uuid4()
-    other = uuid4()
-    job = EvaluationJob(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        status=EvaluationStatus.SUBMITTED,
-        error_message=None,
-        submitted_by=owner,
-        submitted_at=datetime.now(UTC),
-        completed_at=None,
-    )
-    db.add(job)
-
-    try:
-        get_evaluation(job.evaluation_id, other, UserRole.FACULTY.value, db)
-    except Exception as exc:
-        assert exc.__class__.__name__ == "EvaluationNotFoundError"
-    else:
-        raise AssertionError("expected EvaluationNotFoundError")
-
-
-def test_list_evaluations_filters_by_owner() -> None:
-    db = FakeSession()
-    owner = uuid4()
-    other = uuid4()
-    db.add(
-        EvaluationJob(
-            evaluation_id=uuid4(),
-            document_id=uuid4(),
-            status=EvaluationStatus.SUBMITTED,
-            error_message=None,
-            submitted_by=owner,
-            submitted_at=datetime.now(UTC),
-            completed_at=None,
+    with pytest.raises(Exception) as exc_info:
+        create_evaluation(
+            EvaluationSubmitRequest(
+                document_id=slm_id,
+                syllabus_id=syllabus_id,
+                curriculum_id=curriculum_id,
+            ),
+            submitted_by=owner.user_id,
+            db=db_session,
         )
+
+    assert exc_info.value.__class__.__name__ == "InvalidEvaluationTargetError"
+    assert db_session.query(EvaluationJob).count() == 0
+
+
+def test_create_evaluation_rejects_documents_without_embedding_readiness(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-embedding@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
     )
-    db.add(
-        EvaluationJob(
-            evaluation_id=uuid4(),
-            document_id=uuid4(),
-            status=EvaluationStatus.SUBMITTED,
-            error_message=None,
-            submitted_by=other,
-            submitted_at=datetime.now(UTC),
-            completed_at=None,
+    db_session.commit()
+
+    slm_id = _add_document(
+        db_session,
+        owner_id=owner.user_id,
+        source_type="slm",
+        chroma_stored=False,
+    )
+    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
+    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+
+    with pytest.raises(Exception) as exc_info:
+        create_evaluation(
+            EvaluationSubmitRequest(
+                document_id=slm_id,
+                syllabus_id=syllabus_id,
+                curriculum_id=curriculum_id,
+            ),
+            submitted_by=owner.user_id,
+            db=db_session,
         )
+
+    assert exc_info.value.__class__.__name__ == "InvalidEvaluationTargetError"
+    assert db_session.query(EvaluationJob).count() == 0
+
+
+def test_create_evaluation_masks_foreign_documents_as_404(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-foreign@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
     )
+    other = create_user(
+        db_session,
+        name="Other",
+        email="other-foreign@example.com",
+        password="password456",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
 
-    response = list_evaluations(1, 20, owner, UserRole.FACULTY.value, db)
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
+    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
 
+    with pytest.raises(Exception) as exc_info:
+        create_evaluation(
+            EvaluationSubmitRequest(
+                document_id=slm_id,
+                syllabus_id=syllabus_id,
+                curriculum_id=curriculum_id,
+            ),
+            submitted_by=other.user_id,
+            db=db_session,
+        )
+
+    assert exc_info.value.__class__.__name__ == "DocumentNotFoundError"
+    assert db_session.query(EvaluationJob).count() == 0
+
+
+def test_get_and_status_mask_foreign_jobs_as_404(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-job@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    other = create_user(
+        db_session,
+        name="Other",
+        email="other-job@example.com",
+        password="password456",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        syllabus_id=uuid4(),
+        curriculum_id=uuid4(),
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    with pytest.raises(Exception) as get_exc:
+        get_evaluation(job.evaluation_id, other.user_id, other.role.value, db_session)
+    with pytest.raises(Exception) as status_exc:
+        get_evaluation_status(job.evaluation_id, other.user_id, other.role.value, db_session)
+
+    assert get_exc.value.__class__.__name__ == "EvaluationNotFoundError"
+    assert status_exc.value.__class__.__name__ == "EvaluationNotFoundError"
+
+
+@pytest.mark.parametrize("role", [UserRole.FACULTY, UserRole.ADMIN])
+def test_list_evaluations_is_scoped_per_user_for_all_roles(db_session, role) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email=f"owner-list-{role.value}@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    other = create_user(
+        db_session,
+        name="Other",
+        email=f"other-list-{role.value}@example.com",
+        password="password456",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=uuid4(),
+                syllabus_id=uuid4(),
+                curriculum_id=uuid4(),
+                status=EvaluationStatus.SUBMITTED.value,
+                error_message=None,
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+                completed_at=None,
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=uuid4(),
+                syllabus_id=uuid4(),
+                curriculum_id=uuid4(),
+                status=EvaluationStatus.SUBMITTED.value,
+                error_message=None,
+                submitted_by=other.user_id,
+                submitted_at=datetime.now(UTC),
+                completed_at=None,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = list_evaluations(1, 20, owner.user_id, role.value, db_session)
     assert response.total == 1
-    assert len(response.items) == 1
+    assert all(item.document_id for item in response.items)
+    assert all(item.syllabus_id for item in response.items)
+    assert all(item.curriculum_id for item in response.items)
 
 
-def test_get_status_returns_status_only() -> None:
-    db = FakeSession()
-    owner = uuid4()
+@pytest.mark.parametrize("role", [UserRole.FACULTY, UserRole.ADMIN])
+def test_get_is_scoped_per_user_for_all_roles(db_session, role) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email=f"owner-get-{role.value}@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    other = create_user(
+        db_session,
+        name="Other",
+        email=f"other-get-{role.value}@example.com",
+        password="password456",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
     job = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=uuid4(),
-        status=EvaluationStatus.EMBEDDING,
+        syllabus_id=uuid4(),
+        curriculum_id=uuid4(),
+        status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
-        submitted_by=owner,
+        submitted_by=owner.user_id,
         submitted_at=datetime.now(UTC),
         completed_at=None,
     )
-    db.add(job)
+    db_session.add(job)
+    db_session.commit()
 
-    response = get_evaluation_status(job.evaluation_id, owner, UserRole.FACULTY.value, db)
-
-    assert response.status == EvaluationStatus.EMBEDDING
-    assert response.evaluation_id == job.evaluation_id
-
-
-def test_orchestrator_marks_completed_with_fake_session_factory() -> None:
-    db = FakeSession()
-    job = EvaluationJob(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        status=EvaluationStatus.SUBMITTED,
-        error_message=None,
-        submitted_by=uuid4(),
-        submitted_at=datetime.now(UTC),
-        completed_at=None,
-    )
-    db.add(job)
-
-    run_evaluation_job(job.evaluation_id, job.document_id, lambda: db)
-
-    assert db.jobs[job.evaluation_id].status == EvaluationStatus.COMPLETED
-    assert db.jobs[job.evaluation_id].completed_at is not None
+    with pytest.raises(Exception) as exc_info:
+        get_evaluation(job.evaluation_id, other.user_id, role.value, db_session)
+    assert exc_info.value.__class__.__name__ == "EvaluationNotFoundError"
 
 
-def test_evaluation_submit_endpoint_uses_logged_in_user(client: TestClient, db_session, monkeypatch) -> None:
+def test_no_api_path_can_fake_completed(client: TestClient, db_session, monkeypatch) -> None:
+    from server.modules.evaluations import router as evaluations_router
+
     faculty = create_user(
         db_session,
         name="Faculty User",
@@ -230,50 +347,56 @@ def test_evaluation_submit_endpoint_uses_logged_in_user(client: TestClient, db_s
     )
     db_session.commit()
 
+    slm_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+    syllabus_id = _add_document(db_session, owner_id=faculty.user_id, source_type="syllabus")
+    curriculum_id = _add_document(db_session, owner_id=faculty.user_id, source_type="curriculum")
+
+    monkeypatch.setattr(evaluations_router, "run_evaluation_job", lambda *args, **kwargs: None)
+
     login = client.post(
         "/api/v1/auth/login",
         json={"email": faculty.email, "password": "password123"},
     )
     assert login.status_code == 200
 
-    from server.modules.evaluations import router as evaluations_router_module
-
-    monkeypatch.setattr(
-        evaluations_router_module,
-        "get_session_factory",
-        lambda: (lambda: db_session),
-    )
-
     response = client.post(
         "/api/v1/evaluations/",
-        json={"document_id": str(uuid4())},
+        json={
+            "document_id": str(slm_id),
+            "syllabus_id": str(syllabus_id),
+            "curriculum_id": str(curriculum_id),
+        },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     assert response.json()["status"] == "SUBMITTED"
+    job = db_session.query(EvaluationJob).one()
+    assert job.status == EvaluationStatus.SUBMITTED.value
 
 
-def test_router_masks_non_owner_access_as_404(client: TestClient, db_session) -> None:
+def test_router_masks_foreign_access_for_all_roles(client: TestClient, db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-eval@example.com",
+        email="owner-router@example.com",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email="other-eval@example.com",
+        email="other-router@example.com",
         password="password456",
-        role=UserRole.FACULTY,
+        role=UserRole.ADMIN,
     )
     db_session.commit()
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=uuid4(),
-        status=EvaluationStatus.SUBMITTED,
+        syllabus_id=uuid4(),
+        curriculum_id=uuid4(),
+        status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
         submitted_by=owner.user_id,
         submitted_at=datetime.now(UTC),
@@ -282,11 +405,88 @@ def test_router_masks_non_owner_access_as_404(client: TestClient, db_session) ->
     db_session.add(job)
     db_session.commit()
 
-    client.post(
+    login = client.post(
         "/api/v1/auth/login",
         json={"email": other.email, "password": "password456"},
     )
+    assert login.status_code == 200
 
-    response = client.get(f"/api/v1/evaluations/{job.evaluation_id}")
+    assert client.get(f"/api/v1/evaluations/{job.evaluation_id}").status_code == 404
+    assert client.get(f"/api/v1/evaluations/{job.evaluation_id}/status").status_code == 404
 
-    assert response.status_code == 404
+
+def test_orchestrator_default_session_factory_persists_real_transitions_and_fails_honestly(
+    monkeypatch,
+) -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    from server.db.metadata import import_model_modules
+
+    import_model_modules()
+    from server.core.database import Base
+
+    Base.metadata.create_all(engine)
+
+    session = SessionLocal()
+    owner = create_user(
+        session,
+        name="Owner",
+        email="owner-orchestrator@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    session.commit()
+
+    slm_id = _add_document(session, owner_id=owner.user_id, source_type="slm")
+    syllabus_id = _add_document(session, owner_id=owner.user_id, source_type="syllabus")
+    curriculum_id = _add_document(session, owner_id=owner.user_id, source_type="curriculum")
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=syllabus_id,
+        curriculum_id=curriculum_id,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+    )
+    session.add(job)
+    session.commit()
+
+    from server.core import database as core_database
+
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
+
+    seen_statuses: list[EvaluationStatus] = []
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.service import transition_evaluation_status as real_transition
+
+    def recording_transition(evaluation_id, new_status, db, *, error_message=None):
+        seen_statuses.append(new_status)
+        return real_transition(evaluation_id, new_status, db, error_message=error_message)
+
+    monkeypatch.setattr(
+        evaluation_orchestrator,
+        "transition_evaluation_status",
+        recording_transition,
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        run_evaluation_job(job.evaluation_id)
+
+    assert exc_info.value.__class__.__name__ == "EvaluationPipelineUnavailableError"
+    refreshed = SessionLocal().get(EvaluationJob, job.evaluation_id)
+    assert refreshed is not None
+    assert refreshed.status == EvaluationStatus.FAILED.value
+    assert seen_statuses[:3] == [
+        EvaluationStatus.PREPROCESSING,
+        EvaluationStatus.EMBEDDING,
+        EvaluationStatus.EVALUATING,
+    ]
+    assert refreshed.error_message == "Layer 3 evaluation agents are not implemented yet."
