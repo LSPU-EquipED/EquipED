@@ -10,6 +10,7 @@ def import_model_modules() -> None:
 
     from server.modules.auth import models as _auth_models  # noqa: F401
     from server.modules.documents import models as _document_models  # noqa: F401
+    from server.modules.evaluations import models as _evaluation_models  # noqa: F401
 
 
 def get_target_metadata():
