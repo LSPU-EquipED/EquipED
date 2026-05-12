@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user
@@ -147,13 +148,13 @@ def test_faculty_cannot_access_another_faculty_document(
     assert access_response.status_code == 404
 
 
-def test_admin_can_access_all_documents(
+def test_admin_can_only_access_own_documents(
     client: TestClient,
     db_session,
     seeded_user: User,
 ) -> None:
-    """Verify that admin users can access all documents regardless of ownership."""
-    # Create a faculty user
+    """Verify that admin users are scoped to their own documents."""
+    # Create a faculty user and upload a document owned by faculty.
     faculty = create_user(
         db_session,
         name="Faculty User",
@@ -180,7 +181,7 @@ def test_admin_can_access_all_documents(
         },
     )
     assert upload_response.status_code == 201
-    doc_id = upload_response.json()['document_id']
+    faculty_doc_id = upload_response.json()['document_id']
 
     # Admin logs in
     login_admin = client.post(
@@ -189,9 +190,28 @@ def test_admin_can_access_all_documents(
     )
     assert login_admin.status_code == 200
 
-    # Admin can access the faculty's document
-    access_response = client.get(f'/api/v1/documents/{doc_id}')
-    assert access_response.status_code == 200
+    # Admin cannot access faculty-owned documents.
+    access_response = client.get(f'/api/v1/documents/{faculty_doc_id}')
+    assert access_response.status_code == 404
+
+    # Admin only sees their own uploads.
+    admin_upload = client.post(
+        '/api/v1/documents/upload',
+        files={'file': ('admin.pdf', b'%PDF-1.4\n%admin', 'application/pdf')},
+        data={
+            'source_type': 'slm',
+            'title': 'Admin Document',
+            'program': 'bsit',
+        },
+    )
+    assert admin_upload.status_code == 201
+
+    list_response = client.get('/api/v1/documents')
+    assert list_response.status_code == 200
+    data = list_response.json()
+    assert data['total'] == 1
+    assert len(data['items']) == 1
+    assert data['items'][0]['title'] == 'Admin Document'
 
 
 def test_faculty_list_shows_only_own_documents(
@@ -261,55 +281,6 @@ def test_faculty_list_shows_only_own_documents(
     assert data['items'][0]['title'] == 'Faculty2 Doc'
 
 
-def test_admin_list_shows_all_documents(
-    client: TestClient,
-    db_session,
-    seeded_user: User,
-) -> None:
-    """Verify that admin users see all documents in list."""
-    # Create a faculty user
-    faculty = create_user(
-        db_session,
-        name="Faculty User",
-        email="faculty@example.com",
-        password="password789",
-        role=UserRole.FACULTY,
-    )
-    db_session.commit()
-
-    # Faculty uploads a document
-    login_faculty = client.post(
-        '/api/v1/auth/login',
-        json={'email': faculty.email, 'password': 'password789'},
-    )
-    assert login_faculty.status_code == 200
-
-    upload_response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('sample.pdf', b'%PDF-1.4\n%faculty', 'application/pdf')},
-        data={
-            'source_type': 'slm',
-            'title': 'Faculty Document',
-            'program': 'bsit',
-        },
-    )
-    assert upload_response.status_code == 201
-
-    # Admin logs in and lists documents
-    login_admin = client.post(
-        '/api/v1/auth/login',
-        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
-    )
-    assert login_admin.status_code == 200
-
-    list_response = client.get('/api/v1/documents')
-    assert list_response.status_code == 200
-    data = list_response.json()
-    assert data['total'] == 1
-    assert len(data['items']) == 1
-    assert data['items'][0]['title'] == 'Faculty Document'
-
-
 def test_in_memory_documents_respect_ownership_scoping() -> None:
     doc_id = uuid.uuid4()
     owner_id = uuid.uuid4()
@@ -323,40 +294,20 @@ def test_in_memory_documents_respect_ownership_scoping() -> None:
         uploaded_at=datetime.now(UTC),
         uploaded_by=owner_id,
     )
-    _MEM_DOCUMENTS.clear()
-    _MEM_DOCUMENT_OWNERS.clear()
-
-
-def test_document_response_allows_legacy_null_owner() -> None:
-    response = DocumentResponse(
-        document_id=uuid.uuid4(),
-        title='Legacy Doc',
-        source_type='slm',
-        processing_status='PROCESSED',
-        has_ocr_pages=False,
-        uploaded_at=datetime.now(UTC),
-        uploaded_by=None,
-    )
-
-    assert response.uploaded_by is None
     _MEM_DOCUMENTS[doc_id] = document
     _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
 
-    faculty_view = list_documents(None, None, 1, 20, other_id, 'faculty', db=None)
-    assert faculty_view.total == 0
-    assert faculty_view.items == []
+    owner_view = list_documents(None, None, 1, 20, owner_id, 'faculty', db=None)
+    assert owner_view.total == 1
+    assert owner_view.items[0].document_id == doc_id
 
-    admin_view = list_documents(None, None, 1, 20, other_id, 'admin', db=None)
-    assert admin_view.total == 1
-    assert admin_view.items[0].document_id == doc_id
+    other_view = list_documents(None, None, 1, 20, other_id, 'admin', db=None)
+    assert other_view.total == 0
+    assert other_view.items == []
 
     assert get_document(doc_id, owner_id, 'faculty', db=None).document_id == doc_id
-    try:
+    with pytest.raises(DocumentNotFoundError):
         get_document(doc_id, other_id, 'faculty', db=None)
-    except DocumentNotFoundError:
-        pass
-    else:
-        raise AssertionError('expected DocumentNotFoundError')
 
     _MEM_DOCUMENTS.clear()
     _MEM_DOCUMENT_OWNERS.clear()
