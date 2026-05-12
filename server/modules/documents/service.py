@@ -119,8 +119,7 @@ def get_document(
     if db is not None:
         row = db.get(Document, document_id)
         if row is not None:
-            # Check access: admin can access all, faculty can only access own
-            if current_user_role != "admin" and row.uploaded_by != current_user_id:
+            if row.uploaded_by != current_user_id:
                 raise DocumentNotFoundError(f"Document {document_id} not found")
             return DocumentResponse(
                 document_id=row.document_id,
@@ -140,7 +139,7 @@ def get_document(
     if fallback is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
     owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
-    if current_user_role != "admin" and owner_id != current_user_id:
+    if owner_id != current_user_id:
         raise DocumentNotFoundError(f"Document {document_id} not found")
     return fallback
 
@@ -157,9 +156,7 @@ def list_documents(
     items: list[DocumentResponse]
     if db is not None:
         query = db.query(Document)
-        # Role-aware scoping: faculty can only see own documents
-        if current_user_role != "admin":
-            query = query.filter(Document.uploaded_by == current_user_id)
+        query = query.filter(Document.uploaded_by == current_user_id)
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -195,13 +192,11 @@ def list_documents(
         )
 
     mem_items = list(_MEM_DOCUMENTS.values())
-    # Role-aware scoping for in-memory mode: faculty can only see own documents
-    if current_user_role != "admin":
-        mem_items = [
-            item
-            for item in mem_items
-            if _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
-        ]
+    mem_items = [
+        item
+        for item in mem_items
+        if _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
+    ]
     if source_type:
         mem_items = [item for item in mem_items if item.source_type == source_type]
     if program:
