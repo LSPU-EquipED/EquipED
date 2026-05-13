@@ -7,10 +7,6 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -23,6 +19,9 @@ from server.modules.evaluations.service import (
     get_evaluation_status,
     list_evaluations,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 
 def _add_document(
@@ -78,8 +77,12 @@ def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> 
     db_session.commit()
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
-    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
-    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+    syllabus_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
 
     response = create_evaluation(
         EvaluationSubmitRequest(
@@ -118,7 +121,9 @@ def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
         source_type="syllabus",
         processing_status="PENDING",
     )
-    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
 
     with pytest.raises(Exception) as exc_info:
         create_evaluation(
@@ -135,7 +140,9 @@ def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
     assert db_session.query(EvaluationJob).count() == 0
 
 
-def test_create_evaluation_rejects_documents_without_embedding_readiness(db_session) -> None:
+def test_create_evaluation_rejects_documents_without_embedding_readiness(
+    db_session,
+) -> None:
     owner = create_user(
         db_session,
         name="Owner",
@@ -151,8 +158,12 @@ def test_create_evaluation_rejects_documents_without_embedding_readiness(db_sess
         source_type="slm",
         chroma_stored=False,
     )
-    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
-    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+    syllabus_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
 
     with pytest.raises(Exception) as exc_info:
         create_evaluation(
@@ -187,8 +198,12 @@ def test_create_evaluation_masks_foreign_documents_as_404(db_session) -> None:
     db_session.commit()
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
-    syllabus_id = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
-    curriculum_id = _add_document(db_session, owner_id=owner.user_id, source_type="curriculum")
+    syllabus_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
 
     with pytest.raises(Exception) as exc_info:
         create_evaluation(
@@ -239,7 +254,9 @@ def test_get_and_status_mask_foreign_jobs_as_404(db_session) -> None:
     with pytest.raises(Exception) as get_exc:
         get_evaluation(job.evaluation_id, other.user_id, other.role.value, db_session)
     with pytest.raises(Exception) as status_exc:
-        get_evaluation_status(job.evaluation_id, other.user_id, other.role.value, db_session)
+        get_evaluation_status(
+            job.evaluation_id, other.user_id, other.role.value, db_session
+        )
 
     assert get_exc.value.__class__.__name__ == "EvaluationNotFoundError"
     assert status_exc.value.__class__.__name__ == "EvaluationNotFoundError"
@@ -335,7 +352,9 @@ def test_get_is_scoped_per_user_for_all_roles(db_session, role) -> None:
     assert exc_info.value.__class__.__name__ == "EvaluationNotFoundError"
 
 
-def test_no_api_path_can_fake_completed(client: TestClient, db_session, monkeypatch) -> None:
+def test_no_api_path_can_fake_completed(
+    client: TestClient, db_session, monkeypatch
+) -> None:
     from server.modules.evaluations import router as evaluations_router
 
     faculty = create_user(
@@ -348,10 +367,18 @@ def test_no_api_path_can_fake_completed(client: TestClient, db_session, monkeypa
     db_session.commit()
 
     slm_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
-    syllabus_id = _add_document(db_session, owner_id=faculty.user_id, source_type="syllabus")
-    curriculum_id = _add_document(db_session, owner_id=faculty.user_id, source_type="curriculum")
+    syllabus_id = _add_document(
+        db_session, owner_id=faculty.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=faculty.user_id, source_type="curriculum"
+    )
 
-    monkeypatch.setattr(evaluations_router, "run_evaluation_job", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        evaluations_router,
+        "run_evaluation_job",
+        lambda *args, **kwargs: None,
+    )
 
     login = client.post(
         "/api/v1/auth/login",
@@ -374,7 +401,97 @@ def test_no_api_path_can_fake_completed(client: TestClient, db_session, monkeypa
     assert job.status == EvaluationStatus.SUBMITTED.value
 
 
-def test_router_masks_foreign_access_for_all_roles(client: TestClient, db_session) -> None:
+def test_submit_evaluation_runs_honest_lifecycle_to_failed(
+    client: TestClient, db_session, monkeypatch
+) -> None:
+    from server.core import database as core_database
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations import router as evaluations_router
+
+    faculty = create_user(
+        db_session,
+        name="Faculty User",
+        email="faculty-lifecycle@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+    syllabus_id = _add_document(
+        db_session, owner_id=faculty.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=faculty.user_id, source_type="curriculum"
+    )
+
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    seen_statuses: list[EvaluationStatus] = []
+    real_transition = evaluation_orchestrator.transition_evaluation_status
+
+    def recording_transition(evaluation_id, new_status, db, *, error_message=None):
+        seen_statuses.append(new_status)
+        return real_transition(
+            evaluation_id, new_status, db, error_message=error_message
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator,
+        "transition_evaluation_status",
+        recording_transition,
+    )
+
+    real_run_evaluation_job = evaluation_orchestrator.run_evaluation_job
+
+    def run_and_suppress(*args, **kwargs):
+        try:
+            real_run_evaluation_job(*args, **kwargs)
+        except Exception:
+            pass
+
+    monkeypatch.setattr(evaluations_router, "run_evaluation_job", run_and_suppress)
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    response = client.post(
+        "/api/v1/evaluations/",
+        json={
+            "document_id": str(slm_id),
+            "syllabus_id": str(syllabus_id),
+            "curriculum_id": str(curriculum_id),
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "SUBMITTED"
+
+    job = db_session.query(EvaluationJob).one()
+    assert job.status == EvaluationStatus.FAILED.value
+    assert seen_statuses == [
+        EvaluationStatus.PREPROCESSING,
+        EvaluationStatus.EMBEDDING,
+        EvaluationStatus.EVALUATING,
+        EvaluationStatus.FAILED,
+    ]
+    assert job.error_message == (
+        "Layer 3 evaluation agents are not implemented in the current narrowed "
+        "evaluation scope."
+    )
+    assert job.completed_at is not None
+    assert EvaluationStatus.COMPLETED not in seen_statuses
+
+
+def test_router_masks_foreign_access_for_all_roles(
+    client: TestClient, db_session
+) -> None:
     owner = create_user(
         db_session,
         name="Owner",
@@ -412,12 +529,12 @@ def test_router_masks_foreign_access_for_all_roles(client: TestClient, db_sessio
     assert login.status_code == 200
 
     assert client.get(f"/api/v1/evaluations/{job.evaluation_id}").status_code == 404
-    assert client.get(f"/api/v1/evaluations/{job.evaluation_id}/status").status_code == 404
+    assert (
+        client.get(f"/api/v1/evaluations/{job.evaluation_id}/status").status_code == 404
+    )
 
 
-def test_orchestrator_default_session_factory_persists_real_transitions_and_fails_honestly(
-    monkeypatch,
-) -> None:
+def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -443,7 +560,9 @@ def test_orchestrator_default_session_factory_persists_real_transitions_and_fail
 
     slm_id = _add_document(session, owner_id=owner.user_id, source_type="slm")
     syllabus_id = _add_document(session, owner_id=owner.user_id, source_type="syllabus")
-    curriculum_id = _add_document(session, owner_id=owner.user_id, source_type="curriculum")
+    curriculum_id = _add_document(
+        session, owner_id=owner.user_id, source_type="curriculum"
+    )
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -465,11 +584,15 @@ def test_orchestrator_default_session_factory_persists_real_transitions_and_fail
 
     seen_statuses: list[EvaluationStatus] = []
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
-    from server.modules.evaluations.service import transition_evaluation_status as real_transition
+    from server.modules.evaluations.service import (
+        transition_evaluation_status as real_transition,
+    )
 
     def recording_transition(evaluation_id, new_status, db, *, error_message=None):
         seen_statuses.append(new_status)
-        return real_transition(evaluation_id, new_status, db, error_message=error_message)
+        return real_transition(
+            evaluation_id, new_status, db, error_message=error_message
+        )
 
     monkeypatch.setattr(
         evaluation_orchestrator,
@@ -489,4 +612,10 @@ def test_orchestrator_default_session_factory_persists_real_transitions_and_fail
         EvaluationStatus.EMBEDDING,
         EvaluationStatus.EVALUATING,
     ]
-    assert refreshed.error_message == "Layer 3 evaluation agents are not implemented yet."
+    assert (
+        refreshed.error_message
+        == (
+            "Layer 3 evaluation agents are not implemented in the current "
+            "narrowed evaluation scope."
+        )
+    )
