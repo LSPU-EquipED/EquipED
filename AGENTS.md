@@ -1,31 +1,25 @@
 ## Architectural Scope
 
-- This repository is still architecture-first. The checked-in `server/` and `client/` trees are scaffolds, not working application code.
-- Treat `docs/TDD.md` as the primary implementation blueprint and `docs/PRD.md` as the product and constraint document.
-- `docs/TDD.md` and `docs/PRD.md` are draft documents. Do not convert TBD items into implied final architecture.
+- `openspec/specs/` is the canonical implementation contract source.
+- Use `docs/TDD.md` and `docs/PRD.md` as supporting reference docs; do not let them override `openspec/specs/`.
+- Keep the repo aligned with current implemented behavior and current spec state; do not reintroduce stale scaffold-only assumptions.
 
 ## Highest-Value Files
 
-- `docs/TDD.md` — source of truth for planned module boundaries, route map, API shape, schemas, and deferred work.
-- `docs/PRD.md` — scope, roles, deliverables, and non-functional constraints.
-- `server/AGENTS.md` — backend guardrails for the modular monolith scaffold.
-- `client/AGENTS.md` — frontend guardrails for the feature-driven scaffold.
-- `docs/AGENTS.md` — documentation-only guardrails for spec edits.
+- `openspec/specs/` — implementation contracts and accepted product behavior.
+- `docs/TDD.md` — supporting technical blueprint and architecture notes.
+- `docs/PRD.md` — supporting scope, roles, deliverables, and constraints.
+- `server/AGENTS.md` — backend guardrails for the modular monolith.
+- `client/AGENTS.md` — frontend guardrails for the feature-driven client.
+- `docs/AGENTS.md` — documentation guardrails for spec edits.
 
-## Current Repo Reality
-
-- `server/` exists as placeholder scaffolding for a FastAPI modular monolith: `core/`, `modules/`, `db/`, and `tests/` are present, but runtime wiring and business logic are not.
-- `client/` exists as placeholder scaffolding for a React + Vite + TanStack frontend: `src/app/`, `src/features/`, and `src/shared/` are present, but routing, providers, API clients, and UI logic are not.
-- `uploads/` and `chroma_data/` are local artifact directories and should remain local-only.
-- There are still no runnable manifests, lockfiles, CI workflows, or verified tool configs. Do not invent commands like `npm test`, `pnpm dev`, `pytest`, or migration commands unless those files are later added.
-
-## Planned Architecture To Preserve
+## Architecture To Preserve
 
 - Backend remains a single-process FastAPI modular monolith. Each module owns its own router, service layer, models, schemas, and exceptions.
 - `server/core/` is infrastructure-only. Do not move business rules or orchestration logic into `core/`.
 - Frontend remains feature-driven. `client/src/features/*` must stay self-contained and must not import from one another.
 - `client/src/shared/` is strictly for code proven to be reused by at least two features.
-- Evaluation jobs follow `SUBMITTED -> PREPROCESSING -> EMBEDDING -> EVALUATING -> SYNTHESIZING -> COMPLETED|FAILED`.
+- Evaluation jobs follow the contract in `openspec/specs/evaluations/spec.md` and stop honestly at the unimplemented Layer 3 boundary.
 - Phase 1 execution remains sequential via FastAPI `BackgroundTasks`; parallel execution and Celery/Redis are deferred.
 
 ## Product And Compliance Constraints
@@ -33,29 +27,25 @@
 - Scope is limited to SLM evaluation for LSPU SCC using institutional rubrics and reference documents.
 - Human review is authoritative; generated evaluations are advisory only.
 - Data privacy and local data residency are core constraints. Do not expand external data sharing beyond what the docs allow.
-- Open decisions still exist in `docs/TDD.md` Section 13, including auth strategy, upload limit, Anthropic data-handling confirmation, prompt-update thresholds, chunking tuning, and PDF export library.
+- Open decisions stay in the supporting docs unless promoted through `openspec/specs/`.
 
 ## Repo Map
 
-### Current Responsibility
+- This repository supports EquipED, a multi-agent SLM evaluation system for LSPU SCC.
+- `README.md` — active setup/runtime guidance.
+- `openspec/specs/` — implementation contracts.
+- `docs/PRD.md` — supporting product scope and constraints.
+- `docs/TDD.md` — supporting technical blueprint.
+- `server/` — backend implementation and module boundaries.
+- `client/` — frontend implementation and feature boundaries.
+- `uploads/` and `chroma_data/` — local runtime data directories.
 
-This repository currently holds the planned architecture and scaffold for EquipED, a proposed multi-agent SLM evaluation system for LSPU SCC. It is not yet a runnable application.
+### Key Entry Points
 
-### What Exists Now
-
-- `README.md` — empty.
-- `docs/PRD.md` — product scope, roles, deliverables, requirements, and constraints.
-- `docs/TDD.md` — technical blueprint for the planned system.
-- `server/` — backend scaffold only.
-- `client/` — frontend scaffold only.
-- `uploads/` and `chroma_data/` — local runtime data directories kept in repo only via `.gitkeep`.
-
-### Planned / Scaffolded Entry Points
-
-- `server/main.py` — FastAPI app entry placeholder.
-- `client/src/main.tsx` — frontend bootstrap placeholder.
-- `client/src/app/router.tsx` — router placeholder.
-- `client/src/app/providers.tsx` — provider placeholder.
+- `server/main.py` — FastAPI app entry.
+- `client/src/main.tsx` — frontend bootstrap.
+- `client/src/app/router.tsx` — router.
+- `client/src/app/providers.tsx` — provider composition.
 
 ### Directory Responsibilities
 
@@ -74,17 +64,14 @@ This repository currently holds the planned architecture and scaffold for EquipE
 - `client/src/shared/` — intentionally sparse shared layer for code reused by 2+ features.
 - `docs/` — PRD/TDD documentation only.
 
-### Planned Execution Flow
+### Execution Flow Constraints
 
-1. User uploads PDFs.
-2. Backend preprocesses and OCRs documents.
-3. Text is chunked, embedded, and stored in ChromaDB.
-4. Supervisor runs four evaluator agents.
-5. Results are synthesized into scorecards, flags, reports, and monitoring updates.
-6. Evaluator feedback is logged for later prompt tuning.
+- Authenticated document workflows must remain ownership-scoped.
+- Evaluation must stop honestly at the safe pre-agent boundary defined in `openspec/specs/evaluations/spec.md`.
+- Later-phase multi-agent behavior must follow the spec contract rather than implied implementation details.
 
 ## Working Rules
 
-- Read `docs/TDD.md` before making structural decisions.
-- When PRD and TDD differ, prefer TDD for implementation details and PRD for scope/constraints.
-- Call out assumptions explicitly in commits and PRs because many details are still TBD.
+- Read `openspec/specs/` first for implementation behavior.
+- Use `docs/TDD.md` and `docs/PRD.md` only to resolve supporting context.
+- Call out assumptions explicitly in commits and PRs.

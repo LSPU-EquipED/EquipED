@@ -1,13 +1,14 @@
 ## Scope
 
 - This directory is only responsible for repository documentation.
-- Changes here should improve clarity, consistency, and architectural accuracy of the specs.
+- Changes here should improve clarity, consistency, and architectural accuracy.
 
 ## Documentation Guardrails
 
-- Treat `TDD.md` as the implementation blueprint and `PRD.md` as product scope and constraints.
+- Treat `openspec/specs/` as the canonical implementation contract source.
+- Use `docs/TDD.md` and `docs/PRD.md` as supporting reference material.
 - Do not present open decisions as settled architecture.
-- When reconciling inconsistencies, preserve the canonical structure already established in `TDD.md` unless the change is intentional.
+- When reconciling inconsistencies, preserve the canonical structure already established in `openspec/specs/` unless the change is intentional.
 - Keep terminology, path names, route names, module names, and lifecycle states consistent with the rest of the repo.
 
 ## What Not To Do Here
@@ -18,5 +19,5 @@
 
 ## Before Editing Docs
 
-- Cross-check `TDD.md`, `PRD.md`, and the root `../AGENTS.md`.
-- If PRD and TDD differ, prefer TDD for implementation detail and PRD for scope/constraint wording.
+- Cross-check `openspec/specs/`, `TDD.md`, `PRD.md`, and the root `../AGENTS.md`.
+- If supporting docs differ, prefer `openspec/specs/` for implementation detail and `PRD.md` for scope/constraint wording.
