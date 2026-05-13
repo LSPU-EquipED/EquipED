@@ -51,8 +51,12 @@ class Settings:
     chroma_port: int | None = None
     chroma_ssl: bool = False
 
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-haiku-4-5"
+    llm_provider: str = "local"
+    llm_model_name: str = "google/gemma-2-2b-it"
+    llm_api_base: str | None = None
+    llm_api_key: str | None = None
+    llm_temperature: float = 0.2
+    llm_max_new_tokens: int = 512
 
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -68,7 +72,7 @@ class Settings:
 
     @property
     def llm_configured(self) -> bool:
-        return bool(self.anthropic_api_key)
+        return bool(self.llm_model_name)
 
     @property
     def embedding_configured(self) -> bool:
@@ -97,6 +101,18 @@ def get_settings() -> Settings:
     except ValueError as exc:
         raise ConfigurationError("SESSION_TTL_HOURS must be a valid integer") from exc
 
+    llm_temperature = _env("LLM_TEMPERATURE", "0.2")
+    try:
+        parsed_llm_temperature = float(llm_temperature or "0.2")
+    except ValueError as exc:
+        raise ConfigurationError("LLM_TEMPERATURE must be a valid number") from exc
+
+    llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "512")
+    try:
+        parsed_llm_max_new_tokens = int(llm_max_new_tokens or "512")
+    except ValueError as exc:
+        raise ConfigurationError("LLM_MAX_NEW_TOKENS must be a valid integer") from exc
+
     settings = Settings(
         app_name=_env("APP_NAME", "EquipEd") or "EquipEd",
         app_version=_env("APP_VERSION", "0.1.0") or "0.1.0",
@@ -117,9 +133,13 @@ def get_settings() -> Settings:
         chroma_host=_env("CHROMA_HOST"),
         chroma_port=parsed_chroma_port,
         chroma_ssl=_bool_env("CHROMA_SSL", False),
-        anthropic_api_key=_env("ANTHROPIC_API_KEY"),
-        anthropic_model=_env("ANTHROPIC_MODEL", "claude-haiku-4-5")
-        or "claude-haiku-4-5",
+        llm_provider=_env("LLM_PROVIDER", "local") or "local",
+        llm_model_name=_env("LLM_MODEL_NAME", "google/gemma-2-2b-it")
+        or "google/gemma-2-2b-it",
+        llm_api_base=_env("LLM_API_BASE"),
+        llm_api_key=_env("LLM_API_KEY"),
+        llm_temperature=parsed_llm_temperature,
+        llm_max_new_tokens=parsed_llm_max_new_tokens,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",

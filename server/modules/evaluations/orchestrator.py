@@ -35,17 +35,30 @@ def run_evaluation_job(
         if document is None:
             raise DocumentNotFoundError(f"Document {job.document_id} not found")
 
-        transition_evaluation_status(evaluation_id, EvaluationStatus.PREPROCESSING, session)
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.PREPROCESSING,
+            session,
+        )
 
         if not get_document_chunks(job.document_id, db=session):
             raise EvaluationPipelineUnavailableError(
                 "Document has no chunks for evaluation."
             )
 
-        transition_evaluation_status(evaluation_id, EvaluationStatus.EMBEDDING, session)
-        transition_evaluation_status(evaluation_id, EvaluationStatus.EVALUATING, session)
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.EMBEDDING,
+            session,
+        )
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.EVALUATING,
+            session,
+        )
         raise EvaluationPipelineUnavailableError(
-            "Layer 3 evaluation agents are not implemented yet."
+            "Layer 3 evaluation agents are not implemented in the current "
+            "narrowed evaluation scope."
         )
     except Exception as exc:
         try:
