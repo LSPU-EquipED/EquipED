@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from server.modules.admin.models import PromptVersion
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -66,6 +67,19 @@ def _add_document(
     return document_id
 
 
+def _seed_active_prompts(db_session) -> None:
+    for agent_id in ["sme", "coordinator", "gad", "itso"]:
+        db_session.add(
+            PromptVersion(
+                agent_id=agent_id,
+                version_number=1,
+                prompt_text=f"{agent_id} prompt",
+                is_active=True,
+            )
+        )
+    db_session.commit()
+
+
 def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> None:
     owner = create_user(
         db_session,
@@ -83,6 +97,7 @@ def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> 
     curriculum_id = _add_document(
         db_session, owner_id=owner.user_id, source_type="curriculum"
     )
+    _seed_active_prompts(db_session)
 
     response = create_evaluation(
         EvaluationSubmitRequest(
@@ -124,6 +139,7 @@ def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
     curriculum_id = _add_document(
         db_session, owner_id=owner.user_id, source_type="curriculum"
     )
+    _seed_active_prompts(db_session)
 
     with pytest.raises(Exception) as exc_info:
         create_evaluation(
@@ -373,6 +389,7 @@ def test_no_api_path_can_fake_completed(
     curriculum_id = _add_document(
         db_session, owner_id=faculty.user_id, source_type="curriculum"
     )
+    _seed_active_prompts(db_session)
 
     monkeypatch.setattr(
         evaluations_router,
@@ -405,6 +422,8 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     client: TestClient, db_session, monkeypatch
 ) -> None:
     from server.core import database as core_database
+    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
+    from server.modules.agents.supervisor import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations import router as evaluations_router
 
@@ -424,6 +443,7 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     curriculum_id = _add_document(
         db_session, owner_id=faculty.user_id, source_type="curriculum"
     )
+    _seed_active_prompts(db_session)
 
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
@@ -443,6 +463,38 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
         evaluation_orchestrator,
         "transition_evaluation_status",
         recording_transition,
+    )
+
+    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=[
+                AgentEvaluationResult(
+                    agent_name="sme",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=3,
+                    criterion_scores=(
+                        CriterionScore(
+                            criterion_id="c1",
+                            criterion_title="Criterion 1",
+                            score=3,
+                            justification="ok",
+                        ),
+                    ),
+                    summary="ok",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        fake_run_evaluation,
     )
 
     real_run_evaluation_job = evaluation_orchestrator.run_evaluation_job
@@ -481,10 +533,7 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
         EvaluationStatus.EVALUATING,
         EvaluationStatus.FAILED,
     ]
-    assert job.error_message == (
-        "Layer 3 evaluation agents are not implemented in the current narrowed "
-        "evaluation scope."
-    )
+    assert job.error_message == "Layer 4 synthesis/completion is not implemented yet."
     assert job.completed_at is not None
     assert EvaluationStatus.COMPLETED not in seen_statuses
 
@@ -563,6 +612,9 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     curriculum_id = _add_document(
         session, owner_id=owner.user_id, source_type="curriculum"
     )
+    _seed_active_prompts(session)
+
+    captured_context: dict[str, object] = {}
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -579,7 +631,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     session.commit()
 
     from server.core import database as core_database
-
+    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
+    from server.modules.agents.supervisor import SupervisorResult
     monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
 
     seen_statuses: list[EvaluationStatus] = []
@@ -600,6 +653,45 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         recording_transition,
     )
 
+    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+        captured_context.update(context or {})
+        assert context == {
+            "reference_document_ids": {
+                "syllabus": syllabus_id,
+                "curriculum": curriculum_id,
+            }
+        }
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=[
+                AgentEvaluationResult(
+                    agent_name="sme",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=3,
+                    criterion_scores=(
+                        CriterionScore(
+                            criterion_id="c1",
+                            criterion_title="Criterion 1",
+                            score=3,
+                            justification="ok",
+                        ),
+                    ),
+                    summary="ok",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        fake_run_evaluation,
+    )
+
     with pytest.raises(Exception) as exc_info:
         run_evaluation_job(job.evaluation_id)
 
@@ -612,10 +704,81 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         EvaluationStatus.EMBEDDING,
         EvaluationStatus.EVALUATING,
     ]
-    assert (
-        refreshed.error_message
-        == (
-            "Layer 3 evaluation agents are not implemented in the current "
-            "narrowed evaluation scope."
-        )
+    assert refreshed.error_message == (
+        "Layer 4 synthesis/completion is not implemented yet."
     )
+    assert captured_context == {
+        "reference_document_ids": {
+            "syllabus": syllabus_id,
+            "curriculum": curriculum_id,
+        }
+    }
+
+
+def test_orchestrator_fails_closed_when_layer3_returns_no_outputs(
+    db_session, monkeypatch
+) -> None:
+    from server.core import database as core_database
+    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-layer3-empty@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    syllabus_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="syllabus"
+    )
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
+    _seed_active_prompts(db_session)
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=syllabus_id,
+        curriculum_id=curriculum_id,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=[],
+            failures={"sme": "boom"},
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        fake_run_evaluation,
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        run_evaluation_job(job.evaluation_id)
+
+    assert exc_info.value.__class__.__name__ == "EvaluationPipelineUnavailableError"
+    db_session.expire_all()
+    refreshed = db_session.get(EvaluationJob, job.evaluation_id)
+    assert refreshed is not None
+    assert refreshed.status == EvaluationStatus.FAILED.value
+    assert refreshed.error_message == "Layer 3 produced no usable agent outputs."

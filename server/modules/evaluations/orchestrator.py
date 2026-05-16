@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import uuid
 
+from server.modules.agents.supervisor import Supervisor
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import EvaluationPipelineUnavailableError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.service import transition_evaluation_status
+from server.modules.synthesis.service import persist_agent_outputs
 
 
 def run_evaluation_job(
@@ -35,6 +37,14 @@ def run_evaluation_job(
         if document is None:
             raise DocumentNotFoundError(f"Document {job.document_id} not found")
 
+        syllabus = session.get(Document, job.syllabus_id)
+        if syllabus is None:
+            raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
+
+        curriculum = session.get(Document, job.curriculum_id)
+        if curriculum is None:
+            raise DocumentNotFoundError(f"Document {job.curriculum_id} not found")
+
         transition_evaluation_status(
             evaluation_id,
             EvaluationStatus.PREPROCESSING,
@@ -56,9 +66,30 @@ def run_evaluation_job(
             EvaluationStatus.EVALUATING,
             session,
         )
+        supervisor = Supervisor(db=session)
+        supervisor_result = supervisor.run_evaluation(
+            evaluation_id=evaluation_id,
+            document_id=job.document_id,
+            chunks=get_document_chunks(job.document_id, db=session),
+            context={
+                "reference_document_ids": {
+                    "syllabus": job.syllabus_id,
+                    "curriculum": job.curriculum_id,
+                }
+            },
+        )
+        if not supervisor_result.agent_results:
+            raise EvaluationPipelineUnavailableError(
+                "Layer 3 produced no usable agent outputs."
+            )
+        persist_agent_outputs(
+            session,
+            evaluation_id,
+            job.document_id,
+            supervisor_result.agent_results,
+        )
         raise EvaluationPipelineUnavailableError(
-            "Layer 3 evaluation agents are not implemented in the current "
-            "narrowed evaluation scope."
+            "Layer 4 synthesis/completion is not implemented yet."
         )
     except Exception as exc:
         try:

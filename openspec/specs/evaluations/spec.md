@@ -1,31 +1,42 @@
 # evaluations Specification
 
 ## Purpose
-Define the evaluation job contract for the current phase, limited to safe pre-agent processing, honest failure at the unimplemented Layer 3 boundary, and ownership-scoped polling.
+Define the evaluation job contract for the current phase, including Layer 3 execution, persistence of evaluation outputs, and honest stopping before Layer 4 report generation.
 
 ## Requirements
 
-### Requirement: Evaluation jobs advance through the safe pre-agent boundary
-The system SHALL support evaluation job submission and progress through the pre-agent lifecycle stages without implying that multi-agent evaluation is already available.
+### Requirement: Evaluation jobs progress into Layer 3
+The system SHALL support evaluation job submission, pre-agent processing, and execution of the Layer 3 multi-agent evaluation boundary.
 
 #### Scenario: Evaluation job is accepted and begins processing
 - **WHEN** an authenticated user submits a new evaluation request for a document they own
 - **THEN** the system SHALL create an evaluation job in `SUBMITTED` state and continue into the pre-agent processing stages
 
-#### Scenario: Pre-agent lifecycle remains explicit
-- **WHEN** an evaluation job is running before Layer 3 agent execution
-- **THEN** the system SHALL represent progress using the existing lifecycle states up to `EVALUATING` and SHALL not skip directly to a completed result
+#### Scenario: Layer 3 execution starts after pre-agent processing
+- **WHEN** an evaluation job completes the pre-agent stages
+- **THEN** the system SHALL enter Layer 3 multi-agent evaluation and record progress without claiming the job is complete
 
-### Requirement: Evaluation fails honestly at the unimplemented Layer 3 boundary
-The system SHALL terminate evaluation jobs with a clear failure when execution reaches the currently unimplemented Layer 3 multi-agent boundary.
+### Requirement: Evaluation outputs are persisted before stopping
+The system SHALL persist Layer 3 outputs for the evaluation job before the workflow stops at the unimplemented Layer 4 boundary.
 
-#### Scenario: Layer 3 execution is not available yet
-- **WHEN** a job reaches the point where multi-agent evaluation would begin
-- **THEN** the system SHALL mark the job as `FAILED` and record a failure reason that explains the Layer 3 boundary is not implemented
+#### Scenario: Layer 3 outputs are stored
+- **WHEN** Layer 3 finishes producing evaluation outputs
+- **THEN** the system SHALL persist the outputs through the evaluation data persistence contract
 
-#### Scenario: Failure is terminal rather than silent
-- **WHEN** Layer 3 cannot continue
-- **THEN** the system SHALL not leave the job in an ambiguous in-progress state or present a fabricated success outcome
+#### Scenario: Persisted outputs remain tied to the job
+- **WHEN** evaluation outputs are saved
+- **THEN** the system SHALL associate them with the owning evaluation job and document owner
+
+### Requirement: Evaluation stops honestly before Layer 4
+The system SHALL stop evaluation jobs after persisting Layer 3 outputs and SHALL not fabricate report generation, scorecard completion, matrix updates, or `COMPLETED` status.
+
+#### Scenario: Layer 4 is not entered
+- **WHEN** Layer 3 persistence succeeds
+- **THEN** the system SHALL end the job with an explicit non-complete terminal outcome and a reason that Layer 4 is not implemented
+
+#### Scenario: No downstream artifacts are generated
+- **WHEN** a job reaches the end of the current workflow
+- **THEN** the system SHALL not create a report, finalize a scorecard, update the monitoring matrix, or mark the job `COMPLETED`
 
 ### Requirement: Evaluation polling is limited to the owning user
 The system SHALL only expose evaluation status for jobs owned by the authenticated user who is polling them.
