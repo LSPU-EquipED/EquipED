@@ -38,13 +38,18 @@ class BaseAgent:
         context_text: str | None = None,
         reference_text: str | None = None,
         prompt_version: str | None = None,
+        prompt_version_id: uuid.UUID | None = None,
+        reference_document_ids: dict[str, uuid.UUID] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         if not chunk_texts:
             raise AgentExecutionError("document chunks are required for evaluation")
 
         rubric_context = self._retrieve_rubric_context("\n".join(chunk_texts))
-        reference_context = self._retrieve_reference_context(context_text or "")
+        reference_context = self._retrieve_reference_context(
+            context_text or "",
+            reference_document_ids=reference_document_ids,
+        )
         prompt = self._build_prompt(
             chunk_texts=chunk_texts,
             rubric_context=rubric_context,
@@ -65,6 +70,7 @@ class BaseAgent:
             document_id=document_id,
             subtotal=subtotal,
             criterion_scores=criterion_scores,
+            prompt_version_id=prompt_version_id,
             summary=parsed.get("summary", ""),
             model_name=get_llm_model_name(),
             processing_seconds=processing_seconds,
@@ -75,6 +81,9 @@ class BaseAgent:
                 "rubric_context_size": len(rubric_context),
                 "reference_context_size": len(reference_context),
                 "prompt_version": prompt_version,
+                "prompt_version_id": (
+                    str(prompt_version_id) if prompt_version_id else None
+                ),
             },
         )
 
@@ -92,15 +101,26 @@ class BaseAgent:
                 f"Failed to retrieve rubric context for {self.agent_name}"
             ) from exc
 
-    def _retrieve_reference_context(self, query_text: str) -> list[str]:
+    def _retrieve_reference_context(
+        self,
+        query_text: str,
+        *,
+        reference_document_ids: dict[str, uuid.UUID] | None = None,
+    ) -> list[str]:
         results: list[str] = []
         for source_type in self.reference_source_types:
+            if not reference_document_ids or source_type not in reference_document_ids:
+                raise AgentExecutionError(
+                    "Missing scoped reference document for "
+                    f"{self.agent_name}:{source_type}"
+                )
             try:
                 collection_name = resolve_collection_name(source_type)
                 chunks = retrieve_context(
                     query_text,
                     collection_name,
                     n_results=self.max_reference_chunks,
+                    document_id_filter=str(reference_document_ids[source_type]),
                 )
                 results.extend(chunk.text for chunk in chunks)
             except Exception as exc:

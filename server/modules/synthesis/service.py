@@ -23,6 +23,7 @@ def persist_agent_outputs(
             evaluation_id=evaluation_id,
             document_id=document_id,
             agent_name=agent_result.agent_name,
+            prompt_version_id=agent_result.prompt_version_id,
             subtotal=agent_result.subtotal,
             processing_seconds=agent_result.processing_seconds,
             token_count=agent_result.token_count,

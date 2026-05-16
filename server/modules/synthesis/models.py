@@ -23,6 +23,9 @@ class AgentResult(Base):
         Uuid(as_uuid=True), ForeignKey("documents.document_id"), nullable=False
     )
     agent_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("prompt_versions.version_id"), nullable=True
+    )
     subtotal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     processing_seconds: Mapped[float] = mapped_column(nullable=False, default=0.0)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
