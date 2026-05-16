@@ -36,6 +36,7 @@ class AgentEvaluationResult:
     model_name: str
     processing_seconds: float
     token_count: int
+    prompt_version_id: uuid.UUID | None = None
     success: bool = True
     error_message: str | None = None
     raw_response: str | None = None
