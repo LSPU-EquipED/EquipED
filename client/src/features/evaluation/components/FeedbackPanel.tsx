@@ -1,11 +1,22 @@
-export function FeedbackPanel() {
+import { MessageSquareText } from 'lucide-react';
+
+type FeedbackPanelProps = {
+  readonly comments?: readonly string[];
+};
+
+const fallbackComments = ['Agent feedback will appear here after persisted Layer 3 outputs are available for this job.'];
+
+export function FeedbackPanel({ comments = fallbackComments }: FeedbackPanelProps) {
   return (
-    <section style={{ borderRadius: '1rem', border: '1px solid rgba(148, 163, 184, 0.14)', background: 'rgba(15, 23, 42, 0.72)', padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-      <div style={{ color: '#8ba4d6', fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Feedback</div>
-      <div style={{ color: '#bfd0f7' }}>Accept / Reject / Edit controls are deferred until feedback wiring lands.</div>
-      <button type="button" style={{ width: 'fit-content', borderRadius: '999px', border: 'none', background: '#60a5fa', color: '#081120', padding: '0.7rem 1rem', fontWeight: 700 }}>
-        Provisional action
-      </button>
-    </section>
+    <div className="grid gap-2">
+      {comments.map((comment) => (
+        <div key={comment} className="flex gap-3 rounded-lg border bg-card p-3 text-sm transition duration-200 hover:bg-muted/30">
+          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <MessageSquareText className="size-4" aria-hidden="true" />
+          </span>
+          <p className="m-0 leading-6 text-muted-foreground">{comment}</p>
+        </div>
+      ))}
+    </div>
   );
 }

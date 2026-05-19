@@ -67,8 +67,8 @@ const evaluationsRoute = createRoute({
 });
 
 const evaluationDetailRoute = createRoute({
-  getParentRoute: () => evaluationsRoute,
-  path: '$id',
+  getParentRoute: () => shellRoute,
+  path: 'evaluations/$id',
   component: Scorecard,
 });
 
@@ -122,7 +122,8 @@ const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     dashboardRoute,
     uploadRoute,
-    evaluationsRoute.addChildren([evaluationDetailRoute.addChildren([evaluationReportRoute])]),
+    evaluationsRoute,
+    evaluationDetailRoute.addChildren([evaluationReportRoute]),
     matrixRoute,
     adminRoute.addChildren([adminPromptsRoute.addChildren([adminPromptDetailRoute]), adminPreferencesRoute]),
   ]),

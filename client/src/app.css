@@ -122,3 +122,16 @@ body {
 #root {
   min-height: 100vh;
 }
+
+.evaluation-split-pane {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .evaluation-split-pane {
+    grid-template-columns:
+      minmax(0, var(--evaluation-left-pane, 47fr))
+      0.75rem
+      minmax(24rem, var(--evaluation-right-pane, 53fr));
+  }
+}
