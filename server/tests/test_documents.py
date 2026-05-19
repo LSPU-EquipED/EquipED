@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User, UserRole
@@ -9,13 +12,11 @@ from server.modules.auth.service import create_user
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.schemas import DocumentResponse
 from server.modules.documents.service import (
-    _MEM_DOCUMENTS,
     _MEM_DOCUMENT_OWNERS,
+    _MEM_DOCUMENTS,
     get_document,
     list_documents,
 )
-from datetime import UTC, datetime
-import uuid
 
 
 def test_list_documents_requires_authenticated_session(client: TestClient) -> None:
