@@ -7,6 +7,12 @@ import { AuthContext } from './useAuth';
 
 const AUTH_SESSION_QUERY_KEY = ['auth', 'session'] as const;
 const ANONYMOUS_AUTH_RESPONSE: AuthStateResponse = { authenticated: false, user: null };
+const PREVIEW_AUTH_USER: AppAuthUser = {
+  id: 'preview-admin',
+  email: 'preview@equiped.local',
+  displayName: 'Preview Admin',
+  role: 'admin',
+};
 
 function getProvisionalState(): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
   return {
@@ -46,10 +52,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [authError, setAuthError] = useState<string | null>(null);
   const [sessionErrorDismissed, setSessionErrorDismissed] = useState(false);
+  const isPreviewAuth =
+    import.meta.env.DEV && new URLSearchParams(window.location.search).get('previewAuth') === '1';
   const sessionQuery = useQuery({
     queryKey: AUTH_SESSION_QUERY_KEY,
     queryFn: authApi.me,
     retry: false,
+    enabled: !isPreviewAuth,
   });
 
   const clearError = useCallback(() => {
@@ -101,6 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authState = useMemo<Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'>>(() => {
     const resolvedState = (() => {
+      if (isPreviewAuth) {
+        return getAuthenticatedState(PREVIEW_AUTH_USER);
+      }
+
       if (sessionQuery.isPending) {
         return getProvisionalState();
       }
@@ -115,7 +128,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     return authError ? { ...resolvedState, error: authError } : resolvedState;
-  }, [authError, sessionErrorDismissed, sessionQuery.data, sessionQuery.error, sessionQuery.isError, sessionQuery.isPending]);
+  }, [
+    authError,
+    isPreviewAuth,
+    sessionErrorDismissed,
+    sessionQuery.data,
+    sessionQuery.error,
+    sessionQuery.isError,
+    sessionQuery.isPending,
+  ]);
 
   const value = useMemo<AppAuthContext>(
     () => ({
