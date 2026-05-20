@@ -48,3 +48,36 @@ The system SHALL only expose evaluation status for jobs owned by the authenticat
 #### Scenario: User attempts to poll another user's job
 - **WHEN** an authenticated user requests the status of an evaluation job owned by a different user
 - **THEN** the system SHALL deny access and SHALL not disclose the other job's status
+
+### Requirement: Evaluation lifecycle status sequence
+Evaluation jobs SHALL progress through the following status sequence: `SUBMITTED` → `PREPROCESSING` → `EVALUATING` → `SYNTHESIZING` → `COMPLETED`. Jobs that encounter errors SHALL transition to `FAILED` from any non-terminal status. The `EMBEDDING` status SHALL NOT be used — embedding occurs at document upload time for reference and rubric documents, not during evaluation.
+
+#### Scenario: Job progresses through lifecycle
+- **WHEN** an evaluation job is submitted and accepted
+- **THEN** the system SHALL transition through `SUBMITTED` → `PREPROCESSING` → `EVALUATING` → `SYNTHESIZING` → `COMPLETED` (or `FAILED` on error)
+
+#### Scenario: Job fails during processing
+- **WHEN** an error occurs during any non-terminal stage
+- **THEN** the system SHALL transition the job to `FAILED` and record the error message
+
+### Requirement: SLM documents are direct evaluation input
+Student Learning Materials (SLMs) SHALL be treated as direct evaluation input and SHALL NOT be embedded into the vector store. Only reference documents (syllabus, curriculum) and rubric documents SHALL be embedded.
+
+#### Scenario: SLM document is uploaded
+- **WHEN** a document with `source_type == "slm"` is uploaded
+- **THEN** the system SHALL ingest and chunk the document but SHALL NOT embed it into ChromaDB
+
+#### Scenario: SLM document is submitted for evaluation
+- **WHEN** an evaluation is submitted with an SLM document
+- **THEN** the system SHALL accept the document without requiring `chroma_stored == True`
+
+### Requirement: chroma_stored validation is conditional on document type
+The `chroma_stored` readiness gate SHALL only apply to documents that require embedding (reference and rubric documents). SLM documents SHALL be exempt from the `chroma_stored` check during evaluation submission validation.
+
+#### Scenario: Reference document without chroma_stored is rejected
+- **WHEN** an evaluation is submitted with a reference document (syllabus or curriculum) that has `chroma_stored == False`
+- **THEN** the system SHALL reject the submission with an error
+
+#### Scenario: SLM document without chroma_stored is accepted
+- **WHEN** an evaluation is submitted with an SLM document that has `chroma_stored == False`
+- **THEN** the system SHALL accept the submission (SLMs do not require embedding)

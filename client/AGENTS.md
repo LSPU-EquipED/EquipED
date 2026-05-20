@@ -12,6 +12,7 @@
 - Do not turn `shared/` into a dumping ground for unfinished or single-feature code.
 - Route access must follow the hydrated backend session and role from `admin` or `faculty`.
 - Document views and actions must respect per-user ownership.
+- Document upload forms should support the source_type distinction: SLM (direct evaluation input) vs reference/rubric (embedding target).
 
 ## Before Making Frontend Changes
 

@@ -19,7 +19,7 @@
 - `server/core/` is infrastructure-only. Do not move business rules or orchestration logic into `core/`.
 - Frontend remains feature-driven. `client/src/features/*` must stay self-contained and must not import from one another.
 - `client/src/shared/` is strictly for code proven to be reused by at least two features.
-- Evaluation jobs follow the contract in `openspec/specs/evaluations/spec.md` and stop honestly at the unimplemented Layer 3 boundary.
+- Evaluation jobs follow the contract in `openspec/specs/evaluations/spec.md`: Layer 3 multi-agent evaluation runs, then stops honestly at the unimplemented Layer 4 boundary.
 - Phase 1 execution remains sequential via FastAPI `BackgroundTasks`; parallel execution and Celery/Redis are deferred.
 
 ## Product And Compliance Constraints
@@ -51,7 +51,7 @@
 
 - `server/core/` — shared infrastructure only.
 - `server/modules/documents/` — PDF upload and ingestion.
-- `server/modules/embeddings/` — vectorization and retrieval.
+- `server/modules/embeddings/` — reference/rubric vectorization and retrieval only.
 - `server/modules/evaluations/` — evaluation job lifecycle.
 - `server/modules/agents/` — supervisor plus SME/coordinator/GAD/ITSO evaluators.
 - `server/modules/synthesis/` — scoring, flags, reports, and monitoring matrix.
@@ -67,8 +67,12 @@
 ### Execution Flow Constraints
 
 - Authenticated document workflows must remain ownership-scoped.
-- Evaluation must stop honestly at the safe pre-agent boundary defined in `openspec/specs/evaluations/spec.md`.
+- Evaluation must execute Layer 3 multi-agent evaluation and stop honestly at the Layer 4 boundary defined in `openspec/specs/evaluations/spec.md`.
 - Later-phase multi-agent behavior must follow the spec contract rather than implied implementation details.
+- SLMs are direct evaluation input; do not embed them into ChromaDB.
+- Only reference documents (syllabus, curriculum) and rubrics belong in the Chroma vector store.
+- The EMBEDDING lifecycle status has been removed; do not reintroduce it.
+- chroma_data and uploads directories are anchored to the repository root.
 
 ## Working Rules
 

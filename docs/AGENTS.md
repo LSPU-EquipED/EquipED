@@ -10,6 +10,9 @@
 - Do not present open decisions as settled architecture.
 - When reconciling inconsistencies, preserve the canonical structure already established in `openspec/specs/` unless the change is intentional.
 - Keep terminology, path names, route names, module names, and lifecycle states consistent with the rest of the repo.
+- The evaluation lifecycle is: SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED. There is no EMBEDDING step.
+- SLM = direct evaluation input (not embedded). Reference/rubric = ChromaDB-embedded corpus.
+- chroma_data and uploads live at the repository root, not inside server/.
 
 ## What Not To Do Here
 

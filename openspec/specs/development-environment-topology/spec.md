@@ -43,3 +43,10 @@ The development environment SHALL remain PostgreSQL-generic and local-deployment
 #### Scenario: Team revisits topology before retrieval-heavy collaboration
 - **WHEN** multiple developers need consistent retrieval and evaluation behavior against the same document corpus
 - **THEN** the team SHALL revisit the local-per-developer Chroma assumption before treating cross-machine evaluation results as equivalent
+
+### Requirement: ChromaDB persistence directory location
+The ChromaDB persistence directory (`chroma_data`) SHALL reside at the repository root, not inside the `server/` directory. The `chroma_persist_directory` configuration SHALL default to `chroma_data` relative to the project root.
+
+#### Scenario: Chroma data is at repo root
+- **WHEN** the application starts with default configuration
+- **THEN** ChromaDB SHALL persist data to `chroma_data/` at the repository root level

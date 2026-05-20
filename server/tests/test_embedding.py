@@ -5,14 +5,14 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from server.modules.embeddings.collections import COL_SLM
+from server.modules.embeddings.collections import COL_REFERENCE_ALL
 from server.modules.embeddings.retrieval import retrieve_context
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Query a Chroma embedding collection")
     parser.add_argument("query", nargs="?", default="lesson objectives")
-    parser.add_argument("--collection", default=COL_SLM)
+    parser.add_argument("--collection", default=COL_REFERENCE_ALL)
     parser.add_argument("--document-id", default=None)
     parser.add_argument("--limit", type=int, default=3)
     return parser

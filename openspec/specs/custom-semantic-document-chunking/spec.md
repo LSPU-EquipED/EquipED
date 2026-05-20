@@ -62,3 +62,14 @@ The system SHALL apply the new chunking behavior only to newly uploaded document
 #### Scenario: Previously uploaded document remains unchanged
 - **WHEN** the system deploys with this change
 - **THEN** already stored documents SHALL keep their existing chunks until they are manually re-uploaded or otherwise explicitly reprocessed by a later change
+
+### Requirement: SLM documents skip embedding after chunking
+Student Learning Materials (SLMs) SHALL be chunked and persisted normally but SHALL NOT be embedded into ChromaDB. The embedding step SHALL be skipped entirely for documents with `source_type == "slm"`.
+
+#### Scenario: SLM document upload completes without embedding
+- **WHEN** an SLM document is uploaded and chunked
+- **THEN** the system SHALL persist the chunks but SHALL NOT call the embedding service
+
+#### Scenario: Reference document upload triggers embedding
+- **WHEN** a reference document (syllabus or curriculum) is uploaded and chunked
+- **THEN** the system SHALL persist the chunks AND embed them into ChromaDB

@@ -58,11 +58,6 @@ def run_evaluation_job(
 
         transition_evaluation_status(
             evaluation_id,
-            EvaluationStatus.EMBEDDING,
-            session,
-        )
-        transition_evaluation_status(
-            evaluation_id,
             EvaluationStatus.EVALUATING,
             session,
         )

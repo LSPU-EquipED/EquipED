@@ -16,7 +16,6 @@ class EvaluationStatus(StrEnum):
 
     SUBMITTED = "SUBMITTED"
     PREPROCESSING = "PREPROCESSING"
-    EMBEDDING = "EMBEDDING"
     EVALUATING = "EVALUATING"
     SYNTHESIZING = "SYNTHESIZING"
     COMPLETED = "COMPLETED"
@@ -29,10 +28,6 @@ ALLOWED_STATUS_TRANSITIONS: dict[EvaluationStatus, tuple[EvaluationStatus, ...]]
         EvaluationStatus.FAILED,
     ),
     EvaluationStatus.PREPROCESSING: (
-        EvaluationStatus.EMBEDDING,
-        EvaluationStatus.FAILED,
-    ),
-    EvaluationStatus.EMBEDDING: (
         EvaluationStatus.EVALUATING,
         EvaluationStatus.FAILED,
     ),

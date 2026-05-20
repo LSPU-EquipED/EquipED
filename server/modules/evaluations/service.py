@@ -118,7 +118,9 @@ def _validate_evaluation_target(
             "Document must have chunks before evaluation submission."
         )
 
-    if not all(getattr(chunk, "chroma_stored", False) for chunk in chunks):
+    if document.source_type != "slm" and not all(
+        getattr(chunk, "chroma_stored", False) for chunk in chunks
+    ):
         raise InvalidEvaluationTargetError(
             "Document must have Chroma-ready chunks before evaluation submission."
         )

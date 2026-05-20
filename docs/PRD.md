@@ -173,7 +173,7 @@ A persistent record of:
 | FR-02 | The system shall accept PDF uploads of course syllabi, curriculum guides, and institutional evaluation rubrics as reference documents | D-05 | High |
 | FR-03 | The system shall allow a submitted SLM to be associated with its corresponding syllabus and curriculum guide at the time of upload | D-05 | High |
 | FR-04 | The system shall extract machine-readable text from uploaded PDFs, including text embedded in scanned or image-based pages | D-01, D-02 | High |
-| FR-05 | The system shall tag all extracted document chunks with their source type (SLM / syllabus / rubric / curriculum) for retrieval scoping | D-01, D-02 | High |
+| FR-05 | The system shall tag all extracted document chunks with their source type (SLM / syllabus / rubric / curriculum) to support direct SLM evaluation routing and separate retrieval scoping for reference context | D-01, D-02 | High |
 
 ### 6.2 Automated Evaluation
 
@@ -224,7 +224,7 @@ A persistent record of:
 | NFR-01 | **Accuracy.** The system shall achieve evaluation agreement with human experts of at least 90% on precision, recall, and accuracy metrics, validated against expert-reviewed SLMs from the LSPU SCC corpus. | High |
 | NFR-02 | **Language Support.** The system shall correctly process SLM content written in English and Filipino. Content in other languages is out of scope and may produce inaccurate outputs. | High |
 | NFR-03 | **Data Privacy.** All institutional documents processed by the system shall be handled in compliance with RA 10173 (Data Privacy Act of 2012). Personally identifiable information in uploaded documents shall be anonymized prior to processing. | High |
-| NFR-04 | **Local Data Residency.** Document embedding and vector storage operations shall run on local institutional infrastructure. No raw SLM content or institutional document data shall be transmitted to external services beyond what is strictly required for LLM inference. `[TBD: confirmation of API data handling policy required]` | High |
+| NFR-04 | **Local Data Residency.** Document embedding and vector storage operations shall run on local institutional infrastructure. No raw SLM content or institutional document data shall be transmitted outside the institutional deployment boundary beyond what is strictly required for the configured local or self-hosted LLM backend. `[TBD: backend data handling policy required]` | High |
 | NFR-05 | **Human Oversight.** System-generated evaluation outputs are advisory only. All outputs are subject to human evaluator review and shall not constitute official CID evaluation decisions without explicit evaluator confirmation. | High |
 | NFR-06 | **Processing Time.** The system shall complete evaluation of a standard SLM (20–40 pages) within a processing window acceptable for institutional workflows. `[TBD: target to be defined upon prototype benchmarking]` | Medium |
 | NFR-07 | **Maintainability.** Rubric content, agent evaluation prompts, and document preprocessing configurations shall be independently updatable without requiring full system redeployment. | Medium |
@@ -238,12 +238,12 @@ A persistent record of:
 
 | Source | Role in System | Collection Status |
 |---|---|---|
-| Self-Paced Learning Modules (SLMs) | Primary evaluation subject; ground truth corpus for accuracy validation | `[TBD — In progress]` |
-| SME & Program Coordinator Evaluation Rubric | Defines scoring criteria for FR-06 and FR-07; loaded as agent knowledge base | Partially collected |
-| GAD Unit Evaluation Rubric | Defines scoring criteria for FR-08; loaded as agent knowledge base | Partially collected |
-| ITSO Evaluation Rubric | Defines scoring criteria for FR-09; loaded as agent knowledge base | Partially collected |
-| Course Syllabi | Reference context for syllabus alignment verification (FR-07) | `[TBD]` |
-| Curriculum Guides | Reference context for OBE compliance verification (FR-07) | `[TBD]` |
+| Self-Paced Learning Modules (SLMs) | Primary evaluation subject; extracted chunk text is evaluated directly, with stored chunks retained for traceable retrieval support | `[TBD — In progress]` |
+| SME & Program Coordinator Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-06 and FR-07 | Partially collected |
+| GAD Unit Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-08 | Partially collected |
+| ITSO Evaluation Rubric | Primary retrieval corpus for rubric-grounded scoring criteria in FR-09 | Partially collected |
+| Course Syllabi | Primary retrieval corpus for syllabus alignment verification (FR-07) | `[TBD]` |
+| Curriculum Guides | Primary retrieval corpus for OBE compliance verification (FR-07) | `[TBD]` |
 | CID Evaluated Forms | Output structure reference for report generation; baseline for preference logging | `[TBD]` |
 
 ### 8.2 Data Constraints
@@ -341,9 +341,9 @@ Individual criterion scores within each domain are summed per rubric. The instit
 | **Institutional Scope** | System is designed exclusively for LSPU SCC. Rubric calibration, knowledge base content, and scoring logic are not intended for other institutions. |
 | **Language Scope** | English and Filipino only. Other languages are outside scope. |
 | **Human Oversight** | System outputs are advisory. Final evaluation authority remains with institutional evaluators. System outputs do not constitute official CID decisions without evaluator confirmation. |
-| **Prompt-Based Optimization** | Preference-driven improvement operates through agent prompt updates, not model weight modification. This is a constraint of the API-based LLM architecture. |
+| **Prompt-Based Optimization** | Preference-driven improvement operates through agent prompt updates, not model weight modification. This is a constraint of the local prompt-driven LLM backend architecture. |
 | **Data Completeness** | Evaluation accuracy depends on the quality of institutional reference documents. Incomplete or inconsistent source data will degrade reliability at initial deployment. |
-| **API Data Governance** | LLM inference calls transmit document content to an external API. Compliance with RA 10173 for this transmission requires confirmation from LSPU SCC institutional IT governance. `[TBD]` |
+| **LLM Backend Data Governance** | LLM calls are expected to run on a local or self-hosted backend. Compliance with RA 10173 for any model-hosting or inference path still requires confirmation from LSPU SCC institutional IT governance. `[TBD]` |
 
 ---
 
@@ -357,7 +357,7 @@ Individual criterion scores within each domain are summed per rubric. The instit
 | OI-04 | Curriculum guides not yet collected | Blocks OBE compliance evaluation (FR-07) | Research team | Pending departmental data request |
 | OI-05 | CID evaluated forms not yet obtained | Blocks report structure reference and preference baseline (D-06) | Research team | Pending CID approval |
 | OI-06 | Processing time target undefined | Blocks NFR-06 definition | Research team | Pending prototype benchmarking |
-| OI-07 | API data handling policy not confirmed | Blocks NFR-04 and NFR-05 compliance confirmation | LSPU SCC IT / legal | Pending institutional review |
+| OI-07 | LLM backend data handling policy not confirmed | Blocks NFR-04 and NFR-05 compliance confirmation | LSPU SCC IT / legal | Pending institutional review |
 | OI-08 | Minimum feedback volume for prompt refinement not defined | Blocks FR-24 actionability threshold | Research team | Pending advisor input |
 
 ---
