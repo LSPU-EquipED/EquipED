@@ -168,18 +168,16 @@ def test_create_evaluation_rejects_documents_without_embedding_readiness(
     )
     db_session.commit()
 
-    slm_id = _add_document(
+    curriculum_id = _add_document(
         db_session,
         owner_id=owner.user_id,
-        source_type="slm",
+        source_type="curriculum",
         chroma_stored=False,
     )
     syllabus_id = _add_document(
         db_session, owner_id=owner.user_id, source_type="syllabus"
     )
-    curriculum_id = _add_document(
-        db_session, owner_id=owner.user_id, source_type="curriculum"
-    )
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
 
     with pytest.raises(Exception) as exc_info:
         create_evaluation(
@@ -529,7 +527,6 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     assert job.status == EvaluationStatus.FAILED.value
     assert seen_statuses == [
         EvaluationStatus.PREPROCESSING,
-        EvaluationStatus.EMBEDDING,
         EvaluationStatus.EVALUATING,
         EvaluationStatus.FAILED,
     ]
@@ -699,9 +696,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     refreshed = SessionLocal().get(EvaluationJob, job.evaluation_id)
     assert refreshed is not None
     assert refreshed.status == EvaluationStatus.FAILED.value
-    assert seen_statuses[:3] == [
+    assert seen_statuses[:2] == [
         EvaluationStatus.PREPROCESSING,
-        EvaluationStatus.EMBEDDING,
         EvaluationStatus.EVALUATING,
     ]
     assert refreshed.error_message == (

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 from .exceptions import ConfigurationError
 
@@ -46,7 +47,9 @@ class Settings:
     bootstrap_admin_name: str | None = None
     bootstrap_admin_password: str | None = None
 
-    chroma_persist_directory: str = "chroma_data"
+    chroma_persist_directory: str = str(
+        Path(__file__).resolve().parent.parent.parent / "chroma_data"
+    )
     chroma_host: str | None = None
     chroma_port: int | None = None
     chroma_ssl: bool = False
