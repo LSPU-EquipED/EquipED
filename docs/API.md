@@ -182,8 +182,60 @@ Uploads a PDF document and runs the existing document ingestion flow.
 }
 ```
 
+**Embedding behavior by source_type:**
+
+| source_type | Embedding Behavior |
+|---|---|
+| `slm` | NOT embedded — direct evaluation input |
+| `syllabus`, `curriculum` | Embedded into `col_reference_all` Chroma collection |
+| `rubric_sme`, `rubric_coord`, `rubric_gad`, `rubric_itso` | Embedded into respective rubric collections |
+
+## Evaluations
+
+### `POST /api/v1/evaluations`
+
+Submits a new evaluation job. Returns `202 Accepted`.
+
+**Request shape:**
+
+```json
+{
+  "document_id": "uuid",
+  "syllabus_id": "uuid",
+  "curriculum_id": "uuid"
+}
+```
+
+**Submission requirements:**
+- Document, syllabus, and curriculum must belong to the authenticated user
+- All documents must have `processing_status == "PROCESSED"`
+- Reference documents (syllabus, curriculum) must have `chroma_stored == true`
+- SLM documents are exempt from the `chroma_stored` requirement
+
+### `GET /api/v1/evaluations`
+
+Returns paginated evaluation jobs for the authenticated user.
+
+**Query parameters:**
+- `page` (default `1`)
+- `page_size` (default `20`)
+
+### `GET /api/v1/evaluations/{evaluation_id}`
+
+Returns the evaluation job with current status.
+
+### Lifecycle Status Sequence
+
+`SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED`
+
+Jobs that encounter errors transition to `FAILED` from any non-terminal status.
+The `EMBEDDING` status is not used — embedding occurs at document upload time.
+
 ## Notes
 
 - Public self-service registration is intentionally out of scope.
 - Upload completion does not imply evaluation completion.
-- Feature endpoints for evaluations, reports, admin, and feedback will expand later.
+- SLM documents are direct evaluation input and skip ChromaDB embedding entirely.
+- Reference and rubric documents are embedded into ChromaDB at upload time.
+- Evaluation runs Layer 3 multi-agent evaluation and stops honestly at the Layer 4 (synthesis/report) boundary.
+- chroma_data and uploads directories live at the repository root.
