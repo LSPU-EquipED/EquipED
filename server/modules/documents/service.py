@@ -30,7 +30,8 @@ from .schemas import (
 from .tfidf import compute_tfidf_corpus
 from server.modules.embeddings.service import embed_and_store_chunks
 
-UPLOAD_ROOT = Path("uploads")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+UPLOAD_ROOT = _PROJECT_ROOT / "uploads"
 logger = logging.getLogger(__name__)
 
 _MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
@@ -297,10 +298,24 @@ def embed_document_chunks(document_id: uuid.UUID) -> int:
         db = session
 
     try:
+        if db is not None:
+            document = db.get(Document, document_id)
+            source_type = document.source_type if document is not None else None
+        else:
+            document = _MEM_DOCUMENTS.get(document_id)
+            source_type = document.source_type if document is not None else None
+
+        if source_type == "slm":
+            return 0
+
         chunks = get_document_chunks(document_id, db=db)
         upserted = embed_and_store_chunks(chunks)
         if db is not None and upserted:
             _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
+        elif db is None and upserted:
+            for chunk in chunks:
+                if isinstance(chunk, dict):
+                    chunk["chroma_stored"] = True
         return upserted
     finally:
         if session is not None:
