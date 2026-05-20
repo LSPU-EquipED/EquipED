@@ -60,7 +60,7 @@ All functional and non-functional requirements from PRD v0.3 are traceable to se
 
 ### 2.1 Overview
 
-EquipEd is a five-layer pipeline system with an asynchronous feedback loop. The layers execute sequentially per evaluation job. The feedback loop runs independently and does not block evaluation.
+EquipEd is a five-layer pipeline system with an asynchronous feedback loop. Faculty SLM evaluation and reference/rubric ingestion follow different paths: the SLM path feeds direct agent evaluation, while the reference path prepares retrieval context. The feedback loop runs independently and does not block evaluation.
 
 ```
 CLIENT (React + Vite + TanStack)
@@ -71,12 +71,12 @@ BACKEND API (FastAPI)
         │
         ├─── Layer 1: Document Ingestion & Preprocessing
         │         PyMuPDF → Conditional Tesseract OCR
-        │         → LangChain SemanticChunker
+        │         → Custom deterministic chunker
         │         → TF-IDF Corpus Weighting
         │
-        ├─── Layer 2: Embedding & Vector Storage
+        ├─── Layer 2: Reference Embedding & Vector Storage
         │         SentenceTransformers (multilingual-MiniLM-L12-v2)
-        │         → ChromaDB (local, metadata-filtered collections)
+        │         → ChromaDB (local, metadata-filtered retrieval collections)
         │
         ├─── Layer 3: Multi-Agent Evaluation
         │         LangChain AgentExecutor
@@ -85,7 +85,7 @@ BACKEND API (FastAPI)
         │           ├── Program Coordinator Subagent
         │           ├── GAD Unit Subagent
         │           └── ITSO Subagent
-        │         LLM Backbone: claude-haiku-4-5 (Anthropic API)
+        │         LLM Backbone: local open-source backend (Gemma-preferred, Llama-compatible, configurable)
         │
         ├─── Layer 4: Synthesis & Scoring
         │         Score Aggregation Engine
@@ -106,11 +106,11 @@ BACKEND API (FastAPI)
 | Task Queue | Async evaluation jobs | FastAPI BackgroundTasks (Phase 1) | — |
 | PDF Parsing | Text extraction | PyMuPDF (fitz) | ≥ 1.23 |
 | OCR | Scanned page extraction | Tesseract via pytesseract | ≥ 5.3 |
-| Chunking | Semantic segmentation | LangChain SemanticChunker | ≥ 0.2 |
+| Chunking | Semantic segmentation | Custom deterministic chunker | ≥ 0.2 |
 | Term Weighting | Key term analysis | scikit-learn TfidfVectorizer | ≥ 1.4 |
 | Embedding | Text vectorization | SentenceTransformers `paraphrase-multilingual-MiniLM-L12-v2` | ≥ 3.0 |
 | Vector Database | Embedding store & retrieval | ChromaDB | ≥ 0.5 |
-| LLM | Agent reasoning | `claude-haiku-4-5` via Anthropic Python SDK | Latest |
+| LLM | Agent reasoning | Local open-source LLM backend (Gemma-preferred, Llama-compatible, configurable) | Latest |
 | Agent Framework | Orchestration | LangChain AgentExecutor | ≥ 0.2 |
 | Relational DB | Metadata, logs, schemas | PostgreSQL | ≥ 15 |
 | ORM | Database access | SQLAlchemy + Alembic | ≥ 2.0 |
@@ -118,11 +118,11 @@ BACKEND API (FastAPI)
 
 ### 2.3 Evaluation Job Lifecycle
 
-Every document submission triggers an **Evaluation Job**. The lifecycle is:
+Every faculty SLM submission triggers an **Evaluation Job**. Reference and rubric documents follow a separate ingestion-and-retrieval preparation path. The evaluation lifecycle is:
 
 ```
-SUBMITTED → PREPROCESSING → EMBEDDING → EVALUATING → SYNTHESIZING → COMPLETED
-                                                                    └── FAILED (any stage)
+SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED
+                                                        └── FAILED (any stage)
 ```
 
 Job state is persisted in PostgreSQL (`evaluation_jobs` table). The frontend polls job status via TanStack Query until `COMPLETED` or `FAILED`.
@@ -131,7 +131,7 @@ Job state is persisted in PostgreSQL (`evaluation_jobs` table). The frontend pol
 
 #### Structure Philosophy
 
-**Server — Modular Monolith.** The backend is deployed and run as a single process, but its internal code is organized into self-contained modules. Each module owns its router, service logic, models, and schemas. Modules communicate through explicit service interfaces — never by importing each other's internals directly. The `core/` layer provides shared infrastructure (DB, LLM, ChromaDB clients) that any module may use. This structure supports clean boundaries today and simplifies a potential future split into services if ever needed, without the operational overhead of microservices now.
+**Server — Modular Monolith.** The backend is deployed and run as a single process, but its internal code is organized into self-contained modules. Each module owns its router, service logic, models, and schemas. Modules communicate through explicit service interfaces — never by importing each other's internals directly. The `core/` layer provides shared infrastructure (DB, LLM, ChromaDB clients) that any module may use. ChromaDB here is retrieval infrastructure for scoped grounding and lookup, while SLM chunk text remains the direct evaluation input to agents. This structure supports clean boundaries today and simplifies a potential future split into services if ever needed, without the operational overhead of microservices now.
 
 **Client — Feature-Driven Architecture.** The frontend is organized by feature, not by file type. Each feature folder is self-contained — it holds its own components, hooks, API calls, and types. Only genuinely shared code (layout, design system primitives, global auth state) lives outside feature folders. This prevents the common failure mode of a `components/` folder that becomes a dumping ground for everything.
 
@@ -150,7 +150,7 @@ equiped/
 │   │   ├── config.py                # Environment variables and settings (Pydantic BaseSettings)
 │   │   ├── database.py              # SQLAlchemy engine, session factory
 │   │   ├── chroma.py                # ChromaDB client singleton
-│   │   ├── llm.py                   # Anthropic client singleton
+│   │   ├── llm.py                   # Local LLM client singleton
 │   │   ├── embedding.py             # SentenceTransformer model singleton
 │   │   └── exceptions.py            # Shared exception base classes
 │   │
@@ -159,7 +159,7 @@ equiped/
 │   │   ├── documents/               # Module: document upload and ingestion
 │   │   │   ├── router.py            # POST /documents/upload, GET /documents
 │   │   │   ├── service.py           # Upload handling, ingestion orchestration
-│   │   │   ├── ingestion.py         # PyMuPDF + Tesseract OCR + SemanticChunker (Layer 1)
+│   │   │   ├── ingestion.py         # PyMuPDF + Tesseract OCR + custom deterministic chunker (Layer 1)
 │   │   │   ├── tfidf.py             # TF-IDF corpus computation
 │   │   │   ├── models.py            # SQLAlchemy: Document, DocumentChunk
 │   │   │   ├── schemas.py           # Pydantic: DocumentCreate, DocumentResponse
@@ -321,7 +321,7 @@ The following rules apply across all server modules and must be respected throug
 
 2. **All database access goes through the module's own `models.py`.** No module writes to another module's tables directly. The `synthesis` module owns the `monitoring_matrix` table; only `synthesis/matrix.py` writes to it.
 
-3. **`core/` is read-only infrastructure.** No business logic lives in `core/`. Modules call `core/database.py` for sessions, `core/chroma.py` for the ChromaDB client, and `core/llm.py` for the Anthropic client — that is all.
+3. **`core/` is read-only infrastructure.** No business logic lives in `core/`. Modules call `core/database.py` for sessions, `core/chroma.py` for the ChromaDB client, and `core/llm.py` for the local LLM client — that is all.
 
 4. **Features in `client/src/features/` do not import from each other.** If two features need the same data shape, that type belongs in `client/src/shared/types/`. If two features need the same UI element, that component belongs in `client/src/shared/components/`.
 
@@ -340,7 +340,7 @@ The following rules apply across all server modules and must be respected throug
 - Extract all text content, handling both selectable text and scanned pages
 - Segment extracted text into semantic chunks
 - Tag each chunk with source metadata
-- Return a list of `DocumentChunk` objects for Layer 2
+- Return a list of `DocumentChunk` objects; SLM chunks continue to the direct evaluation path, while reference/rubric chunks continue to Layer 2
 
 ### 3.2 DocumentChunk Contract
 
@@ -362,7 +362,7 @@ class DocumentChunk:
     is_ocr: bool           # True if extracted via OCR
 ```
 
-`agent_domain` drives ChromaDB metadata filtering in Layer 2. Rubric chunks carry the domain of the agent that owns them. SLM chunks and curriculum/syllabus chunks carry `"all"` because they are retrieved by multiple agents.
+`agent_domain` drives ChromaDB metadata filtering for reference retrieval. Rubric chunks carry the domain of the agent that owns them. SLM chunks are evaluated directly, while syllabus/curriculum chunks carry `"all"` because they are retrieved by multiple agents.
 
 ### 3.3 Ingestion Pseudocode
 
@@ -395,13 +395,8 @@ def ingest_document(file_path: str, source_type: str, document_id: str) -> list[
     # Preserve page boundaries as metadata markers
     full_text = join_pages_with_markers(full_text_with_metadata)
 
-    # Semantic chunking via LangChain
-    chunker = SemanticChunker(
-        embeddings=get_embedding_model(),   # same model as Layer 2
-        breakpoint_threshold_type="percentile",
-        breakpoint_threshold_amount=95
-    )
-    raw_chunks = chunker.create_documents([full_text])
+    # Deterministic chunking using sentence/page boundary rules
+    raw_chunks = custom_chunk(full_text, full_text_with_metadata)
 
     # Map chunk positions back to page numbers
     chunks = []
@@ -486,7 +481,7 @@ def compute_tfidf_corpus(slm_chunks: list[DocumentChunk]) -> dict[str, float]:
 - Output dimension: 384
 - Satisfies NFR-02 (bilingual) and NFR-04 (local data residency)
 
-The model is loaded once at application startup as a singleton and shared across all ingestion jobs:
+The model is loaded once at application startup as a singleton and shared across reference ingestion jobs:
 
 ```python
 # server/core/embedding.py
@@ -501,12 +496,12 @@ def get_embedding_model() -> SentenceTransformer:
 
 ### 4.2 ChromaDB Collection Structure
 
-ChromaDB stores embeddings in named collections. EquipEd uses **one collection per domain** to enforce strict retrieval scoping per agent without relying solely on metadata filters (which add latency on large collections).
+ChromaDB stores embeddings for reference and rubric content in named collections. EquipEd uses **one collection per reference domain** to enforce strict retrieval scoping per agent without relying solely on metadata filters (which add latency on large collections). It primarily supports retrieval grounding for rubric, syllabus, curriculum, and related reference context; SLM text itself is supplied directly to the agents.
 
 | Collection Name | Contents | Retrieved By |
 |---|---|---|
-| `col_slm` | All SLM chunks from all evaluated documents | All agents |
-| `col_reference_all` | Syllabus and curriculum guide chunks | SME, Coordinator agents |
+| `col_slm` | SLM chunk store retained for direct evaluation input and traceability; not part of reference retrieval corpus | All agents |
+| `col_reference_all` | Syllabus and curriculum guide chunks used as separate reference context | SME, Coordinator agents |
 | `col_rubric_sme` | SME rubric criteria chunks | SME agent |
 | `col_rubric_coordinator` | Program Coordinator rubric chunks | Coordinator agent |
 | `col_rubric_gad` | GAD rubric criteria chunks | GAD agent |
@@ -528,13 +523,12 @@ Each document in a collection stores the following metadata alongside its embedd
 ### 4.3 Embedding Pseudocode
 
 ```python
-def embed_and_store_chunks(chunks: list[DocumentChunk]) -> None:
+def embed_and_store_reference_chunks(chunks: list[DocumentChunk]) -> None:
     model = get_embedding_model()
     chroma_client = get_chroma_client()
 
-    # Group chunks by their target collection
+    # Only reference/rubric chunks are embedded for retrieval.
     collection_map = {
-        "slm":          "col_slm",
         "syllabus":     "col_reference_all",
         "curriculum":   "col_reference_all",
         "rubric_sme":   "col_rubric_sme",
@@ -570,9 +564,11 @@ def embed_and_store_chunks(chunks: list[DocumentChunk]) -> None:
         )
 ```
 
+SLM chunks are retained as `DocumentChunk` records for traceability and direct agent input, but this embedding path is reserved for reference/rubric retrieval content.
+
 ### 4.4 Retrieval Interface
 
-All agents call the same retrieval function. The collection name determines the scope:
+All agents call the same retrieval function for rubric/reference context. The collection name determines the scope; SLM chunk text is passed separately into the agent call:
 
 ```python
 def retrieve_context(
@@ -585,11 +581,11 @@ def retrieve_context(
     Performs ANN search against the specified ChromaDB collection.
 
     Args:
-        query_text:          The agent's query or the SLM chunk being evaluated
-        collection_name:     One of the six collection constants
+        query_text:          The agent's query for retrieval context; the SLM chunk being evaluated is passed separately
+        collection_name:     One of the retrieval collection names for the current corpus
         n_results:           Number of top chunks to retrieve
         document_id_filter:  If provided, restricts results to a specific document
-                             (used to scope SLM retrieval to the document under evaluation)
+                             (used to scope reference retrieval to the document under evaluation)
 
     Returns:
         List of RetrievedChunk with text, metadata, and distance score
@@ -622,14 +618,14 @@ def retrieve_context(
 
 ### 5.1 Agent Architecture Overview
 
-All agents share the same LLM backbone (`claude-haiku-4-5`) accessed via the Anthropic Python SDK. They are differentiated by their system prompt, the ChromaDB collections they query, and the rubric criteria they evaluate against.
+All agents share the same local LLM backbone. The backend is intended to be Gemma-preferred, Llama-compatible, and configurable. Agents are differentiated by their system prompt, the ChromaDB collections they query for retrieval context, and the rubric criteria they evaluate against. The SLM chunk text being evaluated is always supplied directly.
 
 The **Supervisor Agent** orchestrates the evaluation workflow. It does not perform rubric evaluation itself — it routes SLM chunks to subagents and manages job state.
 
-Each **Subagent** receives a batch of SLM chunks and for each chunk:
+Each **Subagent** receives a batch of SLM chunks directly and for each chunk:
 1. Retrieves relevant rubric context from its scoped collection
 2. Retrieves relevant reference context (syllabus/curriculum) where applicable
-3. Calls the LLM with the chunk text, retrieved context, and rubric criteria
+3. Calls the LLM with the chunk text as the direct evaluation input plus the separately retrieved context and rubric criteria
 4. Parses the structured response into an `AgentEvaluationResult`
 
 ### 5.2 System Prompt Architecture
@@ -687,7 +683,7 @@ def call_llm_for_evaluation(
     Returns raw LLM response string.
     Caller is responsible for JSON parsing and validation.
     """
-    client = get_anthropic_client()
+    client = get_llm_client()
 
     rubric_block = format_retrieved_chunks(rubric_context, label="RUBRIC CRITERIA")
     reference_block = format_retrieved_chunks(reference_context, label="REFERENCE CONTEXT")
@@ -708,7 +704,7 @@ Do not include any text outside the JSON object.
 """
 
     response = client.messages.create(
-        model="claude-haiku-4-5",
+        model=get_active_llm_model(),
         max_tokens=1500,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}]
@@ -739,7 +735,7 @@ async def run_evaluation(evaluation_id: str, document_id: str) -> EvaluationJobR
 
     update_job_status(evaluation_id, "EVALUATING")
 
-    # Load all SLM chunks for this document from ChromaDB col_slm
+    # Load all SLM chunks for this document from the document store / traceable chunk records
     slm_chunks = get_slm_chunks_for_document(document_id)
 
     # Run all four subagents — can be parallelized in Phase 2
@@ -785,14 +781,14 @@ async def run_sme_agent(
     total_tokens = 0
 
     for chunk in slm_chunks:
-        # Retrieve rubric context scoped to SME domain
+        # Retrieve rubric context scoped to SME domain for this direct SLM chunk
         rubric_ctx = retrieve_context(
             query_text=chunk.text,
             collection_name="col_rubric_sme",
             n_results=5
         )
 
-        # Retrieve syllabus/curriculum context scoped to this document
+        # Retrieve syllabus/curriculum context scoped to this document as separate grounding context
         reference_ctx = retrieve_context(
             query_text=chunk.text,
             collection_name="col_reference_all",
@@ -828,10 +824,10 @@ The same pattern applies to `run_coordinator_agent`, `run_gad_agent`, and `run_i
 
 | Agent | Rubric Collection | Reference Collection | Additional Context |
 |---|---|---|---|
-| `sme` | `col_rubric_sme` | `col_reference_all` | None |
-| `coordinator` | `col_rubric_coordinator` | `col_reference_all` | Syllabus alignment query |
-| `gad` | `col_rubric_gad` | None | No reference context needed |
-| `itso` | `col_rubric_itso` | None | No reference context needed |
+| `sme` | `col_rubric_sme` | `col_reference_all` | Direct SLM chunk input |
+| `coordinator` | `col_rubric_coordinator` | `col_reference_all` | Direct SLM chunk input + syllabus alignment query |
+| `gad` | `col_rubric_gad` | None | Direct SLM chunk input |
+| `itso` | `col_rubric_itso` | None | Direct SLM chunk input |
 
 ---
 
@@ -1110,6 +1106,8 @@ CREATE INDEX idx_chunks_document_id ON document_chunks(document_id);
 CREATE INDEX idx_chunks_agent_domain ON document_chunks(agent_domain);
 ```
 
+`chroma_stored` indicates whether the chunk has been embedded and persisted into Chroma for retrieval use. Under the revised architecture, this flag marks reference/rubric chunks only; SLM chunks remain direct evaluation input and are not treated as part of the retrieval corpus.
+
 ### 8.3 `evaluation_jobs`
 
 ```sql
@@ -1117,7 +1115,7 @@ CREATE TABLE evaluation_jobs (
     evaluation_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id     UUID NOT NULL REFERENCES documents(document_id),
     status          VARCHAR(50) NOT NULL DEFAULT 'SUBMITTED',
-        -- "SUBMITTED" | "PREPROCESSING" | "EMBEDDING"
+        -- "SUBMITTED" | "PREPROCESSING"
         -- | "EVALUATING" | "SYNTHESIZING" | "COMPLETED" | "FAILED"
     error_message   TEXT,
     submitted_by    UUID REFERENCES users(user_id),
@@ -1722,23 +1720,23 @@ This map shows data flow between all major components, tracing the full path of 
    ingestion.py ← /uploads/{document_id}.pdf
    → PyMuPDF extracts text
    → Tesseract OCR on image pages (conditional)
-   → SemanticChunker produces DocumentChunk list
+   → custom deterministic chunker produces DocumentChunk list
    → document_chunks table (PostgreSQL)
-   → evaluation_jobs: status = PREPROCESSING → EMBEDDING
+   → evaluation_jobs: status = PREPROCESSING
 
-4. Layer 2 — Embedding (background)
-   embedding.py ← document_chunks
-   → multilingual-MiniLM encodes chunk texts
-   → ChromaDB upsert into scoped collections
-   → document_chunks: chroma_stored = TRUE
-   → evaluation_jobs: status = EVALUATING
+4. Layer 2 — Reference Embedding (background)
+   embedding.py ← reference/rubric document_chunks only
+   → multilingual-MiniLM encodes reference chunk texts
+   → ChromaDB upsert into scoped reference collections
+   → document_chunks: chroma_stored = TRUE for embedded reference chunks
+   → evaluation_jobs: status = EVALUATING for SLM review jobs
 
 5. Layer 3 — Agents (background)
    supervisor.py orchestrates:
-     sme.py → col_rubric_sme + col_reference_all → claude-haiku-4-5
-     coordinator.py → col_rubric_coordinator + col_reference_all → claude-haiku-4-5
-     gad.py → col_rubric_gad → claude-haiku-4-5
-     itso.py → col_rubric_itso → claude-haiku-4-5
+      sme.py → direct SLM chunk + col_rubric_sme + col_reference_all → local LLM backend
+      coordinator.py → direct SLM chunk + col_rubric_coordinator + col_reference_all → local LLM backend
+      gad.py → direct SLM chunk + col_rubric_gad → local LLM backend
+      itso.py → direct SLM chunk + col_rubric_itso → local LLM backend
    → agent_results table (PostgreSQL)
    → criterion_scores table (PostgreSQL)
 
@@ -1808,9 +1806,9 @@ This map shows data flow between all major components, tracing the full path of 
 | OTI-03 | Criterion ID naming convention (`OP-01`, `A-01`, etc.) — must match rubric document structure exactly | Sections 5.3, 8.5 | Research team | **Decided: use `OP-01` / `A-01` style** |
 | OTI-04 | Authentication strategy (session-based vs JWT) | Section 9, Section 10.4 | Development team | **Decided: session-based (Phase 1)** |
 | OTI-05 | File size upload limit | Section 9.1 | Development team | Pending benchmarking |
-| OTI-06 | API data handling policy confirmation for Anthropic API calls (RA 10173 compliance) | Section 2.2 | LSPU SCC IT | Pending institutional review (not confirmed yet) |
+| OTI-06 | Local LLM backend data handling policy confirmation (RA 10173 compliance) | Section 2.2 | LSPU SCC IT | Pending institutional review (not confirmed yet) |
 | OTI-07 | Minimum preference log volume threshold before prompt update is actionable | Section 7.1 | Research team + advisor | Pending advisor input |
-| OTI-08 | Exact SemanticChunker breakpoint threshold value — 95th percentile is initial default, may need tuning per corpus | Section 3.3 | Development team | Pending corpus testing |
+| OTI-08 | Exact custom chunker boundary threshold value — initial default may need tuning per corpus | Section 3.3 | Development team | Pending corpus testing |
 | OTI-09 | PDF report generation for D-03 download — library selection (WeasyPrint vs ReportLab) | Section 6.3 | Development team | Pending decision |
 
 ---
