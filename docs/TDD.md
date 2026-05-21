@@ -839,12 +839,25 @@ The same pattern applies to `run_coordinator_agent`, `run_gad_agent`, and `run_i
 ### 6.1 Score Aggregation
 
 ```python
+# Agent domain weights for synthesized score
+AGENT_WEIGHTS = {
+    "sme":         0.35,
+    "coordinator": 0.30,
+    "gad":         0.20,
+    "itso":        0.15
+}
+
 def aggregate_scores(agent_results: list[AgentEvaluationResult]) -> ScorecardResult:
     """
-    Aggregates per-criterion scores from all agents into a consolidated scorecard.
+    Aggregates per-domain results into a weighted synthesized score.
+    SME and Coordinator carry higher weight as primary academic alignment drivers.
+    If an agent failed, remaining weights are normalized to 100%.
     """
     domain_scores = {}
+    active_agents = [r for r in agent_results if r.error is None]
+    failed_agents = [r for r in agent_results if r.error is not None]
 
+    # Build per-domain score breakdown
     for result in agent_results:
         domain_scores[result.agent_id] = {
             "criteria": [
@@ -857,29 +870,33 @@ def aggregate_scores(agent_results: list[AgentEvaluationResult]) -> ScorecardRes
                 for s in result.criteria_scores
             ],
             "subtotal":  result.domain_subtotal,
-            "max_score": len(result.criteria_scores) * 4
+            "max_score": len(result.criteria_scores) * 4,
+            "status":    "ERROR" if result.error else "OK"
         }
 
-    # Aggregate total across all domains
-    # Formula: sum of all criterion scores / (total criteria count * 4) * 100
-    # Produces a percentage score 0–100
-    # NOTE: Exact institutional formula to be confirmed against CID rubric documents (OTI-02)
-    total_score_raw = sum(
-        score
-        for result in agent_results
-        for score in [s.score for s in result.criteria_scores]
-    )
-    total_criteria_count = sum(
-        len(result.criteria_scores)
-        for result in agent_results
-    )
-    aggregate_percentage = (total_score_raw / (total_criteria_count * 4)) * 100
+    # Calculate weighted score — normalize weights if agents failed
+    if active_agents:
+        active_weight_sum = sum(AGENT_WEIGHTS[a.agent_id] for a in active_agents)
+        normalized_weights = {
+            a.agent_id: AGENT_WEIGHTS[a.agent_id] / active_weight_sum
+            for a in active_agents
+        }
+
+        # Convert domain subtotals to percentages, apply normalized weights
+        synthesized_score = sum(
+            normalized_weights[a.agent_id] * (a.domain_subtotal / (len(a.criteria_scores) * 4) * 100)
+            for a in active_agents
+        )
+        synthesized_score = round(synthesized_score, 2)
+    else:
+        synthesized_score = 0.0
 
     return ScorecardResult(
         domain_scores=domain_scores,
-        aggregate_raw=total_score_raw,
-        aggregate_max=total_criteria_count * 4,
-        aggregate_percentage=round(aggregate_percentage, 2)
+        synthesized_score=synthesized_score,
+        active_agents=[a.agent_id for a in active_agents],
+        failed_agents=[a.agent_id for a in failed_agents],
+        is_partial=len(failed_agents) > 0
     )
 ```
 
@@ -914,48 +931,33 @@ def extract_flags(agent_results: list[AgentEvaluationResult]) -> list[Evaluation
     return flags
 ```
 
-### 6.3 Report Generation
+### 6.3 Report Generation (Deferred to Layer 5)
 
-The final report (D-03) is assembled as a structured dictionary and persisted to PostgreSQL. It is served to the frontend as JSON and optionally rendered as a downloadable PDF.
-
-```python
-def generate_report(
-    evaluation_id: str,
-    document: DocumentRecord,
-    scorecard: ScorecardResult,
-    flags: list[EvaluationFlag]
-) -> EvaluationReport:
-
-    return EvaluationReport(
-        report_id=generate_uuid(),
-        evaluation_id=evaluation_id,
-        document_id=document.document_id,
-        document_title=document.title,
-        program=document.program,
-        evaluation_date=utcnow(),
-        scorecard=scorecard,
-        flags=flags,
-        summary=build_summary_text(scorecard, flags),
-        status="COMPLETED"
-    )
-```
+Full report generation (D-03: Final Evaluation Report, PDF export) is deferred to a later phase.
+The current Layer 4 synthesis produces the weighted score and monitoring matrix update; the
+structured `evaluation_reports` table and downloadable report artifacts will be implemented
+in a subsequent change.
 
 ### 6.4 Monitoring Matrix Update
-
-After report generation, the monitoring matrix entry for the document is updated:
 
 ```python
 def update_monitoring_matrix(
     document_id: str,
     evaluation_id: str,
-    scorecard: ScorecardResult
+    scorecard: ScorecardResult,
+    flag_count: int,
+    faculty_name: str,
+    program: str
 ) -> None:
     upsert_monitoring_record(
         document_id=document_id,
         evaluation_id=evaluation_id,
-        evaluation_status="EVALUATED",
-        aggregate_score=scorecard.aggregate_percentage,
+        faculty_name=faculty_name,
+        program=program,
+        evaluation_status="COMPLETED" if not scorecard.is_partial else "COMPLETED_PARTIAL",
+        synthesized_score=scorecard.synthesized_score,
         domain_scores={k: v["subtotal"] for k, v in scorecard.domain_scores.items()},
+        flag_count=flag_count,
         feedback_status="NO_FEEDBACK"
     )
 ```
@@ -1183,6 +1185,10 @@ CREATE INDEX idx_flags_evaluation_id ON evaluation_flags(evaluation_id);
 
 ### 8.7 `evaluation_reports`
 
+> **Note:** This table is deferred to Layer 5 (report generation phase). The current Layer 4
+> synthesis produces scores and monitoring matrix updates only. Full structured reports
+> (D-03) will use this schema when implemented.
+
 ```sql
 CREATE TABLE evaluation_reports (
     report_id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1205,10 +1211,13 @@ CREATE TABLE monitoring_matrix (
     matrix_id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id         UUID NOT NULL UNIQUE REFERENCES documents(document_id),
     evaluation_id       UUID REFERENCES evaluation_jobs(evaluation_id),
-    evaluation_status   VARCHAR(50) DEFAULT 'PENDING',
-        -- "PENDING" | "EVALUATED" | "REVIEWED" | "APPROVED"
-    aggregate_score     NUMERIC(5,2),
+    faculty_name        VARCHAR(300),
+    program             VARCHAR(300),
+    evaluation_status   VARCHAR(50) DEFAULT 'SUBMITTED',
+        -- "SUBMITTED" | "COMPLETED" | "COMPLETED_PARTIAL" | "FAILED"
+    synthesized_score   NUMERIC(5,2),
     domain_scores_json  JSONB,
+    flag_count          INTEGER DEFAULT 0,
     feedback_status     VARCHAR(50) DEFAULT 'NO_FEEDBACK',
         -- "NO_FEEDBACK" | "PARTIALLY_REVIEWED" | "FULLY_REVIEWED"
     last_updated        TIMESTAMPTZ DEFAULT now()
@@ -1741,28 +1750,24 @@ This map shows data flow between all major components, tracing the full path of 
    → criterion_scores table (PostgreSQL)
 
 6. Layer 4 — Synthesis (background)
-   synthesis.py ← agent_results + criterion_scores
-   → Score aggregation
+   synthesis/matrix.py ← agent_results + criterion_scores
+   → Weighted score aggregation (SME 35%, Coord 30%, GAD 20%, ITSO 15%)
+   → Normalize weights if any agent failed
    → Flag extraction → evaluation_flags table
-   → Report generation → evaluation_reports table
    → Monitoring matrix update → monitoring_matrix table
-   → evaluation_jobs: status = COMPLETED
+   → evaluation_jobs: status = COMPLETED (or COMPLETED_PARTIAL if agents failed)
 
 7. Frontend polls status
    GET /evaluations/{id}/status (TanStack Query, 3s interval)
    → Returns COMPLETED
-   → useEvaluationReport enabled
+   → useEvaluationResults enabled
 
-8. Frontend fetches report
-   GET /evaluations/{id}/report
-   → EvaluationDetailPage renders scorecard + flags
-
-9. Evaluator submits feedback
+8. Evaluator submits feedback
    POST /feedback
    → preference_logs table
    → monitoring_matrix feedback_status updated
 
-10. Admin refines prompt
+9. Admin refines prompt
     GET /admin/preferences (filtered)
     → Reviews REJECT/EDIT patterns
     POST /admin/prompts/{agentId}
