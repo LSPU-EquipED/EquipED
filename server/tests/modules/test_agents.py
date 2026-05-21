@@ -59,24 +59,24 @@ class _BatchAgent:
         *,
         evaluation_id,
         document_id,
-        chunk_texts,
+        chunk_infos,
         context_text=None,
         reference_text=None,
         prompt_version=None,
         prompt_version_id=None,
         reference_document_ids=None,
     ):
-        self.batches.append(chunk_texts)
+        self.batches.append([chunk["text"] for chunk in chunk_infos])
         return AgentEvaluationResult(
             agent_name=self.agent_name,
             evaluation_id=evaluation_id,
             document_id=document_id,
-            subtotal=len(chunk_texts),
+            subtotal=float(len(chunk_infos)),
             criterion_scores=(),
             summary="batch",
             model_name="local-model",
             processing_seconds=0.0,
-            token_count=len(chunk_texts),
+            token_count=len(chunk_infos),
             prompt_version_id=prompt_version_id,
         )
 
@@ -92,7 +92,7 @@ class _FailingAgent:
         *,
         evaluation_id,
         document_id,
-        chunk_texts,
+        chunk_infos,
         context_text=None,
         reference_text=None,
         prompt_version=None,
@@ -153,7 +153,7 @@ def test_base_agent_parses_mock_llm_response(monkeypatch) -> None:
     result = agent.run(
         evaluation_id=uuid4(),
         document_id=uuid4(),
-        chunk_texts=["Document chunk text"],
+        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "Document chunk text"}],
         context_text="Syllabus text",
         reference_document_ids={"syllabus": uuid4()},
     )
@@ -193,7 +193,7 @@ def test_base_agent_parses_fenced_json_response(monkeypatch) -> None:
     result = agent.run(
         evaluation_id=uuid4(),
         document_id=uuid4(),
-        chunk_texts=["Document chunk text"],
+        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "Document chunk text"}],
         context_text="Syllabus text",
         reference_document_ids={"syllabus": uuid4()},
     )
@@ -222,7 +222,7 @@ def test_base_agent_rejects_invalid_response_structure(monkeypatch) -> None:
         agent.run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
-            chunk_texts=["Document chunk text"],
+            chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "Document chunk text"}],
             context_text="Syllabus text",
         )
         raise AssertionError("expected AgentExecutionError")
@@ -264,7 +264,7 @@ def test_concrete_agents_use_mocked_llm_response(monkeypatch) -> None:
         result = agent.run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
-            chunk_texts=["SLM chunk"],
+            chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}],
             context_text="reference context",
             reference_document_ids={"syllabus": uuid4(), "curriculum": uuid4()},
         )
@@ -443,13 +443,13 @@ def test_persist_agent_outputs_ignores_invalid_and_missing_chunk_ids(
     assert flag.chunk_id == valid_chunk_id
 
 
-def test_supervisor_batches_chunks_and_loads_active_prompts(
+def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     monkeypatch, db_session
 ) -> None:
     _seed_active_prompts(db_session)
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
     agent = _BatchAgent()
-    supervisor = Supervisor(agents=[agent], db=db_session, batch_size=2)
+    supervisor = Supervisor(agents=[agent], db=db_session)
 
     chunks = [
         DocumentChunk(
@@ -504,17 +504,15 @@ def test_supervisor_batches_chunks_and_loads_active_prompts(
         },
     )
 
-    assert agent.batches == [["one", "two"], ["three"]]
-    assert len(result.agent_results) == 2
+    assert agent.batches == [["one", "two", "three"]]
+    assert len(result.agent_results) == 1
 
 
 def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -> None:
     _seed_active_prompts(db_session)
     failing_agent = _FailingAgent()
     success_agent = _BatchAgent()
-    supervisor = Supervisor(
-        agents=[failing_agent, success_agent], db=db_session, batch_size=2
-    )
+    supervisor = Supervisor(agents=[failing_agent, success_agent], db=db_session)
 
     prompt_rows = {
         agent_id: db_session.query(PromptVersion).filter_by(agent_id=agent_id).one()
@@ -565,5 +563,5 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
 
     assert failing_agent.calls == 1
     assert success_agent.batches == [["one", "two"]]
-    assert len(result.agent_results) == 1
+    assert len(result.agent_results) == 2
     assert result.failures == {"coordinator": "agent failed"}
