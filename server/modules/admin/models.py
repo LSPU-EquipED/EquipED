@@ -18,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,7 +33,13 @@ class PromptVersion(Base):
             "version_number",
             name="uq_prompt_versions_agent_version",
         ),
-        Index("idx_prompts_agent_active", "agent_id", "is_active"),
+        Index(
+            "idx_prompts_agent_active_unique",
+            "agent_id",
+            unique=True,
+            postgresql_where=text("is_active IS TRUE"),
+            sqlite_where=text("is_active = 1"),
+        ),
     )
 
     version_id: Mapped[uuid.UUID] = mapped_column(
@@ -40,7 +47,7 @@ class PromptVersion(Base):
     )
     agent_id: Mapped[str] = mapped_column(String(50), nullable=False)
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_text: Mapped[str] = mapped_column(String(10000), nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
