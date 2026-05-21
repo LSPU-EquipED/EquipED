@@ -6,6 +6,7 @@ import {
   BookOpen,
   ChevronDown,
   ChevronsUpDown,
+  ClipboardList,
   FilePlus2,
   FolderOpen,
   GraduationCap,
@@ -27,7 +28,14 @@ interface SidebarProps {
 }
 
 type NavItem = {
-  to: '/dashboard' | '/upload' | '/evaluations' | '/matrix' | '/admin/prompts';
+  to:
+    | '/dashboard'
+    | '/upload'
+    | '/evaluations'
+    | '/evaluation-interface'
+    | '/matrix'
+    | '/admin/prompts'
+    | '/admin/rubrics';
   label: string;
   icon: LucideIcon;
   exact: boolean;
@@ -43,7 +51,6 @@ const navItems: readonly NavItem[] = [
 ] as const;
 
 const resourceItems = [
-  { label: 'Rubrics', icon: BookOpen },
   { label: 'Guidelines', icon: GraduationCap },
   { label: 'Settings', icon: Settings },
 ] as const;
@@ -126,7 +133,51 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           );
         })}
+        {user?.role === 'admin' && (
+          <Link
+            to="/admin/rubrics"
+            activeOptions={{ exact: true }}
+            className={cn(
+              'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+              collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+            )}
+            activeProps={{
+              className: cn(
+                'group flex h-10 items-center rounded-lg text-sm font-medium transition-colors',
+                collapsed ? 'justify-center px-0' : 'gap-3 px-3',
+                'bg-sidebar-accent text-foreground'
+              ),
+            }}
+            title={collapsed ? 'Rubrics' : undefined}
+          >
+            <BookOpen className="size-4 shrink-0" aria-hidden="true" />
+            {!collapsed && <span className="truncate">Rubrics</span>}
+          </Link>
+        )}
       </nav>
+
+      <div className="mt-7 grid gap-1 px-3">
+        {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Temporary</div>}
+        <Link
+          to="/evaluation-interface"
+          activeOptions={{ exact: true }}
+          className={cn(
+            'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+          )}
+          activeProps={{
+            className: cn(
+              'group flex h-10 items-center rounded-lg text-sm font-medium transition-colors',
+              collapsed ? 'justify-center px-0' : 'gap-3 px-3',
+              'bg-sidebar-accent text-foreground'
+            ),
+          }}
+          title={collapsed ? 'Evaluation Interface' : undefined}
+        >
+          <ClipboardList className="size-4 shrink-0" aria-hidden="true" />
+          {!collapsed && <span className="truncate">Evaluation Interface</span>}
+        </Link>
+      </div>
 
       <div className="mt-7 grid gap-1 px-3">
         {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Resources</div>}

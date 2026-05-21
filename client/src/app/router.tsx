@@ -7,11 +7,13 @@ import { LoginForm } from '../features/auth/components/LoginForm';
 import { requireRole } from '../features/auth/guards/RoleGuard';
 import { UploadForm } from '../features/upload/components/UploadForm';
 import { EvaluationHistoryTable } from '../features/history/components/EvaluationHistoryTable';
+import { EvaluationInterface } from '../features/evaluation/components/EvaluationInterface';
 import { Scorecard } from '../features/evaluation/components/Scorecard';
 import { ReportView } from '../features/evaluation/components/ReportView';
 import { MonitoringTable } from '../features/matrix/components/MonitoringTable';
 import { AgentPromptEditor } from '../features/admin/components/AgentPromptEditor';
 import { PreferenceLogTable } from '../features/admin/components/PreferenceLogTable';
+import { RubricTableEditor } from '../features/admin/components/RubricTableEditor';
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -66,6 +68,12 @@ const evaluationsRoute = createRoute({
   component: EvaluationHistoryTable,
 });
 
+const evaluationInterfaceRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'evaluation-interface',
+  component: EvaluationInterface,
+});
+
 const evaluationDetailRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations/$id',
@@ -116,6 +124,12 @@ const adminPreferencesRoute = createRoute({
   component: PreferenceLogTable,
 });
 
+const adminRubricsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'rubrics',
+  component: RubricTableEditor,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -123,9 +137,14 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     uploadRoute,
     evaluationsRoute,
+    evaluationInterfaceRoute,
     evaluationDetailRoute.addChildren([evaluationReportRoute]),
     matrixRoute,
-    adminRoute.addChildren([adminPromptsRoute.addChildren([adminPromptDetailRoute]), adminPreferencesRoute]),
+    adminRoute.addChildren([
+      adminPromptsRoute.addChildren([adminPromptDetailRoute]),
+      adminPreferencesRoute,
+      adminRubricsRoute,
+    ]),
   ]),
 ]);
 
