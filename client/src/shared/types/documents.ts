@@ -22,6 +22,12 @@ export type RawDocumentResponse = {
   processing_status: DocumentProcessingStatus;
   has_ocr_pages: boolean;
   uploaded_at: string;
+  structured_summary?: string | null;
+  structured_outline?: Array<Record<string, unknown>> | null;
+  section_summaries?: Array<Record<string, unknown>> | null;
+  key_facts?: Record<string, unknown> | null;
+  processing_warnings?: string[] | null;
+  evaluation_readiness?: string | null;
 };
 
 export type ClientDocument = {
@@ -35,6 +41,12 @@ export type ClientDocument = {
   processingStatus: DocumentProcessingStatus;
   hasOcrPages: boolean;
   uploadedAt: string;
+  structuredSummary?: string | null;
+  structuredOutline?: Array<Record<string, unknown>> | null;
+  sectionSummaries?: Array<Record<string, unknown>> | null;
+  keyFacts?: Record<string, unknown> | null;
+  processingWarnings?: string[] | null;
+  evaluationReadiness?: string | null;
 };
 
 export type RawDocumentListResponse = {
@@ -58,6 +70,8 @@ export type RawDocumentUploadResponse = {
   lesson_title: string | null;
   source_type: DocumentSourceType;
   processing_status: DocumentProcessingStatus;
+  structured_summary?: string | null;
+  evaluation_readiness?: string | null;
 };
 
 export type DocumentUploadResponse = {
@@ -67,6 +81,8 @@ export type DocumentUploadResponse = {
   lessonTitle: string | null;
   sourceType: DocumentSourceType;
   processingStatus: DocumentProcessingStatus;
+  structuredSummary?: string | null;
+  evaluationReadiness?: string | null;
 };
 
 export function mapDocumentResponse(document: RawDocumentResponse): ClientDocument {
@@ -81,6 +97,12 @@ export function mapDocumentResponse(document: RawDocumentResponse): ClientDocume
     processingStatus: document.processing_status,
     hasOcrPages: document.has_ocr_pages,
     uploadedAt: document.uploaded_at,
+    structuredSummary: document.structured_summary,
+    structuredOutline: document.structured_outline,
+    sectionSummaries: document.section_summaries,
+    keyFacts: document.key_facts,
+    processingWarnings: document.processing_warnings,
+    evaluationReadiness: document.evaluation_readiness,
   };
 }
 
@@ -101,5 +123,7 @@ export function mapDocumentUploadResponse(response: RawDocumentUploadResponse): 
     lessonTitle: response.lesson_title,
     sourceType: response.source_type,
     processingStatus: response.processing_status,
+    structuredSummary: response.structured_summary,
+    evaluationReadiness: response.evaluation_readiness,
   };
 }

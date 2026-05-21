@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -19,7 +17,6 @@ from fastapi import (
 )
 
 from server.core.database import get_db_session
-from server.core.exceptions import CoreError
 from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
 
@@ -33,22 +30,6 @@ from .schemas import DocumentListResponse, DocumentResponse, DocumentUploadRespo
 from .service import create_document, embed_document_chunks, get_document, list_documents
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-
-
-def get_optional_db_session() -> Iterator[Any | None]:
-    """Provide DB session when configured; fallback to in-memory mode."""
-
-    session_generator = get_db_session()
-    try:
-        session = next(session_generator)
-    except CoreError:
-        session_generator.close()
-        yield None
-        return
-    try:
-        yield session
-    finally:
-        session_generator.close()
 
 
 @router.post(
@@ -65,7 +46,7 @@ def upload_document(
     lesson_title: str | None = Form(default=None),
     program: str | None = Form(default=None),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
-    db: Any | None = Depends(get_optional_db_session),
+    db: Any = Depends(get_db_session),
 ) -> DocumentUploadResponse:
     try:
         response = create_document(
@@ -97,7 +78,7 @@ def upload_document(
 def get_document_by_id(
     document_id: UUID,
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
-    db: Any | None = Depends(get_optional_db_session),
+    db: Any = Depends(get_db_session),
 ) -> DocumentResponse:
     try:
         return get_document(
@@ -120,7 +101,7 @@ def list_documents_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
-    db: Any | None = Depends(get_optional_db_session),
+    db: Any = Depends(get_db_session),
 ) -> DocumentListResponse:
     return list_documents(
         source_type=source_type,
