@@ -26,17 +26,13 @@ class SupervisorResult:
 
 
 class Supervisor:
-    CHUNK_BATCH_SIZE = 8
-
     def __init__(
         self,
         *,
         agents: list[Any] | None = None,
         db: Any | None = None,
-        batch_size: int | None = None,
     ) -> None:
         self.db = db
-        self.batch_size = batch_size or self.CHUNK_BATCH_SIZE
         self.agents = agents or [
             SMEAgent(),
             ProgramCoordinator(),
@@ -50,13 +46,22 @@ class Supervisor:
         evaluation_id: uuid.UUID,
         document_id: uuid.UUID,
         chunks: list[DocumentChunk],
+        query_text: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> SupervisorResult:
         context = context or {}
         result = SupervisorResult(evaluation_id=evaluation_id, document_id=document_id)
 
-        chunk_texts = [chunk.text for chunk in chunks if getattr(chunk, "text", None)]
-        if not chunk_texts:
+        chunk_infos = [
+            {
+                "chunk_id": str(chunk.chunk_id),
+                "page_number": chunk.page_number,
+                "text": chunk.text,
+            }
+            for chunk in chunks
+            if getattr(chunk, "text", None)
+        ]
+        if not chunk_infos:
             raise SupervisorExecutionError("document has no chunk text to evaluate")
 
         prompt_versions = self._load_active_prompt_versions()
@@ -66,6 +71,8 @@ class Supervisor:
         ):
             raise SupervisorExecutionError("reference_document_ids must be a mapping")
 
+        query_text = query_text or "\n".join(info["text"] for info in chunk_infos)
+
         for agent in self.agents:
             agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
             prompt_row = prompt_versions.get(agent_name)
@@ -74,29 +81,34 @@ class Supervisor:
                     f"No active prompt version found for agent {agent_name}"
                 )
 
-            agent_failures: list[str] = []
-            agent_succeeded = False
-            for batch in self._chunk_batches(chunk_texts):
-                try:
-                    agent_result = agent.run(
+            try:
+                agent_result = agent.run(
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    chunk_infos=chunk_infos,
+                    context_text=query_text,
+                    prompt_version=prompt_row.prompt_text,
+                    prompt_version_id=prompt_row.version_id,
+                    reference_document_ids=reference_document_ids,
+                )
+                result.agent_results.append(agent_result)
+            except Exception as exc:
+                result.agent_results.append(
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
                         evaluation_id=evaluation_id,
                         document_id=document_id,
-                        chunk_texts=batch,
-                        prompt_version=prompt_row.prompt_text,
-                        prompt_version_id=prompt_row.version_id,
-                        reference_document_ids=reference_document_ids,
+                        subtotal=0.0,
+                        criterion_scores=(),
+                        summary="",
+                        model_name="",
+                        processing_seconds=0,
+                        token_count=0,
+                        success=False,
+                        error_message=str(exc),
                     )
-                    result.agent_results.append(agent_result)
-                    agent_succeeded = True
-                except Exception as exc:
-                    agent_failures.append(str(exc))
-
-            if agent_failures:
-                result.failures[agent_name] = "; ".join(agent_failures)
-            if not agent_succeeded:
-                result.failures.setdefault(
-                    agent_name, f"Agent {agent_name} failed during evaluation"
                 )
+                result.failures[agent_name] = str(exc)
 
         if not result.agent_results:
             raise SupervisorExecutionError("No usable agent outputs were produced")
@@ -114,12 +126,5 @@ class Supervisor:
             agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
             prompt_versions[agent_name] = get_active_prompt(agent_name, self.db)
         return prompt_versions
-
-    def _chunk_batches(self, chunk_texts: list[str]) -> list[list[str]]:
-        return [
-            chunk_texts[index : index + self.batch_size]
-            for index in range(0, len(chunk_texts), self.batch_size)
-        ]
-
 
 __all__ = ["Supervisor", "SupervisorResult"]

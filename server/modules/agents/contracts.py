@@ -30,7 +30,7 @@ class AgentEvaluationResult:
     agent_name: str
     evaluation_id: uuid.UUID
     document_id: uuid.UUID
-    subtotal: int
+    subtotal: float
     criterion_scores: tuple[CriterionScore, ...]
     summary: str
     model_name: str
