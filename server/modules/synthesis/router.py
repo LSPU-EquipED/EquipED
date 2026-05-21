@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from server.core.database import get_db_session
-from server.modules.auth.dependencies import require_authenticated_user
+from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.synthesis.matrix import compute_synthesized_score
@@ -25,14 +25,6 @@ from server.modules.synthesis.schemas import (
 )
 
 router = APIRouter(prefix="/evaluations", tags=["synthesis"])
-
-
-def require_admin(current_user=Depends(require_authenticated_user)):
-    if getattr(current_user, "role", None) != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return current_user
-
-
 @router.get("/{evaluation_id}/results", response_model=EvaluationResultsResponse)
 def get_evaluation_results(
     evaluation_id: uuid.UUID,
