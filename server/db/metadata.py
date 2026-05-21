@@ -12,6 +12,7 @@ def import_model_modules() -> None:
     from server.modules.admin import models as _admin_models  # noqa: F401
     from server.modules.documents import models as _document_models  # noqa: F401
     from server.modules.evaluations import models as _evaluation_models  # noqa: F401
+    from server.modules.feedback import models as _feedback_models  # noqa: F401
     from server.modules.synthesis import models as _synthesis_models  # noqa: F401
 
 
