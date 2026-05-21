@@ -6,7 +6,8 @@ import uuid
 from datetime import datetime
 
 from server.core.database import Base
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid, func
+import sqlalchemy as sa
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -96,4 +97,33 @@ class EvaluationFlag(Base):
     )
 
 
-__all__ = ["AgentResult", "CriterionScore", "EvaluationFlag"]
+class MonitoringMatrix(Base):
+    __tablename__ = "monitoring_matrix"
+
+    matrix_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.document_id"),
+        nullable=False,
+        unique=True,
+    )
+    evaluation_id = Column(
+        Uuid(as_uuid=True),
+        ForeignKey("evaluation_jobs.evaluation_id"),
+        nullable=True,
+    )
+    faculty_name = Column(String(300), nullable=True)
+    program = Column(String(300), nullable=True)
+    evaluation_status = Column(String(50), nullable=False, default="SUBMITTED")
+    synthesized_score = Column(Numeric(5, 2), nullable=True)
+    domain_scores_json = Column(sa.JSON, nullable=True)
+    flag_count = Column(Integer, nullable=False, default=0)
+    feedback_status = Column(String(50), nullable=False, default="NO_FEEDBACK")
+    last_updated = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+__all__ = ["AgentResult", "CriterionScore", "EvaluationFlag", "MonitoringMatrix"]
