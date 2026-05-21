@@ -21,6 +21,7 @@ from .exceptions import (
 )
 from .ingestion import ingest_document
 from .models import Document, DocumentChunk
+from .preprocessing import prepare_slm_package
 from .schemas import (
     SOURCE_TYPES,
     DocumentListResponse,
@@ -83,6 +84,28 @@ def create_document(
         chunk_data = []
 
     uploaded_at = datetime.now(UTC)
+    structured_summary = None
+    structured_outline = None
+    section_summaries = None
+    key_facts = None
+    processing_warnings = None
+    evaluation_readiness = "PENDING"
+
+    if source_type == "slm" and chunk_data:
+        package = prepare_slm_package(
+            [chunk.model_dump() for chunk in chunk_data],
+            title=title,
+            course_title=course_title,
+            lesson_title=lesson_title,
+            program=program,
+        )
+        structured_summary = package.document_summary
+        structured_outline = package.document_outline
+        section_summaries = package.section_summaries
+        key_facts = package.key_facts
+        processing_warnings = package.warnings
+        evaluation_readiness = package.readiness_status
+
     response = DocumentResponse(
         document_id=doc_id,
         title=title,
@@ -95,6 +118,12 @@ def create_document(
         has_ocr_pages=has_ocr_pages,
         uploaded_at=uploaded_at,
         uploaded_by=uploaded_by,
+        structured_summary=structured_summary,
+        structured_outline=structured_outline,
+        section_summaries=section_summaries,
+        key_facts=key_facts,
+        processing_warnings=processing_warnings,
+        evaluation_readiness=evaluation_readiness,
     )
 
     _persist_document(db, response, str(target_path), uploaded_by)
@@ -108,6 +137,8 @@ def create_document(
         lesson_title=lesson_title,
         source_type=source_type,
         processing_status=status,
+        structured_summary=structured_summary,
+        evaluation_readiness=evaluation_readiness,
     )
 
 
@@ -134,6 +165,12 @@ def get_document(
                 has_ocr_pages=row.has_ocr_pages,
                 uploaded_at=row.uploaded_at,
                 uploaded_by=row.uploaded_by,
+                structured_summary=row.structured_summary,
+                structured_outline=row.structured_outline,
+                section_summaries=row.section_summaries,
+                key_facts=row.key_facts,
+                processing_warnings=row.processing_warnings,
+                evaluation_readiness=row.evaluation_readiness,
             )
 
     fallback = _MEM_DOCUMENTS.get(document_id)
@@ -182,6 +219,12 @@ def list_documents(
                 has_ocr_pages=row.has_ocr_pages,
                 uploaded_at=row.uploaded_at,
                 uploaded_by=row.uploaded_by,
+                structured_summary=row.structured_summary,
+                structured_outline=row.structured_outline,
+                section_summaries=row.section_summaries,
+                key_facts=row.key_facts,
+                processing_warnings=row.processing_warnings,
+                evaluation_readiness=row.evaluation_readiness,
             )
             for row in rows
         ]
@@ -247,6 +290,12 @@ def _persist_document(
         page_count=response.page_count,
         has_ocr_pages=response.has_ocr_pages,
         processing_status=response.processing_status,
+        structured_summary=response.structured_summary,
+        structured_outline=response.structured_outline,
+        section_summaries=response.section_summaries,
+        key_facts=response.key_facts,
+        processing_warnings=response.processing_warnings,
+        evaluation_readiness=response.evaluation_readiness or "PENDING",
     )
     db.add(db_row)
     db.commit()

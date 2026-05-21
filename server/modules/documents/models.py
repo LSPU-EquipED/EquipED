@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from server.core.database import Base
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -35,6 +36,12 @@ class Document(Base):
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_ocr_pages: Mapped[bool] = mapped_column(Boolean, default=False)
     processing_status: Mapped[str] = mapped_column(String(50), default="PENDING")
+    structured_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    structured_outline: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    section_summaries: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    key_facts: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    processing_warnings: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    evaluation_readiness: Mapped[str] = mapped_column(String(50), default="PENDING")
 
 
 class DocumentChunk(Base):

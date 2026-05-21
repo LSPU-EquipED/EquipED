@@ -40,6 +40,8 @@ class DocumentUploadResponse(BaseModel):
     lesson_title: str | None = None
     source_type: str
     processing_status: str
+    structured_summary: str | None = None
+    evaluation_readiness: str | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -54,6 +56,12 @@ class DocumentResponse(BaseModel):
     has_ocr_pages: bool
     uploaded_at: datetime
     uploaded_by: UUID | None
+    structured_summary: str | None = None
+    structured_outline: list[dict[str, object]] | None = None
+    section_summaries: list[dict[str, object]] | None = None
+    key_facts: dict[str, object] | None = None
+    processing_warnings: list[str] | None = None
+    evaluation_readiness: str | None = None
 
 
 class DocumentListResponse(BaseModel):
