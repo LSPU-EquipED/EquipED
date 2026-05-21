@@ -18,6 +18,25 @@ def persist_agent_outputs(
     agent_results: list[AgentEvaluationResult],
 ) -> None:
     for agent_result in agent_results:
+        if not agent_result.success:
+            result_row = AgentResult(
+                agent_result_id=uuid.uuid4(),
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                agent_name=agent_result.agent_name,
+                prompt_version_id=agent_result.prompt_version_id,
+                subtotal=agent_result.subtotal,
+                processing_seconds=agent_result.processing_seconds,
+                token_count=agent_result.token_count,
+                model_name=agent_result.model_name,
+                summary=agent_result.summary,
+                success=False,
+                error_message=agent_result.error_message,
+                raw_response=agent_result.raw_response,
+            )
+            db.add(result_row)
+            db.flush()
+            continue
         result_row = AgentResult(
             agent_result_id=uuid.uuid4(),
             evaluation_id=evaluation_id,

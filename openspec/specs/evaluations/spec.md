@@ -27,16 +27,35 @@ The system SHALL persist Layer 3 outputs for the evaluation job before the workf
 - **WHEN** evaluation outputs are saved
 - **THEN** the system SHALL associate them with the owning evaluation job and document owner
 
-### Requirement: Evaluation stops honestly before Layer 4
-The system SHALL stop evaluation jobs after persisting Layer 3 outputs and SHALL not fabricate report generation, scorecard completion, matrix updates, or `COMPLETED` status.
+### Requirement: Layer 4 synthesis and monitoring matrix updates
+The system SHALL run Layer 4 synthesis after persisting Layer 3 outputs, including weighted score aggregation, monitoring matrix updates, and COMPLETED/FAILED job transitions.
 
-#### Scenario: Layer 4 is not entered
+**Domain weights for synthesized scoring:**
+- SME (Subject Matter Expert): 35%
+- Coordinator (Program Coordinator): 30%
+- GAD (Gender & Development): 20%
+- ITSO (IT Security Officer): 15%
+
+**Normalization:** If an agent fails or is missing, the weights of successful agents SHALL be normalized to sum to 100%. If all agents fail, the synthesized score SHALL be 0.0 and the result SHALL be marked as partial.
+
+#### Scenario: Synthesis runs after Layer 3
 - **WHEN** Layer 3 persistence succeeds
-- **THEN** the system SHALL end the job with an explicit non-complete terminal outcome and a reason that Layer 4 is not implemented
+- **THEN** the system SHALL transition to `SYNTHESIZING`, compute weighted domain scores, and write a `monitoring_matrix` row
 
-#### Scenario: No downstream artifacts are generated
-- **WHEN** a job reaches the end of the current workflow
-- **THEN** the system SHALL not create a report, finalize a scorecard, update the monitoring matrix, or mark the job `COMPLETED`
+#### Scenario: Successful weighted synthesis
+- **GIVEN** an evaluation with SME 90, Coordinator 80, GAD 100, ITSO 70
+- **WHEN** synthesis runs
+- **THEN** the synthesized score SHALL be approximately 86.0 (90×0.35 + 80×0.30 + 100×0.20 + 70×0.15)
+
+#### Scenario: Synthesis with a failed agent
+- **GIVEN** an evaluation where GAD failed but SME, Coordinator, and ITSO succeeded
+- **WHEN** synthesis runs
+- **THEN** the weights for SME (35%), Coordinator (30%), and ITSO (15%) SHALL be normalized to sum to 100%
+- **AND** a synthesized score SHALL still be produced based on available data with `is_partial=True`
+
+#### Scenario: Synthesis completes and job finishes
+- **WHEN** synthesis and matrix updates succeed
+- **THEN** the system SHALL transition the job to `COMPLETED` (or `FAILED` if synthesis is partial)
 
 ### Requirement: Evaluation polling is limited to the owning user
 The system SHALL only expose evaluation status for jobs owned by the authenticated user who is polling them.

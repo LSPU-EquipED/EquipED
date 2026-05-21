@@ -34,7 +34,7 @@ class BaseAgent:
         *,
         evaluation_id: uuid.UUID,
         document_id: uuid.UUID,
-        chunk_texts: list[str],
+        chunk_infos: list[dict[str, Any]],
         context_text: str | None = None,
         reference_text: str | None = None,
         prompt_version: str | None = None,
@@ -42,16 +42,20 @@ class BaseAgent:
         reference_document_ids: dict[str, uuid.UUID] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
+        if not chunk_infos:
+            raise AgentExecutionError("document chunks are required for evaluation")
+
+        chunk_texts = [str(chunk.get("text", "")) for chunk in chunk_infos if chunk.get("text")]
         if not chunk_texts:
             raise AgentExecutionError("document chunks are required for evaluation")
 
         rubric_context = self._retrieve_rubric_context("\n".join(chunk_texts))
         reference_context = self._retrieve_reference_context(
-            context_text or "",
+            context_text or "\n".join(chunk_texts),
             reference_document_ids=reference_document_ids,
         )
         prompt = self._build_prompt(
-            chunk_texts=chunk_texts,
+            chunk_infos=chunk_infos,
             rubric_context=rubric_context,
             reference_context=reference_context,
             reference_text=reference_text,
@@ -62,7 +66,11 @@ class BaseAgent:
         processing_seconds = time.perf_counter() - start
 
         criterion_scores = tuple(self._build_criterion_scores(parsed))
-        subtotal = sum(score.score for score in criterion_scores)
+        subtotal = (
+            sum(score.score for score in criterion_scores) / len(criterion_scores)
+            if criterion_scores
+            else 0.0
+        )
         token_count = sum(len(text.split()) for text in chunk_texts)
         return AgentEvaluationResult(
             agent_name=self.agent_name,
@@ -132,7 +140,7 @@ class BaseAgent:
     def _build_prompt(
         self,
         *,
-        chunk_texts: list[str],
+        chunk_infos: list[dict[str, Any]],
         rubric_context: list[str],
         reference_context: list[str],
         reference_text: str | None,
@@ -141,13 +149,14 @@ class BaseAgent:
         payload = {
             "agent": self.agent_name,
             "prompt_version": prompt_version,
-            "document_chunks": chunk_texts,
+            "document_chunks": chunk_infos,
             "rubric_context": rubric_context,
             "reference_context": reference_context,
             "reference_text": reference_text,
             "instructions": [
                 "Return JSON with summary and criterion_scores.",
                 "Each criterion score must be between 1 and 4.",
+                "Cite only the chunk_id values provided in document_chunks.",
                 "Ground all claims in the provided context.",
             ],
         }

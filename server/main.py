@@ -22,8 +22,8 @@ from server.modules.auth.service import bootstrap_admin_if_configured
 MODULE_ROUTER_PATHS = (
     "server.modules.documents.router",
     "server.modules.auth.router",
-    "server.modules.evaluations.router",
     "server.modules.synthesis.router",
+    "server.modules.evaluations.router",
     "server.modules.feedback.router",
     "server.modules.admin.router",
 )

@@ -20,6 +20,7 @@ from server.modules.evaluations.service import (
     get_evaluation_status,
     list_evaluations,
 )
+from server.modules.synthesis.models import MonitoringMatrix
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -463,7 +464,9 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
         recording_transition,
     )
 
-    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+    def fake_run_evaluation(
+        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+    ):
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -485,6 +488,8 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
                     model_name="local-model",
                     processing_seconds=0.1,
                     token_count=4,
+                    success=True,
+                    prompt_version_id=None,
                 )
             ],
         )
@@ -524,15 +529,16 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     assert response.json()["status"] == "SUBMITTED"
 
     job = db_session.query(EvaluationJob).one()
-    assert job.status == EvaluationStatus.FAILED.value
+    assert job.status == EvaluationStatus.COMPLETED.value
     assert seen_statuses == [
         EvaluationStatus.PREPROCESSING,
         EvaluationStatus.EVALUATING,
-        EvaluationStatus.FAILED,
+        EvaluationStatus.SYNTHESIZING,
+        EvaluationStatus.COMPLETED,
     ]
-    assert job.error_message == "Layer 4 synthesis/completion is not implemented yet."
+    assert job.error_message is None
     assert job.completed_at is not None
-    assert EvaluationStatus.COMPLETED not in seen_statuses
+    assert db_session.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
 
 
 def test_router_masks_foreign_access_for_all_roles(
@@ -638,7 +644,12 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         transition_evaluation_status as real_transition,
     )
 
-    def recording_transition(evaluation_id, new_status, db, *, error_message=None):
+    def recording_transition(
+        evaluation_id, new_status, db=None, *, error_message=None, session=None
+    ):
+        db = db or session
+        if isinstance(new_status, str):
+            new_status = EvaluationStatus(new_status)
         seen_statuses.append(new_status)
         return real_transition(
             evaluation_id, new_status, db, error_message=error_message
@@ -650,7 +661,9 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         recording_transition,
     )
 
-    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+    def fake_run_evaluation(
+        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+    ):
         captured_context.update(context or {})
         assert context == {
             "reference_document_ids": {
@@ -679,6 +692,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
                     model_name="local-model",
                     processing_seconds=0.1,
                     token_count=4,
+                    prompt_version_id=None,
                 )
             ],
         )
@@ -689,20 +703,19 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         fake_run_evaluation,
     )
 
-    with pytest.raises(Exception) as exc_info:
-        run_evaluation_job(job.evaluation_id)
+    run_evaluation_job(job.evaluation_id)
 
-    assert exc_info.value.__class__.__name__ == "EvaluationPipelineUnavailableError"
     refreshed = SessionLocal().get(EvaluationJob, job.evaluation_id)
     assert refreshed is not None
-    assert refreshed.status == EvaluationStatus.FAILED.value
-    assert seen_statuses[:2] == [
+    assert refreshed.status == EvaluationStatus.COMPLETED.value
+    assert seen_statuses == [
         EvaluationStatus.PREPROCESSING,
         EvaluationStatus.EVALUATING,
+        EvaluationStatus.SYNTHESIZING,
+        EvaluationStatus.COMPLETED,
     ]
-    assert refreshed.error_message == (
-        "Layer 4 synthesis/completion is not implemented yet."
-    )
+    assert refreshed.error_message is None
+    assert session.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
     assert captured_context == {
         "reference_document_ids": {
             "syllabus": syllabus_id,
@@ -715,6 +728,7 @@ def test_orchestrator_fails_closed_when_layer3_returns_no_outputs(
     db_session, monkeypatch
 ) -> None:
     from server.core import database as core_database
+    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
     from server.modules.agents.supervisor import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
 
@@ -755,12 +769,34 @@ def test_orchestrator_fails_closed_when_layer3_returns_no_outputs(
     )
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
-    def fake_run_evaluation(self, *, evaluation_id, document_id, chunks, context=None):
+    def fake_run_evaluation(
+        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+    ):
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[],
-            failures={"sme": "boom"},
+            agent_results=[
+                AgentEvaluationResult(
+                    agent_name="sme",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=4,
+                    criterion_scores=(
+                        CriterionScore(
+                            criterion_id="c1",
+                            criterion_title="Criterion 1",
+                            score=4,
+                            justification="great",
+                        ),
+                    ),
+                    summary="great",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                    success=True,
+                    prompt_version_id=None,
+                )
+            ],
         )
 
     monkeypatch.setattr(
@@ -769,12 +805,10 @@ def test_orchestrator_fails_closed_when_layer3_returns_no_outputs(
         fake_run_evaluation,
     )
 
-    with pytest.raises(Exception) as exc_info:
-        run_evaluation_job(job.evaluation_id)
+    run_evaluation_job(job.evaluation_id)
 
-    assert exc_info.value.__class__.__name__ == "EvaluationPipelineUnavailableError"
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
     assert refreshed is not None
-    assert refreshed.status == EvaluationStatus.FAILED.value
-    assert refreshed.error_message == "Layer 3 produced no usable agent outputs."
+    assert refreshed.status == EvaluationStatus.COMPLETED.value
+    assert refreshed.error_message is None

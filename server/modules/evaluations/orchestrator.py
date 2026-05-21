@@ -13,6 +13,11 @@ from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import EvaluationPipelineUnavailableError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.service import transition_evaluation_status
+from server.modules.synthesis.matrix import (
+    compute_synthesized_score,
+    upsert_monitoring_matrix,
+)
+from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.service import persist_agent_outputs
 
 
@@ -61,11 +66,14 @@ def run_evaluation_job(
             EvaluationStatus.EVALUATING,
             session,
         )
+        slm_chunks = get_document_chunks(job.document_id, db=session)
+        slm_text = "\n".join([chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)])
         supervisor = Supervisor(db=session)
         supervisor_result = supervisor.run_evaluation(
             evaluation_id=evaluation_id,
             document_id=job.document_id,
-            chunks=get_document_chunks(job.document_id, db=session),
+            chunks=slm_chunks,
+            query_text=slm_text,
             context={
                 "reference_document_ids": {
                     "syllabus": job.syllabus_id,
@@ -83,11 +91,44 @@ def run_evaluation_job(
             job.document_id,
             supervisor_result.agent_results,
         )
-        raise EvaluationPipelineUnavailableError(
-            "Layer 4 synthesis/completion is not implemented yet."
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.SYNTHESIZING,
+            session,
         )
+
+        agent_results = session.query(AgentResult).filter_by(
+            evaluation_id=evaluation_id
+        ).all()
+        synthesis_result = compute_synthesized_score(agent_results)
+        flag_count = session.query(EvaluationFlag).filter_by(
+            evaluation_id=evaluation_id
+        ).count()
+
+        upsert_monitoring_matrix(
+            db=session,
+            document_id=job.document_id,
+            evaluation_id=evaluation_id,
+            evaluation_status=(
+                "COMPLETED"
+                if not synthesis_result["is_partial"]
+                else "COMPLETED_PARTIAL"
+            ),
+            synthesized_score=synthesis_result["synthesized_score"],
+            domain_scores=synthesis_result["domain_scores"],
+            flag_count=flag_count,
+        )
+
+        final_status = (
+            EvaluationStatus.COMPLETED
+            if not synthesis_result["is_partial"]
+            else EvaluationStatus.FAILED
+        )
+        transition_evaluation_status(evaluation_id, final_status, session)
+        session.commit()
     except Exception as exc:
         try:
+            session.rollback()
             transition_evaluation_status(
                 evaluation_id,
                 EvaluationStatus.FAILED,
