@@ -1,6 +1,7 @@
 import {
   BookOpen,
   CheckCircle2,
+  Download,
   FileText,
   Lightbulb,
   Scale,
@@ -9,6 +10,14 @@ import {
 } from 'lucide-react';
 import { useState, type PointerEvent } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/shared/components/ui/sheet';
 import {
   Table,
   TableBody,
@@ -21,6 +30,7 @@ import { cn } from '@/shared/components/utils';
 import { EvaluationStatusBanner } from './EvaluationStatusBanner';
 import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
+import { GadExportDownloadButton, GadExportPreview, type ExportAgentId } from './ExportDocument';
 
 const agents = [
   {
@@ -49,7 +59,7 @@ const agents = [
   },
 ] as const;
 
-type AgentId = (typeof agents)[number]['id'];
+type AgentId = (typeof agents)[number]['id'] & ExportAgentId;
 
 const agentScores: Record<
   AgentId,
@@ -268,6 +278,30 @@ export function EvaluationInterface() {
             <FileText className="size-4" aria-hidden="true" />
             Source
           </Button>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button type="button" variant="outline" className="gap-2">
+                <Download className="size-4" aria-hidden="true" />
+                Export
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="!w-[52vw] !max-w-none gap-0 sm:!max-w-none">
+              <SheetHeader className="border-b pr-14">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <SheetTitle>LSPU-CID-SF-004 {selectedAgent.name} Evaluation Export</SheetTitle>
+                    <SheetDescription>
+                      Preview follows the referenced Gender and Development Unit criteria form.
+                    </SheetDescription>
+                  </div>
+                  <GadExportDownloadButton agentId={selectedAgent.id} />
+                </div>
+              </SheetHeader>
+              <div className="grid min-h-0 flex-1 place-items-start justify-items-center overflow-auto bg-muted/40 p-4 backdrop-blur-sm">
+                <GadExportPreview agentId={selectedAgent.id} />
+              </div>
+            </SheetContent>
+          </Sheet>
           <Button type="button">Finalize Review</Button>
         </div>
       </header>
@@ -297,22 +331,19 @@ export function EvaluationInterface() {
                 <Highlight tone="good">
                   The proposed digital artifact has a clear instructional purpose and deployment path.
                 </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and
-                validation.
+                The selected section is shown as an agent-specific evidence marker for human review and validation.
               </p>
               <p>
                 <Highlight tone="risk">
                   Ownership, reuse permissions, and attribution expectations need to be stated more directly.
                 </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and
-                validation.
+                The selected section is shown as an agent-specific evidence marker for human review and validation.
               </p>
               <p>
                 <Highlight tone="warning">
                   Innovation indicators should be connected to measurable course deliverables.
                 </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and
-                validation.
+                The selected section is shown as an agent-specific evidence marker for human review and validation.
               </p>
               <p>
                 Additional document paragraphs remain visible without highlights so reviewers can compare flagged
@@ -376,9 +407,7 @@ export function EvaluationInterface() {
                     onClick={() => setSelectedAgentId(agent.id)}
                     className={cn(
                       'flex min-h-20 items-center gap-4 rounded-lg border p-4 text-left shadow-sm transition-colors',
-                      isActive
-                        ? 'border-foreground bg-foreground text-background'
-                        : 'bg-background hover:bg-muted/60'
+                      isActive ? 'border-foreground bg-foreground text-background' : 'bg-background hover:bg-muted/60'
                     )}
                     aria-pressed={isActive}
                   >
@@ -392,7 +421,9 @@ export function EvaluationInterface() {
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{agent.name}</span>
-                      <span className={cn('mt-1 block text-sm', isActive ? 'text-background/75' : 'text-muted-foreground')}>
+                      <span
+                        className={cn('mt-1 block text-sm', isActive ? 'text-background/75' : 'text-muted-foreground')}
+                      >
                         {agent.subtitle}
                       </span>
                     </span>
@@ -406,9 +437,7 @@ export function EvaluationInterface() {
                 <CheckCircle2 className="mt-1 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
                 <div>
                   <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
-                  <p className="mt-2 max-w-3xl text-muted-foreground">
-                    {selectedScore.summary}
-                  </p>
+                  <p className="mt-2 max-w-3xl text-muted-foreground">{selectedScore.summary}</p>
                 </div>
               </div>
 
