@@ -65,3 +65,35 @@ def test_strip_repeated_page_boilerplate_removes_varying_header_lines() -> None:
         "Unit 2 lesson content.",
         "Unit 3 lesson content.",
     ]
+
+
+def test_strip_repeated_page_boilerplate_removes_shifted_slm_header() -> None:
+    pages = [
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 1 content.",
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 2 content.",
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 3 content.",
+    ]
+
+    cleaned = strip_repeated_page_boilerplate(pages)
+
+    assert cleaned == [
+        "Page 1 content.",
+        "Page 2 content.",
+        "Page 3 content.",
+    ]
+
+
+def test_strip_repeated_page_boilerplate_keeps_pages_without_footer() -> None:
+    pages = [
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nFirst page body.",
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nSecond page body.",
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nThird page body.",
+    ]
+
+    cleaned = strip_repeated_page_boilerplate(pages)
+
+    assert cleaned == [
+        "First page body.",
+        "Second page body.",
+        "Third page body.",
+    ]

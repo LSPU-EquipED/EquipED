@@ -7,6 +7,8 @@ from collections import Counter
 from collections.abc import Sequence
 
 _MAX_BOILERPLATE_LINES = 6
+_HEADER_SCAN_LIMIT = 18
+_HEADER_MIN_MATCHES = 2
 _HEADER_LABEL_PREFIXES = (
     "program:",
     "course:",
@@ -15,6 +17,12 @@ _HEADER_LABEL_PREFIXES = (
     "section:",
     "subject:",
     "instructor:",
+)
+_HEADER_ANCHORS = (
+    "republic of the philippines",
+    "laguna state polytechnic university",
+    "iso 9001",
+    "level i institutionally accredited",
 )
 
 
@@ -29,11 +37,79 @@ def strip_repeated_page_boilerplate(page_texts: Sequence[str]) -> list[str]:
     if len(texts) < 2:
         return texts
 
+    texts = _strip_known_header_blocks(texts)
     texts = _strip_repeated_header_lines(texts)
 
     footer = _detect_repeated_sequence(texts, from_start=False)
 
     return [_strip_sequence(text, footer, from_start=False) for text in texts]
+
+
+def _strip_known_header_blocks(texts: list[str]) -> list[str]:
+    cleaned: list[str] = []
+
+    for text in texts:
+        lines = _nonempty_lines(text)
+        if not lines:
+            cleaned.append(text)
+            continue
+
+        header_range = _find_known_header_range(lines)
+        if header_range is None:
+            cleaned.append(text)
+            continue
+
+        start, end = header_range
+        cleaned_lines = lines[:start] + lines[end:]
+        cleaned.append("\n".join(cleaned_lines).strip())
+
+    return cleaned
+
+
+def _find_known_header_range(lines: list[str]) -> tuple[int, int] | None:
+    scan_limit = min(len(lines), _HEADER_SCAN_LIMIT)
+    matched_indexes: list[int] = []
+
+    for index in range(scan_limit):
+        if _matches_header_anchor(lines[index]):
+            matched_indexes.append(index)
+
+    if len(matched_indexes) < _HEADER_MIN_MATCHES:
+        return None
+
+    start = matched_indexes[0]
+    end = matched_indexes[-1] + 1
+
+    while start > 0 and _looks_header_like(lines[start - 1], _boilerplate_signature(lines[start - 1])):
+        start -= 1
+
+    while end < len(lines) and _looks_header_like(lines[end], _boilerplate_signature(lines[end])):
+        end += 1
+
+    return start, end
+
+
+def _matches_header_anchor(line: str) -> bool:
+    normalized = _canonicalize_line(line)
+    if not normalized:
+        return False
+
+    if normalized.startswith(_HEADER_LABEL_PREFIXES):
+        return True
+
+    if any(anchor in normalized for anchor in _HEADER_ANCHORS):
+        return True
+
+    if "laguna state" in normalized and "polytechnic" in normalized and "university" in normalized:
+        return True
+
+    if "iso 9001" in normalized and "certified" in normalized:
+        return True
+
+    if "institutionally accredited" in normalized and "level" in normalized:
+        return True
+
+    return False
 
 
 def _strip_repeated_header_lines(texts: list[str]) -> list[str]:
