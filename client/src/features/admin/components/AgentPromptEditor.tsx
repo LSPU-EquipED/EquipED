@@ -1,28 +1,66 @@
+import { useMemo, useState } from 'react';
 import { Outlet } from '@tanstack/react-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/shared/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import { adminApi } from '../api/admin.api';
+import { usePromptVersions } from '../hooks/usePromptVersions';
+import { PromptVersionHistory } from './PromptVersionHistory';
+
+const agentId = 'coordinator';
 
 export function AgentPromptEditor() {
+  const queryClient = useQueryClient();
+  const { data } = usePromptVersions(agentId);
+  const [promptText, setPromptText] = useState('');
+  const [motivation, setMotivation] = useState('');
+
+  const latestPrompt = useMemo(() => data?.versions?.[0]?.prompt_text ?? '', [data]);
+
+  const savePrompt = useMutation({
+    mutationFn: () => adminApi.createPrompt(agentId, { prompt_text: promptText || latestPrompt, motivation }),
+    onSuccess: async () => {
+      setPromptText('');
+      setMotivation('');
+      await queryClient.invalidateQueries({ queryKey: ['promptVersions', agentId] });
+    },
+  });
+
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
+    <section className="grid gap-6">
       <div>
-        <div style={{ fontSize: '0.75rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#8ba4d6' }}>
-          Admin
-        </div>
-        <h1 style={{ margin: '0.35rem 0 0', fontSize: '1.55rem' }}>Prompt editor scaffold</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+        <h1 className="mt-2 text-2xl font-semibold">Prompt editor</h1>
       </div>
 
-      <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(16rem, 0.8fr)' }}>
-        <section style={{ borderRadius: '1rem', border: '1px solid rgba(148, 163, 184, 0.14)', background: 'rgba(15, 23, 42, 0.72)', padding: '1rem', display: 'grid', gap: '0.75rem' }}>
-          <div style={{ color: '#8ba4d6', fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Prompt text</div>
-          <textarea defaultValue="Provisional prompt content will live here." rows={10} style={{ width: '100%', borderRadius: '0.85rem', border: '1px solid rgba(148, 163, 184, 0.2)', background: 'rgba(8, 15, 30, 0.95)', color: '#e5eefc', padding: '0.9rem', resize: 'vertical' }} />
-          <button type="button" style={{ width: 'fit-content', borderRadius: '999px', border: 'none', background: '#60a5fa', color: '#081120', padding: '0.7rem 1rem', fontWeight: 700 }}>
-            Save scaffold
-          </button>
-        </section>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Edit prompt</CardTitle>
+            <CardDescription>Current agent: {agentId}</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <textarea
+              value={promptText}
+              onChange={(event) => setPromptText(event.target.value)}
+              rows={12}
+              className="min-h-40 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder={latestPrompt || 'Enter prompt text...'}
+            />
+            <textarea
+              value={motivation}
+              onChange={(event) => setMotivation(event.target.value)}
+              rows={3}
+              className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              placeholder="Motivation for this update"
+            />
+            <Button onClick={() => savePrompt.mutate()} disabled={savePrompt.isPending} className="w-fit">
+              {savePrompt.isPending ? 'Saving...' : 'Save prompt'}
+            </Button>
+          </CardContent>
+        </Card>
 
-        <section style={{ borderRadius: '1rem', border: '1px solid rgba(148, 163, 184, 0.14)', background: 'rgba(15, 23, 42, 0.72)', padding: '1rem' }}>
-          <div style={{ color: '#8ba4d6', fontSize: '0.78rem', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Version history</div>
-          <p style={{ margin: '0.5rem 0 0', color: '#bfd0f7' }}>Prompt versions will appear here once version tracking is wired.</p>
-        </section>
+        <PromptVersionHistory agentId={agentId} />
       </div>
 
       <Outlet />
