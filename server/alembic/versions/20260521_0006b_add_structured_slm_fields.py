@@ -1,17 +1,16 @@
 """add structured SLM fields
 
-Revision ID: 20260521_0006
-Revises: 20260513_0005
+Revision ID: 20260521_0006b
+Revises: 20260521_0006
 Create Date: 2026-05-21 00:06:00
 """
-
 from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20260521_0006"
-down_revision = "20260513_0005"
+revision = "20260521_0006b"
+down_revision = "20260521_0006"
 branch_labels = None
 depends_on = None
 

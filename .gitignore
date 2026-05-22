@@ -35,6 +35,8 @@ build/
 *.log
 .DS_Store
 Thumbs.db
+*.db
+*.sqlite
 .vscode/
 .idea/
 

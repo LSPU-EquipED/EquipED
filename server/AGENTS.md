@@ -18,7 +18,7 @@
 - Only reference documents (syllabus, curriculum) and rubrics are embedded into the vector store.
 - The evaluation lifecycle is: SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED. There is no EMBEDDING status.
 - The chroma_stored validation gate only applies to embedding-required documents (reference/rubric), not SLMs.
-- chroma_data and uploads directories are anchored to the repository root via Path(__file__) resolution.
+- chroma_data, uploads directories, and equiped_dev.db are anchored to the repository root via Path(__file__) resolution.
 
 ## Before Making Backend Changes
 
