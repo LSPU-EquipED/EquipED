@@ -1,30 +1,57 @@
+import { Loader2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
+import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
+import type { PreferenceLogItem } from '../types';
+
+function actionClass(action: string) {
+  return action === 'EDITED' ? 'border-primary/50 text-primary bg-primary/10' : 'border-muted-foreground/30 bg-muted/50';
+}
+
 export function PreferenceLogTable() {
+  const { data, isLoading, isError } = usePreferenceLogs();
+
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
+    <section className="grid gap-4">
       <div>
-        <div style={{ fontSize: '0.75rem', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#8ba4d6' }}>
-          Admin
-        </div>
-        <h1 style={{ margin: '0.35rem 0 0', fontSize: '1.55rem' }}>Preference logs scaffold</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+        <h1 className="mt-2 text-2xl font-semibold">Preference logs</h1>
       </div>
 
-      <div style={{ borderRadius: '1rem', border: '1px solid rgba(148, 163, 184, 0.14)', background: 'rgba(15, 23, 42, 0.72)', padding: '1rem' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', color: '#8ba4d6' }}>
-              <th style={{ paddingBottom: '0.75rem' }}>Role</th>
-              <th style={{ paddingBottom: '0.75rem' }}>Action</th>
-              <th style={{ paddingBottom: '0.75rem' }}>Version</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ padding: '0.7rem 0', color: '#e5eefc' }}>No logs yet</td>
-              <td style={{ padding: '0.7rem 0', color: '#bfd0f7' }}>—</td>
-              <td style={{ padding: '0.7rem 0', color: '#bfd0f7' }}>—</td>
-            </tr>
-          </tbody>
-        </table>
+      <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="size-5 animate-spin" /> Loading preference logs...
+          </div>
+        ) : isError ? (
+          <div className="py-10 text-center text-destructive">Failed to load preference logs.</div>
+        ) : !data?.items.length ? (
+          <div className="py-10 text-center text-muted-foreground">No preference logs yet.</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>User</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Evaluation</TableHead>
+                <TableHead>Created</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.items.map((log: PreferenceLogItem) => (
+                <TableRow key={log.log_id}>
+                  <TableCell className="font-mono text-sm">{log.user_id}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${actionClass(log.action)}`}>
+                      {log.action}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">{log.evaluation_id}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{new Date(log.created_at).toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </div>
     </section>
   );

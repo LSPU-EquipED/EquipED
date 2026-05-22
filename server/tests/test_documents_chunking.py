@@ -26,7 +26,9 @@ from server.modules.documents.service import (
     _MEM_CHUNKS,
     _MEM_DOCUMENTS,
     create_document,
+    _persist_chunks,
 )
+from server.modules.documents.models import DocumentChunk
 
 
 def test_chunker_prefers_blank_line_structures() -> None:
@@ -185,3 +187,12 @@ def test_existing_documents_are_not_auto_reprocessed(
     assert captured_calls == [str(result.document_id)]
     assert existing_id in _MEM_CHUNKS
     assert _MEM_CHUNKS[existing_id][0].text == "existing chunk"
+
+
+def test_persist_chunks_handles_empty_chunk_data(db_session) -> None:
+    document_id = uuid.uuid4()
+
+    _persist_chunks(db_session, document_id, [])
+
+    assert _MEM_CHUNKS[document_id] == []
+    assert db_session.query(DocumentChunk).count() == 0

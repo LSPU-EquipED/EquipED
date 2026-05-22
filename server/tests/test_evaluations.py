@@ -120,6 +120,34 @@ def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> 
     assert row.submitted_by == owner.user_id
 
 
+def test_create_evaluation_without_reference_documents(db_session) -> None:
+    """Can submit an evaluation with only an SLM document."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-no-refs@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(document_id=slm_id),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+
+    assert response.status == EvaluationStatus.SUBMITTED
+    assert response.syllabus_id is None
+    assert response.curriculum_id is None
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.syllabus_id is None
+    assert row.curriculum_id is None
+
+
 def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
     owner = create_user(
         db_session,
@@ -328,6 +356,185 @@ def test_list_evaluations_is_scoped_per_user_for_all_roles(db_session, role) -> 
     assert all(item.document_id for item in response.items)
     assert all(item.syllabus_id for item in response.items)
     assert all(item.curriculum_id for item in response.items)
+
+
+def test_list_evaluations_includes_document_title(db_session) -> None:
+    """Evaluation list items should include document_title for human-readable display."""
+    from server.modules.evaluations.schemas import EvaluationListItem
+
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-title@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", with_chunks=True
+    )
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_id,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    assert response.total == 1
+    item = response.items[0]
+    assert isinstance(item, EvaluationListItem)
+    assert item.document_title == "slm doc"
+    assert item.document_id == doc_id
+
+
+def test_list_evaluations_document_title_none_for_missing_document(db_session) -> None:
+    """document_title should be None when the referenced document does not exist."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-missing-doc@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),  # non-existent document
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    assert response.total == 1
+    assert response.items[0].document_title is None
+
+
+def test_list_evaluations_filters_by_document_id(db_session) -> None:
+    """Filtering by document_id should return only evaluations for that document."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-filter-doc@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_a = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    doc_b = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    db_session.add_all([
+        EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=doc_a,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.SUBMITTED.value,
+            error_message=None,
+            submitted_by=owner.user_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+        ),
+        EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=doc_b,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.SUBMITTED.value,
+            error_message=None,
+            submitted_by=owner.user_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+        ),
+    ])
+    db_session.commit()
+
+    # Without filter: both evaluations
+    all_resp = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    assert all_resp.total == 2
+
+    # With filter for doc_a: only one
+    filtered_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, document_id=doc_a
+    )
+    assert filtered_resp.total == 1
+    assert filtered_resp.items[0].document_id == doc_a
+
+    # With filter for non-existent doc: zero
+    empty_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, document_id=uuid4()
+    )
+    assert empty_resp.total == 0
+    assert empty_resp.items == []
+
+
+def test_list_evaluations_filter_by_document_id_respects_ownership(db_session) -> None:
+    """Filtering by document_id must not leak another user's evaluations."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-filter-own@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    other = create_user(
+        db_session,
+        name="Other",
+        email="other-filter-own@example.com",
+        password="password456",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    # Other user has an evaluation for the same document
+    db_session.add(
+        EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=doc,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.SUBMITTED.value,
+            error_message=None,
+            submitted_by=other.user_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+        )
+    )
+    db_session.commit()
+
+    # Owner has no evaluations for this document
+    resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, document_id=doc
+    )
+    assert resp.total == 0
+    assert resp.items == []
+
+    # Other user sees their own evaluation
+    other_resp = list_evaluations(
+        1, 20, other.user_id, UserRole.FACULTY.value, db_session, document_id=doc
+    )
+    assert other_resp.total == 1
+    assert other_resp.items[0].document_id == doc
 
 
 @pytest.mark.parametrize("role", [UserRole.FACULTY, UserRole.ADMIN])

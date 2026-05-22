@@ -38,7 +38,7 @@ def compute_synthesized_score(
             "criteria": [],
             "subtotal": subtotal,
             "max_score": 4,
-            "status": "completed" if result.success else "failed",
+            "status": "OK" if result.success else "ERROR",
         }
 
     if active:
@@ -76,7 +76,7 @@ def upsert_monitoring_matrix(
     evaluation_id: uuid.UUID | None,
     evaluation_status: str,
     synthesized_score: float | None = None,
-    domain_scores: dict[str, float] | None = None,
+    domain_scores: dict[str, dict[str, Any]] | None = None,
     flag_count: int = 0,
     feedback_status: str = "NO_FEEDBACK",
 ) -> MonitoringMatrix:

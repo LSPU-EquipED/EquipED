@@ -1,10 +1,11 @@
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, Info, CheckCircle, XCircle, ChevronDown, ChevronUp, Flag } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, Flag } from 'lucide-react';
 import { useState } from 'react';
 import { Separator } from '@/shared/components/ui/separator';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
+import type { CriterionScoreItem } from '../types';
 
 const STATUS_MESSAGES: Record<string, string> = {
   SUBMITTED: 'Job submitted, waiting to start...',
@@ -12,11 +13,10 @@ const STATUS_MESSAGES: Record<string, string> = {
   EVALUATING: 'Running multi-agent evaluation layer...',
   SYNTHESIZING: 'Synthesizing agent reports...',
   COMPLETED: 'Evaluation completed.',
-  COMPLETED_PARTIAL: 'Evaluation completed partially.',
   FAILED: 'Evaluation failed.',
 };
 
-function CriterionItem({ item }: { readonly item: any }) {
+function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="border rounded-md p-3 bg-card/50">
@@ -48,14 +48,24 @@ export function Scorecard() {
   
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
 
-  const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'COMPLETED_PARTIAL' || evaluation?.status === 'FAILED';
+  const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
 
-  const { data: results, isLoading: isLoadingResults } = useQuery({
+  const {
+    data: results,
+    isLoading: isLoadingResults,
+    isError: isResultsError,
+    error: resultsError,
+    refetch: refetchResults,
+  } = useQuery({
     queryKey: ['evaluation-results', id],
     queryFn: () => evaluationApi.getEvaluationResults(id!),
     enabled: !!id && isTerminal,
+    retry: 1,
   });
+
+  const hasResults = results && Object.keys(results.domain_scores).length > 0;
+  const isFailedWithResults = isFailed && hasResults;
 
   if (!id) {
     return (
@@ -106,7 +116,7 @@ export function Scorecard() {
               Job: {evaluation.evaluation_id}
             </h1>
             {isTerminal && (
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed ? 'border-destructive/50 text-destructive bg-destructive/10' : 'border-primary/50 text-primary bg-primary/10'}`}>
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed && !isFailedWithResults ? 'border-destructive/50 text-destructive bg-destructive/10' : isFailedWithResults ? 'border-amber-500/50 text-amber-600 bg-amber-50' : 'border-primary/50 text-primary bg-primary/10'}`}>
                 {evaluation.status.replace('_', ' ')}
               </span>
             )}
@@ -118,7 +128,7 @@ export function Scorecard() {
               Synthesized Score
             </p>
             <p className="mt-1 text-3xl font-bold text-primary">
-              {results.synthesized_score.toFixed(2)}<span className="text-lg text-muted-foreground font-normal">/4.00</span>
+              {typeof results.synthesized_score === 'number' ? results.synthesized_score.toFixed(2) : '—'}<span className="text-lg text-muted-foreground font-normal">/4.00</span>
             </p>
           </div>
         )}
@@ -130,10 +140,10 @@ export function Scorecard() {
             {!isTerminal && (
               <Loader2 className="size-8 animate-spin text-primary" />
             )}
-            {isTerminal && !isFailed && (
+            {isTerminal && (!isFailed || isFailedWithResults) && (
               <CheckCircle className="size-8 text-green-500" />
             )}
-            {isFailed && (
+            {isFailed && !isFailedWithResults && (
               <AlertTriangle className="size-8 text-destructive" />
             )}
             
@@ -142,7 +152,9 @@ export function Scorecard() {
                 {evaluation.status.replace('_', ' ')}
               </h2>
               <p className="text-muted-foreground mt-1">
-                {STATUS_MESSAGES[evaluation.status] || 'Processing...'}
+                {isFailedWithResults
+                  ? 'Evaluation failed, but partial results are available below.'
+                  : STATUS_MESSAGES[evaluation.status] || 'Processing...'}
               </p>
             </div>
           </div>
@@ -155,11 +167,11 @@ export function Scorecard() {
               </div>
               <div>
                 <p className="font-semibold text-muted-foreground">Syllabus</p>
-                <p className="mt-1 font-mono">{evaluation.syllabus_id}</p>
+                <p className="mt-1 font-mono">{evaluation.syllabus_id ?? '—'}</p>
               </div>
               <div>
                 <p className="font-semibold text-muted-foreground">Curriculum</p>
-                <p className="mt-1 font-mono">{evaluation.curriculum_id}</p>
+                <p className="mt-1 font-mono">{evaluation.curriculum_id ?? '—'}</p>
               </div>
               <div>
                 <p className="font-semibold text-muted-foreground">Submitted At</p>
@@ -190,6 +202,27 @@ export function Scorecard() {
         {isTerminal && isLoadingResults && (
           <div className="flex justify-center py-12">
             <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {isTerminal && isResultsError && (
+          <div className="mx-auto max-w-5xl rounded-xl border border-destructive/30 bg-destructive/10 p-6 mb-8">
+            <div className="flex items-start gap-3 text-destructive">
+              <AlertTriangle className="size-6 shrink-0" />
+              <div className="flex-1">
+                <p className="font-semibold">Failed to load evaluation results</p>
+                <p className="mt-1 text-sm text-destructive/80">
+                  {resultsError instanceof Error ? resultsError.message : 'Results could not be retrieved. Try refreshing the page.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => refetchResults()}
+                  className="mt-3 inline-flex items-center rounded-md border border-destructive/40 bg-background px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/5"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -37,6 +37,7 @@ def get_evaluation_results(
 
     document = db.get(Document, job.document_id)
     agent_results = db.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
+    agent_name_map = {r.agent_result_id: r.agent_name for r in agent_results}
     criterion_scores = db.query(CriterionScore).filter_by(evaluation_id=evaluation_id).all()
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
@@ -58,8 +59,8 @@ def get_evaluation_results(
                 for score in criteria_by_result.get(result.agent_result_id, [])
             ],
             "subtotal": float(result.subtotal),
-            "max_score": len(criteria_by_result.get(result.agent_result_id, [])) * 4,
-            "status": "ERROR" if not result.success else "OK",
+            "max_score": 4,
+            "status": "OK" if result.success else "ERROR",
         }
         for result in agent_results
     }
@@ -75,7 +76,7 @@ def get_evaluation_results(
             EvaluationFlagItem(
                 flag_id=flag.evaluation_flag_id,
                 evaluation_id=flag.evaluation_id,
-                agent_id=str(flag.agent_result_id),
+                agent_id=agent_name_map.get(flag.agent_result_id, str(flag.agent_result_id)),
                 criterion_id=flag.criterion_id,
                 criterion_text=flag.reason,
                 score=flag.score,

@@ -3,13 +3,19 @@ import type {
   EvaluationResponse,
   EvaluationResultsResponse,
   EvaluationStatusResponse,
+  EvaluationListResponse,
 } from '../types';
 
 export const evaluationApi = {
+  listEvaluations: async (documentId?: string): Promise<EvaluationListResponse> => {
+    const params = documentId ? `?document_id=${encodeURIComponent(documentId)}` : '';
+    return requestJson<EvaluationListResponse>(`/evaluations/${params}`);
+  },
+
   getEvaluation: async (id: string): Promise<EvaluationResponse> => {
     return requestJson<EvaluationResponse>(`/evaluations/${id}`);
   },
-  
+
   getEvaluationStatus: async (id: string): Promise<EvaluationStatusResponse> => {
     return requestJson<EvaluationStatusResponse>(`/evaluations/${id}/status`);
   },

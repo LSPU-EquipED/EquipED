@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/sha
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Separator } from '@/shared/components/ui/separator';
+import { useQuery } from '@tanstack/react-query';
+import { documentsApi } from '@/shared/api/documents.api';
 
 interface LinkedReference {
   id: string;
@@ -19,9 +21,16 @@ interface ReferenceDocLinkerProps {
 export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const { data } = useQuery({
+    queryKey: ['reference-documents'],
+    queryFn: () => documentsApi.listDocuments({ sourceType: 'REFERENCE' }),
+  });
 
-  // TODO: Fetch available reference documents from API
-  const availableReferences: LinkedReference[] = [];
+  const availableReferences: LinkedReference[] = (data?.items ?? []).map((doc) => ({
+    id: doc.documentId,
+    name: doc.title,
+    uploadedAt: new Date(doc.uploadedAt).toLocaleDateString(),
+  }));
 
   const filteredReferences = availableReferences.filter((ref) =>
     ref.name.toLowerCase().includes(searchTerm.toLowerCase())

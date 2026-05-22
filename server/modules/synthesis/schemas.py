@@ -57,7 +57,7 @@ class MatrixRowItem(BaseModel):
     document_title: str | None = None
     evaluation_status: str
     synthesized_score: float | None = None
-    domain_scores: dict[str, float] | None = None
+    domain_scores: dict[str, DomainScoreBlock] | None = None
     flag_count: int = 0
     feedback_status: str = "NO_FEEDBACK"
     last_updated: datetime

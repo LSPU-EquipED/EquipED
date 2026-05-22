@@ -42,13 +42,15 @@ def run_evaluation_job(
         if document is None:
             raise DocumentNotFoundError(f"Document {job.document_id} not found")
 
-        syllabus = session.get(Document, job.syllabus_id)
-        if syllabus is None:
-            raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
+        if job.syllabus_id is not None:
+            syllabus = session.get(Document, job.syllabus_id)
+            if syllabus is None:
+                raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
 
-        curriculum = session.get(Document, job.curriculum_id)
-        if curriculum is None:
-            raise DocumentNotFoundError(f"Document {job.curriculum_id} not found")
+        if job.curriculum_id is not None:
+            curriculum = session.get(Document, job.curriculum_id)
+            if curriculum is None:
+                raise DocumentNotFoundError(f"Document {job.curriculum_id} not found")
 
         transition_evaluation_status(
             evaluation_id,
@@ -76,8 +78,8 @@ def run_evaluation_job(
             query_text=slm_text,
             context={
                 "reference_document_ids": {
-                    "syllabus": job.syllabus_id,
-                    "curriculum": job.curriculum_id,
+                    **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
+                    **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
                 }
             },
         )
@@ -124,7 +126,18 @@ def run_evaluation_job(
             if not synthesis_result["is_partial"]
             else EvaluationStatus.FAILED
         )
-        transition_evaluation_status(evaluation_id, final_status, session)
+        partial_error = None
+        if synthesis_result["is_partial"]:
+            failed_errors = [
+                f"{r.agent_name}: {r.error_message}"
+                for r in agent_results
+                if not r.success and r.error_message
+            ]
+            if failed_errors:
+                partial_error = "; ".join(failed_errors)
+        transition_evaluation_status(
+            evaluation_id, final_status, session, error_message=partial_error
+        )
         session.commit()
     except Exception as exc:
         try:

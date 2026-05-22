@@ -61,17 +61,30 @@ class LocalLLMClient:
                         {"role": "system", "content": "Return only valid JSON."},
                         {"role": "user", "content": prompt},
                     ],
+                    "response_format": {"type": "json_object"},
                     "temperature": temperature,
                     "max_tokens": max_new_tokens,
                 }
             ).encode("utf-8")
-            headers = {"Content-Type": "application/json"}
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": "EquipED/0.1",
+            }
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             req = request.Request(url, data=payload, headers=headers, method="POST")
             with request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             return str(data["choices"][0]["message"]["content"]).strip()
+        except error.HTTPError as exc:
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")[:500]
+            except Exception:
+                pass
+            raise InfrastructureUnavailableError(
+                f"LLM endpoint returned HTTP {exc.code}: {body or exc.reason}"
+            ) from exc
         except error.URLError as exc:
             raise InfrastructureUnavailableError(
                 "Local/open-source LLM endpoint could not be reached"

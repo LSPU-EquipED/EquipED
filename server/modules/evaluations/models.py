@@ -61,15 +61,15 @@ class EvaluationJob(Base):
         ForeignKey("documents.document_id"),
         nullable=False,
     )
-    syllabus_id: Mapped[uuid.UUID] = mapped_column(
+    syllabus_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("documents.document_id"),
-        nullable=False,
+        nullable=True,
     )
-    curriculum_id: Mapped[uuid.UUID] = mapped_column(
+    curriculum_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("documents.document_id"),
-        nullable=False,
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default=EvaluationStatus.SUBMITTED.value

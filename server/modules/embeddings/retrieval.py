@@ -33,22 +33,25 @@ def retrieve_context(
     if not query_text.strip():
         return []
 
-    model = get_embedding_model()
-    query_embedding = model.encode([query_text], show_progress_bar=False).tolist()[0]
+    try:
+        model = get_embedding_model()
+        query_embedding = model.encode([query_text], show_progress_bar=False).tolist()[0]
 
-    collection = get_chroma_client().get_collection(collection_name)
+        collection = get_chroma_client().get_collection(collection_name)
 
-    where_filter: dict[str, Any] | None = None
-    if document_id_filter:
-        where_filter = {"document_id": {"$eq": document_id_filter}}
+        where_filter: dict[str, Any] | None = None
+        if document_id_filter:
+            where_filter = {"document_id": {"$eq": document_id_filter}}
 
-    result = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=n_results,
-        where=where_filter,
-        include=["documents", "metadatas", "distances"],
-    )
-    return _parse_chroma_results(result)
+        result = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            where=where_filter,
+            include=["documents", "metadatas", "distances"],
+        )
+        return _parse_chroma_results(result)
+    except Exception:
+        return []
 
 
 def _parse_chroma_results(result: dict[str, Any]) -> list[RetrievedChunk]:

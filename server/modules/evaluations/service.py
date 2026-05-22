@@ -45,24 +45,28 @@ def create_evaluation(
         db,
         expected_source_type="slm",
     )
-    syllabus = _validate_evaluation_target(
-        req.syllabus_id,
-        submitted_by,
-        db,
-        expected_source_type="syllabus",
-    )
-    curriculum = _validate_evaluation_target(
-        req.curriculum_id,
-        submitted_by,
-        db,
-        expected_source_type="curriculum",
-    )
+    syllabus = None
+    if req.syllabus_id:
+        syllabus = _validate_evaluation_target(
+            req.syllabus_id,
+            submitted_by,
+            db,
+            expected_source_type="syllabus",
+        )
+    curriculum = None
+    if req.curriculum_id:
+        curriculum = _validate_evaluation_target(
+            req.curriculum_id,
+            submitted_by,
+            db,
+            expected_source_type="curriculum",
+        )
 
     job = EvaluationJob(
         evaluation_id=uuid.uuid4(),
         document_id=document.document_id,
-        syllabus_id=syllabus.document_id,
-        curriculum_id=curriculum.document_id,
+        syllabus_id=syllabus.document_id if syllabus is not None else None,
+        curriculum_id=curriculum.document_id if curriculum is not None else None,
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
         submitted_by=submitted_by,
@@ -160,10 +164,14 @@ def list_evaluations(
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any = None,
+    *,
+    document_id: uuid.UUID | None = None,
 ) -> EvaluationListResponse:
     if db is not None:
         query = db.query(EvaluationJob)
         query = query.filter(EvaluationJob.submitted_by == current_user_id)
+        if document_id is not None:
+            query = query.filter(EvaluationJob.document_id == document_id)
         total = query.count()
         rows = (
             query.order_by(EvaluationJob.submitted_at.desc())
@@ -171,10 +179,16 @@ def list_evaluations(
             .limit(page_size)
             .all()
         )
+        doc_ids = [row.document_id for row in rows]
+        doc_titles = {
+            d.document_id: d.title
+            for d in db.query(Document).filter(Document.document_id.in_(doc_ids)).all()
+        }
         items = [
             EvaluationListItem(
                 evaluation_id=row.evaluation_id,
                 document_id=row.document_id,
+                document_title=doc_titles.get(row.document_id),
                 syllabus_id=row.syllabus_id,
                 curriculum_id=row.curriculum_id,
                 status=EvaluationStatus(row.status),
