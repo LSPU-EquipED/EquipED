@@ -49,10 +49,11 @@ def submit_evaluation(
 def list_evals(
     page: int = 1,
     page_size: int = 20,
+    document_id: UUID | None = None,
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationListResponse:
-    return list_evaluations(page, page_size, current_user.id, current_user.role.value, db=db)
+    return list_evaluations(page, page_size, current_user.id, current_user.role.value, db=db, document_id=document_id)
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_eval(
