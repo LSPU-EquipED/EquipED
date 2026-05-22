@@ -33,6 +33,16 @@ class DocumentChunkData(BaseModel):
     is_ocr: bool
 
 
+class DocumentPageData(BaseModel):
+    """Layer 1 contract for extracted pages used by the frontend."""
+
+    page_id: UUID | None = None
+    document_id: UUID
+    page_number: int
+    text: str
+    is_ocr: bool
+
+
 class DocumentUploadResponse(BaseModel):
     document_id: UUID
     title: str
@@ -71,6 +81,14 @@ class DocumentListResponse(BaseModel):
     page_size: int = Field(ge=1, le=200)
 
 
+class DocumentExtractedTextResponse(BaseModel):
+    document_id: UUID
+    source_type: str
+    page_count: int
+    full_text: str
+    pages: list[DocumentPageData]
+
+
 class TFIDFWeight(BaseModel):
     term: str
     idf_weight: float
@@ -80,8 +98,10 @@ __all__ = [
     "SOURCE_TYPES",
     "PROCESSING_STATUSES",
     "DocumentChunkData",
+    "DocumentPageData",
     "DocumentUploadResponse",
     "DocumentResponse",
     "DocumentListResponse",
+    "DocumentExtractedTextResponse",
     "TFIDFWeight",
 ]

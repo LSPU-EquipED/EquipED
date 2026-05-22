@@ -52,10 +52,12 @@ def ingest_document(
     file_path: str,
     source_type: str,
     document_id: str,
+    pages: list[ExtractedPage] | None = None,
 ) -> list[DocumentChunkData]:
     """Extract text from a PDF and return Layer-1 chunks."""
 
-    pages = _extract_pages(file_path)
+    if pages is None:
+        pages = _extract_pages(file_path)
     domain = resolve_agent_domain(source_type)
     doc_uuid = uuid.UUID(document_id)
     chunks: list[DocumentChunkData] = []
@@ -77,6 +79,12 @@ def ingest_document(
             )
 
     return chunks
+
+
+def extract_document_pages(file_path: str) -> list[ExtractedPage]:
+    """Extract cleaned page text from a PDF."""
+
+    return _extract_pages(file_path)
 
 
 def _extract_pages(file_path: str) -> list[ExtractedPage]:
@@ -384,4 +392,4 @@ def _has_weak_structure(text: str) -> bool:
     return _looks_weak_structure(text)
 
 
-__all__ = ["ingest_document", "resolve_agent_domain"]
+__all__ = ["ExtractedPage", "extract_document_pages", "ingest_document", "resolve_agent_domain"]

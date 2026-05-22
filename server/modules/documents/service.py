@@ -19,11 +19,12 @@ from .exceptions import (
     ExtractionFailedError,
     UnsupportedFileTypeError,
 )
-from .ingestion import ingest_document
-from .models import Document, DocumentChunk
+from .ingestion import ExtractedPage, extract_document_pages, ingest_document
+from .models import Document, DocumentChunk, DocumentPage
 from .preprocessing import prepare_slm_package
 from .schemas import (
     SOURCE_TYPES,
+    DocumentExtractedTextResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 _MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
 _MEM_DOCUMENT_OWNERS: dict[uuid.UUID, uuid.UUID] = {}
 _MEM_CHUNKS: dict[uuid.UUID, list[Any]] = {}
+_MEM_PAGES: dict[uuid.UUID, list[ExtractedPage]] = {}
 _MEM_TFIDF: dict[str, float] = {}
 
 
@@ -62,10 +64,11 @@ def create_document(
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        chunk_data = ingest_document(str(target_path), source_type, str(doc_id))
-        page_count = max((chunk.page_number for chunk in chunk_data), default=0)
-        has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
-        status = "PROCESSED" if chunk_data else "FAILED"
+        page_data = extract_document_pages(str(target_path))
+        chunk_data = ingest_document(str(target_path), source_type, str(doc_id), pages=page_data)
+        page_count = max((page.page_number for page in page_data), default=0)
+        has_ocr_pages = any(page.is_ocr for page in page_data)
+        status = "PROCESSED" if page_data else "FAILED"
     except ExtractionFailedError as exc:
         logger.warning(
             "Document upload processing failed",
@@ -81,6 +84,7 @@ def create_document(
         page_count = None
         has_ocr_pages = False
         status = "FAILED"
+        page_data = []
         chunk_data = []
 
     uploaded_at = datetime.now(UTC)
@@ -127,6 +131,7 @@ def create_document(
     )
 
     _persist_document(db, response, str(target_path), uploaded_by)
+    _persist_pages(db, doc_id, page_data)
     _persist_chunks(db, doc_id, chunk_data)
     _refresh_tfidf_if_needed(source_type)
 
@@ -142,44 +147,59 @@ def create_document(
     )
 
 
+def get_document_extracted_text(
+    document_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
+    db: Any | None = None,
+) -> DocumentExtractedTextResponse:
+    row = _get_document_row(document_id, current_user_id, db=db)
+    pages = _get_document_pages(document_id, db=db)
+    full_text = "\n\n".join(page.text for page in pages if getattr(page, "text", "").strip()).strip()
+    return DocumentExtractedTextResponse(
+        document_id=document_id,
+        source_type=row.source_type,
+        page_count=len(pages),
+        full_text=full_text,
+        pages=[
+            {
+                "page_id": getattr(page, "page_id", None),
+                "document_id": document_id,
+                "page_number": page.page_number,
+                "text": page.text,
+                "is_ocr": page.is_ocr,
+            }
+            for page in pages
+        ],
+    )
+
+
 def get_document(
     document_id: uuid.UUID,
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any | None = None,
 ) -> DocumentResponse:
-    if db is not None:
-        row = db.get(Document, document_id)
-        if row is not None:
-            if row.uploaded_by != current_user_id:
-                raise DocumentNotFoundError(f"Document {document_id} not found")
-            return DocumentResponse(
-                document_id=row.document_id,
-                title=row.title,
-                course_title=row.course_title,
-                lesson_title=row.lesson_title,
-                source_type=row.source_type,
-                program=row.program,
-                page_count=row.page_count,
-                processing_status=row.processing_status,
-                has_ocr_pages=row.has_ocr_pages,
-                uploaded_at=row.uploaded_at,
-                uploaded_by=row.uploaded_by,
-                structured_summary=row.structured_summary,
-                structured_outline=row.structured_outline,
-                section_summaries=row.section_summaries,
-                key_facts=row.key_facts,
-                processing_warnings=row.processing_warnings,
-                evaluation_readiness=row.evaluation_readiness,
-            )
-
-    fallback = _MEM_DOCUMENTS.get(document_id)
-    if fallback is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-    owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
-    if owner_id != current_user_id:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-    return fallback
+    row = _get_document_row(document_id, current_user_id, db=db)
+    return DocumentResponse(
+        document_id=row.document_id,
+        title=row.title,
+        course_title=row.course_title,
+        lesson_title=row.lesson_title,
+        source_type=row.source_type,
+        program=row.program,
+        page_count=row.page_count,
+        processing_status=row.processing_status,
+        has_ocr_pages=row.has_ocr_pages,
+        uploaded_at=row.uploaded_at,
+        uploaded_by=row.uploaded_by,
+        structured_summary=row.structured_summary,
+        structured_outline=row.structured_outline,
+        section_summaries=row.section_summaries,
+        key_facts=row.key_facts,
+        processing_warnings=row.processing_warnings,
+        evaluation_readiness=row.evaluation_readiness,
+    )
 
 
 def list_documents(
@@ -323,6 +343,55 @@ def _persist_chunks(db: Any | None, document_id: uuid.UUID, chunks: list[Any]) -
     db.commit()
 
 
+def _persist_pages(db: Any | None, document_id: uuid.UUID, pages: list[ExtractedPage]) -> None:
+    _MEM_PAGES[document_id] = pages
+    if db is None or not pages:
+        return
+
+    rows = [
+        DocumentPage(
+            document_id=document_id,
+            page_number=page.page_number,
+            text=page.text,
+            is_ocr=page.is_ocr,
+        )
+        for page in pages
+    ]
+    db.add_all(rows)
+    db.commit()
+
+
+def _get_document_row(document_id: uuid.UUID, current_user_id: uuid.UUID, db: Any | None = None) -> Document:
+    if db is not None:
+        row = db.get(Document, document_id)
+        if row is not None:
+            if row.uploaded_by != current_user_id:
+                raise DocumentNotFoundError(f"Document {document_id} not found")
+            return row
+
+    fallback = _MEM_DOCUMENTS.get(document_id)
+    if fallback is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+    owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
+    if owner_id != current_user_id:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+    return fallback
+
+
+def _get_document_pages(document_id: uuid.UUID, db: Any | None = None) -> list[Any]:
+    if db is not None:
+        rows = (
+            db.query(DocumentPage)
+            .filter(DocumentPage.document_id == document_id)
+            .order_by(DocumentPage.page_number.asc(), DocumentPage.created_at.asc())
+            .all()
+        )
+        if rows:
+            return rows
+
+    return list(_MEM_PAGES.get(document_id, []))
+
+
 def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[Any]:
     if db is not None:
         return (
@@ -395,6 +464,7 @@ __all__ = [
     "create_document",
     "embed_document_chunks",
     "get_document",
+    "get_document_extracted_text",
     "get_document_chunks",
     "list_documents",
 ]

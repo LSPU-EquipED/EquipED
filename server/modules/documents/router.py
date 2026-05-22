@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -26,8 +27,19 @@ from .exceptions import (
     PasswordProtectedPDFError,
     UnsupportedFileTypeError,
 )
-from .schemas import DocumentListResponse, DocumentResponse, DocumentUploadResponse
-from .service import create_document, embed_document_chunks, get_document, list_documents
+from .schemas import (
+    DocumentExtractedTextResponse,
+    DocumentListResponse,
+    DocumentResponse,
+    DocumentUploadResponse,
+)
+from .service import (
+    create_document,
+    embed_document_chunks,
+    get_document,
+    get_document_extracted_text,
+    list_documents,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -82,6 +94,26 @@ def get_document_by_id(
 ) -> DocumentResponse:
     try:
         return get_document(
+            document_id=document_id,
+            current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get("/{document_id}/extracted-text", response_model=DocumentExtractedTextResponse)
+def get_document_extracted_text_endpoint(
+    document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> DocumentExtractedTextResponse:
+    try:
+        return get_document_extracted_text(
             document_id=document_id,
             current_user_id=_current_user.id,
             current_user_role=_current_user.role.value,

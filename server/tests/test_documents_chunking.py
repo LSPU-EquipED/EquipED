@@ -23,10 +23,17 @@ from server.modules.documents.ingestion import (
 )
 from server.modules.documents.schemas import DocumentChunkData
 from server.modules.documents.service import (
+    DocumentNotFoundError,
     _MEM_CHUNKS,
     _MEM_DOCUMENTS,
+    _MEM_DOCUMENT_OWNERS,
+    _MEM_PAGES,
     create_document,
+    get_document_extracted_text,
 )
+from server.modules.documents.schemas import DocumentResponse
+from server.modules.documents.ingestion import ExtractedPage
+from datetime import UTC, datetime
 
 
 def test_chunker_prefers_blank_line_structures() -> None:
@@ -151,6 +158,7 @@ def test_existing_documents_are_not_auto_reprocessed(
         file_path: str,
         source_type: str,
         document_id: str,
+        pages=None,
     ) -> list[DocumentChunkData]:
         captured_calls.append(document_id)
         return [DocumentChunkData(
@@ -165,6 +173,10 @@ def test_existing_documents_are_not_auto_reprocessed(
         )]
 
     monkeypatch.setattr("server.modules.documents.service.UPLOAD_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.documents.service.extract_document_pages",
+        lambda _: [ExtractedPage(1, "page one", False)],
+    )
     monkeypatch.setattr(
         "server.modules.documents.service.ingest_document",
         fake_ingest_document,
@@ -185,3 +197,57 @@ def test_existing_documents_are_not_auto_reprocessed(
     assert captured_calls == [str(result.document_id)]
     assert existing_id in _MEM_CHUNKS
     assert _MEM_CHUNKS[existing_id][0].text == "existing chunk"
+
+
+def test_get_document_extracted_text_returns_page_order_and_full_text() -> None:
+    doc_id = uuid.uuid4()
+    owner_id = uuid.uuid4()
+    _MEM_DOCUMENTS.clear()
+    _MEM_CHUNKS.clear()
+    _MEM_PAGES.clear()
+
+    _MEM_DOCUMENTS[doc_id] = DocumentResponse(
+        document_id=doc_id,
+        title="Example",
+        source_type="slm",
+        processing_status="PROCESSED",
+        has_ocr_pages=False,
+        uploaded_at=datetime.now(UTC),
+        uploaded_by=owner_id,
+    )
+    _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+    _MEM_PAGES[doc_id] = [
+        ExtractedPage(1, "Page one text.", False),
+        ExtractedPage(2, "Page two text.", True),
+    ]
+
+    response = get_document_extracted_text(doc_id, owner_id, "faculty", db=None)
+
+    assert response.document_id == doc_id
+    assert response.page_count == 2
+    assert response.full_text == "Page one text.\n\nPage two text."
+    assert [page.page_number for page in response.pages] == [1, 2]
+
+
+def test_get_document_extracted_text_enforces_ownership() -> None:
+    doc_id = uuid.uuid4()
+    owner_id = uuid.uuid4()
+    other_id = uuid.uuid4()
+    _MEM_DOCUMENTS.clear()
+    _MEM_CHUNKS.clear()
+    _MEM_PAGES.clear()
+
+    _MEM_DOCUMENTS[doc_id] = DocumentResponse(
+        document_id=doc_id,
+        title="Example",
+        source_type="slm",
+        processing_status="PROCESSED",
+        has_ocr_pages=False,
+        uploaded_at=datetime.now(UTC),
+        uploaded_by=owner_id,
+    )
+    _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+    _MEM_PAGES[doc_id] = [ExtractedPage(1, "Page one text.", False)]
+
+    with pytest.raises(DocumentNotFoundError):
+        get_document_extracted_text(doc_id, other_id, "faculty", db=None)
