@@ -2,13 +2,23 @@ import { Download } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import type { DomainScoreBlock } from '../types';
 
+export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
+
 export type ExportDomainData = DomainScoreBlock & {
-  agentId: string;
+  agentId: ExportAgentId;
   documentTitle?: string;
   program?: string;
 };
 
-const AGENT_CONFIGS: Record<string, { code: string; sectionTitle: string; unitName: string }> = {
+type ExportDocumentProps = {
+  readonly domainData?: ExportDomainData;
+  readonly agentId?: ExportAgentId;
+};
+
+const AGENT_CONFIGS: Record<
+  ExportAgentId,
+  { code: string; sectionTitle: string; unitName: string }
+> = {
   coordinator: {
     code: 'LSPU-CID-SF-004',
     sectionTitle: 'A. CURRICULUM ALIGNMENT AND ASSESSMENT',
@@ -57,15 +67,15 @@ function getAdjectivalRating(average: number) {
 }
 
 function buildExportHtml(domainData: ExportDomainData) {
-  const config = AGENT_CONFIGS[domainData.agentId] || { 
-    code: 'N/A', 
-    sectionTitle: 'EVALUATION CRITERIA', 
-    unitName: domainData.agentId.toUpperCase() 
+  const config = AGENT_CONFIGS[domainData.agentId] || {
+    code: 'N/A',
+    sectionTitle: 'EVALUATION CRITERIA',
+    unitName: domainData.agentId.toUpperCase(),
   };
   const total = getExportTotal(domainData);
   const average = getExportAverage(domainData);
   const adjectivalRating = getAdjectivalRating(average);
-  
+
   const criteriaRows = domainData.criteria
     .map(
       (row, idx) => `
@@ -73,15 +83,17 @@ function buildExportHtml(domainData: ExportDomainData) {
           <td class="item">${idx + 1}</td>
           <td>${row.criterion_text}</td>
           ${['4', '3', '2', '1']
-            .map((rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`)
+            .map(
+              (rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`,
+            )
             .join('')}
-        </tr>`
+        </tr>`,
     )
     .join('');
 
   const comments = domainData.criteria
-    .filter(c => c.justification)
-    .map(c => c.justification)
+    .filter((c) => c.justification)
+    .map((c) => c.justification)
     .join('\n\n');
 
   return `<!doctype html>
@@ -173,7 +185,24 @@ function downloadExport(domainData: ExportDomainData) {
   URL.revokeObjectURL(url);
 }
 
-export function GadExportDownloadButton({ domainData }: { readonly domainData: ExportDomainData }) {
+function getExportDomainData({
+  domainData,
+  agentId = 'gad',
+}: ExportDocumentProps): ExportDomainData {
+  return (
+    domainData ?? {
+      agentId,
+      criteria: [],
+      subtotal: 0,
+      max_score: 0,
+      status: 'PENDING',
+    }
+  );
+}
+
+export function GadExportDownloadButton(props: ExportDocumentProps) {
+  const domainData = getExportDomainData(props);
+
   return (
     <Button type="button" className="gap-2" onClick={() => downloadExport(domainData)}>
       <Download className="size-4" aria-hidden="true" />
@@ -182,19 +211,20 @@ export function GadExportDownloadButton({ domainData }: { readonly domainData: E
   );
 }
 
-export function GadExportPreview({ domainData }: { readonly domainData: ExportDomainData }) {
-  const config = AGENT_CONFIGS[domainData.agentId] || { 
-    code: 'N/A', 
-    sectionTitle: 'EVALUATION CRITERIA', 
-    unitName: domainData.agentId.toUpperCase() 
+export function GadExportPreview(props: ExportDocumentProps) {
+  const domainData = getExportDomainData(props);
+  const config = AGENT_CONFIGS[domainData.agentId] || {
+    code: 'N/A',
+    sectionTitle: 'EVALUATION CRITERIA',
+    unitName: domainData.agentId.toUpperCase(),
   };
   const total = getExportTotal(domainData);
   const average = getExportAverage(domainData);
   const adjectivalRating = getAdjectivalRating(average);
 
   const comments = domainData.criteria
-    .filter(c => c.justification)
-    .map(c => c.justification)
+    .filter((c) => c.justification)
+    .map((c) => c.justification)
     .join('\n\n');
 
   return (
@@ -213,34 +243,39 @@ export function GadExportPreview({ domainData }: { readonly domainData: ExportDo
 
       <div className="mt-5 grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
         <div>
-          Name of Faculty: <span className="inline-block min-w-44 border-b border-black">Faculty Reviewer</span>
+          Name of Faculty:{' '}
+          <span className="inline-block min-w-44 border-b border-black">Faculty Reviewer</span>
         </div>
         <div>
           College: <span className="inline-block min-w-32 border-b border-black">LSPU SCC</span>
         </div>
         <div>
           Course Title:{' '}
-          <span className="inline-block min-w-44 border-b border-black">{domainData.documentTitle || 'Outcomes-Based Learning Module'}</span>
+          <span className="inline-block min-w-44 border-b border-black">
+            {domainData.documentTitle || 'Outcomes-Based Learning Module'}
+          </span>
         </div>
         <div>
           Semester: <span className="inline-block min-w-24 border-b border-black">1st</span>
         </div>
         <div>
-          Academic Year: <span className="inline-block min-w-28 border-b border-black">2025-2026</span>
+          Academic Year:{' '}
+          <span className="inline-block min-w-28 border-b border-black">2025-2026</span>
         </div>
       </div>
 
       <div className="mt-4 text-xs leading-5">
         <div>
-          <strong>Type of Instructional Material:</strong> [x] Self-paced Learning Module (with OBE Syllabus and
-          Course Guide)
+          <strong>Type of Instructional Material:</strong> [x] Self-paced Learning Module (with OBE
+          Syllabus and Course Guide)
         </div>
         <div>[ ] Others (Please specify): ____________________________________________</div>
       </div>
 
       <p className="mt-4 text-xs leading-5">
-        <strong>Instruction:</strong> Rate the materials in the column provided by checking and using the following
-        scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1 - Poor
+        <strong>Instruction:</strong> Rate the materials in the column provided by checking and
+        using the following scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1
+        - Poor
       </p>
 
       <table className="mt-3 w-full border-collapse text-[11px]">
@@ -277,13 +312,15 @@ export function GadExportPreview({ domainData }: { readonly domainData: ExportDo
       </div>
 
       <p className="mt-3 text-xs leading-5">
-        3.50 - 4.00 = Very Satisfactory; 2.50 - 3.49 = Satisfactory; 1.50 - 2.49 = Needs Improvement; 1.00 - 1.49 =
-        Poor
+        3.50 - 4.00 = Very Satisfactory; 2.50 - 3.49 = Satisfactory; 1.50 - 2.49 = Needs
+        Improvement; 1.00 - 1.49 = Poor
       </p>
 
       <div className="mt-4 text-xs">
         <strong>Additional Comments/Suggestions:</strong>
-        <div className="mt-2 min-h-20 border border-black p-2 leading-5 whitespace-pre-wrap">{comments}</div>
+        <div className="mt-2 min-h-20 border border-black p-2 leading-5 whitespace-pre-wrap">
+          {comments}
+        </div>
       </div>
 
       <div className="mt-12 grid grid-cols-2 gap-20 text-center text-xs">

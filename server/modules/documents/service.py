@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import shutil
 import logging
+import shutil
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import UploadFile
-
 from server.core.config import get_settings
 from server.core.database import get_session_factory
+from server.modules.embeddings.service import embed_and_store_chunks
 
 from .exceptions import (
     DocumentNotFoundError,
@@ -24,12 +24,12 @@ from .models import Document, DocumentChunk
 from .preprocessing import prepare_slm_package
 from .schemas import (
     SOURCE_TYPES,
+    DocumentChunkResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
 )
 from .tfidf import compute_tfidf_corpus
-from server.modules.embeddings.service import embed_and_store_chunks
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 UPLOAD_ROOT = _PROJECT_ROOT / "uploads"
@@ -182,6 +182,7 @@ def get_document(
                 key_facts=row.key_facts,
                 processing_warnings=row.processing_warnings,
                 evaluation_readiness=row.evaluation_readiness,
+                chunks=_chunk_responses(get_document_chunks(document_id, db=db)),
             )
 
     fallback = _MEM_DOCUMENTS.get(document_id)
@@ -190,7 +191,9 @@ def get_document(
     owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
     if owner_id != current_user_id:
         raise DocumentNotFoundError(f"Document {document_id} not found")
-    return fallback
+    return fallback.model_copy(
+        update={"chunks": _chunk_responses(get_document_chunks(document_id, db=None))}
+    )
 
 
 def list_documents(
@@ -348,6 +351,29 @@ def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[A
         )
 
     return list(_MEM_CHUNKS.get(document_id, []))
+
+
+def _chunk_responses(chunks: list[Any]) -> list[DocumentChunkResponse]:
+    return [
+        DocumentChunkResponse(
+            chunk_id=chunk.chunk_id,
+            document_id=chunk.document_id,
+            source_type=chunk.source_type,
+            agent_domain=chunk.agent_domain,
+            page_number=chunk.page_number,
+            text=chunk.text,
+            token_count=chunk.token_count,
+            is_ocr=chunk.is_ocr,
+        )
+        for chunk in sorted(
+            chunks,
+            key=lambda item: (
+                item.document_id,
+                item.page_number if item.page_number is not None else 0,
+                item.chunk_id,
+            ),
+        )
+    ]
 
 
 def embed_document_chunks(document_id: uuid.UUID) -> int:

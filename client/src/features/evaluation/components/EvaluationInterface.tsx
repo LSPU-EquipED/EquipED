@@ -33,11 +33,16 @@ import {
 } from '@/shared/components/ui/table';
 import { cn } from '@/shared/components/utils';
 import { useFetch } from '@/shared/hooks/useFetch';
-import type { ClientDocument } from '@/shared/types/documents';
+import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import { EvaluationStatusBanner } from './EvaluationStatusBanner';
 import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
-import { GadExportDownloadButton, GadExportPreview, type ExportDomainData } from './ExportDocument';
+import {
+  GadExportDownloadButton,
+  GadExportPreview,
+  type ExportAgentId,
+  type ExportDomainData,
+} from './ExportDocument';
 
 import { useQuery } from '@tanstack/react-query';
 import { evaluationApi } from '@/features/evaluation/api/evaluation.api';
@@ -71,11 +76,10 @@ const agents = [
   },
 ] as const;
 
-type AgentId = (typeof agents)[number]['id'];
-type SlmSection = {
-  title: string;
-  pages: string | null;
-  body: string;
+type AgentId = ExportAgentId;
+type DocumentTextGroup = {
+  documentId: string;
+  chunks: ClientDocumentChunk[];
 };
 
 type AgentScoreRow = {
@@ -84,71 +88,25 @@ type AgentScoreRow = {
   status: string;
 };
 
-function Highlight({
-  children,
-  tone,
-}: {
-  children: string;
-  tone: 'good' | 'risk' | 'warning';
-}) {
-  return (
-    <span
-      className={cn(
-        'box-decoration-clone rounded-sm px-1 py-0.5 text-foreground',
-        tone === 'good' && 'bg-emerald-100 ring-1 ring-emerald-300',
-        tone === 'risk' && 'bg-red-100 ring-1 ring-red-300',
-        tone === 'warning' && 'bg-amber-100 ring-1 ring-amber-300'
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-function getString(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function getStringList(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.map((item) => String(item).trim()).filter(Boolean);
-}
-
-function formatPages(value: unknown) {
-  const pages = getStringList(value);
-  return pages.length > 0 ? `Pages ${pages.join(', ')}` : null;
-}
-
-function buildSlmSections(document: ClientDocument | null): SlmSection[] {
+function buildDocumentTextGroups(document: ClientDocument | null): DocumentTextGroup[] {
   if (!document) {
     return [];
   }
 
-  const outlineSections = (document.structuredOutline ?? [])
-    .map((section) => {
-      const evidence = getStringList(section.evidence);
-      return {
-        title: getString(section.title) || 'Document section',
-        pages: formatPages(section.pages),
-        body: evidence.join('\n\n'),
-      };
-    })
-    .filter((section) => section.body);
+  const groups = new Map<string, ClientDocumentChunk[]>();
 
-  if (outlineSections.length > 0) {
-    return outlineSections;
+  for (const chunk of document.chunks) {
+    const chunks = groups.get(chunk.documentId) ?? [];
+    chunks.push(chunk);
+    groups.set(chunk.documentId, chunks);
   }
 
-  return (document.sectionSummaries ?? [])
-    .map((section) => ({
-      title: getString(section.title) || 'Document section',
-      pages: formatPages(section.pages),
-      body: getString(section.summary),
-    }))
-    .filter((section) => section.body);
+  return Array.from(groups.entries())
+    .sort(([leftDocumentId], [rightDocumentId]) => leftDocumentId.localeCompare(rightDocumentId))
+    .map(([documentId, chunks]) => ({
+      documentId,
+      chunks: [...chunks].sort((left, right) => left.pageNumber - right.pageNumber),
+    }));
 }
 
 const EVAL_STORAGE_PREFIX = 'equiped_eval_';
@@ -276,11 +234,13 @@ export function EvaluationInterface() {
     criteria: domainScore?.criteria || []
   };
 
-  const slmSections = useMemo(() => buildSlmSections(document), [document]);
+  const documentTextGroups = useMemo(() => buildDocumentTextGroups(document), [document]);
   const scoreRingStyle = {
     background: `conic-gradient(var(--foreground) ${selectedScore.score * 3.6}deg, var(--muted) 0deg)`,
   };
-  const documentSubtitle = [document?.courseTitle, document?.lessonTitle].filter(Boolean).join(' - ');
+  const documentSubtitle = [document?.courseTitle, document?.lessonTitle]
+    .filter(Boolean)
+    .join(' - ');
 
   useEffect(() => {
     if (!documentId) {
@@ -318,8 +278,12 @@ export function EvaluationInterface() {
     <section className="-mx-6 -my-7 flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-background">
       <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b bg-background px-10">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">Selected Document</p>
-          <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal">{document?.title ?? 'Loading document...'}</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+            Selected Document
+          </p>
+          <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal">
+            {document?.title ?? 'Loading document...'}
+          </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" className="gap-2">
@@ -418,28 +382,31 @@ export function EvaluationInterface() {
 
             {!isLoading && !error ? (
               <article className="space-y-6 text-xl leading-9 text-muted-foreground">
-                {document?.structuredSummary ? (
-                  <p>
-                    <Highlight tone="good">{document.structuredSummary}</Highlight>
-                  </p>
-                ) : null}
-
-                {slmSections.length > 0 ? (
-                  slmSections.map((section, index) => (
-                    <section key={`${section.title}-${index}`} className="space-y-2">
+                {documentTextGroups.length > 0 ? (
+                  documentTextGroups.map((group) => (
+                    <section key={group.documentId} className="space-y-5">
                       <div>
-                        <h3 className="text-base font-semibold leading-6 text-foreground">{section.title}</h3>
-                        {section.pages ? <p className="text-sm leading-5 text-muted-foreground">{section.pages}</p> : null}
+                        <h3 className="text-base font-semibold leading-6 text-foreground">
+                          Document {group.documentId}
+                        </h3>
+                        <p className="text-sm leading-5 text-muted-foreground">Extracted text</p>
                       </div>
-                      {section.body.split(/\n{2,}/).map((paragraph, paragraphIndex) => (
-                        <p key={paragraphIndex}>{paragraph}</p>
+                      {group.chunks.map((chunk) => (
+                        <section key={chunk.chunkId} className="space-y-2">
+                          <p className="text-sm font-semibold leading-5 text-foreground">
+                            Page {chunk.pageNumber}
+                          </p>
+                          {chunk.text.split(/\n{2,}/).map((paragraph, paragraphIndex) => (
+                            <p key={`${chunk.chunkId}-${paragraphIndex}`}>{paragraph}</p>
+                          ))}
+                        </section>
                       ))}
                     </section>
                   ))
                 ) : (
                   <p>
-                    No extracted SLM text is available yet. The document metadata is loaded, but preprocessing has not
-                    produced structured content for this file.
+                    No extracted SLM text is available yet. The document metadata is loaded, but
+                    preprocessing has not produced structured content for this file.
                   </p>
                 )}
               </article>
@@ -464,8 +431,12 @@ export function EvaluationInterface() {
               <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
                 Score Matrix Dashboard
               </p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-normal">Synthesized Agent View</h2>
-              <p className="mt-2 text-base text-muted-foreground">Advisory synthesis - Human review authoritative</p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-normal">
+                Synthesized Agent View
+              </h2>
+              <p className="mt-2 text-base text-muted-foreground">
+                Advisory synthesis - Human review authoritative
+              </p>
             </div>
             {domainScore ? (
               <div className="grid size-28 place-items-center rounded-full p-3" style={scoreRingStyle}>
@@ -529,14 +500,16 @@ export function EvaluationInterface() {
                     onClick={() => setSelectedAgentId(agent.id)}
                     className={cn(
                       'flex min-h-20 items-center gap-4 rounded-lg border p-4 text-left shadow-sm transition-colors',
-                      isActive ? 'border-foreground bg-foreground text-background' : 'bg-background hover:bg-muted/60'
+                      isActive
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'bg-background hover:bg-muted/60',
                     )}
                     aria-pressed={isActive}
                   >
                     <span
                       className={cn(
                         'grid size-12 shrink-0 place-items-center rounded-lg',
-                        isActive ? 'bg-background/15' : 'bg-muted'
+                        isActive ? 'bg-background/15' : 'bg-muted',
                       )}
                     >
                       <Icon className="size-5" aria-hidden="true" />
@@ -544,7 +517,10 @@ export function EvaluationInterface() {
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{agent.name}</span>
                       <span
-                        className={cn('mt-1 block text-sm', isActive ? 'text-background/75' : 'text-muted-foreground')}
+                        className={cn(
+                          'mt-1 block text-sm',
+                          isActive ? 'text-background/75' : 'text-muted-foreground',
+                        )}
                       >
                         {agent.subtitle}
                       </span>
@@ -556,7 +532,10 @@ export function EvaluationInterface() {
 
             <section className="mt-10 grid gap-4">
               <div className="flex items-start gap-4">
-                <CheckCircle2 className="mt-1 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                <CheckCircle2
+                  className="mt-1 size-5 shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
                 <div>
                   <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
                   <p className="mt-2 max-w-3xl text-muted-foreground">{selectedScore.summary}</p>
@@ -583,8 +562,12 @@ export function EvaluationInterface() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[8rem] uppercase tracking-[0.18em]">Rating</TableHead>
-                      <TableHead className="uppercase tracking-[0.18em]">Evaluation Criterion</TableHead>
-                      <TableHead className="w-[14rem] uppercase tracking-[0.18em]">Status</TableHead>
+                      <TableHead className="uppercase tracking-[0.18em]">
+                        Evaluation Criterion
+                      </TableHead>
+                      <TableHead className="w-[14rem] uppercase tracking-[0.18em]">
+                        Status
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -624,8 +607,8 @@ export function EvaluationInterface() {
                 <h3 className="font-semibold">Reviewer Decision</h3>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Human reviewer may accept the advisory score, revise the agent finding, or return the document for
-                clarification before final review.
+                Human reviewer may accept the advisory score, revise the agent finding, or return
+                the document for clarification before final review.
               </p>
             </section>
           </div>
