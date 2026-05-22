@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   BookOpen,
   CheckCircle2,
   Download,
@@ -38,6 +39,11 @@ import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
 import { GadExportDownloadButton, GadExportPreview, type ExportDomainData } from './ExportDocument';
 
+import { useQuery } from '@tanstack/react-query';
+import { evaluationApi } from '@/features/evaluation/api/evaluation.api';
+import { useSubmitEvaluation } from '@/features/upload/hooks/useSubmitEvaluation';
+import type { CriterionScoreItem } from '../types';
+
 const agents = [
   {
     id: 'coordinator',
@@ -72,153 +78,10 @@ type SlmSection = {
   body: string;
 };
 
-const agentScores: Record<
-  AgentId,
-  {
-    score: number;
-    verdict: string;
-    summary: string;
-    feedbackComments: readonly string[];
-    evidenceFlags: readonly string[];
-    rows: readonly {
-      rating: string;
-      criterion: string;
-      status: string;
-    }[];
-  }
-> = {
-  coordinator: {
-    score: 82,
-    verdict: 'Alignment review needed',
-    summary:
-      'The module generally follows the syllabus sequence, but assessment evidence should better map to intended outcomes.',
-    feedbackComments: [
-      'Confirm that activities are mapped to the approved syllabus topics and weekly outcomes.',
-      'Ask the reviewer to connect summative assessments to specific learning competencies.',
-      'Check whether prerequisite concepts are introduced before applied tasks.',
-    ],
-    evidenceFlags: [
-      'Course outcomes are visible in the learning module overview.',
-      'Assessment instructions need clearer links to syllabus competencies.',
-      'Module sequencing is mostly aligned with the expected course flow.',
-    ],
-    rows: [
-      {
-        rating: '4',
-        criterion: 'Learning outcomes are aligned with the approved syllabus coverage.',
-        status: 'Mostly aligned',
-      },
-      {
-        rating: '3',
-        criterion: 'Assessment tasks measure the stated course competencies.',
-        status: 'Needs mapping',
-      },
-      {
-        rating: '5',
-        criterion: 'Lessons are sequenced according to prerequisite knowledge.',
-        status: 'Acceptable',
-      },
-    ],
-  },
-  sme: {
-    score: 88,
-    verdict: 'Discipline content acceptable',
-    summary:
-      'Core explanations are accurate and well organized, with minor opportunities to strengthen examples and learner checks.',
-    feedbackComments: [
-      'Validate technical terms against the department reference material.',
-      'Add one worked example before the independent learning activity.',
-      'Keep the concept progression because it supports self-paced comprehension.',
-    ],
-    evidenceFlags: [
-      'Content accuracy is supported by direct explanations and examples.',
-      'One concept would benefit from a clearer transition before practice tasks.',
-      'Instructional organization supports independent learner pacing.',
-    ],
-    rows: [
-      {
-        rating: '5',
-        criterion: 'Discipline concepts are accurate and appropriate for the course level.',
-        status: 'Acceptable',
-      },
-      {
-        rating: '4',
-        criterion: 'Examples reinforce the concept before learner application.',
-        status: 'Minor revision',
-      },
-      {
-        rating: '4',
-        criterion: 'Instructional flow supports self-paced learning.',
-        status: 'Acceptable',
-      },
-    ],
-  },
-  gad: {
-    score: 79,
-    verdict: 'Inclusivity review recommended',
-    summary:
-      'The module uses generally inclusive language, but examples should include broader representation and avoid narrow role assumptions.',
-    feedbackComments: [
-      'Review examples for balanced gender representation across roles and scenarios.',
-      'Replace role-specific assumptions with neutral or inclusive alternatives.',
-      'Add inclusive learner-facing language in activity instructions.',
-    ],
-    evidenceFlags: [
-      'Inclusive wording appears in the main learning instructions.',
-      'Some examples rely on narrow role assumptions that should be revised.',
-      'Representation can be broadened in case-based activities.',
-    ],
-    rows: [
-      {
-        rating: '4',
-        criterion: 'Language avoids biased assumptions and exclusionary framing.',
-        status: 'Mostly acceptable',
-      },
-      {
-        rating: '3',
-        criterion: 'Examples represent learners and stakeholders equitably.',
-        status: 'Review recommended',
-      },
-      {
-        rating: '4',
-        criterion: 'Activities remain accessible to diverse learner contexts.',
-        status: 'Acceptable',
-      },
-    ],
-  },
-  itso: {
-    score: 78,
-    verdict: 'Review recommended',
-    summary:
-      'Innovation claims are promising, but documentation should better identify originality and ownership evidence.',
-    feedbackComments: [
-      'Confirm whether the digital artifact is original work, licensed material, or adapted from a cited source.',
-      'Ask the faculty reviewer to add reuse permissions for screenshots and prototype references.',
-      'Keep the advisory score pending until ownership evidence is attached to the source document.',
-    ],
-    evidenceFlags: [
-      'Clear instructional purpose and deployment path are supported by the selected passage.',
-      'Ownership, reuse permissions, and attribution need stronger documentation.',
-      'Innovation indicators should be connected to measurable course deliverables.',
-    ],
-    rows: [
-      {
-        rating: '4',
-        criterion: 'Originality and innovation claims are supported by concrete evidence.',
-        status: 'Review recommended',
-      },
-      {
-        rating: '3',
-        criterion: 'Third-party materials include ownership, reuse, and attribution details.',
-        status: 'Needs citation check',
-      },
-      {
-        rating: '5',
-        criterion: 'Data privacy exposure is limited in examples and learning activities.',
-        status: 'Acceptable',
-      },
-    ],
-  },
+type AgentScoreRow = {
+  rating: string;
+  criterion: string;
+  status: string;
 };
 
 function Highlight({
@@ -288,27 +151,129 @@ function buildSlmSections(document: ClientDocument | null): SlmSection[] {
     .filter((section) => section.body);
 }
 
+const EVAL_STORAGE_PREFIX = 'equiped_eval_';
+
 export function EvaluationInterface() {
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
+  const submitEvaluation = useSubmitEvaluation();
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('itso');
   const [leftPaneSize, setLeftPaneSize] = useState(48);
   const { data: document, error, isLoading, execute } = useFetch(documentsApi.getDocument);
+
+  const storageKey = documentId ? `${EVAL_STORAGE_PREFIX}${documentId}` : null;
+
+  const {
+    data: evaluationId,
+    isLoading: isResolvingEval,
+    isError: isResolveError,
+    error: resolveError,
+    refetch: refetchResolve,
+  } = useQuery({
+    queryKey: ['resolve-evaluation', documentId],
+    queryFn: async () => {
+      if (!documentId) throw new Error('No document ID');
+
+      if (storageKey) {
+        const stored = sessionStorage.getItem(storageKey);
+        if (stored) return stored;
+      }
+
+      const list = await evaluationApi.listEvaluations(documentId);
+      if (list.items.length > 0) {
+        const id = list.items[0].evaluation_id;
+        if (storageKey) {
+          sessionStorage.setItem(storageKey, id);
+        }
+        return id;
+      }
+
+      const result = await submitEvaluation.mutateAsync({ document_id: documentId });
+      if (storageKey) {
+        sessionStorage.setItem(storageKey, result.evaluation_id);
+      }
+      return result.evaluation_id;
+    },
+    enabled: !!documentId,
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const {
+    data: results,
+    refetch: refetchResults,
+    isError: isResultsError,
+    error: resultsError,
+  } = useQuery({
+    queryKey: ['evaluation-results', evaluationId],
+    queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
+    enabled: !!evaluationId,
+    refetchInterval: (query) => {
+      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)?.evaluation_status;
+      if (evalStatus === 'COMPLETED' || evalStatus === 'FAILED') {
+        return false;
+      }
+      return 3000;
+    },
+    retry: 1,
+  });
+
+  const { data: status } = useQuery({
+    queryKey: ['evaluation-status', evaluationId],
+    queryFn: () => evaluationApi.getEvaluationStatus(evaluationId!),
+    enabled: !!evaluationId,
+    refetchInterval: (query) => {
+      const nextStatus = query.state.data?.status;
+      if (nextStatus === 'COMPLETED' || nextStatus === 'FAILED') {
+        return false;
+      }
+
+      return 3000;
+    },
+  });
+
+  useEffect(() => {
+    if (status?.status === 'COMPLETED' || status?.status === 'FAILED') {
+      void refetchResults();
+    }
+  }, [status?.status, refetchResults]);
+
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
-  const selectedScore = agentScores[selectedAgent.id];
-  
-  const mockDomainData: ExportDomainData = {
+
+  const isTerminal = status?.status === 'COMPLETED' || status?.status === 'FAILED';
+  const hasResults = results && Object.keys(results.domain_scores).length > 0;
+  const isInProgress = !!evaluationId && !isTerminal;
+  const isFailedWithResults = status?.status === 'FAILED' && hasResults;
+
+  const domainScore = results?.domain_scores[selectedAgent.id];
+  const criteriaRows: AgentScoreRow[] = (domainScore?.criteria ?? []).map((criterion: CriterionScoreItem) => ({
+    rating: String(criterion.score),
+    criterion: criterion.criterion_text,
+    status: criterion.justification || 'Evaluated',
+  }));
+  const selectedScore = {
+    score: domainScore ? Math.round((domainScore.subtotal / (domainScore.max_score || 1)) * 100) : 0,
+    rawScore: domainScore?.subtotal ?? 0,
+    verdict: domainScore?.status === 'OK' ? 'Acceptable' : domainScore?.status === 'ERROR' ? 'Failed' : 'Review recommended',
+    summary: domainScore
+      ? `Subtotal ${domainScore.subtotal} of ${domainScore.max_score} weighted points${results?.is_partial || isFailedWithResults ? ' (partial)' : ''}.`
+      : isInProgress
+        ? 'Evaluation in progress...'
+        : isFailedWithResults
+          ? 'Evaluation failed, but partial results are available.'
+          : 'Evaluation results are not available yet.',
+    feedbackComments: [],
+    evidenceFlags: results?.flags.filter((flag) => flag.agent_id === selectedAgent.id).map((flag) => flag.criterion_text) || [],
+    rows: criteriaRows,
+  };
+
+  const domainData: ExportDomainData = {
     agentId: selectedAgent.id,
-    documentTitle: document?.title,
+    documentTitle: document?.title || 'Unknown Document',
     program: document?.program ?? undefined,
-    subtotal: selectedScore.score,
-    max_score: 100,
-    status: 'OK',
-    criteria: selectedScore.rows.map((r, i) => ({
-      criterion_id: String(i),
-      criterion_text: r.criterion,
-      score: parseInt(r.rating, 10) || 4,
-      justification: r.status
-    }))
+    subtotal: domainScore?.subtotal || 0,
+    max_score: domainScore?.max_score || 100,
+    status: domainScore?.status || 'UNKNOWN',
+    criteria: domainScore?.criteria || []
   };
 
   const slmSections = useMemo(() => buildSlmSections(document), [document]);
@@ -363,7 +328,12 @@ export function EvaluationInterface() {
           </Button>
           <Sheet>
             <SheetTrigger asChild>
-              <Button type="button" variant="outline" className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                disabled={!hasResults || !isTerminal}
+              >
                 <Download className="size-4" aria-hidden="true" />
                 Export
               </Button>
@@ -377,15 +347,17 @@ export function EvaluationInterface() {
                       Preview follows the referenced Gender and Development Unit criteria form.
                     </SheetDescription>
                   </div>
-                  <GadExportDownloadButton domainData={mockDomainData} />
+                  <GadExportDownloadButton domainData={domainData} />
                 </div>
               </SheetHeader>
               <div className="grid min-h-0 flex-1 place-items-start justify-items-center overflow-auto bg-muted/40 p-4 backdrop-blur-sm">
-                <GadExportPreview domainData={mockDomainData} />
+                <GadExportPreview domainData={domainData} />
               </div>
             </SheetContent>
           </Sheet>
-          <Button type="button">Finalize Review</Button>
+          <Button type="button" disabled>
+            Finalize Review
+          </Button>
         </div>
       </header>
 
@@ -409,10 +381,12 @@ export function EvaluationInterface() {
               </Button>
             </div>
 
-            {isLoading ? (
+            {isLoading || isResolvingEval ? (
               <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Loading SLM content...
+                {isResolvingEval
+                  ? 'Checking for existing evaluation…'
+                  : 'Loading SLM content...'}
               </div>
             ) : null}
 
@@ -421,6 +395,26 @@ export function EvaluationInterface() {
                 {getErrorMessage(error, 'Unable to load the selected document.')}
               </div>
             ) : null}
+
+            {isResolveError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <div className="flex-1">
+                    <p className="font-medium">{getErrorMessage(resolveError, 'Failed to start evaluation.')}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => refetchResolve()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {!isLoading && !error ? (
               <article className="space-y-6 text-xl leading-9 text-muted-foreground">
@@ -473,18 +467,52 @@ export function EvaluationInterface() {
               <h2 className="mt-3 text-2xl font-semibold tracking-normal">Synthesized Agent View</h2>
               <p className="mt-2 text-base text-muted-foreground">Advisory synthesis - Human review authoritative</p>
             </div>
-            <div className="grid size-28 place-items-center rounded-full p-3" style={scoreRingStyle}>
-              <div className="grid size-full place-items-center rounded-full bg-background">
-                <div className="text-center">
-                  <div className="text-3xl font-bold">{selectedScore.score}</div>
-                  <div className="text-xs text-muted-foreground">score</div>
+            {domainScore ? (
+              <div className="grid size-28 place-items-center rounded-full p-3" style={scoreRingStyle}>
+                <div className="grid size-full place-items-center rounded-full bg-background">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold">{selectedScore.score}</div>
+                    <div className="text-xs text-muted-foreground">score</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-muted-foreground/25 p-3">
+                <div className="text-center">
+                  <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {isInProgress ? 'Running...' : 'No data'}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="px-10 py-8">
-            <EvaluationStatusBanner />
+            <EvaluationStatusBanner status={status?.status ? `Evaluation status: ${status.status}` : undefined} />
+
+            {isResultsError && isTerminal && (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <div className="flex-1">
+                    <p className="font-medium">Failed to load results</p>
+                    <p className="mt-1 text-destructive/80">
+                      {getErrorMessage(resultsError, 'Results could not be retrieved.')}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => refetchResults()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <p className="mb-4 mt-8 text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
               Evaluation Agent
@@ -536,9 +564,15 @@ export function EvaluationInterface() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <span className="rounded-md bg-foreground px-3 py-1.5 text-sm font-semibold text-background">
-                  {selectedScore.score}% individual score
-                </span>
+                {domainScore ? (
+                  <span className="rounded-md bg-foreground px-3 py-1.5 text-sm font-semibold text-background">
+                    {selectedScore.score}% individual score
+                  </span>
+                ) : (
+                  <span className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground">
+                    {isInProgress ? 'Evaluating…' : '—'}
+                  </span>
+                )}
                 <span className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground">
                   {selectedScore.verdict}
                 </span>
@@ -554,21 +588,29 @@ export function EvaluationInterface() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedScore.rows.map((row) => (
-                      <TableRow key={row.criterion}>
-                        <TableCell>
-                          <span className="inline-grid size-9 place-items-center rounded-full bg-muted font-semibold">
-                            {row.rating}
-                          </span>
-                        </TableCell>
-                        <TableCell className="whitespace-normal text-muted-foreground">{row.criterion}</TableCell>
-                        <TableCell className="whitespace-normal">
-                          <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                            {row.status}
-                          </span>
+                    {selectedScore.rows.length > 0 ? (
+                      selectedScore.rows.map((row) => (
+                        <TableRow key={row.criterion}>
+                          <TableCell>
+                            <span className="inline-grid size-9 place-items-center rounded-full bg-muted font-semibold">
+                              {row.rating}
+                            </span>
+                          </TableCell>
+                          <TableCell className="whitespace-normal text-muted-foreground">{row.criterion}</TableCell>
+                          <TableCell className="whitespace-normal">
+                            <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                              {row.status}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                          {isInProgress ? 'Criteria will appear once evaluation completes.' : 'No criteria available.'}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>

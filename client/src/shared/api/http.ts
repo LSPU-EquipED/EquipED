@@ -40,13 +40,29 @@ async function parseResponseBody(response: Response) {
   return text ? { detail: text } : null;
 }
 
-function extractErrorDetail(payload: unknown) {
+function extractErrorDetail(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
 
-  const candidate = payload as ApiErrorPayload;
-  return candidate.detail ?? candidate.error?.message ?? null;
+  const candidate = payload as ApiErrorPayload & { detail?: unknown };
+
+  // FastAPI validation errors: detail is an array of {loc, msg, type}
+  if (Array.isArray(candidate.detail)) {
+    return candidate.detail
+      .map((err: { loc?: Array<string | number>; msg?: string }) => {
+        const field = err.loc ? err.loc[err.loc.length - 1] : 'unknown';
+        const message = err.msg ?? 'Unknown error';
+        return `${field}: ${message}`;
+      })
+      .join('; ');
+  }
+
+  if (typeof candidate.detail === 'string') {
+    return candidate.detail;
+  }
+
+  return candidate.error?.message ?? null;
 }
 
 export async function requestJson<TResponse>(path: string, init: RequestInit = {}): Promise<TResponse> {
@@ -54,6 +70,10 @@ export async function requestJson<TResponse>(path: string, init: RequestInit = {
 
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
+  }
+
+  if (init.body && !headers.has('Content-Type') && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
   }
 
   const response = await fetch(buildApiUrl(path), {

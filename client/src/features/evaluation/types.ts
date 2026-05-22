@@ -1,10 +1,9 @@
-export type EvaluationStatus = 
+export type EvaluationStatus =
   | 'SUBMITTED'
   | 'PREPROCESSING'
   | 'EVALUATING'
   | 'SYNTHESIZING'
   | 'COMPLETED'
-  | 'COMPLETED_PARTIAL'
   | 'FAILED';
 
 export interface CriterionScoreItem {
@@ -35,8 +34,8 @@ export interface EvaluationFlagItem {
 export interface EvaluationResponse {
   evaluation_id: string;
   document_id: string;
-  syllabus_id: string;
-  curriculum_id: string;
+  syllabus_id?: string | null;
+  curriculum_id?: string | null;
   status: EvaluationStatus;
   error_message?: string;
   submitted_by?: string;
@@ -49,6 +48,24 @@ export interface EvaluationStatusResponse {
   status: EvaluationStatus;
   error_message?: string;
   completed_at?: string;
+}
+
+export interface EvaluationListItem {
+  evaluation_id: string;
+  document_id: string;
+  document_title?: string | null;
+  syllabus_id?: string | null;
+  curriculum_id?: string | null;
+  status: EvaluationStatus;
+  submitted_at: string;
+  completed_at?: string | null;
+}
+
+export interface EvaluationListResponse {
+  items: EvaluationListItem[];
+  total: number;
+  page: number;
+  page_size: number;
 }
 
 export interface EvaluationResultsResponse {
