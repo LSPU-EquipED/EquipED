@@ -38,7 +38,7 @@
 - `docs/TDD.md` — supporting technical blueprint.
 - `server/` — backend implementation and module boundaries.
 - `client/` — frontend implementation and feature boundaries.
-- `uploads/` and `chroma_data/` — local runtime data directories.
+- `uploads/`, `chroma_data/`, and `equiped_dev.db` — local runtime data at the repository root.
 
 ### Key Entry Points
 
@@ -72,7 +72,7 @@
 - SLMs are direct evaluation input; do not embed them into ChromaDB.
 - Only reference documents (syllabus, curriculum) and rubrics belong in the Chroma vector store.
 - The EMBEDDING lifecycle status has been removed; do not reintroduce it.
-- chroma_data and uploads directories are anchored to the repository root.
+- chroma_data, uploads directories, and equiped_dev.db are anchored to the repository root.
 
 ## Working Rules
 
