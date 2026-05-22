@@ -1,5 +1,9 @@
 import { requestJson } from '@/shared/api/http';
-import type { EvaluationResponse, EvaluationStatusResponse } from '../types';
+import type {
+  EvaluationResponse,
+  EvaluationResultsResponse,
+  EvaluationStatusResponse,
+} from '../types';
 
 export const evaluationApi = {
   getEvaluation: async (id: string): Promise<EvaluationResponse> => {
@@ -8,5 +12,9 @@ export const evaluationApi = {
   
   getEvaluationStatus: async (id: string): Promise<EvaluationStatusResponse> => {
     return requestJson<EvaluationStatusResponse>(`/evaluations/${id}/status`);
+  },
+
+  getEvaluationResults: async (id: string): Promise<EvaluationResultsResponse> => {
+    return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`);
   }
 };
