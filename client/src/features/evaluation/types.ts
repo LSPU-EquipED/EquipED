@@ -1,11 +1,36 @@
 export type EvaluationStatus = 
   | 'SUBMITTED'
   | 'PREPROCESSING'
-  | 'EMBEDDING'
   | 'EVALUATING'
   | 'SYNTHESIZING'
   | 'COMPLETED'
+  | 'COMPLETED_PARTIAL'
   | 'FAILED';
+
+export interface CriterionScoreItem {
+  criterion_id: string;
+  criterion_text: string;
+  score: number;
+  justification: string;
+}
+
+export interface DomainScoreBlock {
+  criteria: CriterionScoreItem[];
+  subtotal: number;
+  max_score: number;
+  status: string;
+}
+
+export interface EvaluationFlagItem {
+  flag_id: string;
+  evaluation_id: string;
+  agent_id: string;
+  criterion_id: string;
+  criterion_text: string;
+  score: number;
+  justification?: string;
+  chunk_id?: string;
+}
 
 export interface EvaluationResponse {
   evaluation_id: string;
@@ -23,5 +48,20 @@ export interface EvaluationStatusResponse {
   evaluation_id: string;
   status: EvaluationStatus;
   error_message?: string;
+  completed_at?: string;
+}
+
+export interface EvaluationResultsResponse {
+  evaluation_id: string;
+  document_id: string;
+  document_title?: string;
+  program?: string;
+  synthesized_score: number;
+  domain_scores: Record<string, DomainScoreBlock>;
+  flags: EvaluationFlagItem[];
+  active_agents: string[];
+  failed_agents: string[];
+  is_partial: boolean;
+  evaluation_status: string;
   completed_at?: string;
 }

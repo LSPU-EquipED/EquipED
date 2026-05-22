@@ -36,7 +36,7 @@ import type { ClientDocument } from '@/shared/types/documents';
 import { EvaluationStatusBanner } from './EvaluationStatusBanner';
 import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
-import { GadExportDownloadButton, GadExportPreview, type ExportAgentId } from './ExportDocument';
+import { GadExportDownloadButton, GadExportPreview, type ExportDomainData } from './ExportDocument';
 
 const agents = [
   {
@@ -65,7 +65,7 @@ const agents = [
   },
 ] as const;
 
-type AgentId = (typeof agents)[number]['id'] & ExportAgentId;
+type AgentId = (typeof agents)[number]['id'];
 type SlmSection = {
   title: string;
   pages: string | null;
@@ -295,6 +295,22 @@ export function EvaluationInterface() {
   const { data: document, error, isLoading, execute } = useFetch(documentsApi.getDocument);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const selectedScore = agentScores[selectedAgent.id];
+  
+  const mockDomainData: ExportDomainData = {
+    agentId: selectedAgent.id,
+    documentTitle: document?.title,
+    program: document?.program ?? undefined,
+    subtotal: selectedScore.score,
+    max_score: 100,
+    status: 'OK',
+    criteria: selectedScore.rows.map((r, i) => ({
+      criterion_id: String(i),
+      criterion_text: r.criterion,
+      score: parseInt(r.rating, 10) || 4,
+      justification: r.status
+    }))
+  };
+
   const slmSections = useMemo(() => buildSlmSections(document), [document]);
   const scoreRingStyle = {
     background: `conic-gradient(var(--foreground) ${selectedScore.score * 3.6}deg, var(--muted) 0deg)`,
@@ -361,11 +377,11 @@ export function EvaluationInterface() {
                       Preview follows the referenced Gender and Development Unit criteria form.
                     </SheetDescription>
                   </div>
-                  <GadExportDownloadButton agentId={selectedAgent.id} />
+                  <GadExportDownloadButton domainData={mockDomainData} />
                 </div>
               </SheetHeader>
               <div className="grid min-h-0 flex-1 place-items-start justify-items-center overflow-auto bg-muted/40 p-4 backdrop-blur-sm">
-                <GadExportPreview agentId={selectedAgent.id} />
+                <GadExportPreview domainData={mockDomainData} />
               </div>
             </SheetContent>
           </Sheet>
