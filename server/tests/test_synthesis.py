@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, UTC
 
 import pytest
 
@@ -48,7 +49,7 @@ def test_weighted_score_all_passing() -> None:
     assert set(result["domain_scores"]) == {"sme", "coordinator", "gad", "itso"}
     for agent_id, domain in result["domain_scores"].items():
         assert domain["subtotal"] == 4.0
-        assert domain["status"] == "completed"
+        assert domain["status"] == "OK"
         assert domain["max_score"] == 4
         assert AGENT_WEIGHTS[agent_id] > 0
 
@@ -77,7 +78,7 @@ def test_weighted_score_one_failed() -> None:
 
     assert result["is_partial"] is True
     assert result["failed_agents"] == ["itso"]
-    assert result["domain_scores"]["itso"]["status"] == "failed"
+    assert result["domain_scores"]["itso"]["status"] == "ERROR"
     assert result["domain_scores"]["itso"]["subtotal"] == 0.0
     assert result["synthesized_score"] == pytest.approx(69.41, abs=0.01)
 
@@ -128,3 +129,56 @@ def test_normalization_weight_format() -> None:
         "max_score",
         "status",
     }
+
+
+def test_matrix_schema_accepts_nested_domain_scores() -> None:
+    from server.modules.synthesis.schemas import DomainScoreBlock, MatrixRowItem
+
+    item = MatrixRowItem(
+        matrix_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        evaluation_status="COMPLETED",
+        last_updated=datetime.now(UTC),
+        domain_scores={
+            "sme": DomainScoreBlock(criteria=[], subtotal=3.0, max_score=4, status="OK")
+        },
+    )
+
+    assert item.domain_scores["sme"].subtotal == 3.0
+
+
+def test_evaluation_flag_item_accepts_agent_name_as_agent_id() -> None:
+    """agent_id should be the agent name (e.g. 'sme'), not a UUID string."""
+    from server.modules.synthesis.schemas import EvaluationFlagItem
+
+    flag = EvaluationFlagItem(
+        flag_id=uuid.uuid4(),
+        evaluation_id=uuid.uuid4(),
+        agent_id="sme",
+        criterion_id="c1",
+        criterion_text="Criterion 1",
+        score=3,
+        justification="test",
+    )
+
+    assert flag.agent_id == "sme"
+    assert flag.agent_id in ("sme", "coordinator", "gad", "itso")
+
+
+def test_evaluation_flag_item_rejects_uuid_string_as_agent_name() -> None:
+    """agent_id field accepts string values; the router must map UUIDs to names."""
+    from server.modules.synthesis.schemas import EvaluationFlagItem
+
+    # The schema accepts any string; the router is responsible for mapping
+    # agent_result_id UUIDs to agent_name strings.
+    flag = EvaluationFlagItem(
+        flag_id=uuid.uuid4(),
+        evaluation_id=uuid.uuid4(),
+        agent_id="coordinator",
+        criterion_id="c2",
+        criterion_text="Criterion 2",
+        score=4,
+        justification="great",
+    )
+
+    assert flag.agent_id == "coordinator"

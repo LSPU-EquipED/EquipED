@@ -126,8 +126,19 @@ def create_document(
         evaluation_readiness=evaluation_readiness,
     )
 
-    _persist_document(db, response, str(target_path), uploaded_by)
-    _persist_chunks(db, doc_id, chunk_data)
+    runtime_db = db
+    runtime_session = None
+    if runtime_db is None and get_settings().database_configured:
+        runtime_session = get_session_factory()()
+        runtime_db = runtime_session
+
+    try:
+        _persist_document(runtime_db, response, str(target_path), uploaded_by)
+        _persist_chunks(runtime_db, doc_id, chunk_data)
+    finally:
+        if runtime_session is not None:
+            runtime_session.close()
+
     _refresh_tfidf_if_needed(source_type)
 
     return DocumentUploadResponse(
@@ -303,7 +314,11 @@ def _persist_document(
 
 def _persist_chunks(db: Any | None, document_id: uuid.UUID, chunks: list[Any]) -> None:
     _MEM_CHUNKS[document_id] = chunks
-    if db is None or not chunks:
+    if db is None:
+        return
+
+    if not chunks:
+        db.commit()
         return
 
     rows = [
