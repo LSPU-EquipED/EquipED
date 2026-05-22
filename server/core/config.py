@@ -59,7 +59,8 @@ class Settings:
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_temperature: float = 0.2
-    llm_max_new_tokens: int = 512
+    llm_max_new_tokens: int = 2048
+    llm_agent_delay_seconds: int = 0
 
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -110,11 +111,19 @@ def get_settings() -> Settings:
     except ValueError as exc:
         raise ConfigurationError("LLM_TEMPERATURE must be a valid number") from exc
 
-    llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "512")
+    llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "2048")
     try:
-        parsed_llm_max_new_tokens = int(llm_max_new_tokens or "512")
+        parsed_llm_max_new_tokens = int(llm_max_new_tokens or "2048")
     except ValueError as exc:
         raise ConfigurationError("LLM_MAX_NEW_TOKENS must be a valid integer") from exc
+
+    llm_agent_delay_seconds = _env("LLM_AGENT_DELAY_SECONDS", "0")
+    try:
+        parsed_llm_agent_delay_seconds = int(llm_agent_delay_seconds or "0")
+    except ValueError as exc:
+        raise ConfigurationError(
+            "LLM_AGENT_DELAY_SECONDS must be a valid integer"
+        ) from exc
 
     settings = Settings(
         app_name=_env("APP_NAME", "EquipEd") or "EquipEd",
@@ -143,6 +152,7 @@ def get_settings() -> Settings:
         llm_api_key=_env("LLM_API_KEY"),
         llm_temperature=parsed_llm_temperature,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
+        llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",

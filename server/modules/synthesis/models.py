@@ -7,7 +7,7 @@ from datetime import datetime
 
 from server.core.database import Base
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, Uuid, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -27,7 +27,7 @@ class AgentResult(Base):
     prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("prompt_versions.version_id"), nullable=True
     )
-    subtotal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    subtotal: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     processing_seconds: Mapped[float] = mapped_column(nullable=False, default=0.0)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     model_name: Mapped[str] = mapped_column(String(200), nullable=False)

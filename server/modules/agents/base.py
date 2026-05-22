@@ -14,7 +14,7 @@ from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
 
 from .contracts import AgentEvaluationResult, CriterionScore
-from .exceptions import AgentExecutionError, AgentLLMError, AgentRetrievalError
+from .exceptions import AgentExecutionError, AgentLLMError
 
 
 class BaseAgent:
@@ -62,10 +62,20 @@ class BaseAgent:
             prompt_version=prompt_version,
         )
         raw_response = self._call_llm(prompt)
-        parsed = self._parse_response(raw_response)
+        try:
+            parsed = self._parse_response(raw_response)
+        except AgentExecutionError as exc:
+            raise AgentExecutionError(
+                f"{exc}: raw_response={raw_response[:500]}"
+            ) from exc
         processing_seconds = time.perf_counter() - start
 
-        criterion_scores = tuple(self._build_criterion_scores(parsed))
+        try:
+            criterion_scores = tuple(self._build_criterion_scores(parsed))
+        except AgentExecutionError as exc:
+            raise AgentExecutionError(
+                f"{exc}: raw_response={raw_response[:500]}"
+            ) from exc
         subtotal = (
             sum(score.score for score in criterion_scores) / len(criterion_scores)
             if criterion_scores
@@ -104,10 +114,8 @@ class BaseAgent:
                 n_results=self.max_rubric_chunks,
             )
             return [chunk.text for chunk in chunks]
-        except Exception as exc:
-            raise AgentRetrievalError(
-                f"Failed to retrieve rubric context for {self.agent_name}"
-            ) from exc
+        except Exception:
+            return []
 
     def _retrieve_reference_context(
         self,
@@ -118,10 +126,7 @@ class BaseAgent:
         results: list[str] = []
         for source_type in self.reference_source_types:
             if not reference_document_ids or source_type not in reference_document_ids:
-                raise AgentExecutionError(
-                    "Missing scoped reference document for "
-                    f"{self.agent_name}:{source_type}"
-                )
+                continue
             try:
                 collection_name = resolve_collection_name(source_type)
                 chunks = retrieve_context(
@@ -131,10 +136,8 @@ class BaseAgent:
                     document_id_filter=str(reference_document_ids[source_type]),
                 )
                 results.extend(chunk.text for chunk in chunks)
-            except Exception as exc:
-                raise AgentRetrievalError(
-                    f"Failed to retrieve reference context for {self.agent_name}"
-                ) from exc
+            except Exception:
+                continue
         return results
 
     def _build_prompt(
@@ -172,7 +175,9 @@ class BaseAgent:
                 max_new_tokens=settings.llm_max_new_tokens,
             )
         except Exception as exc:
-            raise AgentLLMError(f"LLM call failed for {self.agent_name}") from exc
+            raise AgentLLMError(
+                f"LLM call failed for {self.agent_name}: {exc}"
+            ) from exc
 
     def _parse_response(self, raw_response: str) -> dict[str, Any]:
         if not isinstance(raw_response, str):
@@ -195,6 +200,11 @@ class BaseAgent:
         )
         if fenced_match:
             return fenced_match.group(1).strip()
+        if not payload.startswith("{"):
+            start = payload.find("{")
+            end = payload.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                return payload[start : end + 1].strip()
         return payload
 
     def _validate_response(self, parsed: Any) -> dict[str, Any]:
@@ -208,7 +218,7 @@ class BaseAgent:
                 f"Agent {self.agent_name} returned an invalid summary"
             )
         criterion_scores = parsed.get("criterion_scores")
-        if not isinstance(criterion_scores, list):
+        if not isinstance(criterion_scores, (list, dict)):
             raise AgentExecutionError(
                 f"Agent {self.agent_name} returned invalid criterion_scores"
             )
@@ -217,8 +227,35 @@ class BaseAgent:
     def _build_criterion_scores(
         self, parsed: dict[str, Any]
     ) -> list[CriterionScore]:
+        raw_scores = parsed["criterion_scores"]
+        if isinstance(raw_scores, dict):
+            parsed_scores = []
+            for criterion_id, score_entry in raw_scores.items():
+                score = score_entry
+                justification = ""
+                chunk_ids: tuple[str, ...] = ()
+                evidence: tuple[str, ...] = ()
+                if isinstance(score_entry, dict):
+                    score = score_entry.get("score")
+                    justification = str(score_entry.get("justification", ""))
+                    evidence_value = score_entry.get("evidence", ())
+                    chunk_ids_value = score_entry.get("chunk_ids", ())
+                    evidence = self._normalize_text_tuple(evidence_value)
+                    chunk_ids = self._normalize_text_tuple(chunk_ids_value)
+                parsed_scores.append(
+                    {
+                        "criterion_id": criterion_id,
+                        "score": score,
+                        "justification": justification,
+                        "chunk_ids": chunk_ids,
+                        "evidence": evidence,
+                    }
+                )
+        else:
+            parsed_scores = raw_scores
+
         criterion_scores: list[CriterionScore] = []
-        for index, item in enumerate(parsed["criterion_scores"]):
+        for index, item in enumerate(parsed_scores):
             if not isinstance(item, dict):
                 raise AgentExecutionError(
                     f"Agent {self.agent_name} returned an invalid criterion score "
@@ -235,24 +272,16 @@ class BaseAgent:
                     f"at index {index}"
                 )
             if not isinstance(justification, str):
-                raise AgentExecutionError(
-                    f"Agent {self.agent_name} returned an invalid justification "
-                    f"at index {index}"
-                )
+                justification = str(justification)
             if not isinstance(chunk_ids, (list, tuple)):
-                raise AgentExecutionError(
-                    f"Agent {self.agent_name} returned invalid chunk_ids "
-                    f"at index {index}"
-                )
+                chunk_ids = self._normalize_text_tuple(chunk_ids)
             if not isinstance(evidence, (list, tuple)):
-                raise AgentExecutionError(
-                    f"Agent {self.agent_name} returned invalid evidence "
-                    f"at index {index}"
-                )
+                evidence = self._normalize_text_tuple(evidence)
             criterion_title = item.get("criterion_title", criterion_id)
             if not isinstance(criterion_title, str):
                 criterion_title = criterion_id
-            if not isinstance(score, int):
+            score = self._normalize_score(score)
+            if score is None:
                 raise AgentExecutionError(
                     f"Agent {self.agent_name} returned an invalid score "
                     f"at index {index}"
@@ -273,6 +302,33 @@ class BaseAgent:
                 ) from exc
             criterion_scores.append(criterion_score)
         return criterion_scores
+
+    def _normalize_score(self, score: Any) -> int | None:
+        if isinstance(score, bool):
+            return None
+        if isinstance(score, int):
+            return score
+        if isinstance(score, float) and score.is_integer():
+            return int(score)
+        if isinstance(score, str):
+            text = score.strip()
+            try:
+                numeric = float(text)
+            except ValueError:
+                return None
+            if not numeric.is_integer():
+                return None
+            return int(numeric)
+        return None
+
+    def _normalize_text_tuple(self, value: Any) -> tuple[str, ...]:
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            return (value,)
+        if isinstance(value, (list, tuple)):
+            return tuple(str(item) for item in value)
+        return ()
 
 
 __all__ = ["BaseAgent"]

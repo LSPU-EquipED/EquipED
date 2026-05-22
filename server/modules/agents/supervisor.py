@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import uuid
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from server.core.config import get_settings
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
 
@@ -51,6 +53,7 @@ class Supervisor:
     ) -> SupervisorResult:
         context = context or {}
         result = SupervisorResult(evaluation_id=evaluation_id, document_id=document_id)
+        settings = get_settings()
 
         chunk_infos = [
             {
@@ -70,6 +73,8 @@ class Supervisor:
             reference_document_ids, dict
         ):
             raise SupervisorExecutionError("reference_document_ids must be a mapping")
+        if reference_document_ids is None:
+            reference_document_ids = {}
 
         query_text = query_text or "\n".join(info["text"] for info in chunk_infos)
 
@@ -104,11 +109,15 @@ class Supervisor:
                         model_name="",
                         processing_seconds=0,
                         token_count=0,
+                        prompt_version_id=prompt_row.version_id,
                         success=False,
                         error_message=str(exc),
                     )
                 )
                 result.failures[agent_name] = str(exc)
+            finally:
+                if settings.llm_agent_delay_seconds > 0:
+                    time.sleep(settings.llm_agent_delay_seconds)
 
         if not result.agent_results:
             raise SupervisorExecutionError("No usable agent outputs were produced")
