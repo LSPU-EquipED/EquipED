@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from '@tanstack/react-router';
-import { ArrowDown, FileText, Folder, Search, Upload } from 'lucide-react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ArrowDown, Folder, Search, Upload } from 'lucide-react';
 import { dashboardApi } from '@/features/dashboard/api/dashboard.api';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/ui/button';
@@ -43,6 +43,7 @@ function formatDate(value: string) {
 
 export function DocumentDashboard() {
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
   const { data, error, isLoading, execute } = useFetch(dashboardApi.listDocuments);
 
   useEffect(() => {
@@ -64,6 +65,13 @@ export function DocumentDashboard() {
     });
   }, [data?.items, search]);
 
+  const openEvaluationInterface = (documentId: string) => {
+    void navigate({
+      to: '/documents/$documentId/evaluation',
+      params: { documentId },
+    });
+  };
+
   return (
     <section className="mx-auto grid w-full max-w-[108rem] gap-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -84,12 +92,6 @@ export function DocumentDashboard() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="h-11 gap-2 px-4" asChild>
-            <Link to="/upload">
-              <FileText className="size-4" aria-hidden="true" />
-              Open upload workspace
-            </Link>
-          </Button>
           <Button className="h-11 gap-2 px-4" asChild>
             <Link to="/upload">
               <Upload className="size-4" aria-hidden="true" />
@@ -145,8 +147,22 @@ export function DocumentDashboard() {
               </TableHeader>
               <TableBody>
                 {documents.map((document) => (
-                  <TableRow key={document.documentId}>
-                    <TableCell className="max-w-[22rem] truncate font-medium">{document.title}</TableCell>
+                  <TableRow
+                    key={document.documentId}
+                    role="link"
+                    tabIndex={0}
+                    className="group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => openEvaluationInterface(document.documentId)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openEvaluationInterface(document.documentId);
+                      }
+                    }}
+                  >
+                    <TableCell className="max-w-[22rem] truncate font-medium">
+                      <span className="block truncate underline-offset-4 group-hover:underline">{document.title}</span>
+                    </TableCell>
                     <TableCell>{sourceTypeLabels[document.sourceType]}</TableCell>
                     <TableCell>{document.program ?? '—'}</TableCell>
                     <TableCell>{formatDate(document.uploadedAt)}</TableCell>

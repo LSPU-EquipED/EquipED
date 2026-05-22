@@ -1,8 +1,20 @@
-export function FlagList() {
+type FlagListProps = {
+  readonly flags?: readonly string[];
+};
+
+const fallbackFlags = ['Contextual highlights will appear here once evaluation data exists.'];
+
+export function FlagList({ flags = fallbackFlags }: FlagListProps) {
   return (
-    <section className="rounded-2xl border border-border/40 bg-card/70 p-4 shadow-sm">
+    <section className="rounded-lg border bg-card p-4 shadow-sm">
       <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Flags</div>
-      <p className="mt-2 text-muted-foreground">Contextual highlights will appear here once evaluation data exists.</p>
+      <div className="mt-3 grid gap-2">
+        {flags.map((flag) => (
+          <p key={flag} className="m-0 rounded-md border bg-background px-3 py-2 text-sm leading-6 text-muted-foreground">
+            {flag}
+          </p>
+        ))}
+      </div>
     </section>
   );
 }

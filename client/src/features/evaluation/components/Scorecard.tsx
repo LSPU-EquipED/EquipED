@@ -1,22 +1,61 @@
 import { Outlet, useParams } from '@tanstack/react-router';
-import { AlertTriangle, Loader2, Info } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, Loader2, Info, CheckCircle, XCircle, ChevronDown, ChevronUp, Flag } from 'lucide-react';
+import { useState } from 'react';
 import { Separator } from '@/shared/components/ui/separator';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
+import { evaluationApi } from '../api/evaluation.api';
 
 const STATUS_MESSAGES: Record<string, string> = {
   SUBMITTED: 'Job submitted, waiting to start...',
   PREPROCESSING: 'Preprocessing document contents...',
-  EMBEDDING: 'Generating vector embeddings...',
   EVALUATING: 'Running multi-agent evaluation layer...',
   SYNTHESIZING: 'Synthesizing agent reports...',
   COMPLETED: 'Evaluation completed.',
+  COMPLETED_PARTIAL: 'Evaluation completed partially.',
   FAILED: 'Evaluation failed.',
 };
+
+function CriterionItem({ item }: { readonly item: any }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="border rounded-md p-3 bg-card/50">
+      <div 
+        className="flex items-start justify-between gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex-1">
+          <p className="text-sm font-medium leading-snug">{item.criterion_text}</p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded">
+            {item.score}/4
+          </span>
+          {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+        </div>
+      </div>
+      {expanded && (
+        <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">
+          <p><strong>Justification:</strong> {item.justification}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
   
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
+
+  const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'COMPLETED_PARTIAL' || evaluation?.status === 'FAILED';
+  const isFailed = evaluation?.status === 'FAILED';
+
+  const { data: results, isLoading: isLoadingResults } = useQuery({
+    queryKey: ['evaluation-results', id],
+    queryFn: () => evaluationApi.getEvaluationResults(id!),
+    enabled: !!id && isTerminal,
+  });
 
   if (!id) {
     return (
@@ -48,30 +87,51 @@ export function Scorecard() {
     );
   }
 
-  const isTerminal = evaluation.status === 'COMPLETED' || evaluation.status === 'FAILED';
-  const isFailed = evaluation.status === 'FAILED';
+  const agentLabels: Record<string, string> = {
+    sme: "SME",
+    coordinator: "Coordinator",
+    gad: "GAD",
+    itso: "ITSO"
+  };
 
   return (
     <section className="-mx-6 -my-7 flex h-[calc(100vh-4rem)] flex-col bg-background">
       <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b bg-background px-10">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
             Evaluation Status
           </p>
-          <h1 className="mt-2 truncate text-2xl font-semibold">
-            Job: {evaluation.evaluation_id}
-          </h1>
+          <div className="flex items-center gap-3 mt-2">
+            <h1 className="truncate text-2xl font-semibold">
+              Job: {evaluation.evaluation_id}
+            </h1>
+            {isTerminal && (
+              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed ? 'border-destructive/50 text-destructive bg-destructive/10' : 'border-primary/50 text-primary bg-primary/10'}`}>
+                {evaluation.status.replace('_', ' ')}
+              </span>
+            )}
+          </div>
         </div>
+        {results && (
+          <div className="text-right">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+              Synthesized Score
+            </p>
+            <p className="mt-1 text-3xl font-bold text-primary">
+              {results.synthesized_score.toFixed(2)}<span className="text-lg text-muted-foreground font-normal">/4.00</span>
+            </p>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 overflow-y-auto p-10">
-        <div className="mx-auto max-w-3xl rounded-xl border bg-card p-8 shadow-sm">
+        <div className="mx-auto max-w-5xl rounded-xl border bg-card p-8 shadow-sm mb-8">
           <div className="flex items-center gap-4 border-b pb-6">
             {!isTerminal && (
               <Loader2 className="size-8 animate-spin text-primary" />
             )}
             {isTerminal && !isFailed && (
-              <Info className="size-8 text-muted-foreground" />
+              <CheckCircle className="size-8 text-green-500" />
             )}
             {isFailed && (
               <AlertTriangle className="size-8 text-destructive" />
@@ -79,7 +139,7 @@ export function Scorecard() {
             
             <div>
               <h2 className="text-xl font-semibold">
-                {evaluation.status}
+                {evaluation.status.replace('_', ' ')}
               </h2>
               <p className="text-muted-foreground mt-1">
                 {STATUS_MESSAGES[evaluation.status] || 'Processing...'}
@@ -126,6 +186,79 @@ export function Scorecard() {
             )}
           </div>
         </div>
+
+        {isTerminal && isLoadingResults && (
+          <div className="flex justify-center py-12">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {results && (
+          <div className="mx-auto max-w-[90rem] space-y-8">
+            {results.flags && results.flags.length > 0 && (
+              <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4 text-orange-700">
+                  <Flag className="size-5" />
+                  <h3 className="text-lg font-semibold">Evaluation Flags</h3>
+                </div>
+                <div className="grid gap-3">
+                  {results.flags.map((flag) => (
+                    <div key={flag.flag_id} className="bg-white rounded-md p-4 border border-orange-100 shadow-sm text-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700 uppercase">
+                          {agentLabels[flag.agent_id] || flag.agent_id}
+                        </span>
+                        <span className="font-medium text-orange-900">Score: {flag.score}/4</span>
+                      </div>
+                      <p className="font-medium mb-1">{flag.criterion_text}</p>
+                      {flag.justification && (
+                        <p className="text-muted-foreground mt-2 text-xs">{flag.justification}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+              {['sme', 'coordinator', 'gad', 'itso'].map((domain) => {
+                const domainData = results.domain_scores[domain];
+                if (!domainData) return null;
+
+                const isError = domainData.status === 'ERROR';
+
+                return (
+                  <div key={domain} className="flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden h-[600px]">
+                    <div className={`p-5 border-b shrink-0 ${isError ? 'bg-destructive/10' : 'bg-muted/50'}`}>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold text-lg uppercase tracking-wider text-foreground/80">
+                          {agentLabels[domain]}
+                        </h3>
+                        {isError ? (
+                          <XCircle className="size-6 text-destructive" />
+                        ) : (
+                          <CheckCircle className="size-6 text-green-500" />
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-extrabold tracking-tight">{domainData.subtotal}</span>
+                        <span className="text-muted-foreground font-medium text-lg">/ {domainData.max_score}</span>
+                      </div>
+                    </div>
+                    <div className="p-4 flex-1 space-y-3 bg-muted/10 overflow-y-auto">
+                      {domainData.criteria.map((criterion, idx) => (
+                        <CriterionItem key={criterion.criterion_id || idx} item={criterion} />
+                      ))}
+                      {domainData.criteria.length === 0 && (
+                        <p className="text-sm text-muted-foreground italic text-center mt-8">No criteria evaluated.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
 
       <Outlet />
