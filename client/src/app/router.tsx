@@ -68,9 +68,9 @@ const evaluationsRoute = createRoute({
   component: EvaluationHistoryTable,
 });
 
-const evaluationInterfaceRoute = createRoute({
+const documentEvaluationRoute = createRoute({
   getParentRoute: () => shellRoute,
-  path: 'evaluation-interface',
+  path: 'documents/$documentId/evaluation',
   component: EvaluationInterface,
 });
 
@@ -137,7 +137,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     uploadRoute,
     evaluationsRoute,
-    evaluationInterfaceRoute,
+    documentEvaluationRoute,
     evaluationDetailRoute.addChildren([evaluationReportRoute]),
     matrixRoute,
     adminRoute.addChildren([

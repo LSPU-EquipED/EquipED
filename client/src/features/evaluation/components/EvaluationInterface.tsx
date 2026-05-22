@@ -3,12 +3,16 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  Loader2,
   Lightbulb,
   Scale,
   ShieldCheck,
   Target,
 } from 'lucide-react';
-import { useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useState, type PointerEvent } from 'react';
+import { useParams } from '@tanstack/react-router';
+import { documentsApi } from '@/shared/api/documents.api';
+import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/ui/button';
 import {
   Sheet,
@@ -27,6 +31,8 @@ import {
   TableRow,
 } from '@/shared/components/ui/table';
 import { cn } from '@/shared/components/utils';
+import { useFetch } from '@/shared/hooks/useFetch';
+import type { ClientDocument } from '@/shared/types/documents';
 import { EvaluationStatusBanner } from './EvaluationStatusBanner';
 import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
@@ -60,6 +66,11 @@ const agents = [
 ] as const;
 
 type AgentId = (typeof agents)[number]['id'] & ExportAgentId;
+type SlmSection = {
+  title: string;
+  pages: string | null;
+  body: string;
+};
 
 const agentScores: Record<
   AgentId,
@@ -231,14 +242,72 @@ function Highlight({
   );
 }
 
+function getString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getStringList(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function formatPages(value: unknown) {
+  const pages = getStringList(value);
+  return pages.length > 0 ? `Pages ${pages.join(', ')}` : null;
+}
+
+function buildSlmSections(document: ClientDocument | null): SlmSection[] {
+  if (!document) {
+    return [];
+  }
+
+  const outlineSections = (document.structuredOutline ?? [])
+    .map((section) => {
+      const evidence = getStringList(section.evidence);
+      return {
+        title: getString(section.title) || 'Document section',
+        pages: formatPages(section.pages),
+        body: evidence.join('\n\n'),
+      };
+    })
+    .filter((section) => section.body);
+
+  if (outlineSections.length > 0) {
+    return outlineSections;
+  }
+
+  return (document.sectionSummaries ?? [])
+    .map((section) => ({
+      title: getString(section.title) || 'Document section',
+      pages: formatPages(section.pages),
+      body: getString(section.summary),
+    }))
+    .filter((section) => section.body);
+}
+
 export function EvaluationInterface() {
+  const { documentId } = useParams({ strict: false }) as { documentId?: string };
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('itso');
   const [leftPaneSize, setLeftPaneSize] = useState(48);
+  const { data: document, error, isLoading, execute } = useFetch(documentsApi.getDocument);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const selectedScore = agentScores[selectedAgent.id];
+  const slmSections = useMemo(() => buildSlmSections(document), [document]);
   const scoreRingStyle = {
     background: `conic-gradient(var(--foreground) ${selectedScore.score * 3.6}deg, var(--muted) 0deg)`,
   };
+  const documentSubtitle = [document?.courseTitle, document?.lessonTitle].filter(Boolean).join(' - ');
+
+  useEffect(() => {
+    if (!documentId) {
+      return;
+    }
+
+    void execute(documentId).catch(() => undefined);
+  }, [documentId, execute]);
 
   const handleDividerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const container = event.currentTarget.parentElement;
@@ -269,9 +338,7 @@ export function EvaluationInterface() {
       <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b bg-background px-10">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">Selected Document</p>
-          <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal">
-            Instructional Material Evaluation Draft
-          </h1>
+          <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal">{document?.title ?? 'Loading document...'}</h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" className="gap-2">
@@ -316,9 +383,9 @@ export function EvaluationInterface() {
           <div className="mx-auto grid max-w-3xl gap-7 px-10 py-16">
             <div className="flex items-start justify-between gap-4 border-b pb-6">
               <div>
-                <h2 className="text-base font-semibold">Course Pack: Outcomes-Based Learning Module</h2>
+                <h2 className="text-base font-semibold">{document?.title ?? 'Selected SLM'}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Author: Faculty Reviewer - Date: May 19, 2026
+                  {documentSubtitle || document?.program || 'SLM content preview'}
                 </p>
               </div>
               <Button type="button" variant="outline" className="shrink-0">
@@ -326,36 +393,47 @@ export function EvaluationInterface() {
               </Button>
             </div>
 
-            <article className="space-y-6 text-xl leading-9 text-muted-foreground">
-              <p>
-                <Highlight tone="good">
-                  The proposed digital artifact has a clear instructional purpose and deployment path.
-                </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and validation.
-              </p>
-              <p>
-                <Highlight tone="risk">
-                  Ownership, reuse permissions, and attribution expectations need to be stated more directly.
-                </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and validation.
-              </p>
-              <p>
-                <Highlight tone="warning">
-                  Innovation indicators should be connected to measurable course deliverables.
-                </Highlight>{' '}
-                The selected section is shown as an agent-specific evidence marker for human review and validation.
-              </p>
-              <p>
-                Additional document paragraphs remain visible without highlights so reviewers can compare flagged
-                passages against the surrounding instructional context and decide whether the advisory finding is
-                valid.
-              </p>
-              <p>
-                The module may include screenshots, sample datasets, and prototype references. Reviewers should
-                confirm whether all supporting materials are locally owned, licensed, or properly cited before final
-                acceptance.
-              </p>
-            </article>
+            {isLoading ? (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Loading SLM content...
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {getErrorMessage(error, 'Unable to load the selected document.')}
+              </div>
+            ) : null}
+
+            {!isLoading && !error ? (
+              <article className="space-y-6 text-xl leading-9 text-muted-foreground">
+                {document?.structuredSummary ? (
+                  <p>
+                    <Highlight tone="good">{document.structuredSummary}</Highlight>
+                  </p>
+                ) : null}
+
+                {slmSections.length > 0 ? (
+                  slmSections.map((section, index) => (
+                    <section key={`${section.title}-${index}`} className="space-y-2">
+                      <div>
+                        <h3 className="text-base font-semibold leading-6 text-foreground">{section.title}</h3>
+                        {section.pages ? <p className="text-sm leading-5 text-muted-foreground">{section.pages}</p> : null}
+                      </div>
+                      {section.body.split(/\n{2,}/).map((paragraph, paragraphIndex) => (
+                        <p key={paragraphIndex}>{paragraph}</p>
+                      ))}
+                    </section>
+                  ))
+                ) : (
+                  <p>
+                    No extracted SLM text is available yet. The document metadata is loaded, but preprocessing has not
+                    produced structured content for this file.
+                  </p>
+                )}
+              </article>
+            ) : null}
 
             <FlagList flags={selectedScore.evidenceFlags} />
           </div>
