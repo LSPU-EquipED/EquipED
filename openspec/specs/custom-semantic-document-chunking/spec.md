@@ -38,6 +38,21 @@ The system SHALL use deterministic sizing targets for new chunks, including a ta
 - **WHEN** a page would emit a fragment smaller than the minimum merge threshold and a safe adjacent merge exists on the same page
 - **THEN** the system SHALL merge the fragment rather than emit an isolated tiny chunk
 
+### Requirement: Repeated page boilerplate is removed before chunking
+The system SHALL remove repeated page headers and footers from newly uploaded document pages before chunking so that per-page boilerplate does not contaminate downstream semantic chunks.
+
+#### Scenario: Shared header appears on most pages
+- **WHEN** a repeated header is present on most pages of a newly uploaded document
+- **THEN** the system SHALL strip that header from the page text before chunking
+
+#### Scenario: Shared footer appears on most pages
+- **WHEN** a repeated footer is present on most pages of a newly uploaded document
+- **THEN** the system SHALL strip that footer from the page text before chunking
+
+#### Scenario: Non-repeated content is preserved
+- **WHEN** a line only appears on a few pages or is part of real page content
+- **THEN** the system SHALL keep it in the chunking input
+
 ### Requirement: Overlap remains structure-aware with deterministic fallback
 The system SHALL create overlap from a trailing structural or sentence boundary when available and SHALL fall back to a word-tail overlap when no cleaner boundary exists.
 

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .exceptions import ExtractionFailedError, PasswordProtectedPDFError
+from .boilerplate import strip_repeated_page_boilerplate
 from .schemas import DocumentChunkData
 
 _MIN_SELECTABLE_TEXT_LEN = 20
@@ -94,17 +95,27 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
             if doc.is_encrypted:
                 raise PasswordProtectedPDFError("PDF is password-protected")
 
+            raw_pages: list[str] = []
+            is_ocr_flags: list[bool] = []
+            page_numbers: list[int] = []
+
             for index, page in enumerate(doc, start=1):
                 selectable = (page.get_text() or "").strip()
                 if len(selectable) >= _MIN_SELECTABLE_TEXT_LEN:
-                    pages.append(ExtractedPage(index, selectable, False))
+                    raw_pages.append(selectable)
+                    is_ocr_flags.append(False)
+                    page_numbers.append(index)
                     continue
 
                 ocr_text = _perform_ocr(page)
                 if ocr_text.strip():
-                    pages.append(ExtractedPage(index, ocr_text.strip(), True))
+                    raw_pages.append(ocr_text.strip())
+                    is_ocr_flags.append(True)
+                    page_numbers.append(index)
                 else:
-                    pages.append(ExtractedPage(index, "", True))
+                    raw_pages.append("")
+                    is_ocr_flags.append(True)
+                    page_numbers.append(index)
     except PasswordProtectedPDFError:
         raise
     except Exception as exc:
@@ -118,7 +129,14 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
         )
         raise ExtractionFailedError("Failed to extract document pages") from exc
 
-    return [page for page in pages if page.text.strip()]
+    cleaned_pages = strip_repeated_page_boilerplate(raw_pages)
+    pages = [
+        ExtractedPage(page_number, text, is_ocr)
+        for page_number, text, is_ocr in zip(page_numbers, cleaned_pages, is_ocr_flags, strict=False)
+        if text.strip()
+    ]
+
+    return pages
 
 
 def _perform_ocr(page: object) -> str:
