@@ -41,6 +41,16 @@ const AGENT_CONFIGS: Record<
   },
 };
 
+function escapeHtml(value: unknown): string {
+  const text = typeof value === 'string' ? value : String(value ?? '');
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getExportTotal(domainData: ExportDomainData) {
   return domainData.subtotal;
 }
@@ -81,7 +91,7 @@ function buildExportHtml(domainData: ExportDomainData) {
       (row, idx) => `
         <tr>
           <td class="item">${idx + 1}</td>
-          <td>${row.criterion_text}</td>
+          <td>${escapeHtml(row.criterion_text)}</td>
           ${['4', '3', '2', '1']
             .map(
               (rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`,
@@ -93,7 +103,7 @@ function buildExportHtml(domainData: ExportDomainData) {
 
   const comments = domainData.criteria
     .filter((c) => c.justification)
-    .map((c) => c.justification)
+    .map((c) => escapeHtml(c.justification))
     .join('\n\n');
 
   return `<!doctype html>
@@ -136,7 +146,7 @@ function buildExportHtml(domainData: ExportDomainData) {
       <div class="line-grid">
         <div>Name of Faculty: <span class="line">Faculty Reviewer</span></div>
         <div>College: <span class="line">LSPU SCC</span></div>
-        <div>Course Title: <span class="line">${domainData.documentTitle || 'Outcomes-Based Learning Module'}</span></div>
+        <div>Course Title: <span class="line">${escapeHtml(domainData.documentTitle) || 'Outcomes-Based Learning Module'}</span></div>
         <div>Semester: <span class="line">1st</span></div>
         <div>Academic Year: <span class="line">2025-2026</span></div>
       </div>
