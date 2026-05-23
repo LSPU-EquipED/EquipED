@@ -33,6 +33,17 @@ class DocumentChunkData(BaseModel):
     is_ocr: bool
 
 
+class DocumentChunkResponse(BaseModel):
+    chunk_id: UUID
+    document_id: UUID
+    source_type: str
+    agent_domain: str
+    page_number: int
+    text: str
+    token_count: int
+    is_ocr: bool
+
+
 class DocumentUploadResponse(BaseModel):
     document_id: UUID
     title: str
@@ -62,6 +73,7 @@ class DocumentResponse(BaseModel):
     key_facts: dict[str, object] | None = None
     processing_warnings: list[str] | None = None
     evaluation_readiness: str | None = None
+    chunks: list[DocumentChunkResponse] = Field(default_factory=list)
 
 
 class DocumentListResponse(BaseModel):
@@ -80,6 +92,7 @@ __all__ = [
     "SOURCE_TYPES",
     "PROCESSING_STATUSES",
     "DocumentChunkData",
+    "DocumentChunkResponse",
     "DocumentUploadResponse",
     "DocumentResponse",
     "DocumentListResponse",

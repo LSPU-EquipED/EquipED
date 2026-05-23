@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.exceptions import DocumentNotFoundError
-from server.modules.documents.schemas import DocumentResponse
+from server.modules.documents.schemas import DocumentChunkData, DocumentResponse
 from server.modules.documents.service import (
+    _MEM_CHUNKS,
     _MEM_DOCUMENT_OWNERS,
     _MEM_DOCUMENTS,
     get_document,
@@ -310,5 +311,56 @@ def test_in_memory_documents_respect_ownership_scoping() -> None:
     with pytest.raises(DocumentNotFoundError):
         get_document(doc_id, other_id, 'faculty', db=None)
 
+    _MEM_DOCUMENTS.clear()
+    _MEM_DOCUMENT_OWNERS.clear()
+
+
+def test_get_document_returns_chunks_ordered_by_page_for_owner() -> None:
+    doc_id = uuid.uuid4()
+    owner_id = uuid.uuid4()
+    document = DocumentResponse(
+        document_id=doc_id,
+        title='Chunked Memory Doc',
+        source_type='slm',
+        processing_status='PROCESSED',
+        has_ocr_pages=False,
+        uploaded_at=datetime.now(UTC),
+        uploaded_by=owner_id,
+    )
+    _MEM_DOCUMENTS[doc_id] = document
+    _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+    _MEM_CHUNKS[doc_id] = [
+        DocumentChunkData(
+            chunk_id=uuid.uuid4(),
+            document_id=doc_id,
+            source_type='slm',
+            agent_domain='all',
+            page_number=2,
+            text='page two text',
+            token_count=3,
+            is_ocr=False,
+        ),
+        DocumentChunkData(
+            chunk_id=uuid.uuid4(),
+            document_id=doc_id,
+            source_type='slm',
+            agent_domain='all',
+            page_number=1,
+            text='page one text',
+            token_count=3,
+            is_ocr=False,
+        ),
+    ]
+
+    response = get_document(doc_id, owner_id, 'faculty', db=None)
+
+    assert [chunk.document_id for chunk in response.chunks] == [doc_id, doc_id]
+    assert [chunk.page_number for chunk in response.chunks] == [1, 2]
+    assert [chunk.text for chunk in response.chunks] == [
+        'page one text',
+        'page two text',
+    ]
+
+    _MEM_CHUNKS.clear()
     _MEM_DOCUMENTS.clear()
     _MEM_DOCUMENT_OWNERS.clear()

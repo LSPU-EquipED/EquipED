@@ -11,6 +11,28 @@ export const DOCUMENT_SOURCE_TYPES = [
 export type DocumentSourceType = (typeof DOCUMENT_SOURCE_TYPES)[number];
 export type DocumentProcessingStatus = 'PENDING' | 'PROCESSED' | 'FAILED';
 
+export type RawDocumentChunk = {
+  chunk_id: string;
+  document_id: string;
+  source_type: DocumentSourceType;
+  agent_domain: string;
+  page_number: number;
+  text: string;
+  token_count: number;
+  is_ocr: boolean;
+};
+
+export type ClientDocumentChunk = {
+  chunkId: string;
+  documentId: string;
+  sourceType: DocumentSourceType;
+  agentDomain: string;
+  pageNumber: number;
+  text: string;
+  tokenCount: number;
+  isOcr: boolean;
+};
+
 export type RawDocumentResponse = {
   document_id: string;
   title: string;
@@ -28,6 +50,7 @@ export type RawDocumentResponse = {
   key_facts?: Record<string, unknown> | null;
   processing_warnings?: string[] | null;
   evaluation_readiness?: string | null;
+  chunks?: RawDocumentChunk[] | null;
 };
 
 export type ClientDocument = {
@@ -47,6 +70,7 @@ export type ClientDocument = {
   keyFacts?: Record<string, unknown> | null;
   processingWarnings?: string[] | null;
   evaluationReadiness?: string | null;
+  chunks: ClientDocumentChunk[];
 };
 
 export type RawDocumentListResponse = {
@@ -85,6 +109,19 @@ export type DocumentUploadResponse = {
   evaluationReadiness?: string | null;
 };
 
+function mapDocumentChunk(chunk: RawDocumentChunk): ClientDocumentChunk {
+  return {
+    chunkId: chunk.chunk_id,
+    documentId: chunk.document_id,
+    sourceType: chunk.source_type,
+    agentDomain: chunk.agent_domain,
+    pageNumber: chunk.page_number,
+    text: chunk.text,
+    tokenCount: chunk.token_count,
+    isOcr: chunk.is_ocr,
+  };
+}
+
 export function mapDocumentResponse(document: RawDocumentResponse): ClientDocument {
   return {
     documentId: document.document_id,
@@ -103,6 +140,7 @@ export function mapDocumentResponse(document: RawDocumentResponse): ClientDocume
     keyFacts: document.key_facts,
     processingWarnings: document.processing_warnings,
     evaluationReadiness: document.evaluation_readiness,
+    chunks: (document.chunks ?? []).map(mapDocumentChunk),
   };
 }
 
