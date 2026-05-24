@@ -36,22 +36,55 @@ def retrieve_context(
     try:
         model = get_embedding_model()
         query_embedding = model.encode([query_text], show_progress_bar=False).tolist()[0]
-
-        collection = get_chroma_client().get_collection(collection_name)
-
-        where_filter: dict[str, Any] | None = None
-        if document_id_filter:
-            where_filter = {"document_id": {"$eq": document_id_filter}}
-
-        result = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=where_filter,
-            include=["documents", "metadatas", "distances"],
+        return _query_collection(
+            collection_name, query_embedding, n_results, document_id_filter,
         )
-        return _parse_chroma_results(result)
     except Exception:
         return []
+
+
+def retrieve_context_with_embedding(
+    query_embedding: list[float],
+    collection_name: str,
+    n_results: int = 5,
+    document_id_filter: str | None = None,
+) -> list[RetrievedChunk]:
+    """Retrieve nearest chunks using a pre-computed embedding.
+
+    This avoids re-encoding the same query text across multiple collection
+    queries (e.g. rubric + reference lookups in precompute).
+    """
+    if not query_embedding:
+        return []
+
+    try:
+        return _query_collection(
+            collection_name, query_embedding, n_results, document_id_filter,
+        )
+    except Exception:
+        return []
+
+
+def _query_collection(
+    collection_name: str,
+    query_embedding: list[float],
+    n_results: int,
+    document_id_filter: str | None,
+) -> list[RetrievedChunk]:
+    """Internal: query a Chroma collection with a ready embedding vector."""
+    collection = get_chroma_client().get_collection(collection_name)
+
+    where_filter: dict[str, Any] | None = None
+    if document_id_filter:
+        where_filter = {"document_id": {"$eq": document_id_filter}}
+
+    result = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=n_results,
+        where=where_filter,
+        include=["documents", "metadatas", "distances"],
+    )
+    return _parse_chroma_results(result)
 
 
 def _parse_chroma_results(result: dict[str, Any]) -> list[RetrievedChunk]:
