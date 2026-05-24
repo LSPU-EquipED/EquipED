@@ -182,3 +182,54 @@ def test_evaluation_flag_item_rejects_uuid_string_as_agent_name() -> None:
     )
 
     assert flag.agent_id == "coordinator"
+
+
+def test_criterion_score_item_accepts_evidence_and_chunk_ids() -> None:
+    """CriterionScoreItem should accept optional evidence and chunk_ids fields."""
+    from server.modules.synthesis.schemas import CriterionScoreItem
+
+    item = CriterionScoreItem(
+        criterion_id="c1",
+        criterion_text="Clear learning outcomes",
+        score=4,
+        justification="Well-defined outcomes aligned with standards",
+        evidence="Section 2 states measurable outcomes...",
+        chunk_ids='["uuid-1", "uuid-2"]',
+    )
+
+    assert item.evidence == "Section 2 states measurable outcomes..."
+    assert item.chunk_ids == '["uuid-1", "uuid-2"]'
+
+
+def test_criterion_score_item_evidence_and_chunk_ids_are_optional() -> None:
+    """evidence and chunk_ids should default to None when not provided."""
+    from server.modules.synthesis.schemas import CriterionScoreItem
+
+    item = CriterionScoreItem(
+        criterion_id="c2",
+        criterion_text="Assessment alignment",
+        score=3,
+        justification="Mostly aligned",
+    )
+
+    assert item.evidence is None
+    assert item.chunk_ids is None
+
+
+def test_evaluation_flag_item_criterion_text_separate_from_justification() -> None:
+    """criterion_text and justification should be independently settable."""
+    from server.modules.synthesis.schemas import EvaluationFlagItem
+
+    flag = EvaluationFlagItem(
+        flag_id=uuid.uuid4(),
+        evaluation_id=uuid.uuid4(),
+        agent_id="sme",
+        criterion_id="c1",
+        criterion_text="Clear learning outcomes",
+        score=2,
+        justification="Outcomes are vague and not measurable",
+    )
+
+    assert flag.criterion_text == "Clear learning outcomes"
+    assert flag.justification == "Outcomes are vague and not measurable"
+    assert flag.criterion_text != flag.justification

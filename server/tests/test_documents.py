@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,6 +16,9 @@ from server.modules.documents.service import (
     _MEM_CHUNKS,
     _MEM_DOCUMENT_OWNERS,
     _MEM_DOCUMENTS,
+    _cleanup_failed_upload,
+    _sanitize_error,
+    create_document,
     get_document,
     list_documents,
 )
@@ -364,3 +368,143 @@ def test_get_document_returns_chunks_ordered_by_page_for_owner() -> None:
     _MEM_CHUNKS.clear()
     _MEM_DOCUMENTS.clear()
     _MEM_DOCUMENT_OWNERS.clear()
+
+
+def test_upload_failed_processing_returns_error_message(
+    client: TestClient,
+    seeded_user: User,
+) -> None:
+    """Verify that when document processing fails, error_message is returned."""
+    login_response = client.post(
+        '/api/v1/auth/login',
+        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+    )
+    assert login_response.status_code == 200
+
+    # Upload a PDF that will fail extraction (not a real PDF structure)
+    response = client.post(
+        '/api/v1/documents/upload',
+        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        data={
+            'source_type': 'slm',
+            'title': 'Broken Document',
+            'program': 'bsit',
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data['processing_status'] == 'FAILED'
+    assert data['error_message'] is not None
+    assert len(data['error_message']) > 0
+
+
+def test_failed_upload_cleans_up_orphaned_file(
+    client: TestClient,
+    seeded_user: User,
+) -> None:
+    """Verify that when document processing fails, the uploaded file is removed."""
+    login_response = client.post(
+        '/api/v1/auth/login',
+        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+    )
+    assert login_response.status_code == 200
+
+    # Upload a PDF that will fail extraction
+    response = client.post(
+        '/api/v1/documents/upload',
+        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        data={
+            'source_type': 'slm',
+            'title': 'Broken Document',
+            'program': 'bsit',
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data['processing_status'] == 'FAILED'
+
+    # Verify the orphaned file was cleaned up
+    uploads_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
+    doc_file = uploads_dir / f"{data['document_id']}.pdf"
+    assert not doc_file.exists(), f"Orphaned file should have been removed: {doc_file}"
+
+
+def test_cleanup_failed_upload_removes_existing_file() -> None:
+    """Verify _cleanup_failed_upload removes an existing file."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+        assert tmp_path.exists()
+
+        _cleanup_failed_upload(tmp_path)
+
+        assert not tmp_path.exists()
+
+
+def test_cleanup_failed_upload_handles_missing_file() -> None:
+    """Verify _cleanup_failed_upload does not raise when file is already gone."""
+    non_existent = Path("/tmp/nonexistent_test_file_12345.pdf")
+    # Should not raise
+    _cleanup_failed_upload(non_existent)
+
+
+def test_sanitize_error_strips_file_paths() -> None:
+    """Verify _sanitize_error removes internal file paths."""
+    raw = "File not found: /Volumes/Projects/repos/EquipED/uploads/abc123.pdf"
+    result = _sanitize_error(raw)
+    assert "/Volumes" not in result
+    assert ".pdf" not in result
+    assert result == "The uploaded file could not be processed."
+
+
+def test_sanitize_error_maps_known_messages() -> None:
+    """Verify known internal messages are mapped to user-friendly text."""
+    assert _sanitize_error("PyMuPDF is not installed") == (
+        "Document processing is unavailable. Please contact support."
+    )
+    assert _sanitize_error("Failed to extract document pages") == (
+        "The PDF could not be read. It may be corrupted or unsupported."
+    )
+
+
+def test_sanitize_error_truncates_long_messages() -> None:
+    """Verify excessively long error messages are truncated."""
+    long_msg = "X" * 300
+    result = _sanitize_error(long_msg)
+    assert len(result) <= 200
+    assert result.endswith("...")
+
+
+def test_failed_upload_error_message_is_sanitized(
+    client: TestClient,
+    seeded_user: User,
+) -> None:
+    """Verify that failed upload responses do not leak internal file paths."""
+    login_response = client.post(
+        '/api/v1/auth/login',
+        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+    )
+    assert login_response.status_code == 200
+
+    response = client.post(
+        '/api/v1/documents/upload',
+        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        data={
+            'source_type': 'slm',
+            'title': 'Broken Document',
+            'program': 'bsit',
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data['processing_status'] == 'FAILED'
+    error_msg = data.get('error_message', '')
+    assert error_msg is not None
+    # Should not contain internal filesystem paths
+    assert '/Volumes' not in error_msg
+    assert '/tmp/' not in error_msg
+    assert '/uploads/' not in error_msg
