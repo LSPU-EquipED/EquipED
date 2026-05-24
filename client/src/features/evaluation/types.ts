@@ -11,6 +11,8 @@ export interface CriterionScoreItem {
   criterion_text: string;
   score: number;
   justification: string;
+  evidence?: string | null;
+  chunk_ids?: string | null;
 }
 
 export interface DomainScoreBlock {

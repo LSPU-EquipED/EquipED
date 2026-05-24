@@ -47,6 +47,11 @@ def get_evaluation_results(
     for score in criterion_scores:
         criteria_by_result.setdefault(score.agent_result_id, []).append(score)
 
+    # Build a lookup from criterion_score_id -> CriterionScore for flag resolution
+    criterion_by_id: dict[uuid.UUID, CriterionScore] = {
+        score.criterion_score_id: score for score in criterion_scores
+    }
+
     domain_scores = {
         result.agent_name: {
             "criteria": [
@@ -55,6 +60,8 @@ def get_evaluation_results(
                     "criterion_text": score.criterion_title,
                     "score": score.score,
                     "justification": score.justification,
+                    "evidence": score.evidence,
+                    "chunk_ids": score.chunk_ids,
                 }
                 for score in criteria_by_result.get(result.agent_result_id, [])
             ],
@@ -78,7 +85,9 @@ def get_evaluation_results(
                 evaluation_id=flag.evaluation_id,
                 agent_id=agent_name_map.get(flag.agent_result_id, str(flag.agent_result_id)),
                 criterion_id=flag.criterion_id,
-                criterion_text=flag.reason,
+                criterion_text=criterion_by_id[flag.criterion_score_id].criterion_title
+                if flag.criterion_score_id in criterion_by_id
+                else flag.criterion_id,
                 score=flag.score,
                 justification=flag.reason,
                 chunk_id=flag.chunk_id,

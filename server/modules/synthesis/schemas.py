@@ -13,6 +13,8 @@ class CriterionScoreItem(BaseModel):
     criterion_text: str
     score: int
     justification: str
+    evidence: str | None = None
+    chunk_ids: str | None = None
 
 
 class DomainScoreBlock(BaseModel):
