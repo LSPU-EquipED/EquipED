@@ -54,6 +54,7 @@ class Supervisor:
         query_text: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> SupervisorResult:
+        eval_start = time.perf_counter()
         context = context or {}
         result = SupervisorResult(evaluation_id=evaluation_id, document_id=document_id)
         settings = get_settings()
@@ -85,8 +86,20 @@ class Supervisor:
         # Each agent receives only the context for its own rubric/reference
         # source types, preserving per-agent scope while avoiding repeated
         # embedding + Chroma queries with the same query text.
+        precompute_start = time.perf_counter()
+        # Compute the query embedding once and reuse it across all retrieval
+        # calls in precompute, avoiding redundant model.encode() calls.
+        query_embedding = self._compute_query_embedding(query_text)
         precomputed_context = self._build_precomputed_context(
-            query_text, reference_document_ids=reference_document_ids,
+            query_text,
+            query_embedding=query_embedding,
+            reference_document_ids=reference_document_ids,
+        )
+        precompute_seconds = time.perf_counter() - precompute_start
+        logger.info(
+            "[EVAL_TIMING] phase=precompute_context | seconds=%.3f | sources=%d",
+            precompute_seconds,
+            len(precomputed_context),
         )
 
         for idx, agent in enumerate(self.agents):
@@ -100,9 +113,16 @@ class Supervisor:
             # Smart pacing: sleep BEFORE the LLM call (not after), and skip
             # the sleep before the very first agent. This eliminates the
             # wasted post-final-agent sleep while preserving rate-limit safety.
-            if idx > 0 and settings.llm_agent_delay_seconds > 0:
-                time.sleep(settings.llm_agent_delay_seconds)
+            # Per-agent delays take precedence over the global fallback.
+            sleep_seconds = 0.0
+            if idx > 0:
+                sleep_seconds = self._get_agent_delay(
+                    agent_name, settings,
+                )
+                if sleep_seconds > 0:
+                    time.sleep(sleep_seconds)
 
+            agent_start = time.perf_counter()
             try:
                 agent_result = agent.run(
                     evaluation_id=evaluation_id,
@@ -116,6 +136,14 @@ class Supervisor:
                 )
                 result.agent_results.append(agent_result)
             except Exception as exc:
+                agent_seconds = time.perf_counter() - agent_start
+                logger.warning(
+                    "[EVAL_TIMING] agent=%s | status=failed | seconds=%.3f | sleep_before=%.3f | error=%s",
+                    agent_name,
+                    agent_seconds,
+                    sleep_seconds,
+                    str(exc)[:200],
+                )
                 result.agent_results.append(
                     AgentEvaluationResult(
                         agent_name=agent_name,
@@ -133,16 +161,53 @@ class Supervisor:
                     )
                 )
                 result.failures[agent_name] = str(exc)
+            else:
+                agent_seconds = time.perf_counter() - agent_start
+                logger.info(
+                    "[EVAL_TIMING] agent=%s | status=ok | seconds=%.3f | sleep_before=%.3f",
+                    agent_name,
+                    agent_seconds,
+                    sleep_seconds,
+                )
+
+        total_seconds = time.perf_counter() - eval_start
+        logger.info(
+            "[EVAL_TIMING] phase=evaluation_total | seconds=%.3f | agents=%d | failures=%d",
+            total_seconds,
+            len(result.agent_results),
+            len(result.failures),
+        )
 
         if not result.agent_results:
             raise SupervisorExecutionError("No usable agent outputs were produced")
 
         return result
 
+    def _compute_query_embedding(self, query_text: str) -> list[float] | None:
+        """Encode query text once for reuse across retrieval calls."""
+        if not query_text or not query_text.strip():
+            return None
+        try:
+            from server.core.embedding import get_embedding_model
+            model = get_embedding_model()
+            return model.encode([query_text], show_progress_bar=False).tolist()[0]
+        except Exception:
+            return None
+
+    def _get_agent_delay(
+        self, agent_name: str, settings: Any,
+    ) -> int:
+        """Return per-agent delay if configured, else global fallback."""
+        per_agent = getattr(settings, "llm_agent_delay_per_agent", None)
+        if per_agent and agent_name in per_agent:
+            return int(per_agent[agent_name])
+        return getattr(settings, "llm_agent_delay_seconds", 0)
+
     def _build_precomputed_context(
         self,
         query_text: str,
         *,
+        query_embedding: list[float] | None = None,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
     ) -> dict[str, list[str]]:
         """Pre-compute retrieval results per source-type (not merged).
@@ -150,11 +215,38 @@ class Supervisor:
         Each agent will look up only its own source types from this dict,
         preserving per-agent scope while avoiding repeated embedding + Chroma
         queries with the same query text.
+
+        When ``query_embedding`` is provided it is reused across all retrieval
+        calls, avoiding redundant model.encode() invocations.
         """
         from server.modules.embeddings.collections import resolve_collection_name
-        from server.modules.embeddings.retrieval import retrieve_context
+        from server.modules.embeddings.retrieval import (
+            retrieve_context,
+            retrieve_context_with_embedding,
+        )
 
         precomputed: dict[str, list[str]] = {}
+
+        def _retrieve(
+            source_type: str,
+            *,
+            document_id_filter: str | None = None,
+            n_results: int = 5,
+        ) -> list[str]:
+            collection_name = resolve_collection_name(source_type)
+            if query_embedding is not None:
+                chunks = retrieve_context_with_embedding(
+                    query_embedding, collection_name,
+                    n_results=n_results,
+                    document_id_filter=document_id_filter,
+                )
+            else:
+                chunks = retrieve_context(
+                    query_text, collection_name,
+                    n_results=n_results,
+                    document_id_filter=document_id_filter,
+                )
+            return [c.text for c in chunks]
 
         # Pre-compute rubric context for each agent's rubric source type.
         rubric_sources = (
@@ -162,11 +254,7 @@ class Supervisor:
         )
         for source_type in rubric_sources:
             try:
-                collection_name = resolve_collection_name(source_type)
-                chunks = retrieve_context(
-                    query_text, collection_name, n_results=5,
-                )
-                precomputed[source_type] = [c.text for c in chunks]
+                precomputed[source_type] = _retrieve(source_type)
             except Exception:
                 precomputed[source_type] = []
 
@@ -176,16 +264,12 @@ class Supervisor:
                 if source_type not in reference_document_ids:
                     continue
                 try:
-                    collection_name = resolve_collection_name(source_type)
-                    chunks = retrieve_context(
-                        query_text,
-                        collection_name,
-                        n_results=5,
+                    precomputed[source_type] = _retrieve(
+                        source_type,
                         document_id_filter=str(
                             reference_document_ids[source_type],
                         ),
                     )
-                    precomputed[source_type] = [c.text for c in chunks]
                 except Exception:
                     precomputed[source_type] = []
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -29,6 +30,23 @@ def _csv_env(name: str) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+# Repo root is three levels up from this file (server/core/config.py).
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _resolve_chroma_path(value: str) -> str:
+    """Resolve chroma_persist_directory against repo root if relative.
+
+    Absolute paths are preserved as-is.
+    Relative paths (including the default "chroma_data") resolve against
+    the repository root so they never accidentally land under server/.
+    """
+    p = Path(value)
+    if p.is_absolute():
+        return str(p)
+    return str(_REPO_ROOT / p)
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str = "EquipEd"
@@ -47,9 +65,7 @@ class Settings:
     bootstrap_admin_name: str | None = None
     bootstrap_admin_password: str | None = None
 
-    chroma_persist_directory: str = str(
-        Path(__file__).resolve().parent.parent.parent / "chroma_data"
-    )
+    chroma_persist_directory: str = _resolve_chroma_path("chroma_data")
     chroma_host: str | None = None
     chroma_port: int | None = None
     chroma_ssl: bool = False
@@ -62,7 +78,17 @@ class Settings:
     llm_max_new_tokens: int = 2048
     llm_agent_delay_seconds: int = 0
 
+    # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
+    # Falls back to llm_agent_delay_seconds for any agent not listed.
+    llm_agent_delay_per_agent: dict[str, int] = field(default_factory=dict)
+
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
+
+    # Per-agent prompt packing caps (Phase 1, deterministic)
+    agent_max_chunks: int = 12
+    agent_max_excerpt_chars: int = 800
+    agent_prompt_budget_chars: int = 12000
+    agent_small_doc_threshold: int = 6
 
     @property
     def database_configured(self) -> bool:
@@ -125,6 +151,66 @@ def get_settings() -> Settings:
             "LLM_AGENT_DELAY_SECONDS must be a valid integer"
         ) from exc
 
+    llm_agent_delay_per_agent_raw = _env("LLM_AGENT_DELAY_PER_AGENT", "{}")
+    try:
+        parsed_llm_agent_delay_per_agent = json.loads(
+            llm_agent_delay_per_agent_raw or "{}"
+        )
+        if not isinstance(parsed_llm_agent_delay_per_agent, dict):
+            raise ConfigurationError(
+                "LLM_AGENT_DELAY_PER_AGENT must be a JSON object"
+            )
+        # Validate all values are integers
+        for key, val in parsed_llm_agent_delay_per_agent.items():
+            if not isinstance(val, int):
+                raise ConfigurationError(
+                    f"LLM_AGENT_DELAY_PER_AGENT[{key}] must be an integer"
+                )
+    except (json.JSONDecodeError, ConfigurationError):
+        raise
+    except Exception as exc:
+        raise ConfigurationError(
+            "LLM_AGENT_DELAY_PER_AGENT must be valid JSON"
+        ) from exc
+
+    agent_max_chunks = _env("AGENT_MAX_CHUNKS", "12")
+    try:
+        parsed_agent_max_chunks = int(agent_max_chunks or "12")
+    except ValueError as exc:
+        raise ConfigurationError("AGENT_MAX_CHUNKS must be a valid integer") from exc
+    if parsed_agent_max_chunks < 1:
+        raise ConfigurationError("AGENT_MAX_CHUNKS must be at least 1")
+
+    agent_max_excerpt_chars = _env("AGENT_MAX_EXCERPT_CHARS", "800")
+    try:
+        parsed_agent_max_excerpt_chars = int(agent_max_excerpt_chars or "800")
+    except ValueError as exc:
+        raise ConfigurationError(
+            "AGENT_MAX_EXCERPT_CHARS must be a valid integer"
+        ) from exc
+    if parsed_agent_max_excerpt_chars < 50:
+        raise ConfigurationError("AGENT_MAX_EXCERPT_CHARS must be at least 50")
+
+    agent_prompt_budget_chars = _env("AGENT_PROMPT_BUDGET_CHARS", "12000")
+    try:
+        parsed_agent_prompt_budget_chars = int(agent_prompt_budget_chars or "12000")
+    except ValueError as exc:
+        raise ConfigurationError(
+            "AGENT_PROMPT_BUDGET_CHARS must be a valid integer"
+        ) from exc
+    if parsed_agent_prompt_budget_chars < 200:
+        raise ConfigurationError("AGENT_PROMPT_BUDGET_CHARS must be at least 200")
+
+    agent_small_doc_threshold = _env("AGENT_SMALL_DOC_THRESHOLD", "6")
+    try:
+        parsed_agent_small_doc_threshold = int(agent_small_doc_threshold or "6")
+    except ValueError as exc:
+        raise ConfigurationError(
+            "AGENT_SMALL_DOC_THRESHOLD must be a valid integer"
+        ) from exc
+    if parsed_agent_small_doc_threshold < 1:
+        raise ConfigurationError("AGENT_SMALL_DOC_THRESHOLD must be at least 1")
+
     settings = Settings(
         app_name=_env("APP_NAME", "EquipEd") or "EquipEd",
         app_version=_env("APP_VERSION", "0.1.0") or "0.1.0",
@@ -140,8 +226,9 @@ def get_settings() -> Settings:
         bootstrap_admin_email=_env("BOOTSTRAP_ADMIN_EMAIL"),
         bootstrap_admin_name=_env("BOOTSTRAP_ADMIN_NAME"),
         bootstrap_admin_password=_env("BOOTSTRAP_ADMIN_PASSWORD"),
-        chroma_persist_directory=_env("CHROMA_PERSIST_DIRECTORY", "chroma_data")
-        or "chroma_data",
+        chroma_persist_directory=_resolve_chroma_path(
+            _env("CHROMA_PERSIST_DIRECTORY", "chroma_data") or "chroma_data",
+        ),
         chroma_host=_env("CHROMA_HOST"),
         chroma_port=parsed_chroma_port,
         chroma_ssl=_bool_env("CHROMA_SSL", False),
@@ -153,6 +240,11 @@ def get_settings() -> Settings:
         llm_temperature=parsed_llm_temperature,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
+        llm_agent_delay_per_agent=parsed_llm_agent_delay_per_agent,
+        agent_max_chunks=parsed_agent_max_chunks,
+        agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
+        agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,
+        agent_small_doc_threshold=parsed_agent_small_doc_threshold,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",
