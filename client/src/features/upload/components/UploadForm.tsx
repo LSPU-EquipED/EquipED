@@ -46,7 +46,7 @@ export function UploadForm() {
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useUploadDocument();
   const [program, setProgram] = useState<ProgramId>('bsit');
   const [subject, setSubject] = useState(subjectsByProgram.bsit[0]);
-  const [sourceType, setSourceType] = useState<DocumentSourceType>('slm');
+  const sourceType: DocumentSourceType = 'slm';
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
@@ -75,10 +75,10 @@ export function UploadForm() {
     try {
       const result = await uploadDocument({
         file,
-        sourceType,
+        sourceType: 'slm',
         title,
         courseTitle: subject,
-        program: sourceType === 'slm' ? program : null,
+        program,
       });
       setUploadResult(result);
     } catch {
@@ -101,8 +101,6 @@ export function UploadForm() {
       fileInputRef.current.value = '';
     }
   };
-
-  const requiresProgram = sourceType === 'slm';
 
   const isSuccess = uploadResult?.processingStatus === 'PROCESSED';
   const isFailed = uploadResult?.processingStatus === 'FAILED';
@@ -128,9 +126,9 @@ export function UploadForm() {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-semibold">Upload an SLM or reference document</h3>
+              <h3 className="text-2xl font-semibold">Upload an SLM</h3>
               <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                Add the document to the authenticated inventory. Processing status will appear in the dashboard after upload.
+                Add your Self-Learning Module to the authenticated inventory. Processing status will appear in the dashboard after upload.
               </p>
             </div>
 
@@ -161,24 +159,8 @@ export function UploadForm() {
               </div>
 
               <div className="space-y-2">
-                <Label>Source type</Label>
-                <Select value={sourceType} onValueChange={(value) => setSourceType(value as DocumentSourceType)}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(sourceTypeLabels) as DocumentSourceType[]).map((sourceTypeKey) => (
-                      <SelectItem key={sourceTypeKey} value={sourceTypeKey}>
-                        {sourceTypeLabels[sourceTypeKey]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label>Program</Label>
-                <Select value={program} onValueChange={handleProgramChange} disabled={!requiresProgram}>
+                <Select value={program} onValueChange={handleProgramChange}>
                   <SelectTrigger className="h-10 rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
@@ -190,7 +172,7 @@ export function UploadForm() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">{requiresProgram ? 'Program is required for SLM uploads.' : 'Program is optional for this source type.'}</p>
+                <p className="text-xs text-muted-foreground">Program is required for SLM uploads.</p>
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -285,7 +267,7 @@ export function UploadForm() {
 
               <div className="rounded-lg border bg-card px-5 py-4">
                 <p className="text-sm font-medium text-muted-foreground">Program and course</p>
-                <p className="mt-1 text-base font-semibold">{requiresProgram ? programLabels[program] : 'Optional program context'}</p>
+                <p className="mt-1 text-base font-semibold">{programLabels[program]}</p>
                 <p className="text-sm text-muted-foreground">{subject}</p>
               </div>
             </>
