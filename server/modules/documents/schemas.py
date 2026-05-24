@@ -53,6 +53,7 @@ class DocumentUploadResponse(BaseModel):
     processing_status: str
     structured_summary: str | None = None
     evaluation_readiness: str | None = None
+    error_message: str | None = None
 
 
 class DocumentResponse(BaseModel):
