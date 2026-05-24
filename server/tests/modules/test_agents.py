@@ -66,6 +66,7 @@ class _BatchAgent:
         prompt_version=None,
         prompt_version_id=None,
         reference_document_ids=None,
+        **kwargs,
     ):
         self.batches.append([chunk["text"] for chunk in chunk_infos])
         return AgentEvaluationResult(
@@ -99,6 +100,7 @@ class _FailingAgent:
         prompt_version=None,
         prompt_version_id=None,
         reference_document_ids=None,
+        **kwargs,
     ):
         self.calls += 1
         raise RuntimeError("agent failed")
@@ -897,3 +899,222 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     assert success_agent.batches == [["one", "two"]]
     assert len(result.agent_results) == 2
     assert result.failures == {"coordinator": "agent failed"}
+
+
+def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> None:
+    """Each agent should only receive its own rubric context from precomputed dict."""
+    monkeypatch.setattr(
+        "server.modules.agents.base.retrieve_context",
+        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    # Precomputed dict has entries for all source types, but each agent
+    # should only use its own rubric_source_type.
+    precomputed = {
+        "rubric_sme": ["sme-only-context"],
+        "rubric_coord": ["coord-only-context"],
+        "rubric_gad": ["gad-only-context"],
+        "rubric_itso": ["itso-only-context"],
+        "syllabus": ["syllabus-context"],
+    }
+
+    class _CapturingAgent(BaseAgent):
+        agent_name = "sme"
+        rubric_source_type = "rubric_sme"
+        reference_source_types = ("syllabus",)
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.captured_rubric = None
+            self.captured_reference = None
+
+        def _build_prompt(self, *, rubric_context, reference_context, **kw):
+            self.captured_rubric = rubric_context
+            self.captured_reference = reference_context
+            return "{}"
+
+    agent = _CapturingAgent(
+        llm_client=_FakeLLM(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
+                ],
+            }
+        )
+    )
+
+    agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "doc text"}],
+        context_text="query",
+        reference_document_ids={"syllabus": uuid4()},
+        precomputed_context=precomputed,
+    )
+
+    # Agent should only get its own rubric context, not all merged together.
+    assert agent.captured_rubric == ["sme-only-context"]
+    assert agent.captured_reference == ["syllabus-context"]
+
+
+def test_precomputed_context_falls_back_when_source_type_missing(
+    monkeypatch,
+) -> None:
+    """Fall back to live retrieval when source type is not precomputed."""
+    monkeypatch.setattr(
+        "server.modules.agents.base.retrieve_context",
+        lambda *args, **kwargs: [_RetrievedChunk("live-retrieved")],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    # Precomputed dict is missing the agent's rubric source type.
+    precomputed = {
+        "rubric_coord": ["other-context"],
+    }
+
+    class _CapturingAgent(BaseAgent):
+        agent_name = "sme"
+        rubric_source_type = "rubric_sme"
+        reference_source_types = ()
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.captured_rubric = None
+
+        def _build_prompt(self, *, rubric_context, **kw):
+            self.captured_rubric = rubric_context
+            return "{}"
+
+    agent = _CapturingAgent(
+        llm_client=_FakeLLM(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
+                ],
+            }
+        )
+    )
+
+    agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "doc text"}],
+        precomputed_context=precomputed,
+    )
+
+    # Should fall back to live retrieval since rubric_sme is not precomputed.
+    assert agent.captured_rubric == ["live-retrieved"]
+
+
+def test_supervisor_pacing_skips_first_and_final_agent(
+    monkeypatch, db_session,
+) -> None:
+    """Pacing sleep happens before agents 2..N, not before agent 1 or after last."""
+    from server.modules.agents.supervisor import Supervisor
+
+    _seed_active_prompts(db_session)
+    prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
+
+    sleep_calls = []
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr("server.modules.agents.supervisor.time.sleep", fake_sleep)
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_active_prompt",
+        lambda agent_id, db: prompt_row,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_settings",
+        lambda: type(
+            "Settings", (), {"llm_agent_delay_seconds": 30},
+        )(),
+    )
+
+    agent = _BatchAgent()
+    supervisor = Supervisor(agents=[agent], db=db_session)
+
+    chunks = [
+        DocumentChunk(
+            chunk_id=uuid4(),
+            document_id=uuid4(),
+            source_type="slm",
+            agent_domain="all",
+            page_number=1,
+            text="one",
+            token_count=1,
+            is_ocr=False,
+            chroma_stored=True,
+        ),
+    ]
+
+    supervisor.run_evaluation(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunks=chunks,
+    )
+
+    # With only 1 agent, there should be NO sleep at all.
+    assert sleep_calls == []
+
+
+def test_supervisor_pacing_with_multiple_agents(monkeypatch, db_session) -> None:
+    """With N agents, pacing should sleep N-1 times (before agents 2..N)."""
+    from server.modules.agents.supervisor import Supervisor
+
+    _seed_active_prompts(db_session)
+    prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
+
+    sleep_calls = []
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr("server.modules.agents.supervisor.time.sleep", fake_sleep)
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_active_prompt",
+        lambda agent_id, db: prompt_row,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_settings",
+        lambda: type(
+            "Settings", (), {"llm_agent_delay_seconds": 15},
+        )(),
+    )
+
+    agents = [_BatchAgent() for _ in range(4)]
+    supervisor = Supervisor(agents=agents, db=db_session)
+
+    chunks = [
+        DocumentChunk(
+            chunk_id=uuid4(),
+            document_id=uuid4(),
+            source_type="slm",
+            agent_domain="all",
+            page_number=1,
+            text="one",
+            token_count=1,
+            is_ocr=False,
+            chroma_stored=True,
+        ),
+    ]
+
+    supervisor.run_evaluation(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunks=chunks,
+    )
+
+    # 4 agents -> 3 sleeps (before agents 2, 3, 4), not 4.
+    assert len(sleep_calls) == 3
+    assert all(s == 15 for s in sleep_calls)

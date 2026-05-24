@@ -2,16 +2,20 @@ import {
   AlertTriangle,
   BookOpen,
   CheckCircle2,
+  Circle,
+  Clock,
   Download,
+  Eye,
   FileText,
   Loader2,
   Lightbulb,
   Scale,
   ShieldCheck,
   Target,
+  XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type PointerEvent } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { documentsApi } from '@/shared/api/documents.api';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/ui/button';
@@ -24,6 +28,11 @@ import {
   SheetTrigger,
 } from '@/shared/components/ui/sheet';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/shared/components/ui/tooltip';
+import {
   Table,
   TableBody,
   TableCell,
@@ -34,7 +43,6 @@ import {
 import { cn } from '@/shared/components/utils';
 import { useFetch } from '@/shared/hooks/useFetch';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
-import { EvaluationStatusBanner } from './EvaluationStatusBanner';
 import { FeedbackPanel } from './FeedbackPanel';
 import { FlagList } from './FlagList';
 import {
@@ -43,11 +51,12 @@ import {
   type ExportAgentId,
   type ExportDomainData,
 } from './ExportDocument';
+import { formatScore } from './scoreHelpers';
 
 import { useQuery } from '@tanstack/react-query';
 import { evaluationApi } from '@/features/evaluation/api/evaluation.api';
 import { useSubmitEvaluation } from '@/features/upload/hooks/useSubmitEvaluation';
-import type { CriterionScoreItem } from '../types';
+import type { CriterionScoreItem, EvaluationFlagItem } from '../types';
 
 const agents = [
   {
@@ -109,10 +118,85 @@ function buildDocumentTextGroups(document: ClientDocument | null): DocumentTextG
     }));
 }
 
+const PIPELINE_STAGES = [
+  { key: 'SUBMITTED', label: 'Submitted' },
+  { key: 'PREPROCESSING', label: 'Preprocessing' },
+  { key: 'EVALUATING', label: 'Evaluating' },
+  { key: 'SYNTHESIZING', label: 'Synthesizing' },
+  { key: 'COMPLETED', label: 'Completed' },
+] as const;
+
+function getStageIndex(status: string | undefined): number {
+  if (!status || status === 'FAILED') return -1;
+  const idx = PIPELINE_STAGES.findIndex((s) => s.key === status);
+  return idx >= 0 ? idx : -1;
+}
+
+function getAgentCardState(
+  agentId: string,
+  results: { domain_scores: Record<string, unknown>; active_agents?: string[]; failed_agents?: string[] } | null | undefined,
+): 'pending' | 'running' | 'done' | 'failed' {
+  if (!results) return 'pending';
+  if (results.failed_agents?.includes(agentId)) return 'failed';
+  if (results.domain_scores[agentId]) return 'done';
+  if (results.active_agents?.includes(agentId)) return 'running';
+  return 'pending';
+}
+
+function getScoreRingColor(score: number): string {
+  if (score >= 85) return '#16a34a'; // emerald-600
+  if (score >= 70) return '#f59e0b'; // amber-500
+  return '#f43f5e'; // rose-500
+}
+
+function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unknown' {
+  const num = Number(rating);
+  if (Number.isNaN(num)) return 'unknown';
+  if (num >= 3) return 'strong';
+  if (num >= 2) return 'medium';
+  return 'weak';
+}
+
+function getCriterionStyles(tier: 'strong' | 'medium' | 'weak' | 'unknown') {
+  switch (tier) {
+    case 'strong':
+      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'medium':
+      return 'bg-amber-50 text-amber-700 border-amber-200';
+    case 'weak':
+      return 'bg-rose-50 text-rose-700 border-rose-200';
+    default:
+      return 'bg-muted text-muted-foreground border-transparent';
+  }
+}
+
+function statusMessage(status: string | undefined, isFailedWithResults: boolean): string {
+  if (isFailedWithResults) {
+    return 'Evaluation failed, but partial results are available for review.';
+  }
+  switch (status) {
+    case 'SUBMITTED':
+      return 'Job submitted. Waiting to start preprocessing…';
+    case 'PREPROCESSING':
+      return 'Preprocessing document contents and preparing chunks for evaluation…';
+    case 'EVALUATING':
+      return 'Running multi-agent evaluation across all review domains…';
+    case 'SYNTHESIZING':
+      return 'Synthesizing agent reports and computing final scores…';
+    case 'COMPLETED':
+      return 'Evaluation completed. Review the scores and criteria below.';
+    case 'FAILED':
+      return 'Evaluation failed. No results were produced.';
+    default:
+      return 'Waiting for evaluation status…';
+  }
+}
+
 const EVAL_STORAGE_PREFIX = 'equiped_eval_';
 
 export function EvaluationInterface() {
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
+  const navigate = useNavigate();
   const submitEvaluation = useSubmitEvaluation();
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('itso');
   const [leftPaneSize, setLeftPaneSize] = useState(48);
@@ -203,24 +287,42 @@ export function EvaluationInterface() {
   const isFailedWithResults = status?.status === 'FAILED' && hasResults;
 
   const domainScore = results?.domain_scores[selectedAgent.id];
+
+  function getShortStatusLabel(score: number): string {
+    if (score >= 3) return 'Strong';
+    if (score >= 2) return 'Moderate';
+    return 'Needs attention';
+  }
+
   const criteriaRows: AgentScoreRow[] = (domainScore?.criteria ?? []).map((criterion: CriterionScoreItem) => ({
-    rating: String(criterion.score),
+    rating: formatScore(criterion.score),
     criterion: criterion.criterion_text,
-    status: criterion.justification || 'Evaluated',
+    status: getShortStatusLabel(criterion.score),
   }));
+
+  const selectedFlags: EvaluationFlagItem[] = results?.flags.filter((flag) => flag.agent_id === selectedAgent.id) || [];
+
   const selectedScore = {
     score: domainScore ? Math.round((domainScore.subtotal / (domainScore.max_score || 1)) * 100) : 0,
     rawScore: domainScore?.subtotal ?? 0,
-    verdict: domainScore?.status === 'OK' ? 'Acceptable' : domainScore?.status === 'ERROR' ? 'Failed' : 'Review recommended',
+    verdict: domainScore
+      ? domainScore.status === 'OK'
+        ? 'Acceptable'
+        : domainScore.status === 'ERROR'
+          ? 'Failed'
+          : 'Review recommended'
+      : isInProgress
+        ? 'Waiting…'
+        : '—',
     summary: domainScore
-      ? `Subtotal ${domainScore.subtotal} of ${domainScore.max_score} weighted points${results?.is_partial || isFailedWithResults ? ' (partial)' : ''}.`
+      ? `Subtotal ${formatScore(domainScore.subtotal)} of ${formatScore(domainScore.max_score)} weighted points${results?.is_partial || isFailedWithResults ? ' (partial)' : ''}.`
       : isInProgress
         ? 'Evaluation in progress...'
         : isFailedWithResults
           ? 'Evaluation failed, but partial results are available.'
           : 'Evaluation results are not available yet.',
-    feedbackComments: [],
-    evidenceFlags: results?.flags.filter((flag) => flag.agent_id === selectedAgent.id).map((flag) => flag.criterion_text) || [],
+    feedbackCriteria: domainScore?.criteria || [],
+    evidenceFlags: selectedFlags,
     rows: criteriaRows,
   };
 
@@ -235,8 +337,18 @@ export function EvaluationInterface() {
   };
 
   const documentTextGroups = useMemo(() => buildDocumentTextGroups(document), [document]);
+  const chunkMap = useMemo(() => {
+    const map = new Map<string, ClientDocumentChunk>();
+    for (const group of documentTextGroups) {
+      for (const chunk of group.chunks) {
+        map.set(chunk.chunkId, chunk);
+      }
+    }
+    return map;
+  }, [documentTextGroups]);
+  const scoreRingColor = domainScore ? getScoreRingColor(selectedScore.score) : 'transparent';
   const scoreRingStyle = {
-    background: `conic-gradient(var(--foreground) ${selectedScore.score * 3.6}deg, var(--muted) 0deg)`,
+    background: `conic-gradient(${scoreRingColor} ${selectedScore.score * 3.6}deg, hsl(var(--muted)) 0deg)`,
   };
   const documentSubtitle = [document?.courseTitle, document?.lessonTitle]
     .filter(Boolean)
@@ -286,21 +398,32 @@ export function EvaluationInterface() {
           </h1>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button type="button" variant="outline" className="gap-2">
+          <span className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
             <FileText className="size-4" aria-hidden="true" />
-            Source
-          </Button>
+            {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
+          </span>
           <Sheet>
             <SheetTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2"
-                disabled={!hasResults || !isTerminal}
-              >
-                <Download className="size-4" aria-hidden="true" />
-                Export
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    disabled={!hasResults || !isTerminal}
+                  >
+                    <Download className="size-4" aria-hidden="true" />
+                    Export
+                  </Button>
+                </TooltipTrigger>
+                {(!hasResults || !isTerminal) && (
+                  <TooltipContent side="bottom">
+                    {!isTerminal
+                      ? 'Available once evaluation completes'
+                      : 'No results to export'}
+                  </TooltipContent>
+                )}
+              </Tooltip>
             </SheetTrigger>
             <SheetContent className="!w-[52vw] !max-w-none gap-0 sm:!max-w-none">
               <SheetHeader className="border-b pr-14">
@@ -319,9 +442,28 @@ export function EvaluationInterface() {
               </div>
             </SheetContent>
           </Sheet>
-          <Button type="button" disabled>
-            Finalize Review
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                className="gap-2"
+                disabled={!isTerminal || !evaluationId}
+                onClick={() => {
+                  if (evaluationId) {
+                    void navigate({ to: '/evaluations/$id', params: { id: evaluationId } });
+                  }
+                }}
+              >
+                <Eye className="size-4" aria-hidden="true" />
+                View Full Report
+              </Button>
+            </TooltipTrigger>
+            {!isTerminal && (
+              <TooltipContent side="bottom">
+                Available once evaluation completes
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
       </header>
 
@@ -392,7 +534,7 @@ export function EvaluationInterface() {
                         <p className="text-sm leading-5 text-muted-foreground">Extracted text</p>
                       </div>
                       {group.chunks.map((chunk) => (
-                        <section key={chunk.chunkId} className="space-y-2">
+                        <section key={chunk.chunkId} id={`chunk-${chunk.chunkId}`} className="space-y-2 rounded-md transition-colors">
                           <p className="text-sm font-semibold leading-5 text-foreground">
                             Page {chunk.pageNumber}
                           </p>
@@ -412,7 +554,7 @@ export function EvaluationInterface() {
               </article>
             ) : null}
 
-            <FlagList flags={selectedScore.evidenceFlags} />
+            <FlagList flags={selectedScore.evidenceFlags} agentLabel={selectedAgent.name} chunkMap={chunkMap} />
           </div>
         </section>
 
@@ -460,7 +602,76 @@ export function EvaluationInterface() {
           </div>
 
           <div className="px-10 py-8">
-            <EvaluationStatusBanner status={status?.status ? `Evaluation status: ${status.status}` : undefined} />
+            {evaluationId && (
+              <div className="mb-6">
+                <div className="flex items-center gap-1">
+                  {PIPELINE_STAGES.map((stage, index) => {
+                    const currentIndex = getStageIndex(status?.status);
+                    const isFailed = status?.status === 'FAILED';
+                    const isCompleted = !isFailed && (index < currentIndex || (status?.status === 'COMPLETED' && index === currentIndex));
+                    const isCurrent = !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
+                    const isUpcoming = isFailed || index > currentIndex;
+
+                    return (
+                      <div key={stage.key} className="flex flex-1 items-center">
+                        <div
+                          className={cn(
+                            'flex flex-1 flex-col items-center gap-1.5 rounded-md py-2',
+                            isCurrent && 'bg-primary/5',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'grid size-6 place-items-center rounded-full text-xs font-bold',
+                              isCompleted && 'bg-primary text-primary-foreground',
+                              isCurrent && 'border-2 border-primary text-primary',
+                              isUpcoming && 'border border-muted-foreground/30 text-muted-foreground',
+                            )}
+                          >
+                            {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
+                            {isCurrent && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                            {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-[10px] font-semibold uppercase tracking-wider',
+                              isCompleted && 'text-primary',
+                              isCurrent && 'text-primary',
+                              isUpcoming && 'text-muted-foreground',
+                            )}
+                          >
+                            {stage.label}
+                          </span>
+                        </div>
+                        {index < PIPELINE_STAGES.length - 1 && (
+                          <div
+                            className={cn(
+                              'mx-1 h-px w-4 flex-shrink-0',
+                              isCompleted ? 'bg-primary' : 'bg-border',
+                            )}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {status?.status === 'FAILED' && (
+                  <div className="mt-3 flex items-center gap-2 rounded-md bg-destructive/5 px-3 py-2">
+                    <XCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+                    <span className="text-sm font-medium text-destructive">
+                      {isFailedWithResults
+                        ? 'Evaluation failed, but partial results are available for review.'
+                        : 'Evaluation failed. No results were produced.'}
+                    </span>
+                  </div>
+                )}
+                {status?.status !== 'FAILED' && (
+                  <p className="mt-3 text-sm font-medium text-muted-foreground">
+                    {statusMessage(status?.status, Boolean(isFailedWithResults))}
+                  </p>
+                )}
+              </div>
+            )}
 
             {isResultsError && isTerminal && (
               <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -492,6 +703,7 @@ export function EvaluationInterface() {
               {agents.map((agent) => {
                 const Icon = agent.icon;
                 const isActive = agent.id === selectedAgentId;
+                const agentState = getAgentCardState(agent.id, results);
 
                 return (
                   <button
@@ -499,7 +711,7 @@ export function EvaluationInterface() {
                     type="button"
                     onClick={() => setSelectedAgentId(agent.id)}
                     className={cn(
-                      'flex min-h-20 items-center gap-4 rounded-lg border p-4 text-left shadow-sm transition-colors',
+                      'flex min-h-20 flex-wrap items-center gap-4 rounded-lg border p-4 text-left shadow-sm transition-colors',
                       isActive
                         ? 'border-foreground bg-foreground text-background'
                         : 'bg-background hover:bg-muted/60',
@@ -514,7 +726,7 @@ export function EvaluationInterface() {
                     >
                       <Icon className="size-5" aria-hidden="true" />
                     </span>
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">{agent.name}</span>
                       <span
                         className={cn(
@@ -525,36 +737,109 @@ export function EvaluationInterface() {
                         {agent.subtitle}
                       </span>
                     </span>
+                    {agentState !== 'pending' && (
+                      <span
+                        className={cn(
+                          'ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+                          agentState === 'done' && 'bg-emerald-100 text-emerald-700',
+                          agentState === 'running' && 'bg-primary/10 text-primary',
+                          agentState === 'failed' && 'bg-destructive/10 text-destructive',
+                        )}
+                      >
+                        {agentState === 'done' && (
+                          <CheckCircle2 className="size-3" aria-hidden="true" />
+                        )}
+                        {agentState === 'running' && (
+                          <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                        )}
+                        {agentState === 'failed' && (
+                          <XCircle className="size-3" aria-hidden="true" />
+                        )}
+                        {agentState === 'done'
+                          ? 'Complete'
+                          : agentState === 'running'
+                            ? 'Running'
+                            : 'Failed'}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            <section className="mt-10 grid gap-4">
-              <div className="flex items-start gap-4">
-                <CheckCircle2
-                  className="mt-1 size-5 shrink-0 text-emerald-600"
-                  aria-hidden="true"
-                />
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
-                  <p className="mt-2 max-w-3xl text-muted-foreground">{selectedScore.summary}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {domainScore ? (
-                  <span className="rounded-md bg-foreground px-3 py-1.5 text-sm font-semibold text-background">
-                    {selectedScore.score}% individual score
-                  </span>
-                ) : (
-                  <span className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground">
-                    {isInProgress ? 'Evaluating…' : '—'}
-                  </span>
+            <section className="mt-10 grid gap-5">
+              <div
+                className={cn(
+                  'rounded-xl border bg-background p-5',
+                  selectedScore.score >= 85 && 'border-emerald-200 bg-emerald-50/30',
+                  selectedScore.score >= 70 && selectedScore.score < 85 && 'border-amber-200 bg-amber-50/30',
+                  selectedScore.score < 70 && domainScore && 'border-rose-200 bg-rose-50/30',
                 )}
-                <span className="rounded-md border px-3 py-1.5 text-sm text-muted-foreground">
-                  {selectedScore.verdict}
-                </span>
+              >
+                <div className="flex items-start gap-4">
+                  {(() => {
+                    const agentState = getAgentCardState(selectedAgent.id, results);
+                    if (agentState === 'done') {
+                      return <CheckCircle2 className="mt-1 size-5 shrink-0 text-emerald-600" aria-hidden="true" />;
+                    }
+                    if (agentState === 'running') {
+                      return <Loader2 className="mt-1 size-5 shrink-0 animate-spin text-primary" aria-hidden="true" />;
+                    }
+                    if (agentState === 'failed') {
+                      return <XCircle className="mt-1 size-5 shrink-0 text-destructive" aria-hidden="true" />;
+                    }
+                    return <Clock className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />;
+                  })()}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
+                    <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">{selectedScore.summary}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {domainScore ? (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold',
+                        selectedScore.score >= 85 && 'bg-emerald-100 text-emerald-800',
+                        selectedScore.score >= 70 && selectedScore.score < 85 && 'bg-amber-100 text-amber-800',
+                        selectedScore.score < 70 && 'bg-rose-100 text-rose-800',
+                      )}
+                    >
+                      <Target className="size-3.5" aria-hidden="true" />
+                      {selectedScore.score}% score
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-muted-foreground">
+                      <Clock className="size-3.5" aria-hidden="true" />
+                      {isInProgress ? 'Evaluating…' : 'No data'}
+                    </span>
+                  )}
+                  {selectedScore.verdict === 'Acceptable' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-800">
+                      <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                      Acceptable
+                    </span>
+                  )}
+                  {selectedScore.verdict === 'Review recommended' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-800">
+                      <AlertTriangle className="size-3.5" aria-hidden="true" />
+                      Review recommended
+                    </span>
+                  )}
+                  {selectedScore.verdict === 'Failed' && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1.5 text-sm font-semibold text-rose-800">
+                      <XCircle className="size-3.5" aria-hidden="true" />
+                      Failed
+                    </span>
+                  )}
+                  {(selectedScore.verdict === 'Waiting…' || selectedScore.verdict === '—') && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground">
+                      <Clock className="size-3.5" aria-hidden="true" />
+                      {selectedScore.verdict}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-lg border bg-background">
@@ -572,21 +857,42 @@ export function EvaluationInterface() {
                   </TableHeader>
                   <TableBody>
                     {selectedScore.rows.length > 0 ? (
-                      selectedScore.rows.map((row) => (
-                        <TableRow key={row.criterion}>
-                          <TableCell>
-                            <span className="inline-grid size-9 place-items-center rounded-full bg-muted font-semibold">
-                              {row.rating}
-                            </span>
-                          </TableCell>
-                          <TableCell className="whitespace-normal text-muted-foreground">{row.criterion}</TableCell>
-                          <TableCell className="whitespace-normal">
-                            <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                              {row.status}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      selectedScore.rows.map((row) => {
+                        const tier = getCriterionTier(row.rating);
+                        const isWeak = tier === 'weak';
+                        return (
+                          <TableRow
+                            key={row.criterion}
+                            className={cn(isWeak && 'bg-rose-50/40')}
+                          >
+                            <TableCell>
+                              <span
+                                className={cn(
+                                  'inline-grid size-9 place-items-center rounded-full border font-semibold text-sm',
+                                  getCriterionStyles(tier),
+                                )}
+                              >
+                                {row.rating}
+                              </span>
+                            </TableCell>
+                            <TableCell className={cn('whitespace-normal', isWeak ? 'text-foreground font-medium' : 'text-muted-foreground')}>
+                              {row.criterion}
+                            </TableCell>
+                            <TableCell className="whitespace-normal">
+                              <span
+                                className={cn(
+                                  'rounded-md border px-2.5 py-1 text-xs font-medium',
+                                  isWeak
+                                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                                    : 'border-muted-foreground/20 bg-background text-muted-foreground',
+                                )}
+                              >
+                                {row.status}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     ) : (
                       <TableRow>
                         <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
@@ -598,18 +904,33 @@ export function EvaluationInterface() {
                 </Table>
               </div>
 
-              <FeedbackPanel comments={selectedScore.feedbackComments} />
+              <FeedbackPanel criteria={selectedScore.feedbackCriteria} />
             </section>
 
             <section className="mt-8 rounded-lg border bg-background p-5">
               <div className="flex items-center gap-2">
                 <Target className="size-4 text-muted-foreground" aria-hidden="true" />
-                <h3 className="font-semibold">Reviewer Decision</h3>
+                <h3 className="font-semibold">Next Steps</h3>
               </div>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Human reviewer may accept the advisory score, revise the agent finding, or return
-                the document for clarification before final review.
+                This evaluation is advisory until reviewed by an authorized human reviewer.
+                Review the criteria and scores above, then open the Full Report for a consolidated
+                view across all agents.
               </p>
+              {isTerminal && evaluationId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 gap-2"
+                  onClick={() => {
+                    void navigate({ to: '/evaluations/$id', params: { id: evaluationId } });
+                  }}
+                >
+                  <Eye className="size-4" aria-hidden="true" />
+                  Open Full Report
+                </Button>
+              )}
             </section>
           </div>
         </section>

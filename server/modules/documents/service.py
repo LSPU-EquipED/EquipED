@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import uuid
 from datetime import UTC, datetime
@@ -61,12 +62,19 @@ def create_document(
     with target_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    error_message: str | None = None
+
     try:
         chunk_data = ingest_document(str(target_path), source_type, str(doc_id))
         page_count = max((chunk.page_number for chunk in chunk_data), default=0)
         has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
-        status = "PROCESSED" if chunk_data else "FAILED"
+        if not chunk_data:
+            status = "FAILED"
+            error_message = "No extractable text was found in the uploaded PDF."
+        else:
+            status = "PROCESSED"
     except ExtractionFailedError as exc:
+        error_message = _sanitize_error(str(exc))
         logger.warning(
             "Document upload processing failed",
             extra={
@@ -78,10 +86,32 @@ def create_document(
                 "exception_message": str(exc),
             },
         )
-        page_count = None
+        page_count = 0
         has_ocr_pages = False
         status = "FAILED"
         chunk_data = []
+    except Exception as exc:
+        error_message = _sanitize_error(
+            f"Unexpected preprocessing error: {exc.__class__.__name__}"
+        )
+        logger.exception(
+            "Document upload preprocessing failed with unexpected error",
+            extra={
+                "document_id": str(doc_id),
+                "file_path": str(target_path),
+                "original_filename": file.filename,
+                "source_type": source_type,
+                "exception_class": exc.__class__.__name__,
+                "exception_message": str(exc),
+            },
+        )
+        page_count = 0
+        has_ocr_pages = False
+        status = "FAILED"
+        chunk_data = []
+
+    if status == "FAILED":
+        _cleanup_failed_upload(target_path)
 
     uploaded_at = datetime.now(UTC)
     structured_summary = None
@@ -150,6 +180,7 @@ def create_document(
         processing_status=status,
         structured_summary=structured_summary,
         evaluation_readiness=evaluation_readiness,
+        error_message=error_message,
     )
 
 
@@ -430,6 +461,39 @@ def _refresh_tfidf_if_needed(source_type: str) -> None:
 
     _MEM_TFIDF.clear()
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
+
+
+def _cleanup_failed_upload(file_path: Path) -> None:
+    """Remove the uploaded file when preprocessing failed."""
+    try:
+        if file_path.exists():
+            file_path.unlink()
+            logger.info(
+                "Cleaned up failed upload file",
+                extra={"file_path": str(file_path)},
+            )
+    except OSError as exc:
+        logger.warning(
+            "Failed to clean up failed upload file",
+            extra={"file_path": str(file_path), "error": str(exc)},
+        )
+
+
+def _sanitize_error(raw_message: str) -> str:
+    """Strip internal details (file paths, stack traces) from error messages."""
+    # Map known internal messages to user-facing equivalents
+    if raw_message.startswith("File not found:"):
+        return "The uploaded file could not be processed."
+    if raw_message == "PyMuPDF is not installed":
+        return "Document processing is unavailable. Please contact support."
+    if raw_message == "Failed to extract document pages":
+        return "The PDF could not be read. It may be corrupted or unsupported."
+    # Strip any remaining filesystem paths as a safety net
+    sanitized = re.sub(r"[/\\][\w./\\_-]+(?:\.pdf|\.db|\.txt)", "[file]", raw_message)
+    # Truncate excessively long messages
+    if len(sanitized) > 200:
+        sanitized = sanitized[:197] + "..."
+    return sanitized
 
 
 __all__ = [

@@ -40,6 +40,7 @@ class BaseAgent:
         prompt_version: str | None = None,
         prompt_version_id: uuid.UUID | None = None,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
+        precomputed_context: dict[str, list[str]] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         if not chunk_infos:
@@ -49,10 +50,14 @@ class BaseAgent:
         if not chunk_texts:
             raise AgentExecutionError("document chunks are required for evaluation")
 
-        rubric_context = self._retrieve_rubric_context("\n".join(chunk_texts))
+        query_text = "\n".join(chunk_texts)
+        rubric_context = self._retrieve_rubric_context(
+            query_text, precomputed_context=precomputed_context,
+        )
         reference_context = self._retrieve_reference_context(
-            context_text or "\n".join(chunk_texts),
+            context_text or query_text,
             reference_document_ids=reference_document_ids,
+            precomputed_context=precomputed_context,
         )
         prompt = self._build_prompt(
             chunk_infos=chunk_infos,
@@ -105,9 +110,17 @@ class BaseAgent:
             },
         )
 
-    def _retrieve_rubric_context(self, query_text: str) -> list[str]:
+    def _retrieve_rubric_context(
+        self,
+        query_text: str,
+        *,
+        precomputed_context: dict[str, list[str]] | None = None,
+    ) -> list[str]:
+        source_type = self.rubric_source_type
+        if precomputed_context and source_type in precomputed_context:
+            return precomputed_context[source_type]
         try:
-            collection_name = resolve_collection_name(self.rubric_source_type)
+            collection_name = resolve_collection_name(source_type)
             chunks = retrieve_context(
                 query_text,
                 collection_name,
@@ -122,9 +135,14 @@ class BaseAgent:
         query_text: str,
         *,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
+        precomputed_context: dict[str, list[str]] | None = None,
     ) -> list[str]:
         results: list[str] = []
         for source_type in self.reference_source_types:
+            # Check precomputed cache first (per-source-type, not merged).
+            if precomputed_context and source_type in precomputed_context:
+                results.extend(precomputed_context[source_type])
+                continue
             if not reference_document_ids or source_type not in reference_document_ids:
                 continue
             try:

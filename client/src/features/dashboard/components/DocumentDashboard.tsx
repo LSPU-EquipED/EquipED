@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowDown, Folder, Search, Upload } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowDown, CheckCircle, Folder, Loader2, Search, Upload } from 'lucide-react';
 import { dashboardApi } from '@/features/dashboard/api/dashboard.api';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent } from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
-import { useFetch } from '@/shared/hooks/useFetch';
 import {
   Table,
   TableBody,
@@ -15,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table';
-import type { ClientDocument } from '@/shared/types/documents';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
+import { cn } from '@/shared/components/utils';
+import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
 
 const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
   slm: 'SLM',
@@ -27,10 +29,20 @@ const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
   curriculum: 'Curriculum',
 };
 
-const processingStatusClasses: Record<ClientDocument['processingStatus'], string> = {
-  PROCESSED: 'bg-emerald-100 text-emerald-800',
-  PENDING: 'bg-amber-100 text-amber-800',
-  FAILED: 'bg-rose-100 text-rose-800',
+const statusConfig: Record<DocumentProcessingStatus, { label: string; className: string; icon?: ReactNode }> = {
+  PENDING: {
+    label: 'Processing…',
+    className: 'bg-amber-100 text-amber-800',
+    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+  },
+  PROCESSED: {
+    label: 'Ready',
+    className: 'bg-emerald-100 text-emerald-800',
+  },
+  FAILED: {
+    label: 'Processing failed',
+    className: 'bg-rose-100 text-rose-800',
+  },
 };
 
 function formatDate(value: string) {
@@ -44,11 +56,27 @@ function formatDate(value: string) {
 export function DocumentDashboard() {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const { data, error, isLoading, execute } = useFetch(dashboardApi.listDocuments);
+  const location = useLocation();
+  const highlightId = useMemo(() => {
+    return new URLSearchParams(location.search).get('highlight');
+  }, [location.search]);
+  const [flashId, setFlashId] = useState<string | null>(highlightId ?? null);
+
+  const { data, error, isLoading } = useQuery({
+    queryKey: ['documents'],
+    queryFn: () => dashboardApi.listDocuments(),
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? [];
+      const hasPending = items.some((d: ClientDocument) => d.processingStatus === 'PENDING');
+      return hasPending ? 4000 : false;
+    },
+  });
 
   useEffect(() => {
-    void execute();
-  }, [execute]);
+    if (!flashId) return;
+    const timer = setTimeout(() => setFlashId(null), 6000);
+    return () => clearTimeout(timer);
+  }, [flashId]);
 
   const documents = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -102,6 +130,13 @@ export function DocumentDashboard() {
       </div>
 
       <Card className="rounded-lg py-0">
+        {flashId ? (
+          <div className="flex items-center gap-2 border-b border-primary/20 bg-primary/5 px-6 py-3 text-sm text-primary">
+            <CheckCircle className="size-4" aria-hidden="true" />
+            Document uploaded successfully and is now ready in your inventory.
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5">
           <p className="text-sm text-muted-foreground">
             {isLoading && !data ? 'Loading documents…' : `${data?.total ?? 0} document${(data?.total ?? 0) === 1 ? '' : 's'} available`}
@@ -146,34 +181,65 @@ export function DocumentDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((document) => (
-                  <TableRow
-                    key={document.documentId}
-                    role="link"
-                    tabIndex={0}
-                    className="group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() => openEvaluationInterface(document.documentId)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openEvaluationInterface(document.documentId);
-                      }
-                    }}
-                  >
-                    <TableCell className="max-w-[22rem] truncate font-medium">
-                      <span className="block truncate underline-offset-4 group-hover:underline">{document.title}</span>
-                    </TableCell>
-                    <TableCell>{sourceTypeLabels[document.sourceType]}</TableCell>
-                    <TableCell>{document.program ?? '—'}</TableCell>
-                    <TableCell>{formatDate(document.uploadedAt)}</TableCell>
-                    <TableCell>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${processingStatusClasses[document.processingStatus]}`}>
-                        {document.processingStatus}
-                      </span>
-                    </TableCell>
-                    <TableCell>{document.pageCount ?? '—'}</TableCell>
-                  </TableRow>
-                ))}
+                {documents.map((document) => {
+                  const isReady = document.processingStatus === 'PROCESSED';
+                  const statusMeta = statusConfig[document.processingStatus];
+                  const isFlashing = flashId === document.documentId;
+
+                  return (
+                    <TableRow
+                      key={document.documentId}
+                      className={cn(
+                        isFlashing && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
+                        isReady && 'group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                      )}
+                      {...(isReady
+                        ? {
+                            role: 'link',
+                            tabIndex: 0,
+                            onClick: () => openEvaluationInterface(document.documentId),
+                            onKeyDown: (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openEvaluationInterface(document.documentId);
+                              }
+                            },
+                          }
+                        : {})}
+                    >
+                      <TableCell className="max-w-[22rem] truncate font-medium">
+                        {isReady ? (
+                          <span className="block truncate underline-offset-4 group-hover:underline">{document.title}</span>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="block truncate cursor-not-allowed opacity-80">{document.title}</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              {document.processingStatus === 'PENDING'
+                                ? 'Processing in progress — check back shortly.'
+                                : 'Processing failed. The document is not ready for evaluation.'}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                      <TableCell>{sourceTypeLabels[document.sourceType]}</TableCell>
+                      <TableCell>{document.program ?? '—'}</TableCell>
+                      <TableCell>{formatDate(document.uploadedAt)}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusMeta.className}`}>
+                          {statusMeta.icon}
+                          {statusMeta.label}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {document.pageCount != null && !(document.processingStatus === 'FAILED' && document.pageCount === 0)
+                          ? document.pageCount
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : null}

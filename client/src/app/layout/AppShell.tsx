@@ -4,6 +4,7 @@ import { Bell, ChevronDown, GraduationCap, LogOut, Search, Settings, UserCircle 
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/components/utils';
+import { TooltipProvider } from '@/shared/components/ui/tooltip';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
@@ -13,7 +14,7 @@ export function AppShell() {
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const { logout, user } = useAuth();
   const initials = user?.displayName
-    .split(/\s+/)
+    ?.split(/\s+/)
     .filter(Boolean)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
@@ -43,7 +44,8 @@ export function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <TooltipProvider>
+      <div className="min-h-screen bg-background text-foreground">
       <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-card/95 px-6 backdrop-blur">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
@@ -138,5 +140,6 @@ export function AppShell() {
         </main>
       </div>
     </div>
+    </TooltipProvider>
   );
 }

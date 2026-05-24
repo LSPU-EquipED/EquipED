@@ -96,6 +96,7 @@ export type RawDocumentUploadResponse = {
   processing_status: DocumentProcessingStatus;
   structured_summary?: string | null;
   evaluation_readiness?: string | null;
+  error_message?: string | null;
 };
 
 export type DocumentUploadResponse = {
@@ -107,6 +108,7 @@ export type DocumentUploadResponse = {
   processingStatus: DocumentProcessingStatus;
   structuredSummary?: string | null;
   evaluationReadiness?: string | null;
+  errorMessage?: string | null;
 };
 
 function mapDocumentChunk(chunk: RawDocumentChunk): ClientDocumentChunk {
@@ -163,5 +165,6 @@ export function mapDocumentUploadResponse(response: RawDocumentUploadResponse): 
     processingStatus: response.processing_status,
     structuredSummary: response.structured_summary,
     evaluationReadiness: response.evaluation_readiness,
+    errorMessage: response.error_message,
   };
 }
