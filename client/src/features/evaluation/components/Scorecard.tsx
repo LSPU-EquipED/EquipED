@@ -6,6 +6,7 @@ import { Separator } from '@/shared/components/ui/separator';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import type { CriterionScoreItem } from '../types';
+import { formatScore, cleanJustification } from './scoreHelpers';
 
 const STATUS_MESSAGES: Record<string, string> = {
   SUBMITTED: 'Job submitted, waiting to start...',
@@ -20,7 +21,7 @@ function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="border rounded-md p-3 bg-card/50">
-      <div 
+      <div
         className="flex items-start justify-between gap-4 cursor-pointer hover:opacity-80 transition-opacity"
         onClick={() => setExpanded(!expanded)}
       >
@@ -29,14 +30,14 @@ function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded">
-            {item.score}/4
+            {formatScore(item.score)}/4
           </span>
           {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
         </div>
       </div>
       {expanded && (
         <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">
-          <p><strong>Justification:</strong> {item.justification}</p>
+          <p><strong>Justification:</strong> {cleanJustification(item.justification)}</p>
         </div>
       )}
     </div>
@@ -128,7 +129,7 @@ export function Scorecard() {
               Synthesized Score
             </p>
             <p className="mt-1 text-3xl font-bold text-primary">
-              {typeof results.synthesized_score === 'number' ? results.synthesized_score.toFixed(2) : '—'}<span className="text-lg text-muted-foreground font-normal">/4.00</span>
+              {typeof results.synthesized_score === 'number' ? formatScore(results.synthesized_score) : '—'}<span className="text-lg text-muted-foreground font-normal">/4</span>
             </p>
           </div>
         )}
@@ -241,11 +242,11 @@ export function Scorecard() {
                         <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700 uppercase">
                           {agentLabels[flag.agent_id] || flag.agent_id}
                         </span>
-                        <span className="font-medium text-orange-900">Score: {flag.score}/4</span>
+                        <span className="font-medium text-orange-900">Score: {formatScore(flag.score)}/4</span>
                       </div>
                       <p className="font-medium mb-1">{flag.criterion_text}</p>
                       {flag.justification && (
-                        <p className="text-muted-foreground mt-2 text-xs">{flag.justification}</p>
+                        <p className="text-muted-foreground mt-2 text-xs">{cleanJustification(flag.justification)}</p>
                       )}
                     </div>
                   ))}
@@ -274,8 +275,8 @@ export function Scorecard() {
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-3xl font-extrabold tracking-tight">{domainData.subtotal}</span>
-                        <span className="text-muted-foreground font-medium text-lg">/ {domainData.max_score}</span>
+                        <span className="text-3xl font-extrabold tracking-tight">{formatScore(domainData.subtotal)}</span>
+                        <span className="text-muted-foreground font-medium text-lg">/ {formatScore(domainData.max_score)}</span>
                       </div>
                     </div>
                     <div className="p-4 flex-1 space-y-3 bg-muted/10 overflow-y-auto">
