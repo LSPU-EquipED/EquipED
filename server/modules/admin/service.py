@@ -1,12 +1,16 @@
-"""Admin service helpers for prompt-version lookup."""
+"""Admin service helpers for prompt-version lookup, user management, and system metrics."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.exc import IntegrityError
+
+from server.modules.auth.models import User, UserRole
+from server.modules.auth.service import create_user as auth_create_user
+from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 
 from .models import PromptVersion
 from server.modules.feedback.service import list_preference_logs
@@ -160,4 +164,75 @@ __all__ = [
     "create_prompt_version",
     "revert_prompt_version",
     "list_preference_logs",
+    "list_users",
+    "create_admin_user",
+    "get_system_summary",
 ]
+
+
+# ---------------------------------------------------------------------------
+# User management
+# ---------------------------------------------------------------------------
+
+def list_users(db: Any) -> list[User]:
+    """Return all registered users."""
+    return db.query(User).order_by(User.created_at.desc()).all()
+
+
+def create_admin_user(
+    db: Any,
+    *,
+    name: str,
+    email: str,
+    password: str,
+    role: str = "faculty",
+) -> User:
+    """Create a new user via the auth service.
+
+    Re-uses the existing create_user logic for password hashing and persistence.
+    """
+    user_role = UserRole(role)
+    return auth_create_user(
+        db,
+        name=name,
+        email=email,
+        password=password,
+        role=user_role,
+        is_active=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# System metrics
+# ---------------------------------------------------------------------------
+
+_TERMINAL_STATUSES = {
+    EvaluationStatus.COMPLETED.value,
+    EvaluationStatus.FAILED.value,
+}
+
+
+def get_system_summary(db: Any) -> dict[str, int]:
+    """Return system-wide counts for the admin dashboard."""
+    from server.modules.documents.models import Document
+
+    total_documents = db.query(func.count()).select_from(Document).scalar() or 0
+
+    total_faculty = db.query(func.count()).select_from(User).filter(
+        User.role == UserRole.FACULTY
+    ).scalar() or 0
+
+    active_evaluations = db.query(func.count()).select_from(EvaluationJob).filter(
+        EvaluationJob.status.not_in(_TERMINAL_STATUSES)
+    ).scalar() or 0
+
+    failed_evaluations = db.query(func.count()).select_from(EvaluationJob).filter(
+        EvaluationJob.status == EvaluationStatus.FAILED.value
+    ).scalar() or 0
+
+    return {
+        "total_documents": total_documents,
+        "total_faculty": total_faculty,
+        "active_evaluations": active_evaluations,
+        "failed_evaluations": failed_evaluations,
+    }

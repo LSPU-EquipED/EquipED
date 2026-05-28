@@ -18,6 +18,7 @@ from server.modules.embeddings.service import embed_and_store_chunks
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
+    ForbiddenUploadError,
     UnsupportedFileTypeError,
 )
 from .ingestion import ingest_document
@@ -42,6 +43,10 @@ _MEM_CHUNKS: dict[uuid.UUID, list[Any]] = {}
 _MEM_TFIDF: dict[str, float] = {}
 
 
+# Restricted source types that only admins can upload
+_ADMIN_ONLY_SOURCE_TYPES = {"syllabus", "curriculum", "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"}
+
+
 def create_document(
     file: UploadFile,
     source_type: str,
@@ -50,11 +55,12 @@ def create_document(
     lesson_title: str | None,
     program: str | None,
     uploaded_by: uuid.UUID,
+    user_role: str = "faculty",
     db: Any | None = None,
 ) -> DocumentUploadResponse:
     """Persist an upload and run Layer-1 ingestion."""
 
-    _validate_upload(file, source_type, program)
+    _validate_upload(file, source_type, program, user_role)
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
     doc_id = uuid.uuid4()
@@ -301,7 +307,9 @@ def list_documents(
     )
 
 
-def _validate_upload(file: UploadFile, source_type: str, program: str | None) -> None:
+def _validate_upload(
+    file: UploadFile, source_type: str, program: str | None, user_role: str = "faculty"
+) -> None:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
         raise UnsupportedFileTypeError("Only PDF uploads are supported")
@@ -309,6 +317,12 @@ def _validate_upload(file: UploadFile, source_type: str, program: str | None) ->
         raise UnsupportedFileTypeError(f"Unsupported source_type: {source_type}")
     if source_type == "slm" and not program:
         raise UnsupportedFileTypeError("program is required when source_type is 'slm'")
+    # RBAC: only admins can upload institutional knowledge base documents
+    if user_role != "admin" and source_type in _ADMIN_ONLY_SOURCE_TYPES:
+        raise ForbiddenUploadError(
+            f"Only administrators can upload {source_type} documents. "
+            "Faculty members can only upload SLM documents."
+        )
 
 
 def _persist_document(

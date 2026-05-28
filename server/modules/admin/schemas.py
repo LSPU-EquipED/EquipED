@@ -65,10 +65,53 @@ class PreferenceLogListResponse(BaseModel):
     page_size: int
 
 
+class AdminUserCreateRequest(BaseModel):
+    """Request body for creating a new user (admin-only)."""
+
+    name: str = Field(..., min_length=1, max_length=300)
+    email: str = Field(..., min_length=1, max_length=300)
+    password: str = Field(..., min_length=1)
+    role: Literal["admin", "faculty"] = Field(default="faculty")
+
+
+class AdminUserResponse(BaseModel):
+    """A single user record returned to admins."""
+
+    user_id: uuid.UUID
+    name: str
+    email: str
+    role: Literal["admin", "faculty"]
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AdminUserListResponse(BaseModel):
+    """List of all registered users."""
+
+    items: list[AdminUserResponse]
+    total: int
+
+
+class SystemSummaryResponse(BaseModel):
+    """System-wide metrics for the admin dashboard."""
+
+    total_documents: int
+    total_faculty: int
+    active_evaluations: int
+    failed_evaluations: int
+
+
 __all__ = [
     "PromptCreate",
     "PromptVersionResponse",
     "PromptVersionListResponse",
     "PreferenceLogResponse",
     "PreferenceLogListResponse",
+    "AdminUserCreateRequest",
+    "AdminUserResponse",
+    "AdminUserListResponse",
+    "SystemSummaryResponse",
 ]

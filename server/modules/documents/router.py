@@ -23,6 +23,7 @@ from server.modules.auth.service import AuthenticatedUser
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
+    ForbiddenUploadError,
     PasswordProtectedPDFError,
     UnsupportedFileTypeError,
 )
@@ -57,11 +58,17 @@ def upload_document(
             lesson_title=lesson_title,
             program=program,
             uploaded_by=_current_user.id,
+            user_role=_current_user.role.value,
             db=db,
         )
         if response.processing_status == "PROCESSED":
             background_tasks.add_task(embed_document_chunks, response.document_id)
         return response
+    except ForbiddenUploadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except (UnsupportedFileTypeError, PasswordProtectedPDFError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
