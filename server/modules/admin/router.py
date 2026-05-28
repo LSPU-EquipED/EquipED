@@ -5,20 +5,28 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.admin.schemas import (
+    AdminUserCreateRequest,
+    AdminUserListResponse,
+    AdminUserResponse,
     PreferenceLogListResponse,
     PreferenceLogResponse,
     PromptCreate,
     PromptVersionListResponse,
     PromptVersionResponse,
+    SystemSummaryResponse,
 )
 from server.modules.admin.service import (
+    create_admin_user,
     create_prompt_version,
+    get_system_summary,
     list_preference_logs,
     list_prompt_versions,
+    list_users,
     revert_prompt_version,
 )
 from server.modules.auth.service import AuthenticatedUser
@@ -149,6 +157,77 @@ def get_preferences(
         page=page,
         page_size=page_size,
     )
+
+
+# ---------------------------------------------------------------------------
+# User management
+# ---------------------------------------------------------------------------
+
+@router.get("/users", response_model=AdminUserListResponse)
+def get_users(
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    users = list_users(db)
+    return AdminUserListResponse(
+        items=[
+            AdminUserResponse(
+                user_id=u.user_id,
+                name=u.name,
+                email=u.email,
+                role=u.role.value,
+                is_active=u.is_active,
+                created_at=u.created_at,
+            )
+            for u in users
+        ],
+        total=len(users),
+    )
+
+
+@router.post("/users", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED)
+def create_user_endpoint(
+    body: AdminUserCreateRequest,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    try:
+        new_user = create_admin_user(
+            db,
+            name=body.name,
+            email=body.email,
+            password=body.password,
+            role=body.role,
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A user with email {body.email} already exists",
+        )
+    db.commit()
+
+    return AdminUserResponse(
+        user_id=new_user.user_id,
+        name=new_user.name,
+        email=new_user.email,
+        role=new_user.role.value,
+        is_active=new_user.is_active,
+        created_at=new_user.created_at,
+    )
+
+
+# ---------------------------------------------------------------------------
+# System summary
+# ---------------------------------------------------------------------------
+
+@router.get("/summary", response_model=SystemSummaryResponse)
+def get_summary(
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    counts = get_system_summary(db)
+    return SystemSummaryResponse(**counts)
 
 
 __all__ = ["router"]

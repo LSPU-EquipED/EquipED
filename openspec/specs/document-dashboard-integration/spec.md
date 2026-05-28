@@ -1,7 +1,7 @@
 # document-dashboard-integration Specification
 
 ## Purpose
-TBD - created by archiving change integrate-auth-and-documents-client-flow. Update Purpose after archive.
+Connects the web client dashboard to authenticated backend APIs for document listing, upload, and processing status.
 ## Requirements
 ### Requirement: Dashboard lists documents from the authenticated backend API
 The web client dashboard SHALL retrieve its document inventory from the existing authenticated documents API instead of local mock data.

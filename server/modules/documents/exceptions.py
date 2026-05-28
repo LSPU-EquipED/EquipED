@@ -21,10 +21,15 @@ class DocumentNotFoundError(DocumentsError):
     """Raised when a document id does not exist."""
 
 
+class ForbiddenUploadError(DocumentsError):
+    """Raised when a user attempts to upload a document type they are not authorized for."""
+
+
 __all__ = [
     "DocumentsError",
     "UnsupportedFileTypeError",
     "PasswordProtectedPDFError",
     "ExtractionFailedError",
     "DocumentNotFoundError",
+    "ForbiddenUploadError",
 ]

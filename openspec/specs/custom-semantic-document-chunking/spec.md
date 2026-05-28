@@ -79,7 +79,7 @@ The system SHALL apply the new chunking behavior only to newly uploaded document
 - **THEN** already stored documents SHALL keep their existing chunks until they are manually re-uploaded or otherwise explicitly reprocessed by a later change
 
 ### Requirement: SLM documents skip embedding after chunking
-Student Learning Materials (SLMs) SHALL be chunked and persisted normally but SHALL NOT be embedded into ChromaDB. The embedding step SHALL be skipped entirely for documents with `source_type == "slm"`.
+Student Learning Materials (SLMs) SHALL be chunked and persisted normally but SHALL NOT be embedded into ChromaDB. The embedding step SHALL be skipped entirely for documents with `source_type == "slm"`. Only reference documents (syllabus, curriculum) and rubrics are embedding targets.
 
 #### Scenario: SLM document upload completes without embedding
 - **WHEN** an SLM document is uploaded and chunked
@@ -88,3 +88,14 @@ Student Learning Materials (SLMs) SHALL be chunked and persisted normally but SH
 #### Scenario: Reference document upload triggers embedding
 - **WHEN** a reference document (syllabus or curriculum) is uploaded and chunked
 - **THEN** the system SHALL persist the chunks AND embed them into ChromaDB
+
+### Requirement: SLM chroma_stored semantics
+A document with `source_type == "slm"` MAY have `chroma_stored == False` without being considered invalid or incomplete. The `chroma_stored` flag SHALL reflect whether the document's chunks were sent to ChromaDB; for SLMs this is expected to remain `False` and SHALL NOT block evaluation submission or downstream processing.
+
+#### Scenario: SLM with chroma_stored == False is valid for evaluation
+- **WHEN** an SLM document has `chroma_stored == False` after upload
+- **THEN** the system SHALL treat the document as fully processed and eligible for evaluation submission
+
+#### Scenario: Reference document with chroma_stored == False is incomplete
+- **WHEN** a reference document (syllabus, curriculum) or rubric has `chroma_stored == False` after upload
+- **THEN** the system SHALL treat the document as not yet fully processed since embedding is expected for these source types

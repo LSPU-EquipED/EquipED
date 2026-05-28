@@ -1,3 +1,5 @@
+import type { DomainScoreBlock } from '../../shared/types/documents';
+
 export interface MonitoringMatrixRow {
   matrix_id: string;
   document_id: string;
@@ -7,7 +9,7 @@ export interface MonitoringMatrixRow {
   document_title: string | null;
   evaluation_status: string;
   synthesized_score: number | null;
-  domain_scores: Record<string, { subtotal: number; weight: number; missing: boolean }> | null;
+  domain_scores: Record<string, DomainScoreBlock> | null;
   flag_count: number;
   feedback_status: string;
   last_updated: string;
