@@ -11,6 +11,9 @@ import { EvaluationInterface } from '../features/evaluation/components/Evaluatio
 import { Scorecard } from '../features/evaluation/components/Scorecard';
 import { ReportView } from '../features/evaluation/components/ReportView';
 import { MonitoringTable } from '../features/matrix/components/MonitoringTable';
+import { AdminHomePage } from '../features/admin/components/AdminHomePage';
+import { UserManagementPage } from '../features/admin/components/UserManagementPage';
+import { AdminUploadPage } from '../features/admin/components/AdminUploadPage';
 import { AgentPromptEditor } from '../features/admin/components/AgentPromptEditor';
 import { PreferenceLogTable } from '../features/admin/components/PreferenceLogTable';
 import { RubricTableEditor } from '../features/admin/components/RubricTableEditor';
@@ -23,7 +26,11 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   beforeLoad: ({ context }) => {
-    throw redirect({ to: context.auth.status === 'authenticated' ? '/dashboard' : '/login' });
+    if (context.auth.status !== 'authenticated') {
+      throw redirect({ to: '/login' });
+    }
+    const target = context.auth.user?.role === 'admin' ? '/admin' : '/dashboard';
+    throw redirect({ to: target });
   },
   component: () => null,
 });
@@ -33,7 +40,8 @@ const loginRoute = createRoute({
   path: 'login',
   beforeLoad: ({ context }) => {
     if (context.auth.status === 'authenticated') {
-      throw redirect({ to: '/dashboard' });
+      const target = context.auth.user?.role === 'admin' ? '/admin' : '/dashboard';
+      throw redirect({ to: target });
     }
   },
   component: LoginForm,
@@ -96,20 +104,39 @@ const matrixRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'admin',
-  beforeLoad: ({ context, location }) => {
+  beforeLoad: ({ context }) => {
     requireRole(['admin'])({ context });
-
-    if (location.pathname.replace(/\/$/, '') === '/admin') {
-      throw redirect({ to: '/admin/prompts' });
-    }
   },
   component: Outlet,
+});
+
+const adminHomeRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/',
+  component: AdminHomePage,
+});
+
+const adminUsersRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'users',
+  component: UserManagementPage,
+});
+
+const adminIngestRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'ingest',
+  component: AdminUploadPage,
 });
 
 const adminPromptsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'prompts',
-  component: AgentPromptEditor,
+  beforeLoad: ({ location }) => {
+    if (location.pathname === '/admin/prompts') {
+      throw redirect({ to: '/admin/prompts/$agentId', params: { agentId: 'coordinator' } });
+    }
+  },
+  component: Outlet,
 });
 
 const adminPromptDetailRoute = createRoute({
@@ -141,6 +168,9 @@ const routeTree = rootRoute.addChildren([
     evaluationDetailRoute.addChildren([evaluationReportRoute]),
     matrixRoute,
     adminRoute.addChildren([
+      adminHomeRoute,
+      adminUsersRoute,
+      adminIngestRoute,
       adminPromptsRoute.addChildren([adminPromptDetailRoute]),
       adminPreferencesRoute,
       adminRubricsRoute,

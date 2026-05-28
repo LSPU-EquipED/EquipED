@@ -6,10 +6,16 @@ import {
   ChevronDown,
   ChevronsUpDown,
   FilePlus2,
+  FileUp,
   FolderOpen,
   GraduationCap,
+  LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings,
+  Shield,
+  Upload,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -21,15 +27,24 @@ interface SidebarProps {
 }
 
 type NavItem = {
-  to: '/dashboard' | '/upload';
+  to: string;
   label: string;
   icon: LucideIcon;
   exact: boolean;
 };
 
-const navItems: readonly NavItem[] = [
+const workspaceNavItems: readonly NavItem[] = [
   { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
+] as const;
+
+const adminNavItems: readonly NavItem[] = [
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/admin/users', label: 'Users', icon: Users, exact: true },
+  { to: '/admin/ingest', label: 'Ingest', icon: FileUp, exact: true },
+  { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
+  { to: '/admin/prompts', label: 'Prompts', icon: Settings, exact: false },
+  { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },
 ] as const;
 
 const resourceItems = [
@@ -48,6 +63,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     }
   }, [auth.status, navigate]);
 
+  const isAdmin = user?.role === 'admin';
+
   return (
     <aside
       className={cn(
@@ -56,8 +73,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
     >
       <nav aria-label="Primary" className="grid gap-1 px-3 py-4">
-        {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Workspace</div>}
-        {navItems.map((item) => {
+        {!isAdmin && (
+          <>
+            {!collapsed && (
+              <div className="px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Workspace
+              </div>
+            )}
+            {workspaceNavItems.map((item) => {
           const Icon = item.icon;
           const baseClass = cn(
             'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
@@ -80,11 +103,46 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           );
         })}
+        </>
+        )}
+
+        {isAdmin && (
+          <>
+            {!collapsed && (
+              <div className="mt-6 px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                System Management
+              </div>
+            )}
+            {adminNavItems.map((item) => {
+              const Icon = item.icon;
+              const baseClass = cn(
+                'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+              );
+
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  activeOptions={{ exact: item.exact }}
+                  className={baseClass}
+                  activeProps={{
+                    className: cn(baseClass, 'bg-sidebar-accent text-foreground'),
+                  }}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       <div className="mt-7 grid gap-1 px-3">
         {!collapsed && <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Resources</div>}
-        {user?.role === 'admin' && (
+        {isAdmin && (
           <Link
             to="/admin/rubrics"
             activeOptions={{ exact: true }}
@@ -101,7 +159,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             }}
             title={collapsed ? 'Rubrics' : undefined}
           >
-            <BookOpen className="size-4 shrink-0" aria-hidden="true" />
+            <Upload className="size-4 shrink-0" aria-hidden="true" />
             {!collapsed && <span className="truncate">Rubrics</span>}
           </Link>
         )}
