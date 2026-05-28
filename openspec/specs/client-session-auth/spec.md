@@ -1,7 +1,7 @@
 # client-session-auth Specification
 
 ## Purpose
-TBD - created by archiving change integrate-auth-and-documents-client-flow. Update Purpose after archive.
+Provides client-side login, session cookie authentication, identity hydration, and role-aware route protection.
 ## Requirements
 ### Requirement: Web client provides a public login entry route
 The web client SHALL provide a public route for unauthenticated users to access a login form for the existing server authentication module.
