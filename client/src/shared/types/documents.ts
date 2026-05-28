@@ -111,6 +111,24 @@ export type DocumentUploadResponse = {
   errorMessage?: string | null;
 };
 
+// --- Synthesis / Matrix shared types (used by admin + matrix features) ---
+
+export type CriterionScoreItem = {
+  criterion_id: string;
+  criterion_text: string;
+  score: number;
+  justification: string;
+  evidence: string | null;
+  chunk_ids: string | null;
+};
+
+export type DomainScoreBlock = {
+  criteria: CriterionScoreItem[];
+  subtotal: number;
+  max_score: number;
+  status: string;
+};
+
 function mapDocumentChunk(chunk: RawDocumentChunk): ClientDocumentChunk {
   return {
     chunkId: chunk.chunk_id,

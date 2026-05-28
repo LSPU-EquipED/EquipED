@@ -14,9 +14,10 @@ export function LoginForm() {
 
   useEffect(() => {
     if (auth.status === 'authenticated') {
-      void navigate({ to: '/dashboard' });
+      const target = auth.user?.role === 'admin' ? '/admin' : '/dashboard';
+      void navigate({ to: target });
     }
-  }, [auth.status, navigate]);
+  }, [auth.status, auth.user, navigate]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
