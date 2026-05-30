@@ -14,6 +14,7 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_client, get_llm_model_name
 from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
+from server.modules.rubrics.service import get_active_rubric_context
 
 from .contracts import AgentEvaluationResult, CriterionScore
 from .exceptions import AgentExecutionError, AgentLLMError
@@ -197,6 +198,7 @@ class BaseAgent:
         prompt_version_id: uuid.UUID | None = None,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
         precomputed_context: dict[str, list[str]] | None = None,
+        db: Any | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         timer = _PhaseTimer(self.agent_name)
@@ -213,7 +215,9 @@ class BaseAgent:
 
         with timer.measure("retrieval"):
             rubric_context = self._retrieve_rubric_context(
-                query_text, precomputed_context=precomputed_context,
+                query_text,
+                precomputed_context=precomputed_context,
+                db=db,
             )
             reference_context = self._retrieve_reference_context(
                 context_text or query_text,
@@ -291,20 +295,18 @@ class BaseAgent:
         query_text: str,
         *,
         precomputed_context: dict[str, list[str]] | None = None,
+        db: Any | None = None,
     ) -> list[str]:
         source_type = self.rubric_source_type
         if precomputed_context and source_type in precomputed_context:
             return precomputed_context[source_type]
         try:
-            collection_name = resolve_collection_name(source_type)
-            chunks = retrieve_context(
-                query_text,
-                collection_name,
-                n_results=self.max_rubric_chunks,
-            )
-            return [chunk.text for chunk in chunks]
+            rubric_context = get_active_rubric_context(source_type.replace("rubric_", ""), db=db)
+            if rubric_context:
+                return rubric_context[: self.max_rubric_chunks * 10]
         except Exception:
             return []
+        return []
 
     def _retrieve_reference_context(
         self,

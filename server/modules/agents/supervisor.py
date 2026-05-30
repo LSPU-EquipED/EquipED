@@ -11,6 +11,7 @@ from typing import Any
 from server.core.config import get_settings
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
+from server.modules.rubrics.service import get_active_rubric_context
 
 from .contracts import AgentEvaluationResult
 from .coordinator import ProgramCoordinator
@@ -87,12 +88,8 @@ class Supervisor:
         # source types, preserving per-agent scope while avoiding repeated
         # embedding + Chroma queries with the same query text.
         precompute_start = time.perf_counter()
-        # Compute the query embedding once and reuse it across all retrieval
-        # calls in precompute, avoiding redundant model.encode() calls.
-        query_embedding = self._compute_query_embedding(query_text)
         precomputed_context = self._build_precomputed_context(
             query_text,
-            query_embedding=query_embedding,
             reference_document_ids=reference_document_ids,
         )
         precompute_seconds = time.perf_counter() - precompute_start
@@ -207,7 +204,6 @@ class Supervisor:
         self,
         query_text: str,
         *,
-        query_embedding: list[float] | None = None,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
     ) -> dict[str, list[str]]:
         """Pre-compute retrieval results per source-type (not merged).
@@ -219,11 +215,11 @@ class Supervisor:
         When ``query_embedding`` is provided it is reused across all retrieval
         calls, avoiding redundant model.encode() invocations.
         """
-        from server.modules.embeddings.collections import resolve_collection_name
         from server.modules.embeddings.retrieval import (
             retrieve_context,
             retrieve_context_with_embedding,
         )
+        from server.modules.embeddings.collections import resolve_collection_name
 
         precomputed: dict[str, list[str]] = {}
 
@@ -233,10 +229,14 @@ class Supervisor:
             document_id_filter: str | None = None,
             n_results: int = 5,
         ) -> list[str]:
+            if source_type.startswith("rubric_"):
+                return get_active_rubric_context(source_type.replace("rubric_", ""), db=self.db)
             collection_name = resolve_collection_name(source_type)
+            query_embedding = self._compute_query_embedding(query_text)
             if query_embedding is not None:
                 chunks = retrieve_context_with_embedding(
-                    query_embedding, collection_name,
+                    query_embedding,
+                    collection_name,
                     n_results=n_results,
                     document_id_filter=document_id_filter,
                 )
@@ -254,7 +254,9 @@ class Supervisor:
         )
         for source_type in rubric_sources:
             try:
-                precomputed[source_type] = _retrieve(source_type)
+                precomputed[source_type] = get_active_rubric_context(
+                    source_type.replace("rubric_", ""), db=self.db
+                )
             except Exception:
                 precomputed[source_type] = []
 

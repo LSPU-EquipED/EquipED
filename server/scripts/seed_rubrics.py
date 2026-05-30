@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from server.core.database import get_db_session
+from server.core.database import get_session_factory
 from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 
 
@@ -30,7 +30,7 @@ def main() -> int:
     if not isinstance(rubric_sets, list):
         raise SystemExit("Invalid JSON: rubric_sets must be a list")
 
-    session = next(get_db_session())
+    session = get_session_factory()()
     try:
         for rubric_set_data in rubric_sets:
             seed_rubric_set(session, rubric_set_data)
