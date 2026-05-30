@@ -10,7 +10,7 @@ from .models import RubricCriterion, RubricDomain, RubricSet
 
 
 def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]:
-    """Return ordered rubric criteria text for the active rubric set."""
+    """Return formatted rubric context for the active rubric set."""
 
     session = db or get_session_factory()()
     close_session = db is None
@@ -31,9 +31,13 @@ def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]
             .all()
         )
 
-        context: list[str] = []
+        context: list[str] = [
+            f"[{rubric_set.name}]",
+            f"Agent: {rubric_set.agent_id}",
+            f"Version: {rubric_set.version_number}",
+        ]
         for domain in domains:
-            context.append(f"{domain.title}")
+            context.append(f"Domain: {domain.title}")
             criteria = (
                 session.query(RubricCriterion)
                 .filter_by(rubric_domain_id=domain.rubric_domain_id)
@@ -42,7 +46,7 @@ def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]
             )
             for criterion in criteria:
                 context.append(
-                    f"{criterion.criterion_code} | {criterion.title} | {criterion.description}"
+                    f"{criterion.criterion_code} | Title: {criterion.title} | Description: {criterion.description}"
                 )
         return context
     finally:
