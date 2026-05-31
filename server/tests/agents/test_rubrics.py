@@ -81,3 +81,28 @@ def test_active_rubric_context_includes_exact_sme_rows(db_session) -> None:
         "A-05 | Title: Objective Gauging | Description: Objectives are gauged effectively."
         in context
     )
+
+
+def test_active_rubric_context_avoids_n_plus_one_queries(db_session) -> None:
+    """Loading rubric context with multiple domains should not issue N+1 queries."""
+    _seed_from_json(db_session)
+
+    # Track SQL statements issued during the call.
+    from sqlalchemy import event
+
+    query_count = 0
+
+    def _count_queries(conn, cursor, statement, parameters, context, executemany):
+        nonlocal query_count
+        query_count += 1
+
+    conn = db_session.connection()
+    event.listens_for(conn, "before_cursor_execute")(_count_queries)
+    try:
+        get_active_rubric_context("sme", db=db_session)
+    finally:
+        event.remove(conn, "before_cursor_execute", _count_queries)
+
+    # Expected: 1 (rubric_set) + 1 (domains) + 1 (all criteria via JOIN) = 3
+    # Before fix: 1 + 1 + N (one per domain) = 1 + 1 + 3 = 5 for SME (3 domains)
+    assert query_count == 3, f"expected 3 queries, got {query_count}"
