@@ -205,6 +205,7 @@ class Supervisor:
         query_text: str,
         *,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
+        query_embedding: list[float] | None = None,
     ) -> dict[str, list[str]]:
         """Pre-compute retrieval results per source-type (not merged).
 
@@ -221,6 +222,10 @@ class Supervisor:
         )
         from server.modules.embeddings.collections import resolve_collection_name
 
+        # Compute embedding once if not supplied by caller.
+        if query_embedding is None:
+            query_embedding = self._compute_query_embedding(query_text)
+
         precomputed: dict[str, list[str]] = {}
 
         def _retrieve(
@@ -232,7 +237,6 @@ class Supervisor:
             if source_type.startswith("rubric_"):
                 return get_active_rubric_context(source_type.replace("rubric_", ""), db=self.db)
             collection_name = resolve_collection_name(source_type)
-            query_embedding = self._compute_query_embedding(query_text)
             if query_embedding is not None:
                 chunks = retrieve_context_with_embedding(
                     query_embedding,
