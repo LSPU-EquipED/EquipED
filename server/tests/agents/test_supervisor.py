@@ -206,10 +206,11 @@ def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> Non
 
 
 def test_precomputed_context_falls_back_when_source_type_missing(
-    monkeypatch,
+    monkeypatch, db_session,
 ) -> None:
     """Fall back to live retrieval when source type is not precomputed."""
     from server.modules.agents.base import BaseAgent
+    from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 
     monkeypatch.setattr(
         "server.modules.agents.base.retrieve_context",
@@ -224,6 +225,33 @@ def test_precomputed_context_falls_back_when_source_type_missing(
     precomputed = {
         "rubric_coord": ["other-context"],
     }
+
+    rubric_set = RubricSet(
+        agent_id="sme",
+        name="SME Rubric v1",
+        version_number=1,
+        status="active",
+    )
+    db_session.add(rubric_set)
+    db_session.flush()
+    domain = RubricDomain(
+        rubric_set_id=rubric_set.rubric_set_id,
+        code="OP",
+        title="Organization & Presentation",
+        display_order=1,
+    )
+    db_session.add(domain)
+    db_session.flush()
+    db_session.add(
+        RubricCriterion(
+            rubric_domain_id=domain.rubric_domain_id,
+            criterion_code="OP-01",
+            title="Topic Coherence",
+            description="Topics are coherent from Unit to Chapter.",
+            display_order=1,
+        )
+    )
+    db_session.commit()
 
     class _CapturingAgent(BaseAgent):
         agent_name = "sme"
@@ -258,8 +286,12 @@ def test_precomputed_context_falls_back_when_source_type_missing(
         precomputed_context=precomputed,
     )
 
-    # Should fall back to live retrieval since rubric_sme is not precomputed.
-    assert agent.captured_rubric == ["live-retrieved"]
+    assert agent.captured_rubric[0] == "[SME Rubric v1]"
+    assert "Domain: Organization & Presentation" in agent.captured_rubric
+    assert (
+        "OP-01 | Title: Topic Coherence | Description: Topics are coherent from Unit to Chapter."
+        in agent.captured_rubric
+    )
 
 
 def test_supervisor_pacing_skips_first_and_final_agent(

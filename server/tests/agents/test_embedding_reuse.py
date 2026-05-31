@@ -120,11 +120,16 @@ def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
     supervisor = Supervisor()
     embedding = [0.1, 0.2, 0.3]
     result = supervisor._build_precomputed_context(
-        "query text", query_embedding=embedding,
+        "query text",
+        query_embedding=embedding,
+        reference_document_ids={
+            "syllabus": "00000000-0000-0000-0000-000000000001",
+            "curriculum": "00000000-0000-0000-0000-000000000002",
+        },
     )
 
     # Should have used embedding path, not text path
-    assert call_counts["with_embedding"] > 0
+    assert call_counts["with_embedding"] == 2  # one per reference source type
     assert call_counts["with_text"] == 0
 
 
@@ -157,10 +162,105 @@ def test_precompute_falls_back_to_text_when_no_embedding(monkeypatch) -> None:
 
     supervisor = Supervisor()
     result = supervisor._build_precomputed_context(
-        "query text", query_embedding=None,
+        "query text",
+        query_embedding=None,
+        reference_document_ids={
+            "syllabus": "00000000-0000-0000-0000-000000000001",
+        },
     )
 
     # Should have used text path, not embedding path
-    assert call_counts["with_text"] > 0
+    assert call_counts["with_text"] == 1
     assert call_counts["with_embedding"] == 0
-    # All text calls should use the same query text
+
+
+def test_precompute_computes_embedding_once_for_multiple_sources(monkeypatch) -> None:
+    """Embedding should be computed exactly once, not per source type."""
+    encode_calls = []
+
+    class FakeModel:
+        def encode(self, texts, show_progress_bar=False):
+            encode_calls.append(texts)
+
+            class Result:
+                def tolist(self):
+                    return [[0.1, 0.2, 0.3]]
+
+            return Result()
+
+    monkeypatch.setattr(
+        "server.core.embedding.get_embedding_model",
+        lambda: FakeModel(),
+    )
+
+    retrieve_calls = []
+
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+        retrieve_calls.append(("embedding", collection))
+        from server.modules.embeddings.retrieval import RetrievedChunk
+
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+
+    monkeypatch.setattr(
+        "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
+        fake_retrieve_with_embedding,
+    )
+    monkeypatch.setattr(
+        "server.modules.embeddings.collections.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    supervisor = Supervisor()
+    # Two reference document types should trigger two retrievals but only ONE embedding.
+    result = supervisor._build_precomputed_context(
+        "test query",
+        reference_document_ids={
+            "syllabus": "00000000-0000-0000-0000-000000000001",
+            "curriculum": "00000000-0000-0000-0000-000000000002",
+        },
+    )
+
+    assert len(encode_calls) == 1, "embedding should be computed exactly once"
+    assert encode_calls[0] == ["test query"]
+    assert len(retrieve_calls) == 2, "should retrieve for both syllabus and curriculum"
+    assert result["syllabus"] == ["emb:syllabus"]
+    assert result["curriculum"] == ["emb:curriculum"]
+
+
+def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
+    """When query_embedding is passed explicitly, _compute_query_embedding must not be called."""
+    encode_calls = []
+
+    def broken_model():
+        encode_calls.append(1)
+        raise RuntimeError("should not be called")
+
+    monkeypatch.setattr(
+        "server.core.embedding.get_embedding_model",
+        broken_model,
+    )
+
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+        from server.modules.embeddings.retrieval import RetrievedChunk
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+
+    monkeypatch.setattr(
+        "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
+        fake_retrieve_with_embedding,
+    )
+    monkeypatch.setattr(
+        "server.modules.embeddings.collections.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    supervisor = Supervisor()
+    result = supervisor._build_precomputed_context(
+        "query text",
+        query_embedding=[0.5, 0.6, 0.7],
+        reference_document_ids={
+            "syllabus": "00000000-0000-0000-0000-000000000001",
+        },
+    )
+
+    assert encode_calls == [], "_compute_query_embedding should not be called when embedding is provided"
+    assert result["syllabus"] == ["emb:syllabus"]

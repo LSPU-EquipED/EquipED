@@ -111,4 +111,4 @@ def _parse_chroma_results(result: dict[str, Any]) -> list[RetrievedChunk]:
     return parsed
 
 
-__all__ = ["RetrievedChunk", "retrieve_context"]
+__all__ = ["RetrievedChunk", "retrieve_context", "retrieve_context_with_embedding"]

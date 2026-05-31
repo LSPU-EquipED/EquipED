@@ -1,0 +1,262 @@
+{
+  "rubric_sets": [
+    {
+      "agent_id": "sme",
+      "name": "SME Rubric v1",
+      "version_number": 1,
+      "status": "active",
+      "description": "SME rubric for organization, presentation, and assessment.",
+      "domains": [
+        {
+          "code": "OP",
+          "title": "Organization & Presentation",
+          "display_order": 1,
+          "criteria": [
+            {
+              "criterion_code": "OP-01",
+              "title": "Topic Coherence",
+              "description": "Topics are coherent from Unit to Chapter.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "OP-02",
+              "title": "Interactivity",
+              "description": "Material is interactive in each lesson which makes life-long learning easier.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "OP-03",
+              "title": "Clear Directions",
+              "description": "Directions are clear and complete enough for students to perform required tasks.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "OP-04",
+              "title": "Accurate Sections",
+              "description": "Paragraphs and sections have clear and accurate information.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "OP-05",
+              "title": "Enhancement Activities",
+              "description": "Enhancement activities for students are provided.",
+              "display_order": 5
+            }
+          ]
+        },
+        {
+          "code": "A",
+          "title": "Assessment",
+          "display_order": 2,
+          "criteria": [
+            {
+              "criterion_code": "A-01",
+              "title": "Learner Transformation",
+              "description": "Students are engaged in transforming what they learn.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "A-02",
+              "title": "Varied Assessment Tools",
+              "description": "Teachers can easily assess students' progress by using varied assessment tools.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "A-03",
+              "title": "Progress Monitoring",
+              "description": "The material keeps an on-going record of students' progress and allows the teacher to monitor student performance.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "A-04",
+              "title": "Prescriptive Feedback",
+              "description": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "A-05",
+              "title": "Objective Gauging",
+              "description": "Objectives are gauged effectively.",
+              "display_order": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_id": "coordinator",
+      "name": "Coordinator Rubric v1",
+      "version_number": 1,
+      "status": "active",
+      "description": "Coordinator rubric matching SME criteria for organization, presentation, and assessment.",
+      "domains": [
+        {
+          "code": "OP",
+          "title": "Organization & Presentation",
+          "display_order": 1,
+          "criteria": [
+            {
+              "criterion_code": "OP-01",
+              "title": "Topic Coherence",
+              "description": "Topics are coherent from Unit to Chapter.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "OP-02",
+              "title": "Interactivity",
+              "description": "Material is interactive in each lesson which makes life-long learning easier.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "OP-03",
+              "title": "Clear Directions",
+              "description": "Directions are clear and complete enough for students to perform required tasks.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "OP-04",
+              "title": "Accurate Sections",
+              "description": "Paragraphs and sections have clear and accurate information.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "OP-05",
+              "title": "Enhancement Activities",
+              "description": "Enhancement activities for students are provided.",
+              "display_order": 5
+            }
+          ]
+        },
+        {
+          "code": "A",
+          "title": "Assessment",
+          "display_order": 2,
+          "criteria": [
+            {
+              "criterion_code": "A-01",
+              "title": "Learner Transformation",
+              "description": "Students are engaged in transforming what they learn.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "A-02",
+              "title": "Varied Assessment Tools",
+              "description": "Teachers can easily assess students' progress by using varied assessment tools.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "A-03",
+              "title": "Progress Monitoring",
+              "description": "The material keeps an on-going record of students' progress and allows the teacher to monitor student performance.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "A-04",
+              "title": "Prescriptive Feedback",
+              "description": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "A-05",
+              "title": "Objective Gauging",
+              "description": "Objectives are gauged effectively.",
+              "display_order": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_id": "gad",
+      "name": "GAD Rubric v1",
+      "version_number": 1,
+      "status": "active",
+      "description": "GAD rubric for inclusivity and gender sensitivity.",
+      "domains": [
+        {
+          "code": "GAD",
+          "title": "Inclusivity & Gender Sensitivity",
+          "display_order": 1,
+          "criteria": [
+            {
+              "criterion_code": "GAD-01",
+              "title": "Free from Stereotypes",
+              "description": "The material is free from gender stereotypes.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "GAD-02",
+              "title": "Equal Representation",
+              "description": "The material shows females and males an equal number of times.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "GAD-03",
+              "title": "Equal Respect",
+              "description": "The material shows females and males with equal respect, and potential.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "GAD-04",
+              "title": "Reflects Experiences",
+              "description": "The material reflects the needs and life experiences of both male and female students.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "GAD-05",
+              "title": "Promotes Equality",
+              "description": "The material promotes peace and equality for males and females, regardless of their race, class, disability, religion, sexual preference, or ethnic background.",
+              "display_order": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "agent_id": "itso",
+      "name": "ITSO Rubric v1",
+      "version_number": 1,
+      "status": "active",
+      "description": "ITSO rubric for intellectual property and data privacy.",
+      "domains": [
+        {
+          "code": "ITSO",
+          "title": "Intellectual Property and Data Privacy Act",
+          "display_order": 1,
+          "criteria": [
+            {
+              "criterion_code": "ITSO-01",
+              "title": "No IP Issue",
+              "description": "The material has no intellectual property issue, such as plagiarism.",
+              "display_order": 1
+            },
+            {
+              "criterion_code": "ITSO-02",
+              "title": "Proper References",
+              "description": "The material includes reference section where the sources are properly acknowledged.",
+              "display_order": 2
+            },
+            {
+              "criterion_code": "ITSO-03",
+              "title": "Faculty Ownership",
+              "description": "The material ensures the freedom of the faculty to retain ownership of the teaching materials.",
+              "display_order": 3
+            },
+            {
+              "criterion_code": "ITSO-04",
+              "title": "Student Confidentiality",
+              "description": "The material includes confidentiality of student information.",
+              "display_order": 4
+            },
+            {
+              "criterion_code": "ITSO-05",
+              "title": "Teacher and Student Rights",
+              "description": "The material secures the right of the teacher and students.",
+              "display_order": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
