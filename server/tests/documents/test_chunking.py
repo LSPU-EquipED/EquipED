@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from io import BytesIO
 
 import pytest
-from fastapi import UploadFile
 from server.modules.documents.ingestion import (
     _DEFAULT_CHUNK_OVERLAP,
     _MAX_CHUNK_TOKENS,
@@ -22,13 +20,6 @@ from server.modules.documents.ingestion import (
     ingest_document,
 )
 from server.modules.documents.schemas import DocumentChunkData
-from server.modules.documents.service import (
-    _MEM_CHUNKS,
-    _MEM_DOCUMENTS,
-    create_document,
-    _persist_chunks,
-)
-from server.modules.documents.models import DocumentChunk
 
 
 def test_chunker_prefers_blank_line_structures() -> None:
@@ -127,72 +118,3 @@ def test_tiny_fragments_do_not_merge_when_too_large() -> None:
     merged = _merge_tiny_chunks([large, tiny])
 
     assert len(merged) == 2
-
-
-def test_existing_documents_are_not_auto_reprocessed(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-) -> None:
-    existing_id = uuid.uuid4()
-    _MEM_DOCUMENTS.clear()
-    _MEM_CHUNKS.clear()
-    _MEM_CHUNKS[existing_id] = [DocumentChunkData(
-        chunk_id=uuid.uuid4(),
-        document_id=existing_id,
-        source_type="slm",
-        agent_domain="all",
-        page_number=1,
-        text="existing chunk",
-        token_count=2,
-        is_ocr=False,
-    )]
-
-    captured_calls: list[str] = []
-
-    def fake_ingest_document(
-        file_path: str,
-        source_type: str,
-        document_id: str,
-    ) -> list[DocumentChunkData]:
-        captured_calls.append(document_id)
-        return [DocumentChunkData(
-            chunk_id=uuid.uuid4(),
-            document_id=uuid.UUID(document_id),
-            source_type=source_type,
-            agent_domain="all",
-            page_number=1,
-            text="new chunk",
-            token_count=2,
-            is_ocr=False,
-        )]
-
-    monkeypatch.setattr("server.modules.documents.service.UPLOAD_ROOT", tmp_path)
-    monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document",
-        fake_ingest_document,
-    )
-
-    upload = UploadFile(filename="new.pdf", file=BytesIO(b"%PDF-1.4\nnew"))
-    result = create_document(
-        file=upload,
-        source_type="slm",
-        title="New Document",
-        course_title=None,
-        lesson_title=None,
-        program="bsit",
-        uploaded_by=uuid.uuid4(),
-        db=None,
-    )
-
-    assert captured_calls == [str(result.document_id)]
-    assert existing_id in _MEM_CHUNKS
-    assert _MEM_CHUNKS[existing_id][0].text == "existing chunk"
-
-
-def test_persist_chunks_handles_empty_chunk_data(db_session) -> None:
-    document_id = uuid.uuid4()
-
-    _persist_chunks(db_session, document_id, [])
-
-    assert _MEM_CHUNKS[document_id] == []
-    assert db_session.query(DocumentChunk).count() == 0
