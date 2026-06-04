@@ -182,3 +182,28 @@ def _mock_settings(**overrides):
     }
     defaults.update(overrides)
     return type("Settings", (), defaults)()
+
+
+class _SleepCapture:
+    """Context-like helper to capture time.sleep calls via monkeypatch.
+
+    Usage:
+        capture = _SleepCapture()
+        capture.patch(monkeypatch, "server.modules.agents.supervisor.time.sleep")
+        # ... run code that calls time.sleep ...
+        assert capture.calls == [15, 30]
+        assert capture.count == 2
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[float] = []
+
+    def _fake_sleep(self, seconds: float) -> None:
+        self.calls.append(seconds)
+
+    def patch(self, monkeypatch, target: str) -> None:
+        monkeypatch.setattr(target, self._fake_sleep)
+
+    @property
+    def count(self) -> int:
+        return len(self.calls)
