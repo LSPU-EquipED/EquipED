@@ -14,7 +14,7 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_client, get_llm_model_name
 from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
-from server.modules.rubrics.service import get_active_rubric_context
+from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
 
 from .contracts import AgentEvaluationResult, CriterionScore
 from .exceptions import AgentExecutionError, AgentLLMError
@@ -235,6 +235,15 @@ class BaseAgent:
             )
         prompt_chars = len(prompt)
 
+        settings = get_settings()
+        if getattr(settings, "agent_debug_rubric_context", False):
+            logger.info(
+                "[EVAL_RUBRIC_CONTEXT] agent=%s | prompt_version_id=%s | rubric_context=%s",
+                self.agent_name,
+                str(prompt_version_id) if prompt_version_id else None,
+                " || ".join(rubric_context),
+            )
+
         with timer.measure("llm_call"):
             raw_response = self._call_llm(prompt)
 
@@ -319,6 +328,9 @@ class BaseAgent:
                 "prompt_version_id": (
                     str(prompt_version_id) if prompt_version_id else None
                 ),
+                "rubric_context": rubric_context
+                if getattr(settings, "agent_debug_rubric_context", False)
+                else None,
             },
         )
 
@@ -333,7 +345,7 @@ class BaseAgent:
         if precomputed_context and source_type in precomputed_context:
             return precomputed_context[source_type]
         try:
-            rubric_context = get_active_rubric_context(source_type.replace("rubric_", ""), db=db)
+            rubric_context = get_active_rubric_context(resolve_rubric_agent_id(source_type), db=db)
             if rubric_context:
                 return rubric_context[: self.max_rubric_chunks * 10]
         except Exception:

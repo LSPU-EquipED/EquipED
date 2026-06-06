@@ -10,6 +10,16 @@ from server.core.database import get_db_session, get_session_factory
 from .models import RubricCriterion, RubricDomain, RubricSet
 
 
+def resolve_rubric_agent_id(source_type: str) -> str:
+    """Map a rubric source type to the matching rubric agent_id."""
+
+    if source_type == "rubric_coord":
+        return "coordinator"
+    if source_type.startswith("rubric_"):
+        return source_type.removeprefix("rubric_")
+    return source_type
+
+
 def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]:
     """Return formatted rubric context for the active rubric set."""
 
@@ -67,4 +77,4 @@ def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]
             session.close()
 
 
-__all__ = ["get_active_rubric_context"]
+__all__ = ["get_active_rubric_context", "resolve_rubric_agent_id"]
