@@ -81,6 +81,7 @@ class Settings:
     # alongside the bounded prompt payload.
     llm_max_new_tokens: int = 4096
     llm_agent_delay_seconds: int = 0
+    agent_debug_rubric_context: bool = False
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
     # Falls back to llm_agent_delay_seconds for any agent not listed.
@@ -247,6 +248,7 @@ def get_settings() -> Settings:
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
         llm_agent_delay_per_agent=parsed_llm_agent_delay_per_agent,
+        agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,

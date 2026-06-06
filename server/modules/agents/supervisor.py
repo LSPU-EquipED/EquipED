@@ -11,7 +11,7 @@ from typing import Any
 from server.core.config import get_settings
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
-from server.modules.rubrics.service import get_active_rubric_context
+from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
 
 from .contracts import AgentEvaluationResult
 from .coordinator import ProgramCoordinator
@@ -235,7 +235,7 @@ class Supervisor:
             n_results: int = 5,
         ) -> list[str]:
             if source_type.startswith("rubric_"):
-                return get_active_rubric_context(source_type.replace("rubric_", ""), db=self.db)
+                return get_active_rubric_context(resolve_rubric_agent_id(source_type), db=self.db)
             collection_name = resolve_collection_name(source_type)
             if query_embedding is not None:
                 chunks = retrieve_context_with_embedding(
@@ -259,7 +259,7 @@ class Supervisor:
         for source_type in rubric_sources:
             try:
                 precomputed[source_type] = get_active_rubric_context(
-                    source_type.replace("rubric_", ""), db=self.db
+                    resolve_rubric_agent_id(source_type), db=self.db
                 )
             except Exception:
                 precomputed[source_type] = []
