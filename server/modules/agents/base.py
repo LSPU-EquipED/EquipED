@@ -242,10 +242,42 @@ class BaseAgent:
             try:
                 parsed = self._parse_response(raw_response)
             except AgentExecutionError as exc:
-                parse_error = str(exc)
-                raise AgentExecutionError(
-                    f"{exc}: raw_response={raw_response[:500]}"
-                ) from exc
+                # First-line recovery: if the response failed JSON parsing
+                # (most likely truncated by the max_new_tokens budget), make a
+                # single low-risk repair call before giving up. All other
+                # failure modes (validation, schema) keep existing behavior.
+                if not isinstance(exc.__cause__, json.JSONDecodeError):
+                    parse_error = str(exc)
+                    raise AgentExecutionError(
+                        f"{exc}: raw_response={raw_response[:500]}"
+                    ) from exc
+
+                logger.warning(
+                    "Agent %s: initial JSON parse failed, attempting single "
+                    "repair call: %s",
+                    self.agent_name,
+                    exc.__cause__,
+                )
+                with timer.measure("llm_repair"):
+                    try:
+                        repair_response = self._call_llm(
+                            self._build_repair_prompt(raw_response)
+                        )
+                    except AgentLLMError as repair_exc:
+                        parse_error = f"repair call failed: {repair_exc}"
+                        raise AgentExecutionError(
+                            f"{exc}: raw_response={raw_response[:500]}"
+                        ) from repair_exc
+                try:
+                    parsed = self._parse_response(repair_response)
+                except AgentExecutionError as repair_exc:
+                    parse_error = f"repair parse failed: {repair_exc}"
+                    raise AgentExecutionError(
+                        f"{exc}: raw_response={raw_response[:500]}"
+                    ) from repair_exc
+                # Repair succeeded — use the repaired response downstream so
+                # the stored raw_response and timing reflect the recovered run.
+                raw_response = repair_response
 
         processing_seconds = time.perf_counter() - start
 
@@ -394,6 +426,33 @@ class BaseAgent:
             raise AgentLLMError(
                 f"LLM call failed for {self.agent_name}: {exc}"
             ) from exc
+
+    # Concise repair prompt for truncated/invalid JSON recovery. Keeps the
+    # model focused on completion rather than re-prompting with the full
+    # context, which would waste tokens.
+    # Note: literal braces in the schema hint are escaped ({{ ... }}) so
+    # str.format() does not interpret them as placeholders.
+    _REPAIR_PROMPT_TEMPLATE = (
+        "Your previous JSON response was truncated or invalid. "
+        "Continue or repair it, returning ONLY a complete valid JSON object "
+        "with the same fields (summary: string, criterion_scores: array of "
+        "{{criterion_id, score 1-4, justification, chunk_ids, evidence}}). "
+        "Prior partial output:\n\n{partial}"
+    )
+
+    def _build_repair_prompt(self, partial_response: str) -> str:
+        """Build a concise repair prompt embedding the prior partial output.
+
+        Caps the embedded partial text so a runaway model output doesn't
+        blow the repair prompt budget. The cap mirrors the bounded nature
+        of the original prompt and is more than enough to recover from
+        typical truncation at the end of a JSON object.
+        """
+        max_partial_chars = 4000
+        partial = partial_response or ""
+        if len(partial) > max_partial_chars:
+            partial = partial[: max_partial_chars - 3].rstrip() + "..."
+        return self._REPAIR_PROMPT_TEMPLATE.format(partial=partial)
 
     def _parse_response(self, raw_response: str) -> dict[str, Any]:
         if not isinstance(raw_response, str):
