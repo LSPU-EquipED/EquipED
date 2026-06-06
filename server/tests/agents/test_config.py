@@ -85,3 +85,31 @@ def test_config_accepts_valid_bounds(monkeypatch) -> None:
         assert settings.agent_small_doc_threshold == 3
     finally:
         get_settings.cache_clear()
+
+
+def test_config_default_llm_max_new_tokens_is_4096(monkeypatch) -> None:
+    """The LLM generation budget should default to 4096 to give larger
+    SLM evaluation outputs more headroom and reduce JSON truncation."""
+    _clear_settings_cache(monkeypatch)
+    # Set to empty string (not delenv) so load_dotenv() will not re-load
+    # the .env override during get_settings() and the dataclass default
+    # of 4096 takes effect.
+    monkeypatch.setenv("LLM_MAX_NEW_TOKENS", "")
+    try:
+        settings = get_settings()
+        assert settings.llm_max_new_tokens == 4096
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_rejects_zero_llm_max_new_tokens(monkeypatch) -> None:
+    """LLM_MAX_NEW_TOKENS=0 should raise ConfigurationError."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_MAX_NEW_TOKENS", "0")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "LLM_MAX_NEW_TOKENS must be at least 1" in str(exc)
+    finally:
+        get_settings.cache_clear()
