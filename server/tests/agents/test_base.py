@@ -498,7 +498,6 @@ def test_concrete_agents_use_mocked_llm_response(monkeypatch) -> None:
         assert result.summary == "ok"
 
 
-<<<<<<< HEAD
 # ------------------------------------------------------------------
 # JSON parse retry / recovery (stability fix for truncated responses)
 # ------------------------------------------------------------------
@@ -528,25 +527,12 @@ def test_base_agent_retries_on_truncated_json(monkeypatch) -> None:
     monkeypatch.setattr(
         "server.modules.agents.base.retrieve_context",
         lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-=======
-def test_coordinator_rubric_lookup_maps_to_coordinator(monkeypatch) -> None:
-    captured = {}
-
-    def _capture(agent_id, db=None):
-        captured["agent_id"] = agent_id
-        return ["ctx"]
-
-    monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
-        _capture,
->>>>>>> 91b0bd7 (refactor(agents): enhance rubric context handling and add debug option)
     )
     monkeypatch.setattr(
         "server.modules.agents.base.resolve_collection_name",
         lambda source_type: source_type,
     )
 
-<<<<<<< HEAD
     truncated = (
         '{"summary": "partial", "criterion_scores": ['
         '{"criterion_id": "c1", "score": 3, "justification": "ok"'
@@ -568,69 +554,6 @@ def test_coordinator_rubric_lookup_maps_to_coordinator(monkeypatch) -> None:
     )
     llm = _SequenceLLM([truncated, valid_json])
     agent = _DummyAgent(llm_client=llm)
-=======
-    agent = Coordinator(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {
-                        "criterion_id": "OP-01",
-                        "criterion_title": "Topic Coherence",
-                        "score": 3,
-                        "justification": "ok",
-                    }
-                ],
-            }
-        )
-    )
-
-    agent.run(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}],
-        context_text="reference context",
-        reference_document_ids={"syllabus": uuid4()},
-    )
-
-    assert captured["agent_id"] == "coordinator"
-
-
-def test_base_agent_exposes_debug_rubric_context_when_enabled(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "server.modules.agents.base.get_settings",
-        lambda: _mock_settings(agent_debug_rubric_context=True),
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
-        lambda agent_id, db=None: [
-            "[SME Rubric v1]",
-            "Agent: sme",
-            "Version: 1",
-            "Domain: Organization & Presentation",
-            "OP-01 | Title: Topic Coherence | Description: Topics are coherent from Unit to Chapter.",
-        ],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.base.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-
-    agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {
-                        "criterion_id": "c1",
-                        "score": 3,
-                        "justification": "ok",
-                    }
-                ],
-            }
-        )
-    )
->>>>>>> 91b0bd7 (refactor(agents): enhance rubric context handling and add debug option)
 
     result = agent.run(
         evaluation_id=uuid4(),
@@ -640,7 +563,6 @@ def test_base_agent_exposes_debug_rubric_context_when_enabled(monkeypatch) -> No
         reference_document_ids={"syllabus": uuid4()},
     )
 
-<<<<<<< HEAD
     # LLM was called twice: original + repair
     assert len(llm.prompts) == 2
     # Repair prompt wraps the partial output
@@ -783,7 +705,98 @@ def test_base_agent_repair_prompt_handles_empty_partial() -> None:
     assert "Prior partial output" in prompt
     prompt_none = agent._build_repair_prompt(None)  # type: ignore[arg-type]
     assert "Prior partial output" in prompt_none
-=======
+
+
+# ------------------------------------------------------------------
+# Rubric context (coordinator lookup + debug exposure)
+# ------------------------------------------------------------------
+
+
+def test_coordinator_rubric_lookup_maps_to_coordinator(monkeypatch) -> None:
+    captured = {}
+
+    def _capture(agent_id, db=None):
+        captured["agent_id"] = agent_id
+        return ["ctx"]
+
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_active_rubric_context",
+        _capture,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    agent = Coordinator(
+        llm_client=_FakeLLM(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {
+                        "criterion_id": "OP-01",
+                        "criterion_title": "Topic Coherence",
+                        "score": 3,
+                        "justification": "ok",
+                    }
+                ],
+            }
+        )
+    )
+
+    agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}],
+        context_text="reference context",
+        reference_document_ids={"syllabus": uuid4()},
+    )
+
+    assert captured["agent_id"] == "coordinator"
+
+
+def test_base_agent_exposes_debug_rubric_context_when_enabled(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_settings",
+        lambda: _mock_settings(agent_debug_rubric_context=True),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_active_rubric_context",
+        lambda agent_id, db=None: [
+            "[SME Rubric v1]",
+            "Agent: sme",
+            "Version: 1",
+            "Domain: Organization & Presentation",
+            "OP-01 | Title: Topic Coherence | Description: Topics are coherent from Unit to Chapter.",
+        ],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    agent = _DummyAgent(
+        llm_client=_FakeLLM(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {
+                        "criterion_id": "c1",
+                        "score": 3,
+                        "justification": "ok",
+                    }
+                ],
+            }
+        )
+    )
+
+    result = agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "Document chunk text"}],
+        context_text="Syllabus text",
+        reference_document_ids={"syllabus": uuid4()},
+    )
+
     assert result.metadata["rubric_context"] is not None
     assert result.metadata["rubric_context"][0] == "[SME Rubric v1]"
->>>>>>> 91b0bd7 (refactor(agents): enhance rubric context handling and add debug option)
