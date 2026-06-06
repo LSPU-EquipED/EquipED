@@ -75,7 +75,11 @@ class Settings:
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_temperature: float = 0.2
-    llm_max_new_tokens: int = 2048
+    # Default raised from 2048 to 4096 to give larger SLM evaluation outputs
+    # more headroom and reduce the chance of JSON truncation in agent responses.
+    # Fits comfortably within typical 8K-context local models (e.g. Gemma-2-2B)
+    # alongside the bounded prompt payload.
+    llm_max_new_tokens: int = 4096
     llm_agent_delay_seconds: int = 0
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
@@ -137,11 +141,13 @@ def get_settings() -> Settings:
     except ValueError as exc:
         raise ConfigurationError("LLM_TEMPERATURE must be a valid number") from exc
 
-    llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "2048")
+    llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "4096")
     try:
-        parsed_llm_max_new_tokens = int(llm_max_new_tokens or "2048")
+        parsed_llm_max_new_tokens = int(llm_max_new_tokens or "4096")
     except ValueError as exc:
         raise ConfigurationError("LLM_MAX_NEW_TOKENS must be a valid integer") from exc
+    if parsed_llm_max_new_tokens < 1:
+        raise ConfigurationError("LLM_MAX_NEW_TOKENS must be at least 1")
 
     llm_agent_delay_seconds = _env("LLM_AGENT_DELAY_SECONDS", "0")
     try:
