@@ -5,12 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
-
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.synthesis.models import MonitoringMatrix
 
@@ -103,10 +100,16 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     seen_statuses: list[EvaluationStatus] = []
     real_transition = evaluation_orchestrator.transition_evaluation_status
 
-    def recording_transition(evaluation_id, new_status, db, *, error_message=None):
+    def recording_transition(
+        evaluation_id, new_status, db, *, error_message=None, execution_token=None
+    ):
         seen_statuses.append(new_status)
         return real_transition(
-            evaluation_id, new_status, db, error_message=error_message
+            evaluation_id,
+            new_status,
+            db,
+            error_message=error_message,
+            execution_token=execution_token,
         )
 
     monkeypatch.setattr(

@@ -1,42 +1,83 @@
 """
 BackgroundTask orchestrator for evaluations jobs.
+
+Phase 1 execution is sequential via FastAPI BackgroundTasks. The
+orchestrator generates a per-run execution token, atomically claims the
+job, heartbeats around major phases, and clears the token on terminal
+transitions. If the supervisor has already produced outputs for the
+evaluation (e.g. after a startup recovery), the orchestrator skips
+re-running the supervisor and resumes from synthesis/finalization.
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from server.modules.agents.supervisor import Supervisor
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
-from server.modules.evaluations.exceptions import EvaluationPipelineUnavailableError
+from server.modules.evaluations.exceptions import (
+    EvaluationExecutionOwnershipError,
+    EvaluationPipelineUnavailableError,
+)
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-from server.modules.evaluations.service import transition_evaluation_status
+from server.modules.evaluations.service import (
+    acquire_evaluation_execution,
+    heartbeat_evaluation_execution,
+    transition_evaluation_status,
+)
 from server.modules.synthesis.matrix import (
     compute_synthesized_score,
     upsert_monitoring_matrix,
 )
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.service import persist_agent_outputs
+from sqlalchemy import update
+
+logger = logging.getLogger(__name__)
 
 
 def run_evaluation_job(
     evaluation_id: uuid.UUID,
     db_session_factory=None,
 ) -> None:
-    """Run the lifecycle through honest Phase 3 transitions."""
+    """Run the lifecycle through honest Phase 3 transitions.
+
+    The runner is idempotent at the evaluation level: if a previous
+    attempt already persisted AgentResult rows (e.g. after a crash that
+    the startup recovery helper detected), the supervisor is skipped
+    and the orchestrator resumes from synthesis/finalization.
+    """
 
     if db_session_factory is None:
         from server.core.database import get_session_factory
 
         db_session_factory = get_session_factory()
 
+    execution_token = uuid.uuid4()
     session = db_session_factory()
     try:
         job = session.get(EvaluationJob, evaluation_id)
         if job is None:
             raise EvaluationPipelineUnavailableError("Evaluation job not found.")
+
+        # 1) Atomic claim — no-op if missing, terminal, or already owned.
+        acquired = acquire_evaluation_execution(session, evaluation_id, execution_token)
+        if not acquired:
+            logger.info(
+                "Skipping evaluation %s: not claimable (terminal or already owned).",
+                evaluation_id,
+            )
+            return
+
+        # Re-read the row with the freshly attached token for the rest of
+        # the lifecycle. Subsequent status transitions carry the token.
+        job = session.get(EvaluationJob, evaluation_id)
+        if job is None or job.execution_token != execution_token:
+            # Lost the race between acquire and the next read.
+            return
 
         document = session.get(Document, job.document_id)
         if document is None:
@@ -56,7 +97,9 @@ def run_evaluation_job(
             evaluation_id,
             EvaluationStatus.PREPROCESSING,
             session,
+            execution_token=execution_token,
         )
+        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
         if not get_document_chunks(job.document_id, db=session):
             raise EvaluationPipelineUnavailableError(
@@ -67,36 +110,62 @@ def run_evaluation_job(
             evaluation_id,
             EvaluationStatus.EVALUATING,
             session,
+            execution_token=execution_token,
         )
+        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
+
         slm_chunks = get_document_chunks(job.document_id, db=session)
         slm_text = "\n".join([chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)])
-        supervisor = Supervisor(db=session)
-        supervisor_result = supervisor.run_evaluation(
-            evaluation_id=evaluation_id,
-            document_id=job.document_id,
-            chunks=slm_chunks,
-            query_text=slm_text,
-            context={
-                "reference_document_ids": {
-                    **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
-                    **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
-                }
-            },
+
+        # 2) Idempotency check: if a prior attempt already persisted
+        #    AgentResult rows, do not re-run the supervisor. Resume from
+        #    synthesis/finalization instead.
+        existing_results = (
+            session.query(AgentResult)
+            .filter_by(evaluation_id=evaluation_id)
+            .count()
         )
-        if not supervisor_result.agent_results:
-            raise EvaluationPipelineUnavailableError(
-                "Layer 3 produced no usable agent outputs."
+        if existing_results == 0:
+            _verify_token_ownership(session, evaluation_id, execution_token)
+            supervisor = Supervisor(db=session)
+            supervisor_result = supervisor.run_evaluation(
+                evaluation_id=evaluation_id,
+                document_id=job.document_id,
+                chunks=slm_chunks,
+                query_text=slm_text,
+                context={
+                    "reference_document_ids": {
+                        **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
+                        **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
+                    }
+                },
             )
-        persist_agent_outputs(
-            session,
-            evaluation_id,
-            job.document_id,
-            supervisor_result.agent_results,
-        )
+            if not supervisor_result.agent_results:
+                raise EvaluationPipelineUnavailableError(
+                    "Layer 3 produced no usable agent outputs."
+                )
+            _verify_token_ownership(session, evaluation_id, execution_token)
+            persist_agent_outputs(
+                session,
+                evaluation_id,
+                job.document_id,
+                supervisor_result.agent_results,
+            )
+        else:
+            logger.info(
+                "Resuming evaluation %s: %d AgentResult row(s) already present; "
+                "skipping supervisor.",
+                evaluation_id,
+                existing_results,
+            )
+
+        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
+        _verify_token_ownership(session, evaluation_id, execution_token)
         transition_evaluation_status(
             evaluation_id,
             EvaluationStatus.SYNTHESIZING,
             session,
+            execution_token=execution_token,
         )
 
         agent_results = session.query(AgentResult).filter_by(
@@ -107,6 +176,7 @@ def run_evaluation_job(
             evaluation_id=evaluation_id
         ).count()
 
+        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
         upsert_monitoring_matrix(
             db=session,
             document_id=job.document_id,
@@ -135,8 +205,11 @@ def run_evaluation_job(
             ]
             if failed_errors:
                 partial_error = "; ".join(failed_errors)
+        _verify_token_ownership(session, evaluation_id, execution_token)
         transition_evaluation_status(
-            evaluation_id, final_status, session, error_message=partial_error
+            evaluation_id, final_status, session,
+            error_message=partial_error,
+            execution_token=execution_token,
         )
         session.commit()
     except Exception as exc:
@@ -147,9 +220,114 @@ def run_evaluation_job(
                 EvaluationStatus.FAILED,
                 session,
                 error_message=str(exc),
+                execution_token=execution_token,
             )
         except Exception:
-            pass
+            logger.exception(
+                "Failed to record FAILED transition for evaluation %s",
+                evaluation_id,
+            )
         raise
     finally:
         session.close()
+
+
+def _verify_token_ownership(
+    session: object,
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
+) -> None:
+    """Raise if the runner no longer owns the evaluation job.
+
+    This guards against stale runners (e.g. after a recovery cycle)
+    doing expensive or persistent work on a job that has been re-claimed.
+    """
+
+    row = session.get(EvaluationJob, evaluation_id)  # type: ignore[attr-defined]
+    if row is None or row.execution_token != execution_token:
+        raise EvaluationExecutionOwnershipError(
+            f"Lost ownership of evaluation {evaluation_id}"
+        )
+
+
+def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
+    """Recover non-terminal evaluation jobs whose execution tokens are stale.
+
+    On startup, any non-terminal job that still holds an execution_token
+    belongs to a runner that did not finish (e.g. crashed mid-run). This
+    helper:
+
+      1. Clears the internal execution ownership fields on those rows so
+         they can be re-claimed.
+      2. Sequentially re-runs each one through :func:`run_evaluation_job`,
+         which is idempotent: if AgentResult rows already exist for the
+         evaluation, the supervisor is skipped and the orchestrator
+         resumes from synthesis/finalization.
+
+    Returns the number of recovered jobs.
+    """
+
+    if db_session_factory is None:
+        return 0
+
+    session = db_session_factory()
+    try:
+        terminal = (
+            EvaluationStatus.COMPLETED.value,
+            EvaluationStatus.FAILED.value,
+        )
+        candidate_ids = [
+            row[0]
+            for row in session.query(EvaluationJob.evaluation_id)
+            .filter(
+                EvaluationJob.execution_token.isnot(None),
+                EvaluationJob.status.notin_(terminal),
+            )
+            .all()
+        ]
+        if not candidate_ids:
+            return 0
+
+        # Unconditionally reset interrupted jobs back to a fresh,
+        # queueable state and clear the stale ownership fields in a
+        # single UPDATE so the next run can re-claim the job. This is
+        # safe at startup because no other runner is alive yet. The
+        # orchestrator's idempotency check (existing AgentResult rows)
+        # prevents duplicate supervisor work if the previous attempt
+        # had already persisted Layer 3 outputs.
+        session.execute(
+            update(EvaluationJob)
+            .where(EvaluationJob.evaluation_id.in_(candidate_ids))
+            .values(
+                status=EvaluationStatus.SUBMITTED.value,
+                execution_token=None,
+                execution_started_at=None,
+                execution_heartbeat_at=None,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    logger.info(
+        "Recovering %d interrupted evaluation job(s): %s",
+        len(candidate_ids),
+        candidate_ids,
+    )
+
+    for evaluation_id in candidate_ids:
+        try:
+            run_evaluation_job(
+                evaluation_id,
+                db_session_factory=db_session_factory,
+            )
+        except Exception:
+            logger.exception(
+                "Recovery run failed for evaluation %s",
+                evaluation_id,
+            )
+
+    return len(candidate_ids)
+
+
+__all__ = ["run_evaluation_job", "recover_interrupted_evaluation_jobs"]

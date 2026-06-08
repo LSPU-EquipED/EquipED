@@ -4,6 +4,7 @@ Evaluations business logic layer. Enforces job lifecycle, role/ownership, and st
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -12,6 +13,7 @@ from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import (
+    EvaluationExecutionOwnershipError,
     EvaluationNotFoundError,
     EvaluationPipelineUnavailableError,
     InvalidEvaluationTargetError,
@@ -28,6 +30,17 @@ from server.modules.evaluations.schemas import (
     EvaluationResponse,
     EvaluationStatusResponse,
     EvaluationSubmitRequest,
+)
+from sqlalchemy import update
+
+logger = logging.getLogger(__name__)
+
+
+# Statuses considered terminal — once entered, no further transitions
+# or token claims are allowed.
+_TERMINAL_STATUSES: tuple[str, ...] = (
+    EvaluationStatus.COMPLETED.value,
+    EvaluationStatus.FAILED.value,
 )
 
 
@@ -224,6 +237,7 @@ def transition_evaluation_status(
     db: Any,
     *,
     error_message: str | None = None,
+    execution_token: uuid.UUID | None = None,
 ) -> EvaluationStatusResponse:
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
@@ -238,11 +252,22 @@ def transition_evaluation_status(
         )
     if not can_transition_status(row.status, new_status):
         raise InvalidStatusTransitionError(f"Cannot move {row.status} -> {new_status}")
+    if execution_token is not None and row.execution_token != execution_token:
+        # Token was provided but does not match the current row ownership.
+        # This guards against stale runners mutating state they no longer own.
+        raise EvaluationExecutionOwnershipError(
+            f"Execution token mismatch for evaluation {evaluation_id}"
+        )
     row.status = new_status.value
     if error_message:
         row.error_message = error_message
     if new_status in [EvaluationStatus.COMPLETED, EvaluationStatus.FAILED]:
         row.completed_at = datetime.now(UTC)
+        # Terminal transitions always clear execution ownership so the
+        # job can be re-claimed if the row is later reset by recovery.
+        row.execution_token = None
+        row.execution_started_at = None
+        row.execution_heartbeat_at = None
     db.commit()
     return EvaluationStatusResponse(
         evaluation_id=row.evaluation_id,
@@ -251,11 +276,98 @@ def transition_evaluation_status(
         completed_at=row.completed_at,
     )
 
+
+def acquire_evaluation_execution(
+    db: Any,
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
+) -> bool:
+    """Atomically claim an evaluation job for execution.
+
+    Returns True if the caller now owns the job, False if the job is
+    missing, already terminal, or already claimed by another runner.
+
+    Uses a single conditional UPDATE so concurrent runners cannot both
+    succeed (the rowcount is 1 for exactly one claim).
+    """
+
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(EvaluationJob)
+        .where(
+            EvaluationJob.evaluation_id == evaluation_id,
+            EvaluationJob.execution_token.is_(None),
+            EvaluationJob.status.not_in(_TERMINAL_STATUSES),
+        )
+        .values(
+            execution_token=execution_token,
+            execution_started_at=now,
+            execution_heartbeat_at=now,
+        )
+    )
+    db.commit()
+    return result.rowcount == 1
+
+
+def heartbeat_evaluation_execution(
+    db: Any,
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
+) -> bool:
+    """Refresh the heartbeat timestamp for an owned evaluation job.
+
+    Returns True if the heartbeat was updated, False if the token no
+    longer matches (the caller has lost ownership).
+    """
+
+    now = datetime.now(UTC)
+    result = db.execute(
+        update(EvaluationJob)
+        .where(
+            EvaluationJob.evaluation_id == evaluation_id,
+            EvaluationJob.execution_token == execution_token,
+        )
+        .values(execution_heartbeat_at=now)
+    )
+    db.commit()
+    return result.rowcount == 1
+
+
+def release_evaluation_execution(
+    db: Any,
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
+) -> bool:
+    """Clear execution ownership fields for an owned evaluation job.
+
+    Returns True if the fields were cleared, False if the token no longer
+    matches (the caller has lost ownership).
+    """
+
+    result = db.execute(
+        update(EvaluationJob)
+        .where(
+            EvaluationJob.evaluation_id == evaluation_id,
+            EvaluationJob.execution_token == execution_token,
+        )
+        .values(
+            execution_token=None,
+            execution_started_at=None,
+            execution_heartbeat_at=None,
+        )
+    )
+    db.commit()
+    return result.rowcount == 1
+
+
 __all__ = [
     "create_evaluation",
     "get_evaluation",
     "list_evaluations",
     "get_evaluation_status",
     "transition_evaluation_status",
+    "acquire_evaluation_execution",
+    "heartbeat_evaluation_execution",
+    "release_evaluation_execution",
     "_validate_evaluation_target",
 ]

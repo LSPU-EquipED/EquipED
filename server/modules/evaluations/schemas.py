@@ -4,12 +4,13 @@ Strict typing and status enforced per implementation plan.
 """
 
 from __future__ import annotations
+
 from datetime import datetime
 from uuid import UUID
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from server.modules.evaluations.models import EvaluationStatus
+
 
 class EvaluationSubmitRequest(BaseModel):
     document_id: UUID = Field(..., description="ID of the document to evaluate.")
@@ -22,10 +23,10 @@ class EvaluationResponse(BaseModel):
     syllabus_id: UUID | None
     curriculum_id: UUID | None
     status: EvaluationStatus
-    error_message: Optional[str] = None
-    submitted_by: Optional[UUID] = Field(None, description="User who submitted job.")
+    error_message: str | None = None
+    submitted_by: UUID | None = Field(None, description="User who submitted job.")
     submitted_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
@@ -35,7 +36,7 @@ class EvaluationListItem(BaseModel):
     curriculum_id: UUID | None
     status: EvaluationStatus
     submitted_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 class EvaluationListResponse(BaseModel):
     items: list[EvaluationListItem]
@@ -46,8 +47,8 @@ class EvaluationListResponse(BaseModel):
 class EvaluationStatusResponse(BaseModel):
     evaluation_id: UUID
     status: EvaluationStatus
-    error_message: Optional[str] = None
-    completed_at: Optional[datetime] = None
+    error_message: str | None = None
+    completed_at: datetime | None = None
 
 __all__ = [
     "EvaluationSubmitRequest", "EvaluationResponse", "EvaluationListItem", "EvaluationListResponse", "EvaluationStatusResponse"

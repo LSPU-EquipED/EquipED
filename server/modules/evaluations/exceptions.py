@@ -25,6 +25,11 @@ class EvaluationPipelineUnavailableError(EvaluationsError):
 class InvalidEvaluationTargetError(EvaluationsError):
     """Raised when the target document is not eligible for evaluation."""
 
+
+class EvaluationExecutionOwnershipError(EvaluationsError):
+    """Raised when a status transition lacks a valid execution token."""
+
+
 __all__ = [
     "EvaluationsError",
     "EvaluationNotFoundError",
@@ -33,4 +38,5 @@ __all__ = [
     "EvaluationJobStillRunningError",
     "EvaluationPipelineUnavailableError",
     "InvalidEvaluationTargetError",
+    "EvaluationExecutionOwnershipError",
 ]

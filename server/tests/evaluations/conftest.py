@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
-import pytest
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
 from server.modules.documents.models import Document, DocumentChunk

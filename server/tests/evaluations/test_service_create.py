@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
-
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus

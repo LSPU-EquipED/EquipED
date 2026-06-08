@@ -84,6 +84,19 @@ class EvaluationJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Internal execution ownership fields used by the Phase 1 sequential
+    # BackgroundTasks runner. These are NOT exposed via the public API.
+    # `execution_token` is set when a runner claims a non-terminal job; it
+    # is cleared by terminal transitions or by the startup recovery helper.
+    execution_token: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    execution_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    execution_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 def can_transition_status(
