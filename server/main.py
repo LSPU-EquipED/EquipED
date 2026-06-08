@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 from importlib import import_module
@@ -18,6 +19,8 @@ from server.core.exceptions import CoreError, InfrastructureUnavailableError
 from server.core.llm import get_llm_client
 from server.db.metadata import import_model_modules
 from server.modules.auth.service import bootstrap_admin_if_configured
+
+logger = logging.getLogger(__name__)
 
 MODULE_ROUTER_PATHS = (
     "server.modules.documents.router",
@@ -70,6 +73,36 @@ def _bootstrap_admin_if_needed() -> None:
         session.close()
 
 
+def _recover_interrupted_evaluations() -> None:
+    """Run startup recovery for any non-terminal evaluation jobs.
+
+    Any job that is still mid-flight from a previous process (e.g. after
+    a crash) holds an execution_token. This helper clears those tokens
+    and re-runs the jobs sequentially through the normal orchestrator.
+    Recovery failures are logged but do not crash app startup.
+    """
+
+    settings = get_settings()
+    if not settings.database_configured:
+        return
+
+    try:
+        from server.modules.evaluations.orchestrator import (
+            recover_interrupted_evaluation_jobs,
+        )
+
+        session_factory = get_session_factory()
+        recovered = recover_interrupted_evaluation_jobs(session_factory)
+        if recovered:
+            logger.info(
+                "Evaluation startup recovery re-queued %d job(s).",
+                recovered,
+            )
+    except Exception:
+        # Never let recovery failure crash app startup.
+        logger.exception("Evaluation startup recovery failed.")
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     import_model_modules()
@@ -77,6 +110,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         _bootstrap_admin_if_needed()
+        _recover_interrupted_evaluations()
         yield
 
     app = FastAPI(

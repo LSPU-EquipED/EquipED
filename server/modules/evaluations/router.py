@@ -2,28 +2,33 @@
 Evaluations endpoints. Job submission, listing, details, and status polling with BackgroundTask support and 404-on-unauthorized.
 """
 from __future__ import annotations
+
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
-from server.modules.evaluations.schemas import (
-    EvaluationSubmitRequest, EvaluationResponse,
-    EvaluationListResponse, EvaluationStatusResponse
-)
-from server.modules.evaluations.service import (
-    create_evaluation, get_evaluation, list_evaluations, get_evaluation_status
-)
-from server.modules.evaluations.orchestrator import run_evaluation_job
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.evaluations.exceptions import (
     EvaluationNotFoundError,
     EvaluationPipelineUnavailableError,
     InvalidEvaluationTargetError,
 )
-
-from server.core.database import get_db_session
+from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.evaluations.schemas import (
+    EvaluationListResponse,
+    EvaluationResponse,
+    EvaluationStatusResponse,
+    EvaluationSubmitRequest,
+)
+from server.modules.evaluations.service import (
+    create_evaluation,
+    get_evaluation,
+    get_evaluation_status,
+    list_evaluations,
+)
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
