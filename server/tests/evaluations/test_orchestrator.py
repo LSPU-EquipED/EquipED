@@ -5,16 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import run_evaluation_job
 from server.modules.synthesis.models import MonitoringMatrix
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from .conftest import _add_document, _seed_active_prompts
 
@@ -78,14 +76,24 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     )
 
     def recording_transition(
-        evaluation_id, new_status, db=None, *, error_message=None, session=None
+        evaluation_id,
+        new_status,
+        db=None,
+        *,
+        error_message=None,
+        execution_token=None,
+        session=None,
     ):
         db = db or session
         if isinstance(new_status, str):
             new_status = EvaluationStatus(new_status)
         seen_statuses.append(new_status)
         return real_transition(
-            evaluation_id, new_status, db, error_message=error_message
+            evaluation_id,
+            new_status,
+            db,
+            error_message=error_message,
+            execution_token=execution_token,
         )
 
     monkeypatch.setattr(
