@@ -1,4 +1,10 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/components/ui/select';
 
 interface MatrixFiltersProps {
   program: string;
@@ -7,7 +13,12 @@ interface MatrixFiltersProps {
   onStatusChange: (val: string) => void;
 }
 
-export function MatrixFilters({ program, status, onProgramChange, onStatusChange }: MatrixFiltersProps) {
+export function MatrixFilters({
+  program,
+  status,
+  onProgramChange,
+  onStatusChange,
+}: MatrixFiltersProps) {
   return (
     <div className="mb-6 flex flex-wrap items-center gap-4">
       <div className="flex-1 min-w-[200px] max-w-sm">

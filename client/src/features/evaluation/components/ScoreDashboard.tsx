@@ -26,7 +26,11 @@ import {
 } from '@/shared/components/ui/table';
 import { FeedbackPanel } from './FeedbackPanel';
 import { formatScore } from './scoreHelpers';
-import type { CriterionScoreItem, EvaluationResultsResponse, EvaluationStatusResponse } from '../types';
+import type {
+  CriterionScoreItem,
+  EvaluationResultsResponse,
+  EvaluationStatusResponse,
+} from '../types';
 
 const agents = [
   {
@@ -55,7 +59,7 @@ const agents = [
   },
 ] as const;
 
-type AgentId = typeof agents[number]['id'];
+type AgentId = (typeof agents)[number]['id'];
 
 const PIPELINE_STAGES = [
   { key: 'SUBMITTED', label: 'Submitted' },
@@ -73,7 +77,10 @@ function getStageIndex(status: string | undefined): number {
 
 function getAgentCardState(
   agentId: string,
-  results: { domain_scores: Record<string, unknown>; active_agents?: string[]; failed_agents?: string[] } | null | undefined,
+  results:
+    | { domain_scores: Record<string, unknown>; active_agents?: string[]; failed_agents?: string[] }
+    | null
+    | undefined,
 ): 'pending' | 'running' | 'done' | 'failed' {
   if (!results) return 'pending';
   if (results.failed_agents?.includes(agentId)) return 'failed';
@@ -176,7 +183,9 @@ export function ScoreDashboard({
   const domainScore = results?.domain_scores[selectedAgent.id];
 
   const selectedScore = {
-    score: domainScore ? Math.round((domainScore.subtotal / (domainScore.max_score || 1)) * 100) : 0,
+    score: domainScore
+      ? Math.round((domainScore.subtotal / (domainScore.max_score || 1)) * 100)
+      : 0,
     rawScore: domainScore?.subtotal ?? 0,
     verdict: domainScore
       ? domainScore.status === 'OK'
@@ -220,9 +229,7 @@ export function ScoreDashboard({
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
             Score Matrix Dashboard
           </p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-normal">
-            Synthesized Agent View
-          </h2>
+          <h2 className="mt-3 text-2xl font-semibold tracking-normal">Synthesized Agent View</h2>
           <p className="mt-2 text-base text-muted-foreground">
             Advisory synthesis - Human review authoritative
           </p>
@@ -239,7 +246,10 @@ export function ScoreDashboard({
         ) : (
           <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-muted-foreground/25 p-3">
             <div className="text-center">
-              <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+              <Loader2
+                className="mx-auto size-6 animate-spin text-muted-foreground"
+                aria-hidden="true"
+              />
               <div className="mt-1 text-xs text-muted-foreground">
                 {isInProgress ? 'Running...' : submitIsPending ? 'Submitting...' : 'No data'}
               </div>
@@ -255,8 +265,12 @@ export function ScoreDashboard({
               {PIPELINE_STAGES.map((stage, index) => {
                 const currentIndex = getStageIndex(status?.status);
                 const isFailed = status?.status === 'FAILED';
-                const isCompleted = !isFailed && (index < currentIndex || (status?.status === 'COMPLETED' && index === currentIndex));
-                const isCurrent = !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
+                const isCompleted =
+                  !isFailed &&
+                  (index < currentIndex ||
+                    (status?.status === 'COMPLETED' && index === currentIndex));
+                const isCurrent =
+                  !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
                 const isUpcoming = isFailed || index > currentIndex;
 
                 return (
@@ -276,7 +290,9 @@ export function ScoreDashboard({
                         )}
                       >
                         {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
-                        {isCurrent && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
+                        {isCurrent && (
+                          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                        )}
                         {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
                       </span>
                       <span
@@ -412,9 +428,7 @@ export function ScoreDashboard({
                     {agentState === 'running' && (
                       <Loader2 className="size-3 animate-spin" aria-hidden="true" />
                     )}
-                    {agentState === 'failed' && (
-                      <XCircle className="size-3" aria-hidden="true" />
-                    )}
+                    {agentState === 'failed' && <XCircle className="size-3" aria-hidden="true" />}
                     {agentState === 'done'
                       ? 'Complete'
                       : agentState === 'running'
@@ -432,7 +446,9 @@ export function ScoreDashboard({
             className={cn(
               'rounded-xl border bg-background p-5',
               selectedScore.score >= 85 && 'border-emerald-200 bg-emerald-50/30',
-              selectedScore.score >= 70 && selectedScore.score < 85 && 'border-amber-200 bg-amber-50/30',
+              selectedScore.score >= 70 &&
+                selectedScore.score < 85 &&
+                'border-amber-200 bg-amber-50/30',
               selectedScore.score < 70 && domainScore && 'border-rose-200 bg-rose-50/30',
             )}
           >
@@ -440,19 +456,38 @@ export function ScoreDashboard({
               {(() => {
                 const agentState = getAgentCardState(selectedAgent.id, results);
                 if (agentState === 'done') {
-                  return <CheckCircle2 className="mt-1 size-5 shrink-0 text-emerald-600" aria-hidden="true" />;
+                  return (
+                    <CheckCircle2
+                      className="mt-1 size-5 shrink-0 text-emerald-600"
+                      aria-hidden="true"
+                    />
+                  );
                 }
                 if (agentState === 'running') {
-                  return <Loader2 className="mt-1 size-5 shrink-0 animate-spin text-primary" aria-hidden="true" />;
+                  return (
+                    <Loader2
+                      className="mt-1 size-5 shrink-0 animate-spin text-primary"
+                      aria-hidden="true"
+                    />
+                  );
                 }
                 if (agentState === 'failed') {
-                  return <XCircle className="mt-1 size-5 shrink-0 text-destructive" aria-hidden="true" />;
+                  return (
+                    <XCircle className="mt-1 size-5 shrink-0 text-destructive" aria-hidden="true" />
+                  );
                 }
-                return <Clock className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />;
+                return (
+                  <Clock
+                    className="mt-1 size-5 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                );
               })()}
               <div className="min-w-0 flex-1">
                 <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
-                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">{selectedScore.summary}</p>
+                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                  {selectedScore.summary}
+                </p>
               </div>
             </div>
 
@@ -462,7 +497,9 @@ export function ScoreDashboard({
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold',
                     selectedScore.score >= 85 && 'bg-emerald-100 text-emerald-800',
-                    selectedScore.score >= 70 && selectedScore.score < 85 && 'bg-amber-100 text-amber-800',
+                    selectedScore.score >= 70 &&
+                      selectedScore.score < 85 &&
+                      'bg-amber-100 text-amber-800',
                     selectedScore.score < 70 && 'bg-rose-100 text-rose-800',
                   )}
                 >
@@ -510,9 +547,7 @@ export function ScoreDashboard({
                   <TableHead className="uppercase tracking-[0.18em]">
                     Evaluation Criterion
                   </TableHead>
-                  <TableHead className="w-[14rem] uppercase tracking-[0.18em]">
-                    Status
-                  </TableHead>
+                  <TableHead className="w-[14rem] uppercase tracking-[0.18em]">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -521,10 +556,7 @@ export function ScoreDashboard({
                     const tier = getCriterionTier(row.rating);
                     const isWeak = tier === 'weak';
                     return (
-                      <TableRow
-                        key={row.criterion}
-                        className={cn(isWeak && 'bg-rose-50/40')}
-                      >
+                      <TableRow key={row.criterion} className={cn(isWeak && 'bg-rose-50/40')}>
                         <TableCell>
                           <span
                             className={cn(
@@ -535,7 +567,12 @@ export function ScoreDashboard({
                             {row.rating}
                           </span>
                         </TableCell>
-                        <TableCell className={cn('whitespace-normal', isWeak ? 'text-foreground font-medium' : 'text-muted-foreground')}>
+                        <TableCell
+                          className={cn(
+                            'whitespace-normal',
+                            isWeak ? 'text-foreground font-medium' : 'text-muted-foreground',
+                          )}
+                        >
                           {row.criterion}
                         </TableCell>
                         <TableCell className="whitespace-normal">
@@ -555,8 +592,13 @@ export function ScoreDashboard({
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                      {isInProgress ? 'Criteria will appear once evaluation completes.' : 'No criteria available.'}
+                    <TableCell
+                      colSpan={3}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      {isInProgress
+                        ? 'Criteria will appear once evaluation completes.'
+                        : 'No criteria available.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -573,9 +615,9 @@ export function ScoreDashboard({
             <h3 className="font-semibold">Next Steps</h3>
           </div>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            This evaluation is advisory until reviewed by an authorized human reviewer.
-            Review the criteria and scores above, then open the Full Report for a consolidated
-            view across all agents.
+            This evaluation is advisory until reviewed by an authorized human reviewer. Review the
+            criteria and scores above, then open the Full Report for a consolidated view across all
+            agents.
           </p>
           {isTerminal && evaluationId && (
             <Button

@@ -10,11 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/shared/components/ui/sheet';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/shared/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import {
   GadExportDownloadButton,
   GadExportPreview,
@@ -95,9 +91,7 @@ export function EvaluationHeader({
               </TooltipTrigger>
               {(!hasResults || !isTerminal) && (
                 <TooltipContent side="bottom">
-                  {!isTerminal
-                    ? 'Available once evaluation completes'
-                    : 'No results to export'}
+                  {!isTerminal ? 'Available once evaluation completes' : 'No results to export'}
                 </TooltipContent>
               )}
             </Tooltip>
@@ -132,9 +126,7 @@ export function EvaluationHeader({
             </Button>
           </TooltipTrigger>
           {!isTerminal && (
-            <TooltipContent side="bottom">
-              Available once evaluation completes
-            </TooltipContent>
+            <TooltipContent side="bottom">Available once evaluation completes</TooltipContent>
           )}
         </Tooltip>
       </div>

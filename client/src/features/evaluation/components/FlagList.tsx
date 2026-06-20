@@ -39,9 +39,13 @@ export function FlagList({ flags, agentLabel, chunkMap }: FlagListProps) {
                     Score {formatScore(flag.score)}/4
                   </span>
                 </div>
-                <p className="mt-1.5 text-sm font-medium leading-snug text-foreground">{flag.criterion_text}</p>
+                <p className="mt-1.5 text-sm font-medium leading-snug text-foreground">
+                  {flag.criterion_text}
+                </p>
                 {flag.justification && (
-                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{cleanJustification(flag.justification)}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    {cleanJustification(flag.justification)}
+                  </p>
                 )}
                 {linkedChunk && (
                   <button

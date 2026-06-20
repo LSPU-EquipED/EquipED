@@ -35,10 +35,7 @@ export function EvaluationHistoryTable() {
         <h1 className="mt-2 text-2xl font-semibold">Evaluation History</h1>
       </div>
 
-      <HistoryFilters 
-        status={status}
-        onStatusChange={setStatus}
-      />
+      <HistoryFilters status={status} onStatusChange={setStatus} />
 
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         {isLoading ? (
@@ -72,11 +69,15 @@ export function EvaluationHistoryTable() {
                   <TableCell className="font-medium">
                     <div className="flex flex-col">
                       <span>{evalRecord.document_id}</span>
-                      <span className="text-xs font-mono text-muted-foreground">{evalRecord.evaluation_id}</span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {evalRecord.evaluation_id}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(evalRecord.status)}`}>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(evalRecord.status)}`}
+                    >
                       {evalRecord.status.replace('_', ' ')}
                     </span>
                   </TableCell>
@@ -84,7 +85,9 @@ export function EvaluationHistoryTable() {
                     {new Date(evalRecord.submitted_at).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {evalRecord.completed_at ? new Date(evalRecord.completed_at).toLocaleString() : '—'}
+                    {evalRecord.completed_at
+                      ? new Date(evalRecord.completed_at).toLocaleString()
+                      : '—'}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link
