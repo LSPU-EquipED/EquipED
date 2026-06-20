@@ -42,7 +42,8 @@ export function useFetch<TData, TArgs extends unknown[] = []>(
 
         return response;
       } catch (cause) {
-        const normalizedError = cause instanceof Error ? cause : new Error('Unexpected fetch error');
+        const normalizedError =
+          cause instanceof Error ? cause : new Error('Unexpected fetch error');
 
         if (mountedRef.current) {
           setError(normalizedError);
@@ -77,7 +78,8 @@ export function useFetch<TData, TArgs extends unknown[] = []>(
           setIsSuccess(true);
         }
       } catch (cause) {
-        const normalizedError = cause instanceof Error ? cause : new Error('Unexpected fetch error');
+        const normalizedError =
+          cause instanceof Error ? cause : new Error('Unexpected fetch error');
         if (isMounted) {
           setError(normalizedError);
         }

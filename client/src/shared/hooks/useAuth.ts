@@ -16,29 +16,35 @@ interface AuthSession {
 export function useAuth(storageKey = 'equiped.auth.session') {
   const [session, setSession] = useLocalStorage<AuthSession | null>(storageKey, null);
 
-  const login = useCallback((nextSession: AuthSession) => {
-    setSession(nextSession);
-  }, [setSession]);
+  const login = useCallback(
+    (nextSession: AuthSession) => {
+      setSession(nextSession);
+    },
+    [setSession],
+  );
 
   const logout = useCallback(() => {
     setSession(null);
   }, [setSession]);
 
-  const updateUser = useCallback((userPatch: Partial<AuthUser>) => {
-    setSession((current) => {
-      if (!current) {
-        return current;
-      }
+  const updateUser = useCallback(
+    (userPatch: Partial<AuthUser>) => {
+      setSession((current) => {
+        if (!current) {
+          return current;
+        }
 
-      return {
-        ...current,
-        user: {
-          ...current.user,
-          ...userPatch,
-        },
-      };
-    });
-  }, [setSession]);
+        return {
+          ...current,
+          user: {
+            ...current.user,
+            ...userPatch,
+          },
+        };
+      });
+    },
+    [setSession],
+  );
 
   const isAuthenticated = Boolean(session?.token);
 
