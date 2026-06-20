@@ -90,7 +90,9 @@ export function AdminUploadPage() {
   return (
     <section className="grid gap-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Admin
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">Reference Ingestion</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Upload syllabi, rubrics, and curricula to the knowledge base for evaluation context.
@@ -103,7 +105,10 @@ export function AdminUploadPage() {
       >
         <div className="space-y-2">
           <Label>Document Type</Label>
-          <Select value={sourceType} onValueChange={(value) => setSourceType(value as ReferenceSourceType)}>
+          <Select
+            value={sourceType}
+            onValueChange={(value) => setSourceType(value as ReferenceSourceType)}
+          >
             <SelectTrigger className="h-10 rounded-lg">
               <SelectValue />
             </SelectTrigger>
@@ -133,36 +138,48 @@ export function AdminUploadPage() {
           htmlFor="ref-file"
           className={cn(
             'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8',
-            'transition-colors hover:border-foreground/30 hover:bg-muted'
+            'transition-colors hover:border-foreground/30 hover:bg-muted',
           )}
         >
           <Upload className="size-7 text-foreground" aria-hidden="true" />
           <span className="max-w-full truncate text-base font-medium">
             {file ? file.name : 'Drop a PDF here or browse files'}
           </span>
-          <span className="text-center text-sm text-muted-foreground">PDF only. Reference documents for embedding.</span>
-          <Input id="ref-file" ref={fileInputRef} type="file" accept="application/pdf" onChange={handleFileChange} className="sr-only" />
+          <span className="text-center text-sm text-muted-foreground">
+            PDF only. Reference documents for embedding.
+          </span>
+          <Input
+            id="ref-file"
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileChange}
+            className="sr-only"
+          />
         </Label>
 
         {uploadResult ? (
           <div className="rounded-lg border bg-card px-5 py-4">
             <div className="flex items-start gap-3">
               {isSuccess ? (
-                <CheckCircle className="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                <CheckCircle
+                  className="mt-0.5 size-5 shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
               ) : (
                 <XCircle className="mt-0.5 size-5 shrink-0 text-rose-600" aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-muted-foreground">Result</p>
                 <p className="mt-1 text-base font-semibold">{uploadResult.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{sourceTypeLabels[uploadResult.sourceType as ReferenceSourceType]}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {sourceTypeLabels[uploadResult.sourceType as ReferenceSourceType]}
+                </p>
                 <div className="mt-3">
                   <span
                     className={cn(
                       'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                      isSuccess
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-rose-100 text-rose-800'
+                      isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
                     )}
                   >
                     {isSuccess ? 'Ready' : 'Processing failed'}

@@ -1,10 +1,19 @@
 import { Loader2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/shared/components/ui/table';
 import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
 import type { PreferenceLogItem } from '../types';
 
 function actionClass(action: string) {
-  return action === 'EDITED' ? 'border-primary/50 text-primary bg-primary/10' : 'border-muted-foreground/30 bg-muted/50';
+  return action === 'EDITED'
+    ? 'border-primary/50 text-primary bg-primary/10'
+    : 'border-muted-foreground/30 bg-muted/50';
 }
 
 export function PreferenceLogTable() {
@@ -13,7 +22,9 @@ export function PreferenceLogTable() {
   return (
     <section className="grid gap-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Admin
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">Preference logs</h1>
       </div>
 
@@ -41,12 +52,16 @@ export function PreferenceLogTable() {
                 <TableRow key={log.log_id}>
                   <TableCell className="font-mono text-sm">{log.user_id}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${actionClass(log.action)}`}>
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${actionClass(log.action)}`}
+                    >
                       {log.action}
                     </span>
                   </TableCell>
                   <TableCell className="font-mono text-sm">{log.evaluation_id}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{new Date(log.created_at).toLocaleString()}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(log.created_at).toLocaleString()}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

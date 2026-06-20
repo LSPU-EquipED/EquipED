@@ -1,14 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import {
-  AlertTriangle,
-  ArrowRight,
-  FileText,
-  Loader2,
-  Plus,
-  Upload,
-  Users,
-} from 'lucide-react';
+import { AlertTriangle, ArrowRight, FileText, Loader2, Plus, Upload, Users } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/components/ui/card';
 import { Skeleton } from '@/shared/components/ui/skeleton';
@@ -33,7 +25,11 @@ function statusClass(status: string) {
 export function AdminHomePage() {
   const navigate = useNavigate();
   const { data: summary, isLoading: summaryLoading, isError: summaryError } = useAdminSummary();
-  const { data: matrixData, isLoading: matrixLoading, isError: matrixError } = useAdminMatrix({ page_size: 5 });
+  const {
+    data: matrixData,
+    isLoading: matrixLoading,
+    isError: matrixError,
+  } = useAdminMatrix({ page_size: 5 });
 
   const recentActivity = useMemo(() => {
     return matrixData?.items?.slice(0, 5) ?? [];
@@ -42,7 +38,9 @@ export function AdminHomePage() {
   return (
     <section className="grid gap-8">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">System</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          System
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">Admin Dashboard</h1>
       </div>
 
@@ -89,7 +87,9 @@ export function AdminHomePage() {
               </div>
               <div>
                 <p className="font-medium">Create Faculty Account</p>
-                <p className="text-sm text-muted-foreground">Add a new faculty member to the system.</p>
+                <p className="text-sm text-muted-foreground">
+                  Add a new faculty member to the system.
+                </p>
               </div>
             </div>
             <Button
@@ -111,7 +111,9 @@ export function AdminHomePage() {
               </div>
               <div>
                 <p className="font-medium">Upload Reference Document</p>
-                <p className="text-sm text-muted-foreground">Ingest syllabi, rubrics, or curricula.</p>
+                <p className="text-sm text-muted-foreground">
+                  Ingest syllabi, rubrics, or curricula.
+                </p>
               </div>
             </div>
             <Button
@@ -133,7 +135,9 @@ export function AdminHomePage() {
               </div>
               <div>
                 <p className="font-medium">Review Failures</p>
-                <p className="text-sm text-muted-foreground">Check failed evaluations in the matrix.</p>
+                <p className="text-sm text-muted-foreground">
+                  Check failed evaluations in the matrix.
+                </p>
               </div>
             </div>
             <Button
@@ -152,7 +156,9 @@ export function AdminHomePage() {
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Recent Activity</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Recent Activity
+            </p>
             <h2 className="mt-1 text-lg font-semibold">Latest Evaluations</h2>
           </div>
           <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/matrix' })}>
@@ -170,7 +176,9 @@ export function AdminHomePage() {
             </div>
           ) : matrixError ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-destructive font-medium">Unable to load recent activity.</p>
+              <p className="text-sm text-destructive font-medium">
+                Unable to load recent activity.
+              </p>
               <p className="text-xs text-muted-foreground mt-1">Please try refreshing the page.</p>
             </div>
           ) : recentActivity.length === 0 ? (
@@ -192,10 +200,14 @@ export function AdminHomePage() {
               <TableBody>
                 {recentActivity.map((row: MonitoringMatrixRow) => (
                   <TableRow key={row.evaluation_id}>
-                    <TableCell className="font-medium">{row.document_title || 'Untitled SLM'}</TableCell>
+                    <TableCell className="font-medium">
+                      {row.document_title || 'Untitled SLM'}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{row.program || '—'}</TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(row.evaluation_status)}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(row.evaluation_status)}`}
+                      >
                         {row.evaluation_status.replace('_', ' ')}
                       </span>
                     </TableCell>
@@ -234,12 +246,21 @@ interface SummaryCardProps {
   variant?: 'default' | 'destructive';
 }
 
-function SummaryCard({ title, value, icon: Icon, isLoading, isError, variant = 'default' }: SummaryCardProps) {
+function SummaryCard({
+  title,
+  value,
+  icon: Icon,
+  isLoading,
+  isError,
+  variant = 'default',
+}: SummaryCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <Icon className={`size-4 ${variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground'}`} />
+        <Icon
+          className={`size-4 ${variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground'}`}
+        />
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -247,7 +268,9 @@ function SummaryCard({ title, value, icon: Icon, isLoading, isError, variant = '
         ) : isError ? (
           <p className="text-sm text-destructive">Failed to load</p>
         ) : (
-          <p className={`text-3xl font-bold ${variant === 'destructive' && value > 0 ? 'text-destructive' : ''}`}>
+          <p
+            className={`text-3xl font-bold ${variant === 'destructive' && value > 0 ? 'text-destructive' : ''}`}
+          >
             {value}
           </p>
         )}

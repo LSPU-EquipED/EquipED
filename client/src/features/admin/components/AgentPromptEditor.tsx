@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -34,7 +40,8 @@ export function AgentPromptEditor() {
   const latestPrompt = useMemo(() => data?.versions?.[0]?.prompt_text ?? '', [data]);
 
   const savePrompt = useMutation({
-    mutationFn: () => adminApi.createPrompt(activeAgent, { prompt_text: promptText.trim(), motivation }),
+    mutationFn: () =>
+      adminApi.createPrompt(activeAgent, { prompt_text: promptText.trim(), motivation }),
     onSuccess: async () => {
       setPromptText('');
       setMotivation('');
@@ -45,7 +52,9 @@ export function AgentPromptEditor() {
   return (
     <section key={activeAgent} className="grid gap-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Admin
+        </p>
         <h1 className="mt-2 text-2xl font-semibold">Prompt editor</h1>
       </div>
 
@@ -89,12 +98,18 @@ export function AgentPromptEditor() {
               className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Motivation for this update"
             />
-            <Button onClick={() => savePrompt.mutate()} disabled={savePrompt.isPending || !promptText.trim()} className="w-fit">
+            <Button
+              onClick={() => savePrompt.mutate()}
+              disabled={savePrompt.isPending || !promptText.trim()}
+              className="w-fit"
+            >
               {savePrompt.isPending ? 'Saving...' : 'Save prompt'}
             </Button>
             {savePrompt.isError && (
               <p className="text-sm font-medium text-destructive">
-                {savePrompt.error instanceof Error ? savePrompt.error.message : 'Failed to save prompt'}
+                {savePrompt.error instanceof Error
+                  ? savePrompt.error.message
+                  : 'Failed to save prompt'}
               </p>
             )}
           </CardContent>
