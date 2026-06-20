@@ -10,7 +10,7 @@ import {
   Flag,
 } from 'lucide-react';
 import { useState } from 'react';
-import { Separator } from '@/shared/components/ui/separator';
+// Separator removed
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import type { CriterionScoreItem } from '../types';
@@ -28,7 +28,7 @@ const STATUS_MESSAGES: Record<string, string> = {
 function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="border rounded-md p-3 bg-card/50">
+    <div className="border border-slate-200 rounded-sm p-3 bg-slate-50/30">
       <div
         className="flex items-start justify-between gap-4 cursor-pointer hover:opacity-80 transition-opacity"
         onClick={() => setExpanded(!expanded)}
@@ -153,7 +153,7 @@ export function Scorecard() {
       </header>
 
       <main className="flex-1 overflow-y-auto p-10">
-        <div className="mx-auto max-w-5xl rounded-xl border bg-card p-8 shadow-sm mb-8">
+        <div className="mx-auto max-w-5xl rounded-sm border border-slate-200 bg-white p-8 mb-8">
           <div className="flex items-center gap-4 border-b pb-6">
             {!isTerminal && <Loader2 className="size-8 animate-spin text-primary" />}
             {isTerminal && (!isFailed || isFailedWithResults) && (
@@ -201,10 +201,10 @@ export function Scorecard() {
 
             {isFailed && evaluation.error_message && (
               <>
-                <Separator className="my-4" />
-                <div className="rounded-md bg-destructive/10 p-4">
-                  <p className="font-semibold text-destructive">Error Details</p>
-                  <p className="mt-2 text-sm text-destructive/80 font-mono whitespace-pre-wrap">
+                <div className="border-t border-slate-200 my-4" />
+                <div className="rounded-sm border border-red-200 bg-red-50 p-4">
+                  <p className="font-semibold text-red-705">Error Details</p>
+                  <p className="mt-2 text-xs text-red-700 font-mono whitespace-pre-wrap">
                     {evaluation.error_message}
                   </p>
                 </div>
@@ -245,7 +245,7 @@ export function Scorecard() {
         {results && (
           <div className="mx-auto max-w-[90rem] space-y-8">
             {results.flags && results.flags.length > 0 && (
-              <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-6 shadow-sm">
+              <div className="rounded-sm border border-orange-200 bg-orange-50/30 p-6">
                 <div className="flex items-center gap-2 mb-4 text-orange-700">
                   <Flag className="size-5" />
                   <h3 className="text-lg font-semibold">Evaluation Flags</h3>
@@ -254,7 +254,7 @@ export function Scorecard() {
                   {results.flags.map((flag) => (
                     <div
                       key={flag.flag_id}
-                      className="bg-white rounded-md p-4 border border-orange-100 shadow-sm text-sm"
+                      className="bg-white rounded-sm p-4 border border-orange-100 text-xs font-semibold"
                     >
                       <div className="flex items-center gap-2 mb-2">
                         <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700 uppercase">
@@ -286,10 +286,10 @@ export function Scorecard() {
                 return (
                   <div
                     key={domain}
-                    className="flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden h-[600px]"
+                    className="flex flex-col rounded-sm border border-slate-200 bg-white overflow-hidden h-[600px]"
                   >
                     <div
-                      className={`p-5 border-b shrink-0 ${isError ? 'bg-destructive/10' : 'bg-muted/50'}`}
+                      className={`p-5 border-b border-slate-200 shrink-0 ${isError ? 'bg-red-50' : 'bg-slate-50/50'}`}
                     >
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="font-bold text-lg uppercase tracking-wider text-foreground/80">

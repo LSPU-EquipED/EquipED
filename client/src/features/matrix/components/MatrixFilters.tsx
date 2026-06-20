@@ -1,11 +1,3 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
-
 interface MatrixFiltersProps {
   program: string;
   status: string;
@@ -22,31 +14,29 @@ export function MatrixFilters({
   return (
     <div className="mb-6 flex flex-wrap items-center gap-4">
       <div className="flex-1 min-w-[200px] max-w-sm">
-        <Select value={program} onValueChange={onProgramChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="All Programs" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Programs</SelectItem>
-            <SelectItem value="BSCS">Computer Science</SelectItem>
-            <SelectItem value="BSIT">Information Technology</SelectItem>
-            <SelectItem value="BSEd">Education</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={program}
+          onChange={(e) => onProgramChange(e.target.value)}
+          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-850 cursor-pointer"
+        >
+          <option value="all">All Programs</option>
+          <option value="BSCS">Computer Science</option>
+          <option value="BSIT">Information Technology</option>
+          <option value="BSEd">Education</option>
+        </select>
       </div>
 
       <div className="flex-1 min-w-[200px] max-w-sm">
-        <Select value={status} onValueChange={onStatusChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="COMPLETED">Completed</SelectItem>
-            <SelectItem value="FAILED">Failed</SelectItem>
-            <SelectItem value="EVALUATING">Evaluating</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-850 cursor-pointer"
+        >
+          <option value="all">All Statuses</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+          <option value="EVALUATING">Evaluating</option>
+        </select>
       </div>
     </div>
   );

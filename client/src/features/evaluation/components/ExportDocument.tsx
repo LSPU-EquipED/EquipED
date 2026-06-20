@@ -1,5 +1,4 @@
 import { Download } from 'lucide-react';
-import { Button } from '@/shared/components/ui/button';
 import type { DomainScoreBlock } from '../types';
 
 export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
@@ -214,10 +213,14 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
   const domainData = getExportDomainData(props);
 
   return (
-    <Button type="button" className="gap-2" onClick={() => downloadExport(domainData)}>
-      <Download className="size-4" aria-hidden="true" />
+    <button
+      type="button"
+      className="inline-flex h-9 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
+      onClick={() => downloadExport(domainData)}
+    >
+      <Download className="size-4 mr-1.5" aria-hidden="true" />
       Download
-    </Button>
+    </button>
   );
 }
 

@@ -1,5 +1,3 @@
-import { Label } from '@/shared/components/ui/label';
-
 type DocumentType = 'slm' | 'syllabus' | 'curriculum' | 'reference';
 
 interface DocumentTypeSelectorProps {
@@ -16,21 +14,24 @@ const DOCUMENT_TYPES: Array<{ id: DocumentType; label: string; description: stri
 
 export function DocumentTypeSelector({ value = 'slm', onChange }: DocumentTypeSelectorProps) {
   return (
-    <div className="space-y-3">
-      <Label>Document Type</Label>
+    <div className="space-y-2">
+      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+        Document Type
+      </label>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {DOCUMENT_TYPES.map((type) => (
           <button
             key={type.id}
+            type="button"
             onClick={() => onChange?.(type.id)}
-            className={`rounded-lg border-2 p-3 text-left transition-colors ${
+            className={`rounded-sm border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87] ${
               value === type.id
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-transparent hover:border-primary/50 hover:bg-primary/5'
+                ? 'border-[#1b3b87] bg-blue-50/30 text-[#1b3b87]'
+                : 'border-slate-200 bg-transparent hover:border-slate-350 hover:bg-slate-50 text-slate-650'
             }`}
           >
-            <div className="font-medium text-sm">{type.label}</div>
-            <div className="text-xs text-muted-foreground">{type.description}</div>
+            <div className="font-bold text-xs uppercase tracking-wider">{type.label}</div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">{type.description}</div>
           </button>
         ))}
       </div>

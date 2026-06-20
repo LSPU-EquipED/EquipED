@@ -11,16 +11,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
 import { cn } from '@/shared/components/utils';
 import type { DocumentSourceType, DocumentUploadResponse } from '@/shared/types/documents';
 
@@ -120,52 +110,52 @@ export function UploadForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto grid min-h-[calc(100vh-7.75rem)] w-full max-w-[108rem] grid-cols-1 overflow-hidden rounded-lg bg-card ring-1 ring-border xl:grid-cols-[minmax(0,1fr)_30rem]"
+      className="mx-auto grid min-h-[calc(100vh-7.75rem)] w-full max-w-[108rem] grid-cols-1 overflow-hidden rounded-sm border border-slate-200 bg-white xl:grid-cols-[minmax(0,1fr)_30rem]"
     >
-      <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r">
-        <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
+      <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r border-slate-200">
+        <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6 bg-slate-50/50">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              Document workspace
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              Document Workspace
             </p>
-            <h2 className="truncate text-lg font-semibold">
+            <h2 className="truncate text-sm font-bold text-slate-900 mt-0.5">
               {title.trim() || 'Untitled document upload'}
             </h2>
           </div>
-          <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+          <div className="rounded-sm bg-slate-100 border border-slate-200 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-500">
             Upload only • evaluation later
           </div>
         </div>
 
         <div className="grid flex-1 place-items-center px-4 py-8 sm:px-6 lg:px-8">
           <div className="w-full max-w-3xl space-y-6 text-center">
-            <div className="mx-auto flex size-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-sm bg-slate-50 border border-slate-200 text-[#1b3b87]">
               <FileText className="size-8" aria-hidden="true" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-semibold">Upload an SLM</h3>
-              <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
+              <h3 className="text-2xl font-bold text-slate-900">Upload an SLM</h3>
+              <p className="mx-auto max-w-xl text-sm leading-6 text-slate-500 font-medium">
                 Add your Self-Learning Module to the authenticated inventory. Processing status will
                 appear in the dashboard after upload.
               </p>
             </div>
 
-            <Label
+            <label
               htmlFor="pdf-file"
               className={cn(
-                'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8 sm:px-6',
-                'transition-colors hover:border-foreground/30 hover:bg-muted',
+                'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8 sm:px-6',
+                'transition-colors hover:border-slate-350 hover:bg-slate-50',
               )}
             >
-              <Upload className="size-7 text-foreground" aria-hidden="true" />
-              <span className="max-w-full truncate text-base font-medium">
+              <Upload className="size-7 text-slate-500" aria-hidden="true" />
+              <span className="max-w-full truncate text-base font-bold text-slate-800">
                 {file ? file.name : 'Drop a PDF here or browse files'}
               </span>
-              <span className="text-center text-sm text-muted-foreground">
+              <span className="text-center text-xs text-slate-500 font-semibold">
                 PDF only. Upload size limit remains TBD in the TDD.
               </span>
-              <Input
+              <input
                 id="pdf-file"
                 ref={fileInputRef}
                 type="file"
@@ -173,60 +163,61 @@ export function UploadForm() {
                 onChange={handleFileChange}
                 className="sr-only"
               />
-            </Label>
+            </label>
 
             <div className="grid gap-4 text-left md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="document-title">Title</Label>
-                <Input
+                <label htmlFor="document-title" className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
+                  Title
+                </label>
+                <input
                   id="document-title"
+                  type="text"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Enter the document title"
-                  className="h-10 rounded-lg"
+                  className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-800"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Program</Label>
-                <Select value={program} onValueChange={handleProgramChange}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(programLabels) as ProgramId[]).map((programId) => (
-                      <SelectItem key={programId} value={programId}>
-                        {programLabels[programId]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Program</label>
+                <select
+                  value={program}
+                  onChange={(e) => handleProgramChange(e.target.value)}
+                  className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800 cursor-pointer"
+                >
+                  {(Object.keys(programLabels) as ProgramId[]).map((programId) => (
+                    <option key={programId} value={programId}>
+                      {programLabels[programId]}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Program is required for SLM uploads.
                 </p>
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label>Course title</Label>
-                <Select value={subject} onValueChange={setSubject}>
-                  <SelectTrigger className="h-10 rounded-lg">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjectsByProgram[program].map((subjectName) => (
-                      <SelectItem key={subjectName} value={subjectName}>
-                        {subjectName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Course Title</label>
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800 cursor-pointer"
+                >
+                  {subjectsByProgram[program].map((subjectName) => (
+                    <option key={subjectName} value={subjectName}>
+                      {subjectName}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm text-muted-foreground sm:px-6">
+        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wider sm:px-6 bg-slate-50/20">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2">
               <GraduationCap className="size-4" aria-hidden="true" />
@@ -237,12 +228,12 @@ export function UploadForm() {
         </div>
       </section>
 
-      <aside className="flex min-h-[34rem] flex-col bg-muted/20">
-        <div className="border-b px-4 py-7 sm:px-7 sm:py-8">
-          <h3 className="text-2xl font-semibold">
+      <aside className="flex min-h-[34rem] flex-col bg-slate-50/30">
+        <div className="border-b border-slate-200 px-4 py-7 sm:px-7 sm:py-8 bg-slate-50/50">
+          <h3 className="text-xl font-bold text-slate-900">
             Welcome back, {user?.displayName?.split(' ')?.[0] ?? 'there'}.
           </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-xs text-slate-500 font-semibold uppercase tracking-wider leading-relaxed">
             {isSuccess
               ? 'Your document has been uploaded and processed successfully.'
               : isFailed
@@ -253,20 +244,20 @@ export function UploadForm() {
 
         <div className="grid gap-4 px-4 py-6 sm:px-7">
           {uploadResult ? (
-            <div className="rounded-lg border bg-card px-5 py-4">
+            <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
               <div className="flex items-start gap-3">
                 {isSuccess ? (
                   <CheckCircle
-                    className="mt-0.5 size-5 shrink-0 text-emerald-600"
+                    className="mt-0.5 size-5 shrink-0 text-emerald-605"
                     aria-hidden="true"
                   />
                 ) : (
-                  <XCircle className="mt-0.5 size-5 shrink-0 text-rose-600" aria-hidden="true" />
+                  <XCircle className="mt-0.5 size-5 shrink-0 text-red-600" aria-hidden="true" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">Result</p>
-                  <p className="mt-1 text-base font-semibold">{uploadResult.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Result</p>
+                  <p className="mt-1 text-base font-bold text-slate-900">{uploadResult.title}</p>
+                  <p className="mt-1 text-xs text-slate-500 font-bold uppercase tracking-wider">
                     {sourceTypeLabels[uploadResult.sourceType]}
                     {uploadResult.evaluationReadiness &&
                     uploadResult.evaluationReadiness !== 'PENDING'
@@ -276,60 +267,60 @@ export function UploadForm() {
                   <div className="mt-3">
                     <span
                       className={cn(
-                        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                        isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
+                        'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white',
+                        isSuccess ? 'bg-emerald-600' : 'bg-red-700',
                       )}
                     >
-                      {isSuccess ? 'Ready' : 'Processing failed'}
+                      {isSuccess ? 'Ready' : 'Failed'}
                     </span>
                   </div>
                   {isFailed && uploadResult.errorMessage ? (
-                    <p className="mt-2 text-sm text-destructive">{uploadResult.errorMessage}</p>
+                    <p className="mt-2 text-sm font-semibold text-red-705">{uploadResult.errorMessage}</p>
                   ) : null}
                 </div>
               </div>
             </div>
           ) : (
             <>
-              <div className="rounded-lg border bg-card px-5 py-4">
-                <p className="text-sm font-medium text-muted-foreground">Source type</p>
-                <p className="mt-1 text-base font-semibold">{sourceTypeLabels[sourceType]}</p>
+              <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Source Type</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{sourceTypeLabels[sourceType]}</p>
               </div>
 
-              <div className="rounded-lg border bg-card px-5 py-4">
-                <p className="text-sm font-medium text-muted-foreground">Current file</p>
-                <p className="mt-1 truncate text-base font-semibold">
+              <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Current File</p>
+                <p className="mt-1 truncate text-sm font-bold text-slate-900">
                   {file?.name ?? 'No PDF selected yet'}
                 </p>
               </div>
 
-              <div className="rounded-lg border bg-card px-5 py-4">
-                <p className="text-sm font-medium text-muted-foreground">Program and course</p>
-                <p className="mt-1 text-base font-semibold">{programLabels[program]}</p>
-                <p className="text-sm text-muted-foreground">{subject}</p>
+              <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Program and Course</p>
+                <p className="mt-1 text-sm font-bold text-slate-900">{programLabels[program]}</p>
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-1">{subject}</p>
               </div>
             </>
           )}
 
           {errorMessage ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
               {errorMessage}
             </div>
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 mt-auto border-t bg-card/95 px-4 py-4 shadow-[0_-10px_30px_rgba(0,0,0,0.04)] backdrop-blur sm:px-7">
+        <div className="sticky bottom-0 mt-auto border-t border-slate-200 bg-white px-4 py-4 backdrop-blur sm:px-7">
           <div className="space-y-4">
             {uploadResult ? (
               <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className="font-medium">{isSuccess ? 'Complete' : 'Failed'}</span>
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <span>Status</span>
+                  <span className="text-slate-800 font-bold">{isSuccess ? 'Complete' : 'Failed'}</span>
                 </div>
                 {isSuccess ? (
-                  <Button
+                  <button
                     type="button"
-                    className="h-14 w-full justify-between rounded-lg px-5 text-base"
+                    className="h-14 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87]"
                     onClick={() =>
                       navigate({
                         to: '/dashboard',
@@ -337,21 +328,20 @@ export function UploadForm() {
                       })
                     }
                   >
-                    Go to dashboard
+                    Go to Dashboard
                     <ArrowRight className="size-5" aria-hidden="true" />
-                  </Button>
+                  </button>
                 ) : (
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    className="h-14 w-full justify-between rounded-lg px-5 text-base"
+                    className="h-14 w-full inline-flex items-center justify-between border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200"
                     onClick={handleReset}
                   >
-                    Try uploading again
+                    Try Uploading Again
                     <ArrowRight className="size-5" aria-hidden="true" />
-                  </Button>
+                  </button>
                 )}
-                <p className="text-center text-sm text-muted-foreground">
+                <p className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider leading-relaxed">
                   {isSuccess
                     ? 'The document is now in your dashboard inventory.'
                     : 'You can try uploading the file again or contact support if the issue persists.'}
@@ -359,30 +349,30 @@ export function UploadForm() {
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Upload readiness</span>
-                  <span className="font-medium">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <span>Upload Readiness</span>
+                  <span className="text-slate-800 font-bold">
                     {file && title.trim() ? 'Ready' : 'Missing details'}
                   </span>
                 </div>
-                <Button
+                <button
                   type="submit"
-                  className="h-14 w-full justify-between rounded-lg px-5 text-base"
+                  className="h-14 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isLoading || !file || !title.trim()}
                 >
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      Uploading and processing…
+                      Uploading and Processing…
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-2">
-                      Upload document
+                      Upload Document
                       <ArrowRight className="size-5" aria-hidden="true" />
                     </span>
                   )}
-                </Button>
-                <p className="text-center text-sm text-muted-foreground">
+                </button>
+                <p className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-relaxed">
                   Uploading adds the document to inventory only. Evaluation remains a later
                   workflow.
                 </p>

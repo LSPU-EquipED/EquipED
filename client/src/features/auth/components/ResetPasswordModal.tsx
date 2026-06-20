@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Button } from '@/shared/components/ui/button';
 
 interface ResetPasswordModalProps {
   isOpen: boolean;
@@ -75,13 +74,13 @@ export function ResetPasswordModal({ isOpen, onClose }: ResetPasswordModalProps)
           Please visit their office or contact them via official channels to recover your
           credentials.
         </p>
-        <Button
+        <button
           type="button"
-          className="w-full h-12 rounded-none bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-[13px] tracking-[0.1em] uppercase transition-colors cursor-pointer"
+          className="w-full h-12 rounded-none bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white font-bold text-[13px] tracking-[0.1em] uppercase transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
           onClick={onClose}
         >
           Close
-        </Button>
+        </button>
       </div>
     </div>
   );

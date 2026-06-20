@@ -1,16 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
 import { useAdminUpload } from '@/features/admin/hooks/useAdminUpload';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
 import { cn } from '@/shared/components/utils';
 import type { DocumentSourceType, DocumentUploadResponse } from '@/shared/types/documents';
 
@@ -90,76 +80,77 @@ export function AdminUploadPage() {
   return (
     <section className="grid gap-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
           Admin
         </p>
-        <h1 className="mt-2 text-2xl font-semibold">Reference Ingestion</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">Reference Ingestion</h1>
+        <p className="mt-1 text-sm text-slate-500 font-medium">
           Upload syllabi, rubrics, and curricula to the knowledge base for evaluation context.
         </p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-lg border bg-card p-6 shadow-sm"
+        className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-sm border border-slate-200 bg-white p-6"
       >
         <div className="space-y-2">
-          <Label>Document Type</Label>
-          <Select
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Document Type</label>
+          <select
             value={sourceType}
-            onValueChange={(value) => setSourceType(value as ReferenceSourceType)}
+            onChange={(e) => setSourceType(e.target.value as ReferenceSourceType)}
+            className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800"
           >
-            <SelectTrigger className="h-10 rounded-lg">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {referenceTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {sourceTypeLabels[type]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {referenceTypes.map((type) => (
+              <option key={type} value={type}>
+                {sourceTypeLabels[type]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="ref-title">Title</Label>
-          <Input
+          <label htmlFor="ref-title" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Title
+          </label>
+          <input
+            type="text"
             id="ref-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter the document title"
-            className="h-10 rounded-lg"
+            className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-800"
             required
           />
         </div>
 
-        <Label
-          htmlFor="ref-file"
-          className={cn(
-            'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8',
-            'transition-colors hover:border-foreground/30 hover:bg-muted',
-          )}
-        >
-          <Upload className="size-7 text-foreground" aria-hidden="true" />
-          <span className="max-w-full truncate text-base font-medium">
-            {file ? file.name : 'Drop a PDF here or browse files'}
-          </span>
-          <span className="text-center text-sm text-muted-foreground">
-            PDF only. Reference documents for embedding.
-          </span>
-          <Input
-            id="ref-file"
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            className="sr-only"
-          />
-        </Label>
+        <div className="space-y-2">
+          <label
+            htmlFor="ref-file"
+            className={cn(
+              'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8',
+              'transition-colors hover:border-slate-350 hover:bg-slate-50',
+            )}
+          >
+            <Upload className="size-7 text-slate-500" aria-hidden="true" />
+            <span className="max-w-full truncate text-sm font-semibold text-slate-800">
+              {file ? file.name : 'Drop a PDF here or browse files'}
+            </span>
+            <span className="text-center text-xs text-slate-500 font-medium">
+              PDF only. Reference documents for embedding.
+            </span>
+            <input
+              id="ref-file"
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange}
+              className="sr-only"
+            />
+          </label>
+        </div>
 
         {uploadResult ? (
-          <div className="rounded-lg border bg-card px-5 py-4">
+          <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
             <div className="flex items-start gap-3">
               {isSuccess ? (
                 <CheckCircle
@@ -167,26 +158,26 @@ export function AdminUploadPage() {
                   aria-hidden="true"
                 />
               ) : (
-                <XCircle className="mt-0.5 size-5 shrink-0 text-rose-600" aria-hidden="true" />
+                <XCircle className="mt-0.5 size-5 shrink-0 text-red-600" aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-muted-foreground">Result</p>
-                <p className="mt-1 text-base font-semibold">{uploadResult.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-455">Result</p>
+                <p className="mt-1 text-base font-bold text-slate-900">{uploadResult.title}</p>
+                <p className="mt-1 text-sm text-slate-500 font-semibold">
                   {sourceTypeLabels[uploadResult.sourceType as ReferenceSourceType]}
                 </p>
                 <div className="mt-3">
                   <span
                     className={cn(
-                      'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                      isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
+                      'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white',
+                      isSuccess ? 'bg-emerald-600' : 'bg-red-700',
                     )}
                   >
-                    {isSuccess ? 'Ready' : 'Processing failed'}
+                    {isSuccess ? 'Ready' : 'Failed'}
                   </span>
                 </div>
                 {isFailed && uploadResult.errorMessage ? (
-                  <p className="mt-2 text-sm text-destructive">{uploadResult.errorMessage}</p>
+                  <p className="mt-2 text-sm font-semibold text-red-700">{uploadResult.errorMessage}</p>
                 ) : null}
               </div>
             </div>
@@ -194,18 +185,26 @@ export function AdminUploadPage() {
         ) : null}
 
         {errorMessage ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
             {errorMessage}
           </div>
         ) : null}
 
         <div className="flex items-center justify-end gap-3">
           {uploadResult ? (
-            <Button type="button" variant="outline" onClick={handleReset}>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
+              onClick={handleReset}
+            >
               Upload another
-            </Button>
+            </button>
           ) : (
-            <Button type="submit" disabled={isLoading || !file || !title.trim()}>
+            <button
+              type="submit"
+              className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !file || !title.trim()}
+            >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="size-4 animate-spin" />
@@ -217,7 +216,7 @@ export function AdminUploadPage() {
                   Ingest document
                 </span>
               )}
-            </Button>
+            </button>
           )}
         </div>
       </form>
