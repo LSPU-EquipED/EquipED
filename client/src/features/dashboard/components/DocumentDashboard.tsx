@@ -4,18 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, CheckCircle, Folder, Loader2, Search, Upload } from 'lucide-react';
 import { dashboardApi } from '@/features/dashboard/api/dashboard.api';
 import { getErrorMessage } from '@/shared/api/http';
-import { Button } from '@/shared/components/ui/button';
-import { Card, CardContent } from '@/shared/components/ui/card';
-import { Input } from '@/shared/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/components/ui/table';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { cn } from '@/shared/components/utils';
 import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
 
@@ -34,17 +22,17 @@ const statusConfig: Record<
   { label: string; className: string; icon?: ReactNode }
 > = {
   PENDING: {
-    label: 'Processing…',
-    className: 'bg-amber-100 text-amber-800',
-    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+    label: 'Processing',
+    className: 'bg-amber-500 text-white font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-sm',
+    icon: <Loader2 className="mr-1 size-3.5 animate-spin" aria-hidden="true" />,
   },
   PROCESSED: {
     label: 'Ready',
-    className: 'bg-emerald-100 text-emerald-800',
+    className: 'bg-emerald-600 text-white font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-sm',
   },
   FAILED: {
-    label: 'Processing failed',
-    className: 'bg-rose-100 text-rose-800',
+    label: 'Failed',
+    className: 'bg-red-700 text-white font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-sm',
   },
 };
 
@@ -113,8 +101,9 @@ export function DocumentDashboard() {
           </div>
           <div className="relative w-full max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-12 rounded-lg bg-card pl-11 text-base"
+            <input
+              type="text"
+              className="w-full h-11 border border-slate-200 bg-white pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm transition-shadow placeholder:text-slate-400"
               placeholder="Search title, program, or type"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -123,16 +112,17 @@ export function DocumentDashboard() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button className="h-11 gap-2 px-4" asChild>
-            <Link to="/upload">
-              <Upload className="size-4" aria-hidden="true" />
-              Upload document
-            </Link>
-          </Button>
+          <Link
+            to="/upload"
+            className="inline-flex items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white h-11 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+          >
+            <Upload className="mr-2 size-4" aria-hidden="true" />
+            Upload document
+          </Link>
         </div>
       </div>
 
-      <Card className="rounded-lg py-0">
+      <div className="border border-slate-200 bg-white rounded-sm">
         {flashId ? (
           <div className="flex items-center gap-2 border-b border-primary/20 bg-primary/5 px-6 py-3 text-sm text-primary">
             <CheckCircle className="size-4" aria-hidden="true" />
@@ -140,127 +130,132 @@ export function DocumentDashboard() {
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+          <p className="text-sm font-medium text-slate-600">
             {isLoading && !data
               ? 'Loading documents…'
               : `${data?.total ?? 0} document${(data?.total ?? 0) === 1 ? '' : 's'} available`}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
             Status reflects upload and preprocessing only.
           </p>
         </div>
 
-        <CardContent className="px-6 py-7">
+        <div className="px-6 py-6">
           {error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {getErrorMessage(error, 'Unable to load documents.')}
             </div>
           ) : null}
 
           {!error && !isLoading && documents.length === 0 ? (
-            <div className="grid gap-2 rounded-lg border border-dashed border-border px-6 py-12 text-center">
-              <h3 className="text-lg font-semibold">No documents to show</h3>
-              <p className="text-sm text-muted-foreground">
+            <div className="grid gap-2 rounded-sm border border-dashed border-slate-200 px-6 py-12 text-center">
+              <h3 className="text-lg font-semibold text-slate-800">No documents to show</h3>
+              <p className="text-sm text-slate-500">
                 Upload an SLM or reference document to populate the authenticated inventory.
               </p>
             </div>
           ) : null}
 
           {!error && documents.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="min-w-[22rem]">
-                    <span className="inline-flex items-center gap-1">
-                      Name <ArrowDown className="size-4 text-muted-foreground" aria-hidden="true" />
-                    </span>
-                  </TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Program</TableHead>
-                  <TableHead>
-                    <span className="inline-flex items-center gap-1">
-                      Uploaded{' '}
-                      <ArrowDown className="size-4 text-muted-foreground" aria-hidden="true" />
-                    </span>
-                  </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Pages</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((document) => {
-                  const isReady = document.processingStatus === 'PROCESSED';
-                  const statusMeta = statusConfig[document.processingStatus];
-                  const isFlashing = flashId === document.documentId;
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse border-spacing-0">
+                <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4 font-semibold text-slate-500 min-w-[22rem]">
+                      <span className="inline-flex items-center gap-1">
+                        Name <ArrowDown className="size-4 text-slate-400" aria-hidden="true" />
+                      </span>
+                    </th>
+                    <th className="py-3 px-4 font-semibold text-slate-500">Type</th>
+                    <th className="py-3 px-4 font-semibold text-slate-500">Program</th>
+                    <th className="py-3 px-4 font-semibold text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        Uploaded{' '}
+                        <ArrowDown className="size-4 text-slate-400" aria-hidden="true" />
+                      </span>
+                    </th>
+                    <th className="py-3 px-4 font-semibold text-slate-500">Status</th>
+                    <th className="py-3 px-4 font-semibold text-slate-500">Pages</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {documents.map((document) => {
+                    const isReady = document.processingStatus === 'PROCESSED';
+                    const statusMeta = statusConfig[document.processingStatus];
+                    const isFlashing = flashId === document.documentId;
 
-                  return (
-                    <TableRow
-                      key={document.documentId}
-                      className={cn(
-                        isFlashing && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
-                        isReady &&
-                          'group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      )}
-                      {...(isReady
-                        ? {
-                            role: 'link',
-                            tabIndex: 0,
-                            onClick: () => openEvaluationInterface(document.documentId),
-                            onKeyDown: (event: React.KeyboardEvent<HTMLTableRowElement>) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                openEvaluationInterface(document.documentId);
-                              }
-                            },
-                          }
-                        : {})}
-                    >
-                      <TableCell className="max-w-[22rem] truncate font-medium">
-                        {isReady ? (
-                          <span className="block truncate underline-offset-4 group-hover:underline">
-                            {document.title}
-                          </span>
-                        ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="block truncate cursor-not-allowed opacity-80">
-                                {document.title}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">
-                              {document.processingStatus === 'PENDING'
-                                ? 'Processing in progress — check back shortly.'
-                                : 'Processing failed. The document is not ready for evaluation.'}
-                            </TooltipContent>
-                          </Tooltip>
+                    return (
+                      <tr
+                        key={document.documentId}
+                        className={cn(
+                          isFlashing && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
+                          isReady &&
+                            'group cursor-pointer hover:bg-slate-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                          !isReady && 'bg-slate-50/20'
                         )}
-                      </TableCell>
-                      <TableCell>{sourceTypeLabels[document.sourceType]}</TableCell>
-                      <TableCell>{document.program ?? '—'}</TableCell>
-                      <TableCell>{formatDate(document.uploadedAt)}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusMeta.className}`}
-                        >
-                          {statusMeta.icon}
-                          {statusMeta.label}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {document.pageCount != null &&
-                        !(document.processingStatus === 'FAILED' && document.pageCount === 0)
-                          ? document.pageCount
-                          : '—'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        {...(isReady
+                          ? {
+                              role: 'link',
+                              tabIndex: 0,
+                              onClick: () => openEvaluationInterface(document.documentId),
+                              onKeyDown: (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  openEvaluationInterface(document.documentId);
+                                }
+                              },
+                            }
+                          : {})}
+                      >
+                        <td className="py-3 px-4 text-sm font-semibold text-slate-800 max-w-[22rem] truncate">
+                          {isReady ? (
+                            <span className="block truncate underline-offset-4 group-hover:underline text-slate-900 group-hover:text-[#1b3b87] transition-colors">
+                              {document.title}
+                            </span>
+                          ) : (
+                            <span
+                              className="block truncate cursor-not-allowed opacity-60"
+                              title={
+                                document.processingStatus === 'PENDING'
+                                  ? 'Processing in progress — check back shortly.'
+                                  : 'Processing failed. The document is not ready for evaluation.'
+                              }
+                            >
+                              {document.title}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                          {sourceTypeLabels[document.sourceType]}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                          {document.program ?? '—'}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                          {formatDate(document.uploadedAt)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <span className={cn('inline-flex items-center', statusMeta.className)}>
+                            {statusMeta.icon}
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                          {document.pageCount != null &&
+                          !(document.processingStatus === 'FAILED' && document.pageCount === 0)
+                            ? document.pageCount
+                            : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </section>
   );
 }

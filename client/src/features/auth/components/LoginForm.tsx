@@ -1,8 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
-import { Label } from '@/shared/components/ui/label';
 import { useAuth } from '../hooks/useAuth';
 import { useLoginForm } from '../hooks/useLoginForm';
 import { ShieldAlert, ArrowRight, Loader2 } from 'lucide-react';
@@ -45,8 +42,6 @@ export function LoginForm() {
     }
   }, [auth.status, auth.user, navigate]);
 
-
-
   useEffect(() => {
     if (wasResetOpen.current && !showResetDialog) {
       triggerRef.current?.focus();
@@ -54,10 +49,8 @@ export function LoginForm() {
     wasResetOpen.current = showResetDialog;
   }, [showResetDialog]);
 
-
-
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-white font-sans selection:bg-primary selection:text-primary-foreground">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-white font-sans selection:bg-primary selection:text-white">
       {/* Left Pane: Brand Hero */}
       <BrandHero />
 
@@ -76,7 +69,7 @@ export function LoginForm() {
             <div className="w-full bg-white relative">
               {/* Header Cell */}
               <div className="px-6 sm:px-10 lg:px-14 py-8 lg:py-10 border-t border-b border-slate-200 bg-slate-50/30 flex items-stretch gap-4">
-                <div className="w-0.5 self-stretch bg-primary shrink-0" aria-hidden="true" />
+                <div className="w-0.5 self-stretch bg-[#1b3b87] shrink-0" aria-hidden="true" />
                 <div className="flex-1">
                   <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 mb-2">
                     Sign In
@@ -92,21 +85,21 @@ export function LoginForm() {
                 {/* Email Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
                   <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
-                    <Label
+                    <label
                       htmlFor="login-email"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer"
                     >
                       Email
-                    </Label>
+                    </label>
                   </div>
                   <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col justify-center w-full">
-                    <Input
+                    <input
                       id="login-email"
                       type="email"
                       autoComplete="email"
                       autoFocus
                       placeholder="name@lspu.edu.ph"
-                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 placeholder:text-slate-400 font-semibold text-slate-900"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900"
                       value={email}
                       onChange={(event) => {
                         auth.clearError();
@@ -128,20 +121,20 @@ export function LoginForm() {
                 {/* Password Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
                   <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
-                    <Label
+                    <label
                       htmlFor="login-password"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer"
                     >
                       Password
-                    </Label>
+                    </label>
                   </div>
                   <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col">
-                    <Input
+                    <input
                       id="login-password"
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
-                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 placeholder:text-slate-400 font-semibold text-slate-900 tracking-widest"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900 tracking-widest"
                       value={password}
                       onChange={(event) => {
                         auth.clearError();
@@ -160,7 +153,7 @@ export function LoginForm() {
                         ref={triggerRef}
                         type="button"
                         onClick={() => setShowResetDialog(true)}
-                        className="text-[11px] font-bold text-primary hover:underline cursor-pointer opacity-60 hover:opacity-100 uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-opacity ml-auto"
+                        className="text-[11px] font-bold text-[#1b3b87] hover:underline cursor-pointer opacity-60 hover:opacity-100 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#1b3b87] transition-opacity ml-auto"
                       >
                         Reset Password
                       </button>
@@ -175,16 +168,16 @@ export function LoginForm() {
                     <input
                       id="login-remember"
                       type="checkbox"
-                      className="size-4 rounded-sm border-slate-300 text-primary focus:ring-2 focus:ring-primary focus:ring-offset-1 cursor-pointer accent-primary shrink-0"
+                      className="size-4 rounded-sm border-slate-300 text-[#1b3b87] focus:ring-2 focus:ring-[#1b3b87] cursor-pointer accent-[#1b3b87] shrink-0"
                       checked={rememberEmail}
                       onChange={(event) => setRememberEmail(event.target.checked)}
                     />
-                    <Label
+                    <label
                       htmlFor="login-remember"
                       className="text-xs font-medium text-slate-500 select-none cursor-pointer"
                     >
                       Remember my email address
-                    </Label>
+                    </label>
                   </div>
                 </div>
 
@@ -207,9 +200,9 @@ export function LoginForm() {
 
                 {/* Action Row */}
                 <div className="flex border-b border-slate-200">
-                  <Button
+                  <button
                     type="submit"
-                    className="w-full h-14 rounded-none bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground font-bold text-[13px] tracking-[0.08em] uppercase transition-colors flex items-center justify-center gap-3 group cursor-pointer"
+                    className="w-full h-14 rounded-none bg-[#1b3b87] hover:bg-[#1b3b87]/90 active:bg-[#1b3b87]/80 text-white font-bold text-[13px] tracking-[0.08em] uppercase transition-colors flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isSubmitting || !email.trim() || password.length < 8}
                   >
                     {isSubmitting ? (
@@ -223,7 +216,7 @@ export function LoginForm() {
                         <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-transform" />
                       </span>
                     )}
-                  </Button>
+                  </button>
                 </div>
               </form>
             </div>
