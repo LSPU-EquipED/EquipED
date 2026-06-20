@@ -14,7 +14,10 @@ const PREVIEW_AUTH_USER: AppAuthUser = {
   role: 'admin',
 };
 
-function getProvisionalState(): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
+function getProvisionalState(): Omit<
+  AppAuthContext,
+  'login' | 'logout' | 'refresh' | 'clearError'
+> {
   return {
     status: 'anonymous',
     source: 'provisional',
@@ -24,7 +27,9 @@ function getProvisionalState(): Omit<AppAuthContext, 'login' | 'logout' | 'refre
   };
 }
 
-function getAuthenticatedState(user: AppAuthUser): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
+function getAuthenticatedState(
+  user: AppAuthUser,
+): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
   return {
     status: 'authenticated',
     source: 'server',
@@ -34,7 +39,9 @@ function getAuthenticatedState(user: AppAuthUser): Omit<AppAuthContext, 'login' 
   };
 }
 
-function getAnonymousState(error: string | null = null): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
+function getAnonymousState(
+  error: string | null = null,
+): Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'> {
   return {
     status: 'anonymous',
     source: 'server',
@@ -45,7 +52,9 @@ function getAnonymousState(error: string | null = null): Omit<AppAuthContext, 'l
 }
 
 function resolveState(response: AuthStateResponse) {
-  return response.authenticated && response.user ? getAuthenticatedState(response.user) : getAnonymousState();
+  return response.authenticated && response.user
+    ? getAuthenticatedState(response.user)
+    : getAnonymousState();
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -84,19 +93,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
-  const login = useCallback(async (credentials: AuthCredentials) => {
-    setAuthError(null);
-    setSessionErrorDismissed(false);
+  const login = useCallback(
+    async (credentials: AuthCredentials) => {
+      setAuthError(null);
+      setSessionErrorDismissed(false);
 
-    try {
-      const response = await authApi.login(credentials);
-      queryClient.setQueryData(AUTH_SESSION_QUERY_KEY, response);
-    } catch (error) {
-      queryClient.setQueryData(AUTH_SESSION_QUERY_KEY, ANONYMOUS_AUTH_RESPONSE);
-      setAuthError(getErrorMessage(error, 'Unable to sign in.'));
-      throw error;
-    }
-  }, [queryClient]);
+      try {
+        const response = await authApi.login(credentials);
+        queryClient.setQueryData(AUTH_SESSION_QUERY_KEY, response);
+      } catch (error) {
+        queryClient.setQueryData(AUTH_SESSION_QUERY_KEY, ANONYMOUS_AUTH_RESPONSE);
+        setAuthError(getErrorMessage(error, 'Unable to sign in.'));
+        throw error;
+      }
+    },
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -108,7 +120,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
-  const authState = useMemo<Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'>>(() => {
+  const authState = useMemo<
+    Omit<AppAuthContext, 'login' | 'logout' | 'refresh' | 'clearError'>
+  >(() => {
     const resolvedState = (() => {
       if (isPreviewAuth) {
         return getAuthenticatedState(PREVIEW_AUTH_USER);
@@ -120,7 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (sessionQuery.isError) {
         return getAnonymousState(
-          sessionErrorDismissed ? null : getErrorMessage(sessionQuery.error, 'Unable to restore your session.'),
+          sessionErrorDismissed
+            ? null
+            : getErrorMessage(sessionQuery.error, 'Unable to restore your session.'),
         );
       }
 
