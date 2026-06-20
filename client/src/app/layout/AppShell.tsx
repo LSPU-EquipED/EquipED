@@ -9,10 +9,7 @@ import {
   Settings,
   UserCircle,
 } from 'lucide-react';
-import { Button } from '@/shared/components/ui/button';
-import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/components/utils';
-import { TooltipProvider } from '@/shared/components/ui/tooltip';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
@@ -53,111 +50,116 @@ export function AppShell() {
   };
 
   return (
-    <TooltipProvider>
-      <div className="min-h-screen bg-background text-foreground">
-        <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b bg-card/95 px-6 backdrop-blur">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-foreground">
-              <GraduationCap className="size-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                LSPU SCC
-              </p>
-              <h1 className="truncate text-base font-semibold">EquipEd Document Evaluation</h1>
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-sm bg-slate-100 text-slate-700 border border-slate-200">
+            <GraduationCap className="size-5" aria-hidden="true" />
           </div>
-
-          <div className="hidden w-full max-w-sm items-center md:flex">
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input className="h-9 rounded-lg bg-muted/40 pl-9" placeholder="Search documents" />
-            </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              LSPU SCC
+            </p>
+            <h1 className="truncate text-sm font-bold text-slate-900">EquipEd Document Evaluation</h1>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon-lg" aria-label="Notifications">
-              <Bell className="size-4" aria-hidden="true" />
-            </Button>
-
-            <div ref={accountMenuRef} className="relative">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 gap-2 px-2.5"
-                aria-haspopup="menu"
-                aria-expanded={isAccountMenuOpen}
-                onClick={() => setIsAccountMenuOpen((value) => !value)}
-              >
-                <span className="flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {initials}
-                </span>
-                <span className="hidden max-w-40 truncate text-sm sm:inline">
-                  {user?.displayName ?? 'EquipEd User'}
-                </span>
-                <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
-              </Button>
-
-              {isAccountMenuOpen ? (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-11 z-50 w-60 rounded-lg border bg-card p-1.5 text-sm shadow-lg"
-                >
-                  <div className="border-b px-3 py-2">
-                    <p className="truncate font-semibold">{user?.displayName ?? 'EquipEd User'}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {user?.email ?? 'No email available'}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="mt-1 flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <UserCircle className="size-4" aria-hidden="true" />
-                    <span>Profile / Account</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <Settings className="size-4" aria-hidden="true" />
-                    <span>Settings</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-destructive transition-colors hover:bg-destructive/10"
-                    onClick={() => {
-                      void handleLogout();
-                    }}
-                  >
-                    <LogOut className="size-4" aria-hidden="true" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <Sidebar
-          collapsed={isSidebarCollapsed}
-          onToggle={() => setIsSidebarCollapsed((value) => !value)}
-        />
-
-        <div
-          className={cn(
-            'min-h-screen min-w-0 pt-16 transition-[padding] duration-200',
-            isSidebarCollapsed ? 'pl-[5.75rem]' : 'pl-72 max-md:pl-[5.75rem]',
-          )}
-        >
-          <main className="min-w-0 px-6 py-7">
-            <Outlet />
-          </main>
         </div>
+
+        <div className="hidden w-full max-w-sm items-center md:flex">
+          <div className="relative w-full">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              className="h-9 w-full bg-slate-50 border border-slate-200 text-xs pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm placeholder:text-slate-400"
+              placeholder="Search documents"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="flex size-9 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+            aria-label="Notifications"
+          >
+            <Bell className="size-4" aria-hidden="true" />
+          </button>
+
+          <div ref={accountMenuRef} className="relative">
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-2 border border-slate-200 bg-white hover:bg-slate-50 px-2.5 rounded-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              aria-haspopup="menu"
+              aria-expanded={isAccountMenuOpen}
+              onClick={() => setIsAccountMenuOpen((value) => !value)}
+            >
+              <span className="flex size-6 items-center justify-center rounded-full bg-[#1b3b87] text-[10px] font-semibold text-white">
+                {initials}
+              </span>
+              <span className="hidden max-w-40 truncate text-xs sm:inline">
+                {user?.displayName ?? 'EquipEd User'}
+              </span>
+              <ChevronDown className="size-4 text-slate-400" aria-hidden="true" />
+            </button>
+
+            {isAccountMenuOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 top-11 z-50 w-60 rounded-sm border border-slate-200 bg-white p-1.5 text-xs shadow-none"
+              >
+                <div className="border-b border-slate-200 px-3 py-2">
+                  <p className="truncate font-semibold text-slate-800">{user?.displayName ?? 'EquipEd User'}</p>
+                  <p className="truncate text-[10px] text-slate-500">
+                    {user?.email ?? 'No email available'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="mt-1 flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-850"
+                >
+                  <UserCircle className="size-4" aria-hidden="true" />
+                  <span>Profile / Account</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-850"
+                >
+                  <Settings className="size-4" aria-hidden="true" />
+                  <span>Settings</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-red-700 transition-colors hover:bg-red-50"
+                  onClick={() => {
+                    void handleLogout();
+                  }}
+                >
+                  <LogOut className="size-4" aria-hidden="true" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <Sidebar
+        collapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed((value) => !value)}
+      />
+
+      <div
+        className={cn(
+          'min-h-screen min-w-0 pt-16 transition-[padding] duration-200',
+          isSidebarCollapsed ? 'pl-[5.75rem]' : 'pl-72 max-md:pl-[5.75rem]',
+        )}
+      >
+        <main className="min-w-0 px-6 py-7">
+          <Outlet />
+        </main>
       </div>
-    </TooltipProvider>
+    </div>
   );
 }
