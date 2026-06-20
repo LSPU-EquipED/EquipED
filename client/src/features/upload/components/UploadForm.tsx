@@ -1,6 +1,14 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowRight, CheckCircle, FileText, GraduationCap, Loader2, Upload, XCircle } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle,
+  FileText,
+  GraduationCap,
+  Loader2,
+  Upload,
+  XCircle,
+} from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import { Button } from '@/shared/components/ui/button';
@@ -29,7 +37,11 @@ const sourceTypeLabels: Record<DocumentSourceType, string> = {
 };
 
 const subjectsByProgram: Record<ProgramId, string[]> = {
-  bsit: ['Capstone Project 1', 'Web Systems and Technologies', 'Systems Integration and Architecture'],
+  bsit: [
+    'Capstone Project 1',
+    'Web Systems and Technologies',
+    'Systems Integration and Architecture',
+  ],
   bscs: ['Software Engineering 2', 'Automata Theory', 'Intelligent Systems'],
   bsis: ['Business Process Management', 'Information Systems Planning', 'Enterprise Architecture'],
 };
@@ -113,10 +125,16 @@ export function UploadForm() {
       <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r">
         <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Document workspace</p>
-            <h2 className="truncate text-lg font-semibold">{title.trim() || 'Untitled document upload'}</h2>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              Document workspace
+            </p>
+            <h2 className="truncate text-lg font-semibold">
+              {title.trim() || 'Untitled document upload'}
+            </h2>
           </div>
-          <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">Upload only • evaluation later</div>
+          <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+            Upload only • evaluation later
+          </div>
         </div>
 
         <div className="grid flex-1 place-items-center px-4 py-8 sm:px-6 lg:px-8">
@@ -128,7 +146,8 @@ export function UploadForm() {
             <div className="space-y-2">
               <h3 className="text-2xl font-semibold">Upload an SLM</h3>
               <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">
-                Add your Self-Learning Module to the authenticated inventory. Processing status will appear in the dashboard after upload.
+                Add your Self-Learning Module to the authenticated inventory. Processing status will
+                appear in the dashboard after upload.
               </p>
             </div>
 
@@ -136,13 +155,24 @@ export function UploadForm() {
               htmlFor="pdf-file"
               className={cn(
                 'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8 sm:px-6',
-                'transition-colors hover:border-foreground/30 hover:bg-muted'
+                'transition-colors hover:border-foreground/30 hover:bg-muted',
               )}
             >
               <Upload className="size-7 text-foreground" aria-hidden="true" />
-              <span className="max-w-full truncate text-base font-medium">{file ? file.name : 'Drop a PDF here or browse files'}</span>
-              <span className="text-center text-sm text-muted-foreground">PDF only. Upload size limit remains TBD in the TDD.</span>
-              <Input id="pdf-file" ref={fileInputRef} type="file" accept="application/pdf" onChange={handleFileChange} className="sr-only" />
+              <span className="max-w-full truncate text-base font-medium">
+                {file ? file.name : 'Drop a PDF here or browse files'}
+              </span>
+              <span className="text-center text-sm text-muted-foreground">
+                PDF only. Upload size limit remains TBD in the TDD.
+              </span>
+              <Input
+                id="pdf-file"
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange}
+                className="sr-only"
+              />
             </Label>
 
             <div className="grid gap-4 text-left md:grid-cols-2">
@@ -172,7 +202,9 @@ export function UploadForm() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Program is required for SLM uploads.</p>
+                <p className="text-xs text-muted-foreground">
+                  Program is required for SLM uploads.
+                </p>
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -207,7 +239,9 @@ export function UploadForm() {
 
       <aside className="flex min-h-[34rem] flex-col bg-muted/20">
         <div className="border-b px-4 py-7 sm:px-7 sm:py-8">
-          <h3 className="text-2xl font-semibold">Welcome back, {user?.displayName?.split(' ')?.[0] ?? 'there'}.</h3>
+          <h3 className="text-2xl font-semibold">
+            Welcome back, {user?.displayName?.split(' ')?.[0] ?? 'there'}.
+          </h3>
           <p className="mt-2 text-sm text-muted-foreground">
             {isSuccess
               ? 'Your document has been uploaded and processed successfully.'
@@ -222,7 +256,10 @@ export function UploadForm() {
             <div className="rounded-lg border bg-card px-5 py-4">
               <div className="flex items-start gap-3">
                 {isSuccess ? (
-                  <CheckCircle className="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                  <CheckCircle
+                    className="mt-0.5 size-5 shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
                 ) : (
                   <XCircle className="mt-0.5 size-5 shrink-0 text-rose-600" aria-hidden="true" />
                 )}
@@ -231,7 +268,8 @@ export function UploadForm() {
                   <p className="mt-1 text-base font-semibold">{uploadResult.title}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {sourceTypeLabels[uploadResult.sourceType]}
-                    {uploadResult.evaluationReadiness && uploadResult.evaluationReadiness !== 'PENDING'
+                    {uploadResult.evaluationReadiness &&
+                    uploadResult.evaluationReadiness !== 'PENDING'
                       ? ` • ${uploadResult.evaluationReadiness}`
                       : null}
                   </p>
@@ -239,9 +277,7 @@ export function UploadForm() {
                     <span
                       className={cn(
                         'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                        isSuccess
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
+                        isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
                       )}
                     >
                       {isSuccess ? 'Ready' : 'Processing failed'}
@@ -262,7 +298,9 @@ export function UploadForm() {
 
               <div className="rounded-lg border bg-card px-5 py-4">
                 <p className="text-sm font-medium text-muted-foreground">Current file</p>
-                <p className="mt-1 truncate text-base font-semibold">{file?.name ?? 'No PDF selected yet'}</p>
+                <p className="mt-1 truncate text-base font-semibold">
+                  {file?.name ?? 'No PDF selected yet'}
+                </p>
               </div>
 
               <div className="rounded-lg border bg-card px-5 py-4">
@@ -274,7 +312,9 @@ export function UploadForm() {
           )}
 
           {errorMessage ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{errorMessage}</div>
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {errorMessage}
+            </div>
           ) : null}
         </div>
 
@@ -321,9 +361,15 @@ export function UploadForm() {
               <>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Upload readiness</span>
-                  <span className="font-medium">{file && title.trim() ? 'Ready' : 'Missing details'}</span>
+                  <span className="font-medium">
+                    {file && title.trim() ? 'Ready' : 'Missing details'}
+                  </span>
                 </div>
-                <Button type="submit" className="h-14 w-full justify-between rounded-lg px-5 text-base" disabled={isLoading || !file || !title.trim()}>
+                <Button
+                  type="submit"
+                  className="h-14 w-full justify-between rounded-lg px-5 text-base"
+                  disabled={isLoading || !file || !title.trim()}
+                >
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -337,7 +383,8 @@ export function UploadForm() {
                   )}
                 </Button>
                 <p className="text-center text-sm text-muted-foreground">
-                  Uploading adds the document to inventory only. Evaluation remains a later workflow.
+                  Uploading adds the document to inventory only. Evaluation remains a later
+                  workflow.
                 </p>
               </>
             )}

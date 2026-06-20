@@ -1,5 +1,8 @@
 import { requestJson } from '@/shared/api/http';
-import { mapDocumentUploadResponse, type RawDocumentUploadResponse } from '@/shared/types/documents';
+import {
+  mapDocumentUploadResponse,
+  type RawDocumentUploadResponse,
+} from '@/shared/types/documents';
 import type {
   PromptVersionListResponse,
   PromptVersionItem,
@@ -14,7 +17,8 @@ import type {
 } from '../types';
 
 export const adminApi = {
-  getPromptVersions: (agentId: string) => requestJson<PromptVersionListResponse>(`/admin/prompts/${agentId}`),
+  getPromptVersions: (agentId: string) =>
+    requestJson<PromptVersionListResponse>(`/admin/prompts/${agentId}`),
 
   createPrompt: (agentId: string, body: PromptCreateBody) =>
     requestJson<PromptVersionItem>(`/admin/prompts/${agentId}`, {
@@ -45,7 +49,9 @@ export const adminApi = {
       body: JSON.stringify(body),
     }),
 
-  getMatrix: (params: { program?: string; status?: string; page?: number; page_size?: number } = {}) => {
+  getMatrix: (
+    params: { program?: string; status?: string; page?: number; page_size?: number } = {},
+  ) => {
     const searchParams = new URLSearchParams();
     if (params.program) searchParams.set('program', params.program);
     if (params.status) searchParams.set('status', params.status);

@@ -74,10 +74,7 @@ export function useEvaluationPageState(documentId?: string) {
       if (list.items.length > 0) {
         const nonFailed = list.items
           .filter((item) => item.status !== 'FAILED')
-          .sort(
-            (a, b) =>
-              new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime(),
-          );
+          .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
         if (nonFailed.length > 0) {
           const id = nonFailed[0].evaluation_id;
@@ -140,7 +137,8 @@ export function useEvaluationPageState(documentId?: string) {
     queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
     enabled: !!evaluationId,
     refetchInterval: (query) => {
-      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)?.evaluation_status;
+      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)
+        ?.evaluation_status;
       if (evalStatus === 'COMPLETED' || evalStatus === 'FAILED') {
         return false;
       }

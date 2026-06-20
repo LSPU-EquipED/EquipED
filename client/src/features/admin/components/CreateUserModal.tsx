@@ -86,7 +86,8 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
         <SheetHeader>
           <SheetTitle>Create Account</SheetTitle>
           <SheetDescription>
-            Add a new user to the system. Faculty can upload SLMs and run evaluations. Admins can manage users, prompts, and review system activity.
+            Add a new user to the system. Faculty can upload SLMs and run evaluations. Admins can
+            manage users, prompts, and review system activity.
           </SheetDescription>
         </SheetHeader>
 
@@ -164,7 +165,12 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
           ) : null}
 
           <SheetFooter className="mt-4">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={createUser.isPending}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={createUser.isPending}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={createUser.isPending}>

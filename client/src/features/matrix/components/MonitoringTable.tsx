@@ -36,7 +36,7 @@ export function MonitoringTable() {
         <h1 className="mt-2 text-2xl font-semibold">Monitoring Matrix</h1>
       </div>
 
-      <MatrixFilters 
+      <MatrixFilters
         program={program}
         status={status}
         onProgramChange={setProgram}
@@ -73,10 +73,14 @@ export function MonitoringTable() {
             <TableBody>
               {data.items.map((row: MonitoringMatrixRow) => (
                 <TableRow key={row.evaluation_id}>
-                  <TableCell className="font-medium">{row.document_title || 'Untitled SLM'}</TableCell>
+                  <TableCell className="font-medium">
+                    {row.document_title || 'Untitled SLM'}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{row.program || '—'}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(row.evaluation_status)}`}>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusClass(row.evaluation_status)}`}
+                    >
                       {row.evaluation_status.replace('_', ' ')}
                     </span>
                   </TableCell>

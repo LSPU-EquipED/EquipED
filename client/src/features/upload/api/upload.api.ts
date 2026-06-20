@@ -1,5 +1,8 @@
 import { requestJson } from '@/shared/api/http';
-import { mapDocumentUploadResponse, type RawDocumentUploadResponse } from '@/shared/types/documents';
+import {
+  mapDocumentUploadResponse,
+  type RawDocumentUploadResponse,
+} from '@/shared/types/documents';
 import type { UploadDocumentInput, UploadDocumentResult } from '../types';
 
 async function uploadDocument(input: UploadDocumentInput): Promise<UploadDocumentResult> {

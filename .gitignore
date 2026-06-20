@@ -6,6 +6,8 @@
 openspec/changes
 skills-lock.json
 .slim/
+.agents/
+.impeccable/
 
 # Environment files
 .env

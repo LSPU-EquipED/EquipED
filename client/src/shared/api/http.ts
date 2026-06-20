@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '/api/v1';
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '/api/v1';
 
 type ApiErrorPayload = {
   detail?: string;
@@ -12,7 +13,10 @@ export class ApiError extends Error {
   readonly payload: unknown;
   readonly detail: string | null;
 
-  constructor(message: string, options: { status: number; payload: unknown; detail?: string | null }) {
+  constructor(
+    message: string,
+    options: { status: number; payload: unknown; detail?: string | null },
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = options.status;
@@ -65,7 +69,10 @@ function extractErrorDetail(payload: unknown): string | null {
   return candidate.error?.message ?? null;
 }
 
-export async function requestJson<TResponse>(path: string, init: RequestInit = {}): Promise<TResponse> {
+export async function requestJson<TResponse>(
+  path: string,
+  init: RequestInit = {},
+): Promise<TResponse> {
   const headers = new Headers(init.headers);
 
   if (!headers.has('Accept')) {

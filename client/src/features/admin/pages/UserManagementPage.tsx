@@ -12,7 +12,7 @@ import {
 } from '@/shared/components/ui/table';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 import { useAdminUsers } from '@/features/admin/hooks/useAdminUsers';
-import { CreateUserModal } from './CreateUserModal';
+import { CreateUserModal } from '../components/CreateUserModal';
 import type { AdminUserResponse } from '@/features/admin/types';
 
 export function UserManagementPage() {
@@ -27,8 +27,7 @@ export function UserManagementPage() {
     const query = searchQuery.toLowerCase();
     return items.filter(
       (user: AdminUserResponse) =>
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
+        user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query),
     );
   }, [data, searchQuery]);
 
@@ -36,7 +35,9 @@ export function UserManagementPage() {
     <section className="grid gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Admin</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Admin
+          </p>
           <h1 className="mt-2 text-2xl font-semibold">User Management</h1>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
@@ -94,20 +95,24 @@ export function UserManagementPage() {
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      user.role === 'admin'
-                        ? 'border-primary/50 text-primary bg-primary/10'
-                        : 'border-muted-foreground/30 bg-muted/50'
-                    }`}>
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+                        user.role === 'admin'
+                          ? 'border-primary/50 text-primary bg-primary/10'
+                          : 'border-muted-foreground/30 bg-muted/50'
+                      }`}
+                    >
                       {user.role}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      user.is_active
-                        ? 'border-emerald-500/50 text-emerald-700 bg-emerald-50'
-                        : 'border-muted-foreground/30 bg-muted/50'
-                    }`}>
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+                        user.is_active
+                          ? 'border-emerald-500/50 text-emerald-700 bg-emerald-50'
+                          : 'border-muted-foreground/30 bg-muted/50'
+                      }`}
+                    >
                       {user.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </TableCell>

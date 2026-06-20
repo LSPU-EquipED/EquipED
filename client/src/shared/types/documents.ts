@@ -173,7 +173,9 @@ export function mapDocumentListResponse(response: RawDocumentListResponse): Docu
   };
 }
 
-export function mapDocumentUploadResponse(response: RawDocumentUploadResponse): DocumentUploadResponse {
+export function mapDocumentUploadResponse(
+  response: RawDocumentUploadResponse,
+): DocumentUploadResponse {
   return {
     documentId: response.document_id,
     title: response.title,

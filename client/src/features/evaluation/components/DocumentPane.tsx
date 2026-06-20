@@ -86,7 +86,9 @@ export function DocumentPane({
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
-                <p className="font-medium">{getErrorMessage(resolveError, 'Failed to start evaluation.')}</p>
+                <p className="font-medium">
+                  {getErrorMessage(resolveError, 'Failed to start evaluation.')}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -106,7 +108,9 @@ export function DocumentPane({
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
-                <p className="font-medium">{getErrorMessage(submitError, 'Failed to start evaluation.')}</p>
+                <p className="font-medium">
+                  {getErrorMessage(submitError, 'Failed to start evaluation.')}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
@@ -133,7 +137,11 @@ export function DocumentPane({
                     <p className="text-sm leading-5 text-muted-foreground">Extracted text</p>
                   </div>
                   {group.chunks.map((chunk) => (
-                    <section key={chunk.chunkId} id={`chunk-${chunk.chunkId}`} className="space-y-2 rounded-md transition-colors">
+                    <section
+                      key={chunk.chunkId}
+                      id={`chunk-${chunk.chunkId}`}
+                      className="space-y-2 rounded-md transition-colors"
+                    >
                       <p className="text-sm font-semibold leading-5 text-foreground">
                         Page {chunk.pageNumber}
                       </p>

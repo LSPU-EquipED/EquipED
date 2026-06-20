@@ -1,6 +1,14 @@
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, Flag } from 'lucide-react';
+import {
+  AlertTriangle,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
+  Flag,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Separator } from '@/shared/components/ui/separator';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
@@ -32,12 +40,18 @@ function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
           <span className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded">
             {formatScore(item.score)}/4
           </span>
-          {expanded ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
+          {expanded ? (
+            <ChevronUp className="size-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="size-4 text-muted-foreground" />
+          )}
         </div>
       </div>
       {expanded && (
         <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">
-          <p><strong>Justification:</strong> {cleanJustification(item.justification)}</p>
+          <p>
+            <strong>Justification:</strong> {cleanJustification(item.justification)}
+          </p>
         </div>
       )}
     </div>
@@ -46,7 +60,7 @@ function CriterionItem({ item }: { readonly item: CriterionScoreItem }) {
 
 export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
-  
+
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
 
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
@@ -99,10 +113,10 @@ export function Scorecard() {
   }
 
   const agentLabels: Record<string, string> = {
-    sme: "SME",
-    coordinator: "Coordinator",
-    gad: "GAD",
-    itso: "ITSO"
+    sme: 'SME',
+    coordinator: 'Coordinator',
+    gad: 'GAD',
+    itso: 'ITSO',
   };
 
   return (
@@ -113,11 +127,11 @@ export function Scorecard() {
             Evaluation Status
           </p>
           <div className="flex items-center gap-3 mt-2">
-            <h1 className="truncate text-2xl font-semibold">
-              Job: {evaluation.evaluation_id}
-            </h1>
+            <h1 className="truncate text-2xl font-semibold">Job: {evaluation.evaluation_id}</h1>
             {isTerminal && (
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed && !isFailedWithResults ? 'border-destructive/50 text-destructive bg-destructive/10' : isFailedWithResults ? 'border-amber-500/50 text-amber-600 bg-amber-50' : 'border-primary/50 text-primary bg-primary/10'}`}>
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed && !isFailedWithResults ? 'border-destructive/50 text-destructive bg-destructive/10' : isFailedWithResults ? 'border-amber-500/50 text-amber-600 bg-amber-50' : 'border-primary/50 text-primary bg-primary/10'}`}
+              >
                 {evaluation.status.replace('_', ' ')}
               </span>
             )}
@@ -129,7 +143,10 @@ export function Scorecard() {
               Synthesized Score
             </p>
             <p className="mt-1 text-3xl font-bold text-primary">
-              {typeof results.synthesized_score === 'number' ? formatScore(results.synthesized_score) : '—'}<span className="text-lg text-muted-foreground font-normal">/4</span>
+              {typeof results.synthesized_score === 'number'
+                ? formatScore(results.synthesized_score)
+                : '—'}
+              <span className="text-lg text-muted-foreground font-normal">/4</span>
             </p>
           </div>
         )}
@@ -138,20 +155,16 @@ export function Scorecard() {
       <main className="flex-1 overflow-y-auto p-10">
         <div className="mx-auto max-w-5xl rounded-xl border bg-card p-8 shadow-sm mb-8">
           <div className="flex items-center gap-4 border-b pb-6">
-            {!isTerminal && (
-              <Loader2 className="size-8 animate-spin text-primary" />
-            )}
+            {!isTerminal && <Loader2 className="size-8 animate-spin text-primary" />}
             {isTerminal && (!isFailed || isFailedWithResults) && (
               <CheckCircle className="size-8 text-green-500" />
             )}
             {isFailed && !isFailedWithResults && (
               <AlertTriangle className="size-8 text-destructive" />
             )}
-            
+
             <div>
-              <h2 className="text-xl font-semibold">
-                {evaluation.status.replace('_', ' ')}
-              </h2>
+              <h2 className="text-xl font-semibold">{evaluation.status.replace('_', ' ')}</h2>
               <p className="text-muted-foreground mt-1">
                 {isFailedWithResults
                   ? 'Evaluation failed, but partial results are available below.'
@@ -213,7 +226,9 @@ export function Scorecard() {
               <div className="flex-1">
                 <p className="font-semibold">Failed to load evaluation results</p>
                 <p className="mt-1 text-sm text-destructive/80">
-                  {resultsError instanceof Error ? resultsError.message : 'Results could not be retrieved. Try refreshing the page.'}
+                  {resultsError instanceof Error
+                    ? resultsError.message
+                    : 'Results could not be retrieved. Try refreshing the page.'}
                 </p>
                 <button
                   type="button"
@@ -237,16 +252,23 @@ export function Scorecard() {
                 </div>
                 <div className="grid gap-3">
                   {results.flags.map((flag) => (
-                    <div key={flag.flag_id} className="bg-white rounded-md p-4 border border-orange-100 shadow-sm text-sm">
+                    <div
+                      key={flag.flag_id}
+                      className="bg-white rounded-md p-4 border border-orange-100 shadow-sm text-sm"
+                    >
                       <div className="flex items-center gap-2 mb-2">
                         <span className="inline-flex items-center rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700 uppercase">
                           {agentLabels[flag.agent_id] || flag.agent_id}
                         </span>
-                        <span className="font-medium text-orange-900">Score: {formatScore(flag.score)}/4</span>
+                        <span className="font-medium text-orange-900">
+                          Score: {formatScore(flag.score)}/4
+                        </span>
                       </div>
                       <p className="font-medium mb-1">{flag.criterion_text}</p>
                       {flag.justification && (
-                        <p className="text-muted-foreground mt-2 text-xs">{cleanJustification(flag.justification)}</p>
+                        <p className="text-muted-foreground mt-2 text-xs">
+                          {cleanJustification(flag.justification)}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -262,8 +284,13 @@ export function Scorecard() {
                 const isError = domainData.status === 'ERROR';
 
                 return (
-                  <div key={domain} className="flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden h-[600px]">
-                    <div className={`p-5 border-b shrink-0 ${isError ? 'bg-destructive/10' : 'bg-muted/50'}`}>
+                  <div
+                    key={domain}
+                    className="flex flex-col rounded-xl border bg-card shadow-sm overflow-hidden h-[600px]"
+                  >
+                    <div
+                      className={`p-5 border-b shrink-0 ${isError ? 'bg-destructive/10' : 'bg-muted/50'}`}
+                    >
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="font-bold text-lg uppercase tracking-wider text-foreground/80">
                           {agentLabels[domain]}
@@ -275,8 +302,12 @@ export function Scorecard() {
                         )}
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-3xl font-extrabold tracking-tight">{formatScore(domainData.subtotal)}</span>
-                        <span className="text-muted-foreground font-medium text-lg">/ {formatScore(domainData.max_score)}</span>
+                        <span className="text-3xl font-extrabold tracking-tight">
+                          {formatScore(domainData.subtotal)}
+                        </span>
+                        <span className="text-muted-foreground font-medium text-lg">
+                          / {formatScore(domainData.max_score)}
+                        </span>
                       </div>
                     </div>
                     <div className="p-4 flex-1 space-y-3 bg-muted/10 overflow-y-auto">
@@ -284,7 +315,9 @@ export function Scorecard() {
                         <CriterionItem key={criterion.criterion_id || idx} item={criterion} />
                       ))}
                       {domainData.criteria.length === 0 && (
-                        <p className="text-sm text-muted-foreground italic text-center mt-8">No criteria evaluated.</p>
+                        <p className="text-sm text-muted-foreground italic text-center mt-8">
+                          No criteria evaluated.
+                        </p>
                       )}
                     </div>
                   </div>

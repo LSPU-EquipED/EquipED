@@ -1,16 +1,42 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { useAuth } from '../hooks/useAuth';
+import { useLoginForm } from '../hooks/useLoginForm';
+import { ShieldAlert, ArrowRight, Loader2 } from 'lucide-react';
+import { BrandHero } from './BrandHero';
+import { ResetPasswordModal } from './ResetPasswordModal';
 
 export function LoginForm() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
+  const {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    rememberEmail,
+    setRememberEmail,
+    isSubmitting,
+    emailHint,
+    setEmailHint,
+    passwordHint,
+    setPasswordHint,
+    handleEmailBlur,
+    handlePasswordBlur,
+    handleSubmit,
+  } = useLoginForm();
+
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const wasResetOpen = useRef(showResetDialog);
+
+  useEffect(() => {
+    document.title = 'Sign In — EquipED';
+  }, []);
 
   useEffect(() => {
     if (auth.status === 'authenticated') {
@@ -19,73 +45,206 @@ export function LoginForm() {
     }
   }, [auth.status, auth.user, navigate]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    auth.clearError();
-    setIsSubmitting(true);
 
-    try {
-      await auth.login({ email, password });
-    } catch {
-      // Error state is normalized in the auth provider.
-    } finally {
-      setIsSubmitting(false);
+
+  useEffect(() => {
+    if (wasResetOpen.current && !showResetDialog) {
+      triggerRef.current?.focus();
     }
-  };
+    wasResetOpen.current = showResetDialog;
+  }, [showResetDialog]);
+
+
 
   return (
-    <section className="grid min-h-screen place-items-center bg-background px-6 py-10 text-foreground">
-      <form onSubmit={handleSubmit} className="grid w-full max-w-md gap-6 rounded-2xl border bg-card p-8 shadow-sm">
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Sign in</p>
-          <h1 className="text-3xl font-semibold">Access EquipEd</h1>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Use your server-managed account to access the document dashboard and upload workspace.
-          </p>
-        </div>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-white font-sans selection:bg-primary selection:text-primary-foreground">
+      {/* Left Pane: Brand Hero */}
+      <BrandHero />
 
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="login-email">Email</Label>
-            <Input
-              id="login-email"
-              type="email"
-              autoComplete="email"
-              placeholder="name@lspu.edu.ph"
-              value={email}
-              onChange={(event) => {
-                auth.clearError();
-                setEmail(event.target.value);
-              }}
-              required
-            />
+      {/* Right Pane: The Architectural Ledger */}
+      <div className="w-full lg:w-7/12 bg-white flex flex-col min-h-0">
+        {/* Top Margin (Structural) */}
+        <div className="hidden lg:block h-16 border-b border-slate-200 w-full shrink-0 bg-slate-50/50" />
+
+        <div className="flex-1 flex flex-col lg:flex-row w-full h-full">
+          {/* Left Column (Gutter) */}
+          <div className="hidden lg:block w-16 xl:w-24 border-r border-slate-200 shrink-0 bg-slate-50/30" />
+
+          {/* Main Content Column */}
+          <div className="flex-1 flex flex-col justify-center relative py-8 lg:py-0">
+            {/* Center Grid Block */}
+            <div className="w-full bg-white relative">
+              {/* Header Cell */}
+              <div className="px-6 sm:px-10 lg:px-14 py-8 lg:py-10 border-t border-b border-slate-200 bg-slate-50/30 flex items-stretch gap-4">
+                <div className="w-0.5 self-stretch bg-primary shrink-0" aria-hidden="true" />
+                <div className="flex-1">
+                  <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 mb-2">
+                    Sign In
+                  </h2>
+                  <p className="text-sm text-slate-600 font-medium">
+                    Enter your LSPU email and password to continue.
+                  </p>
+                </div>
+              </div>
+
+              {/* Ledger Form */}
+              <form onSubmit={handleSubmit} className="flex flex-col">
+                {/* Email Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                  <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
+                    <Label
+                      htmlFor="login-email"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary"
+                    >
+                      Email
+                    </Label>
+                  </div>
+                  <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col justify-center w-full">
+                    <Input
+                      id="login-email"
+                      type="email"
+                      autoComplete="email"
+                      autoFocus
+                      placeholder="name@lspu.edu.ph"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 placeholder:text-slate-400 font-semibold text-slate-900"
+                      value={email}
+                      onChange={(event) => {
+                        auth.clearError();
+                        setEmail(event.target.value);
+                        setEmailHint('');
+                      }}
+                      onBlur={handleEmailBlur}
+                      required
+                      aria-describedby={auth.error ? 'login-error' : undefined}
+                    />
+                    {emailHint && (
+                      <p className="text-[11px] font-semibold text-amber-600 px-2 pt-1 transition-all">
+                        {emailHint}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Password Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                  <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
+                    <Label
+                      htmlFor="login-password"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary"
+                    >
+                      Password
+                    </Label>
+                  </div>
+                  <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col">
+                    <Input
+                      id="login-password"
+                      type="password"
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 placeholder:text-slate-400 font-semibold text-slate-900 tracking-widest"
+                      value={password}
+                      onChange={(event) => {
+                        auth.clearError();
+                        setPassword(event.target.value);
+                        setPasswordHint('');
+                      }}
+                      onBlur={handlePasswordBlur}
+                      required
+                      aria-describedby={auth.error ? 'login-error' : undefined}
+                    />
+                    <div className="flex justify-between items-center pt-2 pb-1">
+                      <div className="text-[11px] font-semibold text-amber-600 px-2">
+                        {passwordHint}
+                      </div>
+                      <button
+                        ref={triggerRef}
+                        type="button"
+                        onClick={() => setShowResetDialog(true)}
+                        className="text-[11px] font-bold text-primary hover:underline cursor-pointer opacity-60 hover:opacity-100 uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-opacity ml-auto"
+                      >
+                        Reset Password
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remember Row — label column is blank gutter; content aligns to input column */}
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                  <div className="hidden lg:block lg:border-r border-slate-200 bg-slate-50/30" />
+                  <div className="px-6 sm:px-10 lg:px-14 py-3 flex items-center gap-2.5">
+                    <input
+                      id="login-remember"
+                      type="checkbox"
+                      className="size-4 rounded-sm border-slate-300 text-primary focus:ring-2 focus:ring-primary focus:ring-offset-1 cursor-pointer accent-primary shrink-0"
+                      checked={rememberEmail}
+                      onChange={(event) => setRememberEmail(event.target.checked)}
+                    />
+                    <Label
+                      htmlFor="login-remember"
+                      className="text-xs font-medium text-slate-500 select-none cursor-pointer"
+                    >
+                      Remember my email address
+                    </Label>
+                  </div>
+                </div>
+
+                {/* Error Row (Conditionally Rendered) */}
+                {auth.error && (
+                  <div
+                    id="login-error"
+                    role="alert"
+                    className="border-b border-slate-200 bg-red-50/80 px-6 sm:px-10 lg:px-14 py-5 flex items-start gap-3 animate-in fade-in"
+                  >
+                    <ShieldAlert
+                      className="size-4 shrink-0 mt-0.5 text-red-600"
+                      aria-hidden="true"
+                    />
+                    <span className="text-sm font-medium leading-relaxed text-red-900">
+                      {auth.error}
+                    </span>
+                  </div>
+                )}
+
+                {/* Action Row */}
+                <div className="flex border-b border-slate-200">
+                  <Button
+                    type="submit"
+                    className="w-full h-14 rounded-none bg-primary hover:bg-primary/90 active:bg-primary/80 text-primary-foreground font-bold text-[13px] tracking-[0.08em] uppercase transition-colors flex items-center justify-center gap-3 group cursor-pointer"
+                    disabled={isSubmitting || !email.trim() || password.length < 8}
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin opacity-80" />
+                        Signing In
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-3">
+                        Sign In
+                        <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="login-password">Password</Label>
-            <Input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(event) => {
-                auth.clearError();
-                setPassword(event.target.value);
-              }}
-              required
-            />
-          </div>
+          {/* Right Column (Gutter) */}
+          <div className="hidden lg:block w-16 xl:w-24 border-l border-slate-200 shrink-0 bg-slate-50/30" />
         </div>
 
-        {auth.error ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{auth.error}</div> : null}
+        {/* Bottom Margin (Structural) */}
+        <div className="hidden lg:block h-16 border-t border-slate-200 w-full shrink-0 bg-slate-50/50 relative">
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 text-right">
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+              © {new Date().getFullYear()} Laguna State Polytechnic University
+            </p>
+          </div>
+        </div>
+      </div>
 
-        <Button type="submit" size="lg" disabled={isSubmitting || !email.trim() || password.length < 8}>
-          {isSubmitting ? 'Signing in…' : 'Continue'}
-        </Button>
-
-        <p className="text-sm text-muted-foreground">Sessions use an HTTP-only cookie. Closing the browser does not sign you out automatically.</p>
-      </form>
-    </section>
+      {/* Password Reset Modal */}
+      <ResetPasswordModal isOpen={showResetDialog} onClose={() => setShowResetDialog(false)} />
+    </div>
   );
 }

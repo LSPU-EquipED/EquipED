@@ -79,3 +79,9 @@
 - Read `openspec/specs/` first for implementation behavior.
 - Use `docs/TDD.md` and `docs/PRD.md` only to resolve supporting context.
 - Call out assumptions explicitly in commits and PRs.
+
+## Design And Branding
+
+- Read [PRODUCT.md](PRODUCT.md) to understand target users, strategic product purpose, brand personality, and anti-references.
+- Read [DESIGN.md](DESIGN.md) for custom theme tokens (LSPU SCC colors), typography rules, flat elevation principles, and component standards.
+
