@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/shared/components/ui/card';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Separator } from '@/shared/components/ui/separator';
@@ -33,12 +39,12 @@ export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
   }));
 
   const filteredReferences = availableReferences.filter((ref) =>
-    ref.name.toLowerCase().includes(searchTerm.toLowerCase())
+    ref.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const handleToggleReference = (refId: string) => {
     setSelectedRefs((prev) =>
-      prev.includes(refId) ? prev.filter((id) => id !== refId) : [...prev, refId]
+      prev.includes(refId) ? prev.filter((id) => id !== refId) : [...prev, refId],
     );
   };
 
@@ -68,7 +74,10 @@ export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
           {filteredReferences.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto rounded-lg border border-border p-3">
               {filteredReferences.map((ref) => (
-                <label key={ref.id} className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer">
+                <label
+                  key={ref.id}
+                  className="flex items-center gap-3 p-2 hover:bg-muted rounded-md cursor-pointer"
+                >
                   <input
                     type="checkbox"
                     checked={selectedRefs.includes(ref.id)}

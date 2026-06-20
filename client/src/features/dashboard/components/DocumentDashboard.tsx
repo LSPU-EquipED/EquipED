@@ -29,7 +29,10 @@ const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
   curriculum: 'Curriculum',
 };
 
-const statusConfig: Record<DocumentProcessingStatus, { label: string; className: string; icon?: ReactNode }> = {
+const statusConfig: Record<
+  DocumentProcessingStatus,
+  { label: string; className: string; icon?: ReactNode }
+> = {
   PENDING: {
     label: 'Processing…',
     className: 'bg-amber-100 text-amber-800',
@@ -139,9 +142,13 @@ export function DocumentDashboard() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5">
           <p className="text-sm text-muted-foreground">
-            {isLoading && !data ? 'Loading documents…' : `${data?.total ?? 0} document${(data?.total ?? 0) === 1 ? '' : 's'} available`}
+            {isLoading && !data
+              ? 'Loading documents…'
+              : `${data?.total ?? 0} document${(data?.total ?? 0) === 1 ? '' : 's'} available`}
           </p>
-          <p className="text-sm text-muted-foreground">Status reflects upload and preprocessing only.</p>
+          <p className="text-sm text-muted-foreground">
+            Status reflects upload and preprocessing only.
+          </p>
         </div>
 
         <CardContent className="px-6 py-7">
@@ -173,7 +180,8 @@ export function DocumentDashboard() {
                   <TableHead>Program</TableHead>
                   <TableHead>
                     <span className="inline-flex items-center gap-1">
-                      Uploaded <ArrowDown className="size-4 text-muted-foreground" aria-hidden="true" />
+                      Uploaded{' '}
+                      <ArrowDown className="size-4 text-muted-foreground" aria-hidden="true" />
                     </span>
                   </TableHead>
                   <TableHead>Status</TableHead>
@@ -191,7 +199,8 @@ export function DocumentDashboard() {
                       key={document.documentId}
                       className={cn(
                         isFlashing && 'bg-primary/5 ring-1 ring-inset ring-primary/20',
-                        isReady && 'group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                        isReady &&
+                          'group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       )}
                       {...(isReady
                         ? {
@@ -209,11 +218,15 @@ export function DocumentDashboard() {
                     >
                       <TableCell className="max-w-[22rem] truncate font-medium">
                         {isReady ? (
-                          <span className="block truncate underline-offset-4 group-hover:underline">{document.title}</span>
+                          <span className="block truncate underline-offset-4 group-hover:underline">
+                            {document.title}
+                          </span>
                         ) : (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="block truncate cursor-not-allowed opacity-80">{document.title}</span>
+                              <span className="block truncate cursor-not-allowed opacity-80">
+                                {document.title}
+                              </span>
                             </TooltipTrigger>
                             <TooltipContent side="top">
                               {document.processingStatus === 'PENDING'
@@ -227,13 +240,16 @@ export function DocumentDashboard() {
                       <TableCell>{document.program ?? '—'}</TableCell>
                       <TableCell>{formatDate(document.uploadedAt)}</TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusMeta.className}`}>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusMeta.className}`}
+                        >
                           {statusMeta.icon}
                           {statusMeta.label}
                         </span>
                       </TableCell>
                       <TableCell>
-                        {document.pageCount != null && !(document.processingStatus === 'FAILED' && document.pageCount === 0)
+                        {document.pageCount != null &&
+                        !(document.processingStatus === 'FAILED' && document.pageCount === 0)
                           ? document.pageCount
                           : '—'}
                       </TableCell>
