@@ -13,17 +13,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
-import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/components/ui/table';
 import { FeedbackPanel } from './FeedbackPanel';
 import { formatScore } from './scoreHelpers';
 import type {
@@ -106,13 +97,13 @@ function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unkno
 function getCriterionStyles(tier: 'strong' | 'medium' | 'weak' | 'unknown') {
   switch (tier) {
     case 'strong':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return 'bg-emerald-50 text-emerald-700 border-emerald-250';
     case 'medium':
-      return 'bg-amber-50 text-amber-700 border-amber-200';
+      return 'bg-amber-50 text-amber-700 border-amber-250';
     case 'weak':
-      return 'bg-rose-50 text-rose-700 border-rose-200';
+      return 'bg-red-50 text-red-700 border-red-250';
     default:
-      return 'bg-muted text-muted-foreground border-transparent';
+      return 'bg-slate-50 text-slate-500 border-slate-205';
   }
 }
 
@@ -328,17 +319,15 @@ export function ScoreDashboard({
                       : 'Evaluation failed. No results were produced.'}
                   </span>
                 </div>
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="shrink-0 inline-flex h-8 items-center gap-1.5 border border-red-250 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
                   onClick={handleRetryEvaluation}
                   disabled={isResolvingEval || submitIsPending}
                 >
                   <AlertTriangle className="size-3.5" aria-hidden="true" />
                   Retry Evaluation
-                </Button>
+                </button>
               </div>
             )}
             {status?.status !== 'FAILED' && (
@@ -358,15 +347,13 @@ export function ScoreDashboard({
                 <p className="mt-1 text-destructive/80">
                   {getErrorMessage(resultsError, 'Results could not be retrieved.')}
                 </p>
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
+                  className="mt-2 inline-flex h-8 items-center justify-center border border-red-250 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-red-200 focus:outline-none"
                   onClick={() => refetchResults()}
                 >
                   Retry
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -539,77 +526,77 @@ export function ScoreDashboard({
             </div>
           </div>
 
-          <div className="rounded-lg border bg-background">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[8rem] uppercase tracking-[0.18em]">Rating</TableHead>
-                  <TableHead className="uppercase tracking-[0.18em]">
+          <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
+            <table className="w-full text-left border-collapse border-spacing-0">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550 w-[8rem]">Rating</th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550">
                     Evaluation Criterion
-                  </TableHead>
-                  <TableHead className="w-[14rem] uppercase tracking-[0.18em]">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                  </th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550 w-[14rem]">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
                 {selectedScore.rows.length > 0 ? (
                   selectedScore.rows.map((row) => {
                     const tier = getCriterionTier(row.rating);
                     const isWeak = tier === 'weak';
                     return (
-                      <TableRow key={row.criterion} className={cn(isWeak && 'bg-rose-50/40')}>
-                        <TableCell>
+                      <tr key={row.criterion} className={cn(isWeak && 'bg-red-50/20 hover:bg-red-50/30', 'hover:bg-slate-50/50')}>
+                        <td className="py-3 px-4 text-sm font-medium">
                           <span
                             className={cn(
-                              'inline-grid size-9 place-items-center rounded-full border font-semibold text-sm',
+                              'inline-grid size-8 place-items-center rounded-full border text-xs font-bold',
                               getCriterionStyles(tier),
                             )}
                           >
                             {row.rating}
                           </span>
-                        </TableCell>
-                        <TableCell
+                        </td>
+                        <td
                           className={cn(
-                            'whitespace-normal',
-                            isWeak ? 'text-foreground font-medium' : 'text-muted-foreground',
+                            'py-3 px-4 text-sm whitespace-normal',
+                            isWeak ? 'text-slate-900 font-bold' : 'text-slate-650 font-semibold',
                           )}
                         >
                           {row.criterion}
-                        </TableCell>
-                        <TableCell className="whitespace-normal">
+                        </td>
+                        <td className="py-3 px-4 text-sm whitespace-normal">
                           <span
                             className={cn(
-                              'rounded-md border px-2.5 py-1 text-xs font-medium',
+                              'rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider',
                               isWeak
-                                ? 'border-rose-200 bg-rose-50 text-rose-700'
-                                : 'border-muted-foreground/20 bg-background text-muted-foreground',
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : 'border-slate-200 bg-slate-50 text-slate-550',
                             )}
                           >
                             {row.status}
                           </span>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     );
                   })
                 ) : (
-                  <TableRow>
-                    <TableCell
+                  <tr>
+                    <td
                       colSpan={3}
-                      className="py-8 text-center text-sm text-muted-foreground"
+                      className="py-8 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/10"
                     >
                       {isInProgress
                         ? 'Criteria will appear once evaluation completes.'
                         : 'No criteria available.'}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
 
           <FeedbackPanel criteria={selectedScore.feedbackCriteria} />
         </section>
 
-        <section className="mt-8 rounded-lg border bg-background p-5">
+        <section className="mt-8 rounded-sm border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-muted-foreground" aria-hidden="true" />
             <h3 className="font-semibold">Next Steps</h3>
@@ -620,16 +607,14 @@ export function ScoreDashboard({
             agents.
           </p>
           {isTerminal && evaluationId && (
-            <Button
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              className="mt-4 gap-2"
+              className="mt-4 inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
               onClick={handleViewFullReport}
             >
-              <Eye className="size-4" aria-hidden="true" />
+              <Eye className="size-4 mr-1.5" aria-hidden="true" />
               Open Full Report
-            </Button>
+            </button>
           )}
         </section>
       </div>

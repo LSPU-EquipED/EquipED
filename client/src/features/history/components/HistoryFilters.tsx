@@ -1,11 +1,3 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/ui/select';
-
 interface HistoryFiltersProps {
   status: string;
   onStatusChange: (val: string) => void;
@@ -15,18 +7,17 @@ export function HistoryFilters({ status, onStatusChange }: HistoryFiltersProps) 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-4">
       <div className="w-full sm:w-[200px]">
-        <Select value={status} onValueChange={onStatusChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="COMPLETED">Completed</SelectItem>
-            <SelectItem value="FAILED">Failed</SelectItem>
-            <SelectItem value="EVALUATING">Evaluating</SelectItem>
-            <SelectItem value="SUBMITTED">Submitted</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-850 cursor-pointer"
+        >
+          <option value="all">All Statuses</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+          <option value="EVALUATING">Evaluating</option>
+          <option value="SUBMITTED">Submitted</option>
+        </select>
       </div>
     </div>
   );
