@@ -22,13 +22,7 @@ export function UserManagementPage() {
 
   return (
     <section className="grid gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">User Management</h1>
-        </div>
+      <div className="flex items-center justify-end">
         <button
           type="button"
           className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
@@ -92,7 +86,7 @@ export function UserManagementPage() {
                     <span
                       className={`inline-flex rounded-sm border px-2 py-0.5 text-xs font-semibold ${
                         user.role === 'admin'
-                          ? 'border-[#1b3b87]/50 text-[#1b3b87] bg-[#1b3b87]/10'
+                          ? 'border-slate-350 text-slate-800 bg-slate-100'
                           : 'border-slate-200 bg-slate-50 text-slate-600'
                       }`}
                     >

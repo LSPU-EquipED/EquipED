@@ -181,12 +181,6 @@ export function RubricTableEditor() {
 
   return (
     <section className="grid gap-5">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-          Admin
-        </div>
-        <h1 className="mt-1 text-2xl font-bold tracking-normal text-slate-900">Rubrics</h1>
-      </div>
 
       <div className="grid gap-4">
         {agents.map((rubric) => {

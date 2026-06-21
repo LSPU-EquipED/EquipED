@@ -79,15 +79,6 @@ export function AdminUploadPage() {
 
   return (
     <section className="grid gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Admin
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Reference Ingestion</h1>
-        <p className="mt-1 text-sm text-slate-500 font-medium">
-          Upload syllabi, rubrics, and curricula to the knowledge base for evaluation context.
-        </p>
-      </div>
 
       <form
         onSubmit={handleSubmit}

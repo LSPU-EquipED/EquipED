@@ -120,10 +120,10 @@ export function Scorecard() {
   };
 
   return (
-    <section className="-mx-6 -my-7 flex h-[calc(100vh-4rem)] flex-col bg-background">
+    <section className="flex h-[calc(100vh-4rem)] flex-col bg-background">
       <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b bg-background px-10">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Evaluation Status
           </p>
           <div className="flex items-center gap-3 mt-2">
@@ -139,7 +139,7 @@ export function Scorecard() {
         </div>
         {results && (
           <div className="text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Synthesized Score
             </p>
             <p className="mt-1 text-3xl font-bold text-primary">

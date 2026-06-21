@@ -77,13 +77,21 @@ const dashboardRoute = createRoute({
 const uploadRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'upload',
-  component: UploadPage,
+  component: () => (
+    <div className="px-6 py-7">
+      <UploadPage />
+    </div>
+  ),
 });
 
 const evaluationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations',
-  component: HistoryPage,
+  component: () => (
+    <div className="px-6 py-7">
+      <HistoryPage />
+    </div>
+  ),
 });
 
 const documentEvaluationRoute = createRoute({
@@ -108,7 +116,11 @@ const matrixRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'matrix',
   beforeLoad: requireRole(['admin']),
-  component: MonitoringPage,
+  component: () => (
+    <div className="px-6 py-7">
+      <MonitoringPage />
+    </div>
+  ),
 });
 
 const adminRoute = createRoute({
@@ -117,7 +129,11 @@ const adminRoute = createRoute({
   beforeLoad: ({ context }) => {
     requireRole(['admin'])({ context });
   },
-  component: Outlet,
+  component: () => (
+    <div className="px-6 py-7">
+      <Outlet />
+    </div>
+  ),
 });
 
 const adminHomeRoute = createRoute({

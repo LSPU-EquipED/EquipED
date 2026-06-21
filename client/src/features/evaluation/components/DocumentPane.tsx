@@ -53,8 +53,8 @@ export function DocumentPane({
       <div className="mx-auto grid max-w-3xl gap-7 px-10 py-16">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">{document?.title ?? 'Selected SLM'}</h2>
-            <p className="mt-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <h2 className="text-base font-bold text-slate-900">{document?.title ?? 'Selected SLM'}</h2>
+            <p className="mt-1.5 text-xs font-medium text-slate-500">
               {documentSubtitle || document?.program || 'SLM content preview'}
             </p>
           </div>
@@ -124,15 +124,15 @@ export function DocumentPane({
         )}
 
         {!isLoading && !error ? (
-          <article className="space-y-6 text-sm leading-6 text-slate-650 font-medium">
+          <article className="space-y-6 text-sm leading-relaxed text-slate-700 font-normal">
             {documentTextGroups.length > 0 ? (
               documentTextGroups.map((group) => (
                 <section key={group.documentId} className="space-y-5">
                   <div className="border-b border-slate-100 pb-2">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                    <h3 className="text-sm font-semibold text-slate-800">
                       Document {group.documentId}
                     </h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Extracted text</p>
+                    <p className="text-xs font-medium text-slate-400 mt-0.5">Extracted text</p>
                   </div>
                   {group.chunks.map((chunk) => (
                     <section
@@ -140,7 +140,7 @@ export function DocumentPane({
                       id={`chunk-${chunk.chunkId}`}
                       className="space-y-2 rounded-sm transition-colors"
                     >
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      <p className="text-xs font-semibold text-slate-500">
                         Page {chunk.pageNumber}
                       </p>
                       {chunk.text.split(/\n{2,}/).map((paragraph, paragraphIndex) => (

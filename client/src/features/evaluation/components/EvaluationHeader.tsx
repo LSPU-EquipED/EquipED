@@ -55,22 +55,22 @@ export function EvaluationHeader({
   return (
     <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-10">
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.26em] text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Selected Document
         </p>
-        <h1 className="mt-2 truncate text-xl font-bold text-slate-900">
+        <h1 className="mt-2 truncate text-2xl font-bold tracking-tight text-slate-900">
           {document?.title ?? 'Loading document...'}
         </h1>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-550 bg-slate-50">
+        <span className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-50">
           <FileText className="size-4 text-slate-400" aria-hidden="true" />
           {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
         </span>
         
         <button
           type="button"
-          className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-705 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+          className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
           disabled={!hasResults || !isTerminal}
           onClick={() => setShowExportModal(true)}
           title={(!hasResults || !isTerminal) ? (!isTerminal ? 'Available once evaluation completes' : 'No results to export') : undefined}
