@@ -1,6 +1,7 @@
 export interface HistoryEvaluationItem {
   evaluation_id: string;
   document_id: string;
+  document_title?: string;
   syllabus_id: string;
   curriculum_id: string;
   status: string;
