@@ -4,7 +4,7 @@ import type { PreferenceLogItem } from '../types';
 
 function actionClass(action: string) {
   return action === 'EDITED'
-    ? 'border-[#1b3b87]/50 text-[#1b3b87] bg-[#1b3b87]/10'
+    ? 'border-slate-300 text-slate-800 bg-slate-100 font-semibold'
     : 'border-slate-200 bg-slate-50 text-slate-600';
 }
 
@@ -13,12 +13,6 @@ export function PreferenceLogTable() {
 
   return (
     <section className="grid gap-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Admin
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Preference Logs</h1>
-      </div>
 
       <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
         {isLoading ? (

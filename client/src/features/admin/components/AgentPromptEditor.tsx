@@ -36,12 +36,6 @@ export function AgentPromptEditor() {
 
   return (
     <section key={activeAgent} className="grid gap-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Admin
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Prompt Editor</h1>
-      </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <div className="border border-slate-200 bg-white rounded-sm">

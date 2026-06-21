@@ -26,12 +26,6 @@ export function AdminHomePage() {
 
   return (
     <section className="grid gap-8">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-          System
-        </p>
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
