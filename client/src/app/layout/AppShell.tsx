@@ -1,11 +1,7 @@
-import { Outlet } from '@tanstack/react-router';
+import { Outlet, useMatches } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Bell,
-  ChevronDown,
-  GraduationCap,
   LogOut,
-  Search,
   Settings,
   UserCircle,
 } from 'lucide-react';
@@ -13,7 +9,31 @@ import { cn } from '@/shared/components/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
+function getRouteTitle(routeId?: string): string {
+  if (!routeId) return 'EquipED';
+  
+  if (routeId.includes('/dashboard')) return 'Documents';
+  if (routeId.includes('/upload')) return 'Upload Document';
+  if (routeId.includes('/evaluations/$id/report')) return 'Evaluation Report';
+  if (routeId.includes('/evaluations/$id')) return 'Scorecard';
+  if (routeId.includes('/evaluations')) return 'Evaluations';
+  if (routeId.includes('/documents/') && routeId.includes('/evaluation')) return 'Evaluation Interface';
+  if (routeId.includes('/matrix')) return 'Monitoring Matrix';
+  if (routeId.includes('/admin/users')) return 'User Management';
+  if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
+  if (routeId.includes('/admin/prompts')) return 'Agent Prompts';
+  if (routeId.includes('/admin/preferences')) return 'Preference Logs';
+  if (routeId.includes('/admin/rubrics')) return 'Rubric Editor';
+  if (routeId.includes('/admin')) return 'Admin Dashboard';
+  
+  return 'EquipED';
+}
+
 export function AppShell() {
+  const matches = useMatches();
+  const currentMatch = matches[matches.length - 1];
+  const routeId = currentMatch?.routeId;
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -50,55 +70,28 @@ export function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-sm bg-slate-100 text-slate-700 border border-slate-200">
-            <GraduationCap className="size-5" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-              LSPU SCC
-            </p>
-            <h1 className="truncate text-sm font-bold text-slate-900">EquipEd Document Evaluation</h1>
-          </div>
+    <div className="min-h-screen bg-white text-slate-800">
+      <header
+        className={cn(
+          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white/80 px-6 backdrop-blur-md transition-[left] duration-200',
+          isSidebarCollapsed ? 'left-[5.75rem]' : 'left-72 max-md:left-[5.75rem]'
+        )}
+      >
+        <div className="flex flex-1 items-center gap-3">
+          <span className="text-base font-bold text-slate-900">{getRouteTitle(routeId)}</span>
         </div>
 
-        <div className="hidden w-full max-w-sm items-center md:flex">
-          <div className="relative w-full">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              className="h-9 w-full bg-slate-50 border border-slate-200 text-xs pl-9 pr-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm placeholder:text-slate-400"
-              placeholder="Search documents"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="flex size-9 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
-            aria-label="Notifications"
-          >
-            <Bell className="size-4" aria-hidden="true" />
-          </button>
+        <div className="ml-auto flex items-center gap-2">
 
           <div ref={accountMenuRef} className="relative">
             <button
               type="button"
-              className="inline-flex h-9 items-center gap-2 border border-slate-200 bg-white hover:bg-slate-50 px-2.5 rounded-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              className="flex size-8 items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
               onClick={() => setIsAccountMenuOpen((value) => !value)}
             >
-              <span className="flex size-6 items-center justify-center rounded-full bg-[#1b3b87] text-[10px] font-semibold text-white">
-                {initials}
-              </span>
-              <span className="hidden max-w-40 truncate text-xs sm:inline">
-                {user?.displayName ?? 'EquipEd User'}
-              </span>
-              <ChevronDown className="size-4 text-slate-400" aria-hidden="true" />
+              {initials}
             </button>
 
             {isAccountMenuOpen ? (
@@ -156,7 +149,7 @@ export function AppShell() {
           isSidebarCollapsed ? 'pl-[5.75rem]' : 'pl-72 max-md:pl-[5.75rem]',
         )}
       >
-        <main className="min-w-0 px-6 py-7">
+        <main className="min-w-0">
           <Outlet />
         </main>
       </div>

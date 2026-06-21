@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import {
   BookOpen,
   ChevronDown,
-  ChevronsUpDown,
+  ClipboardList,
   FilePlus2,
   FileUp,
   FolderOpen,
@@ -36,6 +36,7 @@ type NavItem = {
 const workspaceNavItems: readonly NavItem[] = [
   { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
+  { to: '/evaluations', label: 'Evaluations', icon: ClipboardList, exact: true },
 ] as const;
 
 const adminNavItems: readonly NavItem[] = [
@@ -48,6 +49,39 @@ const adminNavItems: readonly NavItem[] = [
 ] as const;
 
 const resourceItems = [{ label: 'Guidelines', icon: GraduationCap }] as const;
+
+function NavLink({
+  item,
+  collapsed,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+}) {
+  const Icon = item.icon;
+
+  const baseClass = cn(
+    'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
+    collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
+  );
+
+  const activeClass = cn(
+    'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors',
+    collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
+  );
+
+  return (
+    <Link
+      to={item.to}
+      activeOptions={{ exact: item.exact }}
+      className={baseClass}
+      activeProps={{ className: activeClass }}
+      title={collapsed ? item.label : undefined}
+    >
+      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      {!collapsed && <span className="truncate">{item.label}</span>}
+    </Link>
+  );
+}
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const asideWidth = collapsed ? 'w-[5.75rem]' : 'w-72 max-md:w-[5.75rem]';
@@ -66,150 +100,118 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'fixed bottom-0 left-0 top-16 z-40 flex flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+        'fixed bottom-0 left-0 top-0 z-50 flex flex-col border-r border-slate-200 bg-slate-50 transition-[width] duration-200',
         asideWidth,
       )}
     >
-      <nav aria-label="Primary" className="grid gap-1 px-3 py-4">
-        {!isAdmin && (
-          <>
-            {!collapsed && (
-              <div className="px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Workspace
-              </div>
-            )}
-            {workspaceNavItems.map((item) => {
-              const Icon = item.icon;
-              const baseClass = cn(
-                'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-              );
-
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  activeOptions={{ exact: item.exact }}
-                  className={baseClass}
-                  activeProps={{
-                    className: cn(baseClass, 'bg-sidebar-accent text-foreground'),
-                  }}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </>
+      {/* Brand / Logo */}
+      <div
+        className={cn(
+          'flex h-16 shrink-0 items-center border-b border-slate-200',
+          collapsed ? 'justify-center px-2' : 'gap-3 px-4',
         )}
-
-        {isAdmin && (
-          <>
-            {!collapsed && (
-              <div className="mt-6 px-3 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                System Management
-              </div>
-            )}
-            {adminNavItems.map((item) => {
-              const Icon = item.icon;
-              const baseClass = cn(
-                'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-              );
-
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  activeOptions={{ exact: item.exact }}
-                  className={baseClass}
-                  activeProps={{
-                    className: cn(baseClass, 'bg-sidebar-accent text-foreground'),
-                  }}
-                  title={collapsed ? item.label : undefined}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </Link>
-              );
-            })}
-          </>
-        )}
-      </nav>
-
-      <div className="mt-7 grid gap-1 px-3">
+      >
+        <img
+          src="/lspu-logo.png"
+          alt="LSPU"
+          className="size-9 shrink-0 object-contain"
+        />
         {!collapsed && (
-          <div className="px-3 pb-2 text-xs font-medium text-muted-foreground">Resources</div>
+          <div className="flex flex-col leading-none">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              LSPU
+            </span>
+            <span className="text-base font-bold tracking-tight text-slate-900 mt-0.5">
+              EquipED
+            </span>
+          </div>
         )}
-        {isAdmin && (
-          <Link
-            to="/admin/rubrics"
-            activeOptions={{ exact: true }}
-            className={cn(
-              'group flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-              collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-            )}
-            activeProps={{
-              className: cn(
-                'group flex h-10 items-center rounded-lg text-sm font-medium transition-colors',
-                collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-                'bg-sidebar-accent text-foreground',
-              ),
-            }}
-            title={collapsed ? 'Rubrics' : undefined}
-          >
-            <Upload className="size-4 shrink-0" aria-hidden="true" />
-            {!collapsed && <span className="truncate">Rubrics</span>}
-          </Link>
-        )}
-        {resourceItems.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <button
-              key={item.label}
-              type="button"
-              className={cn(
-                'flex h-10 items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
-              {!collapsed && (
-                <>
-                  <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
-                  <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
-                </>
-              )}
-            </button>
-          );
-        })}
       </div>
 
-      <div className="mt-auto border-t p-3">
+
+
+      {/* ── Navigation Container ───────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav aria-label="Primary" className="grid gap-1 px-3">
+          {!isAdmin && (
+            <>
+              {workspaceNavItems.map((item) => (
+                <NavLink key={item.to} item={item} collapsed={collapsed} />
+              ))}
+            </>
+          )}
+
+          {isAdmin && (
+            <>
+              {adminNavItems.map((item) => (
+                <NavLink key={item.to} item={item} collapsed={collapsed} />
+              ))}
+            </>
+          )}
+        </nav>
+
+        <div className="mx-3 my-4 border-t border-slate-200" />
+
+        <div className="grid gap-1 px-3">
+          {isAdmin && (
+            <Link
+              to="/admin/rubrics"
+              activeOptions={{ exact: true }}
+              className={cn(
+                'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
+                collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
+              )}
+              activeProps={{
+                className: cn(
+                  'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors',
+                  collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
+                ),
+              }}
+              title={collapsed ? 'Rubrics' : undefined}
+            >
+              <Upload className="size-4 shrink-0" aria-hidden="true" />
+              {!collapsed && <span className="truncate">Rubrics</span>}
+            </Link>
+          )}
+          {resourceItems.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.label}
+                type="button"
+                className={cn(
+                  'flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
+                  collapsed ? 'justify-center px-0' : 'gap-3 px-3',
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <Icon className="size-4 shrink-0" aria-hidden="true" />
+                {!collapsed && (
+                  <>
+                    <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+                    <ChevronDown className="size-4 text-slate-400" aria-hidden="true" />
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Bottom Collapse Toggle ──────────────────────────────────────── */}
+      <div className={cn('flex h-12 shrink-0 items-center px-3 border-t border-slate-200 mt-auto', collapsed ? 'justify-center' : 'justify-end')}>
         <button
           type="button"
           onClick={onToggle}
-          className={cn(
-            'flex h-10 w-full items-center rounded-lg text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-            collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-          )}
-          title={collapsed ? 'Expand sidebar' : undefined}
+          className="flex size-9 items-center justify-center rounded-sm text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-900"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
             <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
           ) : (
-            <>
-              <PanelLeftClose className="size-4 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate text-left">Collapse sidebar</span>
-              <ChevronsUpDown
-                className="size-4 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </>
+            <PanelLeftClose className="size-4 shrink-0" aria-hidden="true" />
           )}
         </button>
       </div>
