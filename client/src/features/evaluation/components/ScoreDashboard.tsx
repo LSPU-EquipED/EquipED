@@ -530,11 +530,11 @@ export function ScoreDashboard({
             <table className="w-full text-left border-collapse border-spacing-0">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550 w-[8rem]">Rating</th>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550">
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[8rem]">Rating</th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500">
                     Evaluation Criterion
                   </th>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-550 w-[14rem]">Status</th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[14rem]">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -557,7 +557,7 @@ export function ScoreDashboard({
                         <td
                           className={cn(
                             'py-3 px-4 text-sm whitespace-normal',
-                            isWeak ? 'text-slate-900 font-bold' : 'text-slate-650 font-semibold',
+                            isWeak ? 'text-slate-900 font-bold' : 'text-slate-600 font-semibold',
                           )}
                         >
                           {row.criterion}
@@ -568,7 +568,7 @@ export function ScoreDashboard({
                               'rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider',
                               isWeak
                                 ? 'border-red-200 bg-red-50 text-red-700'
-                                : 'border-slate-200 bg-slate-50 text-slate-550',
+                                : 'border-slate-200 bg-slate-50 text-slate-500',
                             )}
                           >
                             {row.status}

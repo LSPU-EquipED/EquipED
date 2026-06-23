@@ -36,12 +36,12 @@ export function MonitoringTable() {
             <span>Loading matrix data...</span>
           </div>
         ) : isError ? (
-          <div className="flex justify-center items-center py-12 text-red-750 font-semibold text-sm gap-2">
-            <AlertTriangle className="size-6 text-red-650" />
+          <div className="flex justify-center items-center py-12 text-red-700 font-semibold text-sm gap-2">
+            <AlertTriangle className="size-6 text-red-600" />
             <span>Failed to load matrix data.</span>
           </div>
         ) : !data || data.items.length === 0 ? (
-          <div className="text-center py-12 text-slate-550 font-semibold text-sm">
+          <div className="text-center py-12 text-slate-500 font-semibold text-sm">
             <p>No evaluation records yet</p>
           </div>
         ) : (

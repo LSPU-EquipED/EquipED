@@ -27,7 +27,7 @@ export function DocumentTypeSelector({ value = 'slm', onChange }: DocumentTypeSe
             className={`rounded-sm border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87] ${
               value === type.id
                 ? 'border-[#1b3b87] bg-blue-50/30 text-[#1b3b87]'
-                : 'border-slate-200 bg-transparent hover:border-slate-350 hover:bg-slate-50 text-slate-650'
+                : 'border-slate-200 bg-transparent hover:border-slate-300 hover:bg-slate-50 text-slate-600'
             }`}
           >
             <div className="font-bold text-xs uppercase tracking-wider">{type.label}</div>

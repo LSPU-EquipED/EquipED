@@ -86,7 +86,7 @@ export function UserManagementPage() {
                     <span
                       className={`inline-flex rounded-sm border px-2 py-0.5 text-xs font-semibold ${
                         user.role === 'admin'
-                          ? 'border-slate-350 text-slate-800 bg-slate-100'
+                          ? 'border-slate-300 text-slate-800 bg-slate-100'
                           : 'border-slate-200 bg-slate-50 text-slate-600'
                       }`}
                     >
@@ -98,7 +98,7 @@ export function UserManagementPage() {
                       className={`inline-flex rounded-sm border px-2 py-0.5 text-xs font-semibold ${
                         user.is_active
                           ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                          : 'border-slate-200 bg-slate-50 text-slate-650'
+                          : 'border-slate-200 bg-slate-50 text-slate-600'
                       }`}
                     >
                       {user.is_active ? 'Active' : 'Inactive'}

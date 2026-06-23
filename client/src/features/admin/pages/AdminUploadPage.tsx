@@ -119,7 +119,7 @@ export function AdminUploadPage() {
             htmlFor="ref-file"
             className={cn(
               'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8',
-              'transition-colors hover:border-slate-350 hover:bg-slate-50',
+              'transition-colors hover:border-slate-300 hover:bg-slate-50',
             )}
           >
             <Upload className="size-7 text-slate-500" aria-hidden="true" />

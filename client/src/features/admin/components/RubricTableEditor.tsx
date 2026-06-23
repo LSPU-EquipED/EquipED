@@ -314,7 +314,7 @@ export function RubricTableEditor() {
                                     <button
                                       type="button"
                                       onClick={() => removeRow(row.id)}
-                                      className="inline-flex size-8 items-center justify-center border border-transparent text-slate-500 hover:text-red-750 hover:bg-red-50/50 rounded-sm focus:outline-none transition-colors"
+                                      className="inline-flex size-8 items-center justify-center border border-transparent text-slate-500 hover:text-red-700 hover:bg-red-50/50 rounded-sm focus:outline-none transition-colors"
                                       aria-label={`Remove ${row.criterionId || 'rubric'} row`}
                                     >
                                       <Trash2 className="size-4" aria-hidden="true" />
