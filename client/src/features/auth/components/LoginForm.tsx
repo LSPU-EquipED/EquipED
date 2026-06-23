@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../hooks/useAuth';
 import { useLoginForm } from '../hooks/useLoginForm';
-import { ShieldAlert, ArrowRight, Loader2 } from 'lucide-react';
+import { ShieldAlert, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import { BrandHero } from './BrandHero';
 import { ResetPasswordModal } from './ResetPasswordModal';
 
@@ -10,6 +10,7 @@ export function LoginForm() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     email,
@@ -84,15 +85,15 @@ export function LoginForm() {
               <form onSubmit={handleSubmit} className="flex flex-col">
                 {/* Email Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
-                  <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
+                  <div className="px-6 sm:px-10 lg:px-2 py-4 lg:py-0 lg:pt-[28px] lg:border-r border-slate-200 flex items-center lg:items-start justify-start lg:justify-center text-left lg:text-center">
                     <label
                       htmlFor="login-email"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer whitespace-nowrap"
                     >
                       Email
                     </label>
                   </div>
-                  <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col justify-center w-full">
+                  <div className="px-6 sm:px-10 lg:px-6 py-2 lg:py-3 flex flex-col justify-center w-full">
                     <input
                       id="login-email"
                       type="email"
@@ -120,31 +121,45 @@ export function LoginForm() {
 
                 {/* Password Row */}
                 <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
-                  <div className="px-6 sm:px-10 lg:px-14 py-4 lg:py-5 lg:border-r border-slate-200 flex items-center">
+                  <div className="px-6 sm:px-10 lg:px-2 py-4 lg:py-0 lg:pt-[28px] lg:border-r border-slate-200 flex items-center lg:items-start justify-start lg:justify-center text-left lg:text-center">
                     <label
                       htmlFor="login-password"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer whitespace-nowrap"
                     >
                       Password
                     </label>
                   </div>
-                  <div className="px-6 sm:px-10 lg:px-14 py-2 lg:py-3 flex flex-col">
-                    <input
-                      id="login-password"
-                      type="password"
-                      autoComplete="current-password"
-                      placeholder="••••••••"
-                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900 tracking-widest"
-                      value={password}
-                      onChange={(event) => {
-                        auth.clearError();
-                        setPassword(event.target.value);
-                        setPasswordHint('');
-                      }}
-                      onBlur={handlePasswordBlur}
-                      required
-                      aria-describedby={auth.error ? 'login-error' : undefined}
-                    />
+                  <div className="px-6 sm:px-10 lg:px-6 py-2 lg:py-3 flex flex-col justify-center w-full">
+                    <div className="relative flex items-center">
+                      <input
+                        id="login-password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        className={`h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900 ${showPassword ? '' : 'tracking-widest'}`}
+                        value={password}
+                        onChange={(event) => {
+                          auth.clearError();
+                          setPassword(event.target.value);
+                          setPasswordHint('');
+                        }}
+                        onBlur={handlePasswordBlur}
+                        required
+                        aria-describedby={auth.error ? 'login-error' : undefined}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-[#1b3b87] cursor-pointer flex items-center justify-center p-1"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="size-5" aria-hidden="true" />
+                        ) : (
+                          <Eye className="size-5" aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
                     <div className="flex justify-between items-center pt-2 pb-1">
                       <div className="text-[11px] font-semibold text-amber-600 px-2">
                         {passwordHint}
@@ -164,7 +179,7 @@ export function LoginForm() {
                 {/* Remember Row — label column is blank gutter; content aligns to input column */}
                 <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
                   <div className="hidden lg:block lg:border-r border-slate-200 bg-slate-50/30" />
-                  <div className="px-6 sm:px-10 lg:px-14 py-3 flex items-center gap-2.5">
+                  <div className="px-6 sm:px-10 lg:px-6 py-3 flex items-center gap-2.5">
                     <input
                       id="login-remember"
                       type="checkbox"
