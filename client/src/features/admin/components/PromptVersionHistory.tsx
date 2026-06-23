@@ -20,7 +20,7 @@ export function PromptVersionHistory({ agentId }: PromptVersionHistoryProps) {
             <Loader2 className="size-4 animate-spin" /> Loading versions...
           </div>
         ) : isError ? (
-          <p className="text-xs font-semibold text-red-750 uppercase tracking-wider">Failed to load versions.</p>
+          <p className="text-xs font-semibold text-red-700 uppercase tracking-wider">Failed to load versions.</p>
         ) : !data?.versions.length ? (
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">No versions yet.</p>
         ) : (

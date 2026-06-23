@@ -82,7 +82,7 @@ export function AgentPromptEditor() {
               {savePrompt.isPending ? 'Saving...' : 'Save Prompt'}
             </button>
             {savePrompt.isError && (
-              <p className="text-sm font-semibold text-red-750">
+              <p className="text-sm font-semibold text-red-700">
                 {savePrompt.error instanceof Error
                   ? savePrompt.error.message
                   : 'Failed to save prompt'}

@@ -73,7 +73,7 @@ export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
                     type="checkbox"
                     checked={selectedRefs.includes(ref.id)}
                     onChange={() => handleToggleReference(ref.id)}
-                    className="size-4 rounded-sm border-slate-350 text-[#1b3b87] focus:ring-2 focus:ring-[#1b3b87] accent-[#1b3b87]"
+                    className="size-4 rounded-sm border-slate-300 text-[#1b3b87] focus:ring-2 focus:ring-[#1b3b87] accent-[#1b3b87]"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-slate-800 truncate">{ref.name}</div>

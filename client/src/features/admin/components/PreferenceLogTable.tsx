@@ -20,9 +20,9 @@ export function PreferenceLogTable() {
             <Loader2 className="size-5 animate-spin" /> Loading preference logs...
           </div>
         ) : isError ? (
-          <div className="py-10 text-center text-red-750 font-semibold text-sm">Failed to load preference logs.</div>
+          <div className="py-10 text-center text-red-700 font-semibold text-sm">Failed to load preference logs.</div>
         ) : !data?.items.length ? (
-          <div className="py-10 text-center text-slate-550 font-semibold text-sm">No preference logs yet.</div>
+          <div className="py-10 text-center text-slate-500 font-semibold text-sm">No preference logs yet.</div>
         ) : (
           <table className="w-full text-left border-collapse border-spacing-0">
             <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200">

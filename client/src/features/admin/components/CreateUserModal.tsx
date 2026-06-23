@@ -79,7 +79,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
             <button
               type="button"
               onClick={handleClose}
-              className="text-slate-400 hover:text-slate-650 text-sm font-semibold uppercase tracking-wider focus:outline-none"
+              className="text-slate-400 hover:text-slate-600 text-sm font-semibold uppercase tracking-wider focus:outline-none"
             >
               Close
             </button>
