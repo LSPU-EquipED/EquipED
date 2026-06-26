@@ -8,7 +8,7 @@ import re
 import time
 import uuid
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, NamedTuple
 
 from server.core.config import get_settings
 from server.core.llm import get_llm_client, get_llm_model_name
@@ -173,10 +173,27 @@ class BaseAgent:
                     # Account for JSON overhead (keys, braces, quotes).
                     overhead = len(packed_json) - len(packed[0]["text"])
                     safe_text_len = max(prompt_budget_chars - overhead - 3, 50)
+                    original_chunk_len = len(packed[0]["text"])
                     packed[0]["text"] = self._excerpt_text(
                         packed[0]["text"], safe_text_len,
                     )
                     text_excerpted = True
+                    # Observability: if the hard-trim left a tiny excerpt,
+                    # surface it so the prompt is not silently useless.
+                    # Algorithm/prompt contract are unchanged.
+                    final_chunk_len = len(packed[0]["text"])
+                    if final_chunk_len < 100:
+                        logger.warning(
+                            "Agent %s: prompt budget guard hard-trimmed single "
+                            "chunk to %d chars (safe_text_len=%d, original_chars=%d, "
+                            "prompt_budget_chars=%d); excerpt may be too small to "
+                            "ground evaluation.",
+                            self.agent_name,
+                            final_chunk_len,
+                            safe_text_len,
+                            original_chunk_len,
+                            prompt_budget_chars,
+                        )
                 packed_json = json.dumps(packed, ensure_ascii=False)
             if not packed:
                 # Edge case: even an empty list exceeds budget (shouldn't happen
@@ -233,9 +250,31 @@ class BaseAgent:
                 reference_text=reference_text,
                 prompt_version=prompt_version,
             )
-        prompt_chars = len(prompt)
 
+        # Safety net: enforce a hard cap on the total serialized prompt
+        # before sending to the LLM. This prevents HTTP 413 / request-too-
+        # large failures on remote providers (e.g. Groq) when the combined
+        # rubric_context + reference_context + document_chunks exceeds the
+        # provider's request limit. _pack_chunks already bounds the
+        # document_chunks slice; this catches the rest.
         settings = get_settings()
+        total_budget = settings.agent_total_prompt_budget_chars
+        pre_budget_chars = len(prompt)
+        budget_result = self._enforce_total_prompt_budget(
+            prompt, budget_chars=total_budget,
+        )
+        prompt = budget_result.prompt
+        prompt_chars = len(prompt)
+        prompt_trimmed = budget_result.trimmed
+        reference_context_dropped = budget_result.reference_context_dropped
+        logger.info(
+            "[EVAL_PROMPT_SIZE] agent=%s | prompt_chars=%d | trimmed=%s | budget=%d",
+            self.agent_name,
+            prompt_chars,
+            "yes" if prompt_trimmed else "no",
+            total_budget,
+        )
+
         if getattr(settings, "agent_debug_rubric_context", False):
             logger.info(
                 "[EVAL_RUBRIC_CONTEXT] agent=%s | prompt_version_id=%s | rubric_context=%s",
@@ -324,6 +363,8 @@ class BaseAgent:
             metadata={
                 "rubric_context_size": len(rubric_context),
                 "reference_context_size": len(reference_context),
+                "prompt_trimmed": prompt_trimmed,
+                "reference_context_dropped": reference_context_dropped,
                 "prompt_version": prompt_version,
                 "prompt_version_id": (
                     str(prompt_version_id) if prompt_version_id else None
@@ -424,6 +465,179 @@ class BaseAgent:
             parts.append("Focus on the provided excerpts.")
             payload["note"] = " ".join(parts)
         return json.dumps(payload, ensure_ascii=False)
+
+    # ------------------------------------------------------------------
+    # Total-prompt budget enforcement (safety net for remote LLM providers)
+    # ------------------------------------------------------------------
+    # _pack_chunks() only bounds the document_chunks slice. The final prompt
+    # also carries rubric_context, reference_context, reference_text, and
+    # instructions — which can collectively push the serialized JSON past
+    # provider request limits (e.g. Groq HTTP 413). This method re-parses
+    # the assembled prompt and trims progressively, preferring to drop the
+    # most expendable content first.
+    #
+    # Trim order:
+    #   1. reference_context entries (most expendable)
+    #   2. rubric_context entries
+    #   3. Individual entries truncated to ~400 chars + ellipsis
+    #
+    # Note: document_chunks is NOT trimmed here because _pack_chunks already
+    # enforces a per-agent budget and the trim order is intentional.
+
+    _ENTRY_TRUNCATE_CHARS = 400
+
+    class _BudgetEnforcementResult(NamedTuple):
+        """Result of ``_enforce_total_prompt_budget``.
+
+        Attributes
+        ----------
+        prompt:
+            The (possibly trimmed) prompt string.
+        reference_context_dropped:
+            How many ``reference_context`` entries were removed by the
+            trim (always 0 when the prompt already fits the budget or
+            the payload was unparseable).
+        trimmed:
+            ``True`` if the budget enforcement modified the prompt in
+            any way (drop, truncate). ``False`` if the prompt already
+            fit or the payload was unparseable.
+        """
+
+        prompt: str
+        reference_context_dropped: int
+        trimmed: bool
+
+    def _enforce_total_prompt_budget(
+        self, prompt: str, *, budget_chars: int
+    ) -> "_BudgetEnforcementResult":
+        """Return a prompt that fits within ``budget_chars``.
+
+        If the prompt is already within budget, it is returned unchanged
+        with ``trimmed=False`` and ``reference_context_dropped=0``.
+        Otherwise, the JSON payload is re-parsed and trimmed progressively:
+
+        1. ``reference_context`` entries are dropped entirely (most expendable).
+        2. ``rubric_context`` entries are dropped from the end, preserving
+           at least one entry so some rubric grounding survives.
+        3. Surviving entries are truncated to ~400 chars + ellipsis if the
+           prompt is still over budget.
+
+        The method never raises — at worst it returns the smallest prompt
+        it can produce so the LLM call still has a chance to succeed.
+        """
+        if len(prompt) <= budget_chars:
+            return self._BudgetEnforcementResult(
+                prompt=prompt, reference_context_dropped=0, trimmed=False,
+            )
+
+        original_len = len(prompt)
+        try:
+            payload = json.loads(prompt)
+        except (ValueError, TypeError):
+            # Malformed prompt — nothing safe to trim. Return as-is; the
+            # LLM call will fail and surface the underlying error.
+            logger.warning(
+                "[EVAL_PROMPT_BUDGET] agent=%s | original=%d | trimmed=%d | "
+                "budget=%d | status=invalid_json",
+                self.agent_name,
+                original_len,
+                original_len,
+                budget_chars,
+            )
+            return self._BudgetEnforcementResult(
+                prompt=prompt, reference_context_dropped=0, trimmed=False,
+            )
+
+        if not isinstance(payload, dict):
+            logger.warning(
+                "[EVAL_PROMPT_BUDGET] agent=%s | original=%d | trimmed=%d | "
+                "budget=%d | status=non_object_payload",
+                self.agent_name,
+                original_len,
+                original_len,
+                budget_chars,
+            )
+            return self._BudgetEnforcementResult(
+                prompt=prompt, reference_context_dropped=0, trimmed=False,
+            )
+
+        # Track the original reference_context length so we can report
+        # how many entries the trim removed.
+        ref_ctx = payload.get("reference_context")
+        original_ref_count = (
+            len(ref_ctx) if isinstance(ref_ctx, list) else 0
+        )
+
+        # Step 1: drop reference_context entries entirely. References are
+        # the most expendable — they supplement grounding but are not
+        # authoritative for evaluation.
+        if isinstance(ref_ctx, list) and ref_ctx:
+            ref_ctx.clear()
+
+        # Step 2: drop rubric_context entries from the end, but always
+        # keep at least one entry so the agent still has rubric grounding.
+        rubric_ctx = payload.get("rubric_context")
+        if isinstance(rubric_ctx, list):
+            while (
+                len(rubric_ctx) > 1
+                and len(json.dumps(payload, ensure_ascii=False)) > budget_chars
+            ):
+                rubric_ctx.pop()
+
+        # Step 3: if still over budget, truncate surviving rubric (and any
+        # remaining reference) entries to a safe cap. The trim is
+        # per-entry and preserves the head of the text.
+        if len(json.dumps(payload, ensure_ascii=False)) > budget_chars:
+            truncate_cap = self._ENTRY_TRUNCATE_CHARS
+            for key in ("reference_context", "rubric_context"):
+                entries = payload.get(key)
+                if not isinstance(entries, list):
+                    continue
+                for idx, entry in enumerate(entries):
+                    if not isinstance(entry, str):
+                        continue
+                    if len(entry) <= truncate_cap:
+                        continue
+                    entries[idx] = entry[: truncate_cap - 3].rstrip() + "..."
+
+        # Re-serialize. If still over budget (e.g. massive document_chunks
+        # text, instructions, or other fixed overhead), accept the result
+        # — _pack_chunks already bound document_chunks, and we cannot
+        # safely trim further without breaking the prompt contract.
+        trimmed = json.dumps(payload, ensure_ascii=False)
+        trimmed_len = len(trimmed)
+        if trimmed_len > budget_chars:
+            logger.warning(
+                "[EVAL_PROMPT_BUDGET] agent=%s | original=%d | trimmed=%d | "
+                "budget=%d | status=over_budget_after_trim",
+                self.agent_name,
+                original_len,
+                trimmed_len,
+                budget_chars,
+            )
+        else:
+            logger.warning(
+                "[EVAL_PROMPT_BUDGET] agent=%s | original=%d | trimmed=%d | "
+                "budget=%d | status=ok",
+                self.agent_name,
+                original_len,
+                trimmed_len,
+                budget_chars,
+            )
+
+        # Compute how many reference entries were dropped during trim.
+        final_ref_ctx = payload.get("reference_context")
+        final_ref_count = (
+            len(final_ref_ctx) if isinstance(final_ref_ctx, list) else 0
+        )
+        reference_context_dropped = max(
+            original_ref_count - final_ref_count, 0
+        )
+        return self._BudgetEnforcementResult(
+            prompt=trimmed,
+            reference_context_dropped=reference_context_dropped,
+            trimmed=True,
+        )
 
     def _call_llm(self, prompt: str) -> str:
         client = self._llm_client or get_llm_client()
