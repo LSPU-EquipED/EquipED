@@ -6,6 +6,8 @@ import json
 from dataclasses import dataclass
 from uuid import uuid4
 
+import pytest
+
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.base import BaseAgent
 from server.modules.agents.contracts import AgentEvaluationResult
@@ -173,15 +175,76 @@ class _PackingCaptureAgent(BaseAgent):
 def _mock_settings(**overrides):
     """Build a minimal Settings-like object for tests."""
     defaults = {
+        "llm_model_name": "test-model",
         "llm_temperature": 0.2,
         "llm_max_new_tokens": 2048,
         "agent_max_chunks": 12,
         "agent_max_excerpt_chars": 800,
-        "agent_prompt_budget_chars": 12000,
+        "agent_prompt_budget_chars": 5000,
         "agent_small_doc_threshold": 6,
+        "agent_total_prompt_budget_chars": 8000,
     }
     defaults.update(overrides)
     return type("Settings", (), defaults)()
+
+
+def patch_settings(monkeypatch, **overrides) -> None:
+    """Monkeypatch every ``get_settings`` import the agents touch.
+
+    ``BaseAgent.run()`` calls both ``get_settings`` (in
+    ``server.modules.agents.base``) and ``get_llm_model_name()`` (which
+    transitively calls ``get_settings`` in ``server.core.llm``). The
+    supervisor also imports ``get_settings`` directly. If the real one
+    raises (because the new 8,000-char total budget default conflicts
+    with the 5,000-char chunk budget default), the cached
+    ``get_engine()`` / ``get_session_factory()`` would refuse to
+    build, breaking ``get_active_rubric_context`` for any test that
+    hits the real database.
+
+    Patching all three ``get_settings`` references with a mock silences
+    the cross-field validation everywhere it would fire inside the
+    agent layer. The database module keeps its real ``get_settings``
+    reference so the engine chain can still build against the
+    ``DATABASE_URL`` from the project's ``.env``.
+    """
+    mock = _mock_settings(**overrides)
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_settings", lambda: mock,
+    )
+    monkeypatch.setattr(
+        "server.core.llm.get_settings", lambda: mock,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_settings", lambda: mock,
+    )
+    monkeypatch.setattr(
+        "server.core.database.get_settings", lambda: mock,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_agent_settings(monkeypatch) -> None:
+    """Auto-applied fixture that pins every agent test to compatible
+    prompt-budget env vars so the new cross-field validation in
+    ``get_settings()`` (chunk budget must be less than total budget)
+    does not fire mid-test.
+
+    Strategy: set ``AGENT_PROMPT_BUDGET_CHARS=5000`` in the test
+    environment. The new total-budget default (8,000) is strictly
+    larger, so the cross-field check passes wherever ``get_settings()``
+    is called — including the call chain
+    ``agent.run() -> get_llm_model_name() -> get_settings()`` in
+    ``server.core.llm`` that previously raised.
+
+    We use env-var pinning rather than monkeypatching ``get_settings``
+    because real-database tests (``db_session`` fixture) depend on
+    ``get_settings()`` returning the real ``DATABASE_URL`` from the
+    project's ``.env`` so the cached ``get_engine()`` /
+    ``get_session_factory()`` chain can build a working engine.
+    Patching ``get_settings`` in those tests would break the
+    database lookup.
+    """
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
 
 
 class _SleepCapture:

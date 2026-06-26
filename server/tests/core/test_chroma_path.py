@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
+import pytest
+
 from server.core.config import Settings, _REPO_ROOT, _resolve_chroma_path, get_settings
+
+
+def _clear_settings_cache_and_pin_budgets(monkeypatch) -> None:
+    """Clear the lru_cache and pin the prompt budgets so the cross-field
+    validation does not fire on default settings. The two failing
+    tests below set only ``CHROMA_PERSIST_DIRECTORY``; with the new
+    8,000-char total budget default, an unpinned 5,000-char chunk
+    budget would trip the validation."""
+    from server.core import config as _config_mod
+    _config_mod.get_settings.cache_clear()
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "")
 
 
 def test_chroma_path_resolver_relative_anchors_to_repo_root() -> None:
@@ -35,8 +49,7 @@ def test_settings_chroma_default_is_repo_root_path(monkeypatch) -> None:
 
 def test_settings_chroma_env_var_resolves_relative(monkeypatch) -> None:
     """CHROMA_PERSIST_DIRECTORY env var with relative path resolves to repo root."""
-    from server.core import config as _config_mod
-    _config_mod.get_settings.cache_clear()
+    _clear_settings_cache_and_pin_budgets(monkeypatch)
     monkeypatch.setenv("CHROMA_PERSIST_DIRECTORY", "my_chroma")
     try:
         settings = get_settings()
@@ -48,8 +61,7 @@ def test_settings_chroma_env_var_resolves_relative(monkeypatch) -> None:
 
 def test_settings_chroma_env_var_preserves_absolute(monkeypatch) -> None:
     """CHROMA_PERSIST_DIRECTORY env var with absolute path is preserved."""
-    from server.core import config as _config_mod
-    _config_mod.get_settings.cache_clear()
+    _clear_settings_cache_and_pin_budgets(monkeypatch)
     monkeypatch.setenv("CHROMA_PERSIST_DIRECTORY", "/opt/equiped/chroma")
     try:
         settings = get_settings()

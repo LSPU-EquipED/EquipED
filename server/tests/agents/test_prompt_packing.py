@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from uuid import uuid4
 
 from server.modules.agents.sme import SME
@@ -38,8 +39,9 @@ def test_per_agent_selection_differs_by_domain(monkeypatch) -> None:
             {
                 "agent_max_chunks": 4,
                 "agent_max_excerpt_chars": 800,
-                "agent_prompt_budget_chars": 12000,
+                "agent_prompt_budget_chars": 5000,
                 "agent_small_doc_threshold": 3,
+                "agent_total_prompt_budget_chars": 8000,
             },
         )(),
     )
@@ -378,7 +380,7 @@ def test_small_doc_long_chunk_passes_through_unchanged(monkeypatch) -> None:
         lambda: _mock_settings(
             agent_max_chunks=12,
             agent_max_excerpt_chars=50,  # Would normally excerpt
-            agent_prompt_budget_chars=12000,
+            agent_prompt_budget_chars=5000,
             agent_small_doc_threshold=6,
         ),
     )
@@ -429,7 +431,7 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
         lambda: _mock_settings(
             agent_max_chunks=2,
             agent_max_excerpt_chars=800,
-            agent_prompt_budget_chars=12000,
+            agent_prompt_budget_chars=5000,
             agent_small_doc_threshold=1,
         ),
     )
@@ -482,7 +484,7 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
         lambda: _mock_settings(
             agent_max_chunks=12,
             agent_max_excerpt_chars=30,  # Very short, forces excerpting
-            agent_prompt_budget_chars=12000,
+            agent_prompt_budget_chars=5000,
             agent_small_doc_threshold=1,
         ),
     )
@@ -563,3 +565,68 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
     assert len(captured_prompt) == 1
     payload = json.loads(captured_prompt[0])
     assert "note" not in payload
+
+
+# ------------------------------------------------------------------
+# Hard-trim observability (Phase 1: keep algorithm, log warning)
+# ------------------------------------------------------------------
+
+
+def test_hard_trim_emits_warning_when_excerpt_becomes_tiny(
+    monkeypatch, caplog
+) -> None:
+    """When the budget guard hard-trims a single chunk to a tiny excerpt,
+    a warning should be emitted (algorithm and prompt contract unchanged)."""
+    caplog.set_level(
+        logging.WARNING, logger="server.modules.agents.base"
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.retrieve_context",
+        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_settings",
+        lambda: _mock_settings(
+            agent_max_chunks=10,
+            agent_max_excerpt_chars=5000,  # Large enough to not excerpt initially
+            agent_prompt_budget_chars=150,  # Very tight budget
+            agent_small_doc_threshold=0,    # Force selection path
+        ),
+    )
+
+    chunks = [{"chunk_id": "c1", "page_number": 1, "text": "A" * 2000}]
+    agent = _PackingCaptureAgent(
+        llm_client=_FakeLLM(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
+                ],
+            }
+        ),
+    )
+    agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=chunks,
+        context_text="query",
+    )
+
+    # Algorithm behavior preserved: still exactly one chunk, JSON fits.
+    assert len(agent.captured_chunks) == 1
+    packed_json = json.dumps(agent.captured_chunks, ensure_ascii=False)
+    assert len(packed_json) <= 150
+    assert agent.captured_text_excerpted is True
+
+    # New observability: warning emitted with useful context.
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "hard-trimmed single chunk" in r.message
+        and "prompt_budget_chars=150" in r.message
+        and "original_chars=2000" in r.message
+        for r in warnings
+    ), f"expected hard-trim warning, got: {[r.message for r in warnings]}"

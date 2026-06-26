@@ -1,9 +1,8 @@
-"""Tests for embedding reuse in supervisor precomputation and retrieval."""
+"""Tests for supervisor embedding reuse in precomputation."""
 
 from __future__ import annotations
 
 from server.modules.agents.supervisor import Supervisor
-from server.modules.embeddings.retrieval import retrieve_context_with_embedding
 
 
 def test_supervisor_compute_embedding_returns_none_for_empty() -> None:
@@ -45,49 +44,6 @@ def test_supervisor_compute_embedding_returns_none_on_error(monkeypatch) -> None
     supervisor = Supervisor()
     result = supervisor._compute_query_embedding("hello")
     assert result is None
-
-
-def test_retrieve_context_with_embedding_delegates(monkeypatch) -> None:
-    """retrieve_context_with_embedding should call Chroma with the embedding."""
-    captured_embedding = None
-    captured_collection = None
-
-    class FakeCollection:
-        def query(self, query_embeddings, n_results, where, include):
-            nonlocal captured_embedding, captured_collection
-            captured_embedding = query_embeddings
-            return {
-                "documents": [["chunk text"]],
-                "metadatas": [[{"source_type": "test"}]],
-                "distances": [[0.1]],
-            }
-
-    class FakeChroma:
-        def get_collection(self, name):
-            nonlocal captured_collection
-            captured_collection = name
-            return FakeCollection()
-
-    monkeypatch.setattr(
-        "server.modules.embeddings.retrieval.get_chroma_client",
-        lambda: FakeChroma(),
-    )
-
-    embedding = [0.1, 0.2, 0.3]
-    results = retrieve_context_with_embedding(
-        embedding, "test_collection", n_results=3,
-    )
-
-    assert len(results) == 1
-    assert results[0].text == "chunk text"
-    assert captured_embedding == [embedding]
-    assert captured_collection == "test_collection"
-
-
-def test_retrieve_context_with_embedding_empty_returns_empty() -> None:
-    """retrieve_context_with_embedding should return [] for empty embedding."""
-    assert retrieve_context_with_embedding([], "test") == []
-    assert retrieve_context_with_embedding(None, "test") == []  # type: ignore[arg-type]
 
 
 def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
