@@ -81,6 +81,7 @@ class Settings:
     # alongside the bounded prompt payload.
     llm_max_new_tokens: int = 4096
     llm_agent_delay_seconds: int = 0
+    llm_request_timeout_seconds: int = 120
     agent_debug_rubric_context: bool = False
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
@@ -92,8 +93,22 @@ class Settings:
     # Per-agent prompt packing caps (Phase 1, deterministic)
     agent_max_chunks: int = 12
     agent_max_excerpt_chars: int = 800
-    agent_prompt_budget_chars: int = 12000
+    agent_prompt_budget_chars: int = 5000
     agent_small_doc_threshold: int = 6
+
+    # Total assembled-prompt budget (cap on the serialized JSON sent to the
+    # LLM). Independent of agent_prompt_budget_chars, which only caps the
+    # document_chunks payload. This safety net prevents the final prompt —
+    # including rubric_context, reference_context, and instructions — from
+    # exceeding remote provider request limits.
+    #
+    # Note: Groq's free tier enforces a 6,000 tokens-per-minute (TPM) cap
+    # for ``llama-3.1-8b-instant``. With ``llm_max_new_tokens=4096``
+    # reserved for output, the input must stay under ~1,900 tokens
+    # (~7,600 chars) to avoid HTTP 413 (TPM-exceeded) failures. The 8,000
+    # default (~2,000 tokens) gives a safe margin; operators on paid tiers
+    # or local models can raise it via AGENT_TOTAL_PROMPT_BUDGET_CHARS.
+    agent_total_prompt_budget_chars: int = 8000
 
     @property
     def database_configured(self) -> bool:
@@ -150,6 +165,20 @@ def get_settings() -> Settings:
     if parsed_llm_max_new_tokens < 1:
         raise ConfigurationError("LLM_MAX_NEW_TOKENS must be at least 1")
 
+    llm_request_timeout_seconds_raw = _env("LLM_REQUEST_TIMEOUT_SECONDS", "120")
+    try:
+        parsed_llm_request_timeout_seconds = int(
+            llm_request_timeout_seconds_raw or "120"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "LLM_REQUEST_TIMEOUT_SECONDS must be a valid integer"
+        ) from exc
+    if parsed_llm_request_timeout_seconds < 1:
+        raise ConfigurationError(
+            "LLM_REQUEST_TIMEOUT_SECONDS must be at least 1"
+        )
+
     llm_agent_delay_seconds = _env("LLM_AGENT_DELAY_SECONDS", "0")
     try:
         parsed_llm_agent_delay_seconds = int(llm_agent_delay_seconds or "0")
@@ -198,9 +227,9 @@ def get_settings() -> Settings:
     if parsed_agent_max_excerpt_chars < 50:
         raise ConfigurationError("AGENT_MAX_EXCERPT_CHARS must be at least 50")
 
-    agent_prompt_budget_chars = _env("AGENT_PROMPT_BUDGET_CHARS", "12000")
+    agent_prompt_budget_chars = _env("AGENT_PROMPT_BUDGET_CHARS", "5000")
     try:
-        parsed_agent_prompt_budget_chars = int(agent_prompt_budget_chars or "12000")
+        parsed_agent_prompt_budget_chars = int(agent_prompt_budget_chars or "5000")
     except ValueError as exc:
         raise ConfigurationError(
             "AGENT_PROMPT_BUDGET_CHARS must be a valid integer"
@@ -217,6 +246,32 @@ def get_settings() -> Settings:
         ) from exc
     if parsed_agent_small_doc_threshold < 1:
         raise ConfigurationError("AGENT_SMALL_DOC_THRESHOLD must be at least 1")
+
+    agent_total_prompt_budget_chars = _env(
+        "AGENT_TOTAL_PROMPT_BUDGET_CHARS", "8000"
+    )
+    try:
+        parsed_agent_total_prompt_budget_chars = int(
+            agent_total_prompt_budget_chars or "8000"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be a valid integer"
+        ) from exc
+    if parsed_agent_total_prompt_budget_chars < 1000:
+        raise ConfigurationError(
+            "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be at least 1000"
+        )
+
+    # Cross-field validation: the chunk budget must leave room for the rest
+    # of the prompt payload. Otherwise the total-budget safety net is a
+    # no-op (document_chunks alone would already exceed it, so the trim
+    # loop in _enforce_total_prompt_budget would fire on every run).
+    if parsed_agent_prompt_budget_chars >= parsed_agent_total_prompt_budget_chars:
+        raise ConfigurationError(
+            "AGENT_PROMPT_BUDGET_CHARS must be less than "
+            "AGENT_TOTAL_PROMPT_BUDGET_CHARS"
+        )
 
     settings = Settings(
         app_name=_env("APP_NAME", "EquipEd") or "EquipEd",
@@ -247,12 +302,14 @@ def get_settings() -> Settings:
         llm_temperature=parsed_llm_temperature,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
+        llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,
         llm_agent_delay_per_agent=parsed_llm_agent_delay_per_agent,
         agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,
         agent_small_doc_threshold=parsed_agent_small_doc_threshold,
+        agent_total_prompt_budget_chars=parsed_agent_total_prompt_budget_chars,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",
