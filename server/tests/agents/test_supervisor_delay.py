@@ -125,6 +125,9 @@ def test_per_agent_delay_config_parses_json(monkeypatch) -> None:
     from server.core.config import get_settings
 
     _config_mod.get_settings.cache_clear()
+    # Pin chunk budget to be < total budget default (8,000) so the new
+    # cross-field validation does not fire before the test assertion runs.
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": 20, "gad": 5}')
     try:
         settings = get_settings()
@@ -139,6 +142,7 @@ def test_per_agent_delay_config_defaults_empty(monkeypatch) -> None:
     from server.core.config import get_settings
 
     _config_mod.get_settings.cache_clear()
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", "")
     try:
         settings = get_settings()
@@ -154,6 +158,7 @@ def test_per_agent_delay_config_rejects_non_dict(monkeypatch) -> None:
     from server.core.exceptions import ConfigurationError
 
     _config_mod.get_settings.cache_clear()
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '[20, 5]')
     try:
         get_settings()
@@ -171,6 +176,7 @@ def test_per_agent_delay_config_rejects_non_int_values(monkeypatch) -> None:
     from server.core.exceptions import ConfigurationError
 
     _config_mod.get_settings.cache_clear()
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": "fast"}')
     try:
         get_settings()

@@ -9,13 +9,24 @@ from server.core.exceptions import ConfigurationError
 
 
 def _clear_settings_cache(monkeypatch) -> None:
-    """Clear the lru_cache so each test gets a fresh parse."""
+    """Clear the lru_cache so each test gets a fresh parse.
+
+    NOTE: We pin ``AGENT_PROMPT_BUDGET_CHARS`` to a value strictly less
+    than the new ``AGENT_TOTAL_PROMPT_BUDGET_CHARS`` default (8000).
+    Otherwise the cross-field validation in ``get_settings()`` would fire
+    on every test that calls it (the dataclass default 5000 is no
+    longer compatible with the new 8000 total budget). Individual tests
+    that want to exercise the chunk budget in isolation still override
+    this via ``monkeypatch.setenv(..., "<value>")`` after the helper
+    runs.
+    """
     from server.core import config as _config_mod
     _config_mod.get_settings.cache_clear()
     monkeypatch.setenv("AGENT_MAX_CHUNKS", "")
     monkeypatch.setenv("AGENT_MAX_EXCERPT_CHARS", "")
-    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "")
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("AGENT_SMALL_DOC_THRESHOLD", "")
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "")
 
 
 def test_config_rejects_zero_max_chunks(monkeypatch) -> None:
@@ -111,5 +122,116 @@ def test_config_rejects_zero_llm_max_new_tokens(monkeypatch) -> None:
         raise AssertionError("expected ConfigurationError")
     except ConfigurationError as exc:
         assert "LLM_MAX_NEW_TOKENS must be at least 1" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+# ------------------------------------------------------------------
+# Total-prompt budget (safety net for remote LLM providers)
+# ------------------------------------------------------------------
+
+
+def test_config_default_total_prompt_budget_is_8000(monkeypatch) -> None:
+    """AGENT_TOTAL_PROMPT_BUDGET_CHARS should default to 8000 to keep
+    assembled prompts safely below the Groq free-tier 6,000 TPM cap.
+    With dense rubric text (~1.6 chars/token), 8000 chars ≈ 5000 input
+    tokens, well under the 6000 TPM limit even with 4096 output tokens."""
+    _clear_settings_cache(monkeypatch)
+    try:
+        settings = get_settings()
+        assert settings.agent_total_prompt_budget_chars == 8000
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_accepts_total_prompt_budget_override(monkeypatch) -> None:
+    """AGENT_TOTAL_PROMPT_BUDGET_CHARS env override should take effect."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "50000")
+    try:
+        settings = get_settings()
+        assert settings.agent_total_prompt_budget_chars == 50000
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_rejects_tiny_total_prompt_budget(monkeypatch) -> None:
+    """AGENT_TOTAL_PROMPT_BUDGET_CHARS below 1000 should raise ConfigurationError."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "500")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be at least 1000" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_rejects_non_integer_total_prompt_budget(monkeypatch) -> None:
+    """Non-integer AGENT_TOTAL_PROMPT_BUDGET_CHARS should raise ConfigurationError."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "not-a-number")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be a valid integer" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+# ------------------------------------------------------------------
+# Cross-field validation: chunk budget must be less than total budget
+# ------------------------------------------------------------------
+
+
+def test_config_rejects_chunk_budget_equal_to_total(monkeypatch) -> None:
+    """AGENT_PROMPT_BUDGET_CHARS == AGENT_TOTAL_PROMPT_BUDGET_CHARS should
+    raise ConfigurationError — they must be strictly ordered so the total
+    budget safety net has headroom over the chunk budget."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "5000")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "AGENT_PROMPT_BUDGET_CHARS must be less than" in str(exc)
+        assert "AGENT_TOTAL_PROMPT_BUDGET_CHARS" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_rejects_chunk_budget_greater_than_total(monkeypatch) -> None:
+    """AGENT_PROMPT_BUDGET_CHARS > AGENT_TOTAL_PROMPT_BUDGET_CHARS should
+    raise ConfigurationError. If the chunk budget already exceeds the
+    total budget, the document_chunks payload alone would blow past the
+    safety net and the trim loop in _enforce_total_prompt_budget would
+    fire on every single run."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "9000")
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "8000")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "AGENT_PROMPT_BUDGET_CHARS must be less than" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_accepts_chunk_budget_strictly_less_than_total(
+    monkeypatch,
+) -> None:
+    """AGENT_PROMPT_BUDGET_CHARS < AGENT_TOTAL_PROMPT_BUDGET_CHARS should
+    parse without error — the safety net has room to operate."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "2000")
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "5000")
+    try:
+        settings = get_settings()
+        assert settings.agent_prompt_budget_chars == 2000
+        assert settings.agent_total_prompt_budget_chars == 5000
     finally:
         get_settings.cache_clear()

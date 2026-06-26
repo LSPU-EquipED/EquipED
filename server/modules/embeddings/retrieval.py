@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
 from server.core.chroma import get_chroma_client
 from server.core.embedding import get_embedding_model
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +42,18 @@ def retrieve_context(
         return _query_collection(
             collection_name, query_embedding, n_results, document_id_filter,
         )
-    except Exception:
+    except Exception as exc:
+        # Phase 1: fall back to empty so the evaluation pipeline keeps moving.
+        # Logged at warning so retrieval outages are visible in logs without
+        # changing the public return contract.
+        logger.warning(
+            "retrieve_context failed; falling back to empty result "
+            "(collection=%s, n_results=%d, document_id_filter=%s): %s",
+            collection_name,
+            n_results,
+            document_id_filter,
+            exc,
+        )
         return []
 
 
@@ -61,7 +75,18 @@ def retrieve_context_with_embedding(
         return _query_collection(
             collection_name, query_embedding, n_results, document_id_filter,
         )
-    except Exception:
+    except Exception as exc:
+        # Phase 1: fall back to empty so the evaluation pipeline keeps moving.
+        # Logged at warning so retrieval outages are visible in logs without
+        # changing the public return contract.
+        logger.warning(
+            "retrieve_context_with_embedding failed; falling back to empty result "
+            "(collection=%s, n_results=%d, document_id_filter=%s): %s",
+            collection_name,
+            n_results,
+            document_id_filter,
+            exc,
+        )
         return []
 
 

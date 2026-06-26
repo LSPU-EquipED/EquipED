@@ -62,6 +62,13 @@ def client(
     monkeypatch.delenv("BOOTSTRAP_ADMIN_EMAIL", raising=False)
     monkeypatch.delenv("BOOTSTRAP_ADMIN_NAME", raising=False)
     monkeypatch.delenv("BOOTSTRAP_ADMIN_PASSWORD", raising=False)
+    # Pin prompt budgets to compatible values so the new cross-field
+    # validation in get_settings() does not fire on the unpinned
+    # defaults (chunk=5000 < total=8000). The test's own
+    # settings fixture is what the app actually uses, but
+    # create_app() also calls get_settings() for unrelated lookups
+    # (e.g. CORS), and the unpinned defaults would raise.
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     get_settings.cache_clear()
 
     server_main = reload(import_module("server.main"))

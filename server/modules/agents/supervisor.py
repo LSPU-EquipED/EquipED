@@ -23,6 +23,15 @@ from .sme import SMEAgent
 logger = logging.getLogger(__name__)
 
 
+class _Unset:
+    """Sentinel distinguishing 'not yet computed' from 'computed as None'."""
+
+    __slots__ = ()
+
+
+_UNSET = _Unset()
+
+
 @dataclass(slots=True)
 class SupervisorResult:
     evaluation_id: uuid.UUID
@@ -32,6 +41,15 @@ class SupervisorResult:
 
 
 class Supervisor:
+    # Bounded multi-anchor reference retrieval (Phase 1) reduces full-document
+    # query dilution for long SLMs. Short documents (≤1 non-empty chunk) still
+    # use the historical single-query path; this is preserved to keep
+    # small-doc behavior stable.
+    _MAX_REFERENCE_ANCHORS: int = 3
+    _REFERENCE_N_RESULTS_PER_ANCHOR: int = 2
+    # Final cap per source matches the historical per-source n_results=5.
+    _REFERENCE_MAX_TOTAL: int = 5
+
     def __init__(
         self,
         *,
@@ -91,6 +109,7 @@ class Supervisor:
         precomputed_context = self._build_precomputed_context(
             query_text,
             reference_document_ids=reference_document_ids,
+            chunk_infos=chunk_infos,
         )
         precompute_seconds = time.perf_counter() - precompute_start
         logger.info(
@@ -206,6 +225,7 @@ class Supervisor:
         *,
         reference_document_ids: dict[str, uuid.UUID] | None = None,
         query_embedding: list[float] | None = None,
+        chunk_infos: list[dict[str, Any]] | None = None,
     ) -> dict[str, list[str]]:
         """Pre-compute retrieval results per source-type (not merged).
 
@@ -215,6 +235,13 @@ class Supervisor:
 
         When ``query_embedding`` is provided it is reused across all retrieval
         calls, avoiding redundant model.encode() invocations.
+
+        When ``chunk_infos`` is provided and the document has more than one
+        non-empty chunk, reference retrieval is split across at most
+        ``_MAX_REFERENCE_ANCHORS`` anchor queries (early / middle / late) to
+        avoid full-document query dilution for long SLMs. Rubric precompute
+        is unaffected. When ``chunk_infos`` is absent (legacy callers /
+        tests), the historical single-query path is preserved.
         """
         from server.modules.embeddings.retrieval import (
             retrieve_context,
@@ -222,9 +249,24 @@ class Supervisor:
         )
         from server.modules.embeddings.collections import resolve_collection_name
 
-        # Compute embedding once if not supplied by caller.
-        if query_embedding is None:
-            query_embedding = self._compute_query_embedding(query_text)
+        # Lazy query embedding: only computed when the short/single-query
+        # reference path actually needs it. The multi-anchor path encodes
+        # each anchor independently inside ``retrieve_context``, so computing
+        # a full-document embedding up-front would waste work (and partially
+        # defeat the purpose of avoiding full-document embedding for long
+        # SLMs). When there are no reference IDs, no embedding is computed
+        # at all.
+        _cached_query_embedding: list[float] | None | _Unset = _UNSET
+
+        def get_query_embedding() -> list[float] | None:
+            nonlocal _cached_query_embedding
+            if isinstance(_cached_query_embedding, _Unset):
+                _cached_query_embedding = (
+                    query_embedding
+                    if query_embedding is not None
+                    else self._compute_query_embedding(query_text)
+                )
+            return _cached_query_embedding
 
         precomputed: dict[str, list[str]] = {}
 
@@ -235,11 +277,14 @@ class Supervisor:
             n_results: int = 5,
         ) -> list[str]:
             if source_type.startswith("rubric_"):
-                return get_active_rubric_context(resolve_rubric_agent_id(source_type), db=self.db)
+                return get_active_rubric_context(
+                    resolve_rubric_agent_id(source_type), db=self.db,
+                )
             collection_name = resolve_collection_name(source_type)
-            if query_embedding is not None:
+            embedding = get_query_embedding()
+            if embedding is not None:
                 chunks = retrieve_context_with_embedding(
-                    query_embedding,
+                    embedding,
                     collection_name,
                     n_results=n_results,
                     document_id_filter=document_id_filter,
@@ -253,6 +298,7 @@ class Supervisor:
             return [c.text for c in chunks]
 
         # Pre-compute rubric context for each agent's rubric source type.
+        # Rubric behavior is preserved exactly as-is.
         rubric_sources = (
             "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso",
         )
@@ -266,20 +312,132 @@ class Supervisor:
 
         # Pre-compute reference context per source type.
         if reference_document_ids:
+            anchor_texts = self._select_reference_query_texts(
+                chunk_infos or [],
+                max_anchors=self._MAX_REFERENCE_ANCHORS,
+            )
+            use_multi_anchor = len(anchor_texts) > 1
+
             for source_type in ("syllabus", "curriculum"):
                 if source_type not in reference_document_ids:
                     continue
+                document_id_filter = str(reference_document_ids[source_type])
                 try:
-                    precomputed[source_type] = _retrieve(
-                        source_type,
-                        document_id_filter=str(
-                            reference_document_ids[source_type],
-                        ),
-                    )
+                    if use_multi_anchor:
+                        # Long-doc path: bounded anchor queries to avoid
+                        # full-document query dilution.
+                        collection_name = resolve_collection_name(source_type)
+                        precomputed[source_type] = (
+                            self._retrieve_reference_context_for_queries(
+                                anchor_texts,
+                                collection_name=collection_name,
+                                document_id_filter=document_id_filter,
+                                n_results_per_query=(
+                                    self._REFERENCE_N_RESULTS_PER_ANCHOR
+                                ),
+                                max_total_results=self._REFERENCE_MAX_TOTAL,
+                            )
+                        )
+                    else:
+                        # Short-doc / legacy path: single-query retrieval,
+                        # preserving the historical query_text / query_embedding
+                        # optimization.
+                        precomputed[source_type] = _retrieve(
+                            source_type,
+                            document_id_filter=document_id_filter,
+                            n_results=self._REFERENCE_MAX_TOTAL,
+                        )
                 except Exception:
                     precomputed[source_type] = []
 
         return precomputed
+
+    def _select_reference_query_texts(
+        self,
+        chunk_infos: list[dict[str, Any]],
+        *,
+        max_anchors: int,
+    ) -> list[str]:
+        """Pick at most ``max_anchors`` non-empty chunk texts to use as queries.
+
+        For documents with at most ``max_anchors`` non-empty chunks, all chunks
+        are returned in original order. For longer documents, deterministic
+        early / middle / late anchors are selected (preserving original order
+        and deduping indices). Empty / whitespace-only texts are filtered out.
+        """
+        if not chunk_infos or max_anchors < 1:
+            return []
+        non_empty = [
+            str(info.get("text", "")).strip()
+            for info in chunk_infos
+            if str(info.get("text", "")).strip()
+        ]
+        if not non_empty:
+            return []
+        if len(non_empty) <= max_anchors:
+            return non_empty
+        last_index = len(non_empty) - 1
+        middle_index = last_index // 2
+        candidate_indices = [0, middle_index, last_index]
+        # Dedupe while preserving order (e.g. when len <= 2, indices may collide).
+        seen: set[int] = set()
+        selected: list[str] = []
+        for idx in candidate_indices:
+            if idx in seen:
+                continue
+            seen.add(idx)
+            selected.append(non_empty[idx])
+        return selected[:max_anchors]
+
+    def _retrieve_reference_context_for_queries(
+        self,
+        query_texts: list[str],
+        *,
+        collection_name: str,
+        document_id_filter: str | None,
+        n_results_per_query: int,
+        max_total_results: int,
+    ) -> list[str]:
+        """Run retrieval sequentially per anchor, merge / dedupe, cap total.
+
+        Falls back gracefully per anchor (and overall) so a single failed
+        anchor does not lose the others. The merged order preserves
+        retrieval order (anchor-by-anchor, in-list order).
+
+        ``retrieve_context`` already logs a warning and returns ``[]`` on
+        internal errors, so the per-anchor try/except is a defensive net
+        that keeps the sequential pipeline moving on unexpected exceptions.
+        """
+        from server.modules.embeddings.retrieval import retrieve_context
+
+        merged: list[str] = []
+        for query_text in query_texts:
+            if len(merged) >= max_total_results:
+                break
+            try:
+                chunks = retrieve_context(
+                    query_text,
+                    collection_name,
+                    n_results=n_results_per_query,
+                    document_id_filter=document_id_filter,
+                )
+            except Exception:
+                continue
+            for chunk in chunks:
+                text = chunk.text if hasattr(chunk, "text") else str(chunk)
+                merged.append(text)
+        return self._dedupe_context_chunks(merged)[:max_total_results]
+
+    def _dedupe_context_chunks(self, chunks: list[str]) -> list[str]:
+        """Dedupe retrieved text while preserving first-seen order."""
+        seen: set[str] = set()
+        out: list[str] = []
+        for chunk in chunks:
+            if chunk in seen:
+                continue
+            seen.add(chunk)
+            out.append(chunk)
+        return out
 
     def _load_active_prompt_versions(self) -> dict[str, Any]:
         if self.db is None:
