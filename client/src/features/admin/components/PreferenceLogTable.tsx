@@ -13,16 +13,19 @@ export function PreferenceLogTable() {
 
   return (
     <section className="grid gap-4">
-
       <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-slate-500 font-semibold text-sm">
             <Loader2 className="size-5 animate-spin" /> Loading preference logs...
           </div>
         ) : isError ? (
-          <div className="py-10 text-center text-red-700 font-semibold text-sm">Failed to load preference logs.</div>
+          <div className="py-10 text-center text-[#b91c1c] font-semibold text-sm">
+            Failed to load preference logs.
+          </div>
         ) : !data?.items.length ? (
-          <div className="py-10 text-center text-slate-500 font-semibold text-sm">No preference logs yet.</div>
+          <div className="py-10 text-center text-slate-500 font-semibold text-sm">
+            No preference logs yet.
+          </div>
         ) : (
           <table className="w-full text-left border-collapse border-spacing-0">
             <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200">
@@ -36,7 +39,9 @@ export function PreferenceLogTable() {
             <tbody className="divide-y divide-slate-200">
               {data.items.map((log: PreferenceLogItem) => (
                 <tr key={log.log_id} className="hover:bg-slate-50/50">
-                  <td className="py-3 px-4 text-sm font-mono text-slate-800">{log.user_id}</td>
+                  <td className="py-3 px-4 text-sm font-sans tabular-nums text-slate-800">
+                    {log.user_id}
+                  </td>
                   <td className="py-3 px-4 text-sm">
                     <span
                       className={`inline-flex rounded-sm border px-2 py-0.5 text-xs font-semibold ${actionClass(log.action)}`}
@@ -44,7 +49,9 @@ export function PreferenceLogTable() {
                       {log.action}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm font-mono text-slate-800">{log.evaluation_id}</td>
+                  <td className="py-3 px-4 text-sm font-sans tabular-nums text-slate-800">
+                    {log.evaluation_id}
+                  </td>
                   <td className="py-3 px-4 text-sm text-slate-500 font-semibold">
                     {new Date(log.created_at).toLocaleString()}
                   </td>

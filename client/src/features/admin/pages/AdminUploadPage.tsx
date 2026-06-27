@@ -79,13 +79,14 @@ export function AdminUploadPage() {
 
   return (
     <section className="grid gap-6">
-
       <form
         onSubmit={handleSubmit}
         className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-sm border border-slate-200 bg-white p-6"
       >
         <div className="space-y-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Document Type</label>
+          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Document Type
+          </label>
           <select
             value={sourceType}
             onChange={(e) => setSourceType(e.target.value as ReferenceSourceType)}
@@ -100,7 +101,10 @@ export function AdminUploadPage() {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="ref-title" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <label
+            htmlFor="ref-title"
+            className="text-xs font-bold uppercase tracking-wider text-slate-500"
+          >
             Title
           </label>
           <input
@@ -109,7 +113,7 @@ export function AdminUploadPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter the document title"
-            className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-800"
+            className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-800"
             required
           />
         </div>
@@ -144,15 +148,14 @@ export function AdminUploadPage() {
           <div className="rounded-sm border border-slate-200 bg-white px-5 py-4">
             <div className="flex items-start gap-3">
               {isSuccess ? (
-                <CheckCircle
-                  className="mt-0.5 size-5 shrink-0 text-emerald-600"
-                  aria-hidden="true"
-                />
+                <CheckCircle className="mt-0.5 size-5 shrink-0 text-[#3b963e]" aria-hidden="true" />
               ) : (
-                <XCircle className="mt-0.5 size-5 shrink-0 text-red-600" aria-hidden="true" />
+                <XCircle className="mt-0.5 size-5 shrink-0 text-[#b91c1c]" aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-455">Result</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Result
+                </p>
                 <p className="mt-1 text-base font-bold text-slate-900">{uploadResult.title}</p>
                 <p className="mt-1 text-sm text-slate-500 font-semibold">
                   {sourceTypeLabels[uploadResult.sourceType as ReferenceSourceType]}
@@ -161,14 +164,16 @@ export function AdminUploadPage() {
                   <span
                     className={cn(
                       'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white',
-                      isSuccess ? 'bg-emerald-600' : 'bg-red-700',
+                      isSuccess ? 'bg-[#3b963e]' : 'bg-[#b91c1c]',
                     )}
                   >
                     {isSuccess ? 'Ready' : 'Failed'}
                   </span>
                 </div>
                 {isFailed && uploadResult.errorMessage ? (
-                  <p className="mt-2 text-sm font-semibold text-red-700">{uploadResult.errorMessage}</p>
+                  <p className="mt-2 text-sm font-semibold text-[#b91c1c]">
+                    {uploadResult.errorMessage}
+                  </p>
                 ) : null}
               </div>
             </div>
@@ -176,7 +181,7 @@ export function AdminUploadPage() {
         ) : null}
 
         {errorMessage ? (
-          <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+          <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
             {errorMessage}
           </div>
         ) : null}
@@ -185,7 +190,7 @@ export function AdminUploadPage() {
           {uploadResult ? (
             <button
               type="button"
-              className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
+              className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
               onClick={handleReset}
             >
               Upload another

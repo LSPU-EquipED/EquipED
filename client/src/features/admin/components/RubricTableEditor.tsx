@@ -181,7 +181,6 @@ export function RubricTableEditor() {
 
   return (
     <section className="grid gap-5">
-
       <div className="grid gap-4">
         {agents.map((rubric) => {
           const agentTables = getTablesForAgent(rubric.id);
@@ -192,10 +191,12 @@ export function RubricTableEditor() {
               className="grid gap-4 rounded-sm border border-slate-200 bg-white p-5"
             >
               <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 pb-3">
-                <h2 className="text-lg font-bold text-slate-800 tracking-tight">{rubric.agentName}</h2>
+                <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+                  {rubric.agentName}
+                </h2>
                 <button
                   type="button"
-                  className="ml-auto inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  className="ml-auto inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
                   onClick={() => addTable(rubric.id)}
                 >
                   <Plus className="size-4 mr-1.5" aria-hidden="true" />
@@ -224,7 +225,7 @@ export function RubricTableEditor() {
                       </div>
                       <button
                         type="button"
-                        className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200"
+                        className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
                         onClick={() => addRow(rubric.id, table.id)}
                       >
                         <Plus className="size-4 mr-1.5" aria-hidden="true" />
@@ -246,10 +247,18 @@ export function RubricTableEditor() {
                       <table className="w-full text-left border-collapse border-spacing-0">
                         <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200">
                           <tr>
-                            <th className="py-3 px-4 font-semibold text-slate-500 w-[9rem]">Criterion ID</th>
-                            <th className="py-3 px-4 font-semibold text-slate-500 min-w-[12rem]">Field</th>
-                            <th className="py-3 px-4 font-semibold text-slate-500 min-w-[20rem]">Entry</th>
-                            <th className="py-3 px-4 font-semibold text-slate-500 w-[4rem] text-right">Action</th>
+                            <th className="py-3 px-4 font-semibold text-slate-500 w-[9rem]">
+                              Criterion ID
+                            </th>
+                            <th className="py-3 px-4 font-semibold text-slate-500 min-w-[12rem]">
+                              Field
+                            </th>
+                            <th className="py-3 px-4 font-semibold text-slate-500 min-w-[20rem]">
+                              Entry
+                            </th>
+                            <th className="py-3 px-4 font-semibold text-slate-500 w-[4rem] text-right">
+                              Action
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -266,7 +275,7 @@ export function RubricTableEditor() {
                                     onChange={(event) =>
                                       updateRow(row.id, 'criterionId', event.target.value)
                                     }
-                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-bold text-slate-800 placeholder:text-slate-400"
+                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-bold text-slate-800 placeholder:text-slate-600"
                                     placeholder="ID"
                                     aria-label={`${table.title} criterion ID`}
                                   />
@@ -279,7 +288,7 @@ export function RubricTableEditor() {
                                     onChange={(event) =>
                                       updateRow(row.id, 'field', event.target.value)
                                     }
-                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-semibold text-slate-800 placeholder:text-slate-400"
+                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-semibold text-slate-800 placeholder:text-slate-600"
                                     placeholder="Field"
                                     aria-label={`${table.title} field`}
                                   />
@@ -292,7 +301,7 @@ export function RubricTableEditor() {
                                     onChange={(event) =>
                                       updateRow(row.id, 'description', event.target.value)
                                     }
-                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-medium text-slate-700 placeholder:text-slate-400"
+                                    className="w-full h-8 border border-slate-205 bg-white rounded-sm text-xs px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] read-only:border-transparent read-only:bg-transparent read-only:ring-0 font-medium text-slate-700 placeholder:text-slate-600"
                                     placeholder="Description"
                                     aria-label={`${table.title} entry`}
                                   />
@@ -314,7 +323,7 @@ export function RubricTableEditor() {
                                     <button
                                       type="button"
                                       onClick={() => removeRow(row.id)}
-                                      className="inline-flex size-8 items-center justify-center border border-transparent text-slate-500 hover:text-red-700 hover:bg-red-50/50 rounded-sm focus:outline-none transition-colors"
+                                      className="inline-flex size-8 items-center justify-center border border-transparent text-slate-500 hover:text-[#b91c1c] hover:bg-[#b91c1c]/10 rounded-sm focus:outline-none transition-colors"
                                       aria-label={`Remove ${row.criterionId || 'rubric'} row`}
                                     >
                                       <Trash2 className="size-4" aria-hidden="true" />

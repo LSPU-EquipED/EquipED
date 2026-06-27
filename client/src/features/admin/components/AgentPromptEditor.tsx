@@ -36,17 +36,21 @@ export function AgentPromptEditor() {
 
   return (
     <section key={activeAgent} className="grid gap-6">
-
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <div className="border border-slate-200 bg-white rounded-sm">
           <div className="border-b border-slate-200 p-6 bg-slate-50/50">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Edit Prompt</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+              Edit Prompt
+            </h2>
             <div className="flex items-center gap-3 mt-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <span>Current Agent:</span>
               <select
                 value={activeAgent}
                 onChange={(e) => {
-                  void navigate({ to: '/admin/prompts/$agentId', params: { agentId: e.target.value } });
+                  void navigate({
+                    to: '/admin/prompts/$agentId',
+                    params: { agentId: e.target.value },
+                  });
                 }}
                 className="w-56 h-8 border border-slate-200 bg-white px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-xs font-bold text-slate-700 cursor-pointer"
               >
@@ -63,14 +67,14 @@ export function AgentPromptEditor() {
               value={promptText}
               onChange={(event) => setPromptText(event.target.value)}
               rows={12}
-              className="min-h-40 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
+              className="min-h-40 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-600 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
               placeholder={latestPrompt || 'Enter prompt text...'}
             />
             <textarea
               value={motivation}
               onChange={(event) => setMotivation(event.target.value)}
               rows={3}
-              className="min-h-24 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
+              className="min-h-24 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-600 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
               placeholder="Motivation for this update"
             />
             <button
@@ -82,7 +86,7 @@ export function AgentPromptEditor() {
               {savePrompt.isPending ? 'Saving...' : 'Save Prompt'}
             </button>
             {savePrompt.isError && (
-              <p className="text-sm font-semibold text-red-700">
+              <p className="text-sm font-semibold text-[#b91c1c]">
                 {savePrompt.error instanceof Error
                   ? savePrompt.error.message
                   : 'Failed to save prompt'}
