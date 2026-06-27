@@ -74,6 +74,14 @@ class AdminUserCreateRequest(BaseModel):
     role: Literal["admin", "faculty"] = Field(default="faculty")
 
 
+class AdminUserUpdateRequest(BaseModel):
+    """Request body for updating an existing user (admin-only)."""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=300)
+    email: Optional[str] = Field(None, min_length=1, max_length=300)
+    is_active: Optional[bool] = None
+
+
 class AdminUserResponse(BaseModel):
     """A single user record returned to admins."""
 
@@ -111,6 +119,7 @@ __all__ = [
     "PreferenceLogResponse",
     "PreferenceLogListResponse",
     "AdminUserCreateRequest",
+    "AdminUserUpdateRequest",
     "AdminUserResponse",
     "AdminUserListResponse",
     "SystemSummaryResponse",

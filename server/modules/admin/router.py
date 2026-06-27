@@ -13,6 +13,7 @@ from server.modules.admin.schemas import (
     AdminUserCreateRequest,
     AdminUserListResponse,
     AdminUserResponse,
+    AdminUserUpdateRequest,
     PreferenceLogListResponse,
     PreferenceLogResponse,
     PromptCreate,
@@ -23,11 +24,14 @@ from server.modules.admin.schemas import (
 from server.modules.admin.service import (
     create_admin_user,
     create_prompt_version,
+    deactivate_user,
     get_system_summary,
+    hard_delete_user,
     list_preference_logs,
     list_prompt_versions,
     list_users,
     revert_prompt_version,
+    update_user,
 )
 from server.modules.auth.service import AuthenticatedUser
 
@@ -215,6 +219,80 @@ def create_user_endpoint(
         is_active=new_user.is_active,
         created_at=new_user.created_at,
     )
+
+
+@router.put("/users/{user_id}", response_model=AdminUserResponse)
+def update_user_endpoint(
+    user_id: uuid.UUID,
+    body: AdminUserUpdateRequest,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    try:
+        updated = update_user(
+            db,
+            user_id,
+            name=body.name,
+            email=body.email,
+            is_active=body.is_active,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if msg == "User not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        if msg == "Email already in use":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=msg)
+        raise
+
+    db.commit()
+    return AdminUserResponse(
+        user_id=updated.user_id,
+        name=updated.name,
+        email=updated.email,
+        role=updated.role.value,
+        is_active=updated.is_active,
+        created_at=updated.created_at,
+    )
+
+
+@router.delete("/users/{user_id}", response_model=AdminUserResponse)
+def deactivate_user_endpoint(
+    user_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    try:
+        deactivated = deactivate_user(db, user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    db.commit()
+    return AdminUserResponse(
+        user_id=deactivated.user_id,
+        name=deactivated.name,
+        email=deactivated.email,
+        role=deactivated.role.value,
+        is_active=deactivated.is_active,
+        created_at=deactivated.created_at,
+    )
+
+
+@router.delete("/users/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+def hard_delete_user_endpoint(
+    user_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db = Depends(get_db_session),
+):
+    try:
+        hard_delete_user(db, user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
