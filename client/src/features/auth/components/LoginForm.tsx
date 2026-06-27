@@ -84,7 +84,7 @@ export function LoginForm() {
               {/* Ledger Form */}
               <form onSubmit={handleSubmit} className="flex flex-col">
                 {/* Email Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-[#1b3b87]/10 transition-colors">
                   <div className="px-6 sm:px-10 lg:px-2 py-4 lg:py-0 lg:pt-[28px] lg:border-r border-slate-200 flex items-center lg:items-start justify-start lg:justify-center text-left lg:text-center">
                     <label
                       htmlFor="login-email"
@@ -100,7 +100,7 @@ export function LoginForm() {
                       autoComplete="email"
                       autoFocus
                       placeholder="name@lspu.edu.ph"
-                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-900"
                       value={email}
                       onChange={(event) => {
                         auth.clearError();
@@ -112,7 +112,7 @@ export function LoginForm() {
                       aria-describedby={auth.error ? 'login-error' : undefined}
                     />
                     {emailHint && (
-                      <p className="text-[11px] font-semibold text-amber-600 px-2 pt-1 transition-all">
+                      <p className="text-[11px] font-semibold text-[#f2c811] px-2 pt-1 transition-all">
                         {emailHint}
                       </p>
                     )}
@@ -120,7 +120,7 @@ export function LoginForm() {
                 </div>
 
                 {/* Password Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-[#1b3b87]/10 transition-colors">
                   <div className="px-6 sm:px-10 lg:px-2 py-4 lg:py-0 lg:pt-[28px] lg:border-r border-slate-200 flex items-center lg:items-start justify-start lg:justify-center text-left lg:text-center">
                     <label
                       htmlFor="login-password"
@@ -136,7 +136,7 @@ export function LoginForm() {
                         type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
                         placeholder="••••••••"
-                        className={`h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-900 ${showPassword ? '' : 'tracking-widest'}`}
+                        className={`h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-900 ${showPassword ? '' : 'tracking-widest'}`}
                         value={password}
                         onChange={(event) => {
                           auth.clearError();
@@ -161,7 +161,7 @@ export function LoginForm() {
                       </button>
                     </div>
                     <div className="flex justify-between items-center pt-2 pb-1">
-                      <div className="text-[11px] font-semibold text-amber-600 px-2">
+                      <div className="text-[11px] font-semibold text-[#f2c811] px-2">
                         {passwordHint}
                       </div>
                       <button
@@ -177,7 +177,7 @@ export function LoginForm() {
                 </div>
 
                 {/* Remember Row — label column is blank gutter; content aligns to input column */}
-                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-blue-50/30 transition-colors">
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-[#1b3b87]/10 transition-colors">
                   <div className="hidden lg:block lg:border-r border-slate-200 bg-slate-50/30" />
                   <div className="px-6 sm:px-10 lg:px-6 py-3 flex items-center gap-2.5">
                     <input
@@ -201,13 +201,13 @@ export function LoginForm() {
                   <div
                     id="login-error"
                     role="alert"
-                    className="border-b border-slate-200 bg-red-50/80 px-6 sm:px-10 lg:px-14 py-5 flex items-start gap-3 animate-in fade-in"
+                    className="border-b border-slate-200 bg-[#b91c1c]/10 px-6 sm:px-10 lg:px-14 py-5 flex items-start gap-3"
                   >
                     <ShieldAlert
-                      className="size-4 shrink-0 mt-0.5 text-red-600"
+                      className="size-4 shrink-0 mt-0.5 text-[#b91c1c]"
                       aria-hidden="true"
                     />
-                    <span className="text-sm font-medium leading-relaxed text-red-900">
+                    <span className="text-sm font-medium leading-relaxed text-[#b91c1c]">
                       {auth.error}
                     </span>
                   </div>

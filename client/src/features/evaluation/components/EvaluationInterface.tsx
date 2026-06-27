@@ -72,7 +72,7 @@ export function EvaluationInterface() {
   };
 
   return (
-    <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-background">
+    <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-white">
       <EvaluationHeader
         document={document}
         selectedAgent={selectedAgent}

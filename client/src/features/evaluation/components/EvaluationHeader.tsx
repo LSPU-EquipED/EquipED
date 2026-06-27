@@ -67,13 +67,19 @@ export function EvaluationHeader({
           <FileText className="size-4 text-slate-400" aria-hidden="true" />
           {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
         </span>
-        
+
         <button
           type="button"
-          className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+          className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
           disabled={!hasResults || !isTerminal}
           onClick={() => setShowExportModal(true)}
-          title={(!hasResults || !isTerminal) ? (!isTerminal ? 'Available once evaluation completes' : 'No results to export') : undefined}
+          title={
+            !hasResults || !isTerminal
+              ? !isTerminal
+                ? 'Available once evaluation completes'
+                : 'No results to export'
+              : undefined
+          }
         >
           <Download className="size-4 mr-2" aria-hidden="true" />
           Export
@@ -84,7 +90,7 @@ export function EvaluationHeader({
           className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
           disabled={!isTerminal || !evaluationId}
           onClick={handleViewFullReport}
-          title={!isTerminal ? "Available once evaluation completes" : undefined}
+          title={!isTerminal ? 'Available once evaluation completes' : undefined}
         >
           <Eye className="size-4 mr-2" aria-hidden="true" />
           View Full Report
@@ -92,11 +98,11 @@ export function EvaluationHeader({
 
         {showExportModal && (
           <div
-            className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-xs animate-in fade-in"
+            className="fixed inset-0 z-50 flex justify-end bg-slate-900/40"
             onClick={() => setShowExportModal(false)}
           >
             <div
-              className="w-full max-w-4xl bg-white border-l border-slate-200 h-full flex flex-col justify-between overflow-hidden animate-in slide-in-from-right relative"
+              className="w-full max-w-4xl bg-white border-l border-slate-200 h-full flex flex-col justify-between overflow-hidden relative"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-col h-full">

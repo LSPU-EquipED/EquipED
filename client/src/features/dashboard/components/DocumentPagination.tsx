@@ -25,7 +25,7 @@ export function DocumentPagination({
             setPageSize(Number(e.target.value));
             setPage(1);
           }}
-          className="h-8 border border-slate-200 bg-white px-2 focus:outline-none focus:ring-2 focus:ring-slate-800 rounded-sm text-xs font-bold text-slate-700 cursor-pointer"
+          className="h-8 border border-slate-200 bg-white px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-xs font-bold text-slate-700 cursor-pointer"
         >
           <option value={10}>10 rows</option>
           <option value={25}>25 rows</option>
@@ -42,21 +42,32 @@ export function DocumentPagination({
           type="button"
           disabled={page === 1}
           onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-800"
+          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
         >
           Previous
         </button>
-        
+
         {Array.from({ length: totalPages }).map((_, idx) => {
           const p = idx + 1;
           const isCurrent = p === page;
-          
+
           if (totalPages > 5 && p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
             if (p === 2 && page > 3) {
-              return <span key="dots-start" className="px-1 text-slate-400 text-xs font-bold select-none">...</span>;
+              return (
+                <span
+                  key="dots-start"
+                  className="px-1 text-slate-400 text-xs font-bold select-none"
+                >
+                  ...
+                </span>
+              );
             }
             if (p === totalPages - 1 && page < totalPages - 2) {
-              return <span key="dots-end" className="px-1 text-slate-400 text-xs font-bold select-none">...</span>;
+              return (
+                <span key="dots-end" className="px-1 text-slate-400 text-xs font-bold select-none">
+                  ...
+                </span>
+              );
             }
             return null;
           }
@@ -67,10 +78,10 @@ export function DocumentPagination({
               type="button"
               onClick={() => setPage(p)}
               className={cn(
-                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-800',
+                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
                 isCurrent
-                  ? 'bg-slate-800 text-white'
-                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                  ? 'bg-[#1b3b87] text-white'
+                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700',
               )}
             >
               {p}
@@ -82,7 +93,7 @@ export function DocumentPagination({
           type="button"
           disabled={page === totalPages}
           onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-800"
+          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
         >
           Next
         </button>

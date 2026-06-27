@@ -57,7 +57,7 @@ export function ResetPasswordModal({ isOpen, onClose }: ResetPasswordModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
       role="dialog"
       aria-modal="true"
       aria-labelledby="reset-dialog-title"
@@ -66,7 +66,10 @@ export function ResetPasswordModal({ isOpen, onClose }: ResetPasswordModalProps)
         ref={modalRef}
         className="w-full max-w-md bg-white border border-slate-200 p-6 sm:p-8 rounded-none shadow-none relative"
       >
-        <h3 id="reset-dialog-title" className="text-lg font-bold text-slate-900 mb-3 uppercase tracking-wider">
+        <h3
+          id="reset-dialog-title"
+          className="text-lg font-bold text-slate-900 mb-3 uppercase tracking-wider"
+        >
           Password Reset Request
         </h3>
         <p className="text-sm text-slate-600 leading-relaxed mb-6 font-medium">

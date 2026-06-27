@@ -88,15 +88,13 @@ function buildExportHtml(domainData: ExportDomainData) {
   const criteriaRows = domainData.criteria
     .map(
       (row, idx) => `
-        <tr>
-          <td class="item">${idx + 1}</td>
-          <td>${escapeHtml(row.criterion_text)}</td>
-          ${['4', '3', '2', '1']
-            .map(
-              (rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`,
-            )
-            .join('')}
-        </tr>`,
+ <tr>
+ <td class="item">${idx + 1}</td>
+ <td>${escapeHtml(row.criterion_text)}</td>
+ ${['4', '3', '2', '1']
+   .map((rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`)
+   .join('')}
+ </tr>`,
     )
     .join('');
 
@@ -107,77 +105,77 @@ function buildExportHtml(domainData: ExportDomainData) {
 
   return `<!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${config.code} ${config.unitName}</title>
-    <style>
-      body { margin: 0; background: #f4f4f5; color: #111827; font-family: Arial, sans-serif; }
-      .page { width: 8.5in; min-height: 11in; margin: 24px auto; background: white; padding: 0.45in; box-sizing: border-box; }
-      .center { text-align: center; }
-      .small { font-size: 11px; }
-      .title { margin: 18px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
-      .line-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; font-size: 12px; }
-      .line { border-bottom: 1px solid #111827; min-height: 18px; display: inline-block; min-width: 160px; }
-      .instruction { margin-top: 14px; font-size: 12px; line-height: 1.4; }
-      table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px; }
-      th, td { border: 1px solid #111827; padding: 6px; vertical-align: top; }
-      th { text-align: center; font-weight: 700; }
-      .item { width: 28px; text-align: center; }
-      .rating { width: 36px; text-align: center; font-weight: 700; }
-      .footer { display: flex; justify-content: space-between; margin-top: 26px; font-size: 10px; }
-      .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; margin-top: 38px; text-align: center; font-size: 12px; }
-      .signature div { border-top: 1px solid #111827; padding-top: 6px; }
-      .comments { min-height: 72px; border: 1px solid #111827; padding: 8px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
-      @media print {
-        body { background: white; }
-        .page { margin: 0; box-shadow: none; }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="page">
-      <div class="center small">
-        <div>Republic of the Philippines</div>
-        <div><strong>Laguna State Polytechnic University</strong></div>
-        <div>Province of Laguna</div>
-      </div>
-      <div class="center title">CRITERIA FOR EVALUATION OF INSTRUCTIONAL MATERIALS<br />FOR ${config.unitName}</div>
-      <div class="line-grid">
-        <div>Name of Faculty: <span class="line">Faculty Reviewer</span></div>
-        <div>College: <span class="line">LSPU SCC</span></div>
-        <div>Course Title: <span class="line">${escapeHtml(domainData.documentTitle) || 'Outcomes-Based Learning Module'}</span></div>
-        <div>Semester: <span class="line">1st</span></div>
-        <div>Academic Year: <span class="line">2025-2026</span></div>
-      </div>
-      <p class="instruction"><strong>Type of Instructional Material:</strong> [x] Self-paced Learning Module (with OBE Syllabus and Course Guide) &nbsp; [ ] Others: _______________________________</p>
-      <p class="instruction"><strong>Instruction:</strong> Rate the materials in the column provided by checking and using the following scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1 - Poor</p>
-      <table>
-        <thead>
-          <tr>
-            <th colspan="2">${config.sectionTitle}</th>
-            <th>4</th>
-            <th>3</th>
-            <th>2</th>
-            <th>1</th>
-          </tr>
-        </thead>
-        <tbody>${criteriaRows}</tbody>
-      </table>
-      <p class="instruction"><strong>Total:</strong> ${total} &nbsp;&nbsp; <strong>Total Score/5:</strong> ${average.toFixed(2)} &nbsp;&nbsp; <strong>Adjectival Rating:</strong> ${adjectivalRating}</p>
-      <p class="instruction">3.50 - 4.00 = Very Satisfactory &nbsp; 2.50 - 3.49 = Satisfactory &nbsp; 1.50 - 2.49 = Needs Improvement &nbsp; 1.00 - 1.49 = Poor</p>
-      <p class="instruction"><strong>Additional Comments/Suggestions:</strong></p>
-      <div class="comments">${comments}</div>
-      <div class="signature">
-        <div>Signature over Printed Name</div>
-        <div>Date Evaluated</div>
-      </div>
-      <div class="footer">
-        <span>${config.code}</span>
-        <span>Rev. 0</span>
-        <span>23 May 2022</span>
-      </div>
-    </main>
-  </body>
+ <head>
+ <meta charset="utf-8"/>
+ <title>${config.code} ${config.unitName}</title>
+ <style>
+ body { margin: 0; background: #f4f4f5; color: #111827; font-family: Arial, sans-serif; }
+ .page { width: 8.5in; min-height: 11in; margin: 24px auto; background: white; padding: 0.45in; box-sizing: border-box; }
+ .center { text-align: center; }
+ .small { font-size: 11px; }
+ .title { margin: 18px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+ .line-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; font-size: 12px; }
+ .line { border-bottom: 1px solid #111827; min-height: 18px; display: inline-block; min-width: 160px; }
+ .instruction { margin-top: 14px; font-size: 12px; line-height: 1.4; }
+ table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px; }
+ th, td { border: 1px solid #111827; padding: 6px; vertical-align: top; }
+ th { text-align: center; font-weight: 700; }
+ .item { width: 28px; text-align: center; }
+ .rating { width: 36px; text-align: center; font-weight: 700; }
+ .footer { display: flex; justify-content: space-between; margin-top: 26px; font-size: 10px; }
+ .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; margin-top: 38px; text-align: center; font-size: 12px; }
+ .signature div { border-top: 1px solid #111827; padding-top: 6px; }
+ .comments { min-height: 72px; border: 1px solid #111827; padding: 8px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
+ @media print {
+ body { background: white; }
+ .page { margin: 0; box-shadow: none; }
+ }
+ </style>
+ </head>
+ <body>
+ <main class="page">
+ <div class="center small">
+ <div>Republic of the Philippines</div>
+ <div><strong>Laguna State Polytechnic University</strong></div>
+ <div>Province of Laguna</div>
+ </div>
+ <div class="center title">CRITERIA FOR EVALUATION OF INSTRUCTIONAL MATERIALS<br />FOR ${config.unitName}</div>
+ <div class="line-grid">
+ <div>Name of Faculty: <span class="line">Faculty Reviewer</span></div>
+ <div>College: <span class="line">LSPU SCC</span></div>
+ <div>Course Title: <span class="line">${escapeHtml(domainData.documentTitle) || 'Outcomes-Based Learning Module'}</span></div>
+ <div>Semester: <span class="line">1st</span></div>
+ <div>Academic Year: <span class="line">2025-2026</span></div>
+ </div>
+ <p class="instruction"><strong>Type of Instructional Material:</strong> [x] Self-paced Learning Module (with OBE Syllabus and Course Guide) &nbsp; [ ] Others: _______________________________</p>
+ <p class="instruction"><strong>Instruction:</strong> Rate the materials in the column provided by checking and using the following scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1 - Poor</p>
+ <table>
+ <thead>
+ <tr>
+ <th colspan="2">${config.sectionTitle}</th>
+ <th>4</th>
+ <th>3</th>
+ <th>2</th>
+ <th>1</th>
+ </tr>
+ </thead>
+ <tbody>${criteriaRows}</tbody>
+ </table>
+ <p class="instruction"><strong>Total:</strong> ${total} &nbsp;&nbsp; <strong>Total Score/5:</strong> ${average.toFixed(2)} &nbsp;&nbsp; <strong>Adjectival Rating:</strong> ${adjectivalRating}</p>
+ <p class="instruction">3.50 - 4.00 = Very Satisfactory &nbsp; 2.50 - 3.49 = Satisfactory &nbsp; 1.50 - 2.49 = Needs Improvement &nbsp; 1.00 - 1.49 = Poor</p>
+ <p class="instruction"><strong>Additional Comments/Suggestions:</strong></p>
+ <div class="comments">${comments}</div>
+ <div class="signature">
+ <div>Signature over Printed Name</div>
+ <div>Date Evaluated</div>
+ </div>
+ <div class="footer">
+ <span>${config.code}</span>
+ <span>Rev. 0</span>
+ <span>23 May 2022</span>
+ </div>
+ </main>
+ </body>
 </html>`;
 }
 
@@ -241,7 +239,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
     .join('\n\n');
 
   return (
-    <div className="mx-auto min-h-[11in] w-[8.5in] resize overflow-auto bg-white p-12 text-[11px] text-black shadow-sm">
+    <div className="mx-auto min-h-[11in] w-[8.5in] resize overflow-auto border border-slate-200 bg-white p-12 text-[11px] text-black">
       <div className="text-center leading-5">
         <div>Republic of the Philippines</div>
         <div className="font-semibold">Laguna State Polytechnic University</div>

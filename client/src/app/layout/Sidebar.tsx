@@ -3,12 +3,10 @@ import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import {
   BookOpen,
-  ChevronDown,
   ClipboardList,
   FilePlus2,
   FileUp,
   FolderOpen,
-  GraduationCap,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
@@ -48,24 +46,16 @@ const adminNavItems: readonly NavItem[] = [
   { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },
 ] as const;
 
-const resourceItems = [{ label: 'Guidelines', icon: GraduationCap }] as const;
-
-function NavLink({
-  item,
-  collapsed,
-}: {
-  item: NavItem;
-  collapsed: boolean;
-}) {
+function NavLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
 
   const baseClass = cn(
-    'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
+    'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
     collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
   );
 
   const activeClass = cn(
-    'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors',
+    'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
     collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
   );
 
@@ -111,11 +101,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed ? 'justify-center px-2' : 'gap-3 px-4',
         )}
       >
-        <img
-          src="/lspu-logo.png"
-          alt="LSPU"
-          className="size-9 shrink-0 object-contain"
-        />
+        <img src="/lspu-logo.png" alt="LSPU" className="size-9 shrink-0 object-contain" />
         {!collapsed && (
           <div className="flex flex-col leading-none">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
@@ -127,8 +113,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         )}
       </div>
-
-
 
       {/* ── Navigation Container ───────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto py-4">
@@ -152,18 +136,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         <div className="mx-3 my-4 border-t border-slate-200" />
 
-        <div className="grid gap-1 px-3">
+        <nav aria-label="Secondary" className="grid gap-1 px-3">
           {isAdmin && (
             <Link
               to="/admin/rubrics"
               activeOptions={{ exact: true }}
               className={cn(
-                'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
+                'group flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
                 collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
               )}
               activeProps={{
                 className: cn(
-                  'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors',
+                  'group flex h-10 items-center rounded-sm text-sm font-semibold text-slate-900 bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
                   collapsed ? 'justify-center px-0' : 'gap-3 pl-3 pr-3',
                 ),
               }}
@@ -173,34 +157,16 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {!collapsed && <span className="truncate">Rubrics</span>}
             </Link>
           )}
-          {resourceItems.map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <button
-                key={item.label}
-                type="button"
-                className={cn(
-                  'flex h-10 items-center rounded-sm text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200/50 hover:text-slate-900',
-                  collapsed ? 'justify-center px-0' : 'gap-3 px-3',
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                <Icon className="size-4 shrink-0" aria-hidden="true" />
-                {!collapsed && (
-                  <>
-                    <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
-                    <ChevronDown className="size-4 text-slate-400" aria-hidden="true" />
-                  </>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        </nav>
       </div>
 
       {/* ── Bottom Collapse Toggle ──────────────────────────────────────── */}
-      <div className={cn('flex h-12 shrink-0 items-center px-3 border-t border-slate-200 mt-auto', collapsed ? 'justify-center' : 'justify-end')}>
+      <div
+        className={cn(
+          'flex h-12 shrink-0 items-center px-3 border-t border-slate-200 mt-auto',
+          collapsed ? 'justify-center' : 'justify-end',
+        )}
+      >
         <button
           type="button"
           onClick={onToggle}

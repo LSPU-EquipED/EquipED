@@ -45,20 +45,29 @@ export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
   return (
     <div className="border border-slate-200 bg-white rounded-sm">
       <div className="border-b border-slate-200 p-4 bg-slate-50/50">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Link Reference Documents</h3>
-        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Associate reference materials with this evaluation</p>
+        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+          Link Reference Documents
+        </h3>
+        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-0.5">
+          Associate reference materials with this evaluation
+        </p>
       </div>
       <div className="p-4">
         <div className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="search-refs" className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">Search references</label>
+            <label
+              htmlFor="search-refs"
+              className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block"
+            >
+              Search references
+            </label>
             <input
               type="text"
               id="search-refs"
               placeholder="Search by document name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-800"
+              className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-800"
             />
           </div>
 
@@ -77,14 +86,18 @@ export function ReferenceDocLinker({ onLink }: ReferenceDocLinkerProps) {
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-slate-800 truncate">{ref.name}</div>
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{ref.uploadedAt}</div>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">
+                      {ref.uploadedAt}
+                    </div>
                   </div>
                 </label>
               ))}
             </div>
           ) : (
             <div className="rounded-sm border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">No reference documents available</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                No reference documents available
+              </p>
             </div>
           )}
 

@@ -5,9 +5,10 @@ import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
 import type { MonitoringMatrixRow } from '../types';
 
 function statusClass(status: string) {
-  if (status === 'FAILED') return 'border-red-200 text-red-700 bg-red-50';
-  if (status.startsWith('COMPLETED')) return 'border-emerald-200 text-emerald-700 bg-emerald-50';
-  return 'border-slate-200 bg-slate-50 text-slate-600';
+  if (status === 'FAILED') return 'bg-[#b91c1c] text-white';
+  if (status.startsWith('COMPLETED')) return 'bg-[#3b963e] text-white';
+  if (status === 'EVALUATING') return 'bg-[#1b3b87] text-white';
+  return 'bg-[#f2c811] text-[#1e293b]';
 }
 
 export function MonitoringTable() {
@@ -21,7 +22,6 @@ export function MonitoringTable() {
 
   return (
     <section className="flex flex-col gap-6">
-
       <MatrixFilters
         program={program}
         status={status}
@@ -36,8 +36,8 @@ export function MonitoringTable() {
             <span>Loading matrix data...</span>
           </div>
         ) : isError ? (
-          <div className="flex justify-center items-center py-12 text-red-700 font-semibold text-sm gap-2">
-            <AlertTriangle className="size-6 text-red-600" />
+          <div className="flex justify-center items-center py-12 text-[#b91c1c] font-semibold text-sm gap-2">
+            <AlertTriangle className="size-6 text-[#b91c1c]" />
             <span>Failed to load matrix data.</span>
           </div>
         ) : !data || data.items.length === 0 ? (
@@ -62,7 +62,9 @@ export function MonitoringTable() {
                   <td className="py-3 px-4 text-sm font-semibold text-slate-900">
                     {row.document_title || 'Untitled SLM'}
                   </td>
-                  <td className="py-3 px-4 text-sm text-slate-600 font-medium">{row.program || '—'}</td>
+                  <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                    {row.program || '—'}
+                  </td>
                   <td className="py-3 px-4 text-sm">
                     <span
                       className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${statusClass(row.evaluation_status)}`}
@@ -70,12 +72,12 @@ export function MonitoringTable() {
                       {row.evaluation_status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm text-slate-600 text-right font-mono font-medium">
+                  <td className="py-3 px-4 text-sm text-slate-600 text-right font-sans tabular-nums font-medium">
                     {row.synthesized_score != null ? row.synthesized_score.toFixed(2) : '—'}
                   </td>
                   <td className="py-3 px-4 text-sm text-right">
                     {row.flag_count > 0 ? (
-                      <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-xs font-bold px-1.5">
+                      <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-[#f2c811] text-[#1e293b] text-xs font-bold px-1.5">
                         {row.flag_count}
                       </span>
                     ) : (

@@ -25,7 +25,10 @@ export function UploadIntakeFields({
     <div className="space-y-4 max-w-2xl">
       {/* Title Field */}
       <div className="space-y-1.5">
-        <label htmlFor="document-title" className="text-xs font-medium uppercase tracking-wide text-slate-500 block">
+        <label
+          htmlFor="document-title"
+          className="text-xs font-medium uppercase tracking-wide text-slate-500 block"
+        >
           Document Title
         </label>
         <input
@@ -34,7 +37,7 @@ export function UploadIntakeFields({
           value={title}
           onChange={(event) => setTitle(event.target.value)}
           placeholder="Enter the official Self-Learning Module title"
-          className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-400 font-semibold text-slate-800 transition-shadow"
+          className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-800 transition-shadow"
           required
         />
       </div>
@@ -43,7 +46,10 @@ export function UploadIntakeFields({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Program Field */}
         <div className="space-y-1.5">
-          <label htmlFor="document-program" className="text-xs font-medium uppercase tracking-wide text-slate-500 block">
+          <label
+            htmlFor="document-program"
+            className="text-xs font-medium uppercase tracking-wide text-slate-500 block"
+          >
             Academic Program
           </label>
           <select
@@ -62,7 +68,10 @@ export function UploadIntakeFields({
 
         {/* Subject Field */}
         <div className="space-y-1.5">
-          <label htmlFor="document-subject" className="text-xs font-medium uppercase tracking-wide text-slate-500 block">
+          <label
+            htmlFor="document-subject"
+            className="text-xs font-medium uppercase tracking-wide text-slate-500 block"
+          >
             Subject/Course
           </label>
           <select

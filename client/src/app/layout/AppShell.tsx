@@ -1,23 +1,20 @@
 import { Outlet, useMatches } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import {
-  LogOut,
-  Settings,
-  UserCircle,
-} from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 
 function getRouteTitle(routeId?: string): string {
   if (!routeId) return 'EquipED';
-  
+
   if (routeId.includes('/dashboard')) return 'Documents';
   if (routeId.includes('/upload')) return 'Upload Document';
   if (routeId.includes('/evaluations/$id/report')) return 'Evaluation Report';
   if (routeId.includes('/evaluations/$id')) return 'Scorecard';
   if (routeId.includes('/evaluations')) return 'Evaluations';
-  if (routeId.includes('/documents/') && routeId.includes('/evaluation')) return 'Evaluation Interface';
+  if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
+    return 'Evaluation Interface';
   if (routeId.includes('/matrix')) return 'Monitoring Matrix';
   if (routeId.includes('/admin/users')) return 'User Management';
   if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
@@ -25,7 +22,7 @@ function getRouteTitle(routeId?: string): string {
   if (routeId.includes('/admin/preferences')) return 'Preference Logs';
   if (routeId.includes('/admin/rubrics')) return 'Rubric Editor';
   if (routeId.includes('/admin')) return 'Admin Dashboard';
-  
+
   return 'EquipED';
 }
 
@@ -73,8 +70,8 @@ export function AppShell() {
     <div className="min-h-screen bg-white text-slate-800">
       <header
         className={cn(
-          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white/80 px-6 backdrop-blur-md transition-[left] duration-200',
-          isSidebarCollapsed ? 'left-[5.75rem]' : 'left-72 max-md:left-[5.75rem]'
+          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white px-6 transition-[left] duration-200',
+          isSidebarCollapsed ? 'left-[5.75rem]' : 'left-72 max-md:left-[5.75rem]',
         )}
       >
         <div className="flex flex-1 items-center gap-3">
@@ -82,11 +79,10 @@ export function AppShell() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-
           <div ref={accountMenuRef} className="relative">
             <button
               type="button"
-              className="flex size-8 items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-slate-800 focus:ring-offset-2"
+              className="flex size-8 items-center justify-center rounded-full bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#1b3b87] focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
               onClick={() => setIsAccountMenuOpen((value) => !value)}
@@ -100,7 +96,9 @@ export function AppShell() {
                 className="absolute right-0 top-11 z-50 w-60 rounded-sm border border-slate-200 bg-white p-1.5 text-xs shadow-none"
               >
                 <div className="border-b border-slate-200 px-3 py-2">
-                  <p className="truncate font-semibold text-slate-800">{user?.displayName ?? 'EquipEd User'}</p>
+                  <p className="truncate font-semibold text-slate-800">
+                    {user?.displayName ?? 'EquipEd User'}
+                  </p>
                   <p className="truncate text-[10px] text-slate-500">
                     {user?.email ?? 'No email available'}
                   </p>
@@ -108,23 +106,7 @@ export function AppShell() {
                 <button
                   type="button"
                   role="menuitem"
-                  className="mt-1 flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-850"
-                >
-                  <UserCircle className="size-4" aria-hidden="true" />
-                  <span>Profile / Account</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-850"
-                >
-                  <Settings className="size-4" aria-hidden="true" />
-                  <span>Settings</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-red-700 transition-colors hover:bg-red-50"
+                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-[#b91c1c] transition-colors hover:bg-[#b91c1c]/10"
                   onClick={() => {
                     void handleLogout();
                   }}

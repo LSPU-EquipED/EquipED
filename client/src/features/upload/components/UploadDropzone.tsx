@@ -38,18 +38,20 @@ export function UploadDropzone({
           'relative flex flex-col md:flex-row items-center justify-between gap-4 rounded-sm border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-all cursor-pointer',
           'hover:border-slate-400 hover:bg-slate-50/80',
           'focus-within:ring-2 focus-within:ring-[#1b3b87] focus-within:ring-offset-2 focus-within:outline-none',
-          isDragging && 'border-[#1b3b87] bg-blue-50/50 ring-2 ring-[#1b3b87]/20',
-          file && 'border-solid border-[#1b3b87]/20 bg-white'
+          isDragging && 'border-[#1b3b87] bg-[#1b3b87]/10 ring-2 ring-[#1b3b87]/20',
+          file && 'border-solid border-[#1b3b87]/20 bg-white',
         )}
       >
         {/* Left Column: Icon and Info */}
         <div className="flex items-center gap-3 min-w-0 w-full md:w-auto">
-          <div className={cn(
-            "flex size-10 items-center justify-center rounded-sm border transition-colors shrink-0",
-            file 
-              ? "bg-[#1b3b87]/5 border-[#1b3b87]/20 text-[#1b3b87]" 
-              : "bg-slate-100 border-slate-200 text-slate-400"
-          )}>
+          <div
+            className={cn(
+              'flex size-10 items-center justify-center rounded-sm border transition-colors shrink-0',
+              file
+                ? 'bg-[#1b3b87]/5 border-[#1b3b87]/20 text-[#1b3b87]'
+                : 'bg-slate-100 border-slate-200 text-slate-400',
+            )}
+          >
             {file ? (
               <FileText className="size-5" aria-hidden="true" />
             ) : (
@@ -57,16 +59,18 @@ export function UploadDropzone({
             )}
           </div>
           <div className="min-w-0">
-            <p className={cn(
-              "text-sm font-medium truncate",
-              file ? "text-slate-800" : "text-slate-500"
-            )}>
-              {file ? file.name : "Select or drag the SLM PDF file"}
+            <p
+              className={cn(
+                'text-sm font-medium truncate',
+                file ? 'text-slate-800' : 'text-slate-500',
+              )}
+            >
+              {file ? file.name : 'Select or drag the SLM PDF file'}
             </p>
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">
-              {file 
-                ? `${(file.size / 1024 / 1024).toFixed(2)} MB • PDF Document` 
-                : "PDF ONLY • SYSTEM INTAKE"}
+              {file
+                ? `${(file.size / 1024 / 1024).toFixed(2)} MB • PDF Document`
+                : 'PDF ONLY • SYSTEM INTAKE'}
             </p>
           </div>
         </div>
@@ -81,7 +85,7 @@ export function UploadDropzone({
                 e.stopPropagation();
                 handleReset();
               }}
-              className="h-8 px-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors focus:ring-2 focus:ring-slate-200"
+              className="h-8 px-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors focus:ring-2 focus:ring-[#1b3b87]"
             >
               Remove File
             </button>

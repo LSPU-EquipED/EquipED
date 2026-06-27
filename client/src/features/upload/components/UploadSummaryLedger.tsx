@@ -28,27 +28,31 @@ export function UploadSummaryLedger({
   if (uploadResult) {
     return (
       <div className="border border-slate-200 rounded-sm bg-white overflow-hidden">
-        <div className={cn(
-          "px-4 py-3 border-b border-slate-200 flex items-center justify-between",
-          isSuccess ? "bg-emerald-50/50" : "bg-red-50/50"
-        )}>
+        <div
+          className={cn(
+            'px-4 py-3 border-b border-slate-200 flex items-center justify-between',
+            isSuccess ? 'bg-[#3b963e]/10' : 'bg-[#b91c1c]/10',
+          )}
+        >
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
             Intake Process Result
           </span>
-          <span className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm text-white",
-            isSuccess ? "bg-emerald-600" : "bg-red-600"
-          )}>
-            {isSuccess ? "Processed" : "Failed"}
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm text-white',
+              isSuccess ? 'bg-[#3b963e]' : 'bg-[#b91c1c]',
+            )}
+          >
+            {isSuccess ? 'Processed' : 'Failed'}
           </span>
         </div>
-        
+
         <div className="p-4 space-y-4">
           <div className="flex items-start gap-3">
             {isSuccess ? (
-              <CheckCircle className="size-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <CheckCircle className="size-5 text-[#3b963e] shrink-0 mt-0.5" aria-hidden="true" />
             ) : (
-              <XCircle className="size-5 text-red-600 shrink-0 mt-0.5" aria-hidden="true" />
+              <XCircle className="size-5 text-[#b91c1c] shrink-0 mt-0.5" aria-hidden="true" />
             )}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-slate-900 truncate">{uploadResult.title}</p>
@@ -62,7 +66,7 @@ export function UploadSummaryLedger({
           </div>
 
           {isFailed && uploadResult.errorMessage && (
-            <div className="border border-red-200 bg-red-50/50 rounded-sm p-3 text-xs font-semibold text-red-700">
+            <div className="border border-[#b91c1c]/30 bg-[#b91c1c]/10 rounded-sm p-3 text-xs font-semibold text-[#b91c1c]">
               {uploadResult.errorMessage}
             </div>
           )}
@@ -78,34 +82,46 @@ export function UploadSummaryLedger({
           Intake Summary Ledger
         </span>
       </div>
-      
+
       <div className="divide-y divide-slate-100 text-xs">
         {/* Type */}
         <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">Type</span>
-          <span className="col-span-2 text-slate-900 font-medium">{sourceTypeLabels[sourceType]}</span>
+          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
+            Type
+          </span>
+          <span className="col-span-2 text-slate-900 font-medium">
+            {sourceTypeLabels[sourceType]}
+          </span>
         </div>
-        
+
         {/* Program */}
         <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">Program</span>
+          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
+            Program
+          </span>
           <span className="col-span-2 text-slate-900 font-medium">{programLabels[program]}</span>
         </div>
-        
+
         {/* Course */}
         <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">Course</span>
+          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
+            Course
+          </span>
           <span className="col-span-2 text-slate-900 font-medium">{subject}</span>
         </div>
 
         {/* File Attachment */}
         <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">File</span>
-          <span className={cn(
-            "col-span-2 font-medium truncate",
-            file ? "text-emerald-600" : "text-amber-600"
-          )}>
-            {file ? file.name : "PENDING ATTACHMENT"}
+          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
+            File
+          </span>
+          <span
+            className={cn(
+              'col-span-2 font-medium truncate',
+              file ? 'text-[#3b963e]' : 'text-[#f2c811]',
+            )}
+          >
+            {file ? file.name : 'PENDING ATTACHMENT'}
           </span>
         </div>
       </div>

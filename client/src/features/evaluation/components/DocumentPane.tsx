@@ -53,14 +53,16 @@ export function DocumentPane({
       <div className="mx-auto grid max-w-3xl gap-7 px-10 py-16">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <h2 className="text-base font-bold text-slate-900">{document?.title ?? 'Selected SLM'}</h2>
+            <h2 className="text-base font-bold text-slate-900">
+              {document?.title ?? 'Selected SLM'}
+            </h2>
             <p className="mt-1.5 text-xs font-medium text-slate-500">
               {documentSubtitle || document?.program || 'SLM content preview'}
             </p>
           </div>
           <button
             type="button"
-            className="shrink-0 inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className="shrink-0 inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
           >
             {selectedAgentLabel}
           </button>
@@ -78,13 +80,13 @@ export function DocumentPane({
         ) : null}
 
         {error ? (
-          <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+          <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
             {getErrorMessage(error, 'Unable to load the selected document.')}
           </div>
         ) : null}
 
         {isResolveError && (
-          <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+          <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
@@ -93,7 +95,7 @@ export function DocumentPane({
                 </p>
                 <button
                   type="button"
-                  className="mt-2 inline-flex h-8 items-center justify-center border border-red-200 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-red-200"
+                  className="mt-2 inline-flex h-8 items-center justify-center border border-[#b91c1c]/30 hover:bg-[#b91c1c]/10 text-[#b91c1c] px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-[#b91c1c]/30"
                   onClick={() => refetchResolve()}
                 >
                   Retry
@@ -104,7 +106,7 @@ export function DocumentPane({
         )}
 
         {submitIsError && (
-          <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+          <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
@@ -113,7 +115,7 @@ export function DocumentPane({
                 </p>
                 <button
                   type="button"
-                  className="mt-2 inline-flex h-8 items-center justify-center border border-red-200 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-red-200"
+                  className="mt-2 inline-flex h-8 items-center justify-center border border-[#b91c1c]/30 hover:bg-[#b91c1c]/10 text-[#b91c1c] px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-[#b91c1c]/30"
                   onClick={handleRetrySubmit}
                 >
                   Retry

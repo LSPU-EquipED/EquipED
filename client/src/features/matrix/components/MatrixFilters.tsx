@@ -17,7 +17,7 @@ export function MatrixFilters({
         <select
           value={program}
           onChange={(e) => onProgramChange(e.target.value)}
-          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-850 cursor-pointer"
+          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-900 cursor-pointer"
         >
           <option value="all">All Programs</option>
           <option value="BSCS">Computer Science</option>
@@ -30,7 +30,7 @@ export function MatrixFilters({
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-850 cursor-pointer"
+          className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-900 cursor-pointer"
         >
           <option value="all">All Statuses</option>
           <option value="COMPLETED">Completed</option>

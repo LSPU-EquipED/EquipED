@@ -81,9 +81,9 @@ function getAgentCardState(
 }
 
 function getScoreRingColor(score: number): string {
-  if (score >= 85) return '#16a34a'; // emerald-600
-  if (score >= 70) return '#f59e0b'; // amber-500
-  return '#f43f5e'; // rose-500
+  if (score >= 85) return '#3b963e'; // Verification Green
+  if (score >= 70) return '#f2c811'; // SCC Amber Gold
+  return '#b91c1c'; // Destructive Red
 }
 
 function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unknown' {
@@ -97,13 +97,13 @@ function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unkno
 function getCriterionStyles(tier: 'strong' | 'medium' | 'weak' | 'unknown') {
   switch (tier) {
     case 'strong':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-250';
+      return 'bg-[#3b963e]/10 text-[#3b963e] border-[#3b963e]/30';
     case 'medium':
-      return 'bg-amber-50 text-amber-700 border-amber-250';
+      return 'bg-[#f2c811]/10 text-[#1e293b] border-[#f2c811]/30';
     case 'weak':
-      return 'bg-red-50 text-red-700 border-red-250';
+      return 'bg-[#b91c1c]/10 text-[#b91c1c] border-[#b91c1c]/30';
     default:
-      return 'bg-slate-50 text-slate-500 border-slate-205';
+      return 'bg-slate-50 text-slate-500 border-slate-200';
   }
 }
 
@@ -202,10 +202,7 @@ export function ScoreDashboard({
     })),
   };
 
-  const scoreRingColor = domainScore ? getScoreRingColor(selectedScore.score) : 'transparent';
-  const scoreRingStyle = {
-    background: `conic-gradient(${scoreRingColor} ${selectedScore.score * 3.6}deg, hsl(var(--muted)) 0deg)`,
-  };
+  const scoreRingColor = domainScore ? getScoreRingColor(selectedScore.score) : '#e2e8f0';
 
   const handleViewFullReport = () => {
     if (evaluationId) {
@@ -214,34 +211,34 @@ export function ScoreDashboard({
   };
 
   return (
-    <section className="min-h-0 overflow-y-auto bg-card">
+    <section className="min-h-0 overflow-y-auto bg-white">
       <div className="flex min-h-44 items-center justify-between gap-6 border-b px-10">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
-            Score Matrix Dashboard
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">
+            Evaluation Report
           </p>
           <h2 className="mt-3 text-2xl font-semibold tracking-normal">Synthesized Agent View</h2>
-          <p className="mt-2 text-base text-muted-foreground">
+          <p className="mt-2 text-base text-slate-500">
             Advisory synthesis - Human review authoritative
           </p>
         </div>
         {domainScore ? (
-          <div className="grid size-28 place-items-center rounded-full p-3" style={scoreRingStyle}>
-            <div className="grid size-full place-items-center rounded-full bg-background">
-              <div className="text-center">
-                <div className="text-3xl font-bold">{selectedScore.score}</div>
-                <div className="text-xs text-muted-foreground">score</div>
+          <div
+            className="grid size-28 place-items-center rounded-full border-4 bg-white p-3"
+            style={{ borderColor: scoreRingColor }}
+          >
+            <div className="text-center">
+              <div className="text-3xl font-bold text-slate-900">{selectedScore.score}</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                score
               </div>
             </div>
           </div>
         ) : (
-          <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-muted-foreground/25 p-3">
+          <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-slate-200 bg-white p-3">
             <div className="text-center">
-              <Loader2
-                className="mx-auto size-6 animate-spin text-muted-foreground"
-                aria-hidden="true"
-              />
-              <div className="mt-1 text-xs text-muted-foreground">
+              <Loader2 className="mx-auto size-6 animate-spin text-slate-500" aria-hidden="true" />
+              <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 {isInProgress ? 'Running...' : submitIsPending ? 'Submitting...' : 'No data'}
               </div>
             </div>
@@ -277,7 +274,7 @@ export function ScoreDashboard({
                           'grid size-6 place-items-center rounded-full text-xs font-bold',
                           isCompleted && 'bg-primary text-primary-foreground',
                           isCurrent && 'border-2 border-primary text-primary',
-                          isUpcoming && 'border border-muted-foreground/30 text-muted-foreground',
+                          isUpcoming && 'border border-muted-foreground/30 text-slate-500',
                         )}
                       >
                         {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
@@ -291,7 +288,7 @@ export function ScoreDashboard({
                           'text-[10px] font-semibold uppercase tracking-wider',
                           isCompleted && 'text-primary',
                           isCurrent && 'text-primary',
-                          isUpcoming && 'text-muted-foreground',
+                          isUpcoming && 'text-slate-500',
                         )}
                       >
                         {stage.label}
@@ -310,10 +307,10 @@ export function ScoreDashboard({
               })}
             </div>
             {status?.status === 'FAILED' && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-destructive/5 px-3 py-2">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-[#b91c1c]/5 px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <XCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-                  <span className="text-sm font-medium text-destructive">
+                  <XCircle className="size-4 shrink-0 text-[#b91c1c]" aria-hidden="true" />
+                  <span className="text-sm font-medium text-[#b91c1c]">
                     {isFailedWithResults
                       ? 'Evaluation failed, but partial results are available for review.'
                       : 'Evaluation failed. No results were produced.'}
@@ -321,7 +318,7 @@ export function ScoreDashboard({
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 inline-flex h-8 items-center gap-1.5 border border-red-250 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-red-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+                  className="shrink-0 inline-flex h-8 items-center gap-1.5 border border-[#b91c1c]/30 hover:bg-[#b91c1c]/10 text-[#b91c1c] px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#b91c1c]/30 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
                   onClick={handleRetryEvaluation}
                   disabled={isResolvingEval || submitIsPending}
                 >
@@ -331,7 +328,7 @@ export function ScoreDashboard({
               </div>
             )}
             {status?.status !== 'FAILED' && (
-              <p className="mt-3 text-sm font-medium text-muted-foreground">
+              <p className="mt-3 text-sm font-medium text-slate-500">
                 {statusMessage(status?.status, Boolean(isFailedWithResults))}
               </p>
             )}
@@ -339,17 +336,17 @@ export function ScoreDashboard({
         )}
 
         {isResultsError && isTerminal && (
-          <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="mt-4 rounded-lg border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c]">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
                 <p className="font-medium">Failed to load results</p>
-                <p className="mt-1 text-destructive/80">
+                <p className="mt-1 text-[#b91c1c]/80">
                   {getErrorMessage(resultsError, 'Results could not be retrieved.')}
                 </p>
                 <button
                   type="button"
-                  className="mt-2 inline-flex h-8 items-center justify-center border border-red-250 hover:bg-red-50 text-red-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-red-200 focus:outline-none"
+                  className="mt-2 inline-flex h-8 items-center justify-center border border-[#b91c1c]/30 hover:bg-[#b91c1c]/10 text-[#b91c1c] px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#b91c1c]/30 focus:outline-none"
                   onClick={() => refetchResults()}
                 >
                   Retry
@@ -359,7 +356,7 @@ export function ScoreDashboard({
           </div>
         )}
 
-        <p className="mb-4 mt-8 text-xs font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+        <p className="mb-4 mt-8 text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">
           Evaluation Agent
         </p>
         <div className="grid gap-3 xl:grid-cols-2">
@@ -374,17 +371,17 @@ export function ScoreDashboard({
                 type="button"
                 onClick={() => onSelectAgent(agent.id)}
                 className={cn(
-                  'flex min-h-20 flex-wrap items-center gap-4 rounded-lg border p-4 text-left shadow-sm transition-colors',
+                  'flex min-h-20 flex-wrap items-center gap-4 rounded-sm border border-slate-200 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
                   isActive
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'bg-background hover:bg-muted/60',
+                    ? 'border-slate-900 bg-foreground text-background'
+                    : 'bg-white hover:bg-slate-50/60',
                 )}
                 aria-pressed={isActive}
               >
                 <span
                   className={cn(
                     'grid size-12 shrink-0 place-items-center rounded-lg',
-                    isActive ? 'bg-background/15' : 'bg-muted',
+                    isActive ? 'bg-white/15' : 'bg-slate-50',
                   )}
                 >
                   <Icon className="size-5" aria-hidden="true" />
@@ -394,7 +391,7 @@ export function ScoreDashboard({
                   <span
                     className={cn(
                       'mt-1 block text-sm',
-                      isActive ? 'text-background/75' : 'text-muted-foreground',
+                      isActive ? 'text-background/75' : 'text-slate-500',
                     )}
                   >
                     {agent.subtitle}
@@ -404,9 +401,9 @@ export function ScoreDashboard({
                   <span
                     className={cn(
                       'ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                      agentState === 'done' && 'bg-emerald-100 text-emerald-700',
+                      agentState === 'done' && 'bg-[#3b963e]/10 text-[#3b963e]',
                       agentState === 'running' && 'bg-primary/10 text-primary',
-                      agentState === 'failed' && 'bg-destructive/10 text-destructive',
+                      agentState === 'failed' && 'bg-[#b91c1c]/10 text-[#b91c1c]',
                     )}
                   >
                     {agentState === 'done' && (
@@ -431,12 +428,12 @@ export function ScoreDashboard({
         <section className="mt-10 grid gap-5">
           <div
             className={cn(
-              'rounded-xl border bg-background p-5',
-              selectedScore.score >= 85 && 'border-emerald-200 bg-emerald-50/30',
+              'rounded-sm border bg-white p-5',
+              selectedScore.score >= 85 && 'border-[#3b963e]/30 bg-[#3b963e]/10',
               selectedScore.score >= 70 &&
                 selectedScore.score < 85 &&
-                'border-amber-200 bg-amber-50/30',
-              selectedScore.score < 70 && domainScore && 'border-rose-200 bg-rose-50/30',
+                'border-[#f2c811]/30 bg-[#f2c811]/10',
+              selectedScore.score < 70 && domainScore && 'border-[#b91c1c]/30 bg-[#b91c1c]/10',
             )}
           >
             <div className="flex items-start gap-4">
@@ -445,7 +442,7 @@ export function ScoreDashboard({
                 if (agentState === 'done') {
                   return (
                     <CheckCircle2
-                      className="mt-1 size-5 shrink-0 text-emerald-600"
+                      className="mt-1 size-5 shrink-0 text-[#3b963e]"
                       aria-hidden="true"
                     />
                   );
@@ -460,19 +457,14 @@ export function ScoreDashboard({
                 }
                 if (agentState === 'failed') {
                   return (
-                    <XCircle className="mt-1 size-5 shrink-0 text-destructive" aria-hidden="true" />
+                    <XCircle className="mt-1 size-5 shrink-0 text-[#b91c1c]" aria-hidden="true" />
                   );
                 }
-                return (
-                  <Clock
-                    className="mt-1 size-5 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                );
+                return <Clock className="mt-1 size-5 shrink-0 text-slate-500" aria-hidden="true" />;
               })()}
               <div className="min-w-0 flex-1">
                 <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
-                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">
                   {selectedScore.summary}
                 </p>
               </div>
@@ -483,42 +475,42 @@ export function ScoreDashboard({
                 <span
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold',
-                    selectedScore.score >= 85 && 'bg-emerald-100 text-emerald-800',
+                    selectedScore.score >= 85 && 'bg-[#3b963e] text-white',
                     selectedScore.score >= 70 &&
                       selectedScore.score < 85 &&
-                      'bg-amber-100 text-amber-800',
-                    selectedScore.score < 70 && 'bg-rose-100 text-rose-800',
+                      'bg-[#f2c811] text-[#1e293b]',
+                    selectedScore.score < 70 && 'bg-[#b91c1c] text-white',
                   )}
                 >
                   <Target className="size-3.5" aria-hidden="true" />
                   {selectedScore.score}% score
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-slate-500">
                   <Clock className="size-3.5" aria-hidden="true" />
                   {isInProgress ? 'Evaluating…' : 'No data'}
                 </span>
               )}
               {selectedScore.verdict === 'Acceptable' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-semibold text-emerald-800">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#3b963e] px-3 py-1.5 text-sm font-semibold text-white">
                   <CheckCircle2 className="size-3.5" aria-hidden="true" />
                   Acceptable
                 </span>
               )}
               {selectedScore.verdict === 'Review recommended' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-sm font-semibold text-amber-800">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f2c811] px-3 py-1.5 text-sm font-semibold text-[#1e293b]">
                   <AlertTriangle className="size-3.5" aria-hidden="true" />
                   Review recommended
                 </span>
               )}
               {selectedScore.verdict === 'Failed' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-3 py-1.5 text-sm font-semibold text-rose-800">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#b91c1c] px-3 py-1.5 text-sm font-semibold text-white">
                   <XCircle className="size-3.5" aria-hidden="true" />
                   Failed
                 </span>
               )}
               {(selectedScore.verdict === 'Waiting…' || selectedScore.verdict === '—') && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium text-slate-500">
                   <Clock className="size-3.5" aria-hidden="true" />
                   {selectedScore.verdict}
                 </span>
@@ -530,11 +522,15 @@ export function ScoreDashboard({
             <table className="w-full text-left border-collapse border-spacing-0">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[8rem]">Rating</th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[8rem]">
+                    Rating
+                  </th>
                   <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500">
                     Evaluation Criterion
                   </th>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[14rem]">Status</th>
+                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-slate-500 w-[14rem]">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -543,7 +539,13 @@ export function ScoreDashboard({
                     const tier = getCriterionTier(row.rating);
                     const isWeak = tier === 'weak';
                     return (
-                      <tr key={row.criterion} className={cn(isWeak && 'bg-red-50/20 hover:bg-red-50/30', 'hover:bg-slate-50/50')}>
+                      <tr
+                        key={row.criterion}
+                        className={cn(
+                          isWeak && 'bg-[#b91c1c]/5 hover:bg-[#b91c1c]/10',
+                          'hover:bg-slate-50/50',
+                        )}
+                      >
                         <td className="py-3 px-4 text-sm font-medium">
                           <span
                             className={cn(
@@ -567,7 +569,7 @@ export function ScoreDashboard({
                             className={cn(
                               'rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider',
                               isWeak
-                                ? 'border-red-200 bg-red-50 text-red-700'
+                                ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
                                 : 'border-slate-200 bg-slate-50 text-slate-500',
                             )}
                           >
@@ -598,10 +600,10 @@ export function ScoreDashboard({
 
         <section className="mt-8 rounded-sm border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2">
-            <Target className="size-4 text-muted-foreground" aria-hidden="true" />
+            <Target className="size-4 text-slate-500" aria-hidden="true" />
             <h3 className="font-semibold">Next Steps</h3>
           </div>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          <p className="mt-3 text-sm leading-6 text-slate-500">
             This evaluation is advisory until reviewed by an authorized human reviewer. Review the
             criteria and scores above, then open the Full Report for a consolidated view across all
             agents.
@@ -609,7 +611,7 @@ export function ScoreDashboard({
           {isTerminal && evaluationId && (
             <button
               type="button"
-              className="mt-4 inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
+              className="mt-4 inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
               onClick={handleViewFullReport}
             >
               <Eye className="size-4 mr-1.5" aria-hidden="true" />
