@@ -13,10 +13,10 @@ const STATUS_OPTIONS = [
 ] as const;
 
 function statusBadgeClass(status: string) {
-  if (status === 'FAILED') return 'bg-red-700 text-white';
-  if (status.startsWith('COMPLETED')) return 'bg-emerald-600 text-white';
+  if (status === 'FAILED') return 'bg-[#b91c1c] text-white';
+  if (status.startsWith('COMPLETED')) return 'bg-[#3b963e] text-white';
   if (status === 'EVALUATING') return 'bg-[#1b3b87] text-white';
-  return 'bg-slate-200 text-slate-700';
+  return 'bg-[#f2c811] text-[#1e293b]';
 }
 
 function formatDate(value: string) {
@@ -79,7 +79,7 @@ export function EvaluationHistoryTable() {
         <div className="px-6 py-6">
           {/* Error state */}
           {isError ? (
-            <div className="flex items-center gap-2 rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+            <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
               <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
               Failed to load evaluation history.
             </div>
@@ -115,9 +115,7 @@ export function EvaluationHistoryTable() {
                     <th className="py-3 px-4 font-semibold text-slate-500">Status</th>
                     <th className="py-3 px-4 font-semibold text-slate-500">Submitted</th>
                     <th className="py-3 px-4 font-semibold text-slate-500">Completed</th>
-                    <th className="py-3 px-4 font-semibold text-slate-500 text-right">
-                      Action
-                    </th>
+                    <th className="py-3 px-4 font-semibold text-slate-500 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -128,7 +126,7 @@ export function EvaluationHistoryTable() {
                           <span className="truncate max-w-[22rem]">
                             {record.document_title ?? '—'}
                           </span>
-                          <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                          <span className="text-[10px] font-sans tabular-nums font-bold text-slate-400 uppercase tracking-wider">
                             {record.evaluation_id}
                           </span>
                         </div>

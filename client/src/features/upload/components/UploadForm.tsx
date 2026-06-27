@@ -66,7 +66,10 @@ export function UploadForm() {
 
     const droppedFile = event.dataTransfer.files?.[0] ?? null;
     if (droppedFile) {
-      if (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf')) {
+      if (
+        droppedFile.type === 'application/pdf' ||
+        droppedFile.name.toLowerCase().endsWith('.pdf')
+      ) {
         setFile(droppedFile);
         setUploadResult(null);
         resetUpload(null);
@@ -172,14 +175,11 @@ export function UploadForm() {
           />
         </div>
 
-        <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wide sm:px-6 bg-slate-50/20">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2">
-              <GraduationCap className="size-4" aria-hidden="true" />
-              Reference links stay out of scope in this phase.
-            </span>
-          </div>
-          <span>Evaluations and reports will be wired in a later change.</span>
+        <div className="flex min-h-14 flex-wrap items-center gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wide sm:px-6 bg-slate-50/20">
+          <span className="inline-flex items-center gap-2">
+            <GraduationCap className="size-4" aria-hidden="true" />
+            Reference links stay out of scope in this phase.
+          </span>
         </div>
       </section>
 
@@ -211,24 +211,26 @@ export function UploadForm() {
           />
 
           {errorMessage ? (
-            <div className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-semibold">
+            <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
               {errorMessage}
             </div>
           ) : null}
         </div>
 
-        <div className="sticky bottom-0 mt-auto border-t border-slate-200 bg-white px-4 py-4 backdrop-blur sm:px-7">
-          <div className="space-y-4">
+        <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-7">
+          <div className="space-y-3">
             {uploadResult ? (
               <>
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                   <span>Status</span>
-                  <span className="text-slate-800 font-bold">{isSuccess ? 'Complete' : 'Failed'}</span>
+                  <span className="text-slate-800 font-bold">
+                    {isSuccess ? 'Complete' : 'Failed'}
+                  </span>
                 </div>
                 {isSuccess ? (
                   <button
                     type="button"
-                    className="h-14 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87]"
+                    className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
                     onClick={() =>
                       navigate({
                         to: '/dashboard',
@@ -237,19 +239,19 @@ export function UploadForm() {
                     }
                   >
                     Go to Dashboard
-                    <ArrowRight className="size-5" aria-hidden="true" />
+                    <ArrowRight className="size-4" aria-hidden="true" />
                   </button>
                 ) : (
                   <button
                     type="button"
-                    className="h-14 w-full inline-flex items-center justify-between border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-slate-200"
+                    className="h-10 w-full inline-flex items-center justify-between border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
                     onClick={handleReset}
                   >
                     Try Uploading Again
-                    <ArrowRight className="size-5" aria-hidden="true" />
+                    <ArrowRight className="size-4" aria-hidden="true" />
                   </button>
                 )}
-                <p className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wide leading-relaxed">
+                <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
                   {isSuccess
                     ? 'The document is now in your dashboard inventory.'
                     : 'You can try uploading the file again or contact support if the issue persists.'}
@@ -257,15 +259,15 @@ export function UploadForm() {
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <span>Upload Readiness</span>
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                  <span>Upload readiness</span>
                   <span className="text-slate-800 font-bold">
                     {file && title.trim() ? 'Ready' : 'Missing details'}
                   </span>
                 </div>
                 <button
                   type="submit"
-                  className="h-14 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-5 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isLoading || !file || !title.trim()}
                 >
                   {isLoading ? (
@@ -276,13 +278,12 @@ export function UploadForm() {
                   ) : (
                     <span className="inline-flex items-center gap-2">
                       Upload Document
-                      <ArrowRight className="size-5" aria-hidden="true" />
+                      <ArrowRight className="size-4" aria-hidden="true" />
                     </span>
                   )}
                 </button>
-                <p className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wide leading-relaxed">
-                  Uploading adds the document to inventory only. Evaluation remains a later
-                  workflow.
+                <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
+                  Uploading adds the document to inventory only. Evaluation is a later workflow.
                 </p>
               </>
             )}

@@ -26,12 +26,14 @@ export function DocumentTypeSelector({ value = 'slm', onChange }: DocumentTypeSe
             onClick={() => onChange?.(type.id)}
             className={`rounded-sm border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87] ${
               value === type.id
-                ? 'border-[#1b3b87] bg-blue-50/30 text-[#1b3b87]'
+                ? 'border-[#1b3b87] bg-[#1b3b87]/10 text-[#1b3b87]'
                 : 'border-slate-200 bg-transparent hover:border-slate-300 hover:bg-slate-50 text-slate-600'
             }`}
           >
             <div className="font-bold text-xs uppercase tracking-wider">{type.label}</div>
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">{type.description}</div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">
+              {type.description}
+            </div>
           </button>
         ))}
       </div>

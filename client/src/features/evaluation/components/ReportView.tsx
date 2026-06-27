@@ -1,11 +1,9 @@
 export function ReportView() {
   return (
-    <section className="rounded-2xl border border-border/40 bg-card/70 p-4 grid gap-3 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Report
-      </div>
+    <section className="rounded-sm border border-slate-200 bg-white p-4 grid gap-3">
+      <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Report</div>
       <h2 className="m-0 text-xl font-semibold">Printable report scaffold</h2>
-      <p className="m-0 text-muted-foreground">
+      <p className="m-0 text-slate-500">
         This route will eventually combine the scorecard, flags, and summary into a submission-ready
         report.
       </p>

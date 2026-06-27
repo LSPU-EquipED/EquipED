@@ -11,6 +11,7 @@ import type {
   AdminUserListResponse,
   AdminUserResponse,
   AdminUserCreateBody,
+  AdminUserUpdateBody,
   SystemSummaryResponse,
   MatrixListResponse,
   AdminUploadInput,
@@ -47,6 +48,22 @@ export const adminApi = {
     requestJson<AdminUserResponse>('/admin/users', {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+
+  updateUser: (userId: string, body: AdminUserUpdateBody) =>
+    requestJson<AdminUserResponse>(`/admin/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  deactivateUser: (userId: string) =>
+    requestJson<void>(`/admin/users/${userId}`, {
+      method: 'DELETE',
+    }),
+
+  hardDeleteUser: (userId: string) =>
+    requestJson<void>(`/admin/users/${userId}/permanent`, {
+      method: 'DELETE',
     }),
 
   getMatrix: (

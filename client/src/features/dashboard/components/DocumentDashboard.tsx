@@ -51,8 +51,8 @@ export function DocumentDashboard() {
   return (
     <section className="flex w-full flex-col pb-20">
       {flashId ? (
-        <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-6 py-2.5 text-sm text-emerald-800 font-semibold">
-          <CheckCircle className="size-4 shrink-0 text-emerald-600" aria-hidden="true" />
+        <div className="flex items-center gap-2 border-b border-[#3b963e]/30 bg-[#3b963e]/10 px-6 py-2.5 text-sm text-[#3b963e] font-semibold">
+          <CheckCircle className="size-4 shrink-0 text-[#3b963e]" aria-hidden="true" />
           Document uploaded successfully and is now ready in your inventory.
         </div>
       ) : null}
@@ -68,39 +68,35 @@ export function DocumentDashboard() {
       <DocumentActionBar search={search} setSearch={setSearch} />
 
       {error ? (
-        <div className="flex items-center gap-2 border-b border-red-200 bg-red-50 px-6 py-3 text-sm text-red-700 font-semibold">
-          <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+        <div className="flex items-center gap-2 border-b border-[#b91c1c]/30 bg-[#b91c1c]/10 px-6 py-3 text-sm text-[#b91c1c] font-semibold">
+          <TriangleAlert className="size-4 shrink-0 text-[#b91c1c]" aria-hidden="true" />
           {getErrorMessage(error, 'Unable to load documents.')}
         </div>
       ) : null}
 
       {isLoading && !data ? <DocumentTableSkeleton /> : null}
 
-      {!error && isTableReady && documents.length === 0 && stats.total === 0 ? (
-        <div className="flex flex-col items-center gap-4 px-6 py-24 text-center">
-          <div className="flex size-14 items-center justify-center rounded-sm border border-dashed border-slate-200 bg-slate-50 text-slate-400">
-            <FileText className="size-6" aria-hidden="true" />
+      {!error && isTableReady && documents.length === 0 ? (
+        <div className="border-b border-slate-200 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-dashed border-slate-200 bg-slate-50/30 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <FileText className="size-4 text-slate-500" aria-hidden="true" />
+              <span className="text-sm font-semibold text-slate-700">
+                {stats.total === 0
+                  ? 'No documents in your inventory.'
+                  : 'No documents match your search.'}
+              </span>
+            </div>
+            {stats.total === 0 ? (
+              <Link
+                to="/upload"
+                className="inline-flex items-center gap-2 bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white h-8 px-3 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors"
+              >
+                <Upload className="size-3.5" aria-hidden="true" />
+                Upload SLM
+              </Link>
+            ) : null}
           </div>
-          <div className="grid gap-1">
-            <h3 className="text-base font-bold text-slate-800">No documents yet</h3>
-            <p className="text-sm text-slate-500 max-w-xs">
-              Upload your first SLM to start the evaluation workflow.
-            </p>
-          </div>
-          <Link
-            to="/upload"
-            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white h-10 px-5 rounded-sm text-xs font-bold tracking-wider uppercase transition-colors"
-          >
-            <Upload className="size-3.5" aria-hidden="true" />
-            Upload your first SLM
-          </Link>
-        </div>
-      ) : null}
-
-      {!error && isTableReady && documents.length === 0 && stats.total > 0 ? (
-        <div className="flex flex-col items-center gap-2 px-6 py-24 text-center">
-          <h3 className="text-base font-bold text-slate-800">No matches</h3>
-          <p className="text-sm text-slate-500">Try a different search term or filter.</p>
         </div>
       ) : null}
 

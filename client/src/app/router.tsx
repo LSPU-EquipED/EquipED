@@ -17,7 +17,6 @@ import { UploadPage } from '../features/upload/pages/UploadPage';
 import { HistoryPage } from '../features/history/pages/HistoryPage';
 import { EvaluationInterfacePage } from '../features/evaluation/pages/EvaluationInterfacePage';
 import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
-import { ReportPage } from '../features/evaluation/pages/ReportPage';
 import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
 
 // Admin Pages
@@ -106,12 +105,6 @@ const evaluationDetailRoute = createRoute({
   component: ScorecardPage,
 });
 
-const evaluationReportRoute = createRoute({
-  getParentRoute: () => evaluationDetailRoute,
-  path: 'report',
-  component: ReportPage,
-});
-
 const matrixRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'matrix',
@@ -191,7 +184,7 @@ const routeTree = rootRoute.addChildren([
     uploadRoute,
     evaluationsRoute,
     documentEvaluationRoute,
-    evaluationDetailRoute.addChildren([evaluationReportRoute]),
+    evaluationDetailRoute,
     matrixRoute,
     adminRoute.addChildren([
       adminHomeRoute,

@@ -1,14 +1,15 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { AlertTriangle, ArrowRight, FileText, Loader2, Plus, Upload, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Plus, Upload } from 'lucide-react';
 import { useAdminSummary } from '@/features/admin/hooks/useAdminSummary';
 import { useAdminMatrix } from '@/features/admin/hooks/useAdminMatrix';
 import type { MonitoringMatrixRow } from '@/features/admin/types';
 
 function statusClass(status: string) {
-  if (status === 'FAILED') return 'border-red-200 text-red-700 bg-red-50';
-  if (status.startsWith('COMPLETED')) return 'border-emerald-200 text-emerald-700 bg-emerald-50';
-  return 'border-slate-200 bg-slate-50 text-slate-605';
+  if (status === 'FAILED') return 'bg-[#b91c1c] text-white';
+  if (status.startsWith('COMPLETED')) return 'bg-[#3b963e] text-white';
+  if (status === 'EVALUATING') return 'bg-[#1b3b87] text-white';
+  return 'bg-[#f2c811] text-[#1e293b]';
 }
 
 export function AdminHomePage() {
@@ -26,38 +27,35 @@ export function AdminHomePage() {
 
   return (
     <section className="grid gap-8">
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard
-          title="Total SLMs"
-          value={summary?.total_documents ?? 0}
-          icon={FileText}
-          isLoading={summaryLoading}
-          isError={summaryError}
-        />
-        <SummaryCard
-          title="Active Evaluations"
-          value={summary?.active_evaluations ?? 0}
-          icon={Loader2}
-          isLoading={summaryLoading}
-          isError={summaryError}
-        />
-        <SummaryCard
-          title="Registered Faculty"
-          value={summary?.total_faculty ?? 0}
-          icon={Users}
-          isLoading={summaryLoading}
-          isError={summaryError}
-        />
-        <SummaryCard
-          title="Failed Evaluations"
-          value={summary?.failed_evaluations ?? 0}
-          icon={AlertTriangle}
-          isLoading={summaryLoading}
-          isError={summaryError}
-          variant="destructive"
-        />
+      {/* Summary Row */}
+      <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-200">
+          <SummaryItem
+            label="Total SLMs"
+            value={summary?.total_documents ?? 0}
+            isLoading={summaryLoading}
+            isError={summaryError}
+          />
+          <SummaryItem
+            label="Active Evaluations"
+            value={summary?.active_evaluations ?? 0}
+            isLoading={summaryLoading}
+            isError={summaryError}
+          />
+          <SummaryItem
+            label="Registered Faculty"
+            value={summary?.total_faculty ?? 0}
+            isLoading={summaryLoading}
+            isError={summaryError}
+          />
+          <SummaryItem
+            label="Failed Evaluations"
+            value={summary?.failed_evaluations ?? 0}
+            isLoading={summaryLoading}
+            isError={summaryError}
+            variant="destructive"
+          />
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -157,10 +155,12 @@ export function AdminHomePage() {
             </div>
           ) : matrixError ? (
             <div className="py-12 text-center">
-              <p className="text-sm text-red-700 font-semibold">
+              <p className="text-sm text-[#b91c1c] font-semibold">
                 Unable to load recent activity.
               </p>
-              <p className="text-xs text-slate-400 mt-1 font-medium">Please try refreshing the page.</p>
+              <p className="text-xs text-slate-400 mt-1 font-medium">
+                Please try refreshing the page.
+              </p>
             </div>
           ) : recentActivity.length === 0 ? (
             <div className="py-12 text-center text-slate-500 font-semibold text-sm">
@@ -184,7 +184,9 @@ export function AdminHomePage() {
                     <td className="py-3 px-4 text-sm font-semibold text-slate-900">
                       {row.document_title || 'Untitled SLM'}
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600 font-medium">{row.program || '—'}</td>
+                    <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                      {row.program || '—'}
+                    </td>
                     <td className="py-3 px-4 text-sm">
                       <span
                         className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${statusClass(row.evaluation_status)}`}
@@ -192,12 +194,12 @@ export function AdminHomePage() {
                         {row.evaluation_status.replace('_', ' ')}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-600 text-right font-mono font-medium">
+                    <td className="py-3 px-4 text-sm text-slate-600 text-right font-sans tabular-nums font-medium">
                       {row.synthesized_score != null ? row.synthesized_score.toFixed(2) : '—'}
                     </td>
                     <td className="py-3 px-4 text-sm text-right">
                       {row.flag_count > 0 ? (
-                        <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-xs font-bold px-1.5">
+                        <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-[#f2c811] text-[#1e293b] text-xs font-bold px-1.5">
                           {row.flag_count}
                         </span>
                       ) : (
@@ -218,39 +220,28 @@ export function AdminHomePage() {
   );
 }
 
-interface SummaryCardProps {
-  title: string;
+interface SummaryItemProps {
+  label: string;
   value: number;
-  icon: React.ComponentType<{ className?: string }>;
   isLoading: boolean;
   isError: boolean;
   variant?: 'default' | 'destructive';
 }
 
-function SummaryCard({
-  title,
-  value,
-  icon: Icon,
-  isLoading,
-  isError,
-  variant = 'default',
-}: SummaryCardProps) {
+function SummaryItem({ label, value, isLoading, isError, variant = 'default' }: SummaryItemProps) {
   return (
-    <div className="border border-slate-200 bg-white rounded-sm p-5">
-      <div className="flex flex-row items-center justify-between pb-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-        <Icon
-          className={`size-4 ${variant === 'destructive' ? 'text-red-600' : 'text-slate-400'}`}
-        />
-      </div>
-      <div>
+    <div className="px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+      <div className="mt-1">
         {isLoading ? (
-          <div className="animate-pulse bg-slate-100 h-8 w-16 rounded-sm mt-1" />
+          <div className="animate-pulse bg-slate-100 h-6 w-12 rounded-sm" />
         ) : isError ? (
-          <p className="text-sm font-semibold text-red-700 mt-1">Failed to load</p>
+          <p className="text-sm font-semibold text-[#b91c1c]">Failed</p>
         ) : (
           <p
-            className={`text-3xl font-bold text-slate-800 ${variant === 'destructive' && value > 0 ? 'text-red-700' : ''}`}
+            className={`text-xl font-bold ${
+              variant === 'destructive' && value > 0 ? 'text-[#b91c1c]' : 'text-slate-800'
+            }`}
           >
             {value}
           </p>

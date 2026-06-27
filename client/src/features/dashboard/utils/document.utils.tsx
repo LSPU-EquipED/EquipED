@@ -18,16 +18,16 @@ export const statusConfig: Record<
 > = {
   PENDING: {
     label: 'Processing',
-    badgeClass: 'bg-amber-500 text-white',
+    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
     icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
   PROCESSED: {
     label: 'Ready',
-    badgeClass: 'bg-emerald-600 text-white',
+    badgeClass: 'bg-[#3b963e] text-white',
   },
   FAILED: {
     label: 'Failed',
-    badgeClass: 'bg-red-700 text-white',
+    badgeClass: 'bg-[#b91c1c] text-white',
   },
 };
 

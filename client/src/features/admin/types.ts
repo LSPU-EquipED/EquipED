@@ -59,6 +59,12 @@ export interface AdminUserCreateBody {
   role: 'admin' | 'faculty';
 }
 
+export interface AdminUserUpdateBody {
+  name?: string;
+  email?: string;
+  is_active?: boolean;
+}
+
 export interface SystemSummaryResponse {
   total_documents: number;
   total_faculty: number;

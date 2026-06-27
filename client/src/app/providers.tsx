@@ -10,13 +10,11 @@ function AppBootstrap() {
 
   if (!auth.ready) {
     return (
-      <div className="grid min-h-screen place-items-center bg-background px-6 text-center text-foreground">
+      <div className="grid min-h-screen place-items-center bg-white px-6 text-center text-slate-900">
         <div className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            EquipEd
-          </p>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">EquipEd</p>
           <h1 className="text-xl font-semibold">Checking session…</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-slate-500">
             Restoring your workspace before loading the dashboard.
           </p>
         </div>
