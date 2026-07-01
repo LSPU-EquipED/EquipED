@@ -127,6 +127,7 @@ export type DomainScoreBlock = {
   subtotal: number;
   max_score: number;
   status: string;
+  adjectival_rating?: string;
 };
 
 function mapDocumentChunk(chunk: RawDocumentChunk): ClientDocumentChunk {

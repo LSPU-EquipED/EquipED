@@ -11,6 +11,21 @@ function statusClass(status: string) {
   return 'bg-[#f2c811] text-[#1e293b]';
 }
 
+function ratingClass(rating: string | null | undefined): string {
+  switch (rating) {
+    case 'Very Satisfactory':
+      return 'bg-[#3b963e]/10 text-[#3b963e] border-[#3b963e]/30';
+    case 'Satisfactory':
+      return 'bg-[#3eaed4]/10 text-[#3eaed4] border-[#3eaed4]/30';
+    case 'Needs Improvement':
+      return 'bg-[#f2c811]/10 text-[#1e293b] border-[#f2c811]/30';
+    case 'Poor':
+      return 'bg-[#b91c1c]/10 text-[#b91c1c] border-[#b91c1c]/30';
+    default:
+      return 'bg-slate-50 text-slate-500 border-slate-200';
+  }
+}
+
 export function MonitoringTable() {
   const [program, setProgram] = useState('all');
   const [status, setStatus] = useState('all');
@@ -52,6 +67,7 @@ export function MonitoringTable() {
                 <th className="py-3 px-4 font-semibold text-slate-500">Program</th>
                 <th className="py-3 px-4 font-semibold text-slate-500">Status</th>
                 <th className="py-3 px-4 font-semibold text-slate-500 text-right">Score</th>
+                <th className="py-3 px-4 font-semibold text-slate-500">Rating</th>
                 <th className="py-3 px-4 font-semibold text-slate-500 text-right">Flags</th>
                 <th className="py-3 px-4 font-semibold text-slate-500 text-right">Last Updated</th>
               </tr>
@@ -74,6 +90,17 @@ export function MonitoringTable() {
                   </td>
                   <td className="py-3 px-4 text-sm text-slate-600 text-right font-sans tabular-nums font-medium">
                     {row.synthesized_score != null ? row.synthesized_score.toFixed(2) : '—'}
+                  </td>
+                  <td className="py-3 px-4 text-sm">
+                    {row.adjectival_rating ? (
+                      <span
+                        className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${ratingClass(row.adjectival_rating)}`}
+                      >
+                        {row.adjectival_rating}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-sm text-right">
                     {row.flag_count > 0 ? (

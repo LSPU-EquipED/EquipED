@@ -86,6 +86,36 @@ function getScoreRingColor(score: number): string {
   return '#b91c1c'; // Destructive Red
 }
 
+function getAdjectivalRatingColor(rating: string | undefined): string {
+  switch (rating) {
+    case 'Very Satisfactory':
+      return '#3b963e';
+    case 'Satisfactory':
+      return '#3eaed4';
+    case 'Needs Improvement':
+      return '#f2c811';
+    case 'Poor':
+      return '#b91c1c';
+    default:
+      return '#64748b';
+  }
+}
+
+function getAdjectivalRatingClasses(rating: string | undefined): string {
+  switch (rating) {
+    case 'Very Satisfactory':
+      return 'bg-[#3b963e]/10 text-[#3b963e] border-[#3b963e]/30';
+    case 'Satisfactory':
+      return 'bg-[#3eaed4]/10 text-[#3eaed4] border-[#3eaed4]/30';
+    case 'Needs Improvement':
+      return 'bg-[#f2c811]/10 text-[#1e293b] border-[#f2c811]/30';
+    case 'Poor':
+      return 'bg-[#b91c1c]/10 text-[#b91c1c] border-[#b91c1c]/30';
+    default:
+      return 'bg-slate-50 text-slate-500 border-slate-200';
+  }
+}
+
 function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unknown' {
   const num = Number(rating);
   if (Number.isNaN(num)) return 'unknown';
@@ -221,6 +251,23 @@ export function ScoreDashboard({
           <p className="mt-2 text-base text-slate-500">
             Advisory synthesis - Human review authoritative
           </p>
+          {results?.adjectival_rating && (
+            <div className="mt-3 flex items-center gap-3">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm font-bold uppercase tracking-wider',
+                  getAdjectivalRatingClasses(results.adjectival_rating),
+                )}
+              >
+                Overall Rating: {results.adjectival_rating}
+              </span>
+              {typeof results.overall_score === 'number' && (
+                <span className="text-sm font-semibold text-slate-500">
+                  {formatScore(results.overall_score)} of 4
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {domainScore ? (
           <div

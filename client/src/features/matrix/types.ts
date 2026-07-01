@@ -9,6 +9,7 @@ export interface MonitoringMatrixRow {
   document_title: string | null;
   evaluation_status: string;
   synthesized_score: number | null;
+  adjectival_rating: string | null;
   domain_scores: Record<string, DomainScoreBlock> | null;
   flag_count: number;
   feedback_status: string;
