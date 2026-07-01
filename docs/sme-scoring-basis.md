@@ -76,7 +76,7 @@ something the template guarantees exists.
 | Code | Criterion | How it's measured | Score bands (4 / 3 / 2 / 1) |
 |---|---|---|---|
 | **OP-01** | Topic Coherence | **Coverage ratio.** Split content into ordered topic blocks; the LLM judges each transition as logical or not. Coherence = coherent transitions ÷ total transitions. | 80–100% / 50–79% / 20–49% / <20% |
-| **OP-02** | Interactivity | **Checklist count** of 7 interaction types present (practice, reflection, problem-solving, application, discussion, learning checks, real-world). | 5–7 / 3–4 / 1–2 / 0 types |
+| **OP-02** | Interactivity | **Interaction count.** Count the genuine interactive elements (activity/task/prompt with real content the student acts on; a bare title does not count). No topic/lesson denominator — most SLMs are one unlabeled lesson and LLM topic-splitting is unstable. | 4+ / 2–3 / 1 / 0 elements |
 | **OP-03** | Clear Directions | **Per-unit mean.** Score each task on its element checklist (instructions, materials, expected output, steps, submission, criteria), then average and round. | per task: all elements / 1 missing / 2–3 missing / unusable |
 | **OP-04** | Accurate Sections | **Coverage ratio.** Clarity/internal-consistency only (no external references). Clean sections ÷ total sections. | 80–100% / 50–79% / 20–49% / <20% |
 | **OP-05** | Enhancement Activities | **Checklist count** of 5 enhancement types (enrichment, additional exercises, extension, independent learning, real-world application). | 4–5 / 2–3 / 1 / 0 types |

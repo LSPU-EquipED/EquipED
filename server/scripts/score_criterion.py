@@ -22,7 +22,13 @@ if str(ROOT) not in sys.path:
 
 import fitz  # PyMuPDF  # noqa: E402
 from server.core.llm import get_llm_client  # noqa: E402
-from server.modules.agents.scoring import objective_alignment  # noqa: E402
+from server.modules.agents.scoring import (  # noqa: E402
+    interactivity,
+    objective_alignment,
+)
+from server.modules.agents.scoring.interactivity import (  # noqa: E402
+    InteractivityResult,
+)
 from server.modules.agents.scoring.objective_alignment import (  # noqa: E402
     AlignmentResult,
 )
@@ -30,8 +36,9 @@ from server.modules.agents.scoring.objective_alignment import (  # noqa: E402
 UPLOADS = ROOT / "uploads"
 
 # Criterion code -> evaluator. Add criteria here as they are implemented.
-CRITERIA: dict[str, Callable[[Any, str], AlignmentResult]] = {
+CRITERIA: dict[str, Callable[[Any, str], Any]] = {
     "A-05": objective_alignment.evaluate,
+    "OP-02": interactivity.evaluate,
 }
 
 
@@ -74,6 +81,29 @@ def print_alignment(result: AlignmentResult) -> None:
     print(f"==> SCORE {result.score}")
 
 
+def print_interactivity(result: InteractivityResult) -> None:
+    print(f"\nGenuine interactive elements ({result.count}):")
+    for entry in result.genuine:
+        label = str(entry.get("text", "")).strip()
+        print(f"  - {label}")
+        if entry.get("evidence"):
+            print(f"      evidence: {str(entry.get('evidence', ''))[:120]}")
+
+    dropped = len(result.elements) - result.count
+    if dropped > 0:
+        print(f"\n({dropped} listed element(s) dropped: no real content / duplicate)")
+
+    print(f"\ncount {result.count}")
+    print(f"==> SCORE {result.score}")
+
+
+def print_result(criterion: str, result: Any) -> None:
+    if isinstance(result, InteractivityResult):
+        print_interactivity(result)
+    else:
+        print_alignment(result)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Score one SME criterion on an SLM.")
     parser.add_argument(
@@ -88,7 +118,7 @@ def main() -> int:
 
     evaluator = CRITERIA[args.criterion]
     result = evaluator(get_llm_client(), text)
-    print_alignment(result)
+    print_result(args.criterion, result)
     return 0
 
 

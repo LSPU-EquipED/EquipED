@@ -99,20 +99,18 @@ class AlignmentResult:
     alignment: list[dict[str, Any]]
 
 
-def evaluate(client: Any, text: str) -> AlignmentResult:
-    """Run the measure -> compute loop for A-05 against an SLM's full text."""
-    content = slice_for_alignment(text)
-    raw = client.generate(
-        PROMPT.format(content=content),
-        temperature=0.0,  # determinism: see spike findings
-        max_new_tokens=1800,
-    )
-    data = json.loads(raw)
+def compute(
+    objectives: list[dict[str, Any]],
+    assessments: list[dict[str, Any]],
+    alignment: list[dict[str, Any]],
+) -> AlignmentResult:
+    """Pure measurement -> band. No LLM, no IO -- fully unit-testable.
 
-    objectives = list(data.get("objectives", []))
-    assessments = list(data.get("assessments", []))
-    alignment = list(data.get("alignment", []))
-
+    This is the half that stays per-criterion. The facts it needs (objectives,
+    assessments, per-objective alignment judgments) can be produced by this
+    criterion's own call OR merged from a shared skeleton/group call later;
+    either way the scoring math is identical. See docs/sme-scoring-basis.md s.11.
+    """
     # Count DISTINCT measured objectives, not alignment rows: the LLM may emit
     # several rows per objective (one per matching assessment), which would
     # otherwise inflate the numerator past the objective count (e.g. 10/3).
@@ -137,4 +135,24 @@ def evaluate(client: Any, text: str) -> AlignmentResult:
     )
 
 
-__all__ = ["AlignmentResult", "evaluate", "slice_for_alignment", "PROMPT"]
+def evaluate(client: Any, text: str) -> AlignmentResult:
+    """Thin wrapper: fetch facts from the LLM, then compute the band.
+
+    Used by the CLI to run A-05 standalone. At integration the facts come from
+    a shared/grouped call instead, but ``compute`` stays the same.
+    """
+    content = slice_for_alignment(text)
+    raw = client.generate(
+        PROMPT.format(content=content),
+        temperature=0.0,  # determinism: see spike findings
+        max_new_tokens=1800,
+    )
+    data = json.loads(raw)
+    return compute(
+        objectives=list(data.get("objectives", [])),
+        assessments=list(data.get("assessments", [])),
+        alignment=list(data.get("alignment", [])),
+    )
+
+
+__all__ = ["AlignmentResult", "compute", "evaluate", "slice_for_alignment", "PROMPT"]
