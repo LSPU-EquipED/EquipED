@@ -17,11 +17,31 @@ class CriterionScoreItem(BaseModel):
     chunk_ids: str | None = None
 
 
+def score_to_adjectival(score: float) -> str:
+    """Convert a numeric score on a 1-4 scale to an adjectival rating.
+
+    Based on the official institutional evaluation form:
+        - 3.50-4.00 = Very Satisfactory
+        - 2.50-3.49 = Satisfactory
+        - 1.50-2.49 = Needs Improvement
+        - 1.00-1.49 = Poor
+    """
+    if score >= 3.50:
+        return "Very Satisfactory"
+    elif score >= 2.50:
+        return "Satisfactory"
+    elif score >= 1.50:
+        return "Needs Improvement"
+    else:
+        return "Poor"
+
+
 class DomainScoreBlock(BaseModel):
     criteria: list[CriterionScoreItem]
     subtotal: float
     max_score: int
     status: str  # "OK" | "ERROR"
+    adjectival_rating: str | None = None
 
 
 class EvaluationFlagItem(BaseModel):
@@ -41,6 +61,8 @@ class EvaluationResultsResponse(BaseModel):
     document_title: str | None = None
     program: str | None = None
     synthesized_score: float
+    overall_score: float | None = None
+    adjectival_rating: str | None = None
     domain_scores: dict[str, DomainScoreBlock]
     flags: list[EvaluationFlagItem] = Field(default_factory=list)
     active_agents: list[str]
@@ -59,6 +81,7 @@ class MatrixRowItem(BaseModel):
     document_title: str | None = None
     evaluation_status: str
     synthesized_score: float | None = None
+    adjectival_rating: str | None = None
     domain_scores: dict[str, DomainScoreBlock] | None = None
     flag_count: int = 0
     feedback_status: str = "NO_FEEDBACK"
@@ -79,4 +102,5 @@ __all__ = [
     "EvaluationFlagItem",
     "MatrixRowItem",
     "MatrixListResponse",
+    "score_to_adjectival",
 ]

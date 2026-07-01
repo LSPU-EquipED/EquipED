@@ -9,7 +9,9 @@ from server.modules.synthesis.schemas import (
     CriterionScoreItem,
     DomainScoreBlock,
     EvaluationFlagItem,
+    EvaluationResultsResponse,
     MatrixRowItem,
+    score_to_adjectival,
 )
 
 
@@ -86,6 +88,59 @@ def test_criterion_score_item_evidence_and_chunk_ids_are_optional() -> None:
 
     assert item.evidence is None
     assert item.chunk_ids is None
+
+
+def test_domain_score_block_accepts_adjectival_rating() -> None:
+    block = DomainScoreBlock(
+        criteria=[], subtotal=3.5, max_score=4, status="OK", adjectival_rating="Very Satisfactory"
+    )
+    assert block.adjectival_rating == "Very Satisfactory"
+
+    # Default should be None when not specified
+    block2 = DomainScoreBlock(criteria=[], subtotal=0.0, max_score=4, status="ERROR")
+    assert block2.adjectival_rating is None
+
+
+def test_matrix_row_item_accepts_adjectival_rating() -> None:
+    item = MatrixRowItem(
+        matrix_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        evaluation_status="COMPLETED",
+        last_updated=datetime.now(UTC),
+        synthesized_score=78.5,
+        adjectival_rating="Satisfactory",
+    )
+    assert item.adjectival_rating == "Satisfactory"
+
+    # Default should be None when not specified
+    item2 = MatrixRowItem(
+        matrix_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        evaluation_status="SUBMITTED",
+        last_updated=datetime.now(UTC),
+    )
+    assert item2.adjectival_rating is None
+
+
+def test_evaluation_results_response_accepts_adjectival_rating() -> None:
+    response = EvaluationResultsResponse(
+        evaluation_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        synthesized_score=0.0,
+        overall_score=3.5,
+        adjectival_rating="Very Satisfactory",
+        domain_scores={},
+        active_agents=[],
+        failed_agents=[],
+        evaluation_status="COMPLETED",
+    )
+    assert response.overall_score == 3.5
+    assert response.adjectival_rating == "Very Satisfactory"
+
+
+def test_score_to_adjectival_importable() -> None:
+    assert callable(score_to_adjectival)
+    assert score_to_adjectival(3.75) == "Very Satisfactory"
 
 
 def test_evaluation_flag_item_criterion_text_separate_from_justification() -> None:
