@@ -112,7 +112,17 @@ def evaluate(client: Any, text: str) -> AlignmentResult:
     objectives = list(data.get("objectives", []))
     assessments = list(data.get("assessments", []))
     alignment = list(data.get("alignment", []))
-    aligned = sum(1 for a in alignment if a.get("is_measured"))
+
+    # Count DISTINCT measured objectives, not alignment rows: the LLM may emit
+    # several rows per objective (one per matching assessment), which would
+    # otherwise inflate the numerator past the objective count (e.g. 10/3).
+    valid_ids = {o.get("id") for o in objectives}
+    measured_ids = {
+        a.get("objective_id")
+        for a in alignment
+        if a.get("is_measured") and a.get("objective_id") in valid_ids
+    }
+    aligned = len(measured_ids)
 
     band = ratio_band(aligned, len(objectives), scale="moderate")
     return AlignmentResult(

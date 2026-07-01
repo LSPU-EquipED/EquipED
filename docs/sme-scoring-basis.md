@@ -162,7 +162,113 @@ de-risk the approach before building. What we learned:
   criterion's input to only what it needs (the spike sliced 33.8k → 8.2k chars and
   still scored fine) and **budget calls per minute**.
 
-## 10. Open / still experimental
+## 10. Current architecture (reference — what exists today)
+
+Anchor any plan to the real pipeline. As of this writing, an evaluation runs like
+this (see `server/modules/evaluations/orchestrator.py`,
+`server/modules/agents/supervisor.py`, `server/modules/agents/base.py`):
+
+```
+run_evaluation_job (orchestrator, FastAPI background task)
+  ├─ loads the SLM document, gets its chunks from the DB
+  ├─ slm_text = ALL chunks joined            ← FULL document text exists here
+  └─ Supervisor.run_evaluation(chunks, query_text=slm_text)
+        ├─ builds chunk_infos + precomputes rubric/reference context (Chroma)
+        └─ LOOP over 4 agents in order: SME → Coordinator → GAD → ITSO
+              ├─ sleeps BEFORE each agent  (rate-limit pacing already exists,
+              │                             via llm_agent_delay_seconds / per-agent)
+              └─ agent.run(chunk_infos, context_text=slm_text, ...)
+                     ├─ _pack_chunks   → trims to ~12 excerpts
+                     ├─ _build_prompt  → ONE big prompt (all criteria)
+                     ├─ _call_llm      → ONE LLM call
+                     └─ parse → criterion_scores + subtotal (mean)
+        collects one AgentEvaluationResult per agent
+  ├─ persist_agent_outputs
+  └─ synthesis → monitoring matrix → done
+```
+
+**Three facts that make integration easier than it looks:**
+
+1. **Full SLM text is already passed to every agent** as `context_text=slm_text`.
+   The agent only trims it by choice (`_pack_chunks`). Our engine can read
+   `context_text` directly and skip trimming — **integration invariant #1 (full
+   text) needs no new plumbing.**
+2. **Pacing already exists, but only *between* agents** (Supervisor sleeps before
+   each). Our engine adds several calls *inside* SME, which that sleep does not
+   cover — so the only new pacing work is **intra-SME**.
+3. **Clean seam: `AgentEvaluationResult` + `CriterionScore`.** Everything
+   downstream (`persist_agent_outputs`, synthesis, matrix) only needs SME to
+   return an `AgentEvaluationResult` with a `criterion_scores` tuple + `subtotal`.
+   Match that shape and nothing downstream changes.
+
+**Plug-in point: override `run()` in the SME agent only** (`server/modules/
+agents/sme.py`, currently a thin `BaseAgent` subclass). SME's `run()` would:
+take `context_text` (full SLM) → run the scoring engine (skeleton + grouped,
+paced) → build `criterion_scores` + `subtotal` in the same shape → return
+`AgentEvaluationResult`. Supervisor, orchestrator, synthesis, and the other three
+agents stay untouched — which matches the "only modify SME" scope.
+
+## 11. Integration & call budget (how this runs inside the agent)
+
+The scoring engine (`server/modules/agents/scoring/`) is **permanent production
+code**; the CLI (`server/scripts/score_criterion.py`) is only a manual test
+harness that calls the same engine. Integration means letting the SME **agent**
+call the engine too — nothing gets rewritten.
+
+**Modified agent flow (vs. today):**
+
+| | Today | After integration |
+|---|---|---|
+| Input | SLM trimmed to ~12 chunks | **Full document text** (engine counts denominators, so it must see the whole doc) |
+| Prompt | one big prompt, all criteria | driven **per criterion** from code |
+| Score | LLM picks each 1–4 | LLM only **measures**; `bands.py` computes the 1–4; evidence goes in `justification` |
+| Calls | 1 | several (see budget rule below) |
+
+Everything downstream is unchanged: 1–4 scale, `CriterionScore` shape,
+subtotal = mean, result format, UI.
+
+**Integration invariants** (hold these constant or scores drift from the CLI):
+1. feed the engine **full text**, not the agent's trimmed chunks;
+2. same model + **temperature 0**;
+3. **pace** calls under the provider token/min limit.
+
+A **shared registry** `{criterion_code -> evaluator}` is the single source of
+truth. Both the CLI and the agent read it. Migrate criteria **incrementally**:
+if a criterion is in the registry → use the engine; else → fall back to the old
+"LLM picks a score" path. This lets a half-migrated agent still produce all
+scores, and lets you A/B the same SLM through the app and the CLI.
+
+### Call-budget rule: batch by shared input, NOT one call per criterion
+
+Do **not** design toward "1 LLM call per criterion." At the ~6k tokens/min tier
+that is ~2 calls/min, so 30 criteria ≈ 30 calls ≈ ~15 min/SLM — too slow, and it
+scales badly.
+
+**Remember the budget is shared across ALL agents.** A full evaluation runs
+**SME + Coordinator + GAD + ITSO**, and they all draw on the same ~6k tokens/min
+limit. So call counts are **additive across agents** — SME's calls are only a
+slice of the real per-evaluation load. Budgeting for SME alone will understate it;
+always multiply by the agent count.
+
+Instead, **group calls by the part of the document they read**, because many
+criteria share the same input:
+
+- **One "skeleton" extraction call** enumerates the structure once (objectives,
+  tasks, assessments, sections, topic blocks). Many criteria are then computed by
+  **code alone, zero extra calls** (e.g. A-02 distinct assessment types, total
+  objectives/sections denominators).
+- **Batch the remaining judgment calls by shared slice.** All assessment-based
+  criteria (A-01 Bloom level, A-04 feedback, A-05 alignment) read the same
+  assessment section → one call judges them together; code splits the result into
+  each band. Same for activity-based and content-based groups.
+
+Net effect: ~30 naive calls collapse to **~3–5 calls per SLM** regardless of how
+many criteria exist — same accuracy, same "code does the math." This is the
+purpose of the Phase-3 skeleton pass (§7): keep the call count **flat** as
+criteria grow. A paid tier (higher tokens/min) is the fallback if calls still
+exceed budget, but batching should make that unnecessary.
+
+## 12. Open / still experimental
 
 - **OP-01 (coherence)** and **A-02 (variety)** are the least settled — coherence is
   inherently subjective and may need refinement on what "coherent transition" means.
