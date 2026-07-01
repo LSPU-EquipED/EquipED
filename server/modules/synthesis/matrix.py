@@ -14,6 +14,7 @@ from server.modules.synthesis.models import (
     EvaluationFlag,
     MonitoringMatrix,
 )
+from server.modules.synthesis.schemas import score_to_adjectival
 from server.modules.documents.models import Document
 
 
@@ -52,11 +53,24 @@ def compute_synthesized_score(
 
         synthesized = sum(normalized[a.agent_name] * _domain_pct(a.subtotal) for a in active)
         synthesized_score = round(synthesized, 2)
+
+        overall = sum(normalized[a.agent_name] * float(a.subtotal) for a in active)
+        overall_score = round(overall, 2)
     else:
         synthesized_score = 0.0
+        overall_score = None
+
+    # Add adjectival ratings to each domain
+    for agent_name, domain in domain_scores.items():
+        if domain["status"] == "OK":
+            domain["adjectival_rating"] = score_to_adjectival(domain["subtotal"])
+        else:
+            domain["adjectival_rating"] = None
 
     return {
         "synthesized_score": synthesized_score,
+        "overall_score": overall_score,
+        "adjectival_rating": score_to_adjectival(overall_score) if overall_score is not None else None,
         "domain_scores": domain_scores,
         "active_agents": [a.agent_name for a in active],
         "failed_agents": [a.agent_name for a in failed],

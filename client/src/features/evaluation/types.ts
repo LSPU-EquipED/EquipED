@@ -20,6 +20,7 @@ export interface DomainScoreBlock {
   subtotal: number;
   max_score: number;
   status: string;
+  adjectival_rating?: string;
 }
 
 export interface EvaluationFlagItem {
@@ -76,6 +77,8 @@ export interface EvaluationResultsResponse {
   document_title?: string;
   program?: string;
   synthesized_score: number;
+  overall_score?: number;
+  adjectival_rating?: string;
   domain_scores: Record<string, DomainScoreBlock>;
   flags: EvaluationFlagItem[];
   active_agents: string[];

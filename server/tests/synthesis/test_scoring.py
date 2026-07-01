@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from server.modules.synthesis.matrix import AGENT_WEIGHTS, compute_synthesized_score
+from server.modules.synthesis.schemas import score_to_adjectival
 from server.tests.synthesis.conftest import make_agent_result, make_scored_agent
 
 
@@ -19,6 +20,8 @@ def test_weighted_score_all_passing() -> None:
     result = compute_synthesized_score(agent_results)
 
     assert result["synthesized_score"] == pytest.approx(100.0)
+    assert result["overall_score"] == pytest.approx(4.0)
+    assert result["adjectival_rating"] == "Very Satisfactory"
     assert result["is_partial"] is False
     assert result["active_agents"] == ["sme", "coordinator", "gad", "itso"]
     assert result["failed_agents"] == []
@@ -27,6 +30,7 @@ def test_weighted_score_all_passing() -> None:
         assert domain["subtotal"] == 4.0
         assert domain["status"] == "OK"
         assert domain["max_score"] == 4
+        assert domain["adjectival_rating"] == "Very Satisfactory"
         assert AGENT_WEIGHTS[agent_id] > 0
 
 
@@ -41,6 +45,12 @@ def test_weighted_score_mixed_scores() -> None:
     result = compute_synthesized_score(agent_results)
 
     assert result["synthesized_score"] == pytest.approx(76.0)
+    assert result["overall_score"] == pytest.approx(3.04)
+    assert result["adjectival_rating"] == "Satisfactory"
+    assert result["domain_scores"]["sme"]["adjectival_rating"] == "Satisfactory"
+    assert result["domain_scores"]["coordinator"]["adjectival_rating"] == "Satisfactory"
+    assert result["domain_scores"]["gad"]["adjectival_rating"] == "Very Satisfactory"
+    assert result["domain_scores"]["itso"]["adjectival_rating"] == "Needs Improvement"
     assert result["is_partial"] is False
 
 
@@ -56,6 +66,7 @@ def test_weighted_score_one_failed() -> None:
     assert result["failed_agents"] == ["itso"]
     assert result["domain_scores"]["itso"]["status"] == "ERROR"
     assert result["domain_scores"]["itso"]["subtotal"] == 0.0
+    assert result["domain_scores"]["itso"]["adjectival_rating"] is None
     assert result["synthesized_score"] == pytest.approx(69.41, abs=0.01)
 
 
@@ -70,6 +81,8 @@ def test_weighted_score_all_failed() -> None:
     )
 
     assert result["synthesized_score"] == 0.0
+    assert result["overall_score"] is None
+    assert result["adjectival_rating"] is None
     assert result["is_partial"] is True
     assert result["active_agents"] == []
 
@@ -77,11 +90,15 @@ def test_weighted_score_all_failed() -> None:
 def test_weighted_score_edge_cases() -> None:
     empty = compute_synthesized_score([])
     assert empty["synthesized_score"] == 0.0
+    assert empty["overall_score"] is None
+    assert empty["adjectival_rating"] is None
     assert empty["is_partial"] is False
     assert empty["domain_scores"] == {}
 
     single = compute_synthesized_score([make_scored_agent("sme", 3.6)])
     assert single["synthesized_score"] == pytest.approx(90.0)
+    assert single["overall_score"] == pytest.approx(3.6)
+    assert single["adjectival_rating"] == "Very Satisfactory"
     assert single["is_partial"] is False
 
 
@@ -94,6 +111,8 @@ def test_normalization_weight_format() -> None:
 
     assert set(result) == {
         "synthesized_score",
+        "overall_score",
+        "adjectival_rating",
         "domain_scores",
         "active_agents",
         "failed_agents",
@@ -104,4 +123,42 @@ def test_normalization_weight_format() -> None:
         "subtotal",
         "max_score",
         "status",
+        "adjectival_rating",
     }
+
+
+# --- Adjectival rating unit tests ---
+
+
+def test_score_to_adjectival_very_satisfactory() -> None:
+    assert score_to_adjectival(4.0) == "Very Satisfactory"
+    assert score_to_adjectival(3.75) == "Very Satisfactory"
+    assert score_to_adjectival(3.50) == "Very Satisfactory"
+
+
+def test_score_to_adjectival_satisfactory() -> None:
+    assert score_to_adjectival(3.49) == "Satisfactory"
+    assert score_to_adjectival(3.0) == "Satisfactory"
+    assert score_to_adjectival(2.50) == "Satisfactory"
+
+
+def test_score_to_adjectival_needs_improvement() -> None:
+    assert score_to_adjectival(2.49) == "Needs Improvement"
+    assert score_to_adjectival(2.0) == "Needs Improvement"
+    assert score_to_adjectival(1.50) == "Needs Improvement"
+
+
+def test_score_to_adjectival_poor() -> None:
+    assert score_to_adjectival(1.49) == "Poor"
+    assert score_to_adjectival(1.0) == "Poor"
+    assert score_to_adjectival(0.0) == "Poor"
+
+
+def test_score_to_adjectival_boundaries() -> None:
+    """Test boundary conditions between each rating tier."""
+    # Just above threshold
+    assert score_to_adjectival(3.51) == "Very Satisfactory"
+    # Just below threshold
+    assert score_to_adjectival(3.49) == "Satisfactory"
+    assert score_to_adjectival(2.49) == "Needs Improvement"
+    assert score_to_adjectival(1.49) == "Poor"

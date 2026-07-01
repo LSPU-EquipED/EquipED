@@ -15,6 +15,21 @@ const STATUS_MESSAGES: Record<string, string> = {
   FAILED: 'Evaluation failed.',
 };
 
+function getAdjectivalRatingClasses(rating: string | undefined): string {
+  switch (rating) {
+    case 'Very Satisfactory':
+      return 'bg-[#3b963e]/10 text-[#3b963e] border-[#3b963e]/30';
+    case 'Satisfactory':
+      return 'bg-[#3eaed4]/10 text-[#3eaed4] border-[#3eaed4]/30';
+    case 'Needs Improvement':
+      return 'bg-[#f2c811]/10 text-[#1e293b] border-[#f2c811]/30';
+    case 'Poor':
+      return 'bg-[#b91c1c]/10 text-[#b91c1c] border-[#b91c1c]/30';
+    default:
+      return 'bg-slate-50 text-slate-500 border-slate-200';
+  }
+}
+
 export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
 
@@ -277,6 +292,16 @@ export function Scorecard() {
                                 {formatScore(domainData.subtotal)} /{' '}
                                 {formatScore(domainData.max_score)}
                               </div>
+                              {domainData.adjectival_rating && (
+                                <span
+                                  className={cn(
+                                    'mt-2 inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                    getAdjectivalRatingClasses(domainData.adjectival_rating),
+                                  )}
+                                >
+                                  {domainData.adjectival_rating}
+                                </span>
+                              )}
                             </td>
                           ) : null}
                           <td className="py-3 px-4 text-sm text-slate-700">

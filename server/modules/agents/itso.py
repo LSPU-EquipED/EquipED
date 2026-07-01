@@ -11,7 +11,9 @@ class ITSO(BaseAgent):
     domain_keywords = (
         "security", "privacy", "data", "protection", "encryption",
         "authentication", "threat", "vulnerability", "confidential",
-        "integrity", "access control", "risk",
+        "integrity", "access control", "risk", "plagiarism", "citation",
+        "reference", "bibliography", "source", "intellectual property",
+        "copyright", "ownership", "student data", "rights",
     )
 
 

@@ -68,6 +68,9 @@ def get_evaluation_results(
             "subtotal": float(result.subtotal),
             "max_score": 4,
             "status": "OK" if result.success else "ERROR",
+            "adjectival_rating": synthesis_result["domain_scores"]
+                .get(result.agent_name, {})
+                .get("adjectival_rating"),
         }
         for result in agent_results
     }
@@ -78,6 +81,8 @@ def get_evaluation_results(
         document_title=document.title if document else None,
         program=document.program if document else None,
         synthesized_score=float(synthesis_result["synthesized_score"]),
+        overall_score=synthesis_result.get("overall_score"),
+        adjectival_rating=synthesis_result.get("adjectival_rating"),
         domain_scores=domain_scores,
         flags=[
             EvaluationFlagItem(
