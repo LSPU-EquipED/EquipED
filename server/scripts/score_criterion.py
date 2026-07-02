@@ -23,8 +23,12 @@ if str(ROOT) not in sys.path:
 import fitz  # PyMuPDF  # noqa: E402
 from server.core.llm import get_llm_client  # noqa: E402
 from server.modules.agents.scoring import (  # noqa: E402
+    clear_directions,
     interactivity,
     objective_alignment,
+)
+from server.modules.agents.scoring.clear_directions import (  # noqa: E402
+    DirectionsResult,
 )
 from server.modules.agents.scoring.interactivity import (  # noqa: E402
     InteractivityResult,
@@ -39,6 +43,7 @@ UPLOADS = ROOT / "uploads"
 CRITERIA: dict[str, Callable[[Any, str], Any]] = {
     "A-05": objective_alignment.evaluate,
     "OP-02": interactivity.evaluate,
+    "OP-03": clear_directions.evaluate,
 }
 
 
@@ -97,9 +102,27 @@ def print_interactivity(result: InteractivityResult) -> None:
     print(f"==> SCORE {result.score}")
 
 
+def print_directions(result: DirectionsResult) -> None:
+    print(f"\nTasks & directions ({result.total}):")
+    for t in result.tasks:
+        clear = bool(t.get("has_clear_directions")) and bool(
+            str(t.get("directions", "")).strip()
+        )
+        mark = "CLEAR" if clear else "UNCLEAR"
+        print(f"  [{mark}] {str(t.get('text', '')).strip()[:100]}")
+        if t.get("directions"):
+            print(f"          directions: {str(t.get('directions', ''))[:120]}")
+
+    pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+    print(f"\nclear {result.clear}/{result.total} = {pct}")
+    print(f"==> SCORE {result.score}")
+
+
 def print_result(criterion: str, result: Any) -> None:
     if isinstance(result, InteractivityResult):
         print_interactivity(result)
+    elif isinstance(result, DirectionsResult):
+        print_directions(result)
     else:
         print_alignment(result)
 

@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import interactivity, objective_alignment
+from . import clear_directions, interactivity, objective_alignment
 
 # Criterion codes handled by the engine. Anything not listed keeps the old
 # LLM-picks-a-score path.
-REGISTERED_CODES: frozenset[str] = frozenset({"A-05", "OP-02"})
+REGISTERED_CODES: frozenset[str] = frozenset({"A-05", "OP-02", "OP-03"})
 
 
 def is_registered(criterion_code: str) -> bool:
@@ -57,6 +57,21 @@ def run_criterion(
         )
         evidence = tuple(
             str(e.get("evidence", "")) for e in result.genuine if e.get("evidence")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "OP-03":
+        result = clear_directions.evaluate(client, text)
+        pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+        justification = (
+            f"Clear directions (code-computed): {result.clear} of {result.total} "
+            f"task(s) have clear, complete directions ({pct}). Score "
+            f"{result.score} on the moderate scale."
+        )
+        evidence = tuple(
+            str(t.get("directions", ""))
+            for t in result.clear_tasks
+            if t.get("directions")
         )
         return result.score, justification, evidence
 

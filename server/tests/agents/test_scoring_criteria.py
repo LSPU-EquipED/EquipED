@@ -6,7 +6,11 @@ functions the agent will call once facts come from a shared/grouped call.
 
 from __future__ import annotations
 
-from server.modules.agents.scoring import interactivity, objective_alignment
+from server.modules.agents.scoring import (
+    clear_directions,
+    interactivity,
+    objective_alignment,
+)
 
 
 class TestObjectiveAlignmentCompute:
@@ -94,3 +98,61 @@ class TestInteractivityCompute:
         result = interactivity.compute([])
         assert result.count == 0
         assert result.score == 1
+
+
+class TestClearDirectionsCompute:
+    def test_all_tasks_clear(self) -> None:
+        tasks = [
+            {"text": "Activity 1", "directions": "Write a 200-word essay on...",
+             "has_clear_directions": True},
+            {"text": "Quiz", "directions": "Answer items 1-10 in your notebook.",
+             "has_clear_directions": True},
+        ]
+        result = clear_directions.compute(tasks)
+        assert result.clear == 2
+        assert result.total == 2
+        assert result.score == 4  # 100%
+
+    def test_partial_clear_ratio(self) -> None:
+        tasks = [
+            {"text": "A", "directions": "Do X clearly.", "has_clear_directions": True},
+            {"text": "B", "directions": "Do Y clearly.", "has_clear_directions": True},
+            {"text": "C", "directions": "vague", "has_clear_directions": False},
+            {"text": "D", "directions": "vague", "has_clear_directions": False},
+        ]
+        result = clear_directions.compute(tasks)
+        assert result.clear == 2
+        assert result.total == 4
+        assert result.pct == 50.0
+        assert result.score == 3  # 50% -> moderate band 3
+
+    def test_clear_flag_without_directions_does_not_count(self) -> None:
+        # A bare title marked clear but with no quotable instructions must not
+        # count toward the numerator (real-content rule), but still counts as a
+        # task in the denominator.
+        tasks = [
+            {"text": "Activity 1", "directions": "", "has_clear_directions": True},
+            {"text": "Activity 2", "directions": "Solve all items.",
+             "has_clear_directions": True},
+        ]
+        result = clear_directions.compute(tasks)
+        assert result.clear == 1
+        assert result.total == 2
+        assert result.score == 3  # 1/2 = 50%
+
+    def test_duplicate_tasks_deduped(self) -> None:
+        tasks = [
+            {"text": "Activity 1", "directions": "Do it.",
+             "has_clear_directions": True},
+            {"text": "activity 1", "directions": "Do it again.",
+             "has_clear_directions": True},  # same label
+        ]
+        result = clear_directions.compute(tasks)
+        assert result.total == 1
+        assert result.clear == 1
+
+    def test_no_tasks_scores_one(self) -> None:
+        result = clear_directions.compute([])
+        assert result.total == 0
+        assert result.score == 1
+        assert result.pct is None
