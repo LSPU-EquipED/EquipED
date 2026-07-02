@@ -56,6 +56,17 @@ Two facts from real SLMs drove the design:
 
 This is why we **don't** measure "per lesson" anything.
 
+**Where the tasks physically are (slicing anchor).** The actual student
+tasks/activities are concentrated near the **bottom of the PDF**, under a strong
+header — most often **"Performance Task(s)"** (also "Learning Tasks",
+"Enrichment/Enhancement Activities", "Assessment Task"). Activity-based criteria
+must therefore anchor their input slice on that **section header** and read from
+there to the end of the document — **not** on activity *vocabulary* ("activity",
+"real-world", "exercise"), because those words also appear in the lecture body and
+would feed the LLM lesson **content** that then gets mislabeled as activities.
+(Observed on OP-05, 2026-07: it returned content until the slice was re-anchored on
+the header; fall back to the document tail if no header is found.)
+
 ## 4. The three kinds of measurement
 
 Every criterion uses one of three patterns:
@@ -77,9 +88,9 @@ something the template guarantees exists.
 |---|---|---|---|
 | **OP-01** | Topic Coherence | **Coverage ratio.** Split content into ordered topic blocks; the LLM judges each transition as logical or not. Coherence = coherent transitions ÷ total transitions. | 80–100% / 50–79% / 20–49% / <20% |
 | **OP-02** | Interactivity | **Interaction count.** Count the genuine interactive elements (activity/task/prompt with real content the student acts on; a bare title does not count). No topic/lesson denominator — most SLMs are one unlabeled lesson and LLM topic-splitting is unstable. | 4+ / 2–3 / 1 / 0 elements |
-| **OP-03** | Clear Directions | **Per-unit mean.** Score each task on its element checklist (instructions, materials, expected output, steps, submission, criteria), then average and round. | per task: all elements / 1 missing / 2–3 missing / unusable |
+| **OP-03** | Clear Directions | **Coverage ratio.** Of the tasks the student must perform, how many carry clear, complete directions (real instruction text quotable, not just a title)? Clear tasks ÷ total tasks. | 80–100% / 50–79% / 20–49% / <20% |
 | **OP-04** | Accurate Sections | **Coverage ratio.** Clarity/internal-consistency only (no external references). Clean sections ÷ total sections. | 80–100% / 50–79% / 20–49% / <20% |
-| **OP-05** | Enhancement Activities | **Checklist count** of 5 enhancement types (enrichment, additional exercises, extension, independent learning, real-world application). | 4–5 / 2–3 / 1 / 0 types |
+| **OP-05** | Enhancement Activities | **Activity count.** Count the genuine enhancement activities offered *beyond the required core* (enrichment, extension, extra practice, real-world application, further exploration) with real content — no fixed type taxonomy (same justifiability reason as OP-02). | 3+ / 2 / 1 / 0 activities |
 
 ### Domain B — Assessment
 
@@ -268,7 +279,74 @@ purpose of the Phase-3 skeleton pass (§7): keep the call count **flat** as
 criteria grow. A paid tier (higher tokens/min) is the fallback if calls still
 exceed budget, but batching should make that unnecessary.
 
-## 12. Open / still experimental
+## 12. Roadmap — after all 10 criteria are validated
+
+Once every criterion has a validated pure `compute()` (proven in the CLI), the
+work stops being *"add criteria"* and becomes *"collapse the plumbing."* Almost
+all of it is **subtraction** — the only genuinely new code is the skeleton pass.
+
+**Where we are vs. the end state:**
+
+```
+NOW  (per-criterion, flag-gated overlay)      END STATE (skeleton + grouped)
+SME.run()                                     SME.run()
+  → old big prompt scores all 10   (1 call)     → skeleton pass: all facts   (1 call)
+  → A-05 evaluate()                (1 call)      → grouped judgment calls     (1-2 calls)
+  → OP-02 evaluate()               (1 call)      → each compute() on facts    (0 calls)
+  → OP-03 evaluate()               (1 call)     ────────────────────────────
+  ...one call per criterion  ≈ 11 calls          ≈ 3 calls total
+```
+
+With all 10 registered, the old big prompt is pure waste — every score it
+produces gets overwritten by the engine.
+
+**Step 1 — build the skeleton pass (the one new thing).** One LLM call reads the
+clean PDF and returns the shared basket of facts (objectives, sections,
+activities with directions, assessments with type, feedback, records). See §7.
+
+**Step 2 — rewire each criterion to read the basket.** Every `compute()` stays
+byte-for-byte identical; only its *fact source* changes — from its own
+`evaluate()` call to the shared skeleton.
+
+**What gets REMOVED:**
+
+| Removed | Why |
+|---|---|
+| The **old big SME prompt** (`super().run()` scoring, for SME's criteria) | With all 10 engine-scored, its output is 100% overwritten — a wasted call. Biggest deletion. |
+| The per-criterion **`evaluate()` wrappers** (the LLM-calling half of each scoring file) | Their job (fetch facts) moves into the one skeleton pass. **`compute()` stays.** Keep `evaluate()` only if the CLI still needs to test a criterion in isolation. |
+| The **`SME_USE_SCORING_ENGINE` flag** (last) | It existed to run old + new side by side. Once the engine *is* the path, the flag and its `if not flag: return` branch come out. |
+| The **overlay machinery** (`_overlay_engine_scores`, "keep old score on error") | The overlay bridged old-scores → new-scores. With no old scores to overlay onto, SME produces engine scores directly. |
+
+**What gets MODIFIED:**
+
+| Modified | Change |
+|---|---|
+| `sme.py` `run()` | Stops calling the old prompt + overlaying. Instead: load clean text → skeleton pass → run every `compute()` → build `CriterionScore`s directly. Simpler than today. |
+| `scoring/registry.py` | Shifts from "run this criterion's own LLM call" to "given the skeleton facts, run this criterion's `compute()`." Still the one switchboard. |
+| `scripts/score_criterion.py` (CLI) | Keep per-criterion isolation mode, and/or add a "skeleton + all 10" mode that mirrors production. |
+
+**What STAYS untouched (the payoff):** every `compute()`, the band helpers
+(`ratio_band` / `count_band`), the `CriterionScore` / `AgentEvaluationResult`
+contract (so DB, UI, synthesis, flags, matrix need zero changes), and the
+clean-PDF-input rule (the skeleton pass reads clean fitz text, exactly like the
+per-criterion `evaluate()` does today).
+
+**Safe sequencing — don't flip it all at once:**
+1. Build the skeleton pass **behind the same flag**, feeding the existing
+   `compute()`s; verify its scores match the per-criterion CLI runs.
+2. Once they match, **delete the old prompt + `evaluate()` wrappers.**
+3. **Last,** remove the flag and make the engine the default.
+
+Each deletion is reversible until step 3, and the old path stays a safety net
+until the skeleton is proven.
+
+**Still-open decision (defer until built):** the fuzzy criteria (OP-01
+coherence, OP-04 accuracy, A-01 transformation) can't be pure `compute()` — they
+need a judgment call. Whether they share *one* grouped judgment call fed by the
+skeleton, or keep small individual calls, is best decided after those three
+exist and their real needs are visible.
+
+## 13. Open / still experimental
 
 - **OP-01 (coherence)** and **A-02 (variety)** are the least settled — coherence is
   inherently subjective and may need refinement on what "coherent transition" means.

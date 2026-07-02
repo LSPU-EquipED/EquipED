@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from server.modules.agents.scoring import (
     clear_directions,
+    enhancement_activities,
     interactivity,
     objective_alignment,
 )
@@ -156,3 +157,45 @@ class TestClearDirectionsCompute:
         assert result.total == 0
         assert result.score == 1
         assert result.pct is None
+
+
+class TestEnhancementActivitiesCompute:
+    def test_counts_genuine_activities(self) -> None:
+        elements = [
+            {"text": "Enrichment", "evidence": "Research a local invention and..."},
+            {"text": "Extension", "evidence": "Interview a scientist in your town."},
+        ]
+        result = enhancement_activities.compute(elements)
+        assert result.count == 2
+        assert result.score == 3  # 2 -> band 3
+
+    def test_three_or_more_scores_four(self) -> None:
+        elements = [
+            {"text": f"Enhancement {i}", "evidence": f"do extra task {i}"}
+            for i in range(3)
+        ]
+        result = enhancement_activities.compute(elements)
+        assert result.count == 3
+        assert result.score == 4  # 3+ -> band 4
+
+    def test_bare_heading_without_content_dropped(self) -> None:
+        elements = [
+            {"text": "For further study", "evidence": ""},  # bare heading
+            {"text": "Real-world task", "evidence": "Apply the concept at home."},
+        ]
+        result = enhancement_activities.compute(elements)
+        assert result.count == 1  # only the one with real content
+        assert result.score == 2  # 1 -> band 2
+
+    def test_duplicates_deduped(self) -> None:
+        elements = [
+            {"text": "Enrichment", "evidence": "quote a"},
+            {"text": "enrichment", "evidence": "quote a again"},  # same label
+        ]
+        result = enhancement_activities.compute(elements)
+        assert result.count == 1
+
+    def test_no_activities_scores_one(self) -> None:
+        result = enhancement_activities.compute([])
+        assert result.count == 0
+        assert result.score == 1

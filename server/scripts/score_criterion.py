@@ -24,11 +24,15 @@ import fitz  # PyMuPDF  # noqa: E402
 from server.core.llm import get_llm_client  # noqa: E402
 from server.modules.agents.scoring import (  # noqa: E402
     clear_directions,
+    enhancement_activities,
     interactivity,
     objective_alignment,
 )
 from server.modules.agents.scoring.clear_directions import (  # noqa: E402
     DirectionsResult,
+)
+from server.modules.agents.scoring.enhancement_activities import (  # noqa: E402
+    EnhancementResult,
 )
 from server.modules.agents.scoring.interactivity import (  # noqa: E402
     InteractivityResult,
@@ -44,6 +48,7 @@ CRITERIA: dict[str, Callable[[Any, str], Any]] = {
     "A-05": objective_alignment.evaluate,
     "OP-02": interactivity.evaluate,
     "OP-03": clear_directions.evaluate,
+    "OP-05": enhancement_activities.evaluate,
 }
 
 
@@ -118,11 +123,29 @@ def print_directions(result: DirectionsResult) -> None:
     print(f"==> SCORE {result.score}")
 
 
+def print_enhancement(result: EnhancementResult) -> None:
+    print(f"\nEnhancement activities ({result.count}):")
+    for entry in result.genuine:
+        label = str(entry.get("text", "")).strip()
+        print(f"  - {label}")
+        if entry.get("evidence"):
+            print(f"      evidence: {str(entry.get('evidence', ''))[:120]}")
+
+    dropped = len(result.elements) - result.count
+    if dropped > 0:
+        print(f"\n({dropped} activity(ies) dropped: no real content / duplicate)")
+
+    print(f"\ncount {result.count}")
+    print(f"==> SCORE {result.score}")
+
+
 def print_result(criterion: str, result: Any) -> None:
     if isinstance(result, InteractivityResult):
         print_interactivity(result)
     elif isinstance(result, DirectionsResult):
         print_directions(result)
+    elif isinstance(result, EnhancementResult):
+        print_enhancement(result)
     else:
         print_alignment(result)
 
