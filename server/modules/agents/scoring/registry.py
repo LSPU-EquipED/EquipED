@@ -17,12 +17,15 @@ from . import (
     clear_directions,
     enhancement_activities,
     interactivity,
+    learner_transformation,
     objective_alignment,
 )
 
 # Criterion codes handled by the engine. Anything not listed keeps the old
 # LLM-picks-a-score path.
-REGISTERED_CODES: frozenset[str] = frozenset({"A-05", "OP-02", "OP-03", "OP-05"})
+REGISTERED_CODES: frozenset[str] = frozenset(
+    {"A-01", "A-05", "OP-02", "OP-03", "OP-05"}
+)
 
 
 def is_registered(criterion_code: str) -> bool:
@@ -77,6 +80,22 @@ def run_criterion(
             str(t.get("directions", ""))
             for t in result.clear_tasks
             if t.get("directions")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "A-01":
+        result = learner_transformation.evaluate(client, text)
+        pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+        justification = (
+            f"Learner transformation (code-computed): {result.higher_order} of "
+            f"{result.total} task(s) engage higher-order thinking "
+            f"(apply/analyze/evaluate/create) ({pct}). Score {result.score} on "
+            f"the moderate scale."
+        )
+        evidence = tuple(
+            str(t.get("evidence", ""))
+            for t in result.higher_order_tasks
+            if t.get("evidence")
         )
         return result.score, justification, evidence
 

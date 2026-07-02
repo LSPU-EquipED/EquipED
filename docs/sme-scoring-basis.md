@@ -96,7 +96,7 @@ something the template guarantees exists.
 
 | Code | Criterion | How it's measured | Score bands (4 / 3 / 2 / 1) |
 |---|---|---|---|
-| **A-01** | Learner Transformation | **Coverage ratio.** Classify each task by Bloom level; higher-order tasks (apply/analyze/evaluate/create) ÷ total tasks. | 80–100% / 50–79% / 20–49% / <20% |
+| **A-01** | Learner Transformation | **Coverage ratio.** Of the tasks the student is asked to perform (read from the Performance Tasks/Assessments section, not the stated objectives — see §3), classify each by Bloom level; higher-order tasks (apply/analyze/evaluate/create) ÷ total tasks (real task text quotable, not just a title). | 80–100% / 50–79% / 20–49% / <20% |
 | **A-02** | Varied Assessment Tools | **Checklist count** of distinct assessment types used (quiz, reflection, project, performance task, etc.). | ≥5 / 3–4 / 2 / ≤1 types |
 | **A-03** | Progress Monitoring | **Checklist count** of 4 monitoring types (checkpoints, self-assessment, reflection, cumulative tasks). | 3–4 / 2 / 1 / 0 types |
 | **A-04** | Prescriptive Feedback | **Coverage ratio.** Assessments with feedback/remediation ÷ total assessments. | 80–100% / 50–79% / 20–49% / <20% |

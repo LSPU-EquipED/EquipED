@@ -26,6 +26,7 @@ from server.modules.agents.scoring import (  # noqa: E402
     clear_directions,
     enhancement_activities,
     interactivity,
+    learner_transformation,
     objective_alignment,
 )
 from server.modules.agents.scoring.clear_directions import (  # noqa: E402
@@ -37,6 +38,9 @@ from server.modules.agents.scoring.enhancement_activities import (  # noqa: E402
 from server.modules.agents.scoring.interactivity import (  # noqa: E402
     InteractivityResult,
 )
+from server.modules.agents.scoring.learner_transformation import (  # noqa: E402
+    TransformationResult,
+)
 from server.modules.agents.scoring.objective_alignment import (  # noqa: E402
     AlignmentResult,
 )
@@ -45,6 +49,7 @@ UPLOADS = ROOT / "uploads"
 
 # Criterion code -> evaluator. Add criteria here as they are implemented.
 CRITERIA: dict[str, Callable[[Any, str], Any]] = {
+    "A-01": learner_transformation.evaluate,
     "A-05": objective_alignment.evaluate,
     "OP-02": interactivity.evaluate,
     "OP-03": clear_directions.evaluate,
@@ -123,6 +128,23 @@ def print_directions(result: DirectionsResult) -> None:
     print(f"==> SCORE {result.score}")
 
 
+def print_transformation(result: TransformationResult) -> None:
+    print(f"\nTasks & Bloom level ({result.total}):")
+    for t in result.tasks:
+        higher = bool(str(t.get("evidence", "")).strip()) and (
+            t in result.higher_order_tasks
+        )
+        mark = "HIGHER" if higher else "lower"
+        level = str(t.get("bloom_level", "")).strip()
+        print(f"  [{mark:6}] ({level}) {str(t.get('text', '')).strip()[:100]}")
+        if t.get("evidence"):
+            print(f"           evidence: {str(t.get('evidence', ''))[:120]}")
+
+    pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+    print(f"\nhigher-order {result.higher_order}/{result.total} = {pct}")
+    print(f"==> SCORE {result.score}")
+
+
 def print_enhancement(result: EnhancementResult) -> None:
     print(f"\nEnhancement activities ({result.count}):")
     for entry in result.genuine:
@@ -146,6 +168,8 @@ def print_result(criterion: str, result: Any) -> None:
         print_directions(result)
     elif isinstance(result, EnhancementResult):
         print_enhancement(result)
+    elif isinstance(result, TransformationResult):
+        print_transformation(result)
     else:
         print_alignment(result)
 

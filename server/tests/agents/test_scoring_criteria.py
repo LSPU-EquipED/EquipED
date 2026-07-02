@@ -10,6 +10,7 @@ from server.modules.agents.scoring import (
     clear_directions,
     enhancement_activities,
     interactivity,
+    learner_transformation,
     objective_alignment,
 )
 
@@ -199,3 +200,65 @@ class TestEnhancementActivitiesCompute:
         result = enhancement_activities.compute([])
         assert result.count == 0
         assert result.score == 1
+
+
+class TestLearnerTransformationCompute:
+    def test_all_higher_order_scores_four(self) -> None:
+        tasks = [
+            {"text": "A", "bloom_level": "apply", "evidence": "Solve the problem."},
+            {"text": "B", "bloom_level": "create", "evidence": "Design a model."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 2
+        assert result.total == 2
+        assert result.score == 4  # 100%
+
+    def test_half_higher_order_scores_three(self) -> None:
+        tasks = [
+            {"text": "A", "bloom_level": "apply", "evidence": "Solve the problem."},
+            {"text": "B", "bloom_level": "analyze", "evidence": "Compare the two."},
+            {"text": "C", "bloom_level": "remember", "evidence": "List the terms."},
+            {"text": "D", "bloom_level": "understand", "evidence": "Explain it."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 2
+        assert result.total == 4
+        assert result.pct == 50.0
+        assert result.score == 3  # 50% -> moderate band 3
+
+    def test_higher_order_without_evidence_does_not_count(self) -> None:
+        # A higher-order verb with no quotable content must not count toward
+        # the numerator (real-content rule), but still counts as a task.
+        tasks = [
+            {"text": "Activity 1", "bloom_level": "apply", "evidence": ""},
+            {"text": "Activity 2", "bloom_level": "create",
+             "evidence": "Build a working prototype."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 1
+        assert result.total == 2
+        assert result.score == 3  # 1/2 = 50%
+
+    def test_duplicate_tasks_deduped(self) -> None:
+        tasks = [
+            {"text": "Activity 1", "bloom_level": "apply", "evidence": "Do it."},
+            {"text": "activity 1", "bloom_level": "apply",
+             "evidence": "Do it again."},  # same label
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.total == 1
+        assert result.higher_order == 1
+
+    def test_unknown_level_treated_as_lower_order(self) -> None:
+        tasks = [
+            {"text": "A", "bloom_level": "recall", "evidence": "List the parts."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 0
+        assert result.score == 1  # 0% -> below lowest band
+
+    def test_no_tasks_scores_one(self) -> None:
+        result = learner_transformation.compute([])
+        assert result.total == 0
+        assert result.score == 1
+        assert result.pct is None
