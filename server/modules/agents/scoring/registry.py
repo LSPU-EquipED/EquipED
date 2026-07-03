@@ -14,19 +14,33 @@ from __future__ import annotations
 from typing import Any
 
 from . import (
+    accurate_sections,
     clear_directions,
     enhancement_activities,
     interactivity,
     learner_transformation,
     objective_alignment,
+    prescriptive_feedback,
     progress_monitoring,
+    topic_coherence,
     varied_assessment,
 )
 
 # Criterion codes handled by the engine. Anything not listed keeps the old
 # LLM-picks-a-score path.
 REGISTERED_CODES: frozenset[str] = frozenset(
-    {"A-01", "A-02", "A-03", "A-05", "OP-02", "OP-03", "OP-05"}
+    {
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+    }
 )
 
 
@@ -123,6 +137,56 @@ def run_criterion(
         )
         evidence = tuple(
             str(m.get("evidence", "")) for m in result.genuine if m.get("evidence")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "A-04":
+        result = prescriptive_feedback.evaluate(client, text)
+        justification = (
+            f"Prescriptive feedback (code-computed): {result.count} distinct "
+            f"feedback/intervention mechanism type(s) found "
+            f"({', '.join(result.types) or 'none'}). Score {result.score} "
+            f"(3-4 -> 4, 2 -> 3, 1 -> 2, 0 -> 1)."
+        )
+        evidence = tuple(
+            str(m.get("evidence", "")) for m in result.genuine if m.get("evidence")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "OP-01":
+        result = topic_coherence.evaluate(client, text)
+        if result.mode == "issue-count":
+            issues = result.total - result.coherent
+            justification = (
+                f"Topic coherence (code-computed): short document, "
+                f"{result.total} transition(s) found with {issues} issue(s) "
+                f"(issue-count fallback). Score {result.score} "
+                f"(0 -> 4, 1 -> 3, 2 -> 2, 3+ -> 1)."
+            )
+        else:
+            pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+            justification = (
+                f"Topic coherence (code-computed): {result.coherent} of "
+                f"{result.total} transition(s) are coherent ({pct}). Score "
+                f"{result.score} on the moderate scale."
+            )
+        evidence = tuple(
+            str(t.get("reason", ""))
+            for t in result.transitions
+            if not t.get("is_coherent") and t.get("reason")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "OP-04":
+        result = accurate_sections.evaluate(client, text)
+        pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
+        justification = (
+            f"Accurate sections (code-computed): {result.clean} of "
+            f"{result.total} section(s) are clear and internally consistent "
+            f"({pct}). Score {result.score} on the moderate scale."
+        )
+        evidence = tuple(
+            str(s.get("issue", "")) for s in result.flagged if s.get("issue")
         )
         return result.score, justification, evidence
 

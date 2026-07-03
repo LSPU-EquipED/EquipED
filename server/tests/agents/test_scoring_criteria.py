@@ -7,12 +7,16 @@ functions the agent will call once facts come from a shared/grouped call.
 from __future__ import annotations
 
 from server.modules.agents.scoring import (
+    accurate_sections,
     clear_directions,
     enhancement_activities,
     interactivity,
     learner_transformation,
     objective_alignment,
+    prescriptive_feedback,
     progress_monitoring,
+    slicing,
+    topic_coherence,
     varied_assessment,
 )
 
@@ -416,3 +420,188 @@ class TestProgressMonitoringCompute:
         result = progress_monitoring.compute([])
         assert result.count == 0
         assert result.score == 1
+
+
+class TestPrescriptiveFeedbackCompute:
+    def test_full_variety_scores_four(self) -> None:
+        mechanisms = [
+            {"text": "Answer Key", "feedback_type": "answer_key",
+             "evidence": "1-B, 2-A, 3-C."},
+            {"text": "Rubric", "feedback_type": "rubric",
+             "evidence": "Content (40%), clarity (30%), organization (30%)."},
+            {"text": "Referral", "feedback_type": "remediation_referral",
+             "evidence": "If you missed items 1-3, review Lesson 2."},
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert result.count == 3
+        assert result.score == 4  # 3-4 types -> band 4
+
+    def test_two_types_scores_three(self) -> None:
+        mechanisms = [
+            {"text": "Answer Key", "feedback_type": "answer_key",
+             "evidence": "1-B, 2-A."},
+            {"text": "Encouragement", "feedback_type": "positive_reinforcement",
+             "evidence": "Great job completing this module!"},
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert result.count == 2
+        assert result.score == 3  # 2 types -> band 3
+
+    def test_repeated_instances_of_one_type_collapse(self) -> None:
+        # The key A-04 behavior (same choice as A-02): three answer keys are
+        # one mechanism type, not three -- breadth of feedback APPROACH is
+        # what this criterion measures, not repetition.
+        mechanisms = [
+            {"text": f"Answer Key {i}", "feedback_type": "answer_key",
+             "evidence": f"Answers for quiz {i}."}
+            for i in range(3)
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert result.count == 1
+        assert result.score == 2  # 1 type -> band 2
+
+    def test_type_without_evidence_does_not_count(self) -> None:
+        mechanisms = [
+            {"text": "Feedback", "feedback_type": "rubric", "evidence": ""},
+            {"text": "Answer Key", "feedback_type": "answer_key",
+             "evidence": "Model answer: ..."},
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert result.count == 1
+
+    def test_unknown_type_dropped(self) -> None:
+        mechanisms = [
+            {"text": "Mystery", "feedback_type": "gamified_badge",
+             "evidence": "Earn a badge for finishing."},
+            {"text": "Answer Key", "feedback_type": "answer_key",
+             "evidence": "Model answer: ..."},
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert result.count == 1  # unknown type dropped, not guessed
+
+    def test_no_mechanisms_scores_one(self) -> None:
+        result = prescriptive_feedback.compute([])
+        assert result.count == 0
+        assert result.score == 1
+
+
+class TestDownsample:
+    def test_short_text_returned_unchanged(self) -> None:
+        text = "short document, well under budget"
+        assert slicing.downsample(text, budget=9000) == text
+
+    def test_long_text_sampled_with_markers(self) -> None:
+        text = "".join(f"chunk{i} " * 50 for i in range(20))  # well over budget
+        result = slicing.downsample(text, budget=900, windows=6)
+        assert slicing.GAP_MARKER in result
+        assert result.count(slicing.GAP_MARKER) == 5  # 6 windows -> 5 gaps
+        assert len(result) <= 900 + 5 * len(slicing.GAP_MARKER)
+
+    def test_samples_span_the_whole_document(self) -> None:
+        # A marker near the very end of a long document should show up in the
+        # sample -- proving this isn't just a head window in disguise.
+        text = ("early content " * 200) + "UNIQUE_TAIL_MARKER"
+        result = slicing.downsample(text, budget=900, windows=6)
+        assert "UNIQUE_TAIL_MARKER" in result
+
+
+class TestTopicCoherenceCompute:
+    def test_ratio_path_with_four_or_more_transitions(self) -> None:
+        topics = [{"id": i} for i in range(1, 6)]
+        transitions = [
+            {"from_id": 1, "to_id": 2, "is_coherent": True},
+            {"from_id": 2, "to_id": 3, "is_coherent": True},
+            {"from_id": 3, "to_id": 4, "is_coherent": True},
+            {"from_id": 4, "to_id": 5, "is_coherent": False, "reason": "abrupt jump"},
+        ]
+        result = topic_coherence.compute(topics, transitions)
+        assert result.mode == "ratio"
+        assert result.coherent == 3
+        assert result.total == 4
+        assert result.pct == 75.0
+        assert result.score == 3  # 75% -> moderate band 3
+
+    def test_all_coherent_scores_four(self) -> None:
+        topics = [{"id": i} for i in range(1, 6)]
+        transitions = [
+            {"from_id": i, "to_id": i + 1, "is_coherent": True} for i in range(1, 5)
+        ]
+        result = topic_coherence.compute(topics, transitions)
+        assert result.mode == "ratio"
+        assert result.score == 4  # 100%
+
+    def test_short_document_uses_issue_count_fallback(self) -> None:
+        topics = [{"id": 1}, {"id": 2}, {"id": 3}]
+        transitions = [
+            {"from_id": 1, "to_id": 2, "is_coherent": True},
+            {"from_id": 2, "to_id": 3, "is_coherent": False, "reason": "off-topic"},
+        ]
+        result = topic_coherence.compute(topics, transitions)
+        assert result.mode == "issue-count"
+        assert result.pct is None
+        assert result.score == 3  # 1 issue -> band 3
+
+    def test_short_document_zero_issues_scores_four(self) -> None:
+        # A short module with NO incoherent transitions is coherent, not
+        # deficient -- this must NOT fall back to the generic empty-> 1 rule.
+        topics = [{"id": 1}, {"id": 2}]
+        transitions = [{"from_id": 1, "to_id": 2, "is_coherent": True}]
+        result = topic_coherence.compute(topics, transitions)
+        assert result.mode == "issue-count"
+        assert result.score == 4  # 0 issues -> band 4
+
+    def test_no_topics_scores_one(self) -> None:
+        result = topic_coherence.compute([], [])
+        assert result.total == 0
+        assert result.score == 1
+        assert result.pct is None
+
+    def test_duplicate_transitions_deduped(self) -> None:
+        topics = [{"id": 1}, {"id": 2}]
+        transitions = [
+            {"from_id": 1, "to_id": 2, "is_coherent": True},
+            {"from_id": 1, "to_id": 2, "is_coherent": True},  # same pair again
+        ]
+        result = topic_coherence.compute(topics, transitions)
+        assert result.total == 1
+        assert result.coherent == 1
+
+
+class TestAccurateSectionsCompute:
+    def test_all_sections_clean_scores_four(self) -> None:
+        sections = [
+            {"title": "Intro", "is_clean": True, "issue": ""},
+            {"title": "Body", "is_clean": True, "issue": ""},
+        ]
+        result = accurate_sections.compute(sections)
+        assert result.clean == 2
+        assert result.total == 2
+        assert result.score == 4  # 100%
+
+    def test_partial_clean_ratio(self) -> None:
+        sections = [
+            {"title": "A", "is_clean": True, "issue": ""},
+            {"title": "B", "is_clean": True, "issue": ""},
+            {"title": "C", "is_clean": False, "issue": "contradicts section A"},
+            {"title": "D", "is_clean": False, "issue": "garbled sentence"},
+        ]
+        result = accurate_sections.compute(sections)
+        assert result.clean == 2
+        assert result.total == 4
+        assert result.pct == 50.0
+        assert result.score == 3  # 50% -> moderate band 3
+        assert len(result.flagged) == 2
+
+    def test_duplicate_sections_deduped(self) -> None:
+        sections = [
+            {"title": "Intro", "is_clean": True, "issue": ""},
+            {"title": "intro", "is_clean": True, "issue": ""},  # same label
+        ]
+        result = accurate_sections.compute(sections)
+        assert result.total == 1
+
+    def test_no_sections_scores_one(self) -> None:
+        result = accurate_sections.compute([])
+        assert result.total == 0
+        assert result.score == 1
+        assert result.pct is None
