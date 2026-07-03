@@ -82,6 +82,12 @@ class Settings:
     llm_max_new_tokens: int = 4096
     llm_agent_delay_seconds: int = 0
     llm_request_timeout_seconds: int = 120
+    # Per-agent model overrides. When set, the agent uses the specified model
+    # instead of llm_model_name, giving each agent its own TPM pool.
+    llm_model_sme: str | None = None
+    llm_model_coord: str | None = None
+    llm_model_gad: str | None = None
+    llm_model_itso: str | None = None
     agent_debug_rubric_context: bool = False
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
@@ -119,6 +125,16 @@ class Settings:
         if self.chroma_host:
             return self.chroma_port is not None
         return bool(self.chroma_persist_directory)
+
+    def get_agent_model(self, agent_name: str) -> str:
+        """Return the model for a specific agent, falling back to global default."""
+        mapping = {
+            "sme": self.llm_model_sme,
+            "coordinator": self.llm_model_coord,
+            "gad": self.llm_model_gad,
+            "itso": self.llm_model_itso,
+        }
+        return mapping.get(agent_name) or self.llm_model_name
 
     @property
     def llm_configured(self) -> bool:
@@ -304,6 +320,10 @@ def get_settings() -> Settings:
         llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
         llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,
         llm_agent_delay_per_agent=parsed_llm_agent_delay_per_agent,
+        llm_model_sme=_env("LLM_MODEL_SME"),
+        llm_model_coord=_env("LLM_MODEL_COORD"),
+        llm_model_gad=_env("LLM_MODEL_GAD"),
+        llm_model_itso=_env("LLM_MODEL_ITSO"),
         agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
