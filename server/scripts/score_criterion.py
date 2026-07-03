@@ -28,6 +28,8 @@ from server.modules.agents.scoring import (  # noqa: E402
     interactivity,
     learner_transformation,
     objective_alignment,
+    progress_monitoring,
+    varied_assessment,
 )
 from server.modules.agents.scoring.clear_directions import (  # noqa: E402
     DirectionsResult,
@@ -44,12 +46,20 @@ from server.modules.agents.scoring.learner_transformation import (  # noqa: E402
 from server.modules.agents.scoring.objective_alignment import (  # noqa: E402
     AlignmentResult,
 )
+from server.modules.agents.scoring.progress_monitoring import (  # noqa: E402
+    MonitoringResult,
+)
+from server.modules.agents.scoring.varied_assessment import (  # noqa: E402
+    VarietyResult,
+)
 
 UPLOADS = ROOT / "uploads"
 
 # Criterion code -> evaluator. Add criteria here as they are implemented.
 CRITERIA: dict[str, Callable[[Any, str], Any]] = {
     "A-01": learner_transformation.evaluate,
+    "A-02": varied_assessment.evaluate,
+    "A-03": progress_monitoring.evaluate,
     "A-05": objective_alignment.evaluate,
     "OP-02": interactivity.evaluate,
     "OP-03": clear_directions.evaluate,
@@ -161,6 +171,49 @@ def print_enhancement(result: EnhancementResult) -> None:
     print(f"==> SCORE {result.score}")
 
 
+def _group_by_type(
+    genuine: list[dict[str, Any]], type_key: str, normalize: Callable[[str], str]
+) -> dict[str, list[str]]:
+    """Group genuine items' labels by their normalized type, for CLI display."""
+    grouped: dict[str, list[str]] = {}
+    for item in genuine:
+        kind = normalize(str(item.get(type_key, "")))
+        grouped.setdefault(kind, []).append(str(item.get("text", "")).strip())
+    return grouped
+
+
+def print_variety(result: VarietyResult) -> None:
+    grouped = _group_by_type(
+        result.genuine, "assessment_type", varied_assessment._normalize_type
+    )
+    print(f"\nDistinct assessment types found ({result.count}):")
+    for kind in result.types:
+        print(f"  - {kind}: {', '.join(grouped.get(kind, [])) or '(none)'}")
+
+    dropped = len(result.assessments) - len(result.genuine)
+    if dropped > 0:
+        print(f"\n({dropped} assessment(s) dropped: no real content / unknown type)")
+
+    print(f"\ntypes {result.count}")
+    print(f"==> SCORE {result.score}")
+
+
+def print_monitoring(result: MonitoringResult) -> None:
+    grouped = _group_by_type(
+        result.genuine, "monitoring_type", progress_monitoring._normalize_type
+    )
+    print(f"\nMonitoring mechanisms found ({result.count} instance(s)):")
+    for kind in result.types:
+        print(f"  - {kind}: {', '.join(grouped.get(kind, [])) or '(none)'}")
+
+    dropped = len(result.mechanisms) - len(result.genuine)
+    if dropped > 0:
+        print(f"\n({dropped} mechanism(s) dropped: no real content / unknown type)")
+
+    print(f"\ninstances {result.count}, spanning {len(result.types)}/4 type(s)")
+    print(f"==> SCORE {result.score}")
+
+
 def print_result(criterion: str, result: Any) -> None:
     if isinstance(result, InteractivityResult):
         print_interactivity(result)
@@ -170,6 +223,10 @@ def print_result(criterion: str, result: Any) -> None:
         print_enhancement(result)
     elif isinstance(result, TransformationResult):
         print_transformation(result)
+    elif isinstance(result, VarietyResult):
+        print_variety(result)
+    elif isinstance(result, MonitoringResult):
+        print_monitoring(result)
     else:
         print_alignment(result)
 

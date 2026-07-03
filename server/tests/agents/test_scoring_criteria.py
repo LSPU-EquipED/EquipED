@@ -12,6 +12,8 @@ from server.modules.agents.scoring import (
     interactivity,
     learner_transformation,
     objective_alignment,
+    progress_monitoring,
+    varied_assessment,
 )
 
 
@@ -262,3 +264,155 @@ class TestLearnerTransformationCompute:
         assert result.total == 0
         assert result.score == 1
         assert result.pct is None
+
+
+class TestVariedAssessmentCompute:
+    def test_full_variety_scores_four(self) -> None:
+        assessments = [
+            {"text": "Quiz 1", "assessment_type": "objective_test",
+             "evidence": "Choose the correct answer for items 1-10."},
+            {"text": "Essay", "assessment_type": "written",
+             "evidence": "Write a 200-word essay on..."},
+            {"text": "Journal", "assessment_type": "reflection",
+             "evidence": "Write about what you learned this week."},
+            {"text": "Demo", "assessment_type": "performance_task",
+             "evidence": "Demonstrate the procedure to the class."},
+            {"text": "Portfolio", "assessment_type": "project",
+             "evidence": "Compile your outputs into a portfolio."},
+        ]
+        result = varied_assessment.compute(assessments)
+        assert result.count == 5
+        assert result.score == 4  # 5+ types -> band 4
+
+    def test_two_types_scores_two(self) -> None:
+        assessments = [
+            {"text": "Quiz", "assessment_type": "objective_test",
+             "evidence": "Answer items 1-10."},
+            {"text": "Essay", "assessment_type": "written",
+             "evidence": "Write about the topic."},
+        ]
+        result = varied_assessment.compute(assessments)
+        assert result.count == 2
+        assert result.score == 2  # 2 types -> band 2
+
+    def test_repeated_instances_of_one_type_collapse(self) -> None:
+        # Five multiple-choice quizzes are one type, not five -- the whole
+        # point of A-02 is counting distinct types, not instances.
+        assessments = [
+            {"text": f"Quiz {i}", "assessment_type": "objective_test",
+             "evidence": f"Answer items for quiz {i}."}
+            for i in range(5)
+        ]
+        result = varied_assessment.compute(assessments)
+        assert result.count == 1
+        assert result.score == 1  # 1 type -> band 1
+
+    def test_type_without_evidence_does_not_count(self) -> None:
+        assessments = [
+            {"text": "Final Exam", "assessment_type": "objective_test",
+             "evidence": ""},  # bare title -> does not count
+            {"text": "Essay", "assessment_type": "written",
+             "evidence": "Write a reflection on..."},
+        ]
+        result = varied_assessment.compute(assessments)
+        assert result.count == 1
+
+    def test_unknown_type_dropped(self) -> None:
+        assessments = [
+            {"text": "Mystery Task", "assessment_type": "gamified_challenge",
+             "evidence": "Complete the escape room."},
+            {"text": "Essay", "assessment_type": "written",
+             "evidence": "Write about the topic."},
+        ]
+        result = varied_assessment.compute(assessments)
+        assert result.count == 1  # unknown type dropped, not guessed
+
+    def test_no_assessments_scores_one(self) -> None:
+        result = varied_assessment.compute([])
+        assert result.count == 0
+        assert result.score == 1
+
+
+class TestProgressMonitoringCompute:
+    def test_four_instances_scores_four(self) -> None:
+        # A-03 counts INSTANCES (frequency), not distinct types -- the
+        # opposite of A-02 -- because "on-going record" implies repetition
+        # over time is the signal.
+        mechanisms = [
+            {"text": "Mid-unit check", "monitoring_type": "checkpoint",
+             "evidence": "Answer this short check before moving on."},
+            {"text": "Self-check", "monitoring_type": "self_assessment",
+             "evidence": "Rate your confidence on each skill."},
+            {"text": "Reflection", "monitoring_type": "reflection",
+             "evidence": "What did you learn this week?"},
+            {"text": "Final project", "monitoring_type": "cumulative",
+             "evidence": "Combine skills from all lessons into one output."},
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 4
+        assert len(result.types) == 4
+        assert result.score == 4  # 4+ -> band 4
+
+    def test_two_instances_scores_three(self) -> None:
+        mechanisms = [
+            {"text": "Reflection", "monitoring_type": "reflection",
+             "evidence": "What did you learn?"},
+            {"text": "Self-check", "monitoring_type": "self_assessment",
+             "evidence": "Rate your understanding."},
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 2
+        assert result.score == 3  # 2-3 -> band 3
+
+    def test_repeated_instances_of_one_type_count_separately(self) -> None:
+        # The key A-03 behavior (reversed from A-02): three DISTINCTLY
+        # labelled checkpoints are three genuine instances of on-going
+        # monitoring, not one -- frequency is exactly what this criterion
+        # rewards.
+        mechanisms = [
+            {"text": f"Checkpoint {i}", "monitoring_type": "checkpoint",
+             "evidence": f"Check your understanding after topic {i}."}
+            for i in range(3)
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 3
+        assert result.types == ["checkpoint"]  # still only 1 distinct type
+        assert result.score == 3  # 2-3 -> band 3
+
+    def test_exact_duplicate_mechanism_deduped(self) -> None:
+        # Unlike distinctly-labelled repeats above, the SAME mechanism quoted
+        # twice (same label) must still collapse to one -- guards against the
+        # LLM emitting the same finding twice inflating the count.
+        mechanisms = [
+            {"text": "Mid-unit check", "monitoring_type": "checkpoint",
+             "evidence": "Answer this short check."},
+            {"text": "mid-unit check", "monitoring_type": "checkpoint",
+             "evidence": "Answer this short check again."},  # same label
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 1
+
+    def test_type_without_evidence_does_not_count(self) -> None:
+        mechanisms = [
+            {"text": "Reflection", "monitoring_type": "reflection",
+             "evidence": ""},  # bare heading -> does not count
+            {"text": "Self-check", "monitoring_type": "self_assessment",
+             "evidence": "Rate your confidence."},
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 1
+
+    def test_unknown_type_dropped(self) -> None:
+        mechanisms = [
+            {"text": "Mystery", "monitoring_type": "gamification_badge",
+             "evidence": "Earn a badge for completing the unit."},
+            {"text": "Reflection", "monitoring_type": "reflection",
+             "evidence": "What did you learn?"},
+        ]
+        result = progress_monitoring.compute(mechanisms)
+        assert result.count == 1  # unknown type dropped, not guessed
+
+    def test_no_mechanisms_scores_one(self) -> None:
+        result = progress_monitoring.compute([])
+        assert result.count == 0
+        assert result.score == 1

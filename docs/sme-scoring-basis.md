@@ -97,8 +97,8 @@ something the template guarantees exists.
 | Code | Criterion | How it's measured | Score bands (4 / 3 / 2 / 1) |
 |---|---|---|---|
 | **A-01** | Learner Transformation | **Coverage ratio.** Of the tasks the student is asked to perform (read from the Performance Tasks/Assessments section, not the stated objectives — see §3), classify each by Bloom level; higher-order tasks (apply/analyze/evaluate/create) ÷ total tasks (real task text quotable, not just a title). | 80–100% / 50–79% / 20–49% / <20% |
-| **A-02** | Varied Assessment Tools | **Checklist count** of distinct assessment types used (quiz, reflection, project, performance task, etc.). | ≥5 / 3–4 / 2 / ≤1 types |
-| **A-03** | Progress Monitoring | **Checklist count** of 4 monitoring types (checkpoints, self-assessment, reflection, cumulative tasks). | 3–4 / 2 / 1 / 0 types |
+| **A-02** | Varied Assessment Tools | **Checklist count.** Distinct assessment TYPES used, classified into a fixed 7-type list kept in code (objective test, written, reflection, performance task, project, oral, self-assessment); real content required, not a bare title. Counts types, not instances — repeats of one type do not add to the score. | ≥5 / 3–4 / 2 / ≤1 types |
+| **A-03** | Progress Monitoring | **Instance count.** Genuine monitoring mechanisms found (checkpoint, self-assessment, reflection, cumulative task — real content required), classified against the same fixed 4-type list. Counts INSTANCES, not distinct types — repeated mechanisms (e.g. 3 checkpoints) count separately, since "on-going" means frequency is the signal. | 4+ / 2–3 / 1 / 0 mechanisms |
 | **A-04** | Prescriptive Feedback | **Coverage ratio.** Assessments with feedback/remediation ÷ total assessments. | 80–100% / 50–79% / 20–49% / <20% |
 | **A-05** | Objective Gauging | **Coverage ratio.** Objectives that have a matching assessment ÷ total objectives. | 80–100% / 50–79% / 20–49% / <20% |
 

@@ -19,12 +19,14 @@ from . import (
     interactivity,
     learner_transformation,
     objective_alignment,
+    progress_monitoring,
+    varied_assessment,
 )
 
 # Criterion codes handled by the engine. Anything not listed keeps the old
 # LLM-picks-a-score path.
 REGISTERED_CODES: frozenset[str] = frozenset(
-    {"A-01", "A-05", "OP-02", "OP-03", "OP-05"}
+    {"A-01", "A-02", "A-03", "A-05", "OP-02", "OP-03", "OP-05"}
 )
 
 
@@ -96,6 +98,31 @@ def run_criterion(
             str(t.get("evidence", ""))
             for t in result.higher_order_tasks
             if t.get("evidence")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "A-02":
+        result = varied_assessment.evaluate(client, text)
+        justification = (
+            f"Varied assessment tools (code-computed): {result.count} distinct "
+            f"assessment type(s) found ({', '.join(result.types) or 'none'}). "
+            f"Score {result.score} (5+ -> 4, 3-4 -> 3, 2 -> 2, <=1 -> 1)."
+        )
+        evidence = tuple(
+            str(a.get("evidence", "")) for a in result.genuine if a.get("evidence")
+        )
+        return result.score, justification, evidence
+
+    if criterion_code == "A-03":
+        result = progress_monitoring.evaluate(client, text)
+        justification = (
+            f"Progress monitoring (code-computed): {result.count} genuine "
+            f"monitoring mechanism(s) found, spanning {len(result.types)} of 4 "
+            f"type(s) ({', '.join(result.types) or 'none'}). Score "
+            f"{result.score} (4+ -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1)."
+        )
+        evidence = tuple(
+            str(m.get("evidence", "")) for m in result.genuine if m.get("evidence")
         )
         return result.score, justification, evidence
 
