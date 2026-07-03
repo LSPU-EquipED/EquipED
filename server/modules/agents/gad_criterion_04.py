@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 CRITERION_ID = "GAD-04"
-CRITERION_TITLE = "The material reflects the needs and life experiences of both male and female students"
+CRITERION_TITLE = (
+    "The material reflects the needs and life experiences of both male and "
+    "female students"
+)
 CRITERION_KIND = "life_experience_instances"
 
 GAD_ROW_4_PROMPT = (
@@ -20,6 +23,14 @@ GAD_ROW_4_PROMPT = (
     "Replace all numeric placeholder values with actual counts from "
     "document_chunks. Do not copy the example value 0 unless no matching "
     "instances are found.\n\n"
+    "Always include a non-empty summary written like a human reviewer comment. "
+    "If instances are found, explain what should "
+    "be improved so the material better reflects both male and female students' "
+    "needs and life experiences. If no qualifying instances are found, explain "
+    "what the material is doing well and what should be retained, such as "
+    "inclusive examples, balanced scenarios, or activities that do not assume "
+    "one gender's roles or interests. Keep the summary to 1-2 natural "
+    "sentences.\n\n"
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material reflects the needs and life experiences of '

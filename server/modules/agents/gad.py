@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import time
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from server.core.config import get_settings
 
@@ -28,6 +30,8 @@ from .gad_prompts import (
     score_stereotype_instances,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class GAD(BaseAgent):
     agent_name = "gad"
@@ -37,10 +41,23 @@ class GAD(BaseAgent):
         "representation", "inclusive", "fair", "bias", "equal",
         "marginalized", "sensitivity",
     )
+    _FEMALE_LABELS = (
+        r"female|females|woman|women|girl|girls|mother|mothers|sister|"
+        r"sisters|daughter|daughters"
+    )
+    _MALE_LABELS = (
+        r"male|males|man|men|boy|boys|father|fathers|brother|brothers|"
+        r"son|sons"
+    )
+    _FEMALE_PRONOUNS = r"she|her|hers|herself"
+    _MALE_PRONOUNS = r"he|him|his|himself"
+    _FEMALE_TITLES = r"ms\.?|mrs\.?|miss"
+    _MALE_TITLES = r"mr\.?"
 
     def __init__(self, *, llm_client: Any | None = None) -> None:
         super().__init__(llm_client=llm_client)
         self._active_criterion = GAD_CRITERIA[0]
+        self._active_chunk_infos: list[dict[str, Any]] = []
 
     def run(
         self,
@@ -55,29 +72,36 @@ class GAD(BaseAgent):
         reference_document_ids: dict[str, uuid.UUID] | None = None,
         precomputed_context: dict[str, list[str]] | None = None,
         db: Any | None = None,
+        criterion_progress_callback: Callable[
+            [GadCriterion, AgentEvaluationResult], None
+        ] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         previous_criterion = self._active_criterion
+        previous_chunk_infos = self._active_chunk_infos
+        self._active_chunk_infos = chunk_infos
         results: list[AgentEvaluationResult] = []
         try:
             for criterion in GAD_CRITERIA:
                 self._active_criterion = criterion
-                results.append(
-                    super().run(
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        chunk_infos=chunk_infos,
-                        context_text=context_text,
-                        reference_text=reference_text,
-                        prompt_version=prompt_version,
-                        prompt_version_id=prompt_version_id,
-                        reference_document_ids=reference_document_ids,
-                        precomputed_context=precomputed_context,
-                        db=db,
-                    )
+                criterion_result = super().run(
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    chunk_infos=chunk_infos,
+                    context_text=context_text,
+                    reference_text=reference_text,
+                    prompt_version=prompt_version,
+                    prompt_version_id=prompt_version_id,
+                    reference_document_ids=reference_document_ids,
+                    precomputed_context=precomputed_context,
+                    db=db,
                 )
+                results.append(criterion_result)
+                if criterion_progress_callback is not None:
+                    criterion_progress_callback(criterion, criterion_result)
         finally:
             self._active_criterion = previous_criterion
+            self._active_chunk_infos = previous_chunk_infos
 
         criterion_scores = tuple(
             score
@@ -119,6 +143,14 @@ class GAD(BaseAgent):
                 },
             },
         )
+
+    def _emit_gad_json_response(self, payload: dict[str, Any]) -> None:
+        message = (
+            "[GAD_JSON_RESPONSE] "
+            f"{json.dumps(payload, ensure_ascii=False, sort_keys=True)}"
+        )
+        print(message, flush=True)
+        logger.info(message)
 
     def _build_prompt(
         self,
@@ -196,7 +228,11 @@ class GAD(BaseAgent):
     ) -> dict[str, Any]:
         instance_count = parsed.get("instance_count")
         instances = parsed.get("instances")
-        summary = parsed.get("summary", "")
+        summary = self._normalize_summary(
+            parsed.get("summary", ""),
+            criterion=criterion,
+            instance_count=instance_count,
+        )
 
         self._validate_non_negative_int(instance_count, "instance_count")
         if not isinstance(instances, list):
@@ -245,7 +281,12 @@ class GAD(BaseAgent):
     ) -> dict[str, Any]:
         female_count = parsed.get("female_count")
         male_count = parsed.get("male_count")
-        summary = parsed.get("summary", "")
+        summary = self._normalize_summary(
+            parsed.get("summary", ""),
+            criterion=criterion,
+            female_count=female_count,
+            male_count=male_count,
+        )
 
         self._validate_non_negative_int(female_count, "female_count")
         self._validate_non_negative_int(male_count, "male_count")
@@ -287,22 +328,20 @@ class GAD(BaseAgent):
         self, parsed: dict[str, Any]
     ) -> list[CriterionScore]:
         instances = parsed["instances"]
-        evidence = tuple(
-            str(instance.get("excerpt", ""))
-            for instance in instances
-            if str(instance.get("excerpt", "")).strip()
-        )
+        evidence = self._build_instance_evidence(parsed)
         explanations = [
             str(instance.get("explanation", ""))
             for instance in instances
             if str(instance.get("explanation", "")).strip()
         ]
-        justification = parsed["summary"]
         if explanations:
-            justification = f"{justification} Findings: {'; '.join(explanations)}"
+            evidence = (
+                *evidence,
+                f"Findings: {'; '.join(explanations)}",
+            )
 
         score = score_stereotype_instances(parsed["instance_count"])
-        return self._to_criterion_scores(parsed, score, justification, evidence)
+        return self._to_criterion_scores(parsed, score, parsed["summary"], evidence)
 
     def _build_respect_potential_score(
         self, parsed: dict[str, Any]
@@ -326,33 +365,214 @@ class GAD(BaseAgent):
         self, parsed: dict[str, Any], score: int
     ) -> list[CriterionScore]:
         instances = parsed["instances"]
-        evidence = tuple(
-            str(instance.get("excerpt", ""))
-            for instance in instances
-            if str(instance.get("excerpt", "")).strip()
-        )
+        evidence = self._build_instance_evidence(parsed)
         explanations = [
             self._format_instance_explanation(instance)
             for instance in instances
             if self._format_instance_explanation(instance).strip()
         ]
-        justification = parsed["summary"]
         if explanations:
-            justification = f"{justification} Findings: {'; '.join(explanations)}"
-        return self._to_criterion_scores(parsed, score, justification, evidence)
+            evidence = (
+                *evidence,
+                f"Findings: {'; '.join(explanations)}",
+            )
+        return self._to_criterion_scores(parsed, score, parsed["summary"], evidence)
 
     def _build_representation_score(
         self, parsed: dict[str, Any]
     ) -> list[CriterionScore]:
-        female_count = parsed["female_count"]
-        male_count = parsed["male_count"]
+        original_female_count = parsed["female_count"]
+        original_male_count = parsed["male_count"]
+        female_count, male_count, count_note = self._resolve_representation_counts(
+            original_female_count,
+            original_male_count,
+        )
         difference = abs(female_count - male_count)
         score = score_representation_balance(female_count, male_count)
-        justification = (
-            f"{parsed['summary']} Female representations: {female_count}. "
+        summary = parsed["summary"].strip() or (
+            "Female and male representations were counted from explicit "
+            "gender labels and references in the submitted material."
+        )
+        if count_note and (
+            (original_female_count, original_male_count) == (0, 0)
+            or summary == self._empty_representation_summary()
+            or "no representation" in summary.lower()
+            or "no meaningful" in summary.lower()
+        ):
+            summary = (
+                "Female and male representations were counted from explicit "
+                "gender labels and references in the submitted material."
+            )
+        evidence = (
+            f"Representation counts: "
+            f"Female representations: {female_count}. "
             f"Male representations: {male_count}. Difference: {difference}."
         )
-        return self._to_criterion_scores(parsed, score, justification, ())
+        if count_note:
+            evidence = f"{evidence} {count_note}"
+        return self._to_criterion_scores(parsed, score, summary, (evidence,))
+
+    def _build_instance_evidence(self, parsed: dict[str, Any]) -> tuple[str, ...]:
+        instances = parsed["instances"]
+        evidence = [f"Instance count: {parsed['instance_count']}"]
+        evidence.extend(
+            str(instance.get("excerpt", ""))
+            for instance in instances
+            if str(instance.get("excerpt", "")).strip()
+        )
+        return tuple(evidence)
+
+    def _resolve_representation_counts(
+        self,
+        female_count: int,
+        male_count: int,
+    ) -> tuple[int, int, str]:
+        fallback_female, fallback_male = self._count_labeled_representations()
+        resolved_female = max(female_count, fallback_female)
+        resolved_male = max(male_count, fallback_male)
+        if (resolved_female, resolved_male) == (female_count, male_count):
+            return female_count, male_count, ""
+        return (
+            resolved_female,
+            resolved_male,
+            (
+                "Explicit gender-labeled names/references in the document "
+                "were used to correct the representation counts."
+            ),
+        )
+
+    def _count_labeled_representations(self) -> tuple[int, int]:
+        female_total = 0
+        male_total = 0
+        for info in self._active_chunk_infos:
+            text = str(info.get("text", ""))
+            for line in text.splitlines():
+                line_female = self._count_gender_labeled_line(line, "female")
+                line_male = self._count_gender_labeled_line(line, "male")
+                if line_female or line_male:
+                    female_total += line_female
+                    male_total += line_male
+                    continue
+                female_total += self._count_gender_references_in_line(
+                    line,
+                    "female",
+                )
+                male_total += self._count_gender_references_in_line(line, "male")
+        return female_total, male_total
+
+    def _count_gender_labeled_line(self, line: str, gender: str) -> int:
+        labels = self._FEMALE_LABELS if gender == "female" else self._MALE_LABELS
+        opposite_labels = (
+            self._MALE_LABELS if gender == "female" else self._FEMALE_LABELS
+        )
+        count = 0
+        label_first = re.search(
+            rf"\b(?:{labels})\b\s*(?:representations?|students?|learners?|names?)?\s*[:\-]\s*(.+)",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if label_first:
+            count += self._count_people_items(
+                self._trim_at_next_gender_label(
+                    label_first.group(1),
+                    opposite_labels,
+                )
+            )
+
+        label_last = re.search(
+            rf"(.+?)\s*(?:\||,|;|:|-)\s*\b(?:{labels})\b\s*$",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if label_last:
+            count += self._count_people_items(label_last.group(1))
+        return count
+
+    def _count_gender_references_in_line(self, line: str, gender: str) -> int:
+        labels = self._FEMALE_LABELS if gender == "female" else self._MALE_LABELS
+        pronouns = (
+            self._FEMALE_PRONOUNS if gender == "female" else self._MALE_PRONOUNS
+        )
+        titles = self._FEMALE_TITLES if gender == "female" else self._MALE_TITLES
+        total = 0
+        for segment in self._split_countable_segments(line):
+            explicit_count = self._count_explicit_gender_terms(segment, labels)
+            title_count = len(
+                re.findall(rf"\b(?:{titles})\b", segment, flags=re.IGNORECASE)
+            )
+            pronoun_seen = re.search(
+                rf"\b(?:{pronouns})\b",
+                segment,
+                flags=re.IGNORECASE,
+            )
+            segment_total = explicit_count + title_count
+            if pronoun_seen and segment_total == 0:
+                segment_total = 1
+            total += segment_total
+        return total
+
+    @staticmethod
+    def _split_countable_segments(text: str) -> list[str]:
+        return [
+            segment.strip()
+            for segment in re.split(r"(?<=[.!?])\s+|[;|]", text)
+            if segment.strip()
+        ]
+
+    @staticmethod
+    def _count_explicit_gender_terms(segment: str, labels: str) -> int:
+        count = 0
+        numeric_mentions = re.findall(
+            rf"\b(\d+)\s+(?:{labels})\b",
+            segment,
+            flags=re.IGNORECASE,
+        )
+        for value in numeric_mentions:
+            count += int(value)
+
+        without_numeric_mentions = re.sub(
+            rf"\b\d+\s+(?:{labels})\b",
+            " ",
+            segment,
+            flags=re.IGNORECASE,
+        )
+        count += len(
+            re.findall(
+                rf"\b(?:{labels})\b",
+                without_numeric_mentions,
+                flags=re.IGNORECASE,
+            )
+        )
+        return count
+
+    @staticmethod
+    def _trim_at_next_gender_label(text: str, labels: str) -> str:
+        next_label = re.search(
+            rf"(?:^|[.;|]\s*)\b(?:{labels})\b\s*"
+            rf"(?:representations?|students?|learners?|names?)?\s*[:\-]",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if next_label:
+            return text[: next_label.start()]
+        return text
+
+    @staticmethod
+    def _count_people_items(text: str) -> int:
+        cleaned = re.sub(r"\([^)]*\)", " ", text)
+        cleaned = re.sub(r"\.\s+", ",", cleaned)
+        cleaned = re.sub(r"\b(?:and|or)\b", ",", cleaned, flags=re.IGNORECASE)
+        parts = [
+            part.strip(" \t\r\n-*0123456789.)(")
+            for part in re.split(r"[,;|/]+", cleaned)
+        ]
+        return sum(
+            1
+            for part in parts
+            if part
+            and not part.isdigit()
+            and re.search(r"[A-Za-z]", part)
+        )
 
     def _to_criterion_scores(
         self,
@@ -361,7 +581,7 @@ class GAD(BaseAgent):
         justification: str,
         evidence: tuple[str, ...],
     ) -> list[CriterionScore]:
-        return super()._build_criterion_scores(
+        criterion_scores = super()._build_criterion_scores(
             {
                 "summary": parsed["summary"],
                 "criterion_scores": [
@@ -376,6 +596,53 @@ class GAD(BaseAgent):
                 ],
             }
         )
+        self._emit_gad_json_response(
+            self._build_display_json_payload(parsed, criterion_scores[0])
+        )
+        return criterion_scores
+
+    def _build_display_json_payload(
+        self,
+        parsed: dict[str, Any],
+        score: CriterionScore,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "criterion_id": score.criterion_id,
+            "criterion": score.criterion_title,
+            "score": score.score,
+            "summary": score.justification,
+            "justification": score.justification,
+            "evidence": list(score.evidence),
+            "chunk_ids": list(score.chunk_ids),
+        }
+        if parsed["criterion_id"] == "GAD-02":
+            female_count, male_count = self._extract_representation_counts(
+                score.evidence,
+            )
+            payload["female_count"] = female_count
+            payload["male_count"] = male_count
+            payload["difference"] = abs(female_count - male_count)
+        else:
+            payload["instance_count"] = parsed.get("instance_count", 0)
+            payload["instances"] = parsed.get("instances", [])
+        return payload
+
+    @staticmethod
+    def _extract_representation_counts(evidence: tuple[str, ...]) -> tuple[int, int]:
+        evidence_text = " ".join(evidence)
+        female_match = re.search(
+            r"Female representations:\s*(\d+)",
+            evidence_text,
+            flags=re.IGNORECASE,
+        )
+        male_match = re.search(
+            r"Male representations:\s*(\d+)",
+            evidence_text,
+            flags=re.IGNORECASE,
+        )
+        female_count = int(female_match.group(1)) if female_match else 0
+        male_count = int(male_match.group(1)) if male_match else 0
+        return female_count, male_count
 
     def _validate_non_negative_int(self, value: Any, field_name: str) -> None:
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
@@ -390,6 +657,64 @@ class GAD(BaseAgent):
         if category:
             return f"{category}: {explanation}"
         return explanation
+
+    def _normalize_summary(self, summary: Any, *, criterion: GadCriterion, **values: Any) -> str:
+        text = str(summary).strip()
+        if text:
+            return text
+
+        if criterion.kind == "representation_balance":
+            female_count = int(values.get("female_count", 0) or 0)
+            male_count = int(values.get("male_count", 0) or 0)
+            difference = abs(female_count - male_count)
+            if female_count == 0 and male_count == 0:
+                return self._empty_representation_summary()
+            if difference <= 2:
+                return (
+                    "Female and male representations are approximately balanced. "
+                    "No immediate change is needed."
+                )
+            return (
+                "Female and male representations are imbalanced. This section "
+                "should be revised for better balance."
+            )
+
+        instance_count = int(values.get("instance_count", 0) or 0)
+        if instance_count == 0:
+            if criterion.kind == "stereotype_instances":
+                return (
+                    "No qualifying instances were detected. This "
+                    "suggests the material is acceptable for this criterion."
+                )
+            if criterion.kind == "respect_potential_instances":
+                return (
+                    "No qualifying instances were detected. This "
+                    "suggests the material appears fair for this criterion."
+                )
+            if criterion.kind == "life_experience_instances":
+                return (
+                    "No qualifying instances were detected. This "
+                    "suggests the material covers both male and female students' "
+                    "experiences well."
+                )
+            if criterion.kind == "peace_equality_instances":
+                return (
+                    "No qualifying instances were detected. This "
+                    "suggests the section does not show obvious discriminatory "
+                    "content."
+                )
+
+        return (
+            f"{instance_count} qualifying instance(s) were detected. The section "
+            f"should be reviewed and improved for {criterion.title.lower()}."
+        )
+
+    @staticmethod
+    def _empty_representation_summary() -> str:
+        return (
+            "No meaningful female or male representations were detected. "
+            "Representation coverage is not demonstrated in this section."
+        )
 
 
 GADAgent = GAD

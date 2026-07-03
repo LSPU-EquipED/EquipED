@@ -808,10 +808,15 @@ def test_gad_converts_row_1_instances_to_score(monkeypatch) -> None:
     assert score.criterion_title == "The material is free from gender stereotypes"
     assert score.score == 2
     assert score.evidence == (
+        "Instance count: 2",
         "Boys are naturally better at machines.",
         "Girls should choose caring roles.",
+        (
+            "Findings: This assigns technical ability by gender.; "
+            "This reinforces occupational stereotypes."
+        ),
     )
-    assert "technical ability by gender" in score.justification
+    assert score.justification == "Two gender-biased representations were identified."
 
 
 def test_gad_converts_row_2_representation_counts_to_score(monkeypatch) -> None:
@@ -907,9 +912,326 @@ def test_gad_converts_row_2_representation_counts_to_score(monkeypatch) -> None:
         "The material shows females and males an equal number of times"
     )
     assert score.score == 2
-    assert "Female representations: 2" in score.justification
-    assert "Male representations: 9" in score.justification
-    assert "Difference: 7" in score.justification
+    assert score.justification == "Male representations appear more often."
+    assert score.evidence == (
+        (
+            "Representation counts: Female representations: 2. "
+            "Male representations: 9. Difference: 7."
+        ),
+    )
+
+
+def test_gad_corrects_row_2_zero_counts_from_gender_labeled_names(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_active_rubric_context",
+        lambda agent_id, db=None: [
+            "GAD-02 | The material shows females and males an equal number of times"
+        ],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.gad.get_settings",
+        lambda: _mock_settings(),
+    )
+
+    agent = GAD(
+        llm_client=_SequenceLLM(
+            [
+                json.dumps(
+                    {
+                        "criterion": "The material is free from gender stereotypes",
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No gender stereotypes were identified.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males an equal "
+                            "number of times"
+                        ),
+                        "female_count": 0,
+                        "male_count": 0,
+                        "summary": "",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males with equal "
+                            "respect and potential"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": (
+                            "Females and males are presented with equal respect."
+                        ),
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material reflects the needs and life "
+                            "experiences of both male and female students"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "The material remains gender-neutral.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material promotes peace and equality "
+                            "regardless of gender, race, class, disability, "
+                            "religion, sexual orientation, or ethnic background"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No discriminatory content was identified.",
+                    }
+                ),
+            ]
+        )
+    )
+
+    result = agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[
+            {
+                "chunk_id": "chunk-1",
+                "page_number": 1,
+                "text": (
+                    "Female: Ana Cruz, Maria Santos\n"
+                    "Male: Juan Dela Cruz, Pedro Ramos"
+                ),
+            }
+        ],
+        context_text="reference context",
+    )
+
+    score = result.criterion_scores[1]
+    assert score.criterion_id == "GAD-02"
+    assert score.score == 4
+    assert score.justification == (
+        "Female and male representations were counted from explicit "
+        "gender labels and references in the submitted material."
+    )
+    assert "Female representations: 2" in score.evidence[0]
+    assert "Male representations: 2" in score.evidence[0]
+    assert "Explicit gender-labeled names" in score.evidence[0]
+
+
+def test_gad_corrects_row_2_zero_counts_from_inline_gender_labels(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_active_rubric_context",
+        lambda agent_id, db=None: [
+            "GAD-02 | The material shows females and males an equal number of times"
+        ],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.gad.get_settings",
+        lambda: _mock_settings(),
+    )
+
+    agent = GAD(
+        llm_client=_SequenceLLM(
+            [
+                json.dumps(
+                    {
+                        "criterion": "The material is free from gender stereotypes",
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No gender stereotypes were identified.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males an equal "
+                            "number of times"
+                        ),
+                        "female_count": 0,
+                        "male_count": 0,
+                        "summary": "",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males with equal "
+                            "respect and potential"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": (
+                            "Females and males are presented with equal respect."
+                        ),
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material reflects the needs and life "
+                            "experiences of both male and female students"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "The material remains gender-neutral.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material promotes peace and equality "
+                            "regardless of gender, race, class, disability, "
+                            "religion, sexual orientation, or ethnic background"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No discriminatory content was identified.",
+                    }
+                ),
+            ]
+        )
+    )
+
+    result = agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[
+            {
+                "chunk_id": "chunk-1",
+                "page_number": 1,
+                "text": (
+                    "Female representations: Ana Cruz, Maria Santos. "
+                    "Male representations: Juan Dela Cruz, Pedro Ramos, "
+                    "Jose Reyes, Mark Garcia, Carlo Mendoza, Luis Santos."
+                ),
+            }
+        ],
+        context_text="reference context",
+    )
+
+    score = result.criterion_scores[1]
+    assert score.criterion_id == "GAD-02"
+    assert score.score == 3
+    assert "Female representations: 2" in score.evidence[0]
+    assert "Male representations: 6" in score.evidence[0]
+    assert "Difference: 4" in score.evidence[0]
+    assert "Explicit gender-labeled names" in score.evidence[0]
+
+
+def test_gad_corrects_row_2_zero_counts_from_gendered_prose(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "server.modules.agents.base.get_active_rubric_context",
+        lambda agent_id, db=None: [
+            "GAD-02 | The material shows females and males an equal number of times"
+        ],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.gad.get_settings",
+        lambda: _mock_settings(),
+    )
+
+    agent = GAD(
+        llm_client=_SequenceLLM(
+            [
+                json.dumps(
+                    {
+                        "criterion": "The material is free from gender stereotypes",
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No gender stereotypes were identified.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males an equal "
+                            "number of times"
+                        ),
+                        "female_count": 0,
+                        "male_count": 0,
+                        "summary": "No representations were identified.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material shows females and males with equal "
+                            "respect and potential"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": (
+                            "Females and males are presented with equal respect."
+                        ),
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material reflects the needs and life "
+                            "experiences of both male and female students"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "The material remains gender-neutral.",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "criterion": (
+                            "The material promotes peace and equality "
+                            "regardless of gender, race, class, disability, "
+                            "religion, sexual orientation, or ethnic background"
+                        ),
+                        "instance_count": 0,
+                        "instances": [],
+                        "summary": "No discriminatory content was identified.",
+                    }
+                ),
+            ]
+        )
+    )
+
+    result = agent.run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[
+            {
+                "chunk_id": "chunk-1",
+                "page_number": 1,
+                "text": (
+                    "Ms. Ana explained the activity. Maria is a girl. "
+                    "Mr. Juan and Mr. Pedro solved the exercise. "
+                    "The father in the story thanked his son."
+                ),
+            }
+        ],
+        context_text="reference context",
+    )
+
+    score = result.criterion_scores[1]
+    assert score.criterion_id == "GAD-02"
+    assert "No representations were identified" not in score.justification
+    assert "Female representations: 2" in score.evidence[0]
+    assert "Male representations: 4" in score.evidence[0]
+    assert "Explicit gender-labeled names" in score.evidence[0]
 
 
 def test_gad_converts_row_3_respect_potential_instances_to_score(monkeypatch) -> None:
@@ -1014,8 +1336,14 @@ def test_gad_converts_row_3_respect_potential_instances_to_score(monkeypatch) ->
         "The material shows females and males with equal respect and potential"
     )
     assert score.score == 2
-    assert score.evidence == ("Only boys are encouraged to lead.",)
-    assert "limits leadership opportunity by gender" in score.justification
+    assert score.evidence == (
+        "Instance count: 4",
+        "Only boys are encouraged to lead.",
+        "Findings: This limits leadership opportunity by gender.",
+    )
+    assert score.justification == (
+        "Unequal respect and opportunity appeared across multiple sections."
+    )
 
 
 def test_gad_converts_row_4_life_experience_instances_to_score(monkeypatch) -> None:
@@ -1122,8 +1450,12 @@ def test_gad_converts_row_4_life_experience_instances_to_score(monkeypatch) -> N
         "and female students"
     )
     assert score.score == 1
-    assert score.evidence == ("All career examples focus on male students.",)
-    assert "favors one gender's experiences" in score.justification
+    assert score.evidence == (
+        "Instance count: 6",
+        "All career examples focus on male students.",
+        "Findings: This favors one gender's experiences.",
+    )
+    assert score.justification == "Experiences are repeatedly imbalanced."
 
 
 def test_gad_converts_row_5_peace_equality_instances_to_score(monkeypatch) -> None:
@@ -1230,9 +1562,12 @@ def test_gad_converts_row_5_peace_equality_instances_to_score(monkeypatch) -> No
         "class, disability, religion, sexual orientation, or ethnic background"
     )
     assert score.score == 2
-    assert score.evidence == ("Students from poor families cannot lead.",)
-    assert "Social class" in score.justification
-    assert "promotes inequality based on class" in score.justification
+    assert score.evidence == (
+        "Instance count: 3",
+        "Students from poor families cannot lead.",
+        "Findings: Social class: This promotes inequality based on class.",
+    )
+    assert score.justification == "Biased content appears in multiple sections."
 
 
 # ------------------------------------------------------------------

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 CRITERION_ID = "GAD-05"
-CRITERION_TITLE = "The material promotes peace and equality regardless of gender, race, class, disability, religion, sexual orientation, or ethnic background"
+CRITERION_TITLE = (
+    "The material promotes peace and equality regardless of gender, race, "
+    "class, disability, religion, sexual orientation, or ethnic background"
+)
 CRITERION_KIND = "peace_equality_instances"
 
 GAD_ROW_5_PROMPT = (
@@ -24,6 +27,14 @@ GAD_ROW_5_PROMPT = (
     "Replace all numeric placeholder values with actual counts from "
     "document_chunks. Do not copy the example value 0 unless no matching "
     "instances are found.\n\n"
+    "Always include a non-empty summary written like a human reviewer comment. "
+    "If instances are found, explain what should "
+    "be improved to remove discriminatory, prejudicial, exclusionary, or "
+    "inequality-promoting content, and mention the relevant category in plain "
+    "language. If no qualifying instances are found, explain what the material "
+    "is doing well and what should be retained, such as respectful language, "
+    "inclusive examples, and fair treatment across identity groups. Keep the "
+    "summary to 1-2 natural sentences.\n\n"
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material promotes peace and equality regardless of '

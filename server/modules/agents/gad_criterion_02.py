@@ -22,9 +22,9 @@ GAD_ROW_2_PROMPT = (
     "- Gender-specific pronouns (e.g., she, her, he, him)\n\n"
     "If a list, table, or paragraph labels people as female or male, count "
     "each listed person/name in the matching gender count. If a person is "
-    "introduced with a gendered role or pronoun (for example, mother, father, "
-    "sister, brother, she, he), count that person in the matching gender "
-    "count.\n\n"
+    "introduced with a gendered role, title, or pronoun (for example, Ms., "
+    "Mr., mother, father, sister, brother, she, he), count that person in the "
+    "matching gender count.\n\n"
     "Count each meaningful representation only once within the same discussion, "
     "example, scenario, or case study.\n\n"
     "If the same individual appears in different examples or scenarios, count "
@@ -36,14 +36,21 @@ GAD_ROW_2_PROMPT = (
     "Replace all numeric placeholder values with actual counts from "
     "document_chunks. Do not copy the example value 0 unless no matching "
     "representations are found.\n\n"
+    "Always include a non-empty summary written like a human reviewer comment. "
+    "If the female and male counts are imbalanced, "
+    "explain what should be improved to make representation more balanced. If "
+    "the counts are balanced, explain what the material is doing well and what "
+    "should be retained, such as maintaining varied examples and comparable "
+    "visibility for female and male representations. If no meaningful "
+    "representations are found, explain that representation coverage should be "
+    "added where appropriate. Keep the summary to 1-2 natural sentences.\n\n"
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material shows females and males an equal number of '
     'times",\n'
     '  "female_count": 0,\n'
     '  "male_count": 0,\n'
-    '  "summary": "Briefly explain what representations were counted and '
-    'whether they are balanced."\n'
+    '  "summary": ""\n'
     "}"
 )
 

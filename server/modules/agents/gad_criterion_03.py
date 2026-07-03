@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 CRITERION_ID = "GAD-03"
-CRITERION_TITLE = "The material shows females and males with equal respect and potential"
+CRITERION_TITLE = (
+    "The material shows females and males with equal respect and potential"
+)
 CRITERION_KIND = "respect_potential_instances"
 
 GAD_ROW_3_PROMPT = (
@@ -17,6 +19,13 @@ GAD_ROW_3_PROMPT = (
     "Replace all numeric placeholder values with actual counts from "
     "document_chunks. Do not copy the example value 0 unless no matching "
     "instances are found.\n"
+    "Always include a non-empty summary written like a human reviewer comment. "
+    "If instances are found, explain what should "
+    "be improved so females and males are shown with equal respect, capability, "
+    "and opportunity. If no qualifying instances are found, explain what the "
+    "material is doing well and what should be retained, such as respectful "
+    "language, fair opportunities, or balanced portrayals of potential. Keep "
+    "the summary to 1-2 natural sentences.\n"
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material shows females and males with equal respect '
