@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from typing import Any, NamedTuple
 
 from server.core.config import get_settings
-from server.core.llm import get_llm_client, get_llm_model_name
+from server.core.llm import get_llm_client, get_llm_client_for_agent, get_llm_model_name
 from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
 from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
@@ -216,6 +216,7 @@ class BaseAgent:
         reference_document_ids: dict[str, uuid.UUID] | None = None,
         precomputed_context: dict[str, list[str]] | None = None,
         db: Any | None = None,
+        llm_client: Any | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         timer = _PhaseTimer(self.agent_name)
@@ -282,6 +283,11 @@ class BaseAgent:
                 str(prompt_version_id) if prompt_version_id else None,
                 " || ".join(rubric_context),
             )
+
+        # Allow per-run LLM client override (e.g. agent-specific model).
+        # Falls back to the instance-level client or global singleton.
+        if llm_client is not None:
+            self._llm_client = llm_client
 
         with timer.measure("llm_call"):
             raw_response = self._call_llm(prompt)
@@ -355,7 +361,7 @@ class BaseAgent:
             criterion_scores=criterion_scores,
             prompt_version_id=prompt_version_id,
             summary=parsed.get("summary", ""),
-            model_name=get_llm_model_name(),
+            model_name=getattr(self._llm_client, "model", get_llm_model_name()),
             processing_seconds=processing_seconds,
             token_count=token_count,
             success=True,
@@ -648,10 +654,53 @@ class BaseAgent:
                 temperature=settings.llm_temperature,
                 max_new_tokens=settings.llm_max_new_tokens,
             )
+        except AgentLLMError:
+            raise
         except Exception as exc:
+            # Model-failure fallback: if the assigned model returns a
+            # persistent error (429 after retries, 404, 503), retry once
+            # with the global fallback model before giving up.
+            if self._llm_client is not None and self._is_persistent_model_error(exc):
+                fallback_client = get_llm_client()
+                original_model = getattr(client, "model", "unknown")
+                fallback_model = getattr(fallback_client, "model", "unknown")
+                try:
+                    result = fallback_client.generate(
+                        prompt,
+                        temperature=settings.llm_temperature,
+                        max_new_tokens=settings.llm_max_new_tokens,
+                    )
+                    logger.info(
+                        "[EVAL_MODEL_FALLBACK] agent=%s | original_model=%s | "
+                        "fallback_model=%s | outcome=success",
+                        self.agent_name,
+                        original_model,
+                        fallback_model,
+                    )
+                    return result
+                except Exception as fallback_exc:
+                    logger.info(
+                        "[EVAL_MODEL_FALLBACK] agent=%s | original_model=%s | "
+                        "fallback_model=%s | outcome=fallback_failed: %s",
+                        self.agent_name,
+                        original_model,
+                        fallback_model,
+                        str(fallback_exc)[:200],
+                    )
+                    raise AgentLLMError(
+                        f"LLM call failed for {self.agent_name}: {exc}"
+                    ) from exc
             raise AgentLLMError(
                 f"LLM call failed for {self.agent_name}: {exc}"
             ) from exc
+
+    @staticmethod
+    def _is_persistent_model_error(error: Exception) -> bool:
+        """Check if error indicates a persistent model-level failure warranting fallback."""
+        error_str = str(error).lower()
+        # Match HTTP status codes in error messages
+        persistent_codes = ("http 429", "http 404", "http 503")
+        return any(code in error_str for code in persistent_codes)
 
     # Concise repair prompt for truncated/invalid JSON recovery. Keeps the
     # model focused on completion rather than re-prompting with the full
