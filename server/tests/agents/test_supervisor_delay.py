@@ -66,7 +66,7 @@ def test_supervisor_pacing_skips_first_and_final_agent(
 
 
 def test_supervisor_pacing_with_multiple_agents(monkeypatch, db_session) -> None:
-    """With N agents, pacing should sleep N-1 times (before agents 2..N)."""
+    """With parallel execution, agents run concurrently — no sequential pacing."""
     _seed_active_prompts(db_session)
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
@@ -104,15 +104,15 @@ def test_supervisor_pacing_with_multiple_agents(monkeypatch, db_session) -> None
         ),
     ]
 
-    supervisor.run_evaluation(
+    result = supervisor.run_evaluation(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunks=chunks,
     )
 
-    # 4 agents -> 3 sleeps (before agents 2, 3, 4), not 4.
-    assert len(sleep_calls) == 3
-    assert all(s == 15 for s in sleep_calls)
+    # Parallel execution: no sequential pacing between agents.
+    assert sleep_calls == []
+    assert len(result.agent_results) == 4
 
 
 # ------------------------------------------------------------------
@@ -188,7 +188,7 @@ def test_per_agent_delay_config_rejects_non_int_values(monkeypatch) -> None:
 
 
 def test_supervisor_uses_per_agent_delay(monkeypatch, db_session) -> None:
-    """Supervisor should use per-agent delay when configured."""
+    """With parallel execution, per-agent delay settings are not applied between agents."""
     _seed_active_prompts(db_session)
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
@@ -237,21 +237,19 @@ def test_supervisor_uses_per_agent_delay(monkeypatch, db_session) -> None:
         ),
     ]
 
-    supervisor.run_evaluation(
+    result = supervisor.run_evaluation(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunks=chunks,
     )
 
-    # 4 agents -> 3 sleeps: coordinator(10), gad(5), itso(20)
-    assert len(sleep_calls) == 3
-    assert sleep_calls[0] == 10   # coordinator uses global fallback
-    assert sleep_calls[1] == 5    # gad uses per-agent override
-    assert sleep_calls[2] == 20   # itso uses per-agent override
+    # Parallel execution: agents run concurrently, no sequential pacing.
+    assert sleep_calls == []
+    assert len(result.agent_results) == 4
 
 
 def test_supervisor_falls_back_to_global_delay(monkeypatch, db_session) -> None:
-    """When per-agent dict is empty, supervisor uses global delay."""
+    """With parallel execution, global delay is not applied between agents."""
     _seed_active_prompts(db_session)
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
@@ -296,12 +294,12 @@ def test_supervisor_falls_back_to_global_delay(monkeypatch, db_session) -> None:
         ),
     ]
 
-    supervisor.run_evaluation(
+    result = supervisor.run_evaluation(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunks=chunks,
     )
 
-    # 3 agents -> 2 sleeps, both using global 15s
-    assert len(sleep_calls) == 2
-    assert all(s == 15 for s in sleep_calls)
+    # Parallel execution: agents run concurrently, no sequential pacing.
+    assert sleep_calls == []
+    assert len(result.agent_results) == 3

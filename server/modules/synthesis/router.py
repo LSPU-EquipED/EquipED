@@ -75,6 +75,10 @@ def get_evaluation_results(
         for result in agent_results
     }
 
+    duration_seconds = None
+    if job.completed_at and job.submitted_at:
+        duration_seconds = (job.completed_at - job.submitted_at).total_seconds()
+
     return EvaluationResultsResponse(
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
@@ -103,7 +107,9 @@ def get_evaluation_results(
         failed_agents=list(synthesis_result["failed_agents"]),
         is_partial=bool(synthesis_result["is_partial"]),
         evaluation_status=job.status,
+        submitted_at=job.submitted_at,
         completed_at=job.completed_at,
+        duration_seconds=duration_seconds,
     )
 
 

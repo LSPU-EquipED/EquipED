@@ -127,6 +127,8 @@ def run_evaluation_job(
         )
         if existing_results == 0:
             _verify_token_ownership(session, evaluation_id, execution_token)
+            # Heartbeat before dispatching parallel agents.
+            heartbeat_evaluation_execution(session, evaluation_id, execution_token)
             supervisor = Supervisor(db=session)
             supervisor_result = supervisor.run_evaluation(
                 evaluation_id=evaluation_id,
@@ -145,6 +147,8 @@ def run_evaluation_job(
                     "Layer 3 produced no usable agent outputs."
                 )
             _verify_token_ownership(session, evaluation_id, execution_token)
+            # Heartbeat after all agent futures complete.
+            heartbeat_evaluation_execution(session, evaluation_id, execution_token)
             persist_agent_outputs(
                 session,
                 evaluation_id,
