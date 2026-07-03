@@ -35,6 +35,9 @@ GAD_ROW_1_PROMPT = (
     "historical, or critical purposes.\n"
     "- Gender-neutral content.\n\n"
     "Count each unique instance once.\n\n"
+    "Replace all numeric placeholder values with actual counts from "
+    "document_chunks. Do not copy the example value 0 unless no matching "
+    "instances are found.\n\n"
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material is free from gender stereotypes",\n'
