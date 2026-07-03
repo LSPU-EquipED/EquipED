@@ -86,10 +86,10 @@ something the template guarantees exists.
 
 | Code | Criterion | How it's measured | Score bands (4 / 3 / 2 / 1) |
 |---|---|---|---|
-| **OP-01** | Topic Coherence | **Coverage ratio.** Split content into ordered topic blocks; the LLM judges each transition as logical or not. Coherence = coherent transitions ÷ total transitions. | 80–100% / 50–79% / 20–49% / <20% |
+| **OP-01** | Topic Coherence | **Coverage ratio.** Content is sampled with evenly-spaced windows across the WHOLE document (not one contiguous slice — see `slicing.downsample`), so late topics are represented; split into ordered topic blocks, LLM judges each transition as coherent or not. Coherence = coherent transitions ÷ total transitions. Fewer than 4 transitions falls back to an issue count instead (0→4, 1→3, 2→2, 3+→1) — see §6. | 80–100% / 50–79% / 20–49% / <20% |
 | **OP-02** | Interactivity | **Interaction count.** Count the genuine interactive elements (activity/task/prompt with real content the student acts on; a bare title does not count). No topic/lesson denominator — most SLMs are one unlabeled lesson and LLM topic-splitting is unstable. | 4+ / 2–3 / 1 / 0 elements |
 | **OP-03** | Clear Directions | **Coverage ratio.** Of the tasks the student must perform, how many carry clear, complete directions (real instruction text quotable, not just a title)? Clear tasks ÷ total tasks. | 80–100% / 50–79% / 20–49% / <20% |
-| **OP-04** | Accurate Sections | **Coverage ratio.** Clarity/internal-consistency only (no external references). Clean sections ÷ total sections. | 80–100% / 50–79% / 20–49% / <20% |
+| **OP-04** | Accurate Sections | **Coverage ratio.** Same downsampled full-document slice as OP-01. Judges clarity + INTERNAL consistency only — never external/domain fact-checking, since the model can't reliably verify specialized course content and this is advisory-only. Clean sections ÷ total sections. | 80–100% / 50–79% / 20–49% / <20% |
 | **OP-05** | Enhancement Activities | **Activity count.** Count the genuine enhancement activities offered *beyond the required core* (enrichment, extension, extra practice, real-world application, further exploration) with real content — no fixed type taxonomy (same justifiability reason as OP-02). | 3+ / 2 / 1 / 0 activities |
 
 ### Domain B — Assessment
