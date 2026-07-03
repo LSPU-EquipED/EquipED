@@ -44,6 +44,15 @@ _TERMINAL_STATUSES: tuple[str, ...] = (
 )
 
 
+def _duration_seconds(
+    submitted_at: datetime | None,
+    completed_at: datetime | None,
+) -> float | None:
+    if completed_at is not None and submitted_at is not None:
+        return (completed_at - submitted_at).total_seconds()
+    return None
+
+
 def create_evaluation(
     req: EvaluationSubmitRequest,
     submitted_by: uuid.UUID,
@@ -99,6 +108,7 @@ def create_evaluation(
         submitted_by=job.submitted_by,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,
+        duration_seconds=_duration_seconds(job.submitted_at, job.completed_at),
     )
 
 
@@ -169,6 +179,7 @@ def get_evaluation(
         submitted_by=row.submitted_by,
         submitted_at=row.submitted_at,
         completed_at=row.completed_at,
+        duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )
 
 def list_evaluations(
@@ -207,6 +218,7 @@ def list_evaluations(
                 status=EvaluationStatus(row.status),
                 submitted_at=row.submitted_at,
                 completed_at=row.completed_at,
+                duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
             ) for row in rows
         ]
         return EvaluationListResponse(
@@ -229,6 +241,7 @@ def get_evaluation_status(
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
         completed_at=row.completed_at,
+        duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )
 
 def transition_evaluation_status(
@@ -249,6 +262,7 @@ def transition_evaluation_status(
             status=row.status,
             error_message=row.error_message,
             completed_at=row.completed_at,
+            duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
         )
     if not can_transition_status(row.status, new_status):
         raise InvalidStatusTransitionError(f"Cannot move {row.status} -> {new_status}")
@@ -274,6 +288,7 @@ def transition_evaluation_status(
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
         completed_at=row.completed_at,
+        duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )
 
 

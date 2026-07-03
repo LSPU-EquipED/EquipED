@@ -1,7 +1,8 @@
-"""Supervisor for sequential multi-agent evaluation."""
+"""Supervisor for multi-agent evaluation with parallel execution."""
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import time
 import uuid
@@ -9,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from server.core.config import get_settings
+from server.core.llm import get_llm_client_for_agent
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
 from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
@@ -118,73 +120,80 @@ class Supervisor:
             len(precomputed_context),
         )
 
-        for idx, agent in enumerate(self.agents):
-            agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
-            prompt_row = prompt_versions.get(agent_name)
-            if prompt_row is None:
-                raise SupervisorExecutionError(
-                    f"No active prompt version found for agent {agent_name}"
-                )
+        # Parallel execution: submit all agents to a thread pool.
+        # Each agent gets its own LLM client (thread-safe).  The
+        # precomputed_context dict is read-only during this phase.
+        parallel_start = time.perf_counter()
+        logger.info(
+            "[EVAL_TIMING] phase=parallel_dispatch | agents=%d | parallel=true",
+            len(self.agents),
+        )
 
-            # Smart pacing: sleep BEFORE the LLM call (not after), and skip
-            # the sleep before the very first agent. This eliminates the
-            # wasted post-final-agent sleep while preserving rate-limit safety.
-            # Per-agent delays take precedence over the global fallback.
-            sleep_seconds = 0.0
-            if idx > 0:
-                sleep_seconds = self._get_agent_delay(
-                    agent_name, settings,
-                )
-                if sleep_seconds > 0:
-                    time.sleep(sleep_seconds)
-
-            agent_start = time.perf_counter()
-            try:
-                agent_result = agent.run(
+        future_to_agent: dict[concurrent.futures.Future, str] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.agents)) as pool:
+            for agent in self.agents:
+                agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
+                prompt_row = prompt_versions.get(agent_name)
+                if prompt_row is None:
+                    raise SupervisorExecutionError(
+                        f"No active prompt version found for agent {agent_name}"
+                    )
+                client = get_llm_client_for_agent(agent_name)
+                future = pool.submit(
+                    self._run_single_agent,
+                    agent=agent,
+                    agent_name=agent_name,
                     evaluation_id=evaluation_id,
                     document_id=document_id,
                     chunk_infos=chunk_infos,
                     context_text=query_text,
-                    prompt_version=prompt_row.prompt_text,
-                    prompt_version_id=prompt_row.version_id,
+                    prompt_row=prompt_row,
                     reference_document_ids=reference_document_ids,
                     precomputed_context=precomputed_context,
+                    llm_client=client,
                 )
-                result.agent_results.append(agent_result)
-            except Exception as exc:
-                agent_seconds = time.perf_counter() - agent_start
-                logger.warning(
-                    "[EVAL_TIMING] agent=%s | status=failed | seconds=%.3f | sleep_before=%.3f | error=%s",
-                    agent_name,
-                    agent_seconds,
-                    sleep_seconds,
-                    str(exc)[:200],
-                )
-                result.agent_results.append(
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=0.0,
-                        criterion_scores=(),
-                        summary="",
-                        model_name="",
-                        processing_seconds=0,
-                        token_count=0,
-                        prompt_version_id=prompt_row.version_id,
-                        success=False,
-                        error_message=str(exc),
+                future_to_agent[future] = agent_name
+
+            for future in concurrent.futures.as_completed(future_to_agent):
+                agent_name = future_to_agent[future]
+                try:
+                    agent_result = future.result()
+                    result.agent_results.append(agent_result)
+                    if not agent_result.success:
+                        result.failures[agent_name] = (
+                            agent_result.error_message or "agent failed"
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "[EVAL_TIMING] agent=%s | status=failed | parallel=true | error=%s",
+                        agent_name,
+                        str(exc)[:200],
                     )
-                )
-                result.failures[agent_name] = str(exc)
-            else:
-                agent_seconds = time.perf_counter() - agent_start
-                logger.info(
-                    "[EVAL_TIMING] agent=%s | status=ok | seconds=%.3f | sleep_before=%.3f",
-                    agent_name,
-                    agent_seconds,
-                    sleep_seconds,
-                )
+                    result.agent_results.append(
+                        AgentEvaluationResult(
+                            agent_name=agent_name,
+                            evaluation_id=evaluation_id,
+                            document_id=document_id,
+                            subtotal=0.0,
+                            criterion_scores=(),
+                            summary="",
+                            model_name="unknown",
+                            processing_seconds=0,
+                            token_count=0,
+                            prompt_version_id=prompt_versions[agent_name].version_id,
+                            success=False,
+                            error_message=str(exc),
+                        )
+                    )
+                    result.failures[agent_name] = str(exc)
+
+        parallel_seconds = time.perf_counter() - parallel_start
+        logger.info(
+            "[EVAL_TIMING] phase=parallel_total | seconds=%.3f | agents=%d | failures=%d",
+            parallel_seconds,
+            len(result.agent_results),
+            len(result.failures),
+        )
 
         total_seconds = time.perf_counter() - eval_start
         logger.info(
@@ -198,6 +207,68 @@ class Supervisor:
             raise SupervisorExecutionError("No usable agent outputs were produced")
 
         return result
+
+    def _run_single_agent(
+        self,
+        *,
+        agent: Any,
+        agent_name: str,
+        evaluation_id: uuid.UUID,
+        document_id: uuid.UUID,
+        chunk_infos: list[dict[str, Any]],
+        context_text: str,
+        prompt_row: Any,
+        reference_document_ids: dict[str, uuid.UUID],
+        precomputed_context: dict[str, list[str]],
+        llm_client: Any | None = None,
+    ) -> AgentEvaluationResult:
+        """Execute a single agent with timing and error handling.
+
+        Called from ThreadPoolExecutor — each invocation runs in its own
+        thread.  Each agent gets its own LLM client for thread safety.
+        """
+        agent_start = time.perf_counter()
+        try:
+            agent_result = agent.run(
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                chunk_infos=chunk_infos,
+                context_text=context_text,
+                prompt_version=prompt_row.prompt_text,
+                prompt_version_id=prompt_row.version_id,
+                reference_document_ids=reference_document_ids,
+                precomputed_context=precomputed_context,
+                llm_client=llm_client,
+            )
+            agent_seconds = time.perf_counter() - agent_start
+            logger.info(
+                "[EVAL_TIMING] agent=%s | status=ok | seconds=%.3f | parallel=true",
+                agent_name,
+                agent_seconds,
+            )
+            return agent_result
+        except Exception as exc:
+            agent_seconds = time.perf_counter() - agent_start
+            logger.warning(
+                "[EVAL_TIMING] agent=%s | status=failed | seconds=%.3f | parallel=true | error=%s",
+                agent_name,
+                agent_seconds,
+                str(exc)[:200],
+            )
+            return AgentEvaluationResult(
+                agent_name=agent_name,
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                subtotal=0.0,
+                criterion_scores=(),
+                summary="",
+                model_name="unknown",
+                processing_seconds=0,
+                token_count=0,
+                prompt_version_id=prompt_row.version_id,
+                success=False,
+                error_message=str(exc),
+            )
 
     def _compute_query_embedding(self, query_text: str) -> list[float] | None:
         """Encode query text once for reuse across retrieval calls."""
@@ -213,7 +284,12 @@ class Supervisor:
     def _get_agent_delay(
         self, agent_name: str, settings: Any,
     ) -> int:
-        """Return per-agent delay if configured, else global fallback."""
+        """Return per-agent delay if configured, else global fallback.
+
+        Preserved for backward compatibility and potential fallback to
+        single-model sequential mode. Not used in the parallel execution
+        path where agents run concurrently via ThreadPoolExecutor.
+        """
         per_agent = getattr(settings, "llm_agent_delay_per_agent", None)
         if per_agent and agent_name in per_agent:
             return int(per_agent[agent_name])

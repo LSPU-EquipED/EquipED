@@ -219,10 +219,35 @@ def get_llm_client() -> Any:
     )
 
 
+@lru_cache(maxsize=8)
+def get_llm_client_for_agent(agent_name: str) -> Any:
+    """Create a cached LLM client configured with the agent's assigned model.
+
+    Each agent gets its own LocalLLMClient instance with the model resolved
+    via ``Settings.get_agent_model()``.  This allows parallel agent execution
+    with independent TPM pools per model.  The global ``get_llm_client()``
+    is preserved as a fallback for non-agent callers and model-failure retry.
+    """
+    settings = get_settings()
+    model = settings.get_agent_model(agent_name)
+    return LocalLLMClient(
+        provider=settings.llm_provider,
+        model=model,
+        api_base=settings.llm_api_base,
+        api_key=settings.llm_api_key,
+        request_timeout=float(settings.llm_request_timeout_seconds),
+    )
+
+
 def get_llm_model_name() -> str:
     """Expose the configured default model name for downstream callers."""
 
     return get_settings().llm_model_name
 
 
-__all__ = ["LocalLLMClient", "get_llm_client", "get_llm_model_name"]
+__all__ = [
+    "LocalLLMClient",
+    "get_llm_client",
+    "get_llm_client_for_agent",
+    "get_llm_model_name",
+]

@@ -69,7 +69,9 @@ class EvaluationResultsResponse(BaseModel):
     failed_agents: list[str]
     is_partial: bool = False
     evaluation_status: str
+    submitted_at: datetime | None = None
     completed_at: datetime | None = None
+    duration_seconds: float | None = None
 
 
 class MatrixRowItem(BaseModel):

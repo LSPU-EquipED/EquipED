@@ -1,4 +1,4 @@
-import { FileText, Download, Eye } from 'lucide-react';
+import { Clock, FileText, Download, Eye } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { ClientDocument } from '@/shared/types/documents';
@@ -9,6 +9,14 @@ import {
   type ExportDomainData,
 } from './ExportDocument';
 import type { EvaluationResultsResponse } from '../types';
+
+function formatDuration(seconds?: number | null): string {
+  if (seconds == null) return '';
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}m ${secs}s`;
+}
 
 type AgentDef = {
   id: ExportAgentId;
@@ -67,6 +75,16 @@ export function EvaluationHeader({
           <FileText className="size-4 text-slate-400" aria-hidden="true" />
           {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
         </span>
+
+        {isTerminal && hasResults && results?.duration_seconds != null && (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-sm border border-slate-200 px-3 py-2 font-mono text-xs font-semibold tabular-nums text-slate-600 bg-slate-50"
+            title="Evaluation duration"
+          >
+            <Clock className="size-3.5 text-slate-400" aria-hidden="true" />
+            {formatDuration(results.duration_seconds)}
+          </span>
+        )}
 
         <button
           type="button"

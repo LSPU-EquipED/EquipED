@@ -44,6 +44,7 @@ export interface EvaluationResponse {
   submitted_by?: string;
   submitted_at: string;
   completed_at?: string;
+  duration_seconds?: number | null;
 }
 
 export interface EvaluationStatusResponse {
@@ -51,6 +52,7 @@ export interface EvaluationStatusResponse {
   status: EvaluationStatus;
   error_message?: string;
   completed_at?: string;
+  duration_seconds?: number | null;
 }
 
 export interface EvaluationListItem {
@@ -62,6 +64,7 @@ export interface EvaluationListItem {
   status: EvaluationStatus;
   submitted_at: string;
   completed_at?: string | null;
+  duration_seconds?: number | null;
 }
 
 export interface EvaluationListResponse {
@@ -85,5 +88,7 @@ export interface EvaluationResultsResponse {
   failed_agents: string[];
   is_partial: boolean;
   evaluation_status: string;
+  submitted_at?: string | null;
   completed_at?: string;
+  duration_seconds?: number | null;
 }

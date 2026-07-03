@@ -247,6 +247,34 @@ def _isolate_agent_settings(monkeypatch) -> None:
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
 
 
+@pytest.fixture(autouse=True)
+def _mock_llm_client_for_agent(monkeypatch) -> None:
+    """Auto-applied fixture that mocks ``get_llm_client_for_agent`` for every
+    agent test.
+
+    The supervisor now calls ``get_llm_client_for_agent(agent_name)`` (from
+    ``server.core.llm``) to obtain a per-agent LLM client.  Without this
+    mock the real ``LocalLLMClient`` would be instantiated and attempt a
+    real HTTP call to an LLM endpoint, causing the test to hang.
+
+    We return a ``_FakeLLM`` that echoes a minimal valid JSON response so
+    any agent (including real ``BaseAgent`` subclasses) can complete its
+    LLM call in tests.
+    """
+    fake = _FakeLLM(
+        {
+            "summary": "test",
+            "criterion_scores": [
+                {"criterion_id": "c1", "score": 3, "justification": "ok"},
+            ],
+        }
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_llm_client_for_agent",
+        lambda _agent_name: fake,
+    )
+
+
 class _SleepCapture:
     """Context-like helper to capture time.sleep calls via monkeypatch.
 

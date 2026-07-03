@@ -27,6 +27,7 @@ class EvaluationResponse(BaseModel):
     submitted_by: UUID | None = Field(None, description="User who submitted job.")
     submitted_at: datetime
     completed_at: datetime | None = None
+    duration_seconds: float | None = None
 
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
@@ -37,6 +38,7 @@ class EvaluationListItem(BaseModel):
     status: EvaluationStatus
     submitted_at: datetime
     completed_at: datetime | None = None
+    duration_seconds: float | None = None
 
 class EvaluationListResponse(BaseModel):
     items: list[EvaluationListItem]
@@ -49,6 +51,7 @@ class EvaluationStatusResponse(BaseModel):
     status: EvaluationStatus
     error_message: str | None = None
     completed_at: datetime | None = None
+    duration_seconds: float | None = None
 
 __all__ = [
     "EvaluationSubmitRequest", "EvaluationResponse", "EvaluationListItem", "EvaluationListResponse", "EvaluationStatusResponse"

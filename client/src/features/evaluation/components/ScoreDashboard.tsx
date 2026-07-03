@@ -159,6 +159,14 @@ function statusMessage(status: string | undefined, isFailedWithResults: boolean)
   }
 }
 
+function formatDuration(seconds?: number | null): string {
+  if (seconds == null) return '';
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}m ${secs}s`;
+}
+
 function getShortStatusLabel(score: number): string {
   if (score >= 3) return 'Strong';
   if (score >= 2) return 'Moderate';
@@ -375,9 +383,20 @@ export function ScoreDashboard({
               </div>
             )}
             {status?.status !== 'FAILED' && (
-              <p className="mt-3 text-sm font-medium text-slate-500">
-                {statusMessage(status?.status, Boolean(isFailedWithResults))}
-              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <p className="text-sm font-medium text-slate-500">
+                  {statusMessage(status?.status, Boolean(isFailedWithResults))}
+                </p>
+                {isTerminal && (results?.duration_seconds != null || status?.duration_seconds != null) && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-slate-600"
+                    title="Total evaluation duration"
+                  >
+                    <Clock className="size-3" aria-hidden="true" />
+                    {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
