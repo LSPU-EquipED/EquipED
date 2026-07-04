@@ -22,6 +22,7 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .ingestion import ingest_document
+from .metadata import detect_metadata
 from .models import Document, DocumentChunk
 from .preprocessing import prepare_slm_package
 from .schemas import (
@@ -116,6 +117,30 @@ def create_document(
         status = "FAILED"
         chunk_data = []
 
+    # ── Metadata detection ──────────────────────────────────────────
+    detected_metadata: dict[str, str | None] = {}
+    if chunk_data:
+        try:
+            full_text = " ".join(chunk.text for chunk in chunk_data)
+            detected_metadata = detect_metadata(full_text)
+        except Exception:
+            logger.warning(
+                "Metadata detection failed during preprocessing",
+                extra={"document_id": str(doc_id)},
+                exc_info=True,
+            )
+
+    # Merge — never overwrite manually-provided values
+    effective_program = program
+    if effective_program is None and detected_metadata.get("program"):
+        effective_program = detected_metadata["program"]
+    effective_lesson_title = lesson_title
+    if effective_lesson_title is None and detected_metadata.get("lesson_title"):
+        effective_lesson_title = detected_metadata["lesson_title"]
+    detected_academic_year = detected_metadata.get("academic_year")
+    detected_course_code = detected_metadata.get("course_code")
+    # ─────────────────────────────────────────────────────────────────
+
     if status == "FAILED":
         _cleanup_failed_upload(target_path)
 
@@ -132,8 +157,8 @@ def create_document(
             [chunk.model_dump() for chunk in chunk_data],
             title=title,
             course_title=course_title,
-            lesson_title=lesson_title,
-            program=program,
+            lesson_title=effective_lesson_title,
+            program=effective_program,
         )
         structured_summary = package.document_summary
         structured_outline = package.document_outline
@@ -146,9 +171,11 @@ def create_document(
         document_id=doc_id,
         title=title,
         course_title=course_title,
-        lesson_title=lesson_title,
+        lesson_title=effective_lesson_title,
         source_type=source_type,
-        program=program,
+        program=effective_program,
+        academic_year=detected_academic_year,
+        course_code=detected_course_code,
         page_count=page_count,
         processing_status=status,
         has_ocr_pages=has_ocr_pages,
@@ -181,9 +208,11 @@ def create_document(
         document_id=doc_id,
         title=title,
         course_title=course_title,
-        lesson_title=lesson_title,
+        lesson_title=effective_lesson_title,
         source_type=source_type,
         processing_status=status,
+        academic_year=detected_academic_year,
+        course_code=detected_course_code,
         structured_summary=structured_summary,
         evaluation_readiness=evaluation_readiness,
         error_message=error_message,
@@ -208,6 +237,8 @@ def get_document(
                 lesson_title=row.lesson_title,
                 source_type=row.source_type,
                 program=row.program,
+                academic_year=row.academic_year,
+                course_code=row.course_code,
                 page_count=row.page_count,
                 processing_status=row.processing_status,
                 has_ocr_pages=row.has_ocr_pages,
@@ -265,6 +296,8 @@ def list_documents(
                 lesson_title=row.lesson_title,
                 source_type=row.source_type,
                 program=row.program,
+                academic_year=row.academic_year,
+                course_code=row.course_code,
                 page_count=row.page_count,
                 processing_status=row.processing_status,
                 has_ocr_pages=row.has_ocr_pages,
@@ -315,8 +348,6 @@ def _validate_upload(
         raise UnsupportedFileTypeError("Only PDF uploads are supported")
     if source_type not in SOURCE_TYPES:
         raise UnsupportedFileTypeError(f"Unsupported source_type: {source_type}")
-    if source_type == "slm" and not program:
-        raise UnsupportedFileTypeError("program is required when source_type is 'slm'")
     # RBAC: only admins can upload institutional knowledge base documents
     if user_role != "admin" and source_type in _ADMIN_ONLY_SOURCE_TYPES:
         raise ForbiddenUploadError(
@@ -342,6 +373,8 @@ def _persist_document(
         course_title=response.course_title,
         lesson_title=response.lesson_title,
         program=response.program,
+        academic_year=response.academic_year,
+        course_code=response.course_code,
         source_type=response.source_type,
         file_path=file_path,
         uploaded_by=uploaded_by,

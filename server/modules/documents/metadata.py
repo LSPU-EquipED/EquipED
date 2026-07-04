@@ -1,0 +1,134 @@
+"""Regex-based metadata detection for document preprocessing.
+
+Extracts program, academic_year, course_code, and lesson_title from the first
+~6000 characters of document text using pure regex pattern matching.
+No LLM calls, no new dependencies beyond Python's built-in ``re`` module.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+_LSPU_PROGRAMS = (
+    "BSIT",
+    "BSED",
+    "BSCS",
+    "BSBA",
+    "BSCE",
+    "BSEE",
+    "BSME",
+    "BSN",
+    "BSECE",
+    "BSCpE",
+    "ABEL",
+    "ABPOLSCI",
+    "BSCrim",
+    "BSA",
+    "BSAIS",
+    "BSARCH",
+    "BSOA",
+    "BSPsych",
+    "BSSW",
+)
+
+# Pre-compile patterns once at module load
+_PROGRAM_PATTERN = re.compile(r"\b(" + "|".join(sorted(_LSPU_PROGRAMS, key=len, reverse=True)) + r")\b")
+
+# Academic year patterns: "2025-2026", "2025 – 2026", "AY 2025", "SY 2025-2026"
+_ACADEMIC_YEAR_PATTERN = re.compile(
+    r"\b(?:SY\s*)?(20\d{2})\s*[–-]\s*(20\d{2})\b"
+    r"|"
+    r"\b(?:AY|SY)\s*(20\d{2})\b"
+)
+
+# Course code patterns: "CCS 101", "IT 201", "MATH 101"
+_COURSE_CODE_PATTERN = re.compile(r"\b([A-Z]{2,4})\s*(\d{3})\b")
+
+_DETECTION_LIMIT = 6000
+
+# Lesson title pattern: "Lesson Title: <value>"
+_LESSON_TITLE_PATTERN = re.compile(r"Lesson\s+Title[:\-]\s*([^\n]+)", re.MULTILINE | re.IGNORECASE)
+
+
+def detect_metadata(text: str) -> dict[str, str | None]:
+    """Extract program, academic_year, course_code, lesson_title from document text.
+
+    Only scans the first ~6000 characters (first 2-3 pages) to reduce
+    false positives from body text.
+    """
+    head = text[:_DETECTION_LIMIT]
+    return {
+        "program": _detect_program(head),
+        "academic_year": _detect_academic_year(head),
+        "course_code": _detect_course_code(head),
+        "lesson_title": _detect_lesson_title(head),
+    }
+
+
+def _detect_program(text: str) -> str | None:
+    """Match known LSPU SCC program codes, rejecting false positives.
+
+    Filters out common false-positive acronyms like PDF, URL, HTTP, HTML.
+    """
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for match in _PROGRAM_PATTERN.finditer(text):
+        code = match.group(1)
+        # Reject known non-program acronyms
+        if code in {"PDF", "URL", "HTTP", "HTML", "CSS", "JSON", "XML", "SQL", "API", "JSX", "TSX"}:
+            continue
+        if code not in seen:
+            seen.add(code)
+            candidates.append(code)
+
+    return candidates[0] if candidates else None
+
+
+def _detect_academic_year(text: str) -> str | None:
+    """Match academic year patterns.
+
+    Normalizes matches to the format ``"2025-2026"`` or ``"AY 2025"``.
+    """
+    for match in _ACADEMIC_YEAR_PATTERN.finditer(text):
+        # Pattern 1: "2025-2026" or "SY 2025-2026"
+        year1, year2 = match.group(1), match.group(2)
+        if year1 and year2:
+            return f"{year1}-{year2}"
+        # Pattern 2: "AY 2025" or "SY 2025"
+        ay_year = match.group(3)
+        if ay_year:
+            return f"AY {ay_year}"
+    return None
+
+
+def _detect_course_code(text: str) -> str | None:
+    """Match course code patterns like ``"CCS 101"``, ``"CMSC 313"``.
+
+    Returns the first match found in the text head.
+    """
+    match = _COURSE_CODE_PATTERN.search(text)
+    if match:
+        return f"{match.group(1)} {match.group(2)}"
+    return None
+
+
+def _detect_lesson_title(text: str) -> str | None:
+    """Match ``Lesson Title: <value>`` labels on cover pages.
+
+    Returns the captured value stripped of leading/trailing whitespace,
+    or None if no match is found.
+    """
+    match = _LESSON_TITLE_PATTERN.search(text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+__all__: list[str] = [
+    "detect_metadata",
+    "_detect_program",
+    "_detect_academic_year",
+    "_detect_course_code",
+    "_detect_lesson_title",
+]
