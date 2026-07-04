@@ -51,6 +51,8 @@ class DocumentUploadResponse(BaseModel):
     lesson_title: str | None = None
     source_type: str
     processing_status: str
+    academic_year: str | None = None
+    course_code: str | None = None
     structured_summary: str | None = None
     evaluation_readiness: str | None = None
     error_message: str | None = None
@@ -63,6 +65,8 @@ class DocumentResponse(BaseModel):
     lesson_title: str | None = None
     source_type: str
     program: str | None = None
+    academic_year: str | None = None
+    course_code: str | None = None
     page_count: int | None = None
     processing_status: str
     has_ocr_pages: bool
