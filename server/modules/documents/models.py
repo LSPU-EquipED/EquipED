@@ -24,6 +24,8 @@ class Document(Base):
     course_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     lesson_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     program: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    academic_year: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    course_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     uploaded_by: Mapped[uuid.UUID] = mapped_column(

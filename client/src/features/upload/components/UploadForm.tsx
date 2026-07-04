@@ -10,7 +10,7 @@ import { UploadIntakeFields } from './UploadIntakeFields';
 import { UploadDropzone } from './UploadDropzone';
 import { UploadSummaryLedger } from './UploadSummaryLedger';
 
-type ProgramId = 'bsit' | 'bscs' | 'bsis';
+const sourceType: DocumentSourceType = 'slm';
 
 const sourceTypeLabels: Record<DocumentSourceType, string> = {
   slm: 'SLM',
@@ -22,29 +22,14 @@ const sourceTypeLabels: Record<DocumentSourceType, string> = {
   curriculum: 'Curriculum',
 };
 
-const subjectsByProgram: Record<ProgramId, string[]> = {
-  bsit: [
-    'Capstone Project 1',
-    'Web Systems and Technologies',
-    'Systems Integration and Architecture',
-  ],
-  bscs: ['Software Engineering 2', 'Automata Theory', 'Intelligent Systems'],
-  bsis: ['Business Process Management', 'Information Systems Planning', 'Enterprise Architecture'],
-};
-
-const programLabels: Record<ProgramId, string> = {
-  bsit: 'BS Information Technology',
-  bscs: 'BS Computer Science',
-  bsis: 'BS Information Systems',
-};
+function titleFromFilename(filename: string): string {
+  return filename.replace(/\.pdf$/i, '');
+}
 
 export function UploadForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useUploadDocument();
-  const [program, setProgram] = useState<ProgramId>('bsit');
-  const [subject, setSubject] = useState(subjectsByProgram.bsit[0]);
-  const sourceType: DocumentSourceType = 'slm';
   const [title, setTitle] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
@@ -60,36 +45,36 @@ export function UploadForm() {
     setIsDragging(false);
   };
 
+  const applyFile = (nextFile: File | null) => {
+    setFile(nextFile);
+    setUploadResult(null);
+    resetUpload(null);
+
+    if (!nextFile) {
+      return;
+    }
+
+    if (!title.trim()) {
+      setTitle(titleFromFilename(nextFile.name));
+    }
+  };
+
   const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
     setIsDragging(false);
 
     const droppedFile = event.dataTransfer.files?.[0] ?? null;
-    if (droppedFile) {
-      if (
-        droppedFile.type === 'application/pdf' ||
-        droppedFile.name.toLowerCase().endsWith('.pdf')
-      ) {
-        setFile(droppedFile);
-        setUploadResult(null);
-        resetUpload(null);
-
-        if (!title.trim()) {
-          setTitle(droppedFile.name.replace(/\.pdf$/i, ''));
-        }
-      }
+    if (
+      droppedFile &&
+      (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf'))
+    ) {
+      applyFile(droppedFile);
     }
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] ?? null;
-    setFile(nextFile);
-    setUploadResult(null);
-    resetUpload(null);
-
-    if (nextFile && !title.trim()) {
-      setTitle(nextFile.name.replace(/\.pdf$/i, ''));
-    }
+    applyFile(nextFile);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -104,21 +89,13 @@ export function UploadForm() {
     try {
       const result = await uploadDocument({
         file,
-        sourceType: 'slm',
+        sourceType,
         title,
-        courseTitle: subject,
-        program,
       });
       setUploadResult(result);
     } catch {
       // Error state is surfaced via errorMessage from the hook
     }
-  };
-
-  const handleProgramChange = (value: string) => {
-    const nextProgram = value as ProgramId;
-    setProgram(nextProgram);
-    setSubject(subjectsByProgram[nextProgram][0]);
   };
 
   const handleReset = () => {
@@ -152,16 +129,7 @@ export function UploadForm() {
             </p>
           </div>
 
-          <UploadIntakeFields
-            title={title}
-            setTitle={setTitle}
-            program={program}
-            handleProgramChange={handleProgramChange}
-            subject={subject}
-            setSubject={setSubject}
-            programLabels={programLabels}
-            subjectsByProgram={subjectsByProgram}
-          />
+          <UploadIntakeFields title={title} setTitle={setTitle} />
 
           <UploadDropzone
             file={file}
@@ -178,7 +146,7 @@ export function UploadForm() {
         <div className="flex min-h-14 flex-wrap items-center gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wide sm:px-6 bg-slate-50/20">
           <span className="inline-flex items-center gap-2">
             <GraduationCap className="size-4" aria-hidden="true" />
-            Reference links stay out of scope in this phase.
+            Course and semester details are auto-detected from the document.
           </span>
         </div>
       </section>
@@ -203,9 +171,6 @@ export function UploadForm() {
             isSuccess={isSuccess}
             isFailed={isFailed}
             file={file}
-            program={program}
-            subject={subject}
-            programLabels={programLabels}
             sourceTypeLabels={sourceTypeLabels}
             sourceType={sourceType}
           />
