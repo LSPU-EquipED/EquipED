@@ -7,9 +7,6 @@ interface UploadSummaryLedgerProps {
   isSuccess: boolean;
   isFailed: boolean;
   file: File | null;
-  program: string;
-  subject: string;
-  programLabels: Record<string, string>;
   sourceTypeLabels: Record<string, string>;
   sourceType: string;
 }
@@ -19,13 +16,12 @@ export function UploadSummaryLedger({
   isSuccess,
   isFailed,
   file,
-  program,
-  subject,
-  programLabels,
   sourceTypeLabels,
   sourceType,
 }: UploadSummaryLedgerProps) {
   if (uploadResult) {
+    const metadataRows = buildMetadataRows(uploadResult);
+
     return (
       <div className="border border-slate-200 rounded-sm bg-white overflow-hidden">
         <div
@@ -65,6 +61,20 @@ export function UploadSummaryLedger({
             </div>
           </div>
 
+          {isSuccess ? (
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              {metadataRows.length > 0 ? (
+                metadataRows.map((row) => (
+                  <MetadataRow key={row.label} label={row.label} value={row.value} />
+                ))
+              ) : (
+                <p className="text-xs font-medium text-slate-500">
+                  No additional metadata detected.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           {isFailed && uploadResult.errorMessage && (
             <div className="border border-[#b91c1c]/30 bg-[#b91c1c]/10 rounded-sm p-3 text-xs font-semibold text-[#b91c1c]">
               {uploadResult.errorMessage}
@@ -94,22 +104,6 @@ export function UploadSummaryLedger({
           </span>
         </div>
 
-        {/* Program */}
-        <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
-            Program
-          </span>
-          <span className="col-span-2 text-slate-900 font-medium">{programLabels[program]}</span>
-        </div>
-
-        {/* Course */}
-        <div className="grid grid-cols-3 px-4 py-2.5">
-          <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
-            Course
-          </span>
-          <span className="col-span-2 text-slate-900 font-medium">{subject}</span>
-        </div>
-
         {/* File Attachment */}
         <div className="grid grid-cols-3 px-4 py-2.5">
           <span className="col-span-1 text-slate-500 font-medium uppercase tracking-wide text-[10px]">
@@ -125,6 +119,41 @@ export function UploadSummaryLedger({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function buildMetadataRows(result: DocumentUploadResponse): Array<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [];
+
+  if (result.program) {
+    rows.push({ label: 'Program', value: result.program });
+  }
+
+  if (result.courseCode) {
+    rows.push({ label: 'Course Code', value: result.courseCode });
+  } else if (result.courseTitle) {
+    rows.push({ label: 'Course', value: result.courseTitle });
+  }
+
+  if (result.academicYear) {
+    rows.push({ label: 'Sem/AY', value: result.academicYear });
+  }
+
+  if (result.lessonTitle) {
+    rows.push({ label: 'Lesson Title', value: result.lessonTitle });
+  }
+
+  return rows;
+}
+
+function MetadataRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <span className="col-span-1 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+        {label}
+      </span>
+      <span className="col-span-2 text-xs font-semibold text-slate-900">{value}</span>
     </div>
   );
 }

@@ -40,6 +40,8 @@ export type RawDocumentResponse = {
   lesson_title: string | null;
   source_type: DocumentSourceType;
   program: string | null;
+  academic_year: string | null;
+  course_code: string | null;
   page_count: number | null;
   processing_status: DocumentProcessingStatus;
   has_ocr_pages: boolean;
@@ -60,6 +62,8 @@ export type ClientDocument = {
   lessonTitle: string | null;
   sourceType: DocumentSourceType;
   program: string | null;
+  academicYear: string | null;
+  courseCode: string | null;
   pageCount: number | null;
   processingStatus: DocumentProcessingStatus;
   hasOcrPages: boolean;
@@ -94,6 +98,9 @@ export type RawDocumentUploadResponse = {
   lesson_title: string | null;
   source_type: DocumentSourceType;
   processing_status: DocumentProcessingStatus;
+  program?: string | null;
+  academic_year: string | null;
+  course_code: string | null;
   structured_summary?: string | null;
   evaluation_readiness?: string | null;
   error_message?: string | null;
@@ -106,6 +113,9 @@ export type DocumentUploadResponse = {
   lessonTitle: string | null;
   sourceType: DocumentSourceType;
   processingStatus: DocumentProcessingStatus;
+  program?: string | null;
+  academicYear: string | null;
+  courseCode: string | null;
   structuredSummary?: string | null;
   evaluationReadiness?: string | null;
   errorMessage?: string | null;
@@ -151,6 +161,8 @@ export function mapDocumentResponse(document: RawDocumentResponse): ClientDocume
     lessonTitle: document.lesson_title,
     sourceType: document.source_type,
     program: document.program,
+    academicYear: document.academic_year,
+    courseCode: document.course_code,
     pageCount: document.page_count,
     processingStatus: document.processing_status,
     hasOcrPages: document.has_ocr_pages,
@@ -184,6 +196,9 @@ export function mapDocumentUploadResponse(
     lessonTitle: response.lesson_title,
     sourceType: response.source_type,
     processingStatus: response.processing_status,
+    program: response.program,
+    academicYear: response.academic_year,
+    courseCode: response.course_code,
     structuredSummary: response.structured_summary,
     evaluationReadiness: response.evaluation_readiness,
     errorMessage: response.error_message,

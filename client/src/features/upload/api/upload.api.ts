@@ -11,18 +11,6 @@ async function uploadDocument(input: UploadDocumentInput): Promise<UploadDocumen
   formData.append('source_type', input.sourceType);
   formData.append('title', input.title.trim());
 
-  if (input.courseTitle?.trim()) {
-    formData.append('course_title', input.courseTitle.trim());
-  }
-
-  if (input.lessonTitle?.trim()) {
-    formData.append('lesson_title', input.lessonTitle.trim());
-  }
-
-  if (input.program?.trim()) {
-    formData.append('program', input.program.trim());
-  }
-
   const response = await requestJson<RawDocumentUploadResponse>('/documents/upload', {
     method: 'POST',
     body: formData,
