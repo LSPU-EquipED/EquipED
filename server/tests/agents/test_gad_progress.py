@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import time
+from threading import Lock
 from uuid import uuid4
 
+from server.core.llm import LocalLLMClient
 from server.modules.agents.gad import GAD
 from server.modules.agents.gad_prompts import GAD_CRITERIA
 
@@ -92,6 +95,36 @@ class _CriterionAwareLLM:
         raise AssertionError(f"unexpected criterion id: {criterion_id}")
 
 
+class _ParallelCriterionAwareLLM(_CriterionAwareLLM, LocalLLMClient):
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._active_calls = 0
+        self.max_active_calls = 0
+
+    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+        payload = json.loads(prompt)
+        delay = {
+            "GAD-01": 0.05,
+            "GAD-02": 0.04,
+            "GAD-03": 0.03,
+            "GAD-04": 0.02,
+            "GAD-05": 0.01,
+        }[payload["criterion_id"]]
+        with self._lock:
+            self._active_calls += 1
+            self.max_active_calls = max(self.max_active_calls, self._active_calls)
+        try:
+            time.sleep(delay)
+            return super().generate(
+                prompt,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+            )
+        finally:
+            with self._lock:
+                self._active_calls -= 1
+
+
 class _BlankSummaryLLM(_CriterionAwareLLM):
     def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
         payload = json.loads(prompt)
@@ -168,6 +201,35 @@ def test_gad_emits_progress_in_criterion_order(monkeypatch) -> None:
 
     assert seen == ["GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"]
     assert result.criterion_count == 5
+
+
+def test_gad_parallel_criteria_do_not_share_active_criterion(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "server.modules.agents.base.retrieve_context",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.base.resolve_collection_name",
+        lambda source_type: source_type,
+    )
+
+    llm = _ParallelCriterionAwareLLM()
+    result = GAD(llm_client=llm).run(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": "sample text"}],
+        reference_document_ids={"syllabus": uuid4(), "curriculum": uuid4()},
+        precomputed_context={
+            "rubric_gad": ["rubric"],
+            "syllabus": ["syllabus context"],
+            "curriculum": ["curriculum context"],
+        },
+    )
+
+    assert llm.max_active_calls > 1
+    assert [score.criterion_id for score in result.criterion_scores] == [
+        criterion.criterion_id for criterion in GAD_CRITERIA
+    ]
 
 
 def test_gad_logs_json_before_timing_summary(monkeypatch, caplog) -> None:

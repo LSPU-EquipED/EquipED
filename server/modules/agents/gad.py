@@ -7,9 +7,11 @@ import logging
 import re
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
 from server.core.config import get_settings
+from server.core.llm import LocalLLMClient
 
 from .base import BaseAgent
 from .contracts import AgentEvaluationResult, CriterionScore
@@ -77,6 +79,111 @@ class GAD(BaseAgent):
         ] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
+        if not self._should_run_criteria_in_parallel(
+            precomputed_context=precomputed_context,
+            db=db,
+        ):
+            results = self._run_criteria_sequentially(
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                chunk_infos=chunk_infos,
+                context_text=context_text,
+                reference_text=reference_text,
+                prompt_version=prompt_version,
+                prompt_version_id=prompt_version_id,
+                reference_document_ids=reference_document_ids,
+                precomputed_context=precomputed_context,
+                db=db,
+                criterion_progress_callback=criterion_progress_callback,
+            )
+            return self._merge_criterion_results(
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                prompt_version_id=prompt_version_id,
+                results=results,
+                processing_seconds=time.perf_counter() - start,
+            )
+
+        results: list[AgentEvaluationResult | None] = [None] * len(GAD_CRITERIA)
+        next_callback_index = 0
+        max_workers = len(GAD_CRITERIA)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_index = {
+                executor.submit(
+                    self._run_criterion_worker,
+                    criterion=criterion,
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    chunk_infos=chunk_infos,
+                    context_text=context_text,
+                    reference_text=reference_text,
+                    prompt_version=prompt_version,
+                    prompt_version_id=prompt_version_id,
+                    reference_document_ids=reference_document_ids,
+                    precomputed_context=precomputed_context,
+                    db=db,
+                ): index
+                for index, criterion in enumerate(GAD_CRITERIA)
+            }
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                results[index] = future.result()
+                while (
+                    criterion_progress_callback is not None
+                    and next_callback_index < len(results)
+                    and results[next_callback_index] is not None
+                ):
+                    criterion_progress_callback(
+                        GAD_CRITERIA[next_callback_index],
+                        results[next_callback_index],
+                    )
+                    next_callback_index += 1
+
+        ordered_results = [result for result in results if result is not None]
+        return self._merge_criterion_results(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            prompt_version_id=prompt_version_id,
+            results=ordered_results,
+            processing_seconds=time.perf_counter() - start,
+        )
+
+    def _should_run_criteria_in_parallel(
+        self,
+        *,
+        precomputed_context: dict[str, list[str]] | None,
+        db: Any | None,
+    ) -> bool:
+        if self._llm_client is not None and not isinstance(
+            self._llm_client,
+            LocalLLMClient,
+        ):
+            return False
+        if db is not None and (
+            precomputed_context is None
+            or self.rubric_source_type not in precomputed_context
+        ):
+            return False
+        return True
+
+    def _run_criteria_sequentially(
+        self,
+        *,
+        evaluation_id: uuid.UUID,
+        document_id: uuid.UUID,
+        chunk_infos: list[dict[str, Any]],
+        context_text: str | None,
+        reference_text: str | None,
+        prompt_version: str | None,
+        prompt_version_id: uuid.UUID | None,
+        reference_document_ids: dict[str, uuid.UUID] | None,
+        precomputed_context: dict[str, list[str]] | None,
+        db: Any | None,
+        criterion_progress_callback: Callable[
+            [GadCriterion, AgentEvaluationResult], None
+        ] | None,
+    ) -> list[AgentEvaluationResult]:
         previous_criterion = self._active_criterion
         previous_chunk_infos = self._active_chunk_infos
         self._active_chunk_infos = chunk_infos
@@ -84,7 +191,8 @@ class GAD(BaseAgent):
         try:
             for criterion in GAD_CRITERIA:
                 self._active_criterion = criterion
-                criterion_result = super().run(
+                criterion_result = BaseAgent.run(
+                    self,
                     evaluation_id=evaluation_id,
                     document_id=document_id,
                     chunk_infos=chunk_infos,
@@ -102,6 +210,19 @@ class GAD(BaseAgent):
         finally:
             self._active_criterion = previous_criterion
             self._active_chunk_infos = previous_chunk_infos
+        return results
+
+    def _merge_criterion_results(
+        self,
+        *,
+        evaluation_id: uuid.UUID,
+        document_id: uuid.UUID,
+        prompt_version_id: uuid.UUID | None,
+        results: list[AgentEvaluationResult],
+        processing_seconds: float,
+    ) -> AgentEvaluationResult:
+        if not results:
+            raise AgentExecutionError("GAD produced no criterion results")
 
         criterion_scores = tuple(
             score
@@ -126,9 +247,11 @@ class GAD(BaseAgent):
             subtotal=subtotal,
             criterion_scores=criterion_scores,
             prompt_version_id=prompt_version_id,
-            summary=" ".join(result.summary for result in results if result.summary),
+            summary=" ".join(
+                result.summary for result in results if result.summary
+            ),
             model_name=results[0].model_name,
-            processing_seconds=time.perf_counter() - start,
+            processing_seconds=processing_seconds,
             token_count=sum(result.token_count for result in results),
             success=True,
             raw_response=json.dumps(raw_responses, ensure_ascii=False),
@@ -142,6 +265,38 @@ class GAD(BaseAgent):
                     if result.criterion_scores
                 },
             },
+        )
+
+    def _run_criterion_worker(
+        self,
+        *,
+        criterion: GadCriterion,
+        evaluation_id: uuid.UUID,
+        document_id: uuid.UUID,
+        chunk_infos: list[dict[str, Any]],
+        context_text: str | None,
+        reference_text: str | None,
+        prompt_version: str | None,
+        prompt_version_id: uuid.UUID | None,
+        reference_document_ids: dict[str, uuid.UUID] | None,
+        precomputed_context: dict[str, list[str]] | None,
+        db: Any | None,
+    ) -> AgentEvaluationResult:
+        worker = self.__class__(llm_client=self._llm_client)
+        worker._active_criterion = criterion
+        worker._active_chunk_infos = chunk_infos
+        return BaseAgent.run(
+            worker,
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            chunk_infos=chunk_infos,
+            context_text=context_text,
+            reference_text=reference_text,
+            prompt_version=prompt_version,
+            prompt_version_id=prompt_version_id,
+            reference_document_ids=reference_document_ids,
+            precomputed_context=precomputed_context,
+            db=db,
         )
 
     def _emit_gad_json_response(self, payload: dict[str, Any]) -> None:
