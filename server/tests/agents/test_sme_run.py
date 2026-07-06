@@ -108,7 +108,7 @@ def _make_agent(monkeypatch, client: Any) -> SME:
     # Force the context_text fallback path instead of hitting a real DB/PDF.
     monkeypatch.setattr(SME, "_load_document_text", lambda self, document_id: None)
     monkeypatch.setattr(
-        "server.modules.agents.sme.get_active_rubric_criteria",
+        "server.modules.agents.engine_scoring.get_active_rubric_criteria",
         lambda agent_id, db=None: _TITLES,
     )
     return agent
