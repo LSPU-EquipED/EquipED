@@ -437,7 +437,7 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     )
 
     chunks = _make_chunk_infos(5, keyword="security data")
-    agent = SME(
+    agent = ITSO(
         llm_client=_FakeLLM(
             {
                 "summary": "ok",
@@ -490,7 +490,7 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
     )
 
     chunks = _make_chunk_infos(3, keyword="security data")
-    agent = SME(
+    agent = ITSO(
         llm_client=_FakeLLM(
             {
                 "summary": "ok",
@@ -537,7 +537,7 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
     )
 
     chunks = _make_chunk_infos(3)  # Below threshold of 6, short text.
-    agent = SME(
+    agent = ITSO(
         llm_client=_FakeLLM(
             {
                 "summary": "ok",

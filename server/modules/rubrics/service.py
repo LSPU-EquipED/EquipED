@@ -77,4 +77,51 @@ def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]
             session.close()
 
 
-__all__ = ["get_active_rubric_context", "resolve_rubric_agent_id"]
+def get_active_rubric_criteria(agent_id: str, db: Any | None = None) -> dict[str, str]:
+    """Return ``{criterion_code: title}`` for the active rubric set.
+
+    Mirrors ``get_active_rubric_context``'s query but returns structured
+    code/title pairs instead of formatted prompt strings, for callers that
+    need criterion titles without asking the LLM to echo them back (e.g. SME,
+    which scores criteria via the code-side engine rather than a prompt).
+    Returns ``{}`` if no active rubric set exists.
+    """
+
+    session = db or get_session_factory()()
+    close_session = db is None
+    try:
+        rubric_set = (
+            session.query(RubricSet)
+            .filter_by(agent_id=agent_id, status="active")
+            .order_by(RubricSet.version_number.desc())
+            .first()
+        )
+        if rubric_set is None:
+            return {}
+
+        criteria = (
+            session.query(RubricCriterion)
+            .join(
+                RubricDomain,
+                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
+            )
+            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
+            .order_by(
+                RubricDomain.display_order.asc(),
+                RubricDomain.code.asc(),
+                RubricCriterion.display_order.asc(),
+                RubricCriterion.criterion_code.asc(),
+            )
+            .all()
+        )
+        return {criterion.criterion_code: criterion.title for criterion in criteria}
+    finally:
+        if close_session:
+            session.close()
+
+
+__all__ = [
+    "get_active_rubric_context",
+    "get_active_rubric_criteria",
+    "resolve_rubric_agent_id",
+]

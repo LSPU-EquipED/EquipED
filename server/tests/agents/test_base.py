@@ -10,7 +10,6 @@ from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.exceptions import AgentLLMError
 from server.modules.agents.coordinator import Coordinator
 from server.modules.agents.itso import ITSO
-from server.modules.agents.sme import SME
 
 from .conftest import _DummyAgent, _FakeLLM, _RawLLM, _RetrievedChunk, _mock_settings
 
@@ -480,7 +479,6 @@ def test_concrete_agents_use_mocked_llm_response(monkeypatch) -> None:
     )
 
     for agent in [
-        SME(llm_client=fake_llm),
         Coordinator(llm_client=fake_llm),
         ITSO(llm_client=fake_llm),
     ]:
