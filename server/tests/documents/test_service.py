@@ -29,6 +29,11 @@ from server.modules.documents.service import (
 # ---------------------------------------------------------------------------
 
 def test_in_memory_documents_respect_ownership_scoping() -> None:
+    # Clear any leftover state from other tests
+    _MEM_DOCUMENTS.clear()
+    _MEM_DOCUMENT_OWNERS.clear()
+    _MEM_CHUNKS.clear()
+
     doc_id = uuid.uuid4()
     owner_id = uuid.uuid4()
     other_id = uuid.uuid4()

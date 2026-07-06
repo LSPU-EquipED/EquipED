@@ -1,4 +1,4 @@
-import type { DomainScoreBlock } from '../../shared/types/documents';
+import type { DomainScoreBlock, ReferenceSourceType } from '../../shared/types/documents';
 
 export interface PromptVersionItem {
   version_id: string;
@@ -96,6 +96,6 @@ export interface MatrixListResponse {
 
 export interface AdminUploadInput {
   file: File;
-  sourceType: string;
+  sourceType: ReferenceSourceType;
   title: string;
 }

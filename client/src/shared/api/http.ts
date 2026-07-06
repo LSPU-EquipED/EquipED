@@ -1,6 +1,8 @@
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || '/api/v1';
 
+export { API_BASE_URL };
+
 type ApiErrorPayload = {
   detail?: string;
   error?: {
@@ -25,7 +27,7 @@ export class ApiError extends Error {
   }
 }
 
-function buildApiUrl(path: string) {
+export function buildApiUrl(path: string) {
   if (/^https?:\/\//.test(path)) {
     return path;
   }
