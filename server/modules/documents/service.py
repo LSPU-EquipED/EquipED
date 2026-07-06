@@ -19,6 +19,9 @@ from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
     ForbiddenUploadError,
+    ReferenceDeleteConflictError,
+    ReferenceDeleteInvalidTypeError,
+    ReferenceRebuildError,
     UnsupportedFileTypeError,
 )
 from .ingestion import ingest_document
@@ -26,11 +29,16 @@ from .metadata import detect_metadata
 from .models import Document, DocumentChunk
 from .preprocessing import prepare_slm_package
 from .schemas import (
+    REFERENCE_SOURCE_TYPES,
     SOURCE_TYPES,
     DocumentChunkResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
+    ReferenceDeleteResponse,
+    ReferenceLibraryItem,
+    ReferenceLibraryResponse,
+    ReferenceRebuildResponse,
 )
 from .tfidf import compute_tfidf_corpus
 
@@ -46,6 +54,22 @@ _MEM_TFIDF: dict[str, float] = {}
 
 # Restricted source types that only admins can upload
 _ADMIN_ONLY_SOURCE_TYPES = {"syllabus", "curriculum", "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"}
+
+
+def is_reference_source_type(source_type: str) -> bool:
+    """Return True if the source type is a shared reference (syllabus or curriculum)."""
+    return source_type in REFERENCE_SOURCE_TYPES
+
+
+def _is_document_accessible(document, current_user_id: uuid.UUID) -> bool:
+    """Check whether a user may read/access a document row.
+
+    Reference documents (syllabus, curriculum) are shared to all
+    authenticated users. SLMs and other types remain owner-only.
+    """
+    if is_reference_source_type(document.source_type):
+        return True
+    return document.uploaded_by == current_user_id
 
 
 def create_document(
@@ -228,7 +252,7 @@ def get_document(
     if db is not None:
         row = db.get(Document, document_id)
         if row is not None:
-            if row.uploaded_by != current_user_id:
+            if not _is_document_accessible(row, current_user_id):
                 raise DocumentNotFoundError(f"Document {document_id} not found")
             return DocumentResponse(
                 document_id=row.document_id,
@@ -276,7 +300,13 @@ def list_documents(
     items: list[DocumentResponse]
     if db is not None:
         query = db.query(Document)
-        query = query.filter(Document.uploaded_by == current_user_id)
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Document.uploaded_by == current_user_id,
+                Document.source_type.in_(REFERENCE_SOURCE_TYPES),
+            )
+        )
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -323,7 +353,10 @@ def list_documents(
     mem_items = [
         item
         for item in mem_items
-        if _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
+        if (
+            _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
+            or is_reference_source_type(item.source_type)
+        )
     ]
     if source_type:
         mem_items = [item for item in mem_items if item.source_type == source_type]
@@ -337,6 +370,232 @@ def list_documents(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+def list_reference_documents(
+    db: Any | None = None,
+) -> ReferenceLibraryResponse:
+    """Admin-only listing of syllabus/curriculum documents with computed health."""
+    if db is None:
+        return ReferenceLibraryResponse(items=[], total=0)
+
+    from server.modules.embeddings.service import check_chroma_availability
+
+    rows = (
+        db.query(Document)
+        .filter(Document.source_type.in_(REFERENCE_SOURCE_TYPES))
+        .order_by(Document.uploaded_at.desc())
+        .all()
+    )
+
+    items: list[ReferenceLibraryItem] = []
+    for row in rows:
+        chunk_count = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == row.document_id)
+            .count()
+        )
+        file_exists = Path(row.file_path).exists() if row.file_path else False
+        chroma_available = check_chroma_availability(
+            str(row.document_id), row.source_type
+        )
+        embedding_ready = (
+            row.processing_status == "PROCESSED"
+            and chunk_count > 0
+            and chroma_available
+        )
+        items.append(
+            ReferenceLibraryItem(
+                document_id=row.document_id,
+                title=row.title,
+                source_type=row.source_type,
+                program=row.program,
+                course_code=row.course_code,
+                academic_year=row.academic_year,
+                course_title=row.course_title,
+                lesson_title=row.lesson_title,
+                page_count=row.page_count,
+                uploaded_at=row.uploaded_at,
+                uploaded_by=row.uploaded_by,
+                processing_status=row.processing_status,
+                file_exists=file_exists,
+                chunk_count=chunk_count,
+                chroma_available=chroma_available,
+                embedding_ready=embedding_ready,
+            )
+        )
+
+    return ReferenceLibraryResponse(items=items, total=len(items))
+
+
+def stream_document_file(
+    document_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+    db: Any | None = None,
+) -> Path:
+    """Return the local file path for a document, enforcing access rules.
+
+    Reference documents are shared to authenticated users.
+    SLMs remain owner-only.
+    Raises DocumentNotFoundError if the document is not found, not
+    accessible, or the local file is missing.
+    """
+    if db is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    row = db.get(Document, document_id)
+    if row is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    if not _is_document_accessible(row, current_user_id):
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    file_path = Path(row.file_path) if row.file_path else None
+    if file_path is None or not file_path.exists():
+        raise DocumentNotFoundError(f"Document file {document_id} not found")
+
+    return file_path
+
+
+def delete_reference_document(
+    document_id: uuid.UUID,
+    db: Any | None = None,
+) -> ReferenceDeleteResponse:
+    """Admin-only delete of a reference document with best-effort cleanup.
+
+    1. Check for referencing EvaluationJob rows → 409 Conflict
+    2. Delete Chroma vectors (tolerate missing)
+    3. Delete DocumentChunk rows
+    4. Delete the Document row
+    5. Delete the local PDF file (tolerate missing)
+    """
+    if db is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    from server.modules.evaluations.models import EvaluationJob
+    from server.modules.embeddings.service import delete_chroma_vectors
+
+    row = db.get(Document, document_id)
+    if row is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    details: dict[str, object] = {}
+
+    # Step 0: Validate source type — only reference documents can be deleted here
+    if not is_reference_source_type(row.source_type):
+        raise ReferenceDeleteInvalidTypeError(
+            f"Document {document_id} has source_type='{row.source_type}'; "
+            "only syllabus and curriculum documents can be deleted through this endpoint."
+        )
+
+    # Step 1: Check for evaluation job references
+    ref_count = (
+        db.query(EvaluationJob)
+        .filter(
+            (EvaluationJob.syllabus_id == document_id)
+            | (EvaluationJob.curriculum_id == document_id)
+        )
+        .count()
+    )
+    if ref_count > 0:
+        raise ReferenceDeleteConflictError(
+            f"Document {document_id} is referenced by {ref_count} evaluation job(s) "
+            "and cannot be deleted."
+        )
+
+    # Step 1: Delete Chroma vectors (tolerate missing)
+    try:
+        deleted_chroma = delete_chroma_vectors(str(document_id), row.source_type)
+        details["chroma_deleted"] = deleted_chroma
+    except Exception as exc:
+        logger.warning(
+            "Chroma deletion reported an issue during document cleanup",
+            extra={"document_id": str(document_id), "error": str(exc)},
+        )
+        details["chroma_warning"] = str(exc)
+
+    # Step 2: Delete DocumentChunk rows
+    chunk_count = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .delete()
+    )
+    details["chunks_deleted"] = chunk_count
+
+    # Step 3: Delete the Document row
+    db.delete(row)
+    db.flush()
+
+    # Step 4: Delete the local PDF file (tolerate missing)
+    if row.file_path:
+        pdf_path = Path(row.file_path)
+        if pdf_path.exists():
+            try:
+                pdf_path.unlink()
+                details["file_deleted"] = True
+            except OSError as exc:
+                logger.warning(
+                    "Failed to delete local PDF file during document cleanup",
+                    extra={"document_id": str(document_id), "file_path": row.file_path, "error": str(exc)},
+                )
+                details["file_warning"] = str(exc)
+        else:
+            details["file_missing"] = True
+    else:
+        details["file_missing"] = True
+
+    db.commit()
+
+    return ReferenceDeleteResponse(
+        document_id=document_id,
+        deleted=True,
+        details=details,
+    )
+
+
+def rebuild_reference_embeddings(
+    document_id: uuid.UUID,
+    db: Any | None = None,
+) -> ReferenceRebuildResponse:
+    """Admin-only rebuild of Chroma embeddings from stored chunks for a
+    syllabus or curriculum document.
+    """
+    if db is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    from server.modules.embeddings.service import embed_and_store_chunks
+
+    row = db.get(Document, document_id)
+    if row is None:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+
+    if not is_reference_source_type(row.source_type):
+        raise ReferenceRebuildError(
+            f"Rebuild is only supported for syllabus and curriculum documents, "
+            f"not {row.source_type}."
+        )
+
+    if row.processing_status != "PROCESSED":
+        raise ReferenceRebuildError(
+            f"Document {document_id} has status '{row.processing_status}'; "
+            "only PROCESSED documents can be rebuilt."
+        )
+
+    chunks = get_document_chunks(document_id, db=db)
+    if not chunks:
+        raise ReferenceRebuildError(
+            f"Document {document_id} has no stored chunks to rebuild embeddings from."
+        )
+
+    upserted = embed_and_store_chunks(chunks)
+    if db is not None and upserted:
+        _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
+    return ReferenceRebuildResponse(
+        document_id=document_id,
+        rebuilt=upserted > 0,
+        chunk_count=len(chunks),
+        details={"chunks_upserted": upserted},
     )
 
 
@@ -549,4 +808,9 @@ __all__ = [
     "get_document",
     "get_document_chunks",
     "list_documents",
+    "list_reference_documents",
+    "stream_document_file",
+    "delete_reference_document",
+    "rebuild_reference_embeddings",
+    "is_reference_source_type",
 ]

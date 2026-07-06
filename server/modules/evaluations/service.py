@@ -122,11 +122,20 @@ def _validate_evaluation_target(
     if db is None:
         raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
 
+    from server.modules.documents.schemas import REFERENCE_SOURCE_TYPES
+
     document = db.get(Document, document_id)
     if document is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
-    if document.uploaded_by != current_user_id:
+    # SLM documents require strict ownership. Reference documents
+    # (syllabus, curriculum) are shared to all authenticated users.
+    if expected_source_type == "slm" and document.uploaded_by != current_user_id:
+        raise DocumentNotFoundError(f"Document {document_id} not found")
+    if expected_source_type in REFERENCE_SOURCE_TYPES:
+        # References are shared; skip ownership check
+        pass
+    elif document.uploaded_by != current_user_id:
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
     if document.source_type != expected_source_type:

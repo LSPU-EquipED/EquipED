@@ -98,4 +98,54 @@ def embed_document_chunks(chunks: list[Any], batch_size: int = 32) -> int:
     return embed_and_store_chunks(chunks, batch_size=batch_size)
 
 
-__all__ = ["EmbeddingChunk", "embed_and_store_chunks", "embed_document_chunks"]
+def delete_chroma_vectors(document_id: str, source_type: str) -> bool:
+    """Delete all Chroma vectors for a given document_id and source_type.
+
+    Returns True if the collection exists and deletion was attempted,
+    False if the collection does not exist.
+    """
+    try:
+        collection_name = resolve_collection_name(source_type)
+    except ValueError:
+        return False
+
+    try:
+        chroma_client = get_chroma_client()
+        collection = chroma_client.get_collection(collection_name)
+    except Exception:
+        return False
+
+    collection.delete(where={"document_id": {"$eq": document_id}})
+    return True
+
+
+def check_chroma_availability(document_id: str, source_type: str) -> bool:
+    """Return True if at least one vector exists for the given document in Chroma."""
+    try:
+        collection_name = resolve_collection_name(source_type)
+    except ValueError:
+        return False
+
+    try:
+        chroma_client = get_chroma_client()
+        collection = chroma_client.get_collection(collection_name)
+    except Exception:
+        return False
+
+    try:
+        result = collection.get(
+            where={"document_id": {"$eq": document_id}},
+            limit=1,
+        )
+        return len(result.get("ids", [])) > 0
+    except Exception:
+        return False
+
+
+__all__ = [
+    "EmbeddingChunk",
+    "embed_and_store_chunks",
+    "embed_document_chunks",
+    "delete_chroma_vectors",
+    "check_chroma_availability",
+]

@@ -25,6 +25,20 @@ class ForbiddenUploadError(DocumentsError):
     """Raised when a user attempts to upload a document type they are not authorized for."""
 
 
+class ReferenceDeleteConflictError(DocumentsError):
+    """Raised when a reference document cannot be deleted because it is referenced by evaluation jobs."""
+
+
+class ReferenceRebuildError(DocumentsError):
+    """Raised when a reference document cannot be rebuilt due to missing chunks or unsupported type."""
+
+
+class ReferenceDeleteInvalidTypeError(DocumentsError):
+    """Raised when attempting to delete a non-reference document type.
+    Only syllabus and curriculum documents can be deleted through this endpoint.
+    """
+
+
 __all__ = [
     "DocumentsError",
     "UnsupportedFileTypeError",
@@ -32,4 +46,7 @@ __all__ = [
     "ExtractionFailedError",
     "DocumentNotFoundError",
     "ForbiddenUploadError",
+    "ReferenceDeleteConflictError",
+    "ReferenceRebuildError",
+    "ReferenceDeleteInvalidTypeError",
 ]

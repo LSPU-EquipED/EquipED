@@ -17,6 +17,9 @@ SOURCE_TYPES = (
     "curriculum",
 )
 
+# Source types that are institution-shared references (not SLMs or rubrics)
+REFERENCE_SOURCE_TYPES = frozenset({"syllabus", "curriculum"})
+
 PROCESSING_STATUSES = ("PENDING", "PROCESSED", "FAILED")
 
 
@@ -93,8 +96,47 @@ class TFIDFWeight(BaseModel):
     idf_weight: float
 
 
+class ReferenceLibraryItem(BaseModel):
+    """Lightweight reference item with computed health for the admin library."""
+    document_id: UUID
+    title: str
+    source_type: str
+    program: str | None = None
+    course_code: str | None = None
+    academic_year: str | None = None
+    course_title: str | None = None
+    lesson_title: str | None = None
+    page_count: int | None = None
+    uploaded_at: datetime
+    uploaded_by: UUID | None = None
+    processing_status: str
+    file_exists: bool
+    chunk_count: int
+    chroma_available: bool
+    embedding_ready: bool
+
+
+class ReferenceLibraryResponse(BaseModel):
+    items: list[ReferenceLibraryItem]
+    total: int
+
+
+class ReferenceDeleteResponse(BaseModel):
+    document_id: UUID
+    deleted: bool
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class ReferenceRebuildResponse(BaseModel):
+    document_id: UUID
+    rebuilt: bool
+    chunk_count: int = 0
+    details: dict[str, object] = Field(default_factory=dict)
+
+
 __all__ = [
     "SOURCE_TYPES",
+    "REFERENCE_SOURCE_TYPES",
     "PROCESSING_STATUSES",
     "DocumentChunkData",
     "DocumentChunkResponse",
@@ -102,4 +144,8 @@ __all__ = [
     "DocumentResponse",
     "DocumentListResponse",
     "TFIDFWeight",
+    "ReferenceLibraryItem",
+    "ReferenceLibraryResponse",
+    "ReferenceDeleteResponse",
+    "ReferenceRebuildResponse",
 ]
