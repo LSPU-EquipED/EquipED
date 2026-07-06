@@ -23,6 +23,7 @@ import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
 import { AdminHomePage } from '../features/admin/pages/AdminHomePage';
 import { UserManagementPage } from '../features/admin/pages/UserManagementPage';
 import { AdminUploadPage } from '../features/admin/pages/AdminUploadPage';
+import { ReferenceLibraryPage } from '../features/admin/pages/ReferenceLibraryPage';
 import { AgentPromptPage } from '../features/admin/pages/AgentPromptPage';
 import { PreferenceLogPage } from '../features/admin/pages/PreferenceLogPage';
 import { RubricEditorPage } from '../features/admin/pages/RubricEditorPage';
@@ -147,6 +148,12 @@ const adminIngestRoute = createRoute({
   component: AdminUploadPage,
 });
 
+const adminReferencesRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'references',
+  component: ReferenceLibraryPage,
+});
+
 const adminPromptsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'prompts',
@@ -186,14 +193,15 @@ const routeTree = rootRoute.addChildren([
     documentEvaluationRoute,
     evaluationDetailRoute,
     matrixRoute,
-    adminRoute.addChildren([
-      adminHomeRoute,
-      adminUsersRoute,
-      adminIngestRoute,
-      adminPromptsRoute.addChildren([adminPromptDetailRoute]),
-      adminPreferencesRoute,
-      adminRubricsRoute,
-    ]),
+      adminRoute.addChildren([
+        adminHomeRoute,
+        adminUsersRoute,
+        adminIngestRoute,
+        adminReferencesRoute,
+        adminPromptsRoute.addChildren([adminPromptDetailRoute]),
+        adminPreferencesRoute,
+        adminRubricsRoute,
+      ]),
   ]),
 ]);
 

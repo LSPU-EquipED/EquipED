@@ -1,28 +1,16 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { ArrowLeft, CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
 import { useAdminUpload } from '@/features/admin/hooks/useAdminUpload';
 import { cn } from '@/shared/components/utils';
-import type { DocumentSourceType, DocumentUploadResponse } from '@/shared/types/documents';
-
-type ReferenceSourceType = Exclude<DocumentSourceType, 'slm'>;
+import type { DocumentUploadResponse, ReferenceSourceType } from '@/shared/types/documents';
 
 const sourceTypeLabels: Record<ReferenceSourceType, string> = {
   syllabus: 'Syllabus',
-  rubric_sme: 'SME Rubric',
-  rubric_coord: 'Coordinator Rubric',
-  rubric_gad: 'GAD Rubric',
-  rubric_itso: 'ITSO Rubric',
   curriculum: 'Curriculum',
 };
 
-const referenceTypes: ReferenceSourceType[] = [
-  'syllabus',
-  'rubric_sme',
-  'rubric_coord',
-  'rubric_gad',
-  'rubric_itso',
-  'curriculum',
-];
+const referenceTypes: ReferenceSourceType[] = ['syllabus', 'curriculum'];
 
 export function AdminUploadPage() {
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useAdminUpload();
@@ -79,6 +67,22 @@ export function AdminUploadPage() {
 
   return (
     <section className="grid gap-6">
+      <div className="mx-auto flex w-full max-w-[48rem] items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Admin
+          </p>
+          <h1 className="mt-1 text-xl font-bold text-slate-900">Reference Ingestion</h1>
+        </div>
+        <Link
+          to="/admin/references"
+          className="inline-flex h-10 items-center gap-2 border border-slate-200 bg-white px-3 text-sm font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm"
+        >
+          <ArrowLeft className="size-4" />
+          Back to library
+        </Link>
+      </div>
+
       <form
         onSubmit={handleSubmit}
         className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-sm border border-slate-200 bg-white p-6"
@@ -131,7 +135,7 @@ export function AdminUploadPage() {
               {file ? file.name : 'Drop a PDF here or browse files'}
             </span>
             <span className="text-center text-xs text-slate-500 font-medium">
-              PDF only. Reference documents for embedding.
+              PDF only. Upload syllabus or curriculum references for embedding.
             </span>
             <input
               id="ref-file"

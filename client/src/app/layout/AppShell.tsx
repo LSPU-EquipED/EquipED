@@ -18,6 +18,7 @@ function getRouteTitle(routeId?: string): string {
   if (routeId.includes('/matrix')) return 'Monitoring Matrix';
   if (routeId.includes('/admin/users')) return 'User Management';
   if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
+  if (routeId.includes('/admin/references')) return 'Reference Library';
   if (routeId.includes('/admin/prompts')) return 'Agent Prompts';
   if (routeId.includes('/admin/preferences')) return 'Preference Logs';
   if (routeId.includes('/admin/rubrics')) return 'Rubric Editor';
