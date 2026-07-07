@@ -1,7 +1,8 @@
-import { useState, type PointerEvent } from 'react';
+import { useMemo, useState, type PointerEvent } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useEvaluationPageState } from '../hooks/useEvaluationPageState';
 import { EvaluationHeader } from './EvaluationHeader';
+import { EvaluationSetup } from './EvaluationSetup';
 import { DocumentPane } from './DocumentPane';
 import { ScoreDashboard } from './ScoreDashboard';
 
@@ -42,10 +43,42 @@ export function EvaluationInterface() {
     handleRetrySubmit,
     documentTextGroups,
     chunkMap,
+    isSetupRequired,
+    selectedProgram,
+    setSelectedProgram,
+    suggestionResponse,
+    isLoadingSuggestions,
+    isSuggestionsError,
+    suggestionsError,
+    hasReadyCurriculum,
+    submitFreshEvaluation,
   } = useEvaluationPageState(documentId);
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const selectedFlags = results?.flags.filter((flag) => flag.agent_id === selectedAgentId) || [];
+
+  const [chosenCurriculumId, setChosenCurriculumId] = useState<string | null>(null);
+  const selectedCurriculumId = useMemo(() => {
+    const ready = suggestionResponse?.curriculumSuggestions ?? [];
+    if (ready.length === 0) return null;
+    if (chosenCurriculumId && ready.some((item) => item.documentId === chosenCurriculumId)) {
+      return chosenCurriculumId;
+    }
+    return suggestionResponse?.preferredSuggestion?.documentId ?? ready[0].documentId;
+  }, [suggestionResponse, chosenCurriculumId]);
+
+  const handleStartEvaluation = () => {
+    if (selectedCurriculumId) {
+      submitFreshEvaluation(selectedCurriculumId);
+    }
+  };
+
+  const handleRetrySubmitEvaluation = () => {
+    submitEvaluation.reset();
+    if (selectedCurriculumId) {
+      submitFreshEvaluation(selectedCurriculumId);
+    }
+  };
 
   const handleDividerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const container = event.currentTarget.parentElement;
@@ -82,56 +115,77 @@ export function EvaluationInterface() {
         evaluationId={evaluationId}
       />
 
-      <div
-        className="grid min-h-0 flex-1"
-        style={{
-          gridTemplateColumns: `minmax(24rem, ${leftPaneSize}fr) 0.25rem minmax(28rem, ${100 - leftPaneSize}fr)`,
-        }}
-      >
-        <DocumentPane
+      {isSetupRequired ? (
+        <EvaluationSetup
           document={document}
-          isLoading={isLoadingDocument}
-          error={documentError}
-          isResolvingEval={isResolvingEval}
-          submitIsPending={!!submitEvaluation.isPending}
-          isResolveError={isResolveError}
-          resolveError={resolveError}
-          refetchResolve={refetchResolve}
-          submitIsError={!!submitEvaluation.isError}
+          isLoadingDocument={isLoadingDocument}
+          documentError={documentError}
+          selectedProgram={selectedProgram}
+          onSelectProgram={setSelectedProgram}
+          suggestionResponse={suggestionResponse}
+          isLoadingSuggestions={isLoadingSuggestions}
+          isSuggestionsError={isSuggestionsError}
+          suggestionsError={suggestionsError}
+          selectedCurriculumId={selectedCurriculumId}
+          onSelectCurriculum={setChosenCurriculumId}
+          hasReadyCurriculum={hasReadyCurriculum}
+          isSubmitting={!!submitEvaluation.isPending}
           submitError={submitEvaluation.error}
-          handleRetrySubmit={handleRetrySubmit}
-          documentTextGroups={documentTextGroups}
-          selectedFlags={selectedFlags}
-          chunkMap={chunkMap}
-          selectedAgentLabel={selectedAgent.name}
+          onStart={handleStartEvaluation}
+          onRetrySubmit={handleRetrySubmitEvaluation}
         />
-
-        <button
-          type="button"
-          className="group relative min-h-0 cursor-col-resize bg-border outline-none transition-colors hover:bg-foreground/50 focus-visible:bg-foreground/50"
-          onPointerDown={handleDividerPointerDown}
-          aria-label="Resize document and score panels"
+      ) : (
+        <div
+          className="grid min-h-0 flex-1"
+          style={{
+            gridTemplateColumns: `minmax(24rem, ${leftPaneSize}fr) 0.25rem minmax(28rem, ${100 - leftPaneSize}fr)`,
+          }}
         >
-          <span className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2" />
-        </button>
+          <DocumentPane
+            document={document}
+            isLoading={isLoadingDocument}
+            error={documentError}
+            isResolvingEval={isResolvingEval}
+            submitIsPending={!!submitEvaluation.isPending}
+            isResolveError={isResolveError}
+            resolveError={resolveError}
+            refetchResolve={refetchResolve}
+            submitIsError={!!submitEvaluation.isError}
+            submitError={submitEvaluation.error}
+            handleRetrySubmit={handleRetrySubmit}
+            documentTextGroups={documentTextGroups}
+            selectedFlags={selectedFlags}
+            chunkMap={chunkMap}
+            selectedAgentLabel={selectedAgent.name}
+          />
 
-        <ScoreDashboard
-          status={status}
-          results={results}
-          isTerminal={isTerminal}
-          isInProgress={isInProgress}
-          isFailedWithResults={isFailedWithResults}
-          isResultsError={isResultsError}
-          resultsError={resultsError}
-          refetchResults={refetchResults}
-          handleRetryEvaluation={handleRetryEvaluation}
-          isResolvingEval={isResolvingEval}
-          submitIsPending={!!submitEvaluation.isPending}
-          evaluationId={evaluationId}
-          selectedAgentId={selectedAgentId}
-          onSelectAgent={setSelectedAgentId}
-        />
-      </div>
+          <button
+            type="button"
+            className="group relative min-h-0 cursor-col-resize bg-border outline-none transition-colors hover:bg-foreground/50 focus-visible:bg-foreground/50"
+            onPointerDown={handleDividerPointerDown}
+            aria-label="Resize document and score panels"
+          >
+            <span className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2" />
+          </button>
+
+          <ScoreDashboard
+            status={status}
+            results={results}
+            isTerminal={isTerminal}
+            isInProgress={isInProgress}
+            isFailedWithResults={isFailedWithResults}
+            isResultsError={isResultsError}
+            resultsError={resultsError}
+            refetchResults={refetchResults}
+            handleRetryEvaluation={handleRetryEvaluation}
+            isResolvingEval={isResolvingEval}
+            submitIsPending={!!submitEvaluation.isPending}
+            evaluationId={evaluationId}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={setSelectedAgentId}
+          />
+        </div>
+      )}
     </section>
   );
 }

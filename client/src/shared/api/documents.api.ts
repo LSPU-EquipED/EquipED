@@ -1,9 +1,12 @@
 import { requestJson } from '@/shared/api/http';
 import {
+  mapCurriculumSuggestionResponse,
   mapDocumentListResponse,
   mapDocumentResponse,
   type ClientDocument,
+  type CurriculumSuggestionResponse,
   type DocumentListResponse,
+  type RawCurriculumSuggestionResponse,
   type RawDocumentListResponse,
   type RawDocumentResponse,
 } from '@/shared/types/documents';
@@ -48,9 +51,21 @@ async function getDocument(documentId: string): Promise<ClientDocument> {
   return mapDocumentResponse(response);
 }
 
+async function getCurriculumSuggestion(
+  documentId: string,
+  program: string,
+): Promise<CurriculumSuggestionResponse> {
+  const encodedProgram = encodeURIComponent(program.trim());
+  const response = await requestJson<RawCurriculumSuggestionResponse>(
+    `/documents/${documentId}/curriculum-suggestion?program=${encodedProgram}`,
+  );
+  return mapCurriculumSuggestionResponse(response);
+}
+
 export const documentsApi = {
   getDocument,
   listDocuments,
+  getCurriculumSuggestion,
 };
 
 export type { ListDocumentsParams };

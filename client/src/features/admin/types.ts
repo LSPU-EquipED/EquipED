@@ -98,4 +98,5 @@ export interface AdminUploadInput {
   file: File;
   sourceType: ReferenceSourceType;
   title: string;
+  program?: string;
 }

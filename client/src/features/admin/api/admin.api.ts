@@ -92,6 +92,10 @@ export const adminApi = {
     formData.append('source_type', input.sourceType);
     formData.append('title', input.title.trim());
 
+    if (input.program && input.program.trim()) {
+      formData.append('program', input.program.trim().toUpperCase());
+    }
+
     const response = await requestJson<RawDocumentUploadResponse>('/documents/upload', {
       method: 'POST',
       body: formData,
