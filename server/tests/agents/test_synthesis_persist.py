@@ -25,7 +25,7 @@ def test_persist_agent_outputs_creates_flags_for_low_scores(db_session) -> None:
         Document(
             document_id=document_id,
             title="SLM",
-            program="bsit",
+            program="BSCS",
             source_type="slm",
             file_path=f"uploads/{document_id}.pdf",
             uploaded_by=owner_id,
@@ -119,7 +119,7 @@ def test_persist_agent_outputs_ignores_invalid_and_missing_chunk_ids(
         Document(
             document_id=document_id,
             title="SLM",
-            program="bsit",
+            program="BSCS",
             source_type="slm",
             file_path=f"uploads/{document_id}.pdf",
             uploaded_by=owner_id,

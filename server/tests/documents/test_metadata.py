@@ -20,10 +20,10 @@ from server.modules.documents.metadata import (
 
 class TestDetectProgram:
     def test_detects_bsit(self) -> None:
-        assert _detect_program("This is a BSIT curriculum document") == "BSIT"
+        assert _detect_program("This is a BSN curriculum document") == "BSN"
 
-    def test_detects_bsed(self) -> None:
-        assert _detect_program("Course syllabus for BSED students") == "BSED"
+    def test_detects_bsa(self) -> None:
+        assert _detect_program("Course syllabus for BSA students") == "BSA"
 
     def test_detects_bscs(self) -> None:
         assert _detect_program("BSCS Program Outcome Assessment") == "BSCS"
@@ -48,9 +48,9 @@ class TestDetectProgram:
     def test_detects_program_among_noise(self) -> None:
         """When a real program code appears alongside false positives, detect it."""
         result = _detect_program(
-            "PDF document for the BSIT program URL http://example.com"
+            "PDF document for the BSN program URL http://example.com"
         )
-        assert result == "BSIT"
+        assert result == "BSN"
 
 
 # ---------------------------------------------------------------------------
@@ -201,22 +201,22 @@ class TestDetectMetadataAllNull:
 class TestDetectionLimit:
     def test_detects_early_pattern(self) -> None:
         """Pattern within first 6000 chars should be detected."""
-        text = "BSIT program " + "x" * 5000
+        text = "BSN program " + "x" * 5000
         result = detect_metadata(text)
-        assert result["program"] == "BSIT"
+        assert result["program"] == "BSN"
 
     def test_ignores_pattern_beyond_limit(self) -> None:
         """Pattern beyond 6000 chars should NOT be detected."""
         prefix = "x" * 6000
-        text = prefix + " BSIT program "
+        text = prefix + " BSN program "
         result = detect_metadata(text)
         assert result["program"] is None
 
     def test_mixed_detection_within_limit(self) -> None:
         """Multiple metadata fields within limit should all be detected."""
-        text = "BSIT program AY 2025 CCS 101\nLesson Title: Test Lesson\n" + "y " * 500
+        text = "BSN program AY 2025 CCS 101\nLesson Title: Test Lesson\n" + "y " * 500
         result = detect_metadata(text)
-        assert result["program"] == "BSIT"
+        assert result["program"] == "BSN"
         assert result["academic_year"] == "AY 2025"
         assert result["course_code"] == "CCS 101"
         assert result["lesson_title"] == "Test Lesson"
@@ -232,8 +232,8 @@ class TestDetectionNonBlocking:
         # If we pass something weird that causes an internal error,
         # detect_metadata still catches it via the service wrapper.
         # But the function itself uses re which shouldn't raise on str input.
-        result = detect_metadata("BSIT normal text")
-        assert result["program"] == "BSIT"
+        result = detect_metadata("BSN normal text")
+        assert result["program"] == "BSN"
 
     def test_service_wraps_detection_in_try_except(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path, caplog
@@ -268,7 +268,7 @@ class TestDetectionNonBlocking:
                     agent_domain="all",
                     page_number=1,
                     text=(
-                        "This document discusses the BSIT program "
+                        "This document discusses the BSN program "
                         "for academic year 2025-2026 course CCS 101."
                     ),
                     token_count=16,
@@ -316,7 +316,7 @@ class TestDetectionNonBlocking:
             title="Test Document",
             course_title=None,
             lesson_title=None,
-            program="BSED",  # manual program, should be preserved
+            program="BSBA",  # manual program, should be preserved
             uploaded_by=uuid4(),
             db=None,
         )
@@ -330,7 +330,7 @@ class TestDetectionNonBlocking:
 
         # Manual program is preserved in the stored response
         stored = _MEM_DOCUMENTS[result.document_id]
-        assert stored.program == "BSED"
+        assert stored.program == "BSBA"
 
         # Verify the warning was logged
         assert any(
@@ -346,8 +346,8 @@ class TestDetectionNonBlocking:
 class TestManualProgramPreserved:
     def test_detected_program_does_not_override_manual_when_set(self) -> None:
         """When program is manually set, auto-detected program is ignored."""
-        manual_program = "BSED"
-        text = "This document is about the BSIT program"
+        manual_program = "BSBA"
+        text = "This document is about the BSN program"
 
         # Simulate the merge logic from service.py
         effective_program = manual_program
@@ -355,19 +355,19 @@ class TestManualProgramPreserved:
             detected = detect_metadata(text)
             effective_program = detected.get("program")
 
-        assert effective_program == "BSED"  # manual wins, not BSIT
+        assert effective_program == "BSBA"  # manual wins, not BSN
 
     def test_detected_program_used_when_manual_is_none(self) -> None:
         """When program is not manually set, auto-detected program is used."""
         manual_program = None
-        text = "This document is about the BSIT program"
+        text = "This document is about the BSN program"
 
         effective_program = manual_program
         if effective_program is None:
             detected = detect_metadata(text)
             effective_program = detected.get("program")
 
-        assert effective_program == "BSIT"
+        assert effective_program == "BSN"
 
     def test_detected_lesson_title_does_not_override_manual(self) -> None:
         """When lesson_title is manually set, auto-detected value is ignored."""
@@ -408,8 +408,8 @@ class TestManualProgramPreserved:
 
     def test_academic_year_and_course_code_always_set(self) -> None:
         """academic_year and course_code are always set regardless of manual program."""
-        manual_program = "BSED"
-        text = "BSIT program AY 2025 CCS 101"
+        manual_program = "BSBA"
+        text = "BSN program AY 2025 CCS 101"
 
         detected = detect_metadata(text)
 
@@ -418,7 +418,7 @@ class TestManualProgramPreserved:
         if effective_program is None:
             effective_program = detected.get("program")
 
-        assert effective_program == "BSED"
+        assert effective_program == "BSBA"
 
         # academic_year and course_code are always set from detection
         academic_year = detected.get("academic_year")

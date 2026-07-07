@@ -72,7 +72,7 @@ def _add_document(session, *, owner_id, source_type: str) -> uuid.UUID:
         Document(
             document_id=document_id,
             title=f"{source_type} doc",
-            program="bsit",
+            program="BSCS",
             source_type=source_type,
             file_path=f"uploads/{document_id}.pdf",
             uploaded_by=owner_id,

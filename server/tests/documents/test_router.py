@@ -23,7 +23,7 @@ def test_upload_document_requires_authenticated_session(client: TestClient) -> N
         data={
             'source_type': 'slm',
             'title': 'Sample SLM',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
 
@@ -70,7 +70,7 @@ def test_upload_document_persists_ownership(
         data={
             'source_type': 'slm',
             'title': 'Test SLM Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
 
@@ -117,7 +117,7 @@ def test_faculty_cannot_access_another_faculty_document(
         data={
             'source_type': 'slm',
             'title': 'Faculty1 Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert upload_response.status_code == 201
@@ -168,7 +168,7 @@ def test_admin_can_only_access_own_documents(
         data={
             'source_type': 'slm',
             'title': 'Faculty Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert upload_response.status_code == 201
@@ -192,7 +192,7 @@ def test_admin_can_only_access_own_documents(
         data={
             'source_type': 'slm',
             'title': 'Admin Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert admin_upload.status_code == 201
@@ -240,7 +240,7 @@ def test_faculty_list_shows_only_own_documents(
         data={
             'source_type': 'slm',
             'title': 'Faculty1 Doc',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert upload1.status_code == 201
@@ -258,7 +258,7 @@ def test_faculty_list_shows_only_own_documents(
         data={
             'source_type': 'slm',
             'title': 'Faculty2 Doc',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert upload2.status_code == 201

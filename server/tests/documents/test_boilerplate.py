@@ -5,9 +5,9 @@ from server.modules.documents.boilerplate import strip_repeated_page_boilerplate
 
 def test_strip_repeated_page_boilerplate_removes_shared_header_and_footer() -> None:
     pages = [
-        "LSPU SCC SLM\nProgram: BSIT\nPage 1 of 3\nDepartment of Computer Studies\n\nLearning outcomes include critical thinking.\n\nConfidential\nPrepared by LSPU",
-        "LSPU SCC SLM\nProgram: BSIT\nPage 2 of 3\nDepartment of Computer Studies\n\nAssessment is 30% quiz and 70% exam.\n\nConfidential\nPrepared by LSPU",
-        "LSPU SCC SLM\nProgram: BSIT\nPage 3 of 3\nDepartment of Computer Studies\n\nData privacy applies.\n\nConfidential\nPrepared by LSPU",
+        "LSPU SCC SLM\nProgram: BSCS\nPage 1 of 3\nDepartment of Computer Studies\n\nLearning outcomes include critical thinking.\n\nConfidential\nPrepared by LSPU",
+        "LSPU SCC SLM\nProgram: BSCS\nPage 2 of 3\nDepartment of Computer Studies\n\nAssessment is 30% quiz and 70% exam.\n\nConfidential\nPrepared by LSPU",
+        "LSPU SCC SLM\nProgram: BSCS\nPage 3 of 3\nDepartment of Computer Studies\n\nData privacy applies.\n\nConfidential\nPrepared by LSPU",
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)
@@ -37,9 +37,9 @@ def test_strip_repeated_page_boilerplate_keeps_non_repeated_content() -> None:
 
 def test_strip_repeated_page_boilerplate_keeps_distinct_front_matter() -> None:
     pages = [
-        "Cover Page\nProgram: BSIT\n\nPage A content.",
+        "Cover Page\nProgram: BSCS\n\nPage A content.",
         "Cover Page\nProgram: BSBA\n\nPage B content.",
-        "Cover Page\nProgram: BSED\n\nPage C content.",
+        "Cover Page\nProgram: BSN\n\nPage C content.",
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)
@@ -53,9 +53,9 @@ def test_strip_repeated_page_boilerplate_keeps_distinct_front_matter() -> None:
 
 def test_strip_repeated_page_boilerplate_removes_varying_header_lines() -> None:
     pages = [
-        "LSPU SCC SLM\nProgram: BSIT\nInstructor: Dela Cruz\nDepartment of Computer Studies\n\nUnit 1 lesson content.",
-        "LSPU SCC SLM\nProgram: BSIT\nInstructor: Santos\nDepartment of Computer Studies\n\nUnit 2 lesson content.",
-        "LSPU SCC SLM\nProgram: BSIT\nInstructor: Reyes\nDepartment of Computer Studies\n\nUnit 3 lesson content.",
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Dela Cruz\nDepartment of Computer Studies\n\nUnit 1 lesson content.",
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Santos\nDepartment of Computer Studies\n\nUnit 2 lesson content.",
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Reyes\nDepartment of Computer Studies\n\nUnit 3 lesson content.",
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)

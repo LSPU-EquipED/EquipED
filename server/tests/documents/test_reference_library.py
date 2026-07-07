@@ -40,7 +40,7 @@ def _add_doc(
         Document(
             document_id=doc_id,
             title=title,
-            program="bsit",
+            program="BSCS",
             source_type=source_type,
             file_path=file_path,
             uploaded_by=owner_id,
@@ -251,6 +251,13 @@ class TestEvaluationSharedReferenceValidation:
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
 
+        # Provide a valid processed curriculum so the mandatory curriculum_id
+        # check passes and the test reaches PENDING syllabus validation.
+        curriculum_id = _add_doc(
+            db_session, owner_id=admin.user_id, source_type="curriculum",
+        )
+        _add_chunk(db_session, document_id=curriculum_id, source_type="curriculum")
+
         pending_syllabus = _add_doc(
             db_session, owner_id=admin.user_id, source_type="syllabus",
             processing_status="PENDING",
@@ -261,6 +268,7 @@ class TestEvaluationSharedReferenceValidation:
                 EvaluationSubmitRequest(
                     document_id=slm_id,
                     syllabus_id=pending_syllabus,
+                    curriculum_id=curriculum_id,
                 ),
                 submitted_by=faculty.user_id,
                 db=db_session,
