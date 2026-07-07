@@ -134,6 +134,32 @@ class ReferenceRebuildResponse(BaseModel):
     details: dict[str, object] = Field(default_factory=dict)
 
 
+class CurriculumSuggestionItem(BaseModel):
+    """A single curriculum candidate for program-driven suggestion."""
+    document_id: UUID
+    title: str
+    program: str | None = None
+    embedding_ready: bool
+    match_reason: str = "selected_program"
+
+
+class CurriculumSuggestionResponse(BaseModel):
+    """Response for the curriculum suggestion endpoint.
+
+    Returns SLM metadata, the confirmed program, and matching curriculum
+    references split into ready (selectable) and unavailable groupings.
+    """
+    document_id: UUID
+    detected_program: str | None = None
+    selected_program: str
+    detected_course_code: str | None = None
+    detected_academic_year: str | None = None
+    detected_lesson_title: str | None = None
+    preferred_suggestion: CurriculumSuggestionItem | None = None
+    curriculum_suggestions: list[CurriculumSuggestionItem] = Field(default_factory=list)
+    unavailable_curricula: list[CurriculumSuggestionItem] = Field(default_factory=list)
+
+
 __all__ = [
     "SOURCE_TYPES",
     "REFERENCE_SOURCE_TYPES",
@@ -148,4 +174,6 @@ __all__ = [
     "ReferenceLibraryResponse",
     "ReferenceDeleteResponse",
     "ReferenceRebuildResponse",
+    "CurriculumSuggestionItem",
+    "CurriculumSuggestionResponse",
 ]
