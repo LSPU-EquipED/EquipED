@@ -6,7 +6,7 @@ Defines the admin-managed local reference library for institutional syllabus and
 ## Requirements
 
 ### Requirement: Admin reference library lists syllabus and curriculum documents
-The system SHALL provide an admin-only reference library listing for documents with source types `syllabus` and `curriculum`. Rubric documents SHALL NOT be included in this library.
+The system SHALL provide an admin-only reference library listing for documents with source types `syllabus` and `curriculum`. Rubric documents SHALL NOT be included in this library. Curriculum references SHALL include program metadata to support program-driven suggestion.
 
 #### Scenario: Admin lists references
 - **WHEN** an authenticated admin requests the reference library
@@ -19,6 +19,10 @@ The system SHALL provide an admin-only reference library listing for documents w
 #### Scenario: Faculty cannot manage the library
 - **WHEN** an authenticated faculty user requests the admin reference library endpoint
 - **THEN** the system SHALL deny access
+
+#### Scenario: Curriculum without program is not suggestion-ready
+- **WHEN** a curriculum reference has no program metadata
+- **THEN** the system SHALL treat it as not eligible for program-driven curriculum suggestion until program metadata is provided
 
 ### Requirement: Reference health is computed from local storage
 The system SHALL compute reference health from current local state rather than storing static health fields. Health SHALL include PDF file availability, DB chunk count, Chroma vector availability, processing status, and derived embedding readiness.

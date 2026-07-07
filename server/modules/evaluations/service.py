@@ -61,12 +61,20 @@ def create_evaluation(
     if db is None:
         raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
 
+    # Validate SLM ownership FIRST to preserve security masking:
+    # a foreign SLM returns DocumentNotFoundError (404) before we
+    # reveal any curriculum_id requirements.
     document = _validate_evaluation_target(
         req.document_id,
         submitted_by,
         db,
         expected_source_type="slm",
     )
+
+    if req.curriculum_id is None:
+        raise InvalidEvaluationTargetError(
+            "curriculum_id is required for evaluation submission."
+        )
     syllabus = None
     if req.syllabus_id:
         syllabus = _validate_evaluation_target(

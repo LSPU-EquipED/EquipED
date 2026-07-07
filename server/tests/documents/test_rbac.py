@@ -159,7 +159,7 @@ def test_faculty_can_upload_slm(
         data={
             'source_type': 'slm',
             'title': 'Test SLM',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
     assert response.status_code == 201

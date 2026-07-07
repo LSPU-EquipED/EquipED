@@ -51,12 +51,46 @@ def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> 
     assert row.submitted_by == owner.user_id
 
 
-def test_create_evaluation_without_reference_documents(db_session) -> None:
-    """Can submit an evaluation with only an SLM document."""
+def test_create_evaluation_without_syllabus_succeeds(db_session) -> None:
+    """Can submit an evaluation with SLM and curriculum, but no syllabus."""
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-no-refs@example.com",
+        email="owner-no-syllabus@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            curriculum_id=curriculum_id,
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+
+    assert response.status == EvaluationStatus.SUBMITTED
+    assert response.syllabus_id is None
+    assert response.curriculum_id == curriculum_id
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.syllabus_id is None
+    assert row.curriculum_id == curriculum_id
+
+
+def test_create_evaluation_rejects_without_curriculum_id(db_session) -> None:
+    """Submitting without curriculum_id raises InvalidEvaluationTargetError."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-no-curriculum@example.com",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -64,19 +98,15 @@ def test_create_evaluation_without_reference_documents(db_session) -> None:
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
 
-    response = create_evaluation(
-        EvaluationSubmitRequest(document_id=slm_id),
-        submitted_by=owner.user_id,
-        db=db_session,
-    )
+    with pytest.raises(Exception) as exc_info:
+        create_evaluation(
+            EvaluationSubmitRequest(document_id=slm_id),
+            submitted_by=owner.user_id,
+            db=db_session,
+        )
 
-    assert response.status == EvaluationStatus.SUBMITTED
-    assert response.syllabus_id is None
-    assert response.curriculum_id is None
-    row = db_session.get(EvaluationJob, response.evaluation_id)
-    assert row is not None
-    assert row.syllabus_id is None
-    assert row.curriculum_id is None
+    assert exc_info.value.__class__.__name__ == "InvalidEvaluationTargetError"
+    assert "curriculum_id" in str(exc_info.value).lower()
 
 
 def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:

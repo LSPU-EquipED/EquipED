@@ -31,6 +31,8 @@ from .preprocessing import prepare_slm_package
 from .schemas import (
     REFERENCE_SOURCE_TYPES,
     SOURCE_TYPES,
+    CurriculumSuggestionItem,
+    CurriculumSuggestionResponse,
     DocumentChunkResponse,
     DocumentListResponse,
     DocumentResponse,
@@ -158,6 +160,9 @@ def create_document(
     effective_program = program
     if effective_program is None and detected_metadata.get("program"):
         effective_program = detected_metadata["program"]
+    # Normalize program for curriculum documents to uppercase/trimmed
+    if source_type == "curriculum" and effective_program is not None:
+        effective_program = effective_program.strip().upper()
     effective_lesson_title = lesson_title
     if effective_lesson_title is None and detected_metadata.get("lesson_title"):
         effective_lesson_title = detected_metadata["lesson_title"]
@@ -613,6 +618,11 @@ def _validate_upload(
             f"Only administrators can upload {source_type} documents. "
             "Faculty members can only upload SLM documents."
         )
+    # Curriculum documents require a program for program-driven suggestion
+    if source_type == "curriculum" and not (program and program.strip()):
+        raise UnsupportedFileTypeError(
+            "Program is required for curriculum documents."
+        )
 
 
 def _persist_document(
@@ -802,9 +812,114 @@ def _sanitize_error(raw_message: str) -> str:
     return sanitized
 
 
+def get_curriculum_suggestions(
+    document_id: uuid.UUID,
+    program: str,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
+    db: Any | None = None,
+) -> CurriculumSuggestionResponse:
+    """Return curriculum suggestions for an SLM document by confirmed program.
+
+    1. Loads the SLM document (ownership check via get_document).
+    2. Validates and normalizes the confirmed program.
+    3. Queries curriculum documents matching the normalized program.
+    4. Separates ready (embedding-ready) and unavailable curricula.
+    5. Returns the newest ready curriculum as preferred_suggestion.
+    """
+    # Step 1: Load the document — access check happens inside get_document
+    doc = get_document(document_id, current_user_id, current_user_role, db)
+    if doc.source_type != "slm":
+        raise ValueError("Curriculum suggestions are only available for SLM documents.")
+
+    # Step 2: Validate and normalize program
+    program_stripped = program.strip()
+    if not program_stripped:
+        raise ValueError("Program must not be empty")
+
+    normalized_program = program_stripped.upper()
+
+    # Step 3: Query matching curriculum documents
+    matching_rows: list[Any] = []
+    if db is not None:
+        from sqlalchemy import func as sa_func
+
+        rows = (
+            db.query(Document)
+            .filter(
+                Document.source_type == "curriculum",
+                sa_func.upper(Document.program) == normalized_program,
+            )
+            .order_by(Document.uploaded_at.desc())
+            .all()
+        )
+        matching_rows = rows
+    else:
+        matching_rows = [
+            d
+            for d in _MEM_DOCUMENTS.values()
+            if d.source_type == "curriculum"
+            and (d.program or "").strip().upper() == normalized_program
+        ]
+        matching_rows.sort(key=lambda d: d.uploaded_at, reverse=True)
+
+    # Step 4: Separate ready vs unavailable
+    ready: list[CurriculumSuggestionItem] = []
+    unavailable: list[CurriculumSuggestionItem] = []
+
+    for row in matching_rows:
+        if db is not None:
+            chunk_count = (
+                db.query(DocumentChunk)
+                .filter(DocumentChunk.document_id == row.document_id)
+                .count()
+            )
+            from server.modules.embeddings.service import check_chroma_availability
+
+            chroma_available = check_chroma_availability(
+                str(row.document_id), "curriculum"
+            )
+            embedding_ready = (
+                row.processing_status == "PROCESSED"
+                and chunk_count > 0
+                and chroma_available
+            )
+        else:
+            embedding_ready = row.processing_status == "PROCESSED"
+
+        item = CurriculumSuggestionItem(
+            document_id=row.document_id,
+            title=row.title,
+            program=row.program,
+            embedding_ready=embedding_ready,
+            match_reason="selected_program",
+        )
+
+        if embedding_ready:
+            ready.append(item)
+        else:
+            unavailable.append(item)
+
+    # Step 5: Preferred = newest ready curriculum
+    preferred = ready[0] if ready else None
+
+    return CurriculumSuggestionResponse(
+        document_id=document_id,
+        detected_program=doc.program,
+        selected_program=program_stripped,
+        detected_course_code=doc.course_code,
+        detected_academic_year=doc.academic_year,
+        detected_lesson_title=doc.lesson_title,
+        preferred_suggestion=preferred,
+        curriculum_suggestions=ready,
+        unavailable_curricula=unavailable,
+    )
+
+
 __all__ = [
     "create_document",
     "embed_document_chunks",
+    "get_curriculum_suggestions",
     "get_document",
     "get_document_chunks",
     "list_documents",

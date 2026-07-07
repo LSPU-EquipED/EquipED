@@ -41,7 +41,7 @@ School Year 2025-2026
 
 This course provides an overview of computing fundamentals.
 
-Program: BSIT
+Program: BSN
 """
 
 
@@ -66,7 +66,7 @@ def test_upload_detects_metadata_when_patterns_exist(
             "source_type": "slm",
             "title": "Detection Test SLM",
             # program is required for SLM; we provide one manually
-            "program": "bsit",
+            "program": "BSCS",
         },
     )
 
@@ -90,7 +90,7 @@ def test_upload_detects_metadata_when_patterns_exist(
     get_body = get_resp.json()
     assert get_body["academic_year"] == "2025-2026"
     assert get_body["course_code"] == "CCS 101"
-    assert get_body["program"] == "bsit"
+    assert get_body["program"] == "BSCS"
 
 
 def test_upload_with_manual_program_not_overridden(
@@ -112,7 +112,7 @@ def test_upload_with_manual_program_not_overridden(
         data={
             "source_type": "slm",
             "title": "Manual Program Test",
-            "program": "bscs",  # Manual value — must NOT be overridden to BSIT
+            "program": "bscs",  # Manual value — must NOT be overridden to BSN
         },
     )
 
@@ -167,7 +167,7 @@ def test_upload_without_metadata_still_completes(
         data={
             "source_type": "slm",
             "title": "No Metadata SLM",
-            "program": "bsit",  # Manual program
+            "program": "BSCS",  # Manual program
         },
     )
 
@@ -191,7 +191,7 @@ def test_upload_without_metadata_still_completes(
     get_body = get_resp.json()
     assert get_body["academic_year"] is None
     assert get_body["course_code"] is None
-    assert get_body["program"] == "bsit"
+    assert get_body["program"] == "BSCS"
 
 
 __all__: list[str] = []

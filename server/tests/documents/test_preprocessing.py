@@ -34,7 +34,7 @@ def test_prepare_slm_package_builds_structured_context() -> None:
         title="Intro to Programming SLM",
         course_title="Intro to Programming",
         lesson_title=None,
-        program="bsit",
+        program="BSCS",
     )
 
     assert package.document_summary

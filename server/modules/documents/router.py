@@ -32,6 +32,7 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .schemas import (
+    CurriculumSuggestionResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
@@ -43,6 +44,7 @@ from .service import (
     create_document,
     delete_reference_document,
     embed_document_chunks,
+    get_curriculum_suggestions,
     get_document,
     list_documents,
     list_reference_documents,
@@ -171,6 +173,44 @@ def get_document_file(
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/{document_id}/curriculum-suggestion",
+    response_model=CurriculumSuggestionResponse,
+)
+def get_curriculum_suggestion(
+    document_id: UUID,
+    program: str = Query(
+        ..., min_length=1, description="Confirmed academic program for curriculum matching"
+    ),
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> CurriculumSuggestionResponse:
+    """Return curriculum suggestions for an SLM document by confirmed program.
+
+    Requires authentication. The SLM document must be owned by the current
+    user (SLMs are owner-only; references are shared). The program parameter
+    is required and must be non-empty.
+    """
+    try:
+        return get_curriculum_suggestions(
+            document_id=document_id,
+            program=program,
+            current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
 

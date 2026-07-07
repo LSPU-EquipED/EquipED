@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import { useFetch } from '@/shared/hooks/useFetch';
@@ -38,11 +38,18 @@ function buildDocumentTextGroups(document: ClientDocument | null): DocumentTextG
 export function useEvaluationPageState(documentId?: string) {
   const queryClient = useQueryClient();
   const submitEvaluation = useSubmitEvaluation();
-  const { data: document, error, isLoading, execute } = useFetch(documentsApi.getDocument);
+  const {
+    data: document,
+    error,
+    isLoading: isLoadingDocument,
+    execute,
+  } = useFetch(documentsApi.getDocument);
 
   const storageKey = documentId ? `${EVAL_STORAGE_PREFIX}${documentId}` : null;
-  const submitAttemptedRef = useRef(false);
   const hasRecoveredRef = useRef(false);
+
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
+  const effectiveProgram = selectedProgram || document?.program?.trim().toUpperCase() || '';
 
   // Document fetch effect
   useEffect(() => {
@@ -92,39 +99,43 @@ export function useEvaluationPageState(documentId?: string) {
     retry: false,
   });
 
-  const submitFreshEvaluation = useCallback(() => {
-    if (!documentId || submitEvaluation.isPending || submitAttemptedRef.current) return;
+  // Curriculum suggestions for the confirmed program
+  const {
+    data: suggestionResponse,
+    isLoading: isLoadingSuggestions,
+    isError: isSuggestionsError,
+    error: suggestionsError,
+  } = useQuery({
+    queryKey: ['curriculum-suggestion', documentId, effectiveProgram],
+    queryFn: () => documentsApi.getCurriculumSuggestion(documentId!, effectiveProgram),
+    enabled: !!documentId && effectiveProgram.trim().length > 0,
+    retry: 1,
+  });
 
-    submitAttemptedRef.current = true;
-    submitEvaluation
-      .mutateAsync({ document_id: documentId })
-      .then((result) => {
-        if (storageKey) {
-          sessionStorage.setItem(storageKey, result.evaluation_id);
-        }
-        void queryClient.invalidateQueries({
-          queryKey: ['resolve-evaluation', documentId],
+  const submitFreshEvaluation = useCallback(
+    (curriculumId: string) => {
+      if (!documentId || submitEvaluation.isPending) return;
+
+      submitEvaluation
+        .mutateAsync({ document_id: documentId, curriculum_id: curriculumId })
+        .then((result) => {
+          if (storageKey) {
+            sessionStorage.setItem(storageKey, result.evaluation_id);
+          }
+          void queryClient.invalidateQueries({
+            queryKey: ['resolve-evaluation', documentId],
+          });
+        })
+        .catch(() => {
+          // Error is surfaced by the mutation; the user can retry from setup.
         });
-      })
-      .catch(() => {
-        // Intentionally do NOT reset submitAttemptedRef here.
-        // The UI shows the error and waits for an explicit user retry.
-      });
-  }, [documentId, submitEvaluation, storageKey, queryClient]);
+    },
+    [documentId, submitEvaluation, storageKey, queryClient],
+  );
 
-  // Auto-submit a fresh evaluation once when resolve returns null
-  // and no submission has been attempted for this resolution cycle.
-  useEffect(() => {
-    if (evaluationId !== null) {
-      submitAttemptedRef.current = false;
-      return;
-    }
-    if (!documentId) return;
-    if (submitEvaluation.isPending) return;
-    if (submitAttemptedRef.current) return;
-
-    submitFreshEvaluation();
-  }, [evaluationId, documentId, submitEvaluation.isPending, submitFreshEvaluation]);
+  const handleRetrySubmit = useCallback(() => {
+    submitEvaluation.reset();
+  }, [submitEvaluation]);
 
   // Results query
   const {
@@ -194,15 +205,23 @@ export function useEvaluationPageState(documentId?: string) {
     if (storageKey) {
       sessionStorage.removeItem(storageKey);
     }
-    submitAttemptedRef.current = false;
     hasRecoveredRef.current = false;
+    submitEvaluation.reset();
     void refetchResolve();
-  }, [storageKey, refetchResolve]);
+  }, [storageKey, refetchResolve, submitEvaluation]);
 
-  const handleRetrySubmit = useCallback(() => {
-    submitAttemptedRef.current = false;
-    submitFreshEvaluation();
-  }, [submitFreshEvaluation]);
+  const isSetupRequired = useMemo(() => {
+    return (
+      !!documentId &&
+      !evaluationId &&
+      !isResolvingEval &&
+      !isResolveError &&
+      !isLoadingDocument &&
+      !!document
+    );
+  }, [documentId, evaluationId, isResolvingEval, isResolveError, isLoadingDocument, document]);
+
+  const hasReadyCurriculum = (suggestionResponse?.curriculumSuggestions.length ?? 0) > 0;
 
   // Document derived
   const documentTextGroups = useMemo(() => buildDocumentTextGroups(document), [document]);
@@ -218,7 +237,7 @@ export function useEvaluationPageState(documentId?: string) {
 
   return {
     document,
-    isLoadingDocument: isLoading,
+    isLoadingDocument,
     documentError: error,
     evaluationId,
     isResolvingEval,
@@ -239,5 +258,15 @@ export function useEvaluationPageState(documentId?: string) {
     handleRetrySubmit,
     documentTextGroups,
     chunkMap,
+    // Setup
+    isSetupRequired,
+    selectedProgram: effectiveProgram,
+    setSelectedProgram,
+    suggestionResponse,
+    isLoadingSuggestions,
+    isSuggestionsError,
+    suggestionsError,
+    hasReadyCurriculum,
+    submitFreshEvaluation,
   };
 }

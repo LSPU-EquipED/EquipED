@@ -191,7 +191,7 @@ def test_upload_failed_processing_returns_error_message(
         data={
             'source_type': 'slm',
             'title': 'Broken Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
 
@@ -220,7 +220,7 @@ def test_failed_upload_cleans_up_orphaned_file(
         data={
             'source_type': 'slm',
             'title': 'Broken Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
 
@@ -251,7 +251,7 @@ def test_failed_upload_error_message_is_sanitized(
         data={
             'source_type': 'slm',
             'title': 'Broken Document',
-            'program': 'bsit',
+            'program': 'BSCS',
         },
     )
 
@@ -333,7 +333,7 @@ def test_existing_documents_are_not_auto_reprocessed(
         title="New Document",
         course_title=None,
         lesson_title=None,
-        program="bsit",
+        program="BSCS",
         uploaded_by=uuid.uuid4(),
         db=None,
     )

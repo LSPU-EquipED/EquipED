@@ -3,6 +3,8 @@ import { Link } from '@tanstack/react-router';
 import { ArrowLeft, CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
 import { useAdminUpload } from '@/features/admin/hooks/useAdminUpload';
 import { cn } from '@/shared/components/utils';
+import { ProgramSelector } from '@/shared/components/ProgramSelector';
+import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
 import type { DocumentUploadResponse, ReferenceSourceType } from '@/shared/types/documents';
 
 const sourceTypeLabels: Record<ReferenceSourceType, string> = {
@@ -16,9 +18,11 @@ export function AdminUploadPage() {
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useAdminUpload();
   const [sourceType, setSourceType] = useState<ReferenceSourceType>('syllabus');
   const [title, setTitle] = useState('');
+  const [program, setProgram] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isProgramRequired = sourceType === 'curriculum';
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] ?? null;
@@ -34,7 +38,7 @@ export function AdminUploadPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!file || !title.trim()) {
+    if (!file || !title.trim() || (isProgramRequired && !program.trim())) {
       return;
     }
 
@@ -45,6 +49,7 @@ export function AdminUploadPage() {
         file,
         sourceType,
         title,
+        program: isProgramRequired ? program.trim().toUpperCase() : undefined,
       });
       setUploadResult(result);
     } catch {
@@ -57,6 +62,7 @@ export function AdminUploadPage() {
     resetUpload(null);
     setFile(null);
     setTitle('');
+    setProgram('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -121,6 +127,19 @@ export function AdminUploadPage() {
             required
           />
         </div>
+
+        {isProgramRequired ? (
+          <ProgramSelector
+            id="ref-program"
+            label="Program"
+            value={program}
+            onChange={setProgram}
+            groups={LSPU_SCC_COLLEGE_PROGRAMS}
+            placeholder="Select a program"
+            required={isProgramRequired}
+            hint="Required for curriculum references. Program codes are saved as uppercase."
+          />
+        ) : null}
 
         <div className="space-y-2">
           <label
@@ -203,7 +222,7 @@ export function AdminUploadPage() {
             <button
               type="submit"
               className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !file || !title.trim()}
+              disabled={isLoading || !file || !title.trim() || (isProgramRequired && !program.trim())}
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
