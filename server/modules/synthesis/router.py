@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.documents.models import Document
@@ -38,7 +37,9 @@ def get_evaluation_results(
     document = db.get(Document, job.document_id)
     agent_results = db.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
     agent_name_map = {r.agent_result_id: r.agent_name for r in agent_results}
-    criterion_scores = db.query(CriterionScore).filter_by(evaluation_id=evaluation_id).all()
+    criterion_scores = (
+        db.query(CriterionScore).filter_by(evaluation_id=evaluation_id).all()
+    )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
     synthesis_result = compute_synthesized_score(agent_results)
@@ -92,7 +93,9 @@ def get_evaluation_results(
             EvaluationFlagItem(
                 flag_id=flag.evaluation_flag_id,
                 evaluation_id=flag.evaluation_id,
-                agent_id=agent_name_map.get(flag.agent_result_id, str(flag.agent_result_id)),
+                agent_id=agent_name_map.get(
+                    flag.agent_result_id, str(flag.agent_result_id)
+                ),
                 criterion_id=flag.criterion_id,
                 criterion_text=criterion_by_id[flag.criterion_score_id].criterion_title
                 if flag.criterion_score_id in criterion_by_id
