@@ -5,11 +5,8 @@ Coordinator's rubric sets are identical -- see
 ``server/data/rubrics/rubrics.json``), so both score via the code-side
 engine rather than an LLM-guesses-everything prompt. This module holds
 everything that's agent-agnostic: loading the SLM's clean text, running the
-grouped-basket-then-per-criterion-fallback pass, building the final
-``AgentEvaluationResult``, and relabeling a peer agent's result when one
-agent reuses another's already-computed scores (Coordinator reuses SME's,
-see ``coordinator.py``, instead of re-running the engine for a byte-identical
-rubric).
+grouped-basket-then-per-criterion-fallback pass, and building the final
+``AgentEvaluationResult``.
 """
 
 from __future__ import annotations
@@ -17,7 +14,6 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -133,8 +129,7 @@ class EngineScoredAgent(BaseAgent):
         db: Any | None,
     ) -> AgentEvaluationResult:
         """Full engine pass: load text, score every criterion, build a
-        result. Used by SME (always) and by Coordinator (fallback, when no
-        usable peer result exists to reuse instead).
+        result. Used by SME and Coordinator.
         """
         full_text = (
             self._load_document_text(document_id)
@@ -181,48 +176,5 @@ class EngineScoredAgent(BaseAgent):
             prompt_version_id=prompt_version_id,
             success=True,
         )
-
-    def _reuse_peer_result(
-        self,
-        peer_result: AgentEvaluationResult,
-        *,
-        evaluation_id: uuid.UUID,
-        document_id: uuid.UUID,
-        prompt_version_id: uuid.UUID | None,
-        db: Any | None,
-    ) -> AgentEvaluationResult:
-        """Build this agent's result by relabeling a peer agent's engine
-        scores, instead of recomputing them.
-
-        Used when two agents share an identical rubric (SME/Coordinator) so
-        the engine only runs once per evaluation. Copies score/
-        justification/evidence verbatim; only re-resolves criterion titles
-        against THIS agent's own rubric -- a cheap correctness hedge in case
-        the two rubrics ever diverge later.
-        """
-        titles = get_active_rubric_criteria(
-            resolve_rubric_agent_id(self.rubric_source_type), db=db
-        )
-        criterion_scores = tuple(
-            replace(
-                cs, criterion_title=titles.get(cs.criterion_id, cs.criterion_title)
-            )
-            for cs in peer_result.criterion_scores
-        )
-        return AgentEvaluationResult(
-            agent_name=self.agent_name,
-            evaluation_id=evaluation_id,
-            document_id=document_id,
-            subtotal=peer_result.subtotal,
-            criterion_scores=criterion_scores,
-            summary="",
-            model_name=get_llm_model_name(),
-            processing_seconds=0.0,
-            token_count=peer_result.token_count,
-            prompt_version_id=prompt_version_id,
-            success=True,
-            metadata={"reused_from": peer_result.agent_name},
-        )
-
 
 __all__ = ["EngineScoredAgent"]
