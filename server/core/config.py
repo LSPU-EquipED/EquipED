@@ -90,6 +90,11 @@ class Settings:
     llm_model_itso: str | None = None
     agent_debug_rubric_context: bool = False
 
+    # Seconds to wait between the SME scoring engine's LLM calls (grouped
+    # basket calls and any per-criterion fallback calls), to respect the
+    # provider token/min limit. 0 = no wait. See docs/sme-scoring-basis.md.
+    sme_scoring_call_delay_seconds: int = 0
+
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
     # Falls back to llm_agent_delay_seconds for any agent not listed.
     llm_agent_delay_per_agent: dict[str, int] = field(default_factory=dict)
@@ -253,6 +258,20 @@ def get_settings() -> Settings:
     if parsed_agent_prompt_budget_chars < 200:
         raise ConfigurationError("AGENT_PROMPT_BUDGET_CHARS must be at least 200")
 
+    sme_scoring_call_delay_seconds_raw = _env("SME_SCORING_CALL_DELAY_SECONDS", "0")
+    try:
+        parsed_sme_scoring_call_delay_seconds = int(
+            sme_scoring_call_delay_seconds_raw or "0"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "SME_SCORING_CALL_DELAY_SECONDS must be a valid integer"
+        ) from exc
+    if parsed_sme_scoring_call_delay_seconds < 0:
+        raise ConfigurationError(
+            "SME_SCORING_CALL_DELAY_SECONDS must be zero or positive"
+        )
+
     agent_small_doc_threshold = _env("AGENT_SMALL_DOC_THRESHOLD", "6")
     try:
         parsed_agent_small_doc_threshold = int(agent_small_doc_threshold or "6")
@@ -325,6 +344,7 @@ def get_settings() -> Settings:
         llm_model_gad=_env("LLM_MODEL_GAD"),
         llm_model_itso=_env("LLM_MODEL_ITSO"),
         agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
+        sme_scoring_call_delay_seconds=parsed_sme_scoring_call_delay_seconds,
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,
