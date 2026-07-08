@@ -326,3 +326,76 @@ def test_get_is_scoped_per_user_for_all_roles(db_session, role) -> None:
     with pytest.raises(Exception) as exc_info:
         get_evaluation(job.evaluation_id, other.user_id, role.value, db_session)
     assert exc_info.value.__class__.__name__ == "EvaluationNotFoundError"
+
+
+def test_get_evaluation_status_includes_partial_fields(db_session) -> None:
+    """get_evaluation_status returns partial_without_curriculum and partial_reason
+    for a deliberate no-curriculum partial evaluation."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-status-partial@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+        partial_without_curriculum=True,
+        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = get_evaluation_status(
+        job.evaluation_id, owner.user_id, UserRole.FACULTY.value, db_session
+    )
+
+    assert response.partial_without_curriculum is True
+    assert response.partial_reason is not None
+    assert "curriculum" in response.partial_reason.lower()
+
+
+def test_get_evaluation_status_includes_partial_fields_when_false(db_session) -> None:
+    """get_evaluation_status returns partial_without_curriculum=False and
+    partial_reason=None for a regular (non-partial) evaluation."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-status-full@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        syllabus_id=uuid4(),
+        curriculum_id=uuid4(),
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+        partial_without_curriculum=False,
+        partial_reason=None,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = get_evaluation_status(
+        job.evaluation_id, owner.user_id, UserRole.FACULTY.value, db_session
+    )
+
+    assert response.partial_without_curriculum is False
+    assert response.partial_reason is None

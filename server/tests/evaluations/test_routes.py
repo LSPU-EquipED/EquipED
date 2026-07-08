@@ -238,3 +238,75 @@ def test_router_masks_foreign_access_for_all_roles(
     assert (
         client.get(f"/api/v1/evaluations/{job.evaluation_id}/status").status_code == 404
     )
+
+
+def test_results_partial_without_curriculum_returns_partial_reason(
+    client: TestClient, db_session, monkeypatch
+) -> None:
+    """Successful no-curriculum partial evaluation results return is_partial=True,
+    partial_reason present, and Coordinator absent from active_agents."""
+    from server.modules.synthesis.models import AgentResult, CriterionScore
+
+    faculty = create_user(
+        db_session,
+        name="Faculty User",
+        email="faculty-results-partial@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.COMPLETED.value,
+        error_message=None,
+        submitted_by=faculty.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        partial_without_curriculum=True,
+        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+    )
+    db_session.add(job)
+    db_session.flush()
+
+    # Persist AgentResult rows for SME, GAD, ITSO only — no Coordinator
+    for agent_name in ("sme", "gad", "itso"):
+        db_session.add(
+            AgentResult(
+                agent_result_id=uuid4(),
+                evaluation_id=job.evaluation_id,
+                document_id=slm_id,
+                agent_name=agent_name,
+                subtotal=3.0,
+                processing_seconds=0.1,
+                token_count=5,
+                model_name="test-model",
+                summary=f"{agent_name} evaluation",
+                success=True,
+            )
+        )
+    db_session.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    response = client.get(
+        f"/api/v1/evaluations/{job.evaluation_id}/results"
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["is_partial"] is True
+    assert data["partial_reason"] is not None
+    assert "curriculum" in data["partial_reason"].lower()
+    assert "coordinator" not in data["active_agents"]
+    assert set(data["active_agents"]) == {"sme", "gad", "itso"}
+    assert data["failed_agents"] == []
