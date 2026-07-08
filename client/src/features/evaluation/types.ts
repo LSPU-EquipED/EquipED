@@ -41,6 +41,8 @@ export interface EvaluationResponse {
   curriculum_id?: string | null;
   status: EvaluationStatus;
   error_message?: string;
+  partial_without_curriculum?: boolean;
+  partial_reason?: string | null;
   submitted_by?: string;
   submitted_at: string;
   completed_at?: string;
@@ -51,6 +53,8 @@ export interface EvaluationStatusResponse {
   evaluation_id: string;
   status: EvaluationStatus;
   error_message?: string;
+  partial_without_curriculum?: boolean;
+  partial_reason?: string | null;
   completed_at?: string;
   duration_seconds?: number | null;
 }
@@ -62,6 +66,8 @@ export interface EvaluationListItem {
   syllabus_id?: string | null;
   curriculum_id?: string | null;
   status: EvaluationStatus;
+  partial_without_curriculum?: boolean;
+  partial_reason?: string | null;
   submitted_at: string;
   completed_at?: string | null;
   duration_seconds?: number | null;
@@ -87,6 +93,7 @@ export interface EvaluationResultsResponse {
   active_agents: string[];
   failed_agents: string[];
   is_partial: boolean;
+  partial_reason?: string | null;
   evaluation_status: string;
   submitted_at?: string | null;
   completed_at?: string;

@@ -117,6 +117,7 @@ def test_normalization_weight_format() -> None:
         "active_agents",
         "failed_agents",
         "is_partial",
+        "partial_reason",
     }
     assert set(result["domain_scores"]["sme"]) == {
         "criteria",
@@ -125,6 +126,92 @@ def test_normalization_weight_format() -> None:
         "status",
         "adjectival_rating",
     }
+
+
+def test_force_partial_without_failed_agents_sets_is_partial() -> None:
+    """force_partial=True marks result as partial even without any failed agents."""
+    agent_results = [
+        make_scored_agent("sme", 3.2),
+        make_scored_agent("gad", 3.6),
+        make_scored_agent("itso", 2.4),
+    ]
+    result = compute_synthesized_score(
+        agent_results,
+        force_partial=True,
+        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+    )
+
+    assert result["is_partial"] is True
+    assert result["partial_reason"] is not None
+    assert "curriculum" in result["partial_reason"].lower()
+    assert result["failed_agents"] == []
+    assert "coordinator" not in result["active_agents"]
+    assert result["synthesized_score"] > 0
+    # Weights: sme=0.35, gad=0.20, itso=0.15, sum=0.70
+    # Normalized: sme=0.5, gad=0.2857, itso=0.2143
+    # Pct: sme=80, gad=90, itso=60
+    # Synthesized: 0.5*80 + 0.2857*90 + 0.2143*60 ≈ 78.57
+    assert result["synthesized_score"] == pytest.approx(78.57, abs=0.01)
+
+
+def test_force_partial_no_partial_reason_when_not_forced() -> None:
+    """partial_reason is None in the result when is_partial is False."""
+    agent_results = [
+        make_scored_agent("sme", 4.0),
+        make_scored_agent("coordinator", 4.0),
+        make_scored_agent("gad", 4.0),
+        make_scored_agent("itso", 4.0),
+    ]
+    result = compute_synthesized_score(agent_results)
+
+    assert result["is_partial"] is False
+    assert result.get("partial_reason") is None
+
+
+def test_force_partial_with_actual_failed_agents() -> None:
+    """When force_partial and actual failures both apply, partial_reason from
+    force_partial is returned and is_partial is True."""
+    agent_results = [
+        make_scored_agent("sme", 3.0),
+        make_agent_result("gad", 0.0, status="failed"),
+        make_scored_agent("itso", 3.0),
+    ]
+    result = compute_synthesized_score(
+        agent_results,
+        force_partial=True,
+        partial_reason="Test partial reason",
+    )
+
+    assert result["is_partial"] is True
+    assert result["failed_agents"] == ["gad"]
+    assert result["partial_reason"] == "Test partial reason"
+
+
+def test_normalization_with_three_agents_no_coordinator() -> None:
+    """Without coordinator agent in results, weights normalize to sum=100%."""
+    agent_results = [
+        make_scored_agent("sme", 4.0),
+        make_scored_agent("gad", 4.0),
+        make_scored_agent("itso", 4.0),
+    ]
+    result = compute_synthesized_score(agent_results)
+
+    # All succeed, no force_partial — should NOT be marked partial
+    assert result["is_partial"] is False
+    assert result["synthesized_score"] == pytest.approx(100.0)
+    assert result["active_agents"] == ["sme", "gad", "itso"]
+    assert result["failed_agents"] == []
+
+    # With force_partial=True it should be marked partial
+    result2 = compute_synthesized_score(
+        agent_results,
+        force_partial=True,
+        partial_reason="Coordinator was skipped",
+    )
+    assert result2["is_partial"] is True
+    assert result2["partial_reason"] == "Coordinator was skipped"
+    # Score should be same (normalization with 3 agents)
+    assert result2["synthesized_score"] == pytest.approx(100.0)
 
 
 # --- Adjectival rating unit tests ---

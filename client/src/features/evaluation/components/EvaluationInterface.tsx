@@ -1,5 +1,6 @@
 import { useMemo, useState, type PointerEvent } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useParams, useNavigate } from '@tanstack/react-router';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useEvaluationPageState } from '../hooks/useEvaluationPageState';
 import { EvaluationHeader } from './EvaluationHeader';
 import { EvaluationSetup } from './EvaluationSetup';
@@ -17,6 +18,9 @@ const agents = [
 
 export function EvaluationInterface() {
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('itso');
   const [leftPaneSize, setLeftPaneSize] = useState(48);
 
@@ -45,6 +49,7 @@ export function EvaluationInterface() {
     chunkMap,
     isSetupRequired,
     selectedProgram,
+    effectiveProgram,
     setSelectedProgram,
     suggestionResponse,
     isLoadingSuggestions,
@@ -52,6 +57,7 @@ export function EvaluationInterface() {
     suggestionsError,
     hasReadyCurriculum,
     submitFreshEvaluation,
+    submitPartialEvaluation,
   } = useEvaluationPageState(documentId);
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
@@ -78,6 +84,21 @@ export function EvaluationInterface() {
     if (selectedCurriculumId) {
       submitFreshEvaluation(selectedCurriculumId);
     }
+  };
+
+  const handleUploadCurriculum = () => {
+    if (isAdmin) {
+      void navigate({ to: '/admin/ingest' });
+    }
+  };
+
+  const handleChangeProgram = () => {
+    setSelectedProgram('');
+    setChosenCurriculumId(null);
+  };
+
+  const handleContinuePartial = () => {
+    submitPartialEvaluation();
   };
 
   const handleDividerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -110,6 +131,7 @@ export function EvaluationInterface() {
         document={document}
         selectedAgent={selectedAgent}
         results={results}
+        status={status}
         hasResults={hasResults}
         isTerminal={isTerminal}
         evaluationId={evaluationId}
@@ -121,11 +143,14 @@ export function EvaluationInterface() {
           isLoadingDocument={isLoadingDocument}
           documentError={documentError}
           selectedProgram={selectedProgram}
+          effectiveProgram={effectiveProgram}
           onSelectProgram={setSelectedProgram}
           suggestionResponse={suggestionResponse}
           isLoadingSuggestions={isLoadingSuggestions}
           isSuggestionsError={isSuggestionsError}
           suggestionsError={suggestionsError}
+          isResolveError={isResolveError}
+          resolveError={resolveError}
           selectedCurriculumId={selectedCurriculumId}
           onSelectCurriculum={setChosenCurriculumId}
           hasReadyCurriculum={hasReadyCurriculum}
@@ -133,6 +158,10 @@ export function EvaluationInterface() {
           submitError={submitEvaluation.error}
           onStart={handleStartEvaluation}
           onRetrySubmit={handleRetrySubmitEvaluation}
+          isAdmin={isAdmin}
+          onUploadCurriculum={handleUploadCurriculum}
+          onChangeProgram={handleChangeProgram}
+          onContinuePartial={handleContinuePartial}
         />
       ) : (
         <div

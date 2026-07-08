@@ -68,6 +68,7 @@ class EvaluationResultsResponse(BaseModel):
     active_agents: list[str]
     failed_agents: list[str]
     is_partial: bool = False
+    partial_reason: str | None = None
     evaluation_status: str
     submitted_at: datetime | None = None
     completed_at: datetime | None = None

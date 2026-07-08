@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useUpdateUser } from '@/features/admin/hooks/useAdminUsers';
 import type { AdminUserResponse, AdminUserUpdateBody } from '@/features/admin/types';
@@ -9,23 +9,22 @@ interface EditUserModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function EditUserModal({ user, open, onOpenChange }: EditUserModalProps) {
+export function EditUserModal(props: EditUserModalProps) {
+  return (
+    <EditUserModalDialog
+      key={`${props.user?.user_id ?? 'none'}-${props.open}`}
+      {...props}
+    />
+  );
+}
+
+function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
   const updateUser = useUpdateUser();
   const [formData, setFormData] = useState<AdminUserUpdateBody>({
-    name: '',
-    email: '',
+    name: user?.name ?? '',
+    email: user?.email ?? '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        name: user.name,
-        email: user.email,
-      });
-      setErrors({});
-    }
-  }, [user, open]);
 
   const validate = (): boolean => {
     const nextErrors: Record<string, string> = {};

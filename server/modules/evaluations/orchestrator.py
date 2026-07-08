@@ -129,7 +129,19 @@ def run_evaluation_job(
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-            supervisor = Supervisor(db=session)
+            if job.partial_without_curriculum:
+                # No-curriculum partial: construct Supervisor without
+                # ProgramCoordinator so coordinator review is skipped entirely.
+                from server.modules.agents.sme import SMEAgent
+                from server.modules.agents.gad import GADAgent
+                from server.modules.agents.itso import ITSOAgent
+
+                supervisor = Supervisor(
+                    agents=[SMEAgent(), GADAgent(), ITSOAgent()],
+                    db=session,
+                )
+            else:
+                supervisor = Supervisor(db=session)
             supervisor_result = supervisor.run_evaluation(
                 evaluation_id=evaluation_id,
                 document_id=job.document_id,
@@ -175,7 +187,11 @@ def run_evaluation_job(
         agent_results = session.query(AgentResult).filter_by(
             evaluation_id=evaluation_id
         ).all()
-        synthesis_result = compute_synthesized_score(agent_results)
+        synthesis_result = compute_synthesized_score(
+            agent_results,
+            force_partial=job.partial_without_curriculum,
+            partial_reason=job.partial_reason,
+        )
         flag_count = session.query(EvaluationFlag).filter_by(
             evaluation_id=evaluation_id
         ).count()
@@ -195,20 +211,23 @@ def run_evaluation_job(
             flag_count=flag_count,
         )
 
-        final_status = (
-            EvaluationStatus.COMPLETED
-            if not synthesis_result["is_partial"]
-            else EvaluationStatus.FAILED
-        )
-        partial_error = None
-        if synthesis_result["is_partial"]:
+        # Deliberate no-curriculum partial evaluations always complete
+        # successfully (the user chose the degraded path). Accidental
+        # partials caused by agent failures still end as FAILED.
+        if job.partial_without_curriculum:
+            final_status = EvaluationStatus.COMPLETED
+            partial_error = None
+        elif synthesis_result["is_partial"]:
+            final_status = EvaluationStatus.FAILED
             failed_errors = [
                 f"{r.agent_name}: {r.error_message}"
                 for r in agent_results
                 if not r.success and r.error_message
             ]
-            if failed_errors:
-                partial_error = "; ".join(failed_errors)
+            partial_error = "; ".join(failed_errors) if failed_errors else "Partial: some agents failed"
+        else:
+            final_status = EvaluationStatus.COMPLETED
+            partial_error = None
         _verify_token_ownership(session, evaluation_id, execution_token)
         transition_evaluation_status(
             evaluation_id, final_status, session,

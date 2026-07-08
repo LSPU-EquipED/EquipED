@@ -1,6 +1,6 @@
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, CheckCircle, XCircle, Flag } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle, Flag } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
@@ -53,6 +53,10 @@ export function Scorecard() {
 
   const hasResults = results && Object.keys(results.domain_scores).length > 0;
   const isFailedWithResults = isFailed && hasResults;
+  const isPartial = Boolean(
+    results?.is_partial || evaluation?.partial_without_curriculum,
+  );
+  const partialReason = results?.partial_reason || evaluation?.partial_reason;
 
   if (!id) {
     return (
@@ -102,9 +106,9 @@ export function Scorecard() {
             <h1 className="truncate text-2xl font-semibold">Job: {evaluation.evaluation_id}</h1>
             {isTerminal && (
               <span
-                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed && !isFailedWithResults ? 'border-[#b91c1c]/50 text-[#b91c1c] bg-[#b91c1c]/10' : isFailedWithResults ? 'border-[#f2c811]/50 text-[#1e293b] bg-[#f2c811]/10' : 'border-[#1b3b87]/50 text-[#1b3b87] bg-[#1b3b87]/10'}`}
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase ${isFailed && !isFailedWithResults ? 'border-[#b91c1c]/50 text-[#b91c1c] bg-[#b91c1c]/10' : isFailedWithResults || isPartial ? 'border-[#f2c811]/50 text-[#1e293b] bg-[#f2c811]/10' : 'border-[#1b3b87]/50 text-[#1b3b87] bg-[#1b3b87]/10'}`}
               >
-                {evaluation.status.replace('_', ' ')}
+                {isPartial ? 'Partial' : evaluation.status.replace('_', ' ')}
               </span>
             )}
           </div>
@@ -136,11 +140,18 @@ export function Scorecard() {
             )}
 
             <div>
-              <h2 className="text-xl font-semibold">{evaluation.status.replace('_', ' ')}</h2>
+              <h2 className="text-xl font-semibold">
+                {isPartial && evaluation.status === 'COMPLETED'
+                  ? 'Partial Evaluation Completed'
+                  : evaluation.status.replace('_', ' ')}
+              </h2>
               <p className="text-slate-500 mt-1">
-                {isFailedWithResults
-                  ? 'Evaluation failed, but partial results are available below.'
-                  : STATUS_MESSAGES[evaluation.status] || 'Processing...'}
+                {isPartial && evaluation.status === 'COMPLETED'
+                  ? partialReason ||
+                    'This evaluation ran without a curriculum reference. SME, GAD, and ITSO reviews are included, but Program Coordinator curriculum-grounded review was skipped.'
+                  : isFailedWithResults
+                    ? 'Evaluation failed, but partial results are available below.'
+                    : STATUS_MESSAGES[evaluation.status] || 'Processing...'}
               </p>
             </div>
           </div>
@@ -170,6 +181,24 @@ export function Scorecard() {
                 </div>
               )}
             </div>
+
+            {isPartial && (
+              <>
+                <div className="border-t border-slate-200 my-4" />
+                <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 p-4">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                    <div>
+                      <p className="font-semibold text-[#1e293b]">Partial Evaluation Notice</p>
+                      <p className="mt-1 text-sm text-[#1e293b]">
+                        {partialReason ||
+                          'This evaluation ran without a curriculum reference. SME, GAD, and ITSO reviews are included, but Program Coordinator curriculum-grounded review was skipped.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             {isFailed && evaluation.error_message && (
               <>
@@ -269,6 +298,37 @@ export function Scorecard() {
                 <tbody className="divide-y divide-slate-200">
                   {(['sme', 'coordinator', 'gad', 'itso'] as const).map((domain) => {
                     const domainData = results.domain_scores[domain];
+                    const isSkipped = isPartial && domain === 'coordinator' && !domainData;
+
+                    if (isSkipped) {
+                      return (
+                        <tr key={`${domain}-skipped`} className="hover:bg-slate-50/50">
+                          <td className="py-3 px-4 align-top border-r border-slate-200 bg-slate-50/30">
+                            <div className="font-bold text-sm text-slate-800">
+                              {agentLabels[domain]}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500 font-sans tabular-nums">
+                              Skipped
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-slate-500">
+                            Program Coordinator curriculum-grounded review was skipped because no
+                            curriculum reference was available for this partial evaluation.
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className="inline-flex h-7 min-w-[2.5rem] items-center justify-center rounded-sm border border-slate-200 bg-slate-50 px-2 text-sm font-sans tabular-nums font-bold text-slate-400">
+                              —
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-[#1e293b]">
+                              Skipped
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     if (!domainData) return null;
 
                     const isError = domainData.status === 'ERROR';

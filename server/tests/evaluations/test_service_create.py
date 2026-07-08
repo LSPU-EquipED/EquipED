@@ -184,6 +184,77 @@ def test_create_evaluation_rejects_documents_without_embedding_readiness(
     assert db_session.query(EvaluationJob).count() == 0
 
 
+def test_create_evaluation_partial_without_curriculum_accepted(db_session) -> None:
+    """Submitting without curriculum_id but with explicit partial flag succeeds."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-partial@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    _seed_active_prompts(db_session)
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            partial_without_curriculum=True,
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+
+    assert response.status == EvaluationStatus.SUBMITTED
+    assert response.curriculum_id is None
+    assert response.partial_without_curriculum is True
+    assert response.partial_reason is not None
+    assert "curriculum" in response.partial_reason.lower()
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.partial_without_curriculum is True
+    assert row.partial_reason is not None
+
+
+def test_create_evaluation_with_curriculum_ignores_partial_flag(db_session) -> None:
+    """When curriculum_id IS present, partial flag is ignored and stored as False."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-ignore-partial@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    curriculum_id = _add_document(
+        db_session, owner_id=owner.user_id, source_type="curriculum"
+    )
+    _seed_active_prompts(db_session)
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            curriculum_id=curriculum_id,
+            partial_without_curriculum=True,
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+
+    assert response.status == EvaluationStatus.SUBMITTED
+    assert response.curriculum_id == curriculum_id
+    assert response.partial_without_curriculum is False
+    assert response.partial_reason is None
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.partial_without_curriculum is False
+    assert row.partial_reason is None
+
+
 def test_create_evaluation_masks_foreign_documents_as_404(db_session) -> None:
     owner = create_user(
         db_session,

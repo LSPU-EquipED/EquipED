@@ -72,8 +72,10 @@ function getAgentCardState(
     | { domain_scores: Record<string, unknown>; active_agents?: string[]; failed_agents?: string[] }
     | null
     | undefined,
-): 'pending' | 'running' | 'done' | 'failed' {
+  isPartial?: boolean,
+): 'pending' | 'running' | 'done' | 'failed' | 'skipped' {
   if (!results) return 'pending';
+  if (isPartial && agentId === 'coordinator') return 'skipped';
   if (results.failed_agents?.includes(agentId)) return 'failed';
   if (results.domain_scores[agentId]) return 'done';
   if (results.active_agents?.includes(agentId)) return 'running';
@@ -84,21 +86,6 @@ function getScoreRingColor(score: number): string {
   if (score >= 85) return '#3b963e'; // Verification Green
   if (score >= 70) return '#f2c811'; // SCC Amber Gold
   return '#b91c1c'; // Destructive Red
-}
-
-function getAdjectivalRatingColor(rating: string | undefined): string {
-  switch (rating) {
-    case 'Very Satisfactory':
-      return '#3b963e';
-    case 'Satisfactory':
-      return '#3eaed4';
-    case 'Needs Improvement':
-      return '#f2c811';
-    case 'Poor':
-      return '#b91c1c';
-    default:
-      return '#64748b';
-  }
 }
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
@@ -137,7 +124,11 @@ function getCriterionStyles(tier: 'strong' | 'medium' | 'weak' | 'unknown') {
   }
 }
 
-function statusMessage(status: string | undefined, isFailedWithResults: boolean): string {
+function statusMessage(
+  status: string | undefined,
+  isFailedWithResults: boolean,
+  isPartial: boolean,
+): string {
   if (isFailedWithResults) {
     return 'Evaluation failed, but partial results are available for review.';
   }
@@ -147,11 +138,15 @@ function statusMessage(status: string | undefined, isFailedWithResults: boolean)
     case 'PREPROCESSING':
       return 'Preprocessing document contents and preparing chunks for evaluation…';
     case 'EVALUATING':
-      return 'Running multi-agent evaluation across all review domains…';
+      return isPartial
+        ? 'Running partial multi-agent evaluation. Coordinator review is skipped…'
+        : 'Running multi-agent evaluation across all review domains…';
     case 'SYNTHESIZING':
       return 'Synthesizing agent reports and computing final scores…';
     case 'COMPLETED':
-      return 'Evaluation completed. Review the scores and criteria below.';
+      return isPartial
+        ? 'Partial evaluation completed. Coordinator/curriculum-grounded review was skipped.'
+        : 'Evaluation completed. Review the scores and criteria below.';
     case 'FAILED':
       return 'Evaluation failed. No results were produced.';
     default:
@@ -210,6 +205,10 @@ export function ScoreDashboard({
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const domainScore = results?.domain_scores[selectedAgent.id];
+  const isPartial = Boolean(
+    results?.is_partial || status?.partial_without_curriculum,
+  );
+  const partialReason = results?.partial_reason || status?.partial_reason;
 
   const selectedScore = {
     score: domainScore
@@ -226,12 +225,14 @@ export function ScoreDashboard({
         ? 'Waiting…'
         : '—',
     summary: domainScore
-      ? `Subtotal ${formatScore(domainScore.subtotal)} of ${formatScore(domainScore.max_score)} weighted points${results?.is_partial || isFailedWithResults ? ' (partial)' : ''}.`
+      ? `Subtotal ${formatScore(domainScore.subtotal)} of ${formatScore(domainScore.max_score)} weighted points${isPartial || isFailedWithResults ? ' (partial)' : ''}.`
       : isInProgress
         ? 'Evaluation in progress...'
-        : isFailedWithResults
-          ? 'Evaluation failed, but partial results are available.'
-          : 'Evaluation results are not available yet.',
+        : isPartial && selectedAgent.id === 'coordinator'
+          ? 'Program Coordinator review was skipped because this evaluation ran without a curriculum reference.'
+          : isFailedWithResults
+            ? 'Evaluation failed, but partial results are available.'
+            : 'Evaluation results are not available yet.',
     feedbackCriteria: domainScore?.criteria || [],
     rows: (domainScore?.criteria ?? []).map((criterion: CriterionScoreItem) => ({
       rating: formatScore(criterion.score),
@@ -385,7 +386,7 @@ export function ScoreDashboard({
             {status?.status !== 'FAILED' && (
               <div className="mt-3 flex items-center gap-3">
                 <p className="text-sm font-medium text-slate-500">
-                  {statusMessage(status?.status, Boolean(isFailedWithResults))}
+                  {statusMessage(status?.status, Boolean(isFailedWithResults), isPartial)}
                 </p>
                 {isTerminal && (results?.duration_seconds != null || status?.duration_seconds != null) && (
                   <span
@@ -396,6 +397,19 @@ export function ScoreDashboard({
                     {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
                   </span>
                 )}
+              </div>
+            )}
+            {isPartial && (
+              <div className="mt-3 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                  <p className="text-sm leading-relaxed text-[#1e293b]">
+                    <strong>Partial evaluation:</strong>{' '}
+                    {partialReason
+                      ? partialReason
+                      : 'This evaluation ran without a curriculum reference. SME, GAD, and ITSO reviews are included, but Program Coordinator curriculum-grounded review was skipped.'}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -429,7 +443,7 @@ export function ScoreDashboard({
           {agents.map((agent) => {
             const Icon = agent.icon;
             const isActive = agent.id === selectedAgentId;
-            const agentState = getAgentCardState(agent.id, results);
+            const agentState = getAgentCardState(agent.id, results, isPartial);
 
             return (
               <button
@@ -470,6 +484,7 @@ export function ScoreDashboard({
                       agentState === 'done' && 'bg-[#3b963e]/10 text-[#3b963e]',
                       agentState === 'running' && 'bg-primary/10 text-primary',
                       agentState === 'failed' && 'bg-[#b91c1c]/10 text-[#b91c1c]',
+                      agentState === 'skipped' && 'bg-[#f2c811]/10 text-[#1e293b]',
                     )}
                   >
                     {agentState === 'done' && (
@@ -479,11 +494,16 @@ export function ScoreDashboard({
                       <Loader2 className="size-3 animate-spin" aria-hidden="true" />
                     )}
                     {agentState === 'failed' && <XCircle className="size-3" aria-hidden="true" />}
+                    {agentState === 'skipped' && (
+                      <AlertTriangle className="size-3" aria-hidden="true" />
+                    )}
                     {agentState === 'done'
                       ? 'Complete'
                       : agentState === 'running'
                         ? 'Running'
-                        : 'Failed'}
+                        : agentState === 'skipped'
+                          ? 'Skipped'
+                          : 'Failed'}
                   </span>
                 )}
               </button>

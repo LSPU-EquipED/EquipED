@@ -51,7 +51,7 @@ The system SHALL run Layer 4 synthesis after persisting Layer 3 outputs, includi
 - GAD (Gender & Development): 20%
 - ITSO (IT Security Officer): 15%
 
-**Normalization:** If an agent fails or is missing, the weights of successful agents SHALL be normalized to sum to 100%. If all agents fail, the synthesized score SHALL be 0.0 and the result SHALL be marked as partial.
+**Normalization:** If an agent fails, is skipped, or is missing, the weights of successful agents SHALL be normalized to sum to 100%. If all agents fail, the synthesized score SHALL be 0.0 and the result SHALL be marked as partial. No-curriculum partial evaluations SHALL be marked partial because Coordinator curriculum-grounded review is unavailable, but SHALL complete successfully because the partial mode was explicitly selected.
 
 #### Scenario: Synthesis runs after Layer 3
 - **WHEN** Layer 3 persistence succeeds
@@ -68,9 +68,17 @@ The system SHALL run Layer 4 synthesis after persisting Layer 3 outputs, includi
 - **THEN** the weights for SME (35%), Coordinator (30%), and ITSO (15%) SHALL be normalized to sum to 100%
 - **AND** a synthesized score SHALL still be produced based on available data with `is_partial=True`
 
+#### Scenario: Synthesis with no-curriculum partial evaluation
+- **GIVEN** a no-curriculum partial evaluation where SME, GAD, and ITSO succeeded and Coordinator was skipped or marked limited
+- **WHEN** synthesis runs
+- **THEN** the weights for SME (35%), GAD (20%), and ITSO (15%) SHALL be normalized to sum to 100%
+- **AND** the synthesized output SHALL be marked partial with a missing-curriculum explanation
+- **AND** the evaluation job SHALL transition to `COMPLETED` rather than `FAILED`
+
 #### Scenario: Synthesis completes and job finishes
 - **WHEN** synthesis and matrix updates succeed
-- **THEN** the system SHALL transition the job to `COMPLETED` (or `FAILED` if synthesis is partial)
+- **THEN** the system SHALL transition the job to `COMPLETED` for complete results or deliberate no-curriculum partial results
+- **AND** the system SHALL transition to `FAILED` for accidental partial results caused by agent execution failures
 
 ### Requirement: Evaluation polling is limited to the owning user
 The system SHALL only expose evaluation status for jobs owned by the authenticated user who is polling them.
@@ -122,7 +130,7 @@ The `chroma_stored` readiness gate SHALL only apply to documents that require em
 - **THEN** the system SHALL accept the submission (SLMs do not require embedding)
 
 ### Requirement: Evaluations may use shared references
-The system SHALL allow a user to submit an evaluation for an SLM document they own while attaching institution-shared syllabus and curriculum references uploaded by an admin. Ownership validation SHALL remain strict for the SLM document and SHALL NOT require the user to own the attached curriculum reference. Syllabus references remain optional and are not required by the program-confirmed curriculum selection flow.
+The system SHALL allow a user to submit an evaluation for an SLM document they own while attaching institution-shared syllabus and curriculum references uploaded by an admin. Ownership validation SHALL remain strict for the SLM document and SHALL NOT require the user to own the attached curriculum reference. Syllabus references remain optional and are not required by the program-confirmed curriculum selection flow. Curriculum references are required for full curriculum-grounded evaluation, but may be omitted only for an explicit no-curriculum partial evaluation.
 
 #### Scenario: Faculty submits own SLM with shared references
 - **WHEN** an authenticated faculty user submits an evaluation for an SLM document they own and attaches processed syllabus/curriculum references uploaded by an admin
@@ -131,6 +139,15 @@ The system SHALL allow a user to submit an evaluation for an SLM document they o
 #### Scenario: Faculty submits own SLM with shared curriculum
 - **WHEN** an authenticated faculty user submits an evaluation for an SLM document they own and attaches a processed curriculum reference uploaded by an admin
 - **THEN** the system SHALL accept the evaluation if the curriculum reference is processed and embedded
+
+#### Scenario: Faculty submits own SLM for explicit no-curriculum partial evaluation
+- **WHEN** an authenticated faculty user submits an evaluation for an SLM document they own with no curriculum reference and explicit no-curriculum partial intent
+- **THEN** the system SHALL accept the evaluation as partial
+- **AND** the system SHALL NOT treat the job as a full curriculum-grounded evaluation
+
+#### Scenario: Faculty omits curriculum without partial intent
+- **WHEN** an authenticated faculty user submits an evaluation for an SLM document they own with no curriculum reference and no explicit no-curriculum partial intent
+- **THEN** the system SHALL reject the submission with a clear validation error
 
 #### Scenario: Faculty cannot evaluate another user's SLM
 - **WHEN** an authenticated faculty user submits an evaluation for an SLM document owned by another user

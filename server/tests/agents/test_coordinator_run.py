@@ -67,6 +67,33 @@ def test_fallback_raises_when_code_fails_both_engine_paths(monkeypatch) -> None:
         )
 
 
+def test_model_name_falls_back_to_default(monkeypatch) -> None:
+    from server.core.llm import get_llm_model_name
+
+    client = SequencedFakeClient(list(_ALL_BASKETS_IN_ORDER))
+    agent = _make_agent(monkeypatch, client)
+    result = agent.run(
+        evaluation_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        chunk_infos=_CHUNK_INFOS,
+        context_text="full slm text",
+    )
+    assert result.model_name == get_llm_model_name()
+
+
+def test_model_name_uses_client_model(monkeypatch) -> None:
+    client = SequencedFakeClient(list(_ALL_BASKETS_IN_ORDER))
+    client.model = "coord-custom-test-model"
+    agent = _make_agent(monkeypatch, client)
+    result = agent.run(
+        evaluation_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        chunk_infos=_CHUNK_INFOS,
+        context_text="full slm text",
+    )
+    assert result.model_name == "coord-custom-test-model"
+
+
 def test_raises_when_no_chunk_infos(monkeypatch) -> None:
     agent = _make_agent(monkeypatch, SequencedFakeClient([]))
 

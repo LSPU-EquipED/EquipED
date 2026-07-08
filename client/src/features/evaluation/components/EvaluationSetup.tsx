@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
 import {
   AlertTriangle,
+  ArrowLeft,
   BookOpen,
   CheckCircle,
   Loader2,
   Play,
+  Upload,
   XCircle,
 } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/http';
@@ -25,11 +27,14 @@ type EvaluationSetupProps = {
   isLoadingDocument: boolean;
   documentError: unknown;
   selectedProgram: string;
+  effectiveProgram: string;
   onSelectProgram: (program: string) => void;
   suggestionResponse: CurriculumSuggestionResponse | undefined;
   isLoadingSuggestions: boolean;
   isSuggestionsError: boolean;
   suggestionsError: unknown;
+  isResolveError: boolean;
+  resolveError: unknown;
   selectedCurriculumId: string | null;
   onSelectCurriculum: (documentId: string) => void;
   hasReadyCurriculum: boolean;
@@ -37,6 +42,10 @@ type EvaluationSetupProps = {
   submitError: unknown;
   onStart: () => void;
   onRetrySubmit: () => void;
+  isAdmin: boolean;
+  onUploadCurriculum: () => void;
+  onChangeProgram: () => void;
+  onContinuePartial: () => void;
 };
 
 function MetadataRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -120,11 +129,14 @@ export function EvaluationSetup({
   isLoadingDocument,
   documentError,
   selectedProgram,
+  effectiveProgram,
   onSelectProgram,
   suggestionResponse,
   isLoadingSuggestions,
   isSuggestionsError,
   suggestionsError,
+  isResolveError,
+  resolveError,
   selectedCurriculumId,
   onSelectCurriculum,
   hasReadyCurriculum,
@@ -132,6 +144,10 @@ export function EvaluationSetup({
   submitError,
   onStart,
   onRetrySubmit,
+  isAdmin,
+  onUploadCurriculum,
+  onChangeProgram,
+  onContinuePartial,
 }: EvaluationSetupProps) {
   const programGroups = useMemo(() => {
     const detected = document?.program?.trim().toUpperCase();
@@ -152,7 +168,7 @@ export function EvaluationSetup({
   const readySuggestions = suggestionResponse?.curriculumSuggestions ?? [];
   const unavailableSuggestions = suggestionResponse?.unavailableCurricula ?? [];
   const preferredId = suggestionResponse?.preferredSuggestion?.documentId ?? null;
-  const showSuggestions = selectedProgram.trim().length > 0;
+  const showSuggestions = effectiveProgram.trim().length > 0;
   const canStart = hasReadyCurriculum && selectedCurriculumId != null && !isSubmitting;
 
   return (
@@ -179,6 +195,25 @@ export function EvaluationSetup({
         {documentError ? (
           <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm font-semibold text-[#b91c1c]">
             {getErrorMessage(documentError, 'Unable to load the selected document.')}
+          </div>
+        ) : null}
+
+        {isResolveError ? (
+          <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-4 py-3 text-sm text-[#1e293b]">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <div className="flex-1">
+                <p className="font-semibold">
+                  Could not check for existing evaluations
+                </p>
+                <p className="mt-1 leading-relaxed">
+                  {getErrorMessage(
+                    resolveError,
+                    'The lookup failed, so you can start a fresh evaluation below.',
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -233,7 +268,7 @@ export function EvaluationSetup({
         {showSuggestions && isLoadingSuggestions ? (
           <div className="flex items-center gap-3 rounded-sm border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             <Loader2 className="size-4 animate-spin text-[#1b3b87]" aria-hidden="true" />
-            Looking up CHED curricula for {selectedProgram}…
+            Looking up CHED curricula for {effectiveProgram}…
           </div>
         ) : null}
 
@@ -261,9 +296,9 @@ export function EvaluationSetup({
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                   <div className="flex-1">
-                    <p className="font-semibold">No indexed curriculum for {selectedProgram}</p>
+                    <p className="font-semibold">No indexed curriculum for {effectiveProgram}</p>
                     <p className="mt-1 leading-relaxed">
-                      An admin must upload or rebuild the {selectedProgram} CHED curriculum
+                      An admin must upload or rebuild the {effectiveProgram} CHED curriculum
                       reference before evaluation can start.
                     </p>
                   </div>
@@ -317,29 +352,98 @@ export function EvaluationSetup({
               </div>
             ) : null}
 
-            <button
-              type="button"
-              onClick={onStart}
-              disabled={!canStart}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Starting evaluation…
-                </>
-              ) : (
-                <>
-                  <Play className="size-4" aria-hidden="true" />
-                  Start Evaluation
-                </>
-              )}
-            </button>
+            {hasReadyCurriculum ? (
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={!canStart}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    Starting evaluation…
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-4" aria-hidden="true" />
+                    Start Evaluation
+                  </>
+                )}
+              </button>
+            ) : showSuggestions && !isLoadingSuggestions ? (
+              <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 p-5">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-[#1e293b]">
+                      No ready curriculum for {effectiveProgram}
+                    </h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[#1e293b]">
+                      You can upload or rebuild the {effectiveProgram} CHED curriculum reference,
+                      choose a different program, or continue with a partial evaluation.
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-[#1e293b]">
+                      <strong>Partial mode:</strong> SME, GAD, and ITSO will still review the SLM,
+                      but the Program Coordinator curriculum-grounded review will be skipped. The
+                      result will be marked partial.
+                    </p>
+                  </div>
+                </div>
 
-            {!hasReadyCurriculum && showSuggestions && !isLoadingSuggestions ? (
-              <p className="text-center text-xs font-semibold text-slate-500">
-                Start Evaluation is blocked until an indexed curriculum is available.
-              </p>
+                <div className="mt-5 grid gap-3">
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={onUploadCurriculum}
+                      disabled={isSubmitting}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Upload className="size-4" aria-hidden="true" />
+                      Upload Curriculum
+                    </button>
+                  ) : (
+                    <div className="rounded-sm border border-[#f2c811]/30 bg-white px-4 py-3">
+                      <p className="text-sm font-semibold text-[#1e293b]">
+                        Upload Curriculum — admin only
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                        Ask an admin to upload or rebuild the {effectiveProgram} CHED curriculum
+                        reference. Once it is indexed, return here to run a full evaluation.
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={onChangeProgram}
+                    disabled={isSubmitting}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-4 text-sm font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <ArrowLeft className="size-4" aria-hidden="true" />
+                    Change Program
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onContinuePartial}
+                    disabled={isSubmitting}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 border border-[#f2c811] bg-white px-4 text-sm font-semibold uppercase tracking-wide text-[#1e293b] transition-colors hover:bg-[#f2c811]/10 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#f2c811] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        Starting partial evaluation…
+                      </>
+                    ) : (
+                      <>
+                        <Play className="size-4" aria-hidden="true" />
+                        Continue Partial
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             ) : null}
           </div>
         ) : null}

@@ -6,7 +6,12 @@ export function useSubmitEvaluation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { document_id: string; syllabus_id?: string; curriculum_id?: string }) =>
+    mutationFn: (data: {
+      document_id: string;
+      syllabus_id?: string;
+      curriculum_id?: string;
+      partial_without_curriculum?: boolean;
+    }) =>
       requestJson<EvaluationResponse>('/evaluations/', {
         method: 'POST',
         body: JSON.stringify(data),

@@ -42,7 +42,11 @@ def get_evaluation_results(
     )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
-    synthesis_result = compute_synthesized_score(agent_results)
+    synthesis_result = compute_synthesized_score(
+        agent_results,
+        force_partial=job.partial_without_curriculum,
+        partial_reason=job.partial_reason,
+    )
 
     criteria_by_result: dict[uuid.UUID, list[CriterionScore]] = {}
     for score in criterion_scores:
@@ -109,6 +113,7 @@ def get_evaluation_results(
         active_agents=list(synthesis_result["active_agents"]),
         failed_agents=list(synthesis_result["failed_agents"]),
         is_partial=bool(synthesis_result["is_partial"]),
+        partial_reason=synthesis_result.get("partial_reason") or job.partial_reason,
         evaluation_status=job.status,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,
