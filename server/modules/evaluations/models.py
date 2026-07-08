@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
+import sqlalchemy as sa
 from server.core.database import Base
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -97,6 +98,10 @@ class EvaluationJob(Base):
     execution_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    partial_without_curriculum: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
+    partial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 def can_transition_status(

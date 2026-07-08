@@ -71,10 +71,14 @@ def create_evaluation(
         expected_source_type="slm",
     )
 
-    if req.curriculum_id is None:
+    if req.curriculum_id is None and not req.partial_without_curriculum:
         raise InvalidEvaluationTargetError(
-            "curriculum_id is required for evaluation submission."
+            "curriculum_id is required for evaluation submission "
+            "unless partial_without_curriculum is explicitly True."
         )
+    # When curriculum_id IS present, full evaluation semantics win
+    # regardless of the partial flag.
+    effective_partial = req.partial_without_curriculum and req.curriculum_id is None
     syllabus = None
     if req.syllabus_id:
         syllabus = _validate_evaluation_target(
@@ -99,6 +103,12 @@ def create_evaluation(
         curriculum_id=curriculum.document_id if curriculum is not None else None,
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
+        partial_without_curriculum=effective_partial,
+        partial_reason=(
+            "No curriculum reference was available; Coordinator review was skipped."
+            if effective_partial
+            else None
+        ),
         submitted_by=submitted_by,
         submitted_at=datetime.now(UTC),
         completed_at=None,
@@ -113,6 +123,8 @@ def create_evaluation(
         curriculum_id=job.curriculum_id,
         status=EvaluationStatus(job.status),
         error_message=job.error_message,
+        partial_without_curriculum=job.partial_without_curriculum,
+        partial_reason=job.partial_reason,
         submitted_by=job.submitted_by,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,
@@ -193,6 +205,8 @@ def get_evaluation(
         curriculum_id=row.curriculum_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        partial_without_curriculum=row.partial_without_curriculum,
+        partial_reason=row.partial_reason,
         submitted_by=row.submitted_by,
         submitted_at=row.submitted_at,
         completed_at=row.completed_at,
@@ -233,6 +247,8 @@ def list_evaluations(
                 syllabus_id=row.syllabus_id,
                 curriculum_id=row.curriculum_id,
                 status=EvaluationStatus(row.status),
+                partial_without_curriculum=row.partial_without_curriculum,
+                partial_reason=row.partial_reason,
                 submitted_at=row.submitted_at,
                 completed_at=row.completed_at,
                 duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
@@ -257,9 +273,12 @@ def get_evaluation_status(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        partial_without_curriculum=row.partial_without_curriculum,
+        partial_reason=row.partial_reason,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )
+
 
 def transition_evaluation_status(
     evaluation_id: uuid.UUID,
@@ -276,8 +295,10 @@ def transition_evaluation_status(
         # No transitions out of terminal state
         return EvaluationStatusResponse(
             evaluation_id=row.evaluation_id,
-            status=row.status,
+            status=EvaluationStatus(row.status),
             error_message=row.error_message,
+            partial_without_curriculum=row.partial_without_curriculum,
+            partial_reason=row.partial_reason,
             completed_at=row.completed_at,
             duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
         )
@@ -304,6 +325,8 @@ def transition_evaluation_status(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        partial_without_curriculum=row.partial_without_curriculum,
+        partial_reason=row.partial_reason,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )

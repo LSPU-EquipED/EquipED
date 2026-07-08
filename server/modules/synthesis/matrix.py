@@ -28,6 +28,9 @@ AGENT_WEIGHTS: dict[str, float] = {
 
 def compute_synthesized_score(
     agent_results: list[AgentResult],
+    *,
+    force_partial: bool = False,
+    partial_reason: str | None = None,
 ) -> dict[str, Any]:
     active = [r for r in agent_results if r.success]
     failed = [r for r in agent_results if not r.success]
@@ -67,6 +70,10 @@ def compute_synthesized_score(
         else:
             domain["adjectival_rating"] = None
 
+    # is_partial is True when any agent failed OR when force_partial is set
+    # (e.g. deliberate no-curriculum partial evaluation)
+    is_partial = len(failed) > 0 or force_partial
+
     return {
         "synthesized_score": synthesized_score,
         "overall_score": overall_score,
@@ -74,7 +81,8 @@ def compute_synthesized_score(
         "domain_scores": domain_scores,
         "active_agents": [a.agent_name for a in active],
         "failed_agents": [a.agent_name for a in failed],
-        "is_partial": len(failed) > 0,
+        "is_partial": is_partial,
+        "partial_reason": partial_reason if is_partial else None,
     }
 
 

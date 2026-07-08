@@ -77,18 +77,27 @@ class EngineScoredAgent(BaseAgent):
 
     def _score_via_engine(
         self, client: Any, full_text: str, delay: float
-    ) -> dict[str, tuple[int, str, tuple[str, ...]]]:
+    ) -> tuple[dict[str, tuple[int, str, tuple[str, ...]]], int]:
         """Score every registered criterion: grouped pass, then per-criterion
         fallback for anything the grouped pass didn't cover.
 
-        Raises ``AgentExecutionError`` for any code that fails BOTH the
-        grouped pass and its own per-criterion fallback -- matches every
-        agent's all-or-nothing failure contract (the Supervisor already
-        catches a raised agent, marks it ``success=False``, and excludes it
-        from synthesis weighting).
+        Returns ``(scores, fallback_count)``.  Raises
+        ``AgentExecutionError`` for any code that fails BOTH the grouped pass
+        and its own per-criterion fallback -- matches every agent's
+        all-or-nothing failure contract (the Supervisor already catches a
+        raised agent, marks it ``success=False``, and excludes it from
+        synthesis weighting).
         """
         try:
+            t0 = time.perf_counter()
             grouped = registry.run_grouped(client, full_text, delay=delay)
+            grouped_seconds = time.perf_counter() - t0
+            logger.info(
+                "[ENGINE_TIMING] agent=%s | phase=grouped | seconds=%.3f | criteria=%d",
+                self.agent_name,
+                grouped_seconds,
+                len(grouped),
+            )
         except Exception as exc:
             logger.warning(
                 "[%s] grouped pass failed entirely, falling back to "
@@ -108,6 +117,7 @@ class EngineScoredAgent(BaseAgent):
             if fallback_calls > 0 and delay > 0:
                 time.sleep(delay)
             fallback_calls += 1
+            t0 = time.perf_counter()
             try:
                 scores[code] = registry.run_criterion(code, client, full_text)
             except Exception as exc:
@@ -115,8 +125,14 @@ class EngineScoredAgent(BaseAgent):
                     f"{self.agent_name} criterion {code} failed in both the "
                     f"grouped and per-criterion engine paths: {exc}"
                 ) from exc
+            logger.info(
+                "[ENGINE_TIMING] agent=%s | phase=fallback | code=%s | seconds=%.3f",
+                self.agent_name,
+                code,
+                time.perf_counter() - t0,
+            )
 
-        return scores
+        return scores, fallback_calls
 
     def _run_full_engine_scoring(
         self,
@@ -139,12 +155,21 @@ class EngineScoredAgent(BaseAgent):
         if not full_text.strip():
             raise AgentExecutionError("no document text available for evaluation")
 
+        char_count = len(full_text)
+        token_estimate = max(1, char_count // 4)
+        logger.info(
+            "[ENGINE_TIMING] agent=%s | phase=full_start | chars=%d | token_estimate=%d",
+            self.agent_name,
+            char_count,
+            token_estimate,
+        )
+
         start = time.perf_counter()
         client = self._llm_client or get_llm_client()
         settings = get_settings()
         delay = int(getattr(settings, "sme_scoring_call_delay_seconds", 0) or 0)
 
-        scores = self._score_via_engine(client, full_text, delay)
+        scores, fallback_calls = self._score_via_engine(client, full_text, delay)
         titles = get_active_rubric_criteria(
             resolve_rubric_agent_id(self.rubric_source_type), db=db
         )
@@ -162,6 +187,18 @@ class EngineScoredAgent(BaseAgent):
         )
 
         subtotal = sum(s.score for s in criterion_scores) / len(criterion_scores)
+        total_seconds = time.perf_counter() - start
+
+        logger.info(
+            "[ENGINE_TIMING] agent=%s | phase=full_end | seconds=%.3f | "
+            "chars=%d | token_estimate=%d | criteria=%d | fallback=%d",
+            self.agent_name,
+            total_seconds,
+            char_count,
+            token_estimate,
+            len(criterion_scores),
+            fallback_calls,
+        )
 
         return AgentEvaluationResult(
             agent_name=self.agent_name,
@@ -170,8 +207,8 @@ class EngineScoredAgent(BaseAgent):
             subtotal=subtotal,
             criterion_scores=criterion_scores,
             summary="",
-            model_name=get_llm_model_name(),
-            processing_seconds=time.perf_counter() - start,
+            model_name=getattr(client, "model", get_llm_model_name()),
+            processing_seconds=total_seconds,
             token_count=len(full_text.split()),
             prompt_version_id=prompt_version_id,
             success=True,
