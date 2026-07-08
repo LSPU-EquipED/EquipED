@@ -1,4 +1,4 @@
-import { Clock, FileText, Download, Eye } from 'lucide-react';
+import { Clock, FileText, Download, Eye, AlertTriangle } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { ClientDocument } from '@/shared/types/documents';
@@ -8,7 +8,7 @@ import {
   type ExportAgentId,
   type ExportDomainData,
 } from './ExportDocument';
-import type { EvaluationResultsResponse } from '../types';
+import type { EvaluationResultsResponse, EvaluationStatusResponse } from '../types';
 
 function formatDuration(seconds?: number | null): string {
   if (seconds == null) return '';
@@ -27,6 +27,7 @@ type EvaluationHeaderProps = {
   document: ClientDocument | null | undefined;
   selectedAgent: AgentDef;
   results: EvaluationResultsResponse | undefined;
+  status: EvaluationStatusResponse | undefined;
   hasResults: boolean;
   isTerminal: boolean;
   evaluationId: string | null | undefined;
@@ -36,12 +37,18 @@ export function EvaluationHeader({
   document,
   selectedAgent,
   results,
+  status,
   hasResults,
   isTerminal,
   evaluationId,
 }: EvaluationHeaderProps) {
   const navigate = useNavigate();
   const [showExportModal, setShowExportModal] = useState(false);
+
+  const isPartial = Boolean(
+    results?.is_partial || status?.partial_without_curriculum,
+  );
+  const partialReason = results?.partial_reason || status?.partial_reason;
 
   const domainScore = results?.domain_scores[selectedAgent.id];
   const domainData: ExportDomainData = {
@@ -69,6 +76,12 @@ export function EvaluationHeader({
         <h1 className="mt-2 truncate text-2xl font-bold tracking-tight text-slate-900">
           {document?.title ?? 'Loading document...'}
         </h1>
+        {isPartial && (
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-sm border border-[#f2c811]/50 bg-[#f2c811]/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#1e293b]">
+            <AlertTriangle className="size-3.5" aria-hidden="true" />
+            Partial Evaluation
+          </div>
+        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-50">
@@ -129,9 +142,15 @@ export function EvaluationHeader({
                     <div className="min-w-0">
                       <h3 className="text-base font-bold text-slate-900 uppercase tracking-wider">
                         LSPU-CID-SF-004 {selectedAgent.name} Evaluation Export
+                        {isPartial && ' — Partial'}
                       </h3>
                       <p className="mt-1 text-xs font-semibold text-slate-500 uppercase tracking-wider leading-relaxed">
                         Preview follows the referenced Gender and Development Unit criteria form.
+                        {isPartial && partialReason
+                          ? ` ${partialReason}`
+                          : isPartial
+                            ? ' This evaluation ran without a curriculum reference; Coordinator review was skipped.'
+                            : ''}
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">

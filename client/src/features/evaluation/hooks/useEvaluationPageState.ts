@@ -60,7 +60,9 @@ export function useEvaluationPageState(documentId?: string) {
     void execute(documentId).catch(() => undefined);
   }, [documentId, execute]);
 
-  // Resolve evaluation
+  // Resolve evaluation. Backend list is authoritative; sessionStorage is only a
+  // cache updated after the backend confirms an existing evaluation. A stale
+  // cached id must not bypass curriculum setup when no evaluation exists.
   const {
     data: evaluationId,
     isLoading: isResolvingEval,
@@ -71,11 +73,6 @@ export function useEvaluationPageState(documentId?: string) {
     queryKey: ['resolve-evaluation', documentId],
     queryFn: async () => {
       if (!documentId) throw new Error('No document ID');
-
-      if (storageKey) {
-        const stored = sessionStorage.getItem(storageKey);
-        if (stored) return stored;
-      }
 
       const list = await evaluationApi.listEvaluations(documentId);
       if (list.items.length > 0) {
@@ -92,6 +89,9 @@ export function useEvaluationPageState(documentId?: string) {
         }
       }
 
+      if (storageKey) {
+        sessionStorage.removeItem(storageKey);
+      }
       return null;
     },
     enabled: !!documentId,
@@ -132,6 +132,24 @@ export function useEvaluationPageState(documentId?: string) {
     },
     [documentId, submitEvaluation, storageKey, queryClient],
   );
+
+  const submitPartialEvaluation = useCallback(() => {
+    if (!documentId || submitEvaluation.isPending) return;
+
+    submitEvaluation
+      .mutateAsync({ document_id: documentId, partial_without_curriculum: true })
+      .then((result) => {
+        if (storageKey) {
+          sessionStorage.setItem(storageKey, result.evaluation_id);
+        }
+        void queryClient.invalidateQueries({
+          queryKey: ['resolve-evaluation', documentId],
+        });
+      })
+      .catch(() => {
+        // Error is surfaced by the mutation; the user can retry from setup.
+      });
+  }, [documentId, submitEvaluation, storageKey, queryClient]);
 
   const handleRetrySubmit = useCallback(() => {
     submitEvaluation.reset();
@@ -215,11 +233,10 @@ export function useEvaluationPageState(documentId?: string) {
       !!documentId &&
       !evaluationId &&
       !isResolvingEval &&
-      !isResolveError &&
       !isLoadingDocument &&
       !!document
     );
-  }, [documentId, evaluationId, isResolvingEval, isResolveError, isLoadingDocument, document]);
+  }, [documentId, evaluationId, isResolvingEval, isLoadingDocument, document]);
 
   const hasReadyCurriculum = (suggestionResponse?.curriculumSuggestions.length ?? 0) > 0;
 
@@ -260,7 +277,8 @@ export function useEvaluationPageState(documentId?: string) {
     chunkMap,
     // Setup
     isSetupRequired,
-    selectedProgram: effectiveProgram,
+    selectedProgram,
+    effectiveProgram,
     setSelectedProgram,
     suggestionResponse,
     isLoadingSuggestions,
@@ -268,5 +286,6 @@ export function useEvaluationPageState(documentId?: string) {
     suggestionsError,
     hasReadyCurriculum,
     submitFreshEvaluation,
+    submitPartialEvaluation,
   };
 }
