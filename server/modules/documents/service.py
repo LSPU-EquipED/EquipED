@@ -804,6 +804,12 @@ def _sanitize_error(raw_message: str) -> str:
         return "Document processing is unavailable. Please contact support."
     if raw_message == "Failed to extract document pages":
         return "The PDF could not be read. It may be corrupted or unsupported."
+    if raw_message.startswith("This PDF appears to be scanned"):
+        return (
+            "This PDF appears to be scanned (image-based) and could not be "
+            "read. Ask an administrator to enable OCR, or upload a "
+            "text-based PDF."
+        )
     # Strip any remaining filesystem paths as a safety net
     sanitized = re.sub(r"[/\\][\w./\\_-]+(?:\.pdf|\.db|\.txt)", "[file]", raw_message)
     # Truncate excessively long messages

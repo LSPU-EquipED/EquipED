@@ -101,6 +101,13 @@ class Settings:
 
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
+    # Path to the Tesseract OCR binary and language(s) to use for scanned
+    # (image-based) PDF pages. When tesseract_cmd is None, pytesseract falls
+    # back to searching PATH, which fails on machines without Tesseract
+    # installed/registered on PATH (e.g. a fresh Windows dev box).
+    tesseract_cmd: str | None = None
+    tesseract_lang: str = "eng"
+
     # Per-agent prompt packing caps (Phase 1, deterministic)
     agent_max_chunks: int = 12
     agent_max_excerpt_chars: int = 800
@@ -355,6 +362,8 @@ def get_settings() -> Settings:
             "paraphrase-multilingual-MiniLM-L12-v2",
         )
         or "paraphrase-multilingual-MiniLM-L12-v2",
+        tesseract_cmd=_env("TESSERACT_CMD"),
+        tesseract_lang=_env("TESSERACT_LANG", "eng") or "eng",
     )
 
     if settings.cors_allow_credentials and "*" in settings.cors_origins:

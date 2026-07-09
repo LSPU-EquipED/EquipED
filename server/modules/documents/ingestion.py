@@ -8,8 +8,10 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from .exceptions import ExtractionFailedError, PasswordProtectedPDFError
+from server.core.config import get_settings
+
 from .boilerplate import strip_repeated_page_boilerplate
+from .exceptions import ExtractionFailedError, PasswordProtectedPDFError
 from .schemas import DocumentChunkData
 
 _MIN_SELECTABLE_TEXT_LEN = 20
@@ -19,6 +21,11 @@ _DEFAULT_CHUNK_OVERLAP = 60
 _MIN_MERGE_THRESHOLD = 100
 
 logger = logging.getLogger(__name__)
+
+_OCR_ENGINE_UNAVAILABLE = "\0ocr-engine-unavailable\0"
+"""Sentinel returned by _perform_ocr when the Tesseract binary itself is
+missing/unreachable, distinct from a normal empty-string OCR result (engine
+ran fine but found no text on the page)."""
 
 
 @dataclass(slots=True)
@@ -98,6 +105,8 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
             raw_pages: list[str] = []
             is_ocr_flags: list[bool] = []
             page_numbers: list[int] = []
+            ocr_pages_needed = 0
+            ocr_engine_unavailable = False
 
             for index, page in enumerate(doc, start=1):
                 selectable = (page.get_text() or "").strip()
@@ -107,15 +116,17 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
                     page_numbers.append(index)
                     continue
 
+                ocr_pages_needed += 1
                 ocr_text = _perform_ocr(page)
-                if ocr_text.strip():
+                if ocr_text == _OCR_ENGINE_UNAVAILABLE:
+                    ocr_engine_unavailable = True
+                    raw_pages.append("")
+                elif ocr_text.strip():
                     raw_pages.append(ocr_text.strip())
-                    is_ocr_flags.append(True)
-                    page_numbers.append(index)
                 else:
                     raw_pages.append("")
-                    is_ocr_flags.append(True)
-                    page_numbers.append(index)
+                is_ocr_flags.append(True)
+                page_numbers.append(index)
     except PasswordProtectedPDFError:
         raise
     except Exception as exc:
@@ -136,6 +147,17 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
         if text.strip()
     ]
 
+    if not pages and ocr_pages_needed and ocr_engine_unavailable:
+        logger.warning(
+            "OCR engine unavailable while processing a scanned PDF",
+            extra={"file_path": str(pdf), "ocr_pages_needed": ocr_pages_needed},
+        )
+        raise ExtractionFailedError(
+            "This PDF appears to be scanned (image-based) and the OCR engine "
+            "is not available. Install Tesseract and set TESSERACT_CMD, or "
+            "upload a text-based PDF."
+        )
+
     return pages
 
 
@@ -143,18 +165,31 @@ def _perform_ocr(page: object) -> str:
     try:
         import pytesseract
     except ModuleNotFoundError:
-        return ""
+        logger.warning("pytesseract is not installed; skipping OCR for page")
+        return _OCR_ENGINE_UNAVAILABLE
+
+    settings = get_settings()
+    if settings.tesseract_cmd:
+        pytesseract.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
     pixmap = page.get_pixmap(dpi=250)  # type: ignore[attr-defined]
     try:
         from PIL import Image
     except ModuleNotFoundError:
-        return ""
+        logger.warning("Pillow is not installed; skipping OCR for page")
+        return _OCR_ENGINE_UNAVAILABLE
 
     image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
     try:
-        return pytesseract.image_to_string(image)
+        return pytesseract.image_to_string(image, lang=settings.tesseract_lang)
+    except pytesseract.TesseractNotFoundError:
+        logger.warning(
+            "Tesseract OCR binary not found on PATH/TESSERACT_CMD; "
+            "scanned PDF pages cannot be read"
+        )
+        return _OCR_ENGINE_UNAVAILABLE
     except Exception:
+        logger.exception("OCR failed unexpectedly for a page")
         return ""
 
 
