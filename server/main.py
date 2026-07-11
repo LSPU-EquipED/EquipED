@@ -103,6 +103,43 @@ def _recover_interrupted_evaluations() -> None:
         logger.exception("Evaluation startup recovery failed.")
 
 
+def _recover_cleanup_pending_documents() -> None:
+    """Retry cleanup for documents left in CLEANUP_PENDING status."""
+    settings = get_settings()
+    if not settings.database_configured:
+        return
+
+    try:
+        from server.modules.documents.service import (
+            recover_cleanup_pending_documents,
+        )
+
+        session_factory = get_session_factory()
+        recovered = recover_cleanup_pending_documents(session_factory)
+        if recovered:
+            logger.info(
+                "Document cleanup startup recovery successfully cleaned up %d file(s).",
+                recovered,
+            )
+    except Exception:
+        logger.exception("Cleanup recovery startup check failed.")
+
+
+def _recover_no_database_uploads() -> None:
+    """Clean stale upload artifacts from no-database development runs."""
+    try:
+        from server.modules.documents.service import recover_no_database_upload_journal
+
+        recovered = recover_no_database_upload_journal()
+        if recovered:
+            logger.info(
+                "No-DB upload startup recovery cleaned up %d artifact(s).",
+                recovered,
+            )
+    except Exception:
+        logger.exception("No-DB upload recovery startup check failed.")
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     import_model_modules()
@@ -111,6 +148,14 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         _bootstrap_admin_if_needed()
         _recover_interrupted_evaluations()
+        _recover_cleanup_pending_documents()
+        _recover_no_database_uploads()
+        try:
+            from server.modules.documents.ocr import validate_ocr_installation
+
+            validate_ocr_installation(settings)
+        except Exception as exc:
+            logger.warning(f"OCR validation failed at startup: {exc}")
         yield
 
     app = FastAPI(
@@ -166,6 +211,11 @@ def create_app() -> FastAPI:
                 "ready": settings.embedding_configured,
                 "detail": "lazy load deferred until first embedding request",
             },
+            "ocr": {
+                "configured": True,
+                "ready": False,
+                "detail": "OCR engine has not been validated",
+            },
         }
 
         if settings.database_configured:
@@ -180,7 +230,35 @@ def create_app() -> FastAPI:
             ok, detail = _probe_runtime_dependency("llm", get_llm_client)
             checks["llm"] = {"configured": True, "ready": ok, "detail": detail}
 
-        ready = all(check["ready"] for check in checks.values())
+        try:
+            from server.modules.documents.ocr import validate_ocr_installation
+
+            ocr_result = validate_ocr_installation(settings)
+            if ocr_result["ready"]:
+                ocr_detail = "OCR engine is available and fully configured."
+            else:
+                ocr_detail = (
+                    "OCR engine is unavailable or missing required language packs."
+                )
+            checks["ocr"] = {
+                "configured": True,
+                "ready": ocr_result["ready"],
+                "detail": ocr_detail,
+            }
+        except Exception:
+            logger.exception("Unexpected OCR validation error at /ready endpoint")
+            checks["ocr"] = {
+                "configured": True,
+                "ready": False,
+                "detail": "OCR engine is unavailable or misconfigured.",
+            }
+
+        is_ocr_required = settings.environment != "development"
+        blocking_checks = {
+            k: v for k, v in checks.items() if k != "ocr" or is_ocr_required
+        }
+
+        ready = all(check["ready"] for check in blocking_checks.values())
         payload = {
             "status": "ready" if ready else "not_ready",
             "checks": checks,

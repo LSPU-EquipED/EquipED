@@ -106,7 +106,14 @@ class Settings:
     # back to searching PATH, which fails on machines without Tesseract
     # installed/registered on PATH (e.g. a fresh Windows dev box).
     tesseract_cmd: str | None = None
-    tesseract_lang: str = "eng"
+    tesseract_lang: str = "eng+fil"
+
+    ocr_max_pages: int = 25
+    ocr_dpi: int = 200
+    ocr_max_pixels: int = 8000000
+    ocr_timeout_seconds: int = 20
+    ocr_concurrency: int = 1
+    ocr_semaphore_timeout_seconds: int = 30
 
     # Per-agent prompt packing caps (Phase 1, deterministic)
     agent_max_chunks: int = 12
@@ -203,9 +210,7 @@ def get_settings() -> Settings:
             "LLM_REQUEST_TIMEOUT_SECONDS must be a valid integer"
         ) from exc
     if parsed_llm_request_timeout_seconds < 1:
-        raise ConfigurationError(
-            "LLM_REQUEST_TIMEOUT_SECONDS must be at least 1"
-        )
+        raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS must be at least 1")
 
     llm_agent_delay_seconds = _env("LLM_AGENT_DELAY_SECONDS", "0")
     try:
@@ -221,9 +226,7 @@ def get_settings() -> Settings:
             llm_agent_delay_per_agent_raw or "{}"
         )
         if not isinstance(parsed_llm_agent_delay_per_agent, dict):
-            raise ConfigurationError(
-                "LLM_AGENT_DELAY_PER_AGENT must be a JSON object"
-            )
+            raise ConfigurationError("LLM_AGENT_DELAY_PER_AGENT must be a JSON object")
         # Validate all values are integers
         for key, val in parsed_llm_agent_delay_per_agent.items():
             if not isinstance(val, int):
@@ -289,9 +292,7 @@ def get_settings() -> Settings:
     if parsed_agent_small_doc_threshold < 1:
         raise ConfigurationError("AGENT_SMALL_DOC_THRESHOLD must be at least 1")
 
-    agent_total_prompt_budget_chars = _env(
-        "AGENT_TOTAL_PROMPT_BUDGET_CHARS", "8000"
-    )
+    agent_total_prompt_budget_chars = _env("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "8000")
     try:
         parsed_agent_total_prompt_budget_chars = int(
             agent_total_prompt_budget_chars or "8000"
@@ -314,6 +315,46 @@ def get_settings() -> Settings:
             "AGENT_PROMPT_BUDGET_CHARS must be less than "
             "AGENT_TOTAL_PROMPT_BUDGET_CHARS"
         )
+
+    ocr_max_pages_raw = _env("OCR_MAX_PAGES", "25")
+    try:
+        parsed_ocr_max_pages = int(ocr_max_pages_raw or "25")
+    except ValueError as exc:
+        raise ConfigurationError("OCR_MAX_PAGES must be a valid integer") from exc
+
+    ocr_dpi_raw = _env("OCR_DPI", "200")
+    try:
+        parsed_ocr_dpi = int(ocr_dpi_raw or "200")
+    except ValueError as exc:
+        raise ConfigurationError("OCR_DPI must be a valid integer") from exc
+
+    ocr_max_pixels_raw = _env("OCR_MAX_PIXELS", "8000000")
+    try:
+        parsed_ocr_max_pixels = int(ocr_max_pixels_raw or "8000000")
+    except ValueError as exc:
+        raise ConfigurationError("OCR_MAX_PIXELS must be a valid integer") from exc
+
+    ocr_timeout_seconds_raw = _env("OCR_TIMEOUT_SECONDS", "20")
+    try:
+        parsed_ocr_timeout_seconds = int(ocr_timeout_seconds_raw or "20")
+    except ValueError as exc:
+        raise ConfigurationError("OCR_TIMEOUT_SECONDS must be a valid integer") from exc
+
+    ocr_concurrency_raw = _env("OCR_CONCURRENCY", "1")
+    try:
+        parsed_ocr_concurrency = int(ocr_concurrency_raw or "1")
+    except ValueError as exc:
+        raise ConfigurationError("OCR_CONCURRENCY must be a valid integer") from exc
+
+    ocr_semaphore_timeout_seconds_raw = _env("OCR_SEMAPHORE_TIMEOUT_SECONDS", "30")
+    try:
+        parsed_ocr_semaphore_timeout_seconds = int(
+            ocr_semaphore_timeout_seconds_raw or "30"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "OCR_SEMAPHORE_TIMEOUT_SECONDS must be a valid integer"
+        ) from exc
 
     settings = Settings(
         app_name=_env("APP_NAME", "EquipEd") or "EquipEd",
@@ -363,7 +404,13 @@ def get_settings() -> Settings:
         )
         or "paraphrase-multilingual-MiniLM-L12-v2",
         tesseract_cmd=_env("TESSERACT_CMD"),
-        tesseract_lang=_env("TESSERACT_LANG", "eng") or "eng",
+        tesseract_lang=_env("TESSERACT_LANG", "eng+fil") or "eng+fil",
+        ocr_max_pages=parsed_ocr_max_pages,
+        ocr_dpi=parsed_ocr_dpi,
+        ocr_max_pixels=parsed_ocr_max_pixels,
+        ocr_timeout_seconds=parsed_ocr_timeout_seconds,
+        ocr_concurrency=parsed_ocr_concurrency,
+        ocr_semaphore_timeout_seconds=parsed_ocr_semaphore_timeout_seconds,
     )
 
     if settings.cors_allow_credentials and "*" in settings.cors_origins:
