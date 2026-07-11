@@ -460,7 +460,8 @@ def compute_tfidf_corpus(slm_chunks: list[DocumentChunk]) -> dict[str, float]:
 | Failure | Behavior |
 |---|---|
 | PDF is password-protected | Reject at upload; return HTTP 422 with reason |
-| Page has no text and OCR returns empty string | Flag page as unprocessable; attach flag to document record; continue with remaining pages |
+| Page has no selectable text and is truly blank | Treated as blank; allow preprocessing to continue without creating a chunk for that page |
+| Nonblank page requiring OCR is unreadable/unavailable/times out/exceeds resource limit | Fail-closed: fail the entire document preprocessing and upload; persist no chunks/embeddings/orphaned files |
 | Entire document produces zero chunks | Mark evaluation job as `FAILED`; record reason |
 | Chunk exceeds 2000 tokens | Split at sentence boundary; log warning |
 

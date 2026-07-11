@@ -8,8 +8,15 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from .exceptions import ExtractionFailedError, PasswordProtectedPDFError
+from server.core.config import get_settings
+
 from .boilerplate import strip_repeated_page_boilerplate
+from .exceptions import (
+    ExtractionFailedError,
+    OcrLimitExceededError,
+    PasswordProtectedPDFError,
+)
+from .ocr import perform_ocr_on_page
 from .schemas import DocumentChunkData
 
 _MIN_SELECTABLE_TEXT_LEN = 20
@@ -19,6 +26,16 @@ _DEFAULT_CHUNK_OVERLAP = 60
 _MIN_MERGE_THRESHOLD = 100
 
 logger = logging.getLogger(__name__)
+
+
+def _has_meaningful_selectable_text(text: str) -> bool:
+    stripped = text.strip()
+    if len(stripped) < 100:
+        return False
+    words = re.findall(r"[a-zA-Z]+", stripped)
+    if len(words) < 8:
+        return False
+    return True
 
 
 @dataclass(slots=True)
@@ -98,25 +115,37 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
             raw_pages: list[str] = []
             is_ocr_flags: list[bool] = []
             page_numbers: list[int] = []
+            settings = get_settings()
+
+            # Pre-scan pages to count how many require OCR
+            ocr_candidate_indices = []
+            for index, page in enumerate(doc, start=1):
+                selectable = (page.get_text() or "").strip()
+                if not _has_meaningful_selectable_text(selectable):
+                    ocr_candidate_indices.append(index)
+
+            if len(ocr_candidate_indices) > settings.ocr_max_pages:
+                raise OcrLimitExceededError(
+                    f"Document requires OCR for {len(ocr_candidate_indices)} "
+                    f"pages, which exceeds the maximum limit of "
+                    f"{settings.ocr_max_pages} pages."
+                )
 
             for index, page in enumerate(doc, start=1):
                 selectable = (page.get_text() or "").strip()
-                if len(selectable) >= _MIN_SELECTABLE_TEXT_LEN:
+                if _has_meaningful_selectable_text(selectable):
                     raw_pages.append(selectable)
                     is_ocr_flags.append(False)
                     page_numbers.append(index)
                     continue
 
-                ocr_text = _perform_ocr(page)
-                if ocr_text.strip():
-                    raw_pages.append(ocr_text.strip())
-                    is_ocr_flags.append(True)
-                    page_numbers.append(index)
-                else:
-                    raw_pages.append("")
-                    is_ocr_flags.append(True)
-                    page_numbers.append(index)
-    except PasswordProtectedPDFError:
+                # Run OCR using our new robust implementation
+                outcome = perform_ocr_on_page(page, settings)
+
+                raw_pages.append(outcome.text)
+                is_ocr_flags.append(True)
+                page_numbers.append(index)
+    except (ExtractionFailedError, PasswordProtectedPDFError):
         raise
     except Exception as exc:
         logger.exception(
@@ -132,30 +161,13 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
     cleaned_pages = strip_repeated_page_boilerplate(raw_pages)
     pages = [
         ExtractedPage(page_number, text, is_ocr)
-        for page_number, text, is_ocr in zip(page_numbers, cleaned_pages, is_ocr_flags, strict=False)
+        for page_number, text, is_ocr in zip(
+            page_numbers, cleaned_pages, is_ocr_flags, strict=False
+        )
         if text.strip()
     ]
 
     return pages
-
-
-def _perform_ocr(page: object) -> str:
-    try:
-        import pytesseract
-    except ModuleNotFoundError:
-        return ""
-
-    pixmap = page.get_pixmap(dpi=250)  # type: ignore[attr-defined]
-    try:
-        from PIL import Image
-    except ModuleNotFoundError:
-        return ""
-
-    image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-    try:
-        return pytesseract.image_to_string(image)
-    except Exception:
-        return ""
 
 
 def _chunk_page_text(text: str) -> list[str]:
