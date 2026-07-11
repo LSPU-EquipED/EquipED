@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 import uuid
@@ -46,6 +47,7 @@ from .tfidf import compute_tfidf_corpus
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 UPLOAD_ROOT = _PROJECT_ROOT / "uploads"
+UPLOAD_JOURNAL_ROOT = UPLOAD_ROOT / ".upload-journal"
 logger = logging.getLogger(__name__)
 
 _MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
@@ -55,7 +57,14 @@ _MEM_TFIDF: dict[str, float] = {}
 
 
 # Restricted source types that only admins can upload
-_ADMIN_ONLY_SOURCE_TYPES = {"syllabus", "curriculum", "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"}
+_ADMIN_ONLY_SOURCE_TYPES = {
+    "syllabus",
+    "curriculum",
+    "rubric_sme",
+    "rubric_coord",
+    "rubric_gad",
+    "rubric_itso",
+}
 
 
 def is_reference_source_type(source_type: str) -> bool:
@@ -92,8 +101,79 @@ def create_document(
 
     doc_id = uuid.uuid4()
     target_path = UPLOAD_ROOT / f"{doc_id}.pdf"
-    with target_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+
+    runtime_db = db
+    runtime_session = None
+    if runtime_db is None and get_settings().database_configured:
+        runtime_session = get_session_factory()()
+        runtime_db = runtime_session
+
+    upload_marker: Path | None = None
+    try:
+        if runtime_db is not None:
+            _create_upload_intent(
+                runtime_db,
+                document_id=doc_id,
+                title=title,
+                course_title=course_title,
+                lesson_title=lesson_title,
+                program=program,
+                source_type=source_type,
+                file_path=str(target_path),
+                uploaded_by=uploaded_by,
+            )
+        else:
+            upload_marker = _create_upload_marker(doc_id, target_path)
+
+        with target_path.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        response = _process_uploaded_document(
+            doc_id=doc_id,
+            target_path=target_path,
+            source_type=source_type,
+            title=title,
+            course_title=course_title,
+            lesson_title=lesson_title,
+            program=program,
+            uploaded_by=uploaded_by,
+            original_filename=file.filename,
+            runtime_db=runtime_db,
+        )
+        if (
+            upload_marker is not None
+            and response.processing_status != "CLEANUP_PENDING"
+        ):
+            _remove_upload_marker(upload_marker)
+        return response
+    except Exception:
+        if runtime_db is not None:
+            runtime_db.rollback()
+        cleanup_ok = _cleanup_failed_upload(target_path)
+        if runtime_db is not None:
+            _mark_interrupted_upload(runtime_db, doc_id, cleanup_ok)
+        if upload_marker is not None and cleanup_ok:
+            _remove_upload_marker(upload_marker)
+        raise
+    finally:
+        if runtime_session is not None:
+            runtime_session.close()
+
+
+def _process_uploaded_document(
+    *,
+    doc_id: uuid.UUID,
+    target_path: Path,
+    source_type: str,
+    title: str,
+    course_title: str | None,
+    lesson_title: str | None,
+    program: str | None,
+    uploaded_by: uuid.UUID,
+    original_filename: str | None,
+    runtime_db: Any | None,
+) -> DocumentUploadResponse:
+    """Run ingestion after a DB-backed upload intent has been committed."""
 
     error_message: str | None = None
 
@@ -113,7 +193,7 @@ def create_document(
             extra={
                 "document_id": str(doc_id),
                 "file_path": str(target_path),
-                "original_filename": file.filename,
+                "original_filename": original_filename,
                 "source_type": source_type,
                 "exception_class": exc.__class__.__name__,
                 "exception_message": str(exc),
@@ -132,7 +212,7 @@ def create_document(
             extra={
                 "document_id": str(doc_id),
                 "file_path": str(target_path),
-                "original_filename": file.filename,
+                "original_filename": original_filename,
                 "source_type": source_type,
                 "exception_class": exc.__class__.__name__,
                 "exception_message": str(exc),
@@ -171,7 +251,9 @@ def create_document(
     # ─────────────────────────────────────────────────────────────────
 
     if status == "FAILED":
-        _cleanup_failed_upload(target_path)
+        cleanup_ok = _cleanup_failed_upload(target_path)
+        if not cleanup_ok:
+            status = "CLEANUP_PENDING"
 
     uploaded_at = datetime.now(UTC)
     structured_summary = None
@@ -218,18 +300,21 @@ def create_document(
         evaluation_readiness=evaluation_readiness,
     )
 
-    runtime_db = db
-    runtime_session = None
-    if runtime_db is None and get_settings().database_configured:
-        runtime_session = get_session_factory()()
-        runtime_db = runtime_session
-
     try:
-        _persist_document(runtime_db, response, str(target_path), uploaded_by)
-        _persist_chunks(runtime_db, doc_id, chunk_data)
-    finally:
-        if runtime_session is not None:
-            runtime_session.close()
+        _persist_document(
+            runtime_db,
+            response,
+            str(target_path),
+            uploaded_by,
+            commit=False,
+        )
+        _persist_chunks(runtime_db, doc_id, chunk_data, commit=False)
+        if runtime_db is not None:
+            runtime_db.commit()
+    except Exception:
+        if runtime_db is not None:
+            runtime_db.rollback()
+        raise
 
     _refresh_tfidf_if_needed(source_type)
 
@@ -306,6 +391,7 @@ def list_documents(
     if db is not None:
         query = db.query(Document)
         from sqlalchemy import or_
+
         query = query.filter(
             or_(
                 Document.uploaded_by == current_user_id,
@@ -478,8 +564,8 @@ def delete_reference_document(
     if db is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
-    from server.modules.evaluations.models import EvaluationJob
     from server.modules.embeddings.service import delete_chroma_vectors
+    from server.modules.evaluations.models import EvaluationJob
 
     row = db.get(Document, document_id)
     if row is None:
@@ -489,10 +575,12 @@ def delete_reference_document(
 
     # Step 0: Validate source type — only reference documents can be deleted here
     if not is_reference_source_type(row.source_type):
-        raise ReferenceDeleteInvalidTypeError(
+        err_msg = (
             f"Document {document_id} has source_type='{row.source_type}'; "
-            "only syllabus and curriculum documents can be deleted through this endpoint."
+            "only syllabus and curriculum documents can be deleted "
+            "through this endpoint."
         )
+        raise ReferenceDeleteInvalidTypeError(err_msg)
 
     # Step 1: Check for evaluation job references
     ref_count = (
@@ -542,7 +630,11 @@ def delete_reference_document(
             except OSError as exc:
                 logger.warning(
                     "Failed to delete local PDF file during document cleanup",
-                    extra={"document_id": str(document_id), "file_path": row.file_path, "error": str(exc)},
+                    extra={
+                        "document_id": str(document_id),
+                        "file_path": row.file_path,
+                        "error": str(exc),
+                    },
                 )
                 details["file_warning"] = str(exc)
         else:
@@ -620,9 +712,7 @@ def _validate_upload(
         )
     # Curriculum documents require a program for program-driven suggestion
     if source_type == "curriculum" and not (program and program.strip()):
-        raise UnsupportedFileTypeError(
-            "Program is required for curriculum documents."
-        )
+        raise UnsupportedFileTypeError("Program is required for curriculum documents.")
 
 
 def _persist_document(
@@ -630,45 +720,148 @@ def _persist_document(
     response: DocumentResponse,
     file_path: str,
     uploaded_by: uuid.UUID,
+    *,
+    commit: bool = True,
 ) -> None:
     _MEM_DOCUMENTS[response.document_id] = response
     _MEM_DOCUMENT_OWNERS[response.document_id] = uploaded_by
     if db is None:
         return
 
-    db_row = Document(
-        document_id=response.document_id,
-        title=response.title,
-        course_title=response.course_title,
-        lesson_title=response.lesson_title,
-        program=response.program,
-        academic_year=response.academic_year,
-        course_code=response.course_code,
-        source_type=response.source_type,
-        file_path=file_path,
-        uploaded_by=uploaded_by,
-        uploaded_at=response.uploaded_at,
-        page_count=response.page_count,
-        has_ocr_pages=response.has_ocr_pages,
-        processing_status=response.processing_status,
-        structured_summary=response.structured_summary,
-        structured_outline=response.structured_outline,
-        section_summaries=response.section_summaries,
-        key_facts=response.key_facts,
-        processing_warnings=response.processing_warnings,
-        evaluation_readiness=response.evaluation_readiness or "PENDING",
-    )
+    db_row = db.get(Document, response.document_id)
+    if db_row is None:
+        db_row = Document(document_id=response.document_id)
+    db_row.title = response.title
+    db_row.course_title = response.course_title
+    db_row.lesson_title = response.lesson_title
+    db_row.program = response.program
+    db_row.academic_year = response.academic_year
+    db_row.course_code = response.course_code
+    db_row.source_type = response.source_type
+    db_row.file_path = file_path
+    db_row.uploaded_by = uploaded_by
+    db_row.uploaded_at = response.uploaded_at
+    db_row.page_count = response.page_count
+    db_row.has_ocr_pages = response.has_ocr_pages
+    db_row.processing_status = response.processing_status
+    db_row.structured_summary = response.structured_summary
+    db_row.structured_outline = response.structured_outline
+    db_row.section_summaries = response.section_summaries
+    db_row.key_facts = response.key_facts
+    db_row.processing_warnings = response.processing_warnings
+    db_row.evaluation_readiness = response.evaluation_readiness or "PENDING"
     db.add(db_row)
+    if commit:
+        db.commit()
+
+
+def _create_upload_intent(
+    db: Any,
+    *,
+    document_id: uuid.UUID,
+    title: str,
+    course_title: str | None,
+    lesson_title: str | None,
+    program: str | None,
+    source_type: str,
+    file_path: str,
+    uploaded_by: uuid.UUID,
+) -> None:
+    """Commit a tracked PENDING document before opening its PDF artifact."""
+    db.add(
+        Document(
+            document_id=document_id,
+            title=title,
+            course_title=course_title,
+            lesson_title=lesson_title,
+            program=program,
+            source_type=source_type,
+            file_path=file_path,
+            uploaded_by=uploaded_by,
+            uploaded_at=datetime.now(UTC),
+            processing_status="PENDING",
+            evaluation_readiness="PENDING",
+        )
+    )
     db.commit()
 
 
-def _persist_chunks(db: Any | None, document_id: uuid.UUID, chunks: list[Any]) -> None:
+def _mark_interrupted_upload(
+    db: Any,
+    document_id: uuid.UUID,
+    cleanup_succeeded: bool,
+) -> None:
+    """Record the recoverable state left after an interrupted upload."""
+    try:
+        row = db.get(Document, document_id)
+        if row is not None:
+            row.processing_status = "FAILED" if cleanup_succeeded else "CLEANUP_PENDING"
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to record interrupted upload cleanup state",
+            extra={"document_id": str(document_id)},
+        )
+
+
+def _create_upload_marker(document_id: uuid.UUID, file_path: Path) -> Path:
+    """Durably claim a no-DB upload artifact before opening the PDF."""
+    upload_root_existed = UPLOAD_JOURNAL_ROOT.parent.exists()
+    journal_existed = UPLOAD_JOURNAL_ROOT.exists()
+    UPLOAD_JOURNAL_ROOT.mkdir(parents=True, exist_ok=True)
+    if not upload_root_existed:
+        _fsync_directory(UPLOAD_JOURNAL_ROOT.parent.parent)
+    if not journal_existed:
+        _fsync_directory(UPLOAD_JOURNAL_ROOT.parent)
+
+    marker = UPLOAD_JOURNAL_ROOT / f"{document_id}.pending"
+    descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", closefd=False) as handle:
+            handle.write(str(file_path))
+            handle.flush()
+            os.fsync(handle.fileno())
+    finally:
+        os.close(descriptor)
+    _fsync_directory(UPLOAD_JOURNAL_ROOT)
+    return marker
+
+
+def _fsync_directory(directory: Path) -> None:
+    """Persist a directory entry after creating a tracked artifact."""
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _remove_upload_marker(marker: Path) -> None:
+    """Remove an ownership marker only after its upload has finalized."""
+    try:
+        marker.unlink(missing_ok=True)
+    except OSError:
+        logger.warning(
+            "Failed to remove no-DB upload ownership marker",
+            extra={"marker": str(marker)},
+        )
+
+
+def _persist_chunks(
+    db: Any | None,
+    document_id: uuid.UUID,
+    chunks: list[Any],
+    *,
+    commit: bool = True,
+) -> None:
     _MEM_CHUNKS[document_id] = chunks
     if db is None:
         return
 
     if not chunks:
-        db.commit()
+        if commit:
+            db.commit()
         return
 
     rows = [
@@ -685,7 +878,8 @@ def _persist_chunks(db: Any | None, document_id: uuid.UUID, chunks: list[Any]) -
         for chunk in chunks
     ]
     db.add_all(rows)
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[Any]:
@@ -779,37 +973,75 @@ def _refresh_tfidf_if_needed(source_type: str) -> None:
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
 
 
-def _cleanup_failed_upload(file_path: Path) -> None:
-    """Remove the uploaded file when preprocessing failed."""
-    try:
-        if file_path.exists():
+def _cleanup_failed_upload(file_path: Path) -> bool:
+    """Remove the uploaded file when preprocessing failed.
+
+    Tries to delete the file up to 3 times (bounded cleanup retries).
+    Returns True if deletion succeeds (or file already does not exist),
+    and False if deletion fails.
+    """
+    import time
+
+    for attempt in range(1, 4):
+        try:
+            if not file_path.exists():
+                return True
             file_path.unlink()
             logger.info(
-                "Cleaned up failed upload file",
+                f"Cleaned up failed upload file (attempt {attempt}/3)",
                 extra={"file_path": str(file_path)},
             )
-    except OSError as exc:
-        logger.warning(
-            "Failed to clean up failed upload file",
-            extra={"file_path": str(file_path), "error": str(exc)},
-        )
+            return True
+        except OSError as exc:
+            logger.warning(
+                f"Failed to clean up failed upload file (attempt {attempt}/3)",
+                extra={"file_path": str(file_path), "error": str(exc)},
+            )
+            if attempt < 3:
+                time.sleep(0.05 * attempt)
+    return False
 
 
 def _sanitize_error(raw_message: str) -> str:
     """Strip internal details (file paths, stack traces) from error messages."""
-    # Map known internal messages to user-facing equivalents
-    if raw_message.startswith("File not found:"):
-        return "The uploaded file could not be processed."
+    # Exact mappings first
     if raw_message == "PyMuPDF is not installed":
         return "Document processing is unavailable. Please contact support."
     if raw_message == "Failed to extract document pages":
         return "The PDF could not be read. It may be corrupted or unsupported."
+    if raw_message.startswith("File not found:"):
+        return "The uploaded file could not be processed."
     if raw_message.startswith("This PDF appears to be scanned"):
         return (
             "This PDF appears to be scanned (image-based) and could not be "
             "read. Ask an administrator to enable OCR, or upload a "
             "text-based PDF."
         )
+
+    # Partial/pattern mappings for OCR errors
+    has_unavailable_keywords = (
+        "OCR engine is unavailable" in raw_message
+        or "missing required language pack" in raw_message
+    )
+    if has_unavailable_keywords:
+        return (
+            "Scanned-PDF OCR is unavailable. Please upload a text-based PDF, "
+            "or contact an administrator to check OCR/language pack "
+            "installation."
+        )
+    if "OCR execution timed out" in raw_message or "timed out" in raw_message:
+        return (
+            "OCR page processing timed out. Please upload a smaller "
+            "or less complex document."
+        )
+    if "limit exceeded" in raw_message or "exceeds the maximum" in raw_message:
+        return "OCR resource limit exceeded. Please ensure pages do not exceed limits."
+    if "OCR execution failed" in raw_message or "OCR failed" in raw_message:
+        return (
+            "Scanned PDF page could not be read. Please check the document "
+            "quality or upload a text-based PDF."
+        )
+
     # Strip any remaining filesystem paths as a safety net
     sanitized = re.sub(r"[/\\][\w./\\_-]+(?:\.pdf|\.db|\.txt)", "[file]", raw_message)
     # Truncate excessively long messages
@@ -922,6 +1154,80 @@ def get_curriculum_suggestions(
     )
 
 
+def recover_cleanup_pending_documents(db_session_factory: Any) -> int:
+    """Recover tracked artifacts left by interrupted or failed uploads.
+
+    If cleanup succeeds, updates their status to FAILED.
+    Returns the number of successfully cleaned-up documents.
+    """
+    session = db_session_factory()
+    try:
+        docs = (
+            session.query(Document)
+            .filter(
+                Document.processing_status.in_(["PENDING", "CLEANUP_PENDING", "FAILED"])
+            )
+            .all()
+        )
+        if not docs:
+            return 0
+
+        recovered_count = 0
+        for doc in docs:
+            if not doc.file_path:
+                doc.processing_status = "FAILED"
+                recovered_count += 1
+                continue
+
+            pdf_path = Path(doc.file_path)
+            if _cleanup_failed_upload(pdf_path):
+                doc.processing_status = "FAILED"
+                recovered_count += 1
+
+        if recovered_count > 0:
+            session.commit()
+            logger.info(
+                f"Document cleanup startup recovery successfully cleaned up "
+                f"{recovered_count} pending files."
+            )
+        return recovered_count
+    except Exception:
+        logger.exception("Failed to recover cleanup-pending documents")
+        return 0
+    finally:
+        session.close()
+
+
+def recover_no_database_upload_journal() -> int:
+    """Remove stale no-DB upload artifacts tracked by ownership markers."""
+    if not UPLOAD_JOURNAL_ROOT.exists():
+        return 0
+
+    recovered_count = 0
+    upload_root = UPLOAD_ROOT.resolve()
+    for marker in UPLOAD_JOURNAL_ROOT.glob("*.pending"):
+        try:
+            file_path = Path(marker.read_text(encoding="utf-8").strip()).resolve()
+            if (
+                upload_root not in file_path.parents
+                or file_path.suffix.lower() != ".pdf"
+            ):
+                logger.warning(
+                    "Ignoring invalid no-DB upload ownership marker",
+                    extra={"marker": str(marker)},
+                )
+                continue
+            if _cleanup_failed_upload(file_path):
+                _remove_upload_marker(marker)
+                recovered_count += 1
+        except OSError:
+            logger.exception(
+                "Failed to recover no-DB upload ownership marker",
+                extra={"marker": str(marker)},
+            )
+    return recovered_count
+
+
 __all__ = [
     "create_document",
     "embed_document_chunks",
@@ -934,4 +1240,6 @@ __all__ = [
     "delete_reference_document",
     "rebuild_reference_embeddings",
     "is_reference_source_type",
+    "recover_cleanup_pending_documents",
+    "recover_no_database_upload_journal",
 ]

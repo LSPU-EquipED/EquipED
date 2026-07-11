@@ -17,20 +17,50 @@ class ExtractionFailedError(DocumentsError):
     """Raised when text extraction or OCR fails."""
 
 
+class OcrUnavailableError(ExtractionFailedError):
+    """Raised when the OCR engine is not available.
+
+    Or missing required lang packs.
+    """
+
+
+class OcrLimitExceededError(ExtractionFailedError):
+    """Raised when OCR resource limits are exceeded.
+
+    Limits include pages, resolution, timeout, concurrency.
+    """
+
+
+class OcrFailedError(ExtractionFailedError):
+    """Raised when OCR execution fails or the page is unreadable."""
+
+
 class DocumentNotFoundError(DocumentsError):
     """Raised when a document id does not exist."""
 
 
 class ForbiddenUploadError(DocumentsError):
-    """Raised when a user attempts to upload a document type they are not authorized for."""
+    """Raised when upload is unauthorized.
+
+    Triggered when a user attempts to upload a document type they
+    are not authorized for.
+    """
 
 
 class ReferenceDeleteConflictError(DocumentsError):
-    """Raised when a reference document cannot be deleted because it is referenced by evaluation jobs."""
+    """Raised when deletion conflicts.
+
+    Triggered when a reference document cannot be deleted because it
+    is referenced by evaluation jobs.
+    """
 
 
 class ReferenceRebuildError(DocumentsError):
-    """Raised when a reference document cannot be rebuilt due to missing chunks or unsupported type."""
+    """Raised when rebuilding embeddings fails.
+
+    Triggered when a reference document cannot be rebuilt due to missing
+    chunks or unsupported type.
+    """
 
 
 class ReferenceDeleteInvalidTypeError(DocumentsError):
@@ -44,6 +74,9 @@ __all__ = [
     "UnsupportedFileTypeError",
     "PasswordProtectedPDFError",
     "ExtractionFailedError",
+    "OcrUnavailableError",
+    "OcrLimitExceededError",
+    "OcrFailedError",
     "DocumentNotFoundError",
     "ForbiddenUploadError",
     "ReferenceDeleteConflictError",
