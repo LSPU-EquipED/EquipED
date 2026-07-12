@@ -11,13 +11,17 @@ from contextlib import contextmanager
 from typing import Any, NamedTuple
 
 from server.core.config import get_settings
-from server.core.llm import get_llm_client, get_llm_client_for_agent, get_llm_model_name
+from server.core.llm import get_llm_client, get_llm_model_name
 from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
-from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
+from server.modules.rubrics.service import (
+    get_active_rubric_context,
+    resolve_rubric_agent_id,
+)
 
 from .contracts import AgentEvaluationResult, CriterionScore
 from .exceptions import AgentExecutionError, AgentLLMError
+from .provenance import sanitize_provenance
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------
 # Lightweight timing helper (local, no external deps)
 # ------------------------------------------------------------------
+
 
 class _PhaseTimer:
     """Accumulate named phase durations for a single agent run."""
@@ -175,7 +180,8 @@ class BaseAgent:
                     safe_text_len = max(prompt_budget_chars - overhead - 3, 50)
                     original_chunk_len = len(packed[0]["text"])
                     packed[0]["text"] = self._excerpt_text(
-                        packed[0]["text"], safe_text_len,
+                        packed[0]["text"],
+                        safe_text_len,
                     )
                     text_excerpted = True
                     # Observability: if the hard-trim left a tiny excerpt,
@@ -217,6 +223,8 @@ class BaseAgent:
         precomputed_context: dict[str, list[str]] | None = None,
         db: Any | None = None,
         llm_client: Any | None = None,
+        llm_temperature: float | None = None,
+        provenance: dict[str, Any] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         timer = _PhaseTimer(self.agent_name)
@@ -225,7 +233,9 @@ class BaseAgent:
         if not chunk_infos:
             raise AgentExecutionError("document chunks are required for evaluation")
 
-        chunk_texts = [str(chunk.get("text", "")) for chunk in chunk_infos if chunk.get("text")]
+        chunk_texts = [
+            str(chunk.get("text", "")) for chunk in chunk_infos if chunk.get("text")
+        ]
         if not chunk_texts:
             raise AgentExecutionError("document chunks are required for evaluation")
 
@@ -242,6 +252,10 @@ class BaseAgent:
                 reference_document_ids=reference_document_ids,
                 precomputed_context=precomputed_context,
             )
+
+        # Store provenance before _build_prompt so subclass overrides
+        # (e.g. ITSO) can access precheck evidence for prompt injection.
+        self._current_provenance = provenance
 
         with timer.measure("prompt_build"):
             prompt = self._build_prompt(
@@ -262,7 +276,8 @@ class BaseAgent:
         total_budget = settings.agent_total_prompt_budget_chars
         pre_budget_chars = len(prompt)
         budget_result = self._enforce_total_prompt_budget(
-            prompt, budget_chars=total_budget,
+            prompt,
+            budget_chars=total_budget,
         )
         prompt = budget_result.prompt
         prompt_chars = len(prompt)
@@ -289,10 +304,22 @@ class BaseAgent:
         if llm_client is not None:
             self._llm_client = llm_client
 
+        # Determine effective temperature: passed kwarg > agent-specific > global.
+        effective_temp: float | None = llm_temperature
+        if effective_temp is None:
+            effective_temp = settings.get_agent_temperature(self.agent_name)
+
         with timer.measure("llm_call"):
-            raw_response = self._call_llm(prompt)
+            raw_response, actual_model_used = self._call_llm(
+                prompt, temperature=effective_temp
+            )
+
+        # Track whether fallback occurred (model name differs from requested).
+        requested_model = getattr(self._llm_client, "model", get_llm_model_name())
+        fallback_occurred = actual_model_used != requested_model
 
         with timer.measure("parse"):
+            repair_occurred = False
             try:
                 parsed = self._parse_response(raw_response)
             except AgentExecutionError as exc:
@@ -314,9 +341,17 @@ class BaseAgent:
                 )
                 with timer.measure("llm_repair"):
                     try:
-                        repair_response = self._call_llm(
-                            self._build_repair_prompt(raw_response)
+                        repair_response, repair_model = self._call_llm(
+                            self._build_repair_prompt(raw_response),
+                            temperature=effective_temp,
                         )
+                        repair_occurred = True
+                        # If the repair call served a different model,
+                        # update actual_model_used to reflect the model
+                        # that produced the final parsed answer.
+                        if repair_model != actual_model_used:
+                            actual_model_used = repair_model
+                            fallback_occurred = True
                     except AgentLLMError as repair_exc:
                         parse_error = f"repair call failed: {repair_exc}"
                         raise AgentExecutionError(
@@ -353,6 +388,27 @@ class BaseAgent:
 
         timer.log_summary(prompt_chars=prompt_chars, parse_error=parse_error)
 
+        # Build runtime provenance (phase-2: actual runtime metadata).
+        # Phase-1 provenance (frozen precheck) is merged by the caller.
+        runtime_provenance: dict[str, Any] = {
+            "requested_model": requested_model,
+            "actual_model": actual_model_used,
+            "requested_temperature": effective_temp,
+            "fallback_occurred": fallback_occurred,
+            "repair_occurred": repair_occurred,
+            "prompt_trimmed": prompt_trimmed,
+            "reference_context_dropped": reference_context_dropped,
+        }
+        # Merge with any pre-supplied provenance (phase-1 snapshot from
+        # supervisor). Phase-1 keys MUST NOT be overwritten by runtime keys.
+        merged_provenance: dict[str, Any] = dict(provenance or {})
+        for k, v in runtime_provenance.items():
+            if k not in merged_provenance:
+                merged_provenance[k] = v
+        # Sanitize: drop non-allowlisted keys, cap lengths, redact secrets.
+        sanitized = sanitize_provenance(merged_provenance)
+        merged_provenance = sanitized if sanitized is not None else {}
+
         return AgentEvaluationResult(
             agent_name=self.agent_name,
             evaluation_id=evaluation_id,
@@ -361,11 +417,12 @@ class BaseAgent:
             criterion_scores=criterion_scores,
             prompt_version_id=prompt_version_id,
             summary=parsed.get("summary", ""),
-            model_name=getattr(self._llm_client, "model", get_llm_model_name()),
+            model_name=actual_model_used,
             processing_seconds=processing_seconds,
             token_count=token_count,
             success=True,
             raw_response=raw_response,
+            provenance=merged_provenance or None,
             metadata={
                 "rubric_context_size": len(rubric_context),
                 "reference_context_size": len(reference_context),
@@ -392,7 +449,9 @@ class BaseAgent:
         if precomputed_context and source_type in precomputed_context:
             return precomputed_context[source_type]
         try:
-            rubric_context = get_active_rubric_context(resolve_rubric_agent_id(source_type), db=db)
+            rubric_context = get_active_rubric_context(
+                resolve_rubric_agent_id(source_type), db=db
+            )
             if rubric_context:
                 return rubric_context[: self.max_rubric_chunks * 10]
         except Exception:
@@ -515,7 +574,7 @@ class BaseAgent:
 
     def _enforce_total_prompt_budget(
         self, prompt: str, *, budget_chars: int
-    ) -> "_BudgetEnforcementResult":
+    ) -> _BudgetEnforcementResult:
         """Return a prompt that fits within ``budget_chars``.
 
         If the prompt is already within budget, it is returned unchanged
@@ -533,7 +592,9 @@ class BaseAgent:
         """
         if len(prompt) <= budget_chars:
             return self._BudgetEnforcementResult(
-                prompt=prompt, reference_context_dropped=0, trimmed=False,
+                prompt=prompt,
+                reference_context_dropped=0,
+                trimmed=False,
             )
 
         original_len = len(prompt)
@@ -551,7 +612,9 @@ class BaseAgent:
                 budget_chars,
             )
             return self._BudgetEnforcementResult(
-                prompt=prompt, reference_context_dropped=0, trimmed=False,
+                prompt=prompt,
+                reference_context_dropped=0,
+                trimmed=False,
             )
 
         if not isinstance(payload, dict):
@@ -564,15 +627,15 @@ class BaseAgent:
                 budget_chars,
             )
             return self._BudgetEnforcementResult(
-                prompt=prompt, reference_context_dropped=0, trimmed=False,
+                prompt=prompt,
+                reference_context_dropped=0,
+                trimmed=False,
             )
 
         # Track the original reference_context length so we can report
         # how many entries the trim removed.
         ref_ctx = payload.get("reference_context")
-        original_ref_count = (
-            len(ref_ctx) if isinstance(ref_ctx, list) else 0
-        )
+        original_ref_count = len(ref_ctx) if isinstance(ref_ctx, list) else 0
 
         # Step 1: drop reference_context entries entirely. References are
         # the most expendable — they supplement grounding but are not
@@ -633,27 +696,35 @@ class BaseAgent:
 
         # Compute how many reference entries were dropped during trim.
         final_ref_ctx = payload.get("reference_context")
-        final_ref_count = (
-            len(final_ref_ctx) if isinstance(final_ref_ctx, list) else 0
-        )
-        reference_context_dropped = max(
-            original_ref_count - final_ref_count, 0
-        )
+        final_ref_count = len(final_ref_ctx) if isinstance(final_ref_ctx, list) else 0
+        reference_context_dropped = max(original_ref_count - final_ref_count, 0)
         return self._BudgetEnforcementResult(
             prompt=trimmed,
             reference_context_dropped=reference_context_dropped,
             trimmed=True,
         )
 
-    def _call_llm(self, prompt: str) -> str:
+    def _call_llm(
+        self,
+        prompt: str,
+        temperature: float | None = None,
+    ) -> tuple[str, str]:
+        """Call the LLM and return (response_text, actual_model_name).
+
+        ``temperature`` may override the default. When the assigned model
+        fails with a persistent error, the call falls back to the global
+        fallback model once before raising.
+        """
         client = self._llm_client or get_llm_client()
         settings = get_settings()
+        temp = temperature if temperature is not None else settings.llm_temperature
         try:
-            return client.generate(
+            content = client.generate(
                 prompt,
-                temperature=settings.llm_temperature,
+                temperature=temp,
                 max_new_tokens=settings.llm_max_new_tokens,
             )
+            return content, getattr(client, "model", "unknown")
         except AgentLLMError:
             raise
         except Exception as exc:
@@ -667,7 +738,7 @@ class BaseAgent:
                 try:
                     result = fallback_client.generate(
                         prompt,
-                        temperature=settings.llm_temperature,
+                        temperature=temp,
                         max_new_tokens=settings.llm_max_new_tokens,
                     )
                     logger.info(
@@ -677,7 +748,7 @@ class BaseAgent:
                         original_model,
                         fallback_model,
                     )
-                    return result
+                    return result, fallback_model
                 except Exception as fallback_exc:
                     logger.info(
                         "[EVAL_MODEL_FALLBACK] agent=%s | original_model=%s | "
@@ -774,9 +845,7 @@ class BaseAgent:
             )
         return {"summary": summary, "criterion_scores": criterion_scores}
 
-    def _build_criterion_scores(
-        self, parsed: dict[str, Any]
-    ) -> list[CriterionScore]:
+    def _build_criterion_scores(self, parsed: dict[str, Any]) -> list[CriterionScore]:
         raw_scores = parsed["criterion_scores"]
         if isinstance(raw_scores, dict):
             parsed_scores = []

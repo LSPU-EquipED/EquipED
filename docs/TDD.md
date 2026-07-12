@@ -1817,6 +1817,80 @@ This map shows data flow between all major components, tracing the full path of 
 | OTI-08 | Exact custom chunker boundary threshold value — initial default may need tuning per corpus | Section 3.3 | Development team | Pending corpus testing |
 | OTI-09 | PDF report generation for D-03 download — library selection (WeasyPrint vs ReportLab) | Section 6.3 | Development team | Pending decision |
 
+## 14. ITSO Scoring Consistency Baseline — Operator Guidance
+
+### 14.1 Configuration
+
+| Setting | Default | Env Variable | Description |
+|---|---|---|---|
+| ITSO LLM temperature | `0.0` | `LLM_TEMPERATURE_ITSO` | Dedicated temperature for ITSO evaluator calls. Reduces sampling variability. Must be < 1.0. Other agents continue to use the global `LLM_TEMPERATURE`. |
+
+The ITSO-specific temperature is set independently so other agents (SME, Coordinator, GAD) may retain different temperature behavior without affecting ITSO reproducibility.
+
+### 14.2 Provenance Field
+
+Each agent result now carries an optional JSON `provenance` column in `agent_results`. For ITSO results the `provenance` dict contains:
+
+**Phase 1 (frozen before agent dispatch):**
+- `precheck_version` — version of the local precheck logic (currently `"1"`)
+- `precheck_result_hash` — SHA-256 of deterministic precheck output
+- `bibliography_found`, `reference_count`, `intext_citation_count`, `doi_count`, `coverage_ratio` — local evidence signals
+- `chunk_ids_ordered` — ordered SLM chunk identifiers used for evaluation
+
+**Phase 2 (recorded after execution):**
+- `requested_model` — model ID requested at dispatch time
+- `actual_model` — model ID that actually served the response (may differ on fallback)
+- `requested_temperature` — temperature used for the call
+- `fallback_occurred` — boolean; `true` when the provider fell back to a different model
+- `repair_occurred` — boolean; `true` when JSON repair was triggered
+- `prompt_trimmed` — boolean; `true` when the prompt was trimmed to fit budget
+- `reference_context_dropped` — count of reference entries dropped during trim
+
+The provenance field excludes raw prompt text, raw SLM text, full chunk text, credentials, and external request payloads.
+
+Results created before this feature was deployed have `provenance = None` and are handled gracefully by all API consumers.
+
+### 14.3 Offline Benchmark Harness
+
+A standalone CLI script is available at `server/scripts/run_itso_benchmark.py`.
+
+```bash
+# From repo root, with the server virtualenv active:
+python server/scripts/run_itso_benchmark.py
+
+# Or with uv:
+uv run --project server python server/scripts/run_itso_benchmark.py
+
+# Increase repeat iterations (default: 5):
+python server/scripts/run_itso_benchmark.py --runs 10
+```
+
+The harness:
+- Uses deterministic fake LLM clients (no live provider or database calls)
+- Runs ITSO prechecks and agent execution on fixed fixture data
+- Reports whether precheck hashes and criterion scores remain stable across N runs
+- Exits with code 0 when all checks show zero drift, code 1 if drift detected
+
+### 14.4 Expected Behavior
+
+- **Local prechecks** are fully deterministic: the same input text always produces the same `ItsoPrecheckResult` including the SHA-256 `result_hash`.
+- **Prompt assembly** is deterministic: the same `chunk_infos`, `rubric_context`, `provenance`, and `prompt_version` produce byte-identical JSON.
+- **Agent results with a deterministic fake client** produce identical subtotals and criterion scores on every run.
+- **Live provider runs (e.g. Groq)** may still produce different output at temperature 0 due to:
+  - Provider-level sampling implementation details
+  - Model fallback to a different served model
+  - JSON repair retries triggered by truncation or malformed responses
+  - These variations are captured in the `provenance` field and should be grouped by `(actual_model, fallback_occurred, repair_occurred)` when comparing runs.
+
+### 14.5 Manual Live-Provider Benchmark Procedure
+
+1. Configure `LLM_TEMPERATURE_ITSO=0.0` (the default).
+2. Run the same SLM document through evaluation at least 3 times.
+3. Compare the `provenance.actual_model` and `provenance.fallback_occurred` across runs.
+4. When comparing scores, group by `(actual_model, fallback_occurred, repair_occurred)`.
+5. Treat score differences within the same provenance group as provider-level sampling noise (diagnostic only — does not alter evaluation results automatically).
+6. Use the offline benchmark harness at `server/scripts/run_itso_benchmark.py` as a reference for expected deterministic behavior.
+
 ---
 
 *LSPU SCC, College of Computer Studies*

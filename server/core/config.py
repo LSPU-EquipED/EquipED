@@ -75,6 +75,7 @@ class Settings:
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_temperature: float = 0.2
+    llm_temperature_itso: float = 0.0
     # Default raised from 2048 to 4096 to give larger SLM evaluation outputs
     # more headroom and reduce the chance of JSON truncation in agent responses.
     # Fits comfortably within typical 8K-context local models (e.g. Gemma-2-2B)
@@ -145,6 +146,16 @@ class Settings:
             return self.chroma_port is not None
         return bool(self.chroma_persist_directory)
 
+    def get_agent_temperature(self, agent_name: str) -> float:
+        """Return the temperature for a specific agent, falling back to global default.
+
+        Currently only ``itso`` has a dedicated temperature setting.
+        All other agents use the global ``llm_temperature``.
+        """
+        if agent_name == "itso":
+            return self.llm_temperature_itso
+        return self.llm_temperature
+
     def get_agent_model(self, agent_name: str) -> str:
         """Return the model for a specific agent, falling back to global default."""
         mapping = {
@@ -191,6 +202,16 @@ def get_settings() -> Settings:
         parsed_llm_temperature = float(llm_temperature or "0.2")
     except ValueError as exc:
         raise ConfigurationError("LLM_TEMPERATURE must be a valid number") from exc
+
+    llm_temperature_itso = _env("LLM_TEMPERATURE_ITSO", "0.0")
+    try:
+        parsed_llm_temperature_itso = float(llm_temperature_itso or "0.0")
+    except ValueError as exc:
+        raise ConfigurationError("LLM_TEMPERATURE_ITSO must be a valid number") from exc
+    if parsed_llm_temperature_itso < 0 or parsed_llm_temperature_itso >= 1.0:
+        raise ConfigurationError(
+            "LLM_TEMPERATURE_ITSO must be between 0.0 (inclusive) and 1.0 (exclusive)"
+        )
 
     llm_max_new_tokens = _env("LLM_MAX_NEW_TOKENS", "4096")
     try:
@@ -383,6 +404,7 @@ def get_settings() -> Settings:
         llm_api_base=_env("LLM_API_BASE"),
         llm_api_key=_env("LLM_API_KEY"),
         llm_temperature=parsed_llm_temperature,
+        llm_temperature_itso=parsed_llm_temperature_itso,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
         llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,

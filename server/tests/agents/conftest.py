@@ -177,6 +177,7 @@ def _mock_settings(**overrides):
     defaults = {
         "llm_model_name": "test-model",
         "llm_temperature": 0.2,
+        "llm_temperature_itso": 0.0,
         "llm_max_new_tokens": 2048,
         "agent_max_chunks": 12,
         "agent_max_excerpt_chars": 800,
@@ -185,6 +186,13 @@ def _mock_settings(**overrides):
         "agent_total_prompt_budget_chars": 8000,
     }
     defaults.update(overrides)
+
+    def get_agent_temperature(_self, agent_name):
+        if agent_name == "itso":
+            return defaults["llm_temperature_itso"]
+        return defaults["llm_temperature"]
+
+    defaults["get_agent_temperature"] = get_agent_temperature
     return type("Settings", (), defaults)()
 
 
