@@ -24,6 +24,8 @@ from server.modules.synthesis.schemas import (
 )
 
 router = APIRouter(prefix="/evaluations", tags=["synthesis"])
+
+
 @router.get("/{evaluation_id}/results", response_model=EvaluationResultsResponse)
 def get_evaluation_results(
     evaluation_id: uuid.UUID,
@@ -74,8 +76,9 @@ def get_evaluation_results(
             "max_score": 4,
             "status": "OK" if result.success else "ERROR",
             "adjectival_rating": synthesis_result["domain_scores"]
-                .get(result.agent_name, {})
-                .get("adjectival_rating"),
+            .get(result.agent_name, {})
+            .get("adjectival_rating"),
+            "provenance": result.provenance,
         }
         for result in agent_results
     }

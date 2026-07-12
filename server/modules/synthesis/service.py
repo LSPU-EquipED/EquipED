@@ -33,10 +33,12 @@ def persist_agent_outputs(
                 success=False,
                 error_message=agent_result.error_message,
                 raw_response=agent_result.raw_response,
+                provenance=agent_result.provenance,
             )
             db.add(result_row)
             db.flush()
             continue
+
         result_row = AgentResult(
             agent_result_id=uuid.uuid4(),
             evaluation_id=evaluation_id,
@@ -51,6 +53,7 @@ def persist_agent_outputs(
             success=agent_result.success,
             error_message=agent_result.error_message,
             raw_response=agent_result.raw_response,
+            provenance=agent_result.provenance,
         )
         db.add(result_row)
         db.flush()

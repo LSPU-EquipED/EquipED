@@ -23,8 +23,8 @@ export function useDocumentDashboard() {
   };
 
   const { data, error, isLoading } = useQuery({
-    queryKey: ['documents'],
-    queryFn: () => dashboardApi.listDocuments(),
+    queryKey: ['documents', { sourceType: 'slm' }],
+    queryFn: () => dashboardApi.listDocuments({ sourceType: 'slm' }),
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
       return items.some((d: ClientDocument) => d.processingStatus === 'PENDING') ? 4000 : false;
