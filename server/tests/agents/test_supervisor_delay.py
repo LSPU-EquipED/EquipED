@@ -203,15 +203,22 @@ def test_supervisor_uses_per_agent_delay(monkeypatch, db_session) -> None:
         lambda agent_id, db: prompt_row,
     )
     # Per-agent: itso=20, gad=5, others fall back to global=10
-    monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_settings",
-        lambda: type(
+    def _make_settings():
+        def get_agent_temperature(_self, agent_name):
+            return 0.2
+        return type(
             "Settings", (),
             {
                 "llm_agent_delay_seconds": 10,
                 "llm_agent_delay_per_agent": {"itso": 20, "gad": 5},
+                "llm_temperature": 0.2,
+                "llm_temperature_itso": 0.0,
+                "get_agent_temperature": get_agent_temperature,
             },
-        )(),
+        )()
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_settings",
+        _make_settings,
     )
 
     # Create agents with known names in order: sme, coordinator, gad, itso
@@ -263,15 +270,22 @@ def test_supervisor_falls_back_to_global_delay(monkeypatch, db_session) -> None:
         "server.modules.agents.supervisor.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
-    monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_settings",
-        lambda: type(
+    def _make_settings():
+        def get_agent_temperature(_self, agent_name):
+            return 0.2
+        return type(
             "Settings", (),
             {
                 "llm_agent_delay_seconds": 15,
                 "llm_agent_delay_per_agent": {},
+                "llm_temperature": 0.2,
+                "llm_temperature_itso": 0.0,
+                "get_agent_temperature": get_agent_temperature,
             },
-        )(),
+        )()
+    monkeypatch.setattr(
+        "server.modules.agents.supervisor.get_settings",
+        _make_settings,
     )
 
     agents = [_BatchAgent() for _ in range(3)]

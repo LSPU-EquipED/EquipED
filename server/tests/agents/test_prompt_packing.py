@@ -451,9 +451,9 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     # Capture the prompt by intercepting _call_llm.
     captured_prompt = []
     original_call_llm = agent._call_llm
-    def capture_llm(prompt):
+    def capture_llm(prompt, *args, **kwargs):
         captured_prompt.append(prompt)
-        return original_call_llm(prompt)
+        return original_call_llm(prompt, *args, **kwargs)
     agent._call_llm = capture_llm
 
     agent.run(
@@ -503,9 +503,9 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
 
     captured_prompt = []
     original_call_llm = agent._call_llm
-    def capture_llm(prompt):
+    def capture_llm(prompt, *args, **kwargs):
         captured_prompt.append(prompt)
-        return original_call_llm(prompt)
+        return original_call_llm(prompt, *args, **kwargs)
     agent._call_llm = capture_llm
 
     agent.run(
@@ -550,9 +550,9 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
 
     captured_prompt = []
     original_call_llm = agent._call_llm
-    def capture_llm(prompt):
+    def capture_llm(prompt, *args, **kwargs):
         captured_prompt.append(prompt)
-        return original_call_llm(prompt)
+        return original_call_llm(prompt, *args, **kwargs)
     agent._call_llm = capture_llm
 
     agent.run(
