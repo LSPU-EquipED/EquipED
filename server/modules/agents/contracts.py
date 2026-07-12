@@ -41,6 +41,7 @@ class AgentEvaluationResult:
     error_message: str | None = None
     raw_response: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    provenance: dict[str, Any] | None = None
 
     @property
     def criterion_count(self) -> int:

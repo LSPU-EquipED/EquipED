@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import logging
 import time
 import uuid
@@ -13,13 +14,17 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_client_for_agent
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
-from server.modules.rubrics.service import get_active_rubric_context, resolve_rubric_agent_id
+from server.modules.rubrics.service import (
+    get_active_rubric_context,
+    resolve_rubric_agent_id,
+)
 
 from .contracts import AgentEvaluationResult
 from .coordinator import ProgramCoordinator
 from .exceptions import SupervisorExecutionError
 from .gad import GADAgent
 from .itso import ITSOAgent
+from .itso_precheck import run_itso_precheck
 from .sme import SMEAgent
 
 logger = logging.getLogger(__name__)
@@ -43,6 +48,9 @@ class SupervisorResult:
 
 
 class Supervisor:
+    # Cap for chunk IDs stored in provenance to prevent unbounded growth.
+    _PROVENANCE_CHUNK_ID_CAP: int = 64
+
     # Bounded multi-anchor reference retrieval (Phase 1) reduces full-document
     # query dilution for long SLMs. Short documents (≤1 non-empty chunk) still
     # use the historical single-query path; this is preserved to keep
@@ -120,6 +128,12 @@ class Supervisor:
             len(precomputed_context),
         )
 
+        # Precompute ITSO evidence snapshot and build phase-1 provenance.
+        # Called once before dispatch; the frozen snapshot is passed as a
+        # kwarg to the ITSO agent so retries don't rebuild evidence.
+        itso_snapshot = self._precompute_itso_context(chunk_infos)
+        itso_provenance_phase1 = itso_snapshot.get("provenance")
+
         # Parallel execution: submit all agents to a thread pool.
         # Each agent gets its own LLM client (thread-safe).  The
         # precomputed_context dict is read-only during this phase.
@@ -130,15 +144,25 @@ class Supervisor:
         )
 
         future_to_agent: dict[concurrent.futures.Future, str] = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.agents)) as pool:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(self.agents)
+        ) as pool:
             for agent in self.agents:
                 agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
                 prompt_row = prompt_versions.get(agent_name)
                 if prompt_row is None:
                     raise SupervisorExecutionError(
-                        f"No active prompt version found for agent {agent_name}"
+                        f"No active prompt found for agent {agent_name}"
                     )
                 client = get_llm_client_for_agent(agent_name)
+                # Only ITSO receives the frozen precheck snapshot and
+                # ITSO-specific temperature. Other agents use defaults.
+                extra_kwargs: dict[str, Any] = {}
+                if agent_name == "itso":
+                    extra_kwargs["llm_temperature"] = settings.get_agent_temperature(
+                        "itso"
+                    )
+                    extra_kwargs["provenance"] = itso_provenance_phase1
                 future = pool.submit(
                     self._run_single_agent,
                     agent=agent,
@@ -151,6 +175,7 @@ class Supervisor:
                     reference_document_ids=reference_document_ids,
                     precomputed_context=precomputed_context,
                     llm_client=client,
+                    **extra_kwargs,
                 )
                 future_to_agent[future] = agent_name
 
@@ -221,11 +246,16 @@ class Supervisor:
         reference_document_ids: dict[str, uuid.UUID],
         precomputed_context: dict[str, list[str]],
         llm_client: Any | None = None,
+        llm_temperature: float | None = None,
+        provenance: dict[str, Any] | None = None,
     ) -> AgentEvaluationResult:
         """Execute a single agent with timing and error handling.
 
         Called from ThreadPoolExecutor — each invocation runs in its own
         thread.  Each agent gets its own LLM client for thread safety.
+
+        ``llm_temperature`` and ``provenance`` are only set for the ITSO
+        agent; other agents use module defaults.
         """
         agent_start = time.perf_counter()
         try:
@@ -239,6 +269,8 @@ class Supervisor:
                 reference_document_ids=reference_document_ids,
                 precomputed_context=precomputed_context,
                 llm_client=llm_client,
+                llm_temperature=llm_temperature,
+                provenance=provenance,
             )
             agent_seconds = time.perf_counter() - agent_start
             logger.info(
@@ -268,6 +300,8 @@ class Supervisor:
                 prompt_version_id=prompt_row.version_id,
                 success=False,
                 error_message=str(exc),
+                # Preserve frozen phase-1 provenance for ITSO failures.
+                provenance=provenance if agent_name == "itso" else None,
             )
 
     def _compute_query_embedding(self, query_text: str) -> list[float] | None:
@@ -276,13 +310,16 @@ class Supervisor:
             return None
         try:
             from server.core.embedding import get_embedding_model
+
             model = get_embedding_model()
             return model.encode([query_text], show_progress_bar=False).tolist()[0]
         except Exception:
             return None
 
     def _get_agent_delay(
-        self, agent_name: str, settings: Any,
+        self,
+        agent_name: str,
+        settings: Any,
     ) -> int:
         """Return per-agent delay if configured, else global fallback.
 
@@ -294,6 +331,60 @@ class Supervisor:
         if per_agent and agent_name in per_agent:
             return int(per_agent[agent_name])
         return getattr(settings, "llm_agent_delay_seconds", 0)
+
+    def _precompute_itso_context(
+        self,
+        chunk_infos: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Build a frozen ITSO evidence snapshot and phase-1 provenance.
+
+        Called once per evaluation, before agent dispatch. The result
+        contains:
+        - ``provenance``: phase-1 provenance dict (precheck result, chunk ids,
+          rubric/prompt version context).
+        - ``precheck``: raw precheck result (for prompt injection).
+
+        This snapshot is immutable after creation and is injected into
+        the ITSO agent kwargs so retries do not rebuild evidence.
+        """
+        if not chunk_infos:
+            return {"provenance": None, "precheck": None}
+
+        # Build the SLM text for precheck from chunk texts (same ordering
+        # the agent would produce).
+        slm_text = "\n".join(
+            str(info.get("text", "")) for info in chunk_infos if info.get("text")
+        )
+        precheck = run_itso_precheck(slm_text)
+
+        # Ordered chunk identifiers (immutable snapshot, bounded).
+        all_chunk_ids = [
+            str(info.get("chunk_id", ""))
+            for info in chunk_infos
+            if info.get("chunk_id")
+        ]
+        chunk_ids_hash = hashlib.sha256(
+            "|".join(all_chunk_ids).encode("utf-8")
+        ).hexdigest()
+        chunk_ids_ordered = all_chunk_ids[: self._PROVENANCE_CHUNK_ID_CAP]
+
+        provenance: dict[str, Any] = {
+            # Phase-1: frozen before dispatch.
+            "precheck_version": precheck["version"],
+            "precheck_result_hash": precheck["result_hash"],
+            "bibliography_found": precheck["bibliography_found"],
+            "reference_count": precheck["reference_count"],
+            "intext_citation_count": precheck["intext_citation_count"],
+            "doi_count": precheck["doi_count"],
+            "coverage_ratio": precheck["coverage_ratio"],
+            "chunk_ids_ordered": chunk_ids_ordered,
+            "chunk_id_count": len(all_chunk_ids),
+            "chunk_ids_hash": chunk_ids_hash,
+        }
+        return {
+            "provenance": provenance,
+            "precheck": precheck,
+        }
 
     def _build_precomputed_context(
         self,
@@ -319,11 +410,11 @@ class Supervisor:
         is unaffected. When ``chunk_infos`` is absent (legacy callers /
         tests), the historical single-query path is preserved.
         """
+        from server.modules.embeddings.collections import resolve_collection_name
         from server.modules.embeddings.retrieval import (
             retrieve_context,
             retrieve_context_with_embedding,
         )
-        from server.modules.embeddings.collections import resolve_collection_name
 
         # Lazy query embedding: only computed when the short/single-query
         # reference path actually needs it. The multi-anchor path encodes
@@ -354,7 +445,8 @@ class Supervisor:
         ) -> list[str]:
             if source_type.startswith("rubric_"):
                 return get_active_rubric_context(
-                    resolve_rubric_agent_id(source_type), db=self.db,
+                    resolve_rubric_agent_id(source_type),
+                    db=self.db,
                 )
             collection_name = resolve_collection_name(source_type)
             embedding = get_query_embedding()
@@ -367,7 +459,8 @@ class Supervisor:
                 )
             else:
                 chunks = retrieve_context(
-                    query_text, collection_name,
+                    query_text,
+                    collection_name,
                     n_results=n_results,
                     document_id_filter=document_id_filter,
                 )
@@ -376,7 +469,10 @@ class Supervisor:
         # Pre-compute rubric context for each agent's rubric source type.
         # Rubric behavior is preserved exactly as-is.
         rubric_sources = (
-            "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso",
+            "rubric_sme",
+            "rubric_coord",
+            "rubric_gad",
+            "rubric_itso",
         )
         for source_type in rubric_sources:
             try:
@@ -526,5 +622,6 @@ class Supervisor:
             agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
             prompt_versions[agent_name] = get_active_prompt(agent_name, self.db)
         return prompt_versions
+
 
 __all__ = ["Supervisor", "SupervisorResult"]
