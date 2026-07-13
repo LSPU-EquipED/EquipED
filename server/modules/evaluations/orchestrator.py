@@ -11,9 +11,14 @@ re-running the supervisor and resumes from synthesis/finalization.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import uuid
+from typing import Any
 
+from server.core.llm import get_llm_client_for_agent
+from server.modules.agents.contracts import AgentEvaluationResult
+from server.modules.agents.coordinator import ProgramCoordinator
 from server.modules.agents.supervisor import Supervisor
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
@@ -158,6 +163,18 @@ def run_evaluation_job(
                 raise EvaluationPipelineUnavailableError(
                     "Layer 3 produced no usable agent outputs."
                 )
+            # Coordinator's own run() (dispatched in parallel with SME by
+            # Supervisor, unchanged) only computes A-05 -- splice in SME's
+            # other 9 scores now that both have finished, or fall back to
+            # Coordinator's full independent pass if SME failed. See
+            # coordinator.py's module docstring for why.
+            supervisor_result.agent_results = _reconcile_coordinator_result(
+                supervisor_result.agent_results,
+                job=job,
+                slm_chunks=slm_chunks,
+                slm_text=slm_text,
+                session=session,
+            )
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat after all agent futures complete.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
@@ -271,6 +288,89 @@ def _verify_token_ownership(
         raise EvaluationExecutionOwnershipError(
             f"Lost ownership of evaluation {evaluation_id}"
         )
+
+
+def _reconcile_coordinator_result(
+    agent_results: list[AgentEvaluationResult],
+    *,
+    job: EvaluationJob,
+    slm_chunks: list[Any],
+    slm_text: str,
+    session: Any,
+) -> list[AgentEvaluationResult]:
+    """Complete Coordinator's result using SME's, or fall back to
+    Coordinator's own full independent scoring.
+
+    Coordinator's ``run()`` (dispatched in parallel with SME via Supervisor,
+    unchanged) only computes A-05 -- this splices in SME's other 9 scores
+    now that both have finished, avoiding 5 redundant LLM calls per
+    evaluation. If SME failed (or Coordinator's own call failed, or the
+    merge itself raises), falls back to ``Coordinator.run_full_independent``
+    so a stuck SME never takes Coordinator down with it.
+    """
+    sme_result = next((r for r in agent_results if r.agent_name == "sme"), None)
+    coordinator_result = next(
+        (r for r in agent_results if r.agent_name == "coordinator"), None
+    )
+    if coordinator_result is None:
+        # e.g. partial_without_curriculum, which already excludes Coordinator
+        # entirely -- nothing to reconcile.
+        return agent_results
+
+    if sme_result is not None and sme_result.success and coordinator_result.success:
+        try:
+            merged = ProgramCoordinator.merge_with_sme(coordinator_result, sme_result)
+            return [
+                merged if r is coordinator_result else r for r in agent_results
+            ]
+        except Exception as exc:
+            logger.warning(
+                "Coordinator/SME merge failed for evaluation %s, falling back "
+                "to independent scoring: %s",
+                job.evaluation_id,
+                str(exc)[:200],
+            )
+
+    chunk_infos = [
+        {
+            "chunk_id": str(chunk.chunk_id),
+            "page_number": chunk.page_number,
+            "text": chunk.text,
+        }
+        for chunk in slm_chunks
+        if getattr(chunk, "text", None)
+    ]
+    reference_document_ids = {
+        **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
+        **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
+    }
+    try:
+        fallback_result = ProgramCoordinator().run_full_independent(
+            evaluation_id=job.evaluation_id,
+            document_id=job.document_id,
+            chunk_infos=chunk_infos,
+            context_text=slm_text,
+            prompt_version_id=None,
+            db=session,
+            llm_client=get_llm_client_for_agent("coordinator"),
+            reference_document_ids=reference_document_ids,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Coordinator independent fallback also failed for evaluation "
+            "%s: %s",
+            job.evaluation_id,
+            str(exc)[:200],
+        )
+        fallback_result = dataclasses.replace(
+            coordinator_result,
+            success=False,
+            error_message=str(exc)[:500],
+            criterion_scores=(),
+            subtotal=0.0,
+        )
+
+    return [fallback_result if r is coordinator_result else r for r in agent_results]
 
 
 def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:

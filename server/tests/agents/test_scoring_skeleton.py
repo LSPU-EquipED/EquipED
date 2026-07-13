@@ -310,6 +310,40 @@ class TestExtractBaskets:
         assert data["objectives"] == [{"id": 1}]
         assert len(client.calls) == 1
 
+    def test_extract_basket_a1_without_curriculum_uses_base_prompt(self) -> None:
+        client = self.FakeClient({"objectives": [], "assessments": []})
+        skeleton.extract_basket_a1(client, "some slm text")
+        assert "CURRICULUM CONTENT" not in client.calls[0]
+        assert "curriculum_alignment" not in client.calls[0]
+
+    def test_extract_basket_a1_with_curriculum_extends_prompt_and_call_count_stays_one(
+        self,
+    ) -> None:
+        client = self.FakeClient(
+            {
+                "objectives": [{"id": 1, "text": "obj"}],
+                "assessments": [],
+                "alignment": [],
+                "curriculum_alignment": [
+                    {"objective_id": 1, "is_addressed": True, "evidence": "quote"}
+                ],
+            }
+        )
+        data = skeleton.extract_basket_a1(
+            client, "some slm text", curriculum_text="Course: Foo\n\nBar"
+        )
+        assert len(client.calls) == 1  # one call, not two -- this is the whole point
+        assert "CURRICULUM CONTENT" in client.calls[0]
+        assert "Course: Foo" in client.calls[0]
+        assert data["curriculum_alignment"] == [
+            {"objective_id": 1, "is_addressed": True, "evidence": "quote"}
+        ]
+
+    def test_extract_basket_a1_empty_curriculum_text_uses_base_prompt(self) -> None:
+        client = self.FakeClient({"objectives": [], "assessments": []})
+        skeleton.extract_basket_a1(client, "some slm text", curriculum_text="   ")
+        assert "CURRICULUM CONTENT" not in client.calls[0]
+
     def test_extract_basket_a2_parses_json(self) -> None:
         client = self.FakeClient({"tasks": []})
         data = skeleton.extract_basket_a2(client, "some slm text")
@@ -349,7 +383,7 @@ class RoutingFakeClient:
 
     def generate(self, prompt: str, **_: object) -> str:
         lower = prompt.lower()
-        if "assessment facts" in lower:
+        if "assessment facts" in lower or "assessment and curriculum facts" in lower:
             key = "a1"
         elif "task facts" in lower:
             key = "a2"
@@ -433,6 +467,37 @@ class TestRunGrouped:
         for code, (score, justification, evidence) in results.items():
             assert 1 <= score <= 4
             assert isinstance(justification, str) and justification
+
+    def test_raw_baskets_out_populated_when_given(self) -> None:
+        client = RoutingFakeClient(**self._all_baskets())
+        raw_baskets: dict[str, dict] = {}
+        registry.run_grouped(client, "full slm text", raw_baskets_out=raw_baskets)
+        assert raw_baskets["A1"]["objectives"] == [{"id": 1}]
+        assert "B1" in raw_baskets
+
+    def test_basket_extract_kwargs_reaches_only_the_named_basket(self) -> None:
+        # Confirms Coordinator's curriculum_text only ever threads into A1's
+        # extract call, not the other 5 baskets (which don't accept it).
+        baskets = self._all_baskets()
+        baskets["a1"] = dict(baskets["a1"], curriculum_alignment=[
+            {"objective_id": 1, "is_addressed": True, "evidence": "curric quote"}
+        ])
+        client = RoutingFakeClient(**baskets)
+        raw_baskets: dict[str, dict] = {}
+
+        results = registry.run_grouped(
+            client,
+            "full slm text",
+            raw_baskets_out=raw_baskets,
+            basket_extract_kwargs={"A1": {"curriculum_text": "Course: Foo\n\nBar"}},
+        )
+
+        assert raw_baskets["A1"]["curriculum_alignment"] == [
+            {"objective_id": 1, "is_addressed": True, "evidence": "curric quote"}
+        ]
+        # Still exactly the normal 10-code result -- no extra calls, no
+        # extra codes introduced by the curriculum kwarg.
+        assert "A-05" in results
 
     def test_a3_failure_only_drops_a03(self) -> None:
         baskets = self._all_baskets()

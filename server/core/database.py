@@ -39,6 +39,19 @@ def get_engine() -> Any:
             echo=settings.database_echo,
             future=True,
             pool_pre_ping=True,
+            connect_args={
+                # Neon (serverless Postgres) closes connections that sit idle
+                # too long. The orchestrator holds one session open across an
+                # entire multi-agent evaluation (several sequential LLM
+                # calls), so TCP keepalives stop the proxy from seeing that
+                # connection as idle mid-evaluation. pool_pre_ping alone
+                # doesn't cover this: it only re-checks a connection at
+                # checkout, not while one is continuously held open.
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            },
         )
     except Exception as exc:  # pragma: no cover - driver/init guard
         raise InfrastructureUnavailableError(

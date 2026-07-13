@@ -134,6 +134,81 @@ SLM CONTENT:
 {content}
 """
 
+BASKET_A1_CURRICULUM_PROMPT = """SLM ANALYSIS -- ASSESSMENT AND CURRICULUM FACTS
+
+You are analyzing a Self-Paced Learning Module (SLM) alongside its official
+curriculum's course content.
+
+Your ONLY job is to extract facts. Do NOT assign any score.
+
+The SLM CONTENT below has two parts: the OBJECTIVES near the top, then the
+ASSESSMENTS section near the bottom (they may be separated by an
+"[...lecture body omitted...]" marker -- ignore that marker, it just means
+content between the two parts was left out).
+
+1. OBJECTIVES: List every stated learning objective / target from the top
+   part. Keep each as written, briefly.
+
+2. ASSESSMENTS: List every ASSESSMENT TOOL used to gauge student progress
+   (any quiz, test, task, or activity whose PURPOSE is to measure or record
+   what the student has learned -- not just practice). For EACH, classify it
+   into EXACTLY ONE of these seven types:
+   - "objective_test"    -- selected-response: multiple choice, true/false,
+                            matching, identification
+   - "written"           -- short-answer or essay questions, written composition
+   - "reflection"        -- reflection journal, reaction paper, learning log
+   - "performance_task"  -- performance task, demonstration, skills exhibition
+   - "project"           -- project, product, portfolio, extended-work output
+   - "oral"              -- oral recitation, presentation, defense, interview
+   - "self_assessment"   -- self-check, self-rating, peer assessment
+   If it does not clearly fit one of the seven, omit it rather than guessing.
+
+3. ALIGNMENT: For EACH objective, decide whether it is measured by one of the
+   assessments above, using this STRICT rule: an assessment measures an
+   objective ONLY IF completing it requires the student to directly
+   demonstrate the specific knowledge or skill named in the objective (match
+   the objective's action verb and topic). A general reflection/essay prompt
+   does NOT count unless it targets that objective's specific knowledge. If
+   unsure, mark is_measured = false. For every objective you mark true, quote
+   the exact assessment text that measures it in "evidence".
+
+4. CURRICULUM ALIGNMENT: For EACH objective (same ids as above), decide
+   whether it is addressed by the CURRICULUM CONTENT below, using this
+   STRICT rule: the curriculum content must name or clearly imply the same
+   knowledge/skill as the objective (matching topic and intent). A generic
+   or unrelated curriculum mention does NOT count. If unsure, mark
+   is_addressed = false. For every objective you mark true, quote the exact
+   curriculum text that supports it in "evidence".
+
+STRICT rules:
+- You must be able to quote real content as "evidence". A bare title/heading
+  with no content under it is NOT sufficient -- still list the item, but with
+  empty evidence.
+- List each DISTINCT item once per list. Do not repeat the same item.
+
+Return ONLY valid JSON in exactly this shape:
+{{
+  "objectives": [{{"id": 1, "text": "..."}}],
+  "assessments": [
+    {{"id": 1, "text": "short label", "assessment_type": "objective_test",
+      "evidence": "exact assessment text"}}
+  ],
+  "alignment": [
+    {{"objective_id": 1, "is_measured": true, "assessment_ids": [1],
+      "evidence": "exact quote"}}
+  ],
+  "curriculum_alignment": [
+    {{"objective_id": 1, "is_addressed": true, "evidence": "exact quote"}}
+  ]
+}}
+
+SLM CONTENT:
+{content}
+
+CURRICULUM CONTENT:
+{curriculum_text}
+"""
+
 BASKET_A2_PROMPT = """SLM ANALYSIS -- TASK FACTS
 
 You are analyzing a Self-Paced Learning Module (SLM).
@@ -407,13 +482,34 @@ def slice_for_basket_b2(text: str, *, budget: int = 9000, windows: int = 6) -> s
     return downsample(text, budget=budget, windows=windows)
 
 
-def extract_basket_a1(client: Any, text: str) -> dict[str, Any]:
-    """One LLM call -> raw facts dict for A-02/A-05."""
+_CURRICULUM_TEXT_CHAR_CAP = 3000
+
+
+def extract_basket_a1(
+    client: Any, text: str, *, curriculum_text: str | None = None
+) -> dict[str, Any]:
+    """One LLM call -> raw facts dict for A-02/A-05.
+
+    When ``curriculum_text`` is given (Coordinator only, when a curriculum
+    document is attached to the evaluation), the SAME call also returns
+    curriculum-alignment judgments for A-05 -- this avoids a second LLM call
+    for Coordinator's curriculum-aware A-05 (see ``coordinator.py``). SME
+    never passes this, so its prompt and call are byte-for-byte unchanged.
+    """
     content = slice_for_basket_a1(text)
+    if curriculum_text and curriculum_text.strip():
+        prompt = BASKET_A1_CURRICULUM_PROMPT.format(
+            content=content,
+            curriculum_text=curriculum_text[:_CURRICULUM_TEXT_CHAR_CAP],
+        )
+        max_tokens = 2200
+    else:
+        prompt = BASKET_A1_PROMPT.format(content=content)
+        max_tokens = 1800
     raw = client.generate(
-        BASKET_A1_PROMPT.format(content=content),
+        prompt,
         temperature=0.0,  # determinism: see spike findings
-        max_new_tokens=1800,
+        max_new_tokens=max_tokens,
     )
     data: dict[str, Any] = json.loads(raw)
     return data

@@ -336,10 +336,29 @@ _BASKETS: tuple[
 
 
 def run_grouped(
-    client: Any, text: str, *, delay: float = 0.0
+    client: Any,
+    text: str,
+    *,
+    delay: float = 0.0,
+    raw_baskets_out: dict[str, dict[str, Any]] | None = None,
+    basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, tuple[int, str, tuple[str, ...]]]:
     """Score every registered criterion from 6 shared basket calls instead of
     one call per criterion (see skeleton.py).
+
+    ``raw_baskets_out``, if given, is populated as a side effect with each
+    successfully-extracted basket's raw dict, keyed by basket name (e.g.
+    ``"A1"`` -> ``{"objectives": [...], "assessments": [...], ...}``). This
+    lets a caller reuse already-extracted facts (Coordinator's curriculum
+    comparison reuses A1's ``objectives``) without a second LLM call. Purely
+    additive -- callers that don't pass it see no change in behavior.
+
+    ``basket_extract_kwargs``, if given, maps a basket name to extra keyword
+    arguments forwarded to that basket's ``extract`` function (e.g.
+    ``{"A1": {"curriculum_text": "..."}}`` so Coordinator's curriculum
+    comparison rides the same A1 call instead of a second LLM round-trip).
+    Baskets not named in the mapping get no extra kwargs -- purely additive,
+    SME never passes this.
 
     Earlier, coarser groupings (2 baskets, then 3) were tried and rejected: a
     single merged Basket A (7 criteria in one call) was rejected outright by
@@ -371,9 +390,11 @@ def run_grouped(
         if i > 0 and delay > 0:
             time.sleep(delay)
 
+        extra_kwargs = (basket_extract_kwargs or {}).get(name, {})
+
         basket: dict[str, Any] | None
         try:
-            basket = extract(client, text)
+            basket = extract(client, text, **extra_kwargs)
         except Exception as exc:
             logger.warning(
                 "[SME_GROUPED] basket %s extraction failed: %s", name, str(exc)[:200]
@@ -382,6 +403,9 @@ def run_grouped(
 
         if basket is None:
             continue
+
+        if raw_baskets_out is not None:
+            raw_baskets_out[name] = basket
 
         for code in codes:
             try:

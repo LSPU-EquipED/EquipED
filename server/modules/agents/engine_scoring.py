@@ -75,8 +75,37 @@ class EngineScoredAgent(BaseAgent):
             )
             return None
 
+    def _resolve_full_text(
+        self,
+        document_id: uuid.UUID,
+        context_text: str | None,
+        chunk_infos: list[dict[str, Any]],
+    ) -> str:
+        """The SLM's clean text, or the best available fallback.
+
+        Shared by the full engine pass and Coordinator's single-call path --
+        both need identical full-text resolution, so this is pulled out to
+        avoid duplicating the fallback chain.
+        """
+        return (
+            self._load_document_text(document_id)
+            or context_text
+            or "\n".join(str(c.get("text", "")) for c in chunk_infos)
+        )
+
+    def _rubric_titles(self, db: Any | None) -> dict[str, str]:
+        """This agent's own rubric criterion titles, keyed by code."""
+        return get_active_rubric_criteria(
+            resolve_rubric_agent_id(self.rubric_source_type), db=db
+        )
+
     def _score_via_engine(
-        self, client: Any, full_text: str, delay: float
+        self,
+        client: Any,
+        full_text: str,
+        delay: float,
+        raw_baskets_out: dict[str, dict[str, Any]] | None = None,
+        basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
     ) -> tuple[dict[str, tuple[int, str, tuple[str, ...]]], int]:
         """Score every registered criterion: grouped pass, then per-criterion
         fallback for anything the grouped pass didn't cover.
@@ -87,10 +116,20 @@ class EngineScoredAgent(BaseAgent):
         all-or-nothing failure contract (the Supervisor already catches a
         raised agent, marks it ``success=False``, and excludes it from
         synthesis weighting).
+
+        ``raw_baskets_out`` and ``basket_extract_kwargs``, if given, are
+        forwarded to ``registry.run_grouped`` (see its docstring). Additive
+        only -- SME's call site passes neither.
         """
         try:
             t0 = time.perf_counter()
-            grouped = registry.run_grouped(client, full_text, delay=delay)
+            grouped = registry.run_grouped(
+                client,
+                full_text,
+                delay=delay,
+                raw_baskets_out=raw_baskets_out,
+                basket_extract_kwargs=basket_extract_kwargs,
+            )
             grouped_seconds = time.perf_counter() - t0
             logger.info(
                 "[ENGINE_TIMING] agent=%s | phase=grouped | seconds=%.3f | criteria=%d",
@@ -143,15 +182,17 @@ class EngineScoredAgent(BaseAgent):
         context_text: str | None,
         prompt_version_id: uuid.UUID | None,
         db: Any | None,
+        raw_baskets_out: dict[str, dict[str, Any]] | None = None,
+        basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
     ) -> AgentEvaluationResult:
         """Full engine pass: load text, score every criterion, build a
         result. Used by SME and Coordinator.
+
+        ``raw_baskets_out`` and ``basket_extract_kwargs``, if given, are
+        forwarded to ``_score_via_engine`` (see its docstring) -- additive,
+        SME's call site passes neither.
         """
-        full_text = (
-            self._load_document_text(document_id)
-            or context_text
-            or "\n".join(str(c.get("text", "")) for c in chunk_infos)
-        )
+        full_text = self._resolve_full_text(document_id, context_text, chunk_infos)
         if not full_text.strip():
             raise AgentExecutionError("no document text available for evaluation")
 
@@ -169,10 +210,14 @@ class EngineScoredAgent(BaseAgent):
         settings = get_settings()
         delay = int(getattr(settings, "sme_scoring_call_delay_seconds", 0) or 0)
 
-        scores, fallback_calls = self._score_via_engine(client, full_text, delay)
-        titles = get_active_rubric_criteria(
-            resolve_rubric_agent_id(self.rubric_source_type), db=db
+        scores, fallback_calls = self._score_via_engine(
+            client,
+            full_text,
+            delay,
+            raw_baskets_out=raw_baskets_out,
+            basket_extract_kwargs=basket_extract_kwargs,
         )
+        titles = self._rubric_titles(db)
 
         criterion_scores = tuple(
             CriterionScore(
