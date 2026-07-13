@@ -1,11 +1,14 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
 import { useAdminUpload } from '@/features/admin/hooks/useAdminUpload';
+import { documentsApi } from '@/shared/api/documents.api';
 import { cn } from '@/shared/components/utils';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
 import type { DocumentUploadResponse, ReferenceSourceType } from '@/shared/types/documents';
+
+const POLL_INTERVAL_MS = 4000;
 
 const sourceTypeLabels: Record<ReferenceSourceType, string> = {
   syllabus: 'Syllabus',
@@ -57,6 +60,44 @@ export function AdminUploadPage() {
     }
   };
 
+  // Reference documents (curriculum/syllabus) return PROCESSING immediately —
+  // OCR runs in a background task, so poll until it lands on PROCESSED/FAILED.
+  useEffect(() => {
+    if (!uploadResult || uploadResult.processingStatus !== 'PROCESSING') {
+      return;
+    }
+
+    let cancelled = false;
+    const documentId = uploadResult.documentId;
+
+    const poll = async () => {
+      try {
+        const doc = await documentsApi.getDocument(documentId);
+        if (cancelled) return;
+        if (doc.processingStatus !== 'PROCESSING') {
+          setUploadResult((previous) =>
+            previous
+              ? {
+                  ...previous,
+                  processingStatus: doc.processingStatus,
+                  academicYear: doc.academicYear,
+                  courseCode: doc.courseCode,
+                }
+              : previous,
+          );
+        }
+      } catch {
+        // transient poll failure — try again on the next tick
+      }
+    };
+
+    const intervalId = window.setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [uploadResult]);
+
   const handleReset = () => {
     setUploadResult(null);
     resetUpload(null);
@@ -68,6 +109,7 @@ export function AdminUploadPage() {
     }
   };
 
+  const isProcessing = uploadResult?.processingStatus === 'PROCESSING';
   const isSuccess = uploadResult?.processingStatus === 'PROCESSED';
   const isFailed = uploadResult?.processingStatus === 'FAILED';
 
@@ -172,6 +214,11 @@ export function AdminUploadPage() {
             <div className="flex items-start gap-3">
               {isSuccess ? (
                 <CheckCircle className="mt-0.5 size-5 shrink-0 text-[#3b963e]" aria-hidden="true" />
+              ) : isProcessing ? (
+                <Loader2
+                  className="mt-0.5 size-5 shrink-0 animate-spin text-slate-500"
+                  aria-hidden="true"
+                />
               ) : (
                 <XCircle className="mt-0.5 size-5 shrink-0 text-[#b91c1c]" aria-hidden="true" />
               )}
@@ -187,12 +234,22 @@ export function AdminUploadPage() {
                   <span
                     className={cn(
                       'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white',
-                      isSuccess ? 'bg-[#3b963e]' : 'bg-[#b91c1c]',
+                      isSuccess ? 'bg-[#3b963e]' : isProcessing ? 'bg-slate-500' : 'bg-[#b91c1c]',
                     )}
                   >
-                    {isSuccess ? 'Ready' : 'Failed'}
+                    {isSuccess ? 'Ready' : isProcessing ? 'Processing…' : 'Failed'}
                   </span>
                 </div>
+                {isProcessing ? (
+                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                    Extracting and embedding the document in the background. This can take
+                    several minutes for scanned PDFs — you can leave this page; check the{' '}
+                    <Link to="/admin/references" className="underline">
+                      reference library
+                    </Link>{' '}
+                    for status.
+                  </p>
+                ) : null}
                 {isFailed && uploadResult.errorMessage ? (
                   <p className="mt-2 text-sm font-semibold text-[#b91c1c]">
                     {uploadResult.errorMessage}

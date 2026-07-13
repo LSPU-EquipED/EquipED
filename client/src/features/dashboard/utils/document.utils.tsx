@@ -21,6 +21,11 @@ export const statusConfig: Record<
     badgeClass: 'bg-[#f2c811] text-[#1e293b]',
     icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
+  PROCESSING: {
+    label: 'Processing',
+    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
+    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+  },
   PROCESSED: {
     label: 'Ready',
     badgeClass: 'bg-[#3b963e] text-white',

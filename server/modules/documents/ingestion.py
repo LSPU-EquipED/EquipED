@@ -72,9 +72,17 @@ def ingest_document(
 ) -> list[DocumentChunkData]:
     """Extract text from a PDF and return Layer-1 chunks."""
 
-    pages = _extract_pages(file_path)
     domain = resolve_agent_domain(source_type)
     doc_uuid = uuid.UUID(document_id)
+
+    if source_type == "curriculum":
+        course_chunks = _ingest_curriculum_courses(
+            file_path, source_type, domain, doc_uuid
+        )
+        if course_chunks:
+            return course_chunks
+
+    pages = _extract_pages(file_path)
     chunks: list[DocumentChunkData] = []
 
     for page in pages:
@@ -93,6 +101,40 @@ def ingest_document(
                 )
             )
 
+    return chunks
+
+
+def _ingest_curriculum_courses(
+    file_path: str,
+    source_type: str,
+    domain: str,
+    doc_uuid: uuid.UUID,
+) -> list[DocumentChunkData]:
+    """Per-course chunks for CMO-style curriculum PDFs.
+
+    Falls back to the generic page-chunking path (via an empty return) on
+    layouts this extractor doesn't recognize, so curriculum documents that
+    aren't single-course-per-page CMOs still ingest normally.
+    """
+
+    from .curriculum_extraction import extract_curriculum_courses
+
+    records = extract_curriculum_courses(file_path)
+    chunks: list[DocumentChunkData] = []
+    for record in records:
+        text = f"Course: {record.course_title}\n\n{record.course_description}"
+        chunks.append(
+            DocumentChunkData(
+                chunk_id=uuid.uuid4(),
+                document_id=doc_uuid,
+                source_type=source_type,
+                agent_domain=domain,
+                page_number=record.page_number,
+                text=text,
+                token_count=_token_count(text),
+                is_ocr=True,
+            )
+        )
     return chunks
 
 

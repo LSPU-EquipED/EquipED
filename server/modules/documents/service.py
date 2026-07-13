@@ -175,6 +175,22 @@ def _process_uploaded_document(
 ) -> DocumentUploadResponse:
     """Run ingestion after a DB-backed upload intent has been committed."""
 
+    # Reference documents (syllabus/curriculum) are often scanned CMOs that need
+    # multi-minute OCR. Doing that on the request thread times out the upload
+    # (surfaces as "Internal Server Error"), so we persist a PROCESSING stub,
+    # return immediately, and let a background task (process_document_ingestion)
+    # do the heavy extraction + embedding. SLM uploads stay synchronous below.
+    if is_reference_source_type(source_type):
+        return _persist_reference_stub(
+            db=db,
+            doc_id=doc_id,
+            target_path=target_path,
+            source_type=source_type,
+            title=title,
+            program=program,
+            uploaded_by=uploaded_by,
+        )
+
     error_message: str | None = None
 
     try:
@@ -331,6 +347,170 @@ def _process_uploaded_document(
         evaluation_readiness=evaluation_readiness,
         error_message=error_message,
     )
+
+
+def _persist_reference_stub(
+    *,
+    db: Any | None,
+    doc_id: uuid.UUID,
+    target_path: Path,
+    source_type: str,
+    title: str,
+    program: str | None,
+    uploaded_by: uuid.UUID,
+) -> DocumentUploadResponse:
+    """Persist a PROCESSING placeholder row and return immediately.
+
+    Extraction/embedding is deferred to ``process_document_ingestion`` running
+    as a background task, so the upload request never blocks on OCR.
+    """
+
+    effective_program = program
+    if source_type == "curriculum" and effective_program is not None:
+        effective_program = effective_program.strip().upper()
+
+    uploaded_at = datetime.now(UTC)
+    response = DocumentResponse(
+        document_id=doc_id,
+        title=title,
+        course_title=None,
+        lesson_title=None,
+        source_type=source_type,
+        program=effective_program,
+        academic_year=None,
+        course_code=None,
+        page_count=0,
+        processing_status="PROCESSING",
+        has_ocr_pages=False,
+        uploaded_at=uploaded_at,
+        uploaded_by=uploaded_by,
+        structured_summary=None,
+        structured_outline=None,
+        section_summaries=None,
+        key_facts=None,
+        processing_warnings=None,
+        evaluation_readiness="PENDING",
+    )
+
+    runtime_db = db
+    runtime_session = None
+    if runtime_db is None and get_settings().database_configured:
+        runtime_session = get_session_factory()()
+        runtime_db = runtime_session
+    try:
+        _persist_document(runtime_db, response, str(target_path), uploaded_by)
+    finally:
+        if runtime_session is not None:
+            runtime_session.close()
+
+    return DocumentUploadResponse(
+        document_id=doc_id,
+        title=title,
+        course_title=None,
+        lesson_title=None,
+        source_type=source_type,
+        processing_status="PROCESSING",
+        academic_year=None,
+        course_code=None,
+        structured_summary=None,
+        evaluation_readiness="PENDING",
+        error_message=None,
+    )
+
+
+def process_document_ingestion(document_id: uuid.UUID) -> None:
+    """Background worker: OCR-extract, persist chunks, and embed a reference doc.
+
+    Runs off the request thread so multi-minute OCR never times out the upload.
+    The DB session is deliberately NOT held across extraction — Neon closes idle
+    connections, so we read the file path in a short session, run OCR with no
+    session open, then reopen a session for the quick metadata/chunk writes.
+    """
+
+    settings = get_settings()
+    if not settings.database_configured:
+        return
+    session_factory = get_session_factory()
+
+    # Phase 1 — short-lived read of the file path to OCR.
+    session = session_factory()
+    try:
+        document = session.get(Document, document_id)
+        if document is None:
+            return
+        file_path = document.file_path
+        source_type = document.source_type
+    finally:
+        session.close()
+
+    # Phase 2 — heavy OCR/extraction with NO DB session held.
+    try:
+        chunk_data = ingest_document(file_path, source_type, str(document_id))
+    except ExtractionFailedError:
+        chunk_data = []
+    except Exception:
+        logger.exception(
+            "Background ingestion failed during extraction",
+            extra={"document_id": str(document_id)},
+        )
+        chunk_data = []
+
+    detected_metadata: dict[str, str | None] = {}
+    if chunk_data:
+        try:
+            full_text = " ".join(chunk.text for chunk in chunk_data)
+            detected_metadata = detect_metadata(full_text)
+        except Exception:
+            logger.warning(
+                "Metadata detection failed during background ingestion",
+                extra={"document_id": str(document_id)},
+                exc_info=True,
+            )
+
+    # Phase 3 — fresh session for the quick writes.
+    session = session_factory()
+    try:
+        document = session.get(Document, document_id)
+        if document is None:
+            return
+        if not chunk_data:
+            document.processing_status = "FAILED"
+            session.commit()
+            _cleanup_failed_upload(Path(file_path))
+            return
+
+        _persist_chunks(session, document_id, chunk_data)
+
+        document = session.get(Document, document_id)
+        if not document.program and detected_metadata.get("program"):
+            program = detected_metadata["program"]
+            if source_type == "curriculum" and program:
+                program = program.strip().upper()
+            document.program = program
+        if detected_metadata.get("academic_year"):
+            document.academic_year = detected_metadata["academic_year"]
+        if detected_metadata.get("course_code"):
+            document.course_code = detected_metadata["course_code"]
+        document.page_count = max(
+            (chunk.page_number for chunk in chunk_data), default=0
+        )
+        document.has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
+        document.processing_status = "PROCESSED"
+        session.commit()
+    finally:
+        session.close()
+
+    # Phase 4 — embed into Chroma (opens its own short-lived session internally).
+    try:
+        embed_document_chunks(document_id)
+    except Exception:
+        logger.warning(
+            "Embedding failed after background ingestion",
+            extra={"document_id": str(document_id)},
+            exc_info=True,
+        )
+
+    _refresh_tfidf_if_needed(source_type)
 
 
 def get_document(
@@ -1236,6 +1416,7 @@ __all__ = [
     "get_document_chunks",
     "list_documents",
     "list_reference_documents",
+    "process_document_ingestion",
     "stream_document_file",
     "delete_reference_document",
     "rebuild_reference_embeddings",
