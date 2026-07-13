@@ -13,6 +13,7 @@ import {
   PanelLeftOpen,
   Settings,
   Shield,
+  ScanSearch,
   Upload,
   Users,
   type LucideIcon,
@@ -44,6 +45,7 @@ const adminNavItems: readonly NavItem[] = [
   { to: '/admin/ingest', label: 'Ingest', icon: FileUp, exact: true },
   { to: '/admin/references', label: 'References', icon: Library, exact: true },
   { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
+  { to: '/admin/model-validation', label: 'Model Validation', icon: ScanSearch, exact: true },
   { to: '/admin/prompts', label: 'Prompts', icon: Settings, exact: false },
   { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },
 ] as const;

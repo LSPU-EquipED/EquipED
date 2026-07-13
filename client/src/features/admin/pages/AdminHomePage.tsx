@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { AlertTriangle, ArrowRight, Plus, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Plus, ScanSearch, Upload } from 'lucide-react';
 import { useAdminSummary } from '@/features/admin/hooks/useAdminSummary';
 import { useAdminMatrix } from '@/features/admin/hooks/useAdminMatrix';
 import type { MonitoringMatrixRow } from '@/features/admin/types';
@@ -59,7 +59,7 @@ export function AdminHomePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="border border-slate-200 bg-white rounded-sm p-5 flex flex-col gap-4">
           <div className="flex items-start gap-3">
             <div className="flex size-10 items-center justify-center rounded-sm bg-slate-100 border border-slate-200 text-[#1b3b87] shrink-0">
@@ -78,6 +78,28 @@ export function AdminHomePage() {
             onClick={() => navigate({ to: '/admin/users' })}
           >
             Go to user management
+            <ArrowRight className="size-4 text-slate-400" />
+          </button>
+        </div>
+
+        <div className="border border-slate-200 bg-white rounded-sm p-5 flex flex-col gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 items-center justify-center rounded-sm bg-slate-100 border border-slate-200 text-[#1b3b87] shrink-0">
+              <ScanSearch className="size-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">Validate Model Scores</p>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                Compare an SLM evaluation with a human expected score.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="w-full h-10 inline-flex items-center justify-between border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87]"
+            onClick={() => navigate({ to: '/admin/model-validation' })}
+          >
+            Open model validation
             <ArrowRight className="size-4 text-slate-400" />
           </button>
         </div>

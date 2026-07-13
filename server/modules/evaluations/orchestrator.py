@@ -120,15 +120,15 @@ def run_evaluation_job(
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
         slm_chunks = get_document_chunks(job.document_id, db=session)
-        slm_text = "\n".join([chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)])
+        slm_text = "\n".join(
+            [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
+        )
 
         # 2) Idempotency check: if a prior attempt already persisted
         #    AgentResult rows, do not re-run the supervisor. Resume from
         #    synthesis/finalization instead.
         existing_results = (
-            session.query(AgentResult)
-            .filter_by(evaluation_id=evaluation_id)
-            .count()
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
         )
         if existing_results == 0:
             _verify_token_ownership(session, evaluation_id, execution_token)
@@ -137,9 +137,9 @@ def run_evaluation_job(
             if job.partial_without_curriculum:
                 # No-curriculum partial: construct Supervisor without
                 # ProgramCoordinator so coordinator review is skipped entirely.
-                from server.modules.agents.sme import SMEAgent
                 from server.modules.agents.gad import GADAgent
                 from server.modules.agents.itso import ITSOAgent
+                from server.modules.agents.sme import SMEAgent
 
                 supervisor = Supervisor(
                     agents=[SMEAgent(), GADAgent(), ITSOAgent()],
@@ -155,7 +155,11 @@ def run_evaluation_job(
                 context={
                     "reference_document_ids": {
                         **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
-                        **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
+                        **(
+                            {"curriculum": job.curriculum_id}
+                            if job.curriculum_id
+                            else {}
+                        ),
                     }
                 },
             )
@@ -201,17 +205,17 @@ def run_evaluation_job(
             execution_token=execution_token,
         )
 
-        agent_results = session.query(AgentResult).filter_by(
-            evaluation_id=evaluation_id
-        ).all()
+        agent_results = (
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
+        )
         synthesis_result = compute_synthesized_score(
             agent_results,
             force_partial=job.partial_without_curriculum,
             partial_reason=job.partial_reason,
         )
-        flag_count = session.query(EvaluationFlag).filter_by(
-            evaluation_id=evaluation_id
-        ).count()
+        flag_count = (
+            session.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).count()
+        )
 
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
         upsert_monitoring_matrix(
@@ -241,17 +245,41 @@ def run_evaluation_job(
                 for r in agent_results
                 if not r.success and r.error_message
             ]
-            partial_error = "; ".join(failed_errors) if failed_errors else "Partial: some agents failed"
+            partial_error = (
+                "; ".join(failed_errors)
+                if failed_errors
+                else "Partial: some agents failed"
+            )
         else:
             final_status = EvaluationStatus.COMPLETED
             partial_error = None
         _verify_token_ownership(session, evaluation_id, execution_token)
         transition_evaluation_status(
-            evaluation_id, final_status, session,
+            evaluation_id,
+            final_status,
+            session,
             error_message=partial_error,
             execution_token=execution_token,
         )
         session.commit()
+        if final_status == EvaluationStatus.COMPLETED:
+            # This explicit admin-service boundary only performs work for
+            # evaluation jobs linked to a Model Validation record. A
+            # classifier failure is persisted as validation metadata and
+            # never changes the authoritative evaluation lifecycle.
+            from server.modules.admin.service import (
+                assess_model_validation_toxicity,
+                sync_model_validation_criterion_results,
+            )
+
+            try:
+                sync_model_validation_criterion_results(evaluation_id, session)
+                assess_model_validation_toxicity(evaluation_id, session)
+            except Exception:
+                logger.exception(
+                    "Unexpected toxicity assessment failure for evaluation %s",
+                    evaluation_id,
+                )
     except Exception as exc:
         try:
             session.rollback()

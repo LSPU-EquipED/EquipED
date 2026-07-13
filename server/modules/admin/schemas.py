@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+from server.modules.evaluations.models import EvaluationStatus
 
 
 class PromptCreate(BaseModel):
@@ -112,6 +113,86 @@ class SystemSummaryResponse(BaseModel):
     failed_evaluations: int
 
 
+class ExpectedCriterionScoreCreate(BaseModel):
+    agent_id: Literal["sme", "coordinator", "gad", "itso"]
+    criterion_id: str = Field(min_length=1, max_length=100)
+    expected_score: int = Field(ge=1, le=4)
+
+
+class ModelValidationCreateRequest(BaseModel):
+    """Create a benchmark without exposing expected criterion scores to agents."""
+
+    document_id: uuid.UUID
+    curriculum_id: uuid.UUID | None = None
+    syllabus_id: uuid.UUID | None = None
+    partial_without_curriculum: bool = False
+    expected_scores: list[ExpectedCriterionScoreCreate] = Field(min_length=1)
+
+
+class ModelValidationCriterionScoreResponse(BaseModel):
+    expected_score_id: uuid.UUID
+    agent_id: str
+    criterion_id: str
+    criterion_title: str
+    expected_score: int
+    actual_score: int | None = None
+    absolute_error: float | None = None
+
+
+class ModelValidationCriterionDefinition(BaseModel):
+    criterion_id: str
+    title: str
+    description: str
+    domain_title: str
+
+
+class ModelValidationAgentCriteria(BaseModel):
+    agent_id: str
+    agent_name: str
+    rubric_version: int
+    criteria: list[ModelValidationCriterionDefinition]
+
+
+class ModelValidationCriteriaResponse(BaseModel):
+    agents: list[ModelValidationAgentCriteria]
+    total_criteria: int
+
+
+class ModelValidationResponse(BaseModel):
+    validation_id: uuid.UUID
+    evaluation_id: uuid.UUID
+    document_id: uuid.UUID
+    document_title: str | None = None
+    partial_without_curriculum: bool = False
+    criterion_scores: list[ModelValidationCriterionScoreResponse]
+    absolute_error: float | None = None
+    latency_seconds: float | None = None
+    score_perplexity: float | None = None
+    toxicity_score: float | None = None
+    toxicity_label: str | None = None
+    toxicity_explanation: str | None = None
+    toxicity_model: str | None = None
+    toxicity_error: str | None = None
+    status: EvaluationStatus
+    error_message: str | None = None
+    created_at: datetime
+
+
+class ModelValidationListResponse(BaseModel):
+    items: list[ModelValidationResponse]
+    total: int
+
+
+class ModelValidationMetricsResponse(BaseModel):
+    completed_runs: int
+    mean_absolute_error: float | None = None
+    mean_latency_seconds: float | None = None
+    score_perplexity: float | None = None
+    mean_toxicity_score: float | None = None
+    class_labels: list[str]
+    confusion_matrix: list[list[int]]
+
+
 __all__ = [
     "PromptCreate",
     "PromptVersionResponse",
@@ -123,4 +204,13 @@ __all__ = [
     "AdminUserResponse",
     "AdminUserListResponse",
     "SystemSummaryResponse",
+    "ModelValidationCreateRequest",
+    "ExpectedCriterionScoreCreate",
+    "ModelValidationCriterionScoreResponse",
+    "ModelValidationCriterionDefinition",
+    "ModelValidationAgentCriteria",
+    "ModelValidationCriteriaResponse",
+    "ModelValidationResponse",
+    "ModelValidationListResponse",
+    "ModelValidationMetricsResponse",
 ]

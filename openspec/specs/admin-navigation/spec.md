@@ -4,7 +4,7 @@
 Role-based sidebar navigation that exposes admin-only system management links and a dedicated admin landing route.
 ## Requirements
 ### Requirement: Role-based sidebar visibility
-The sidebar MUST dynamically adapt its visible links based on the authenticated user's role. The "Monitoring Matrix", "Preference Logs", and "Prompt Management" links MUST be shown ONLY to users with the `admin` role.
+The sidebar MUST dynamically adapt its visible links based on the authenticated user's role. The "Monitoring Matrix", "Model Validation", "Preference Logs", and "Prompt Management" links MUST be shown ONLY to users with the `admin` role.
 
 #### Scenario: Admin navigation
 - **Given** an authenticated user with the `admin` role

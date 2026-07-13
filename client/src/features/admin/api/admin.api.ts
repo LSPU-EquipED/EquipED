@@ -33,6 +33,11 @@ import type {
   SystemSummaryResponse,
   MatrixListResponse,
   AdminUploadInput,
+  ModelValidationCreateBody,
+  ModelValidationCriteriaResponse,
+  ModelValidationItem,
+  ModelValidationListResponse,
+  ModelValidationMetricsResponse,
 } from '../types';
 
 export const adminApi = {
@@ -163,4 +168,18 @@ export const adminApi = {
     );
     return mapPolicyRebuildResponse(response);
   },
+
+  createModelValidation: (body: ModelValidationCreateBody) =>
+    requestJson<ModelValidationItem>('/admin/model-validations', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getModelValidations: () => requestJson<ModelValidationListResponse>('/admin/model-validations'),
+
+  getModelValidationMetrics: () =>
+    requestJson<ModelValidationMetricsResponse>('/admin/model-validations/metrics'),
+
+  getModelValidationCriteria: () =>
+    requestJson<ModelValidationCriteriaResponse>('/admin/model-validations/criteria'),
 };
