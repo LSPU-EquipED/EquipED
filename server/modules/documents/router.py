@@ -16,7 +16,6 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
-
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
@@ -48,6 +47,7 @@ from .service import (
     get_document,
     list_documents,
     list_reference_documents,
+    process_document_ingestion,
     rebuild_reference_embeddings,
     stream_document_file,
 )
@@ -85,6 +85,10 @@ def upload_document(
         )
         if response.processing_status == "PROCESSED":
             background_tasks.add_task(embed_document_chunks, response.document_id)
+        elif response.processing_status == "PROCESSING":
+            # Reference documents (syllabus/curriculum) defer OCR/extraction to
+            # a background task since scanned CMOs can take minutes to process.
+            background_tasks.add_task(process_document_ingestion, response.document_id)
         return response
     except ForbiddenUploadError as exc:
         raise HTTPException(

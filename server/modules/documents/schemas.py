@@ -20,7 +20,7 @@ SOURCE_TYPES = (
 # Source types that are institution-shared references (not SLMs or rubrics)
 REFERENCE_SOURCE_TYPES = frozenset({"syllabus", "curriculum"})
 
-PROCESSING_STATUSES = ("PENDING", "PROCESSED", "FAILED")
+PROCESSING_STATUSES = ("PENDING", "PROCESSING", "PROCESSED", "FAILED")
 
 
 class DocumentChunkData(BaseModel):

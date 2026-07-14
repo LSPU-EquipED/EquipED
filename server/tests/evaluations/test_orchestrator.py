@@ -499,6 +499,23 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         fake_run_evaluation_with_failure,
     )
 
+    # A failed Coordinator result triggers orchestrator._reconcile_coordinator_result's
+    # independent-scoring fallback (see coordinator.py's module docstring) --
+    # mock that fallback to also fail, so this stays a pure unit test (no real
+    # LLM call) while preserving the scenario: Coordinator never recovers, so
+    # the evaluation still ends FAILED.
+    from server.modules.agents.coordinator import Coordinator
+
+    def fake_run_full_independent_failure(self, **kwargs):
+        raise RuntimeError("Coordinator LLM call failed")
+
+    monkeypatch.setattr(
+        Coordinator, "run_full_independent", fake_run_full_independent_failure
+    )
+    monkeypatch.setattr(
+        evaluation_orchestrator, "get_llm_client_for_agent", lambda agent_name: None
+    )
+
     run_evaluation_job(job.evaluation_id)
 
     db_session.expire_all()

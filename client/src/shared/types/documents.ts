@@ -9,7 +9,7 @@ export const DOCUMENT_SOURCE_TYPES = [
 ] as const;
 
 export type DocumentSourceType = (typeof DOCUMENT_SOURCE_TYPES)[number];
-export type DocumentProcessingStatus = 'PENDING' | 'PROCESSED' | 'FAILED';
+export type DocumentProcessingStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 
 export type RawDocumentChunk = {
   chunk_id: string;
