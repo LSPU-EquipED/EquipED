@@ -6,7 +6,9 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
+from server.modules.admin.models import ModelValidation
 from server.modules.admin.schemas import (
+    AdminEvaluationResponse,
     AdminUserCreateRequest,
     AdminUserListResponse,
     AdminUserResponse,
@@ -28,7 +30,9 @@ from server.modules.admin.service import (
     create_model_validation,
     create_prompt_version,
     deactivate_user,
+    get_admin_evaluation,
     get_model_validation_criteria,
+    get_model_validation_detail,
     get_model_validation_metrics,
     get_system_summary,
     hard_delete_user,
@@ -376,7 +380,12 @@ def submit_model_validation(
     db=Depends(get_db_session),
 ):
     try:
-        response = create_model_validation(body, created_by=current_user.id, db=db)
+        response = create_model_validation(
+            body,
+            created_by=current_user.id,
+            created_by_role=current_user.role.value,
+            db=db,
+        )
     except DocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
@@ -387,6 +396,54 @@ def submit_model_validation(
         ) from exc
     background_tasks.add_task(run_evaluation_job, response.evaluation_id)
     return response
+
+
+@router.get(
+    "/model-validations/{validation_id}",
+    response_model=ModelValidationResponse,
+)
+def get_model_validation_detail_endpoint(
+    validation_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db=Depends(get_db_session),
+):
+    item = get_model_validation_detail(validation_id, db)
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Validation record not found.",
+        )
+    return item
+
+
+@router.get(
+    "/model-validations/{validation_id}/evaluation",
+    response_model=AdminEvaluationResponse,
+)
+def get_validation_evaluation(
+    validation_id: uuid.UUID,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db=Depends(get_db_session),
+):
+    """Admin-only view of the evaluation linked to a validation benchmark.
+
+    Returns the evaluation detail regardless of which user submitted the
+    original evaluation job. Faculty must use their own evaluation detail
+    endpoint and remain blocked from cross-user access.
+    """
+    validation = db.get(ModelValidation, validation_id)
+    if validation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Validation record not found.",
+        )
+    evaluation = get_admin_evaluation(validation.evaluation_id, db)
+    if evaluation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Linked evaluation not found.",
+        )
+    return evaluation
 
 
 __all__ = ["router"]

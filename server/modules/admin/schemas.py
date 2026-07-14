@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from server.modules.evaluations.models import EvaluationStatus
@@ -16,7 +16,7 @@ class PromptCreate(BaseModel):
     prompt_text: str = Field(
         ..., min_length=1, max_length=10000, description="The prompt text content"
     )
-    motivation: Optional[str] = Field(None, description="Reason for this prompt update")
+    motivation: str | None = Field(None, description="Reason for this prompt update")
 
 
 class PromptVersionResponse(BaseModel):
@@ -26,8 +26,8 @@ class PromptVersionResponse(BaseModel):
     version_number: int
     prompt_text: str
     is_active: bool
-    updated_by: Optional[str] = None
-    motivation: Optional[str] = None
+    updated_by: str | None = None
+    motivation: str | None = None
     created_at: datetime
 
     class Config:
@@ -49,8 +49,8 @@ class PreferenceLogResponse(BaseModel):
     evaluation_id: uuid.UUID
     user_id: uuid.UUID
     action: Literal["ACCEPT", "REJECT", "EDIT"]
-    edited_json: Optional[dict] = None
-    notes: Optional[str] = None
+    edited_json: dict | None = None
+    notes: str | None = None
     created_at: datetime
 
     class Config:
@@ -78,9 +78,9 @@ class AdminUserCreateRequest(BaseModel):
 class AdminUserUpdateRequest(BaseModel):
     """Request body for updating an existing user (admin-only)."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=300)
-    email: Optional[str] = Field(None, min_length=1, max_length=300)
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=300)
+    email: str | None = Field(None, min_length=1, max_length=300)
+    is_active: bool | None = None
 
 
 class AdminUserResponse(BaseModel):
@@ -193,6 +193,23 @@ class ModelValidationMetricsResponse(BaseModel):
     confusion_matrix: list[list[int]]
 
 
+class AdminEvaluationResponse(BaseModel):
+    """Evaluation detail returned to admins (bypasses faculty ownership)."""
+
+    evaluation_id: uuid.UUID
+    document_id: uuid.UUID
+    syllabus_id: uuid.UUID | None = None
+    curriculum_id: uuid.UUID | None = None
+    status: str
+    error_message: str | None = None
+    partial_without_curriculum: bool = False
+    partial_reason: str | None = None
+    submitted_by: uuid.UUID | None = None
+    submitted_at: datetime
+    completed_at: datetime | None = None
+    duration_seconds: float | None = None
+
+
 __all__ = [
     "PromptCreate",
     "PromptVersionResponse",
@@ -213,4 +230,5 @@ __all__ = [
     "ModelValidationResponse",
     "ModelValidationListResponse",
     "ModelValidationMetricsResponse",
+    "AdminEvaluationResponse",
 ]

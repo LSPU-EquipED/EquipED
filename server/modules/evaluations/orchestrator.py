@@ -254,19 +254,15 @@ def run_evaluation_job(
             final_status = EvaluationStatus.COMPLETED
             partial_error = None
         _verify_token_ownership(session, evaluation_id, execution_token)
-        transition_evaluation_status(
-            evaluation_id,
-            final_status,
-            session,
-            error_message=partial_error,
-            execution_token=execution_token,
-        )
-        session.commit()
+
+        # Durable finalization: execute model-validation criterion-score
+        # matching and toxicity assessment BEFORE the linked evaluation
+        # transitions to a terminal state. If postprocessing fails, the
+        # evaluation still completes normally — the error is logged and
+        # the validation record retains null actual scores / unavailable
+        # toxicity. A failure here must never make normal eval data
+        # disappear or prevent a legitimate COMPLETED transition.
         if final_status == EvaluationStatus.COMPLETED:
-            # This explicit admin-service boundary only performs work for
-            # evaluation jobs linked to a Model Validation record. A
-            # classifier failure is persisted as validation metadata and
-            # never changes the authoritative evaluation lifecycle.
             from server.modules.admin.service import (
                 assess_model_validation_toxicity,
                 sync_model_validation_criterion_results,
@@ -277,9 +273,19 @@ def run_evaluation_job(
                 assess_model_validation_toxicity(evaluation_id, session)
             except Exception:
                 logger.exception(
-                    "Unexpected toxicity assessment failure for evaluation %s",
+                    "Model-validation postprocessing failed for evaluation %s"
+                    " — evaluation will still complete normally.",
                     evaluation_id,
                 )
+
+        transition_evaluation_status(
+            evaluation_id,
+            final_status,
+            session,
+            error_message=partial_error,
+            execution_token=execution_token,
+        )
+        session.commit()
     except Exception as exc:
         try:
             session.rollback()

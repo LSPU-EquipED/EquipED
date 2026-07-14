@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from server.core.llm import get_llm_client, get_llm_model_name
+from server.core.config import get_settings
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user as auth_create_user
 from server.modules.documents.models import Document
@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .models import ModelValidation, ModelValidationCriterionScore, PromptVersion
 from .schemas import (
+    AdminEvaluationResponse,
     ModelValidationAgentCriteria,
     ModelValidationCreateRequest,
     ModelValidationCriteriaResponse,
@@ -202,6 +203,14 @@ __all__ = [
     "deactivate_user",
     "hard_delete_user",
     "get_system_summary",
+    "create_model_validation",
+    "list_model_validations",
+    "get_model_validation_detail",
+    "get_admin_evaluation",
+    "get_model_validation_criteria",
+    "get_model_validation_metrics",
+    "sync_model_validation_criterion_results",
+    "assess_model_validation_toxicity",
 ]
 
 
@@ -405,9 +414,15 @@ def create_model_validation(
     request: ModelValidationCreateRequest,
     *,
     created_by: uuid.UUID,
+    created_by_role: str | None = None,
     db: Any,
 ) -> ModelValidationResponse:
-    """Create an evaluation job with private criterion-level benchmarks."""
+    """Create an evaluation job with private criterion-level benchmarks.
+
+    All persistence (evaluation job, validation record, expected criterion
+    rows) is committed atomically so a failure after the evaluation job
+    is created never leaves an orphan job.
+    """
 
     criterion_catalog = _active_validation_criterion_map(db)
     provided: dict[tuple[str, str], int] = {}
@@ -439,6 +454,28 @@ def create_model_validation(
             + "; ".join(details)
         )
 
+    # Program consistency: when curriculum_id is provided, the curriculum
+    # document's program must match the SLM document's program (normalized).
+    slm_doc = db.get(Document, request.document_id)
+    if slm_doc is None:
+        from server.modules.documents.exceptions import DocumentNotFoundError
+        raise DocumentNotFoundError(f"Document {request.document_id} not found")
+    if request.curriculum_id is not None:
+        curriculum_doc = db.get(Document, request.curriculum_id)
+        if curriculum_doc is None:
+            from server.modules.documents.exceptions import DocumentNotFoundError
+            raise DocumentNotFoundError(
+                f"Curriculum document {request.curriculum_id} not found"
+            )
+        slm_program = (slm_doc.program or "").strip().upper()
+        curriculum_program = (curriculum_doc.program or "").strip().upper()
+        if slm_program and curriculum_program and slm_program != curriculum_program:
+            raise InvalidEvaluationTargetError(
+                f"Curriculum program '{curriculum_program}' does not match "
+                f"SLM program '{slm_program}'. "
+                "Client should reload suggestions for the correct program."
+            )
+
     evaluation = create_evaluation(
         EvaluationSubmitRequest(
             document_id=request.document_id,
@@ -447,7 +484,9 @@ def create_model_validation(
             partial_without_curriculum=request.partial_without_curriculum,
         ),
         submitted_by=created_by,
+        submitted_by_role=created_by_role,
         db=db,
+        with_commit=False,
     )
     validation = ModelValidation(
         validation_id=uuid.uuid4(),
@@ -468,6 +507,7 @@ def create_model_validation(
         for agent_id, criterion_id in sorted(expected_keys)
     ]
     db.add_all(criterion_rows)
+    # Atomic commit: evaluation job + validation + criterion rows all at once.
     db.commit()
     db.refresh(validation)
     document = db.get(Document, evaluation.document_id)
@@ -512,6 +552,61 @@ def list_model_validations(db: Any) -> list[ModelValidationResponse]:
         )
         for validation, job, document in rows
     ]
+
+
+def get_model_validation_detail(
+    validation_id: uuid.UUID,
+    db: Any,
+) -> ModelValidationResponse | None:
+    """Return a single validation record, or None if not found."""
+    validation = db.get(ModelValidation, validation_id)
+    if validation is None:
+        return None
+    job = db.get(EvaluationJob, validation.evaluation_id)
+    if job is None:
+        return None
+    document = db.get(Document, job.document_id)
+    criterion_rows = (
+        db.query(ModelValidationCriterionScore)
+        .filter(ModelValidationCriterionScore.validation_id == validation_id)
+        .order_by(
+            ModelValidationCriterionScore.agent_id.asc(),
+            ModelValidationCriterionScore.criterion_id.asc(),
+        )
+        .all()
+    )
+    return _model_validation_response(validation, job, document, criterion_rows)
+
+
+def get_admin_evaluation(
+    evaluation_id: uuid.UUID,
+    db: Any,
+) -> AdminEvaluationResponse | None:
+    """Return evaluation details — admin bypass of faculty ownership.
+
+    Returns None if the evaluation job does not exist, so the caller
+    can translate to a 404.
+    """
+    job = db.get(EvaluationJob, evaluation_id)
+    if job is None:
+        return None
+    duration = None
+    if job.completed_at is not None and job.submitted_at is not None:
+        duration = (job.completed_at - job.submitted_at).total_seconds()
+    return AdminEvaluationResponse(
+        evaluation_id=job.evaluation_id,
+        document_id=job.document_id,
+        syllabus_id=job.syllabus_id,
+        curriculum_id=job.curriculum_id,
+        status=job.status,
+        error_message=job.error_message,
+        partial_without_curriculum=job.partial_without_curriculum,
+        partial_reason=job.partial_reason,
+        submitted_by=job.submitted_by,
+        submitted_at=job.submitted_at,
+        completed_at=job.completed_at,
+        duration_seconds=duration,
+    )
 
 
 def get_model_validation_criteria(db: Any) -> ModelValidationCriteriaResponse:
@@ -633,7 +728,20 @@ def assess_model_validation_toxicity(
     *,
     llm_client: Any = None,
 ) -> ModelValidation | None:
-    """Classify generated evaluation language with the configured LLM backend."""
+    """Classify generated evaluation language with the configured LLM backend.
+
+    When an explicit ``llm_client`` is provided the caller is considered
+    to have approved the endpoint — the enabled-setting and locality guard
+    are skipped.  Without an explicit client, toxicity uses a *dedicated*
+    client resolved from ``TOXICITY_API_BASE`` / ``TOXICITY_MODEL_NAME``
+    (never the global evaluation LLM client).  The endpoint must pass the
+    locality guard in :func:`server.core.toxicity.validate_toxicity_endpoint`.
+
+    When disabled, unavailable, or the guard rejects the endpoint, stores a
+    null result with a safe explanation.  Never encodes 0.0/non_toxic as a
+    fallback — null is the canonical "unavailable" signal.  Error messages
+    never reveal generated evaluation content or credential-bearing URLs.
+    """
 
     validation = (
         db.query(ModelValidation)
@@ -643,17 +751,50 @@ def assess_model_validation_toxicity(
     if validation is None:
         return None
 
+    settings = get_settings()
+    if llm_client is None and not settings.toxicity_assessment_enabled:
+        validation.toxicity_score = None
+        validation.toxicity_label = None
+        validation.toxicity_explanation = None
+        validation.toxicity_model = None
+        validation.toxicity_error = (
+            "Toxicity assessment is not enabled. Set TOXICITY_ASSESSMENT_ENABLED=true "
+            "with an approved local/self-hosted endpoint."
+        )
+        validation.toxicity_assessed_at = datetime.now(UTC)
+        db.commit()
+        return validation
+
     try:
         generated_text = _generated_evaluation_text(evaluation_id, db)
-        model_name = getattr(llm_client, "model", None) or get_llm_model_name()
         if not generated_text:
-            payload = {
-                "toxicity_score": 0.0,
-                "label": "non_toxic",
-                "explanation": "No generated review text was available to assess.",
-            }
+            model_name = (
+                getattr(llm_client, "model", None)
+                or settings.toxicity_model_name
+                or ""
+            )
+            validation.toxicity_score = None
+            validation.toxicity_label = None
+            validation.toxicity_explanation = None
+            validation.toxicity_model = model_name
+            validation.toxicity_error = (
+                "No generated review text was available to assess."
+            )
+            validation.toxicity_assessed_at = datetime.now(UTC)
+            db.commit()
+            return validation
         else:
-            client = llm_client or get_llm_client()
+            # Use the provided client (tests) or the dedicated toxicity client.
+            # Never fall back to the global evaluation LLM client.
+            if llm_client is not None:
+                client = llm_client
+                model_name = getattr(client, "model", "") or ""
+            else:
+                from server.core.toxicity import get_toxicity_client
+
+                client = get_toxicity_client()
+                model_name = settings.toxicity_model_name or ""
+
             raw = client.generate(
                 _toxicity_prompt(generated_text),
                 temperature=0.0,
@@ -677,10 +818,11 @@ def assess_model_validation_toxicity(
             validation.toxicity_label = None
             validation.toxicity_explanation = None
             validation.toxicity_error = (
-                f"Contextual toxicity assessment unavailable: {type(exc).__name__}"
+                f"Toxicity assessment unavailable: {type(exc).__name__}"
             )
             validation.toxicity_assessed_at = datetime.now(UTC)
             db.commit()
+        # Log without revealing evaluation content or credential URLs.
         logger.warning(
             "Toxicity assessment failed for evaluation %s: %s",
             evaluation_id,

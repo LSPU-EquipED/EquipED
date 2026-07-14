@@ -57,6 +57,9 @@ def create_evaluation(
     req: EvaluationSubmitRequest,
     submitted_by: uuid.UUID,
     db: Any = None,
+    *,
+    submitted_by_role: str | None = None,
+    with_commit: bool = True,
 ) -> EvaluationResponse:
     if db is None:
         raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
@@ -69,6 +72,7 @@ def create_evaluation(
         submitted_by,
         db,
         expected_source_type="slm",
+        user_role=submitted_by_role,
     )
 
     if req.curriculum_id is None and not req.partial_without_curriculum:
@@ -114,7 +118,8 @@ def create_evaluation(
         completed_at=None,
     )
     db.add(job)
-    db.commit()
+    if with_commit:
+        db.commit()
 
     return EvaluationResponse(
         evaluation_id=job.evaluation_id,
@@ -138,25 +143,31 @@ def _validate_evaluation_target(
     db: Any = None,
     *,
     expected_source_type: str,
+    user_role: str | None = None,
 ) -> Document:
     if db is None:
         raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
 
+    from server.modules.auth.models import UserRole
     from server.modules.documents.schemas import REFERENCE_SOURCE_TYPES
 
     document = db.get(Document, document_id)
     if document is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
-    # SLM documents require strict ownership. Reference documents
-    # (syllabus, curriculum) are shared to all authenticated users.
-    if expected_source_type == "slm" and document.uploaded_by != current_user_id:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-    if expected_source_type in REFERENCE_SOURCE_TYPES:
-        # References are shared; skip ownership check
-        pass
-    elif document.uploaded_by != current_user_id:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
+    # Admins bypass the SLM ownership check so they can create
+    # benchmark evaluations on faculty-uploaded SLM documents.
+    is_admin = user_role == UserRole.ADMIN.value if user_role else False
+    if not is_admin:
+        # SLM documents require strict ownership. Reference documents
+        # (syllabus, curriculum) are shared to all authenticated users.
+        if expected_source_type == "slm" and document.uploaded_by != current_user_id:
+            raise DocumentNotFoundError(f"Document {document_id} not found")
+        if expected_source_type in REFERENCE_SOURCE_TYPES:
+            # References are shared; skip ownership check
+            pass
+        elif document.uploaded_by != current_user_id:
+            raise DocumentNotFoundError(f"Document {document_id} not found")
 
     if document.source_type != expected_source_type:
         raise InvalidEvaluationTargetError(
