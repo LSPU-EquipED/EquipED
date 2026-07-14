@@ -55,3 +55,4 @@ The system SHALL provide fixture-driven tests and an offline benchmark harness f
 - **WHEN** maintainers run the documented live-provider repeat benchmark
 - **THEN** the benchmark SHALL report criterion/subtotal variation together with actual-model, fallback, repair, and trimming provenance
 - **AND** it SHALL not modify production evaluation scores or job status
+
