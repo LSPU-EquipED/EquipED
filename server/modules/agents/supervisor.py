@@ -14,6 +14,10 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_client_for_agent
 from server.modules.admin.service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
+from server.modules.embeddings.policy_retrieval import (
+    ITSO_POLICY_MAP,
+    retrieve_policy_context,
+)
 from server.modules.rubrics.service import (
     get_active_rubric_context,
     resolve_rubric_agent_id,
@@ -133,6 +137,7 @@ class Supervisor:
         # kwarg to the ITSO agent so retries don't rebuild evidence.
         itso_snapshot = self._precompute_itso_context(chunk_infos)
         itso_provenance_phase1 = itso_snapshot.get("provenance")
+        itso_policy_evidence = itso_snapshot.get("policy_evidence")
 
         # Parallel execution: submit all agents to a thread pool.
         # Each agent gets its own LLM client (thread-safe).  The
@@ -163,6 +168,7 @@ class Supervisor:
                         "itso"
                     )
                     extra_kwargs["provenance"] = itso_provenance_phase1
+                    extra_kwargs["policy_evidence"] = itso_policy_evidence
                 future = pool.submit(
                     self._run_single_agent,
                     agent=agent,
@@ -248,6 +254,7 @@ class Supervisor:
         llm_client: Any | None = None,
         llm_temperature: float | None = None,
         provenance: dict[str, Any] | None = None,
+        policy_evidence: dict[str, Any] | None = None,
     ) -> AgentEvaluationResult:
         """Execute a single agent with timing and error handling.
 
@@ -255,7 +262,9 @@ class Supervisor:
         thread.  Each agent gets its own LLM client for thread safety.
 
         ``llm_temperature`` and ``provenance`` are only set for the ITSO
-        agent; other agents use module defaults.
+        agent; other agents use module defaults. ``policy_evidence`` is
+        the frozen ITSO policy evidence snapshot (ITSO only, None for
+        other agents).
         """
         agent_start = time.perf_counter()
         try:
@@ -271,6 +280,7 @@ class Supervisor:
                 llm_client=llm_client,
                 llm_temperature=llm_temperature,
                 provenance=provenance,
+                policy_evidence=policy_evidence,
             )
             agent_seconds = time.perf_counter() - agent_start
             logger.info(
@@ -300,7 +310,8 @@ class Supervisor:
                 prompt_version_id=prompt_row.version_id,
                 success=False,
                 error_message=str(exc),
-                # Preserve frozen phase-1 provenance for ITSO failures.
+                # Preserve frozen phase-1 provenance (includes policy evidence
+                # keys) for ITSO failures.
                 provenance=provenance if agent_name == "itso" else None,
             )
 
@@ -341,14 +352,16 @@ class Supervisor:
         Called once per evaluation, before agent dispatch. The result
         contains:
         - ``provenance``: phase-1 provenance dict (precheck result, chunk ids,
-          rubric/prompt version context).
+          rubric/prompt version context + policy evidence provenance).
         - ``precheck``: raw precheck result (for prompt injection).
+        - ``policy_evidence``: full policy evidence snapshot (for prompt
+          injection — contains policy clause text, never persisted).
 
         This snapshot is immutable after creation and is injected into
         the ITSO agent kwargs so retries do not rebuild evidence.
         """
         if not chunk_infos:
-            return {"provenance": None, "precheck": None}
+            return {"provenance": None, "precheck": None, "policy_evidence": None}
 
         # Build the SLM text for precheck from chunk texts (same ordering
         # the agent would produce).
@@ -381,10 +394,164 @@ class Supervisor:
             "chunk_id_count": len(all_chunk_ids),
             "chunk_ids_hash": chunk_ids_hash,
         }
+
+        # Build policy evidence snapshot (fail open, never blocks).
+        policy_snapshot = self._build_policy_evidence_snapshot()
+        policy_evidence = policy_snapshot.get("evidence")
+        if policy_evidence is not None:
+            provenance["policy_delivery_state"] = policy_snapshot["delivery_state"]
+            provenance["policy_evidence"] = policy_snapshot["provenance"]
+            provenance["policy_retrieval_version"] = policy_snapshot[
+                "retrieval_version"
+            ]
+            provenance["policy_trimmed"] = False
+
         return {
             "provenance": provenance,
             "precheck": precheck,
+            "policy_evidence": policy_evidence,
         }
+
+    # ------------------------------------------------------------------
+    # ITSO policy evidence snapshot (Task 3.2)
+    # ------------------------------------------------------------------
+
+    _POLICY_RETRIEVAL_VERSION: str = "1"
+
+    def _build_policy_evidence_snapshot(self) -> dict[str, Any]:
+        """Build a frozen, attempt-scoped ITSO policy evidence snapshot.
+
+        Retrieves bounded policy clauses for ITSO-03/04/05 from the local
+        Chroma policy collection. The snapshot contains:
+        - ``evidence``: full evidence dict with clause text for prompt injection
+          (``None`` when retrieval fails or is unavailable).
+        - ``provenance``: safe opaque metadata for persistence (hashes,
+          statuses, counts — no raw text/IDs).
+        - ``delivery_state``: ``"enabled"`` or ``"blocked"`` based on config.
+        - ``retrieval_version``: version string.
+
+        All policy retrieval errors fail open — the snapshot returns
+        ``evidence=None`` with per-criterion ``unavailable`` provenance
+        and the evaluation continues without policy evidence.
+        """
+        settings = get_settings()
+        delivery_state = (
+            "enabled"
+            if getattr(settings, "itso_policy_delivery_enabled", False)
+            else "blocked"
+        )
+
+        if self.db is None:
+            return self._empty_policy_snapshot("unavailable", delivery_state)
+
+        # Compute a single query embedding from the chunk text for reuse
+        # across all three ITSO criterion queries.
+        query_text = self._build_policy_query_text()
+        if not query_text:
+            return self._empty_policy_snapshot("unavailable", delivery_state)
+
+        query_embedding = self._compute_query_embedding(query_text)
+        if query_embedding is None:
+            return self._empty_policy_snapshot("unavailable", delivery_state)
+
+        evidence_per_criterion: dict[str, Any] = {}
+        provenance_per_criterion: dict[str, Any] = {}
+
+        for criterion_id in ("ITSO-03", "ITSO-04", "ITSO-05"):
+            try:
+                result = retrieve_policy_context(
+                    criterion_id,
+                    query_embedding,
+                    self.db,
+                    max_chunks=5,
+                )
+            except Exception:
+                logger.warning("policy:retrieval criterion failed", extra={})
+                evidence_per_criterion[criterion_id] = {
+                    "policy_area": ITSO_POLICY_MAP.get(criterion_id, ("unknown",))[0],
+                    "status": "unavailable",
+                    "chunks": [],
+                }
+                provenance_per_criterion[criterion_id] = {
+                    "status": "unavailable",
+                    "chunk_count": 0,
+                    "provenance_hash": hashlib.sha256(b"empty").hexdigest(),
+                }
+                continue
+
+            area = ITSO_POLICY_MAP.get(criterion_id, ("unknown",))[0]
+            if result.status == "available":
+                evidence_per_criterion[criterion_id] = {
+                    "policy_area": area,
+                    "status": "available",
+                    "chunks": [
+                        {
+                            "chunk_id": c.chunk_id,
+                            "text": c.text,
+                            "page_number": c.page_number,
+                            "policy_area": c.policy_area,
+                        }
+                        for c in result.chunks
+                    ],
+                }
+                provenance_per_criterion[criterion_id] = {
+                    "status": "available",
+                    "chunk_count": result.chunk_count,
+                    "provenance_hash": result.provenance_hash,
+                }
+            else:
+                evidence_per_criterion[criterion_id] = {
+                    "policy_area": area,
+                    "status": "unavailable",
+                    "chunks": [],
+                }
+                provenance_per_criterion[criterion_id] = {
+                    "status": "unavailable",
+                    "chunk_count": 0,
+                    "provenance_hash": result.provenance_hash,
+                }
+
+        return {
+            "evidence": {
+                "delivery_state": delivery_state,
+                "retrieval_version": self._POLICY_RETRIEVAL_VERSION,
+                "criteria": evidence_per_criterion,
+            },
+            "provenance": provenance_per_criterion,
+            "delivery_state": delivery_state,
+            "retrieval_version": self._POLICY_RETRIEVAL_VERSION,
+        }
+
+    def _empty_policy_snapshot(
+        self,
+        status: str,
+        delivery_state: str,
+    ) -> dict[str, Any]:
+        """Return a safe empty policy snapshot when retrieval cannot proceed."""
+        empty_hash = hashlib.sha256(b"empty").hexdigest()
+        empty_provenance: dict[str, Any] = {}
+        for cid in ("ITSO-03", "ITSO-04", "ITSO-05"):
+            empty_provenance[cid] = {
+                "status": status,
+                "chunk_count": 0,
+                "provenance_hash": empty_hash,
+            }
+        return {
+            "evidence": None,
+            "provenance": empty_provenance,
+            "delivery_state": delivery_state,
+            "retrieval_version": self._POLICY_RETRIEVAL_VERSION,
+        }
+
+    def _build_policy_query_text(self) -> str:
+        """Build a query text for policy retrieval.
+
+        Returns a default query targeting IT general policy areas.
+        """
+        return (
+            "information security data privacy "
+            "intellectual property academic rights"
+        )
 
     def _build_precomputed_context(
         self,

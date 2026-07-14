@@ -225,6 +225,7 @@ class BaseAgent:
         llm_client: Any | None = None,
         llm_temperature: float | None = None,
         provenance: dict[str, Any] | None = None,
+        policy_evidence: dict[str, Any] | None = None,
     ) -> AgentEvaluationResult:
         start = time.perf_counter()
         timer = _PhaseTimer(self.agent_name)
@@ -256,6 +257,9 @@ class BaseAgent:
         # Store provenance before _build_prompt so subclass overrides
         # (e.g. ITSO) can access precheck evidence for prompt injection.
         self._current_provenance = provenance
+        # Store policy evidence snapshot so ITSO can inject POLICY EVIDENCE
+        # section into the prompt (other agents ignore it).
+        self._current_policy_evidence = policy_evidence
 
         with timer.measure("prompt_build"):
             prompt = self._build_prompt(
@@ -283,6 +287,22 @@ class BaseAgent:
         prompt_chars = len(prompt)
         prompt_trimmed = budget_result.trimmed
         reference_context_dropped = budget_result.reference_context_dropped
+
+        # Check whether policy evidence section survived budget enforcement.
+        # Parse the final prompt JSON and look for the policy_evidence_section
+        # or POLICY EVIDENCE marker in instructions.
+        policy_trimmed = False
+        if self._current_policy_evidence is not None:
+            try:
+                final_payload = json.loads(prompt)
+                instructions_list = final_payload.get("instructions", [])
+                joined_instructions = "\n".join(
+                    str(i) for i in instructions_list if isinstance(i, str)
+                )
+                if "=== POLICY EVIDENCE ===" not in joined_instructions:
+                    policy_trimmed = True
+            except (ValueError, TypeError, AttributeError):
+                policy_trimmed = True
         logger.info(
             "[EVAL_PROMPT_SIZE] agent=%s | prompt_chars=%d | trimmed=%s | budget=%d",
             self.agent_name,
@@ -398,13 +418,21 @@ class BaseAgent:
             "repair_occurred": repair_occurred,
             "prompt_trimmed": prompt_trimmed,
             "reference_context_dropped": reference_context_dropped,
+            "policy_trimmed": policy_trimmed,
         }
         # Merge with any pre-supplied provenance (phase-1 snapshot from
-        # supervisor). Phase-1 keys MUST NOT be overwritten by runtime keys.
+        # supervisor). Phase-1 keys MUST NOT be overwritten by runtime keys,
+        # EXCEPT policy_trimmed which is a runtime outcome (supervisor pre-sets
+        # it to False but budget enforcement at runtime may change it).
         merged_provenance: dict[str, Any] = dict(provenance or {})
         for k, v in runtime_provenance.items():
-            if k not in merged_provenance:
+            if k == "policy_trimmed" or k not in merged_provenance:
                 merged_provenance[k] = v
+        # Determine effective policy_delivery_state based on runtime outcome.
+        if merged_provenance.get("policy_trimmed") and merged_provenance.get(
+            "policy_delivery_state"
+        ) in ("enabled",):
+            merged_provenance["policy_delivery_state"] = "trimmed"
         # Sanitize: drop non-allowlisted keys, cap lengths, redact secrets.
         sanitized = sanitize_provenance(merged_provenance)
         merged_provenance = sanitized if sanitized is not None else {}

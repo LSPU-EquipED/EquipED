@@ -26,6 +26,11 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
         "chunk_ids_ordered",
         "chunk_id_count",
         "chunk_ids_hash",
+        # Phase 1 — policy evidence (opaque metadata only, no raw text/IDs)
+        "policy_delivery_state",
+        "policy_evidence",
+        "policy_retrieval_version",
+        "policy_trimmed",
         # Phase 2 — recorded after execution
         "requested_model",
         "actual_model",
@@ -39,7 +44,7 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
 
 # Scalar type constraint per key for optional runtime validation.
 # Keys not listed accept any type supported by JSON.
-_PROVENANCE_TYPES: dict[str, type] = {
+_PROVENANCE_TYPES: dict[str, type | tuple[type, type]] = {
     "precheck_version": str,
     "precheck_result_hash": str,
     "bibliography_found": bool,
@@ -50,6 +55,10 @@ _PROVENANCE_TYPES: dict[str, type] = {
     "chunk_ids_ordered": list,
     "chunk_id_count": int,
     "chunk_ids_hash": str,
+    "policy_delivery_state": str,
+    "policy_evidence": dict,
+    "policy_retrieval_version": str,
+    "policy_trimmed": bool,
     "requested_model": str,
     "actual_model": str,
     "requested_temperature": (int, float),
@@ -67,6 +76,8 @@ _PROVENANCE_MAX_LEN: dict[str, int] = {
     "requested_model": 200,
     "actual_model": 200,
     "chunk_ids_ordered": 64,
+    "policy_delivery_state": 20,
+    "policy_retrieval_version": 10,
 }
 
 _SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
