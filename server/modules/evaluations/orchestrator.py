@@ -362,7 +362,11 @@ def _reconcile_coordinator_result(
 
     if sme_result is not None and sme_result.success and coordinator_result.success:
         try:
-            merged = ProgramCoordinator.merge_with_sme(coordinator_result, sme_result)
+            merged = ProgramCoordinator.merge_with_sme(
+                coordinator_result,
+                sme_result,
+                llm_client=get_llm_client_for_agent("coordinator"),
+            )
             return [
                 merged if r is coordinator_result else r for r in agent_results
             ]
