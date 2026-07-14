@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Download } from 'lucide-react';
+import type { jsPDF as JsPdfDocument } from 'jspdf';
 import type { DomainScoreBlock } from '../types';
 
 export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
@@ -40,16 +42,6 @@ const AGENT_CONFIGS: Record<
   },
 };
 
-function escapeHtml(value: unknown): string {
-  const text = typeof value === 'string' ? value : String(value ?? '');
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function getExportTotal(domainData: ExportDomainData) {
   return domainData.subtotal;
 }
@@ -75,7 +67,28 @@ function getAdjectivalRating(average: number) {
   return 'Poor';
 }
 
-function buildExportHtml(domainData: ExportDomainData) {
+async function loadLogoDataUrl(): Promise<string> {
+  const response = await fetch(`${import.meta.env.BASE_URL}lspu-logo.png`);
+
+  if (!response.ok) {
+    throw new Error('The LSPU logo could not be loaded.');
+  }
+
+  const blob = await response.blob();
+
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('The LSPU logo could not be read.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function downloadExport(domainData: ExportDomainData) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   const config = AGENT_CONFIGS[domainData.agentId] || {
     code: 'N/A',
     sectionTitle: 'EVALUATION CRITERIA',
@@ -84,112 +97,171 @@ function buildExportHtml(domainData: ExportDomainData) {
   const total = getExportTotal(domainData);
   const average = getExportAverage(domainData);
   const adjectivalRating = getAdjectivalRating(average);
-
-  const criteriaRows = domainData.criteria
-    .map(
-      (row, idx) => `
- <tr>
- <td class="item">${idx + 1}</td>
- <td>${escapeHtml(row.criterion_text)}</td>
- ${['4', '3', '2', '1']
-   .map((rating) => `<td class="rating">${row.score.toString() === rating ? 'x' : ''}</td>`)
-   .join('')}
- </tr>`,
-    )
-    .join('');
-
   const comments = domainData.criteria
     .filter((c) => c.justification)
-    .map((c) => escapeHtml(c.justification))
+    .map((c) => c.justification)
     .join('\n\n');
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pdfWithTable = pdf as JsPdfDocument & { lastAutoTable: { finalY: number } };
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+  const logo = await loadLogoDataUrl();
 
-  return `<!doctype html>
-<html>
- <head>
- <meta charset="utf-8"/>
- <title>${config.code} ${config.unitName}</title>
- <style>
- body { margin: 0; background: #f4f4f5; color: #111827; font-family: Arial, sans-serif; }
- .page { width: 8.5in; min-height: 11in; margin: 24px auto; background: white; padding: 0.45in; box-sizing: border-box; }
- .center { text-align: center; }
- .small { font-size: 11px; }
- .title { margin: 18px 0 14px; font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
- .line-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; font-size: 12px; }
- .line { border-bottom: 1px solid #111827; min-height: 18px; display: inline-block; min-width: 160px; }
- .instruction { margin-top: 14px; font-size: 12px; line-height: 1.4; }
- table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px; }
- th, td { border: 1px solid #111827; padding: 6px; vertical-align: top; }
- th { text-align: center; font-weight: 700; }
- .item { width: 28px; text-align: center; }
- .rating { width: 36px; text-align: center; font-weight: 700; }
- .footer { display: flex; justify-content: space-between; margin-top: 26px; font-size: 10px; }
- .signature { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; margin-top: 38px; text-align: center; font-size: 12px; }
- .signature div { border-top: 1px solid #111827; padding-top: 6px; }
- .comments { min-height: 72px; border: 1px solid #111827; padding: 8px; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
- @media print {
- body { background: white; }
- .page { margin: 0; box-shadow: none; }
- }
- </style>
- </head>
- <body>
- <main class="page">
- <div class="center small">
- <div>Republic of the Philippines</div>
- <div><strong>Laguna State Polytechnic University</strong></div>
- <div>Province of Laguna</div>
- </div>
- <div class="center title">CRITERIA FOR EVALUATION OF INSTRUCTIONAL MATERIALS<br />FOR ${config.unitName}</div>
- <div class="line-grid">
- <div>Name of Faculty: <span class="line">Faculty Reviewer</span></div>
- <div>College: <span class="line">LSPU SCC</span></div>
- <div>Course Title: <span class="line">${escapeHtml(domainData.documentTitle) || 'Outcomes-Based Learning Module'}</span></div>
- <div>Semester: <span class="line">1st</span></div>
- <div>Academic Year: <span class="line">2025-2026</span></div>
- </div>
- <p class="instruction"><strong>Type of Instructional Material:</strong> [x] Self-paced Learning Module (with OBE Syllabus and Course Guide) &nbsp; [ ] Others: _______________________________</p>
- <p class="instruction"><strong>Instruction:</strong> Rate the materials in the column provided by checking and using the following scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1 - Poor</p>
- <table>
- <thead>
- <tr>
- <th colspan="2">${config.sectionTitle}</th>
- <th>4</th>
- <th>3</th>
- <th>2</th>
- <th>1</th>
- </tr>
- </thead>
- <tbody>${criteriaRows}</tbody>
- </table>
- <p class="instruction"><strong>Total:</strong> ${total} &nbsp;&nbsp; <strong>Total Score/5:</strong> ${average.toFixed(2)} &nbsp;&nbsp; <strong>Adjectival Rating:</strong> ${adjectivalRating}</p>
- <p class="instruction">3.50 - 4.00 = Very Satisfactory &nbsp; 2.50 - 3.49 = Satisfactory &nbsp; 1.50 - 2.49 = Needs Improvement &nbsp; 1.00 - 1.49 = Poor</p>
- <p class="instruction"><strong>Additional Comments/Suggestions:</strong></p>
- <div class="comments">${comments}</div>
- <div class="signature">
- <div>Signature over Printed Name</div>
- <div>Date Evaluated</div>
- </div>
- <div class="footer">
- <span>${config.code}</span>
- <span>Rev. 0</span>
- <span>23 May 2022</span>
- </div>
- </main>
- </body>
-</html>`;
-}
+  pdf.addImage(logo, 'PNG', 46, 10, 20, 20);
+  pdf.setTextColor(17, 24, 39);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(9);
+  pdf.text('Republic of the Philippines', 122, 15, { align: 'center' });
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Laguna State Polytechnic University', 122, 20, { align: 'center' });
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('Province of Laguna', 122, 25, { align: 'center' });
 
-function downloadExport(domainData: ExportDomainData) {
-  const config = AGENT_CONFIGS[domainData.agentId] || { code: 'N/A' };
-  const filename = `${config.code}-${domainData.agentId}-evaluation-preview.html`;
-  const blob = new Blob([buildExportHtml(domainData)], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.text('CRITERIA FOR EVALUATION OF INSTRUCTIONAL MATERIALS', pageWidth / 2, 37, {
+    align: 'center',
+  });
+  pdf.text(`FOR ${config.unitName}`, pageWidth / 2, 42, { align: 'center' });
 
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  const drawField = (label: string, value: string, x: number, y: number, width: number) => {
+    pdf.setFontSize(8.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(label, x, y);
+    const labelWidth = pdf.getTextWidth(label) + 1.5;
+    const valueX = x + labelWidth;
+    const [fittedValue = ''] = pdf.splitTextToSize(value, width - labelWidth);
+    pdf.text(fittedValue, valueX, y);
+    pdf.line(valueX, y + 1, x + width, y + 1);
+  };
+
+  drawField('Name of Faculty:', 'Faculty Reviewer', margin, 51, 91);
+  drawField('College:', 'LSPU SCC', 110, 51, 88);
+  drawField(
+    'Course Title:',
+    domainData.documentTitle || 'Outcomes-Based Learning Module',
+    margin,
+    58,
+    91,
+  );
+  drawField('Semester:', '1st', 110, 58, 88);
+  drawField('Academic Year:', '2025-2026', margin, 65, 91);
+
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Type of Instructional Material:', margin, 72);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(
+    '[x] Self-paced Learning Module (with OBE Syllabus and Course Guide)   [ ] Others: __________________',
+    margin + 39,
+    72,
+  );
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Instruction:', margin, 78);
+  pdf.setFont('helvetica', 'normal');
+  const instruction =
+    'Rate the materials in the column provided using this scale: 4 - Very Satisfactory; 3 - Satisfactory; 2 - Needs Improvement; 1 - Poor';
+  pdf.text(pdf.splitTextToSize(instruction, contentWidth - 17), margin + 17, 78);
+
+  autoTable(pdf, {
+    startY: 85,
+    margin: { top: margin, right: margin, bottom: 15, left: margin },
+    head: [[{ content: config.sectionTitle, colSpan: 2 }, '4', '3', '2', '1']],
+    body: domainData.criteria.map((row, index) => [
+      String(index + 1),
+      row.criterion_text,
+      row.score === 4 ? 'X' : '',
+      row.score === 3 ? 'X' : '',
+      row.score === 2 ? 'X' : '',
+      row.score === 1 ? 'X' : '',
+    ]),
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 7.5,
+      cellPadding: 1.7,
+      lineColor: [17, 24, 39],
+      lineWidth: 0.2,
+      textColor: [17, 24, 39],
+      valign: 'middle',
+    },
+    headStyles: { fillColor: [255, 255, 255], fontStyle: 'bold', halign: 'center' },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      4: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+      5: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
+    },
+  });
+
+  let y = pdfWithTable.lastAutoTable.finalY + 6;
+  if (y > 245) {
+    pdf.addPage('a4', 'portrait');
+    y = margin;
+  }
+
+  pdf.setFontSize(8.5);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(
+    `Total: ${total}     Total Score/5: ${average.toFixed(2)}     Adjectival Rating: ${adjectivalRating}`,
+    margin,
+    y,
+  );
+  y += 6;
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(
+    '3.50 - 4.00 = Very Satisfactory; 2.50 - 3.49 = Satisfactory; 1.50 - 2.49 = Needs Improvement; 1.00 - 1.49 = Poor',
+    margin,
+    y,
+  );
+  y += 5;
+
+  autoTable(pdf, {
+    startY: y,
+    margin: { top: margin, right: margin, bottom: 28, left: margin },
+    head: [['Additional Comments/Suggestions:']],
+    body: [[comments || ' ']],
+    theme: 'grid',
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: 2.5,
+      lineColor: [17, 24, 39],
+      lineWidth: 0.2,
+      textColor: [17, 24, 39],
+      minCellHeight: 16,
+    },
+    headStyles: { fillColor: [255, 255, 255], fontStyle: 'bold' },
+  });
+
+  y = pdfWithTable.lastAutoTable.finalY + 15;
+  if (y > 269) {
+    pdf.addPage('a4', 'portrait');
+    y = 35;
+  }
+
+  pdf.line(28, y, 90, y);
+  pdf.line(120, y, 182, y);
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('Signature over Printed Name', 59, y + 4, { align: 'center' });
+  pdf.text('Date Evaluated', 151, y + 4, { align: 'center' });
+
+  const pageCount = pdf.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    pdf.setPage(page);
+    pdf.setFontSize(7.5);
+    pdf.text(config.code, margin, 289);
+    pdf.text('Rev. 0', pageWidth / 2, 289, { align: 'center' });
+    pdf.text('23 May 2022', pageWidth - margin, 289, { align: 'right' });
+  }
+
+  pdf.save(`${config.code}-${domainData.agentId}-evaluation.pdf`);
 }
 
 function getExportDomainData({
@@ -209,15 +281,28 @@ function getExportDomainData({
 
 export function GadExportDownloadButton(props: ExportDocumentProps) {
   const domainData = getExportDomainData(props);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadExport(domainData);
+    } catch (error) {
+      console.error('Unable to create the CID evaluation PDF.', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <button
       type="button"
       className="inline-flex h-9 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
-      onClick={() => downloadExport(domainData)}
+      onClick={handleDownload}
+      disabled={isDownloading}
     >
       <Download className="size-4 mr-1.5" aria-hidden="true" />
-      Download
+      {isDownloading ? 'Creating PDF...' : 'Download PDF'}
     </button>
   );
 }
@@ -239,11 +324,18 @@ export function GadExportPreview(props: ExportDocumentProps) {
     .join('\n\n');
 
   return (
-    <div className="mx-auto min-h-[11in] w-[8.5in] resize overflow-auto border border-slate-200 bg-white p-12 text-[11px] text-black">
-      <div className="text-center leading-5">
-        <div>Republic of the Philippines</div>
-        <div className="font-semibold">Laguna State Polytechnic University</div>
-        <div>Province of Laguna</div>
+    <div className="mx-auto min-h-[297mm] w-[210mm] resize overflow-auto border border-slate-200 bg-white p-[12mm] text-[11px] text-black">
+      <div className="flex items-center justify-center gap-4 leading-5">
+        <img
+          className="size-20 object-contain"
+          src={`${import.meta.env.BASE_URL}lspu-logo.png`}
+          alt="LSPU logo"
+        />
+        <div className="text-center">
+          <div>Republic of the Philippines</div>
+          <div className="font-semibold">Laguna State Polytechnic University</div>
+          <div>Province of Laguna</div>
+        </div>
       </div>
 
       <h2 className="mt-5 text-center text-sm font-bold uppercase tracking-wide">

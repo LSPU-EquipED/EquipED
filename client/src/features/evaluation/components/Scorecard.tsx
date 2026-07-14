@@ -5,6 +5,7 @@ import { cn } from '@/shared/components/utils';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import { formatScore, cleanJustification } from './scoreHelpers';
+import { ScorecardPdfExport } from './ScorecardPdfExport';
 
 const STATUS_MESSAGES: Record<string, string> = {
   SUBMITTED: 'Job submitted, waiting to start...',
@@ -112,16 +113,19 @@ export function Scorecard() {
           </div>
         </div>
         {results && (
-          <div className="text-right">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Synthesized Score
-            </p>
-            <p className="mt-1 text-3xl font-bold text-primary">
-              {typeof results.synthesized_score === 'number'
-                ? formatScore(results.synthesized_score)
-                : '—'}
-              <span className="text-lg text-slate-500 font-normal">/4</span>
-            </p>
+          <div className="flex shrink-0 items-center gap-5">
+            <ScorecardPdfExport results={results} />
+            <div className="text-right">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Synthesized Score
+              </p>
+              <p className="mt-1 text-3xl font-bold text-primary">
+                {typeof results.synthesized_score === 'number'
+                  ? formatScore(results.synthesized_score)
+                  : '—'}
+                <span className="text-lg text-slate-500 font-normal">/4</span>
+              </p>
+            </div>
           </div>
         )}
       </header>
