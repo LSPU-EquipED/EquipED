@@ -8,7 +8,6 @@ from uuid import uuid4
 from server.modules.agents.contracts import CriterionScore
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.exceptions import AgentLLMError
-from server.modules.agents.gad import GAD
 from server.modules.agents.itso import ITSO
 
 from .conftest import _DummyAgent, _FakeLLM, _RawLLM, _RetrievedChunk, _mock_settings
@@ -478,10 +477,9 @@ def test_concrete_agents_use_mocked_llm_response(monkeypatch) -> None:
         }
     )
 
-    for agent in [
-        GAD(llm_client=fake_llm),
-        ITSO(llm_client=fake_llm),
-    ]:
+    # GAD has its own criterion-specific, five-call scoring contract. This
+    # generic BaseAgent response-shape test therefore applies only to ITSO.
+    for agent in [ITSO(llm_client=fake_llm)]:
         result = agent.run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
