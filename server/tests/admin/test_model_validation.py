@@ -39,11 +39,18 @@ class _InvalidToxicityClient:
         return "not valid JSON"
 
 
-def _seed_document(db_session, *, owner_id, source_type: str, chroma_stored: bool):
+def _seed_document(
+    db_session,
+    *,
+    owner_id,
+    source_type: str,
+    chroma_stored: bool,
+    program: str = "BSCS",
+):
     document = Document(
         document_id=uuid.uuid4(),
         title=f"Validation {source_type}",
-        program="BSCS",
+        program=program,
         source_type=source_type,
         file_path=f"uploads/{uuid.uuid4()}.pdf",
         uploaded_by=owner_id,
@@ -116,6 +123,29 @@ def test_model_validation_requires_admin(
     assert response.status_code == 403
 
 
+def _setup_validation(
+    db_session, admin_user, expected_scores=None, program: str = "BSCS"
+):
+    """Shared helper: seed rubrics + docs + create validation, return key objects."""
+    if expected_scores is None:
+        expected_scores = _seed_active_rubrics(db_session)
+    slm = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="slm",
+        chroma_stored=False,
+        program=program,
+    )
+    curriculum = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+        program=program,
+    )
+    return expected_scores, slm, curriculum
+
+
 def test_admin_creates_validation_without_leaking_expected_score_into_job(
     client: TestClient,
     auth_cookies_admin,
@@ -123,19 +153,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     db_session,
     monkeypatch,
 ) -> None:
-    expected_scores = _seed_active_rubrics(db_session)
-    slm = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="slm",
-        chroma_stored=False,
-    )
-    curriculum = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
-    )
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -272,3 +290,364 @@ def test_model_validation_rejects_score_outside_institutional_scale(
         },
     )
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Shared-admin oversight — cross-admin access + faculty denial
+# ---------------------------------------------------------------------------
+
+
+def test_admin_can_detail_validation_record(
+    client: TestClient,
+    auth_cookies_admin,
+    auth_cookies_faculty,
+    admin_user,
+    faculty_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """Admin can retrieve a single validation record by ID; faculty cannot."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+    create_resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert create_resp.status_code == 202
+    validation_id = create_resp.json()["validation_id"]
+
+    # Admin can detail
+    detail_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}"
+    )
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["validation_id"] == validation_id
+
+    # Faculty blocked
+    _auth(client, auth_cookies_faculty)
+    faculty_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}"
+    )
+    assert faculty_resp.status_code == 403
+
+
+def test_admin_can_view_linked_evaluation(
+    client: TestClient,
+    auth_cookies_admin,
+    auth_cookies_faculty,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """Admin can open the linked evaluation through the admin-authorized path."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+    create_resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert create_resp.status_code == 202
+    validation_id = create_resp.json()["validation_id"]
+
+    eval_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}/evaluation"
+    )
+    assert eval_resp.status_code == 200
+    data = eval_resp.json()
+    assert data["evaluation_id"] == create_resp.json()["evaluation_id"]
+    assert "document_id" in data
+    assert "status" in data
+
+    # Faculty blocked
+    _auth(client, auth_cookies_faculty)
+    faculty_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}/evaluation"
+    )
+    assert faculty_resp.status_code == 403
+
+
+def test_faculty_cannot_list_validations(
+    client: TestClient, auth_cookies_faculty
+) -> None:
+    """Faculty get 403 on every model-validation endpoint."""
+    _auth(client, auth_cookies_faculty)
+    assert client.get("/api/v1/admin/model-validations").status_code == 403
+    assert client.get("/api/v1/admin/model-validations/metrics").status_code == 403
+    assert client.get("/api/v1/admin/model-validations/criteria").status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Partial intent defaults false
+# ---------------------------------------------------------------------------
+
+
+def test_validation_partial_without_curriculum_defaults_false(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """Omitting partial_without_curriculum defaults to False."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+
+    # Must include curriculum_id or set partial_without_curriculum=True
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp.status_code == 422  # needs curriculum or explicit partial
+
+    resp2 = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp2.status_code == 202
+    assert resp2.json()["partial_without_curriculum"] is False
+
+
+def test_validation_explicit_partial_without_curriculum(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """Explicit partial_without_curriculum=True is accepted."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp.status_code == 202
+    assert resp.json()["partial_without_curriculum"] is True
+
+
+# ---------------------------------------------------------------------------
+# Test 6b: Curriculum/program consistency — backend rejects mismatch
+# ---------------------------------------------------------------------------
+
+
+def test_validation_rejects_program_mismatch(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """Curriculum whose program does not match SLM program is rejected."""
+    expected_scores = _seed_active_rubrics(db_session)
+    slm = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="slm",
+        chroma_stored=False,
+        program="BSCS",
+    )
+    wrong_program_curriculum = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+        program="BSIT",
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(wrong_program_curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp.status_code == 422
+    assert "program" in resp.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Test 4: Toxicity disabled behavior (no external call, null persisted)
+# ---------------------------------------------------------------------------
+
+
+def test_toxicity_disabled_stores_none_with_message(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """When toxicity_assessment_enabled is False, toxicity fields stay null."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+    create_resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert create_resp.status_code == 202
+    validation_id = create_resp.json()["validation_id"]
+    validation = db_session.get(ModelValidation, uuid.UUID(validation_id))
+
+    # Call toxicity assessment without an explicit client (no monkeypatch
+    # of settings so toxicity_assessment_enabled defaults to False).
+    assess_model_validation_toxicity(
+        uuid.UUID(create_resp.json()["evaluation_id"]), db_session
+    )
+    db_session.refresh(validation)
+    assert validation.toxicity_score is None
+    assert validation.toxicity_label is None
+    assert validation.toxicity_error is not None
+    assert "not enabled" in validation.toxicity_error.lower()
+
+
+# ---------------------------------------------------------------------------
+# Test 2: Atomic creation — failure before commit rolls back everything
+# ---------------------------------------------------------------------------
+
+
+def test_validation_atomic_creation_rolls_back_on_failure(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """If validation creation fails, no orphan evaluation job remains."""
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+
+    # Trigger a failure by providing a non-existent curriculum_id.
+    # The evaluation service validates curriculum existence; this should
+    # prevent the whole transaction from committing.
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(uuid.uuid4()),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp.status_code == 404  # curriculum doc not found
+
+    # No evaluation job should exist from the failed attempt.
+    eval_count = db_session.query(EvaluationJob).count()
+    assert eval_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Test 5b: Cross-admin access — second admin can view first admin's validation
+# ---------------------------------------------------------------------------
+
+
+def test_cross_admin_access(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+    settings,
+) -> None:
+    """A second admin can view a validation created by the first admin."""
+    from server.modules.auth.models import UserRole
+    from server.modules.auth.service import create_user
+
+    create_user(
+        db_session,
+        name="Second Admin",
+        email="admin2@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+
+    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+
+    # First admin creates the validation
+    _auth(client, auth_cookies_admin)
+    create_resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert create_resp.status_code == 202
+    created_eval_id = create_resp.json()["evaluation_id"]
+
+    # Login as second admin
+    login_resp = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin2@example.com", "password": "password123"},
+    )
+    assert login_resp.status_code == 200
+    client.cookies.update(dict(login_resp.cookies))
+
+    # Second admin can list first admin's validation
+    list_resp = client.get("/api/v1/admin/model-validations")
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # Second admin can view the linked evaluation detail
+    validation_id = create_resp.json()["validation_id"]
+    detail_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}"
+    )
+    assert detail_resp.status_code == 200
+    assert detail_resp.json()["evaluation_id"] == created_eval_id
+
+    eval_resp = client.get(
+        f"/api/v1/admin/model-validations/{validation_id}/evaluation"
+    )
+    assert eval_resp.status_code == 200
+    assert eval_resp.json()["evaluation_id"] == created_eval_id
