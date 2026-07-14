@@ -15,10 +15,14 @@ SOURCE_TYPES = (
     "rubric_gad",
     "rubric_itso",
     "curriculum",
+    "policy",
 )
 
 # Source types that are institution-shared references (not SLMs or rubrics)
 REFERENCE_SOURCE_TYPES = frozenset({"syllabus", "curriculum"})
+
+# Source types that are policy documents (distinct from shared references)
+POLICY_SOURCE_TYPES = frozenset({"policy"})
 
 PROCESSING_STATUSES = ("PENDING", "PROCESSING", "PROCESSED", "FAILED")
 
@@ -34,6 +38,9 @@ class DocumentChunkData(BaseModel):
     text: str
     token_count: int
     is_ocr: bool
+    policy_area: str | None = None
+    section_ref: str | None = None
+    chunk_index: int | None = None
 
 
 class DocumentChunkResponse(BaseModel):
@@ -45,6 +52,47 @@ class DocumentChunkResponse(BaseModel):
     text: str
     token_count: int
     is_ocr: bool
+    policy_area: str | None = None
+    section_ref: str | None = None
+    chunk_index: int | None = None
+
+
+class PolicyLibraryItem(BaseModel):
+    """Lightweight policy item with computed health for the admin policy library."""
+    document_id: UUID
+    title: str
+    source_type: str
+    policy_area: str | None = None
+    program: str | None = None
+    course_code: str | None = None
+    academic_year: str | None = None
+    page_count: int | None = None
+    uploaded_at: datetime
+    uploaded_by: UUID | None = None
+    processing_status: str
+    file_exists: bool
+    chunk_count: int
+    chroma_available: bool
+    embedding_ready: bool
+    source_healthy: bool
+
+
+class PolicyLibraryResponse(BaseModel):
+    items: list[PolicyLibraryItem]
+    total: int
+
+
+class PolicyDeleteResponse(BaseModel):
+    document_id: UUID
+    deleted: bool
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class PolicyRebuildResponse(BaseModel):
+    document_id: UUID
+    rebuilt: bool
+    chunk_count: int = 0
+    details: dict[str, object] = Field(default_factory=dict)
 
 
 class DocumentUploadResponse(BaseModel):
@@ -53,6 +101,7 @@ class DocumentUploadResponse(BaseModel):
     course_title: str | None = None
     lesson_title: str | None = None
     source_type: str
+    policy_area: str | None = None
     processing_status: str
     academic_year: str | None = None
     course_code: str | None = None
@@ -67,6 +116,7 @@ class DocumentResponse(BaseModel):
     course_title: str | None = None
     lesson_title: str | None = None
     source_type: str
+    policy_area: str | None = None
     program: str | None = None
     academic_year: str | None = None
     course_code: str | None = None
@@ -101,6 +151,7 @@ class ReferenceLibraryItem(BaseModel):
     document_id: UUID
     title: str
     source_type: str
+    policy_area: str | None = None
     program: str | None = None
     course_code: str | None = None
     academic_year: str | None = None
@@ -163,6 +214,7 @@ class CurriculumSuggestionResponse(BaseModel):
 __all__ = [
     "SOURCE_TYPES",
     "REFERENCE_SOURCE_TYPES",
+    "POLICY_SOURCE_TYPES",
     "PROCESSING_STATUSES",
     "DocumentChunkData",
     "DocumentChunkResponse",
@@ -174,6 +226,10 @@ __all__ = [
     "ReferenceLibraryResponse",
     "ReferenceDeleteResponse",
     "ReferenceRebuildResponse",
+    "PolicyLibraryItem",
+    "PolicyLibraryResponse",
+    "PolicyDeleteResponse",
+    "PolicyRebuildResponse",
     "CurriculumSuggestionItem",
     "CurriculumSuggestionResponse",
 ]

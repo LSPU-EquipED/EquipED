@@ -22,6 +22,14 @@ class EmbeddingChunk:
     text: str
     token_count: int | None
     is_ocr: bool
+    policy_area: str | None = None
+    section_ref: str | None = None
+    chunk_index: int | None = None
+
+
+def _omit_none(d: dict[str, Any]) -> dict[str, Any]:
+    """Return a new dict with all keys whose value is None omitted."""
+    return {k: v for k, v in d.items() if v is not None}
 
 
 def _to_embedding_chunk(chunk: Any) -> EmbeddingChunk:
@@ -33,6 +41,9 @@ def _to_embedding_chunk(chunk: Any) -> EmbeddingChunk:
         text=str(chunk.text),
         token_count=getattr(chunk, "token_count", None),
         is_ocr=bool(getattr(chunk, "is_ocr", False)),
+        policy_area=getattr(chunk, "policy_area", None),
+        section_ref=getattr(chunk, "section_ref", None),
+        chunk_index=getattr(chunk, "chunk_index", None),
     )
 
 
@@ -70,14 +81,17 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
         ).tolist()
         ids = [chunk.chunk_id for chunk in grouped_chunks]
         metadatas = [
-            {
+            _omit_none({
                 "chunk_id": chunk.chunk_id,
                 "document_id": chunk.document_id,
                 "source_type": chunk.source_type,
                 "page_number": chunk.page_number,
                 "is_ocr": chunk.is_ocr,
                 "token_count": chunk.token_count,
-            }
+                "policy_area": chunk.policy_area,
+                "section_ref": chunk.section_ref,
+                "chunk_index": chunk.chunk_index,
+            })
             for chunk in grouped_chunks
         ]
 

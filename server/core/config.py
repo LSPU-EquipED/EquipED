@@ -136,6 +136,12 @@ class Settings:
     # or local models can raise it via AGENT_TOTAL_PROMPT_BUDGET_CHARS.
     agent_total_prompt_budget_chars: int = 8000
 
+    # When enabled, ITSO prompt receives bounded policy clause evidence
+    # from the local policy collection. MUST only be enabled when the LLM
+    # backend is institutionally approved and local/self-hosted. Default
+    # False blocks delivery of policy text to any (including external) LLM.
+    itso_policy_delivery_enabled: bool = False
+
     @property
     def database_configured(self) -> bool:
         return bool(self.database_url)
@@ -327,6 +333,8 @@ def get_settings() -> Settings:
             "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be at least 1000"
         )
 
+    itso_policy_delivery_enabled = _bool_env("ITSO_POLICY_DELIVERY_ENABLED", False)
+
     # Cross-field validation: the chunk budget must leave room for the rest
     # of the prompt payload. Otherwise the total-budget safety net is a
     # no-op (document_chunks alone would already exceed it, so the trim
@@ -420,6 +428,7 @@ def get_settings() -> Settings:
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,
         agent_small_doc_threshold=parsed_agent_small_doc_threshold,
         agent_total_prompt_budget_chars=parsed_agent_total_prompt_budget_chars,
+        itso_policy_delivery_enabled=itso_policy_delivery_enabled,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",
