@@ -33,6 +33,7 @@ import type {
   SystemSummaryResponse,
   MatrixListResponse,
   AdminUploadInput,
+  AdminEvaluationResponse,
   ModelValidationCreateBody,
   ModelValidationCriteriaResponse,
   ModelValidationItem,
@@ -176,6 +177,12 @@ export const adminApi = {
     }),
 
   getModelValidations: () => requestJson<ModelValidationListResponse>('/admin/model-validations'),
+
+  getModelValidation: (validationId: string) =>
+    requestJson<ModelValidationItem>(`/admin/model-validations/${validationId}`),
+
+  getModelValidationEvaluation: (validationId: string) =>
+    requestJson<AdminEvaluationResponse>(`/admin/model-validations/${validationId}/evaluation`),
 
   getModelValidationMetrics: () =>
     requestJson<ModelValidationMetricsResponse>('/admin/model-validations/metrics'),

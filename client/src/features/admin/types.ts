@@ -180,3 +180,18 @@ export interface ModelValidationCriteriaResponse {
   agents: ModelValidationAgentCriteria[];
   total_criteria: number;
 }
+
+export interface AdminEvaluationResponse {
+  evaluation_id: string;
+  document_id: string;
+  syllabus_id: string | null;
+  curriculum_id: string | null;
+  status: 'SUBMITTED' | 'PREPROCESSING' | 'EVALUATING' | 'SYNTHESIZING' | 'COMPLETED' | 'FAILED';
+  error_message: string | null;
+  partial_without_curriculum: boolean;
+  partial_reason: string | null;
+  submitted_by: string | null;
+  submitted_at: string;
+  completed_at: string | null;
+  duration_seconds: number | null;
+}

@@ -205,9 +205,7 @@ export function ScoreDashboard({
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const domainScore = results?.domain_scores[selectedAgent.id];
-  const isPartial = Boolean(
-    results?.is_partial || status?.partial_without_curriculum,
-  );
+  const isPartial = Boolean(results?.is_partial || status?.partial_without_curriculum);
   const partialReason = results?.partial_reason || status?.partial_reason;
 
   const selectedScore = {
@@ -388,21 +386,25 @@ export function ScoreDashboard({
                 <p className="text-sm font-medium text-slate-500">
                   {statusMessage(status?.status, Boolean(isFailedWithResults), isPartial)}
                 </p>
-                {isTerminal && (results?.duration_seconds != null || status?.duration_seconds != null) && (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-slate-600"
-                    title="Total evaluation duration"
-                  >
-                    <Clock className="size-3" aria-hidden="true" />
-                    {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
-                  </span>
-                )}
+                {isTerminal &&
+                  (results?.duration_seconds != null || status?.duration_seconds != null) && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-slate-600"
+                      title="Total evaluation duration"
+                    >
+                      <Clock className="size-3" aria-hidden="true" />
+                      {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
+                    </span>
+                  )}
               </div>
             )}
             {isPartial && (
               <div className="mt-3 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-3 py-2">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                  <AlertTriangle
+                    className="mt-0.5 size-4 shrink-0 text-[#1e293b]"
+                    aria-hidden="true"
+                  />
                   <p className="text-sm leading-relaxed text-[#1e293b]">
                     <strong>Partial evaluation:</strong>{' '}
                     {partialReason

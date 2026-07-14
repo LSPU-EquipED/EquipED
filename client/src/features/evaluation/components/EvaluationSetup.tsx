@@ -12,10 +12,7 @@ import {
 import { getErrorMessage } from '@/shared/api/http';
 import { cn } from '@/shared/components/utils';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
-import {
-  LSPU_SCC_COLLEGE_PROGRAMS,
-  isLspuSccProgram,
-} from '@/shared/constants/programs';
+import { LSPU_SCC_COLLEGE_PROGRAMS, isLspuSccProgram } from '@/shared/constants/programs';
 import type {
   ClientDocument,
   CurriculumSuggestionItem,
@@ -106,9 +103,7 @@ function SuggestionRow({
           <span
             className={cn(
               'inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-              isUnavailable
-                ? 'bg-[#b91c1c]/10 text-[#b91c1c]'
-                : 'bg-[#3b963e]/10 text-[#3b963e]',
+              isUnavailable ? 'bg-[#b91c1c]/10 text-[#b91c1c]' : 'bg-[#3b963e]/10 text-[#3b963e]',
             )}
           >
             {isUnavailable ? 'Not indexed' : 'Ready / Indexed'}
@@ -203,9 +198,7 @@ export function EvaluationSetup({
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div className="flex-1">
-                <p className="font-semibold">
-                  Could not check for existing evaluations
-                </p>
+                <p className="font-semibold">Could not check for existing evaluations</p>
                 <p className="mt-1 leading-relaxed">
                   {getErrorMessage(
                     resolveError,
@@ -374,7 +367,10 @@ export function EvaluationSetup({
             ) : showSuggestions && !isLoadingSuggestions ? (
               <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 p-5">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                  <AlertTriangle
+                    className="mt-0.5 size-5 shrink-0 text-[#1e293b]"
+                    aria-hidden="true"
+                  />
                   <div className="flex-1">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-[#1e293b]">
                       No ready curriculum for {effectiveProgram}

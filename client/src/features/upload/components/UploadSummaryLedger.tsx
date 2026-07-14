@@ -123,7 +123,9 @@ export function UploadSummaryLedger({
   );
 }
 
-function buildMetadataRows(result: DocumentUploadResponse): Array<{ label: string; value: string }> {
+function buildMetadataRows(
+  result: DocumentUploadResponse,
+): Array<{ label: string; value: string }> {
   const rows: Array<{ label: string; value: string }> = [];
 
   if (result.program) {
