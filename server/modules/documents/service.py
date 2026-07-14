@@ -27,9 +27,19 @@ from .exceptions import (
 )
 from .ingestion import ingest_document
 from .metadata import detect_metadata
-from .models import Document, DocumentChunk
+from .models import VALID_POLICY_AREAS, Document, DocumentChunk
+from .policy_service import (  # noqa: F401  — re-exported for router
+    delete_policy_document,
+    get_healthy_policy_allowlist,
+    is_retrieval_ready_policy_document,
+    is_source_healthy_policy_document,
+    list_policy_documents,
+    rebuild_policy_embeddings,
+    validate_policy_chunks,
+)
 from .preprocessing import prepare_slm_package
 from .schemas import (
+    POLICY_SOURCE_TYPES,
     REFERENCE_SOURCE_TYPES,
     SOURCE_TYPES,
     CurriculumSuggestionItem,
@@ -60,6 +70,7 @@ _MEM_TFIDF: dict[str, float] = {}
 _ADMIN_ONLY_SOURCE_TYPES = {
     "syllabus",
     "curriculum",
+    "policy",
     "rubric_sme",
     "rubric_coord",
     "rubric_gad",
@@ -72,15 +83,30 @@ def is_reference_source_type(source_type: str) -> bool:
     return source_type in REFERENCE_SOURCE_TYPES
 
 
-def _is_document_accessible(document, current_user_id: uuid.UUID) -> bool:
+def is_policy_source_type(source_type: str) -> bool:
+    """Return True if the source type is a policy document."""
+    return source_type in POLICY_SOURCE_TYPES
+
+
+def _is_document_accessible(
+    document,
+    current_user_id: uuid.UUID,
+    current_user_role: str | None = None,
+) -> bool:
     """Check whether a user may read/access a document row.
 
     Reference documents (syllabus, curriculum) are shared to all
-    authenticated users. SLMs and other types remain owner-only.
+    authenticated users. Policy documents are admin-only — faculty
+    requests are denied without existence leakage. SLMs and other
+    types remain owner-only.
     """
     if is_reference_source_type(document.source_type):
         return True
-    return document.uploaded_by == current_user_id
+    if is_policy_source_type(document.source_type):
+        return current_user_role == "admin"
+    if current_user_id is not None:
+        return document.uploaded_by == current_user_id
+    return False
 
 
 def create_document(
@@ -92,11 +118,12 @@ def create_document(
     program: str | None,
     uploaded_by: uuid.UUID,
     user_role: str = "faculty",
+    policy_area: str | None = None,
     db: Any | None = None,
 ) -> DocumentUploadResponse:
     """Persist an upload and run Layer-1 ingestion."""
 
-    _validate_upload(file, source_type, program, user_role)
+    _validate_upload(file, source_type, program, user_role, policy_area=policy_area)
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
     doc_id = uuid.uuid4()
@@ -119,6 +146,7 @@ def create_document(
                 lesson_title=lesson_title,
                 program=program,
                 source_type=source_type,
+                policy_area=policy_area,
                 file_path=str(target_path),
                 uploaded_by=uploaded_by,
             )
@@ -136,6 +164,7 @@ def create_document(
             course_title=course_title,
             lesson_title=lesson_title,
             program=program,
+            policy_area=policy_area,
             uploaded_by=uploaded_by,
             original_filename=file.filename,
             runtime_db=runtime_db,
@@ -169,6 +198,7 @@ def _process_uploaded_document(
     course_title: str | None,
     lesson_title: str | None,
     program: str | None,
+    policy_area: str | None,
     uploaded_by: uuid.UUID,
     original_filename: str | None,
     runtime_db: Any | None,
@@ -195,6 +225,10 @@ def _process_uploaded_document(
 
     try:
         chunk_data = ingest_document(str(target_path), source_type, str(doc_id))
+        # Enrich policy chunks with their document's policy_area for persistence
+        if source_type == "policy" and policy_area:
+            for c in chunk_data:
+                c.policy_area = policy_area
         page_count = max((chunk.page_number for chunk in chunk_data), default=0)
         has_ocr_pages = any(chunk.is_ocr for chunk in chunk_data)
         if not chunk_data:
@@ -300,6 +334,7 @@ def _process_uploaded_document(
         course_title=course_title,
         lesson_title=effective_lesson_title,
         source_type=source_type,
+        policy_area=policy_area,
         program=effective_program,
         academic_year=detected_academic_year,
         course_code=detected_course_code,
@@ -340,6 +375,7 @@ def _process_uploaded_document(
         course_title=course_title,
         lesson_title=effective_lesson_title,
         source_type=source_type,
+        policy_area=policy_area,
         processing_status=status,
         academic_year=detected_academic_year,
         course_code=detected_course_code,
@@ -522,7 +558,7 @@ def get_document(
     if db is not None:
         row = db.get(Document, document_id)
         if row is not None:
-            if not _is_document_accessible(row, current_user_id):
+            if not _is_document_accessible(row, current_user_id, current_user_role):
                 raise DocumentNotFoundError(f"Document {document_id} not found")
             return DocumentResponse(
                 document_id=row.document_id,
@@ -530,6 +566,7 @@ def get_document(
                 course_title=row.course_title,
                 lesson_title=row.lesson_title,
                 source_type=row.source_type,
+                policy_area=row.policy_area,
                 program=row.program,
                 academic_year=row.academic_year,
                 course_code=row.course_code,
@@ -550,9 +587,15 @@ def get_document(
     fallback = _MEM_DOCUMENTS.get(document_id)
     if fallback is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
-    owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
-    if owner_id != current_user_id:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
+    if is_policy_source_type(fallback.source_type):
+        if current_user_role != "admin":
+            raise DocumentNotFoundError(f"Document {document_id} not found")
+    elif is_reference_source_type(fallback.source_type):
+        pass  # shared to all
+    else:
+        owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
+        if owner_id != current_user_id:
+            raise DocumentNotFoundError(f"Document {document_id} not found")
     return fallback.model_copy(
         update={"chunks": _chunk_responses(get_document_chunks(document_id, db=None))}
     )
@@ -578,6 +621,11 @@ def list_documents(
                 Document.source_type.in_(REFERENCE_SOURCE_TYPES),
             )
         )
+        # Policy documents are admin-only — never exposed to faculty via list
+        if current_user_role != "admin":
+            query = query.filter(
+                Document.source_type.notin_(POLICY_SOURCE_TYPES)
+            )
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -596,6 +644,7 @@ def list_documents(
                 course_title=row.course_title,
                 lesson_title=row.lesson_title,
                 source_type=row.source_type,
+                policy_area=row.policy_area,
                 program=row.program,
                 academic_year=row.academic_year,
                 course_code=row.course_code,
@@ -627,6 +676,10 @@ def list_documents(
         if (
             _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
             or is_reference_source_type(item.source_type)
+            or (
+                is_policy_source_type(item.source_type)
+                and current_user_role == "admin"
+            )
         )
     ]
     if source_type:
@@ -703,11 +756,13 @@ def list_reference_documents(
 def stream_document_file(
     document_id: uuid.UUID,
     current_user_id: uuid.UUID,
+    current_user_role: str | None = None,
     db: Any | None = None,
 ) -> Path:
     """Return the local file path for a document, enforcing access rules.
 
     Reference documents are shared to authenticated users.
+    Policy documents are admin-only.
     SLMs remain owner-only.
     Raises DocumentNotFoundError if the document is not found, not
     accessible, or the local file is missing.
@@ -719,7 +774,7 @@ def stream_document_file(
     if row is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
-    if not _is_document_accessible(row, current_user_id):
+    if not _is_document_accessible(row, current_user_id, current_user_role):
         raise DocumentNotFoundError(f"Document {document_id} not found")
 
     file_path = Path(row.file_path) if row.file_path else None
@@ -831,6 +886,9 @@ def delete_reference_document(
     )
 
 
+
+
+
 def rebuild_reference_embeddings(
     document_id: uuid.UUID,
     db: Any | None = None,
@@ -877,7 +935,11 @@ def rebuild_reference_embeddings(
 
 
 def _validate_upload(
-    file: UploadFile, source_type: str, program: str | None, user_role: str = "faculty"
+    file: UploadFile,
+    source_type: str,
+    program: str | None,
+    user_role: str = "faculty",
+    policy_area: str | None = None,
 ) -> None:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
@@ -893,6 +955,20 @@ def _validate_upload(
     # Curriculum documents require a program for program-driven suggestion
     if source_type == "curriculum" and not (program and program.strip()):
         raise UnsupportedFileTypeError("Program is required for curriculum documents.")
+    # Policy documents require a valid policy_area
+    if source_type == "policy":
+        if not (policy_area and policy_area.strip()):
+            raise UnsupportedFileTypeError("policy_area is required for policy documents.")
+        if policy_area not in VALID_POLICY_AREAS:
+            raise UnsupportedFileTypeError(
+                f"Invalid policy_area '{policy_area}'. Valid values: "
+                f"{', '.join(sorted(VALID_POLICY_AREAS))}."
+            )
+    # Non-policy documents must not have a policy_area
+    if source_type != "policy" and policy_area:
+        raise UnsupportedFileTypeError(
+            "policy_area is only valid for policy documents."
+        )
 
 
 def _persist_document(
@@ -918,6 +994,7 @@ def _persist_document(
     db_row.academic_year = response.academic_year
     db_row.course_code = response.course_code
     db_row.source_type = response.source_type
+    db_row.policy_area = response.policy_area
     db_row.file_path = file_path
     db_row.uploaded_by = uploaded_by
     db_row.uploaded_at = response.uploaded_at
@@ -944,6 +1021,7 @@ def _create_upload_intent(
     lesson_title: str | None,
     program: str | None,
     source_type: str,
+    policy_area: str | None,
     file_path: str,
     uploaded_by: uuid.UUID,
 ) -> None:
@@ -956,6 +1034,7 @@ def _create_upload_intent(
             lesson_title=lesson_title,
             program=program,
             source_type=source_type,
+            policy_area=policy_area,
             file_path=file_path,
             uploaded_by=uploaded_by,
             uploaded_at=datetime.now(UTC),
@@ -1054,6 +1133,9 @@ def _persist_chunks(
             text=chunk.text,
             token_count=chunk.token_count,
             is_ocr=chunk.is_ocr,
+            policy_area=getattr(chunk, "policy_area", None),
+            section_ref=getattr(chunk, "section_ref", None),
+            chunk_index=getattr(chunk, "chunk_index", None),
         )
         for chunk in chunks
     ]
@@ -1067,7 +1149,11 @@ def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[A
         return (
             db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document_id)
-            .order_by(DocumentChunk.page_number.asc(), DocumentChunk.created_at.asc())
+            .order_by(
+                DocumentChunk.chunk_index.asc().nullsfirst(),
+                DocumentChunk.page_number.asc(),
+                DocumentChunk.created_at.asc(),
+            )
             .all()
         )
 
@@ -1085,6 +1171,9 @@ def _chunk_responses(chunks: list[Any]) -> list[DocumentChunkResponse]:
             text=chunk.text,
             token_count=chunk.token_count,
             is_ocr=chunk.is_ocr,
+            policy_area=getattr(chunk, "policy_area", None),
+            section_ref=getattr(chunk, "section_ref", None),
+            chunk_index=getattr(chunk, "chunk_index", None),
         )
         for chunk in sorted(
             chunks,
@@ -1414,6 +1503,7 @@ __all__ = [
     "get_curriculum_suggestions",
     "get_document",
     "get_document_chunks",
+    "get_healthy_policy_allowlist",
     "list_documents",
     "list_reference_documents",
     "process_document_ingestion",
@@ -1421,6 +1511,11 @@ __all__ = [
     "delete_reference_document",
     "rebuild_reference_embeddings",
     "is_reference_source_type",
+    "is_policy_source_type",
+    "list_policy_documents",
+    "delete_policy_document",
+    "rebuild_policy_embeddings",
     "recover_cleanup_pending_documents",
     "recover_no_database_upload_journal",
+    "validate_policy_chunks",
 ]

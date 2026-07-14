@@ -45,11 +45,13 @@ class ITSO(BaseAgent):
         reference_text: str | None,
         prompt_version: str | None,
     ) -> str:
-        """Override to inject local precheck evidence summary and
-        evidence-status guidance into the ITSO prompt.
+        """Override to inject local precheck evidence summary,
+        evidence-status guidance, and POLICY EVIDENCE section into the
+        ITSO prompt.
 
         The precheck data comes from ``self._current_provenance``
-        (set by the supervisor before dispatch). When provenance is
+        (set by the supervisor before dispatch). Policy evidence comes
+        from ``self._current_policy_evidence``. When provenance is
         absent (e.g. historical runs or tests), the prompt is built
         without evidence-status instructions for backward compatibility.
         """
@@ -124,6 +126,79 @@ class ITSO(BaseAgent):
                     "Absent local evidence means the information could not be "
                     "verified locally — it does NOT imply a violation."
                 )
+
+        # Inject POLICY EVIDENCE section from frozen snapshot (ITSO only).
+        # Blocked by default via itso_policy_delivery_enabled config.
+        policy_evidence = getattr(self, "_current_policy_evidence", None)
+        if policy_evidence and isinstance(policy_evidence, dict):
+            delivery_state = policy_evidence.get("delivery_state", "blocked")
+            criteria_evidence = policy_evidence.get("criteria", {})
+
+            if delivery_state == "enabled":
+                # Build policy evidence section with clause text.
+                section_lines: list[str] = []
+                section_lines.append("=== POLICY EVIDENCE ===")
+                section_lines.append(
+                    "The following local policy clauses are provided as "
+                    "advisory evidence only. They are retrieved from "
+                    "institutionally approved documents stored on local "
+                    "LSPU-controlled infrastructure."
+                )
+                section_lines.append("")
+
+                for criterion_id in ("ITSO-03", "ITSO-04", "ITSO-05"):
+                    crit = criteria_evidence.get(criterion_id, {})
+                    area = crit.get("policy_area", "unknown")
+                    status = crit.get("status", "unavailable")
+                    chunks = crit.get("chunks", [])
+                    section_lines.append(
+                        f"Criterion {criterion_id} ({area}): "
+                        f"{'AVAILABLE' if status == 'available' else 'UNAVAILABLE'}"
+                    )
+                    if chunks:
+                        for i, chunk in enumerate(chunks, 1):
+                            text = chunk.get("text", "")[:500]
+                            section_lines.append(f"  Clause {i}: {text}")
+                    section_lines.append("")
+
+                section_lines.append(
+                    "IMPORTANT: Policy evidence absence or unavailability "
+                    "is NOT evidence of noncompliance. Do NOT conclude "
+                    "plagiarism, academic misconduct, or legal violations "
+                    "solely because policy evidence is absent, unavailable, "
+                    "or conflicting. Request human review where evidence is "
+                    "absent or conflicting. All policy evidence is advisory "
+                    "and must be verified by a qualified human reviewer."
+                )
+                instructions.append("")
+                instructions.append("\n".join(section_lines))
+            else:
+                # Delivery blocked by config — inject empty advisory only.
+                blocked_lines: list[str] = []
+                blocked_lines.append("=== POLICY EVIDENCE ===")
+                blocked_lines.append(
+                    "Local policy evidence retrieval is configured for "
+                    "institutionally approved local/self-hosted LLM backends "
+                    "only. Policy clause delivery is currently blocked for "
+                    "the configured LLM endpoint."
+                )
+                for criterion_id in ("ITSO-03", "ITSO-04", "ITSO-05"):
+                    crit = criteria_evidence.get(criterion_id, {})
+                    area = crit.get("policy_area", "unknown")
+                    blocked_lines.append(
+                        f"  - {criterion_id} ({area}): delivery_blocked"
+                    )
+                blocked_lines.append("")
+                blocked_lines.append(
+                    "IMPORTANT: Policy evidence is unavailable because "
+                    "the configured LLM backend is not institutionally "
+                    "confirmed as local/self-hosted. Do NOT conclude "
+                    "plagiarism, academic misconduct, or legal violations "
+                    "when policy evidence is absent. Request human review "
+                    "where evidence is needed."
+                )
+                instructions.append("")
+                instructions.append("\n".join(blocked_lines))
 
         payload: dict[str, Any] = {
             "agent": self.agent_name,

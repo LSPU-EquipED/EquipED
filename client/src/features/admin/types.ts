@@ -1,4 +1,8 @@
-import type { DomainScoreBlock, ReferenceSourceType } from '../../shared/types/documents';
+import type {
+  DomainScoreBlock,
+  PolicyArea,
+  ReferenceSourceType,
+} from '../../shared/types/documents';
 
 export interface PromptVersionItem {
   version_id: string;
@@ -96,7 +100,8 @@ export interface MatrixListResponse {
 
 export interface AdminUploadInput {
   file: File;
-  sourceType: ReferenceSourceType;
+  sourceType: ReferenceSourceType | 'policy';
   title: string;
   program?: string;
+  policyArea?: PolicyArea;
 }

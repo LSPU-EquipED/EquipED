@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -35,19 +36,25 @@ from .schemas import (
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
+    PolicyDeleteResponse,
+    PolicyLibraryResponse,
+    PolicyRebuildResponse,
     ReferenceDeleteResponse,
     ReferenceLibraryResponse,
     ReferenceRebuildResponse,
 )
 from .service import (
     create_document,
+    delete_policy_document,
     delete_reference_document,
     embed_document_chunks,
     get_curriculum_suggestions,
     get_document,
     list_documents,
+    list_policy_documents,
     list_reference_documents,
     process_document_ingestion,
+    rebuild_policy_embeddings,
     rebuild_reference_embeddings,
     stream_document_file,
 )
@@ -68,6 +75,7 @@ def upload_document(
     course_title: str | None = Form(default=None),
     lesson_title: str | None = Form(default=None),
     program: str | None = Form(default=None),
+    policy_area: str | None = Form(default=None),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> DocumentUploadResponse:
@@ -79,6 +87,7 @@ def upload_document(
             course_title=course_title,
             lesson_title=lesson_title,
             program=program,
+            policy_area=policy_area,
             uploaded_by=_current_user.id,
             user_role=_current_user.role.value,
             db=db,
@@ -114,6 +123,63 @@ def list_references(
 ) -> ReferenceLibraryResponse:
     """Admin-only reference library listing of syllabus/curriculum documents."""
     return list_reference_documents(db=db)
+
+
+@router.get("/policies", response_model=PolicyLibraryResponse)
+def list_policies(
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Any = Depends(get_db_session),
+) -> PolicyLibraryResponse:
+    """Admin-only policy library listing of policy documents."""
+    return list_policy_documents(db=db)
+
+
+@router.delete("/policies/{document_id}", response_model=PolicyDeleteResponse)
+def delete_policy(
+    document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Any = Depends(get_db_session),
+) -> PolicyDeleteResponse:
+    """Admin-only delete of a policy document with full asset cleanup."""
+    try:
+        return delete_policy_document(
+            document_id=document_id,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReferenceDeleteInvalidTypeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/policies/{document_id}/rebuild-embeddings", response_model=PolicyRebuildResponse)
+def rebuild_policy_embeddings_endpoint(
+    document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Any = Depends(get_db_session),
+) -> PolicyRebuildResponse:
+    """Admin-only rebuild of Chroma embeddings from stored policy chunks."""
+    try:
+        return rebuild_policy_embeddings(
+            document_id=document_id,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReferenceRebuildError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -162,11 +228,12 @@ def get_document_file(
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> FileResponse:
-    """Stream a document's PDF file. References shared; SLMs owner-only."""
+    """Stream a document's PDF file. References shared; SLMs owner-only; policy admin-only."""
     try:
         file_path = stream_document_file(
             document_id=document_id,
             current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
             db=db,
         )
         return FileResponse(

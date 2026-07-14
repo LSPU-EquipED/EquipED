@@ -1,13 +1,22 @@
 import { buildApiUrl, requestJson } from '@/shared/api/http';
 import {
   mapDocumentUploadResponse,
+  mapPolicyDeleteResponse,
+  mapPolicyLibraryResponse,
+  mapPolicyRebuildResponse,
   mapReferenceDeleteResponse,
   mapReferenceLibraryResponse,
   mapReferenceRebuildResponse,
   type RawDocumentUploadResponse,
+  type RawPolicyDeleteResponse,
+  type RawPolicyLibraryResponse,
+  type RawPolicyRebuildResponse,
   type RawReferenceDeleteResponse,
   type RawReferenceLibraryResponse,
   type RawReferenceRebuildResponse,
+  type PolicyDeleteResponse,
+  type PolicyLibraryResponse,
+  type PolicyRebuildResponse,
   type ReferenceDeleteResponse,
   type ReferenceRebuildResponse,
   type ReferenceLibraryResponse,
@@ -96,6 +105,10 @@ export const adminApi = {
       formData.append('program', input.program.trim().toUpperCase());
     }
 
+    if (input.sourceType === 'policy' && input.policyArea) {
+      formData.append('policy_area', input.policyArea);
+    }
+
     const response = await requestJson<RawDocumentUploadResponse>('/documents/upload', {
       method: 'POST',
       body: formData,
@@ -128,5 +141,26 @@ export const adminApi = {
       },
     );
     return mapReferenceRebuildResponse(response);
+  },
+
+  getPolicies: async (): Promise<PolicyLibraryResponse> => {
+    const response = await requestJson<RawPolicyLibraryResponse>('/documents/policies');
+    return mapPolicyLibraryResponse(response);
+  },
+
+  deletePolicy: async (documentId: string): Promise<PolicyDeleteResponse> => {
+    const response = await requestJson<RawPolicyDeleteResponse>(
+      `/documents/policies/${documentId}`,
+      { method: 'DELETE' },
+    );
+    return mapPolicyDeleteResponse(response);
+  },
+
+  rebuildPolicyEmbeddings: async (documentId: string): Promise<PolicyRebuildResponse> => {
+    const response = await requestJson<RawPolicyRebuildResponse>(
+      `/documents/policies/${documentId}/rebuild-embeddings`,
+      { method: 'POST' },
+    );
+    return mapPolicyRebuildResponse(response);
   },
 };

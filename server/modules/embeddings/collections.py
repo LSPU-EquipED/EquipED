@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Final
 
 COL_REFERENCE_ALL: Final[str] = "col_reference_all"
+COL_POLICY_ALL: Final[str] = "col_policy_all"
 COL_RUBRIC_SME: Final[str] = "col_rubric_sme"
 COL_RUBRIC_COORDINATOR: Final[str] = "col_rubric_coordinator"
 COL_RUBRIC_GAD: Final[str] = "col_rubric_gad"
@@ -13,6 +14,7 @@ COL_RUBRIC_ITSO: Final[str] = "col_rubric_itso"
 SOURCE_TYPE_TO_COLLECTION: Final[dict[str, str]] = {
     "syllabus": COL_REFERENCE_ALL,
     "curriculum": COL_REFERENCE_ALL,
+    "policy": COL_POLICY_ALL,
     "rubric_sme": COL_RUBRIC_SME,
     "rubric_coord": COL_RUBRIC_COORDINATOR,
     "rubric_gad": COL_RUBRIC_GAD,
@@ -34,6 +36,7 @@ def resolve_collection_name(source_type: str) -> str:
 
 __all__ = [
     "COL_REFERENCE_ALL",
+    "COL_POLICY_ALL",
     "COL_RUBRIC_SME",
     "COL_RUBRIC_COORDINATOR",
     "COL_RUBRIC_GAD",
