@@ -313,6 +313,23 @@ def transition_evaluation_status(
             completed_at=row.completed_at,
             duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
         )
+    # Same-state non-terminal transition: idempotent no-op. Validate
+    # token ownership when one is supplied, but do NOT clear/replace
+    # the token or alter timestamps/status.
+    if row.status == new_status.value:
+        if execution_token is not None and row.execution_token != execution_token:
+            raise EvaluationExecutionOwnershipError(
+                f"Execution token mismatch for evaluation {evaluation_id}"
+            )
+        return EvaluationStatusResponse(
+            evaluation_id=row.evaluation_id,
+            status=EvaluationStatus(row.status),
+            error_message=row.error_message,
+            partial_without_curriculum=row.partial_without_curriculum,
+            partial_reason=row.partial_reason,
+            completed_at=row.completed_at,
+            duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+        )
     if not can_transition_status(row.status, new_status):
         raise InvalidStatusTransitionError(f"Cannot move {row.status} -> {new_status}")
     if execution_token is not None and row.execution_token != execution_token:

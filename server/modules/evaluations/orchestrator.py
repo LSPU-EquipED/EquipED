@@ -62,6 +62,7 @@ def run_evaluation_job(
         db_session_factory = get_session_factory()
 
     execution_token = uuid.uuid4()
+    execution_acquired = False
     session = db_session_factory()
     try:
         job = session.get(EvaluationJob, evaluation_id)
@@ -76,6 +77,7 @@ def run_evaluation_job(
                 evaluation_id,
             )
             return
+        execution_acquired = True
 
         # Re-read the row with the freshly attached token for the rest of
         # the lifecycle. Subsequent status transitions carry the token.
@@ -285,21 +287,28 @@ def run_evaluation_job(
             error_message=partial_error,
             execution_token=execution_token,
         )
-        session.commit()
     except Exception as exc:
-        try:
-            session.rollback()
-            transition_evaluation_status(
+        session.rollback()
+        if execution_acquired:
+            try:
+                transition_evaluation_status(
+                    evaluation_id,
+                    EvaluationStatus.FAILED,
+                    session,
+                    error_message=str(exc),
+                    execution_token=execution_token,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to record FAILED transition for evaluation %s",
+                    evaluation_id,
+                )
+        else:
+            logger.warning(
+                "Pre-claim failure for evaluation %s; ownership not acquired, "
+                "skipping FAILED transition. Error: %s",
                 evaluation_id,
-                EvaluationStatus.FAILED,
-                session,
-                error_message=str(exc),
-                execution_token=execution_token,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to record FAILED transition for evaluation %s",
-                evaluation_id,
+                str(exc)[:500],
             )
         raise
     finally:
