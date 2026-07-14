@@ -37,7 +37,7 @@ from server.modules.evaluations.service import (
     transition_evaluation_status,
 )
 from server.modules.synthesis.models import AgentResult
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, update
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -561,6 +561,129 @@ def test_recovery_does_not_duplicate_existing_agent_results(monkeypatch) -> None
         assert refreshed.status == EvaluationStatus.COMPLETED.value
     finally:
         session.close()
+
+
+# ---------------------------------------------------------------------------
+# Same-state idempotent no-op regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_same_state_preprocessing_with_matching_token_is_noop() -> None:
+    """Same-state PREPROCESSING transition with matching token must
+    return the current state unchanged and preserve the token."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        job = _make_job(session, status=EvaluationStatus.PREPROCESSING)
+        token = uuid4()
+        # Manually claim ownership so the row has a matching token.
+        session.execute(
+            update(EvaluationJob)
+            .where(EvaluationJob.evaluation_id == job.evaluation_id)
+            .values(execution_token=token)
+        )
+        session.commit()
+        session.expire_all()
+
+        result = transition_evaluation_status(
+            job.evaluation_id,
+            EvaluationStatus.PREPROCESSING,
+            session,
+            execution_token=token,
+        )
+        assert result.status == EvaluationStatus.PREPROCESSING
+
+        session.expire_all()
+        refreshed = session.get(EvaluationJob, job.evaluation_id)
+        # Status unchanged.
+        assert refreshed.status == EvaluationStatus.PREPROCESSING.value
+        # Token NOT cleared or replaced.
+        assert refreshed.execution_token == token
+        # completed_at must NOT be set (not a terminal transition).
+        assert refreshed.completed_at is None
+    finally:
+        session.close()
+
+
+def test_same_state_with_wrong_token_still_rejected() -> None:
+    """Same-state no-op path must still reject a mismatched token."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        job = _make_job(session, status=EvaluationStatus.PREPROCESSING)
+        owner_token = uuid4()
+        other_token = uuid4()
+        session.execute(
+            update(EvaluationJob)
+            .where(EvaluationJob.evaluation_id == job.evaluation_id)
+            .values(execution_token=owner_token)
+        )
+        session.commit()
+        session.expire_all()
+
+        with pytest.raises(EvaluationExecutionOwnershipError):
+            transition_evaluation_status(
+                job.evaluation_id,
+                EvaluationStatus.PREPROCESSING,
+                session,
+                execution_token=other_token,
+            )
+
+        session.expire_all()
+        refreshed = session.get(EvaluationJob, job.evaluation_id)
+        # Status and token fully preserved.
+        assert refreshed.status == EvaluationStatus.PREPROCESSING.value
+        assert refreshed.execution_token == owner_token
+    finally:
+        session.close()
+
+
+def test_pre_claim_failure_does_not_transition(monkeypatch) -> None:
+    """When an error occurs before the orchestrator acquires ownership,
+    the exception handler must NOT call transition_evaluation_status —
+    doing so without a matching token could clear another runner's token
+    or steal ownership. The job stays in its current non-terminal state
+    so the owner/retry logic can resolve it."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        owner_id = uuid4()
+        document_id = _add_document(session, owner_id=owner_id, source_type="slm")
+        _seed_active_prompts(session)
+        job = _make_job(
+            session,
+            status=EvaluationStatus.SUBMITTED,
+            document_id=document_id,
+        )
+
+        from server.core import database as core_database
+
+        monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
+
+        from server.modules.evaluations import orchestrator as orch_module
+
+        def raise_before_acquire(db, evaluation_id, execution_token):
+            raise RuntimeError("pre-claim failure")
+
+        monkeypatch.setattr(
+            orch_module, "acquire_evaluation_execution", raise_before_acquire
+        )
+
+        with pytest.raises(RuntimeError):
+            run_evaluation_job(job.evaluation_id)
+
+        session.expire_all()
+        refreshed = session.get(EvaluationJob, job.evaluation_id)
+        # Job must remain SUBMITTED — no unauthorized terminal transition.
+        assert refreshed.status == EvaluationStatus.SUBMITTED.value
+        assert refreshed.execution_token is None
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Recovery helper tests
+# ---------------------------------------------------------------------------
 
 
 def test_recovery_returns_zero_when_no_interrupted_jobs() -> None:
