@@ -79,6 +79,7 @@ def get_evaluation_results(
             .get(result.agent_name, {})
             .get("adjectival_rating"),
             "provenance": result.provenance,
+            "summary": result.summary,
         }
         for result in agent_results
     }

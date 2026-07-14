@@ -57,6 +57,7 @@ export function EvaluationHeader({
     max_score: domainScore?.max_score || 100,
     status: domainScore?.status || 'UNKNOWN',
     criteria: domainScore?.criteria || [],
+    summary: domainScore?.summary,
   };
 
   const handleViewFullReport = () => {

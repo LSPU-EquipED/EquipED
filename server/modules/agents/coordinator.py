@@ -51,6 +51,22 @@ logger = logging.getLogger(__name__)
 _CURRICULUM_N_RESULTS = 3
 
 
+def _build_alignment_summary(criterion_scores: tuple[CriterionScore, ...]) -> str:
+    """Summarize objective-to-curriculum alignment from Coordinator's own
+    A-05 score.
+
+    A-05 is the one criterion Coordinator always computes independently
+    (curriculum-grounded when a curriculum is attached, SLM-only otherwise --
+    see ``run()``), so it's the only source of Coordinator-specific insight;
+    the other 9 scores are reused from SME (see ``merge_with_sme``) and
+    would misrepresent Coordinator's own review if summarized here.
+    """
+    a05 = next((c for c in criterion_scores if c.criterion_id == "A-05"), None)
+    if a05 is None:
+        return ""
+    return f"Objective-curriculum alignment: {a05.justification}"
+
+
 class Coordinator(EngineScoredAgent):
     agent_name = "coordinator"
     rubric_source_type = "rubric_coord"
@@ -159,7 +175,7 @@ class Coordinator(EngineScoredAgent):
             document_id=document_id,
             subtotal=float(criterion_score.score),
             criterion_scores=(criterion_score,),
-            summary="",
+            summary=_build_alignment_summary((criterion_score,)),
             model_name=getattr(client, "model", get_llm_model_name()),
             processing_seconds=total_seconds,
             token_count=len(full_text.split()),
@@ -203,6 +219,7 @@ class Coordinator(EngineScoredAgent):
             agent_name=coordinator_result.agent_name,
             criterion_scores=merged_scores,
             subtotal=subtotal,
+            summary=_build_alignment_summary(merged_scores),
             model_name=coordinator_result.model_name,
             processing_seconds=coordinator_result.processing_seconds,
             token_count=coordinator_result.token_count,
@@ -265,20 +282,23 @@ class Coordinator(EngineScoredAgent):
             basket_extract_kwargs=basket_extract_kwargs,
         )
 
-        if not curriculum_text:
-            return result
+        if curriculum_text:
+            try:
+                result = self._apply_curriculum_alignment(
+                    result=result,
+                    raw_baskets=raw_baskets,
+                    curriculum_text=curriculum_text,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Coordinator curriculum alignment check failed, keeping "
+                    "SLM-only A-05: %s",
+                    str(exc)[:200],
+                )
 
-        try:
-            return self._apply_curriculum_alignment(
-                result=result, raw_baskets=raw_baskets, curriculum_text=curriculum_text
-            )
-        except Exception as exc:
-            logger.warning(
-                "Coordinator curriculum alignment check failed, keeping "
-                "SLM-only A-05: %s",
-                str(exc)[:200],
-            )
-            return result
+        return dataclasses.replace(
+            result, summary=_build_alignment_summary(result.criterion_scores)
+        )
 
     def _prepare_curriculum_text(
         self, document_id: uuid.UUID, curriculum_id: Any, db: Any | None

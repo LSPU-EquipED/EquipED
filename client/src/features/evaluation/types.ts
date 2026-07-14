@@ -21,6 +21,7 @@ export interface DomainScoreBlock {
   max_score: number;
   status: string;
   adjectival_rating?: string;
+  summary?: string;
 }
 
 export interface EvaluationFlagItem {

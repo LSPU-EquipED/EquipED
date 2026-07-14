@@ -43,6 +43,7 @@ class DomainScoreBlock(BaseModel):
     status: str  # "OK" | "ERROR"
     adjectival_rating: str | None = None
     provenance: dict | None = None
+    summary: str = ""
 
 
 class EvaluationFlagItem(BaseModel):
