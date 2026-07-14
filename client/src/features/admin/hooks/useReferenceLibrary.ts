@@ -3,6 +3,7 @@ import { getErrorMessage } from '@/shared/api/http';
 import { adminApi } from '../api/admin.api';
 
 const QUERY_KEY = ['adminReferences'];
+const POLICY_QUERY_KEY = ['adminPolicies'];
 
 export function useReferenceLibrary() {
   return useQuery({
@@ -29,6 +30,35 @@ export function useRebuildReferenceEmbeddings() {
     mutationFn: (documentId: string) => adminApi.rebuildReferenceEmbeddings(documentId),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+}
+
+export function usePolicyLibrary() {
+  return useQuery({
+    queryKey: POLICY_QUERY_KEY,
+    queryFn: () => adminApi.getPolicies(),
+  });
+}
+
+export function useDeletePolicy() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: string) => adminApi.deletePolicy(documentId),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: POLICY_QUERY_KEY });
+    },
+  });
+}
+
+export function useRebuildPolicyEmbeddings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: string) => adminApi.rebuildPolicyEmbeddings(documentId),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: POLICY_QUERY_KEY });
     },
   });
 }

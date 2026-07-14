@@ -163,9 +163,7 @@ export type CurriculumSuggestionResponse = {
   unavailableCurricula: CurriculumSuggestionItem[];
 };
 
-function mapCurriculumSuggestionItem(
-  item: RawCurriculumSuggestionItem,
-): CurriculumSuggestionItem {
+function mapCurriculumSuggestionItem(item: RawCurriculumSuggestionItem): CurriculumSuggestionItem {
   return {
     documentId: item.document_id,
     title: item.title,
@@ -281,6 +279,146 @@ export function mapDocumentUploadResponse(
 
 export const REFERENCE_SOURCE_TYPES = ['syllabus', 'curriculum'] as const;
 export type ReferenceSourceType = (typeof REFERENCE_SOURCE_TYPES)[number];
+
+// --- Policy library types (admin-only policy management for ITSO evidence) ---
+
+export const POLICY_SOURCE_TYPES = ['policy'] as const;
+export type PolicySourceType = (typeof POLICY_SOURCE_TYPES)[number];
+
+export const POLICY_AREAS = [
+  'intellectual_property',
+  'data_privacy',
+  'academic_rights',
+  'general_itso',
+] as const;
+export type PolicyArea = (typeof POLICY_AREAS)[number];
+
+export const POLICY_AREA_LABELS: Record<PolicyArea, string> = {
+  intellectual_property: 'Intellectual Property',
+  data_privacy: 'Data Privacy',
+  academic_rights: 'Academic Rights',
+  general_itso: 'General ITSO',
+};
+
+export type RawPolicyLibraryItem = {
+  document_id: string;
+  title: string;
+  source_type: string;
+  policy_area: string | null;
+  program: string | null;
+  course_code: string | null;
+  academic_year: string | null;
+  page_count: number | null;
+  uploaded_at: string;
+  uploaded_by: string | null;
+  processing_status: DocumentProcessingStatus;
+  file_exists: boolean;
+  chunk_count: number;
+  chroma_available: boolean;
+  embedding_ready: boolean;
+};
+
+export type PolicyLibraryItem = {
+  documentId: string;
+  title: string;
+  sourceType: PolicySourceType;
+  policyArea: string | null;
+  program: string | null;
+  courseCode: string | null;
+  academicYear: string | null;
+  pageCount: number | null;
+  uploadedAt: string;
+  uploadedBy: string | null;
+  processingStatus: DocumentProcessingStatus;
+  fileExists: boolean;
+  chunkCount: number;
+  chromaAvailable: boolean;
+  embeddingReady: boolean;
+};
+
+export type RawPolicyLibraryResponse = {
+  items: RawPolicyLibraryItem[];
+  total: number;
+};
+
+export type PolicyLibraryResponse = {
+  items: PolicyLibraryItem[];
+  total: number;
+};
+
+export type RawPolicyDeleteResponse = {
+  document_id: string;
+  deleted: boolean;
+  details: Record<string, unknown>;
+};
+
+export type RawPolicyRebuildResponse = {
+  document_id: string;
+  rebuilt: boolean;
+  chunk_count: number;
+  details: Record<string, unknown>;
+};
+
+export type PolicyDeleteResponse = {
+  documentId: string;
+  deleted: boolean;
+  details: Record<string, unknown>;
+};
+
+export type PolicyRebuildResponse = {
+  documentId: string;
+  rebuilt: boolean;
+  chunkCount: number;
+  details: Record<string, unknown>;
+};
+
+export function mapPolicyLibraryItem(item: RawPolicyLibraryItem): PolicyLibraryItem {
+  return {
+    documentId: item.document_id,
+    title: item.title,
+    sourceType: 'policy',
+    policyArea: item.policy_area,
+    program: item.program,
+    courseCode: item.course_code,
+    academicYear: item.academic_year,
+    pageCount: item.page_count,
+    uploadedAt: item.uploaded_at,
+    uploadedBy: item.uploaded_by,
+    processingStatus: item.processing_status,
+    fileExists: item.file_exists,
+    chunkCount: item.chunk_count,
+    chromaAvailable: item.chroma_available,
+    embeddingReady: item.embedding_ready,
+  };
+}
+
+export function mapPolicyLibraryResponse(
+  response: RawPolicyLibraryResponse,
+): PolicyLibraryResponse {
+  return {
+    items: response.items.map(mapPolicyLibraryItem),
+    total: response.total,
+  };
+}
+
+export function mapPolicyDeleteResponse(response: RawPolicyDeleteResponse): PolicyDeleteResponse {
+  return {
+    documentId: response.document_id,
+    deleted: response.deleted,
+    details: response.details,
+  };
+}
+
+export function mapPolicyRebuildResponse(
+  response: RawPolicyRebuildResponse,
+): PolicyRebuildResponse {
+  return {
+    documentId: response.document_id,
+    rebuilt: response.rebuilt,
+    chunkCount: response.chunk_count,
+    details: response.details,
+  };
+}
 
 export type RawReferenceLibraryItem = {
   document_id: string;

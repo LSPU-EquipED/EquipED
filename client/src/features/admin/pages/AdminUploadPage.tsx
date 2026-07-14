@@ -6,26 +6,37 @@ import { documentsApi } from '@/shared/api/documents.api';
 import { cn } from '@/shared/components/utils';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
-import type { DocumentUploadResponse, ReferenceSourceType } from '@/shared/types/documents';
+import {
+  POLICY_AREA_LABELS,
+  POLICY_AREAS,
+  type DocumentUploadResponse,
+  type PolicyArea,
+  type ReferenceSourceType,
+} from '@/shared/types/documents';
 
 const POLL_INTERVAL_MS = 4000;
 
-const sourceTypeLabels: Record<ReferenceSourceType, string> = {
+type AdminUploadSourceType = ReferenceSourceType | 'policy';
+
+const sourceTypeLabels: Record<AdminUploadSourceType, string> = {
   syllabus: 'Syllabus',
   curriculum: 'Curriculum',
+  policy: 'Policy',
 };
 
-const referenceTypes: ReferenceSourceType[] = ['syllabus', 'curriculum'];
+const referenceTypes: AdminUploadSourceType[] = ['syllabus', 'curriculum', 'policy'];
 
 export function AdminUploadPage() {
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useAdminUpload();
-  const [sourceType, setSourceType] = useState<ReferenceSourceType>('syllabus');
+  const [sourceType, setSourceType] = useState<AdminUploadSourceType>('syllabus');
   const [title, setTitle] = useState('');
   const [program, setProgram] = useState('');
+  const [policyArea, setPolicyArea] = useState<PolicyArea>('general_itso');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isProgramRequired = sourceType === 'curriculum';
+  const isPolicyAreaRequired = sourceType === 'policy';
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] ?? null;
@@ -38,10 +49,19 @@ export function AdminUploadPage() {
     }
   };
 
+  const handleSourceTypeChange = (next: AdminUploadSourceType) => {
+    setSourceType(next);
+    setUploadResult(null);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!file || !title.trim() || (isProgramRequired && !program.trim())) {
+      return;
+    }
+
+    if (isPolicyAreaRequired && !policyArea) {
       return;
     }
 
@@ -53,6 +73,7 @@ export function AdminUploadPage() {
         sourceType,
         title,
         program: isProgramRequired ? program.trim().toUpperCase() : undefined,
+        policyArea: isPolicyAreaRequired ? policyArea : undefined,
       });
       setUploadResult(result);
     } catch {
@@ -104,6 +125,7 @@ export function AdminUploadPage() {
     setFile(null);
     setTitle('');
     setProgram('');
+    setPolicyArea('general_itso');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -112,14 +134,17 @@ export function AdminUploadPage() {
   const isProcessing = uploadResult?.processingStatus === 'PROCESSING';
   const isSuccess = uploadResult?.processingStatus === 'PROCESSED';
   const isFailed = uploadResult?.processingStatus === 'FAILED';
+  const canSubmit =
+    !!file &&
+    title.trim().length > 0 &&
+    (!isProgramRequired || program.trim().length > 0) &&
+    (!isPolicyAreaRequired || !!policyArea);
 
   return (
     <section className="grid gap-6">
       <div className="mx-auto flex w-full max-w-[48rem] items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Admin
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Admin</p>
           <h1 className="mt-1 text-xl font-bold text-slate-900">Reference Ingestion</h1>
         </div>
         <Link
@@ -141,7 +166,7 @@ export function AdminUploadPage() {
           </label>
           <select
             value={sourceType}
-            onChange={(e) => setSourceType(e.target.value as ReferenceSourceType)}
+            onChange={(e) => handleSourceTypeChange(e.target.value as AdminUploadSourceType)}
             className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800"
           >
             {referenceTypes.map((type) => (
@@ -183,6 +208,34 @@ export function AdminUploadPage() {
           />
         ) : null}
 
+        {isPolicyAreaRequired ? (
+          <div className="space-y-2">
+            <label
+              htmlFor="ref-policy-area"
+              className="text-xs font-bold uppercase tracking-wider text-slate-500"
+            >
+              Policy Area
+            </label>
+            <select
+              id="ref-policy-area"
+              value={policyArea}
+              onChange={(e) => setPolicyArea(e.target.value as PolicyArea)}
+              className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800"
+              required={isPolicyAreaRequired}
+            >
+              {POLICY_AREAS.map((area) => (
+                <option key={area} value={area}>
+                  {POLICY_AREA_LABELS[area]}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs font-medium text-slate-500">
+              Required for policy references. The area is used to route retrieval during ITSO
+              evaluation.
+            </p>
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <label
             htmlFor="ref-file"
@@ -196,7 +249,7 @@ export function AdminUploadPage() {
               {file ? file.name : 'Drop a PDF here or browse files'}
             </span>
             <span className="text-center text-xs text-slate-500 font-medium">
-              PDF only. Upload syllabus or curriculum references for embedding.
+              PDF only. Upload syllabus, curriculum, or policy references for embedding.
             </span>
             <input
               id="ref-file"
@@ -228,7 +281,8 @@ export function AdminUploadPage() {
                 </p>
                 <p className="mt-1 text-base font-bold text-slate-900">{uploadResult.title}</p>
                 <p className="mt-1 text-sm text-slate-500 font-semibold">
-                  {sourceTypeLabels[uploadResult.sourceType as ReferenceSourceType]}
+                  {sourceTypeLabels[uploadResult.sourceType as AdminUploadSourceType] ??
+                    uploadResult.sourceType}
                 </p>
                 <div className="mt-3">
                   <span
@@ -279,7 +333,7 @@ export function AdminUploadPage() {
             <button
               type="submit"
               className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !file || !title.trim() || (isProgramRequired && !program.trim())}
+              disabled={isLoading || !canSubmit}
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
