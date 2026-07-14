@@ -148,6 +148,20 @@ class Settings:
     # False blocks delivery of policy text to any (including external) LLM.
     itso_policy_delivery_enabled: bool = False
 
+    # Only call toxicity classification on generated evaluation content
+    # when an explicitly configured local/self-hosted endpoint is approved.
+    # Default False ensures generated content is never sent to arbitrary
+    # or external endpoints without explicit operator consent.
+    toxicity_assessment_enabled: bool = False
+
+    # Dedicated toxicity classifier endpoint. Must point to a local/self-hosted
+    # service — validated at client-creation time by a locality guard.
+    # Toxicity never reuses the global LLM_API_BASE or LLM_MODEL_NAME.
+    toxicity_api_base: str | None = None
+    toxicity_model_name: str | None = None
+    toxicity_api_key: str | None = None
+    toxicity_request_timeout_seconds: int = 30
+
     @property
     def database_configured(self) -> bool:
         return bool(self.database_url)
@@ -340,6 +354,25 @@ def get_settings() -> Settings:
         )
 
     itso_policy_delivery_enabled = _bool_env("ITSO_POLICY_DELIVERY_ENABLED", False)
+    toxicity_assessment_enabled = _bool_env("TOXICITY_ASSESSMENT_ENABLED", False)
+    toxicity_api_base = _env("TOXICITY_API_BASE")
+    toxicity_model_name = _env("TOXICITY_MODEL_NAME")
+    toxicity_api_key = _env("TOXICITY_API_KEY")
+    toxicity_request_timeout_seconds_raw = _env(
+        "TOXICITY_REQUEST_TIMEOUT_SECONDS", "30"
+    )
+    try:
+        parsed_toxicity_request_timeout_seconds = int(
+            toxicity_request_timeout_seconds_raw or "30"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "TOXICITY_REQUEST_TIMEOUT_SECONDS must be a valid integer"
+        ) from exc
+    if parsed_toxicity_request_timeout_seconds < 1:
+        raise ConfigurationError(
+            "TOXICITY_REQUEST_TIMEOUT_SECONDS must be at least 1"
+        )
 
     # Cross-field validation: the chunk budget must leave room for the rest
     # of the prompt payload. Otherwise the total-budget safety net is a
@@ -435,6 +468,11 @@ def get_settings() -> Settings:
         agent_small_doc_threshold=parsed_agent_small_doc_threshold,
         agent_total_prompt_budget_chars=parsed_agent_total_prompt_budget_chars,
         itso_policy_delivery_enabled=itso_policy_delivery_enabled,
+        toxicity_assessment_enabled=toxicity_assessment_enabled,
+        toxicity_api_base=toxicity_api_base,
+        toxicity_model_name=toxicity_model_name,
+        toxicity_api_key=toxicity_api_key,
+        toxicity_request_timeout_seconds=parsed_toxicity_request_timeout_seconds,
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",
