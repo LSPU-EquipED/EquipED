@@ -212,7 +212,7 @@ def _process_uploaded_document(
     # do the heavy extraction + embedding. SLM uploads stay synchronous below.
     if is_reference_source_type(source_type):
         return _persist_reference_stub(
-            db=db,
+            db=runtime_db,
             doc_id=doc_id,
             target_path=target_path,
             source_type=source_type,
@@ -476,12 +476,15 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
             return
         file_path = document.file_path
         source_type = document.source_type
+        program = document.program
     finally:
         session.close()
 
     # Phase 2 — heavy OCR/extraction with NO DB session held.
     try:
-        chunk_data = ingest_document(file_path, source_type, str(document_id))
+        chunk_data = ingest_document(
+            file_path, source_type, str(document_id), program=program
+        )
     except ExtractionFailedError:
         chunk_data = []
     except Exception:

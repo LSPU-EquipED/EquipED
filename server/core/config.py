@@ -108,6 +108,12 @@ class Settings:
     # installed/registered on PATH (e.g. a fresh Windows dev box).
     tesseract_cmd: str | None = None
     tesseract_lang: str = "eng+fil"
+    # Optional override for Tesseract's language-pack directory. Lets a
+    # per-developer machine add language packs (e.g. fil.traineddata) it
+    # doesn't have permission to drop into the system Tesseract install
+    # (Program Files requires admin rights on Windows) without touching
+    # the shared installation.
+    tessdata_prefix: str | None = None
 
     ocr_max_pages: int = 25
     ocr_dpi: int = 200
@@ -436,6 +442,7 @@ def get_settings() -> Settings:
         or "paraphrase-multilingual-MiniLM-L12-v2",
         tesseract_cmd=_env("TESSERACT_CMD"),
         tesseract_lang=_env("TESSERACT_LANG", "eng+fil") or "eng+fil",
+        tessdata_prefix=_env("TESSDATA_PREFIX"),
         ocr_max_pages=parsed_ocr_max_pages,
         ocr_dpi=parsed_ocr_dpi,
         ocr_max_pixels=parsed_ocr_max_pixels,
