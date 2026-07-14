@@ -53,9 +53,7 @@ export function Scorecard() {
 
   const hasResults = results && Object.keys(results.domain_scores).length > 0;
   const isFailedWithResults = isFailed && hasResults;
-  const isPartial = Boolean(
-    results?.is_partial || evaluation?.partial_without_curriculum,
-  );
+  const isPartial = Boolean(results?.is_partial || evaluation?.partial_without_curriculum);
   const partialReason = results?.partial_reason || evaluation?.partial_reason;
 
   if (!id) {
@@ -187,7 +185,10 @@ export function Scorecard() {
                 <div className="border-t border-slate-200 my-4" />
                 <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 p-4">
                   <div className="flex items-start gap-2">
-                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#1e293b]" aria-hidden="true" />
+                    <AlertTriangle
+                      className="mt-0.5 size-4 shrink-0 text-[#1e293b]"
+                      aria-hidden="true"
+                    />
                     <div>
                       <p className="font-semibold text-[#1e293b]">Partial Evaluation Notice</p>
                       <p className="mt-1 text-sm text-[#1e293b]">

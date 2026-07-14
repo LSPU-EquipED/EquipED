@@ -1,5 +1,6 @@
 import { requestJson } from '@/shared/api/http';
 import {
+  mapDocumentUploadResponse,
   mapCurriculumSuggestionResponse,
   mapDocumentListResponse,
   mapDocumentResponse,
@@ -9,6 +10,9 @@ import {
   type RawCurriculumSuggestionResponse,
   type RawDocumentListResponse,
   type RawDocumentResponse,
+  type RawDocumentUploadResponse,
+  type DocumentSourceType,
+  type DocumentUploadResponse,
 } from '@/shared/types/documents';
 
 type ListDocumentsParams = {
@@ -16,6 +20,13 @@ type ListDocumentsParams = {
   program?: string;
   page?: number;
   pageSize?: number;
+};
+
+type UploadDocumentInput = {
+  file: File;
+  sourceType: DocumentSourceType;
+  title: string;
+  program?: string;
 };
 
 function buildQuery(params: ListDocumentsParams) {
@@ -62,10 +73,27 @@ async function getCurriculumSuggestion(
   return mapCurriculumSuggestionResponse(response);
 }
 
+async function uploadDocument(input: UploadDocumentInput): Promise<DocumentUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', input.file);
+  formData.append('source_type', input.sourceType);
+  formData.append('title', input.title.trim());
+  if (input.program?.trim()) {
+    formData.append('program', input.program.trim());
+  }
+
+  const response = await requestJson<RawDocumentUploadResponse>('/documents/upload', {
+    method: 'POST',
+    body: formData,
+  });
+  return mapDocumentUploadResponse(response);
+}
+
 export const documentsApi = {
   getDocument,
   listDocuments,
   getCurriculumSuggestion,
+  uploadDocument,
 };
 
-export type { ListDocumentsParams };
+export type { ListDocumentsParams, UploadDocumentInput };

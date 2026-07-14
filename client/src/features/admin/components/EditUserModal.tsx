@@ -10,12 +10,7 @@ interface EditUserModalProps {
 }
 
 export function EditUserModal(props: EditUserModalProps) {
-  return (
-    <EditUserModalDialog
-      key={`${props.user?.user_id ?? 'none'}-${props.open}`}
-      {...props}
-    />
-  );
+  return <EditUserModalDialog key={`${props.user?.user_id ?? 'none'}-${props.open}`} {...props} />;
 }
 
 function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {

@@ -296,8 +296,8 @@ export function AdminUploadPage() {
                 </div>
                 {isProcessing ? (
                   <p className="mt-2 text-sm font-semibold text-slate-500">
-                    Extracting and embedding the document in the background. This can take
-                    several minutes for scanned PDFs — you can leave this page; check the{' '}
+                    Extracting and embedding the document in the background. This can take several
+                    minutes for scanned PDFs — you can leave this page; check the{' '}
                     <Link to="/admin/references" className="underline">
                       reference library
                     </Link>{' '}

@@ -1,6 +1,11 @@
 import { useState, useMemo } from 'react';
 import { Search, Plus, AlertTriangle, Pencil, UserX, Trash2, UserCheck } from 'lucide-react';
-import { useAdminUsers, useUpdateUser, useDeactivateUser, useHardDeleteUser } from '@/features/admin/hooks/useAdminUsers';
+import {
+  useAdminUsers,
+  useUpdateUser,
+  useDeactivateUser,
+  useHardDeleteUser,
+} from '@/features/admin/hooks/useAdminUsers';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import type { AdminUserResponse } from '@/features/admin/types';
@@ -278,11 +283,7 @@ export function UserManagementPage() {
       </div>
 
       <CreateUserModal open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
-      <EditUserModal
-        user={selectedUser}
-        open={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
-      />
+      <EditUserModal user={selectedUser} open={isEditModalOpen} onOpenChange={setIsEditModalOpen} />
     </section>
   );
 }

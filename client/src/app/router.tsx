@@ -27,6 +27,7 @@ import { ReferenceLibraryPage } from '../features/admin/pages/ReferenceLibraryPa
 import { AgentPromptPage } from '../features/admin/pages/AgentPromptPage';
 import { PreferenceLogPage } from '../features/admin/pages/PreferenceLogPage';
 import { RubricEditorPage } from '../features/admin/pages/RubricEditorPage';
+import { ModelValidationPage } from '../features/admin/pages/ModelValidationPage';
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -183,6 +184,12 @@ const adminRubricsRoute = createRoute({
   component: RubricEditorPage,
 });
 
+const adminModelValidationRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'model-validation',
+  component: ModelValidationPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -193,15 +200,16 @@ const routeTree = rootRoute.addChildren([
     documentEvaluationRoute,
     evaluationDetailRoute,
     matrixRoute,
-      adminRoute.addChildren([
-        adminHomeRoute,
-        adminUsersRoute,
-        adminIngestRoute,
-        adminReferencesRoute,
-        adminPromptsRoute.addChildren([adminPromptDetailRoute]),
-        adminPreferencesRoute,
-        adminRubricsRoute,
-      ]),
+    adminRoute.addChildren([
+      adminHomeRoute,
+      adminUsersRoute,
+      adminIngestRoute,
+      adminReferencesRoute,
+      adminPromptsRoute.addChildren([adminPromptDetailRoute]),
+      adminPreferencesRoute,
+      adminRubricsRoute,
+      adminModelValidationRoute,
+    ]),
   ]),
 ]);
 

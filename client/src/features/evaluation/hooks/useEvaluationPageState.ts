@@ -229,13 +229,7 @@ export function useEvaluationPageState(documentId?: string) {
   }, [storageKey, refetchResolve, submitEvaluation]);
 
   const isSetupRequired = useMemo(() => {
-    return (
-      !!documentId &&
-      !evaluationId &&
-      !isResolvingEval &&
-      !isLoadingDocument &&
-      !!document
-    );
+    return !!documentId && !evaluationId && !isResolvingEval && !isLoadingDocument && !!document;
   }, [documentId, evaluationId, isResolvingEval, isLoadingDocument, document]);
 
   const hasReadyCurriculum = (suggestionResponse?.curriculumSuggestions.length ?? 0) > 0;

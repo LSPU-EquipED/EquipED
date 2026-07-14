@@ -173,7 +173,7 @@ export function ProgramSelector({
   };
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative min-w-0 w-full">
       {label ? (
         <label
           htmlFor={id}
@@ -195,7 +195,7 @@ export function ProgramSelector({
         onClick={() => (isOpen ? closePicker() : openPicker())}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          'flex h-10 w-full items-center justify-between gap-2 rounded-sm border border-slate-200 bg-white px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]',
+          'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-sm border border-slate-200 bg-white px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]',
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
@@ -207,7 +207,9 @@ export function ProgramSelector({
             </span>
           </span>
         ) : (
-          <span className="text-sm font-semibold text-slate-500">{placeholder}</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-slate-500">
+            {placeholder}
+          </span>
         )}
         <ChevronDown
           className={cn(
@@ -235,7 +237,7 @@ export function ProgramSelector({
               onChange={(e) => handleQueryChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search by code or program name"
-              className="flex-1 bg-transparent text-sm font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none"
               aria-autocomplete="list"
               aria-controls={listId}
               aria-activedescendant={

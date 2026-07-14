@@ -45,9 +45,7 @@ export function EvaluationHeader({
   const navigate = useNavigate();
   const [showExportModal, setShowExportModal] = useState(false);
 
-  const isPartial = Boolean(
-    results?.is_partial || status?.partial_without_curriculum,
-  );
+  const isPartial = Boolean(results?.is_partial || status?.partial_without_curriculum);
   const partialReason = results?.partial_reason || status?.partial_reason;
 
   const domainScore = results?.domain_scores[selectedAgent.id];
