@@ -47,6 +47,19 @@ def clear_ocr_validation_cache() -> None:
     _ocr_validation_cache = None
 
 
+def _tessdata_dir_config(settings: Settings) -> str:
+    # pytesseract runs `config` through shlex.split() in POSIX mode, which
+    # treats backslash as an escape character and silently mangles Windows
+    # paths (e.g. "C:\Users\..." -> "C:Users..."). Forward slashes avoid
+    # that entirely and Tesseract/Windows both accept them; a quoted path
+    # isn't an option either way since shlex would still see the escaped
+    # backslashes inside the quotes.
+    if settings.tessdata_prefix:
+        posix_path = settings.tessdata_prefix.replace("\\", "/")
+        return f"--tessdata-dir {posix_path}"
+    return ""
+
+
 def validate_ocr_installation(settings: Settings) -> dict[str, Any]:
     """Validate Tesseract installation and presence of configured language packs.
 
@@ -61,7 +74,7 @@ def validate_ocr_installation(settings: Settings) -> dict[str, Any]:
 
     try:
         version = pytesseract.get_tesseract_version()
-        langs = pytesseract.get_languages()
+        langs = pytesseract.get_languages(config=_tessdata_dir_config(settings))
 
         required_langs = [
             lang_code.strip()
@@ -177,6 +190,7 @@ def perform_ocr_on_page(page: fitz.Page, settings: Settings) -> OcrPageOutcome:
             image,
             lang=settings.tesseract_lang,
             timeout=settings.ocr_timeout_seconds,
+            config=_tessdata_dir_config(settings),
         )
     except (subprocess.TimeoutExpired, TimeoutError) as exc:
         logger.warning(
