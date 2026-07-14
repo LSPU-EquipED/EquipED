@@ -6,9 +6,7 @@ import json
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.gad import GAD
-from server.modules.agents.gad_scoring import registry
 from server.modules.agents.gad_scoring.female_male_count import (
     score_representation_balance,
 )
@@ -62,42 +60,32 @@ def _instance_response(
     }
 
 
-def test_gad_runs_two_prompts_and_scores_grounded_measurements() -> None:
+def test_gad_runs_five_prompts_and_scores_grounded_measurements() -> None:
     fake = _SequenceLLM(
         [
+            _instance_response(
+                "One supported stereotype needs revision.",
+                ["Women cannot lead teams.", "Invented unsupported quotation."],
+                reported_count=2,
+            ),
             {
                 "criterion": "representation",
                 "female_count": 4,
                 "male_count": 1,
                 "summary": "Representation should be more balanced.",
             },
-            {
-                "criteria": {
-                    "GAD-01": _instance_response(
-                        "One supported stereotype needs revision.",
-                        [
-                            "Women cannot lead teams.",
-                            "Invented unsupported quotation.",
-                        ],
-                        reported_count=2,
-                    ),
-                    "GAD-03": _instance_response(
-                        "Respect and potential are presented fairly.",
-                        [],
-                    ),
-                    "GAD-04": _instance_response(
-                        "Two examples favor one gender's experience.",
-                        [
-                            "Only boys should repair computers.",
-                            "Girls should only take notes.",
-                        ],
-                    ),
-                    "GAD-05": _instance_response(
-                        "No discriminatory content was grounded.",
-                        [],
-                    ),
-                }
-            },
+            _instance_response(
+                "Respect and potential are presented fairly.",
+                [],
+            ),
+            _instance_response(
+                "Two examples favor one gender's experience.",
+                ["Only boys should repair computers.", "Girls should only take notes."],
+            ),
+            _instance_response(
+                "No discriminatory content was grounded.",
+                [],
+            ),
         ]
     )
     chunks = [
@@ -129,17 +117,17 @@ def test_gad_runs_two_prompts_and_scores_grounded_measurements() -> None:
     ]
     assert [score.score for score in result.criterion_scores] == [3, 3, 4, 3, 4]
     assert result.subtotal == pytest.approx(3.4)
-    assert len(fake.prompts) == 2
-    assert fake.prompts[0]["criterion_id"] == "GAD-02"
-    assert fake.prompts[1]["criterion_ids"] == [
+    assert len(fake.prompts) == 5
+    assert [prompt["criterion_id"] for prompt in fake.prompts] == [
         "GAD-01",
+        "GAD-02",
         "GAD-03",
         "GAD-04",
         "GAD-05",
     ]
-    assert fake.temperatures == [0.0] * 2
+    assert fake.temperatures == [0.0] * 5
     assert result.metadata["scoring_mode"] == "criterion_specific_code_bands"
-    assert result.metadata["llm_call_count"] == 2
+    assert result.metadata["llm_call_count"] == 5
 
     stereotype = result.criterion_scores[0]
     assert stereotype.evidence == ("Women cannot lead teams.",)
@@ -165,20 +153,3 @@ def test_representation_balance_boundaries() -> None:
     assert score_representation_balance(5, 2) == 3
     assert score_representation_balance(10, 2) == 2
     assert score_representation_balance(12, 1) == 1
-
-
-def test_grouped_response_requires_every_qualitative_criterion() -> None:
-    definitions = tuple(
-        definition for definition in registry.CRITERIA if not definition.balance
-    )
-    incomplete = json.dumps(
-        {
-            "criteria": {
-                definition.criterion_id: _instance_response("Summary.", [])
-                for definition in definitions[:-1]
-            }
-        }
-    )
-
-    with pytest.raises(AgentExecutionError, match="criterion mismatch"):
-        registry.parse_grouped_payload(incomplete, definitions)

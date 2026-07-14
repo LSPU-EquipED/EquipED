@@ -125,62 +125,6 @@ def build_prompt(
     )
 
 
-def build_grouped_prompt(
-    definitions: tuple[CriterionDefinition, ...],
-    chunks: list[dict[str, Any]],
-) -> str:
-    """Build one extraction prompt for multiple independent GAD criteria.
-
-    Each criterion retains its complete evaluation rules. The single-result
-    JSON examples are removed because the grouped envelope below defines the
-    response contract for the combined request.
-    """
-    if not definitions:
-        raise ValueError("grouped GAD prompt requires at least one criterion")
-
-    criteria = []
-    response_template: dict[str, dict[str, Any]] = {}
-    for definition in definitions:
-        instructions = definition.prompt.split("Return only valid JSON", 1)[0].strip()
-        criteria.append(
-            {
-                "criterion_id": definition.criterion_id,
-                "criterion_title": definition.title,
-                "instructions": instructions,
-            }
-        )
-        response_template[definition.criterion_id] = {
-            "criterion": definition.title,
-            "instance_count": 0,
-            "instances": [
-                {
-                    "excerpt": "",
-                    "explanation": "",
-                }
-            ],
-            "summary": "",
-        }
-
-    return json.dumps(
-        {
-            "agent": "gad",
-            "criterion_ids": [item.criterion_id for item in definitions],
-            "document_chunks": chunks,
-            "instructions": [
-                "Evaluate every criterion independently using the shared "
-                "document_chunks.",
-                "Do not reuse a finding across criteria unless it independently "
-                "satisfies each criterion's rules.",
-                "Return only one valid JSON object matching response_template. "
-                "Replace all placeholder values with the evaluation results.",
-            ],
-            "criteria": criteria,
-            "response_template": {"criteria": response_template},
-        },
-        ensure_ascii=False,
-    )
-
-
 def parse_payload(raw_response: str, criterion_id: str) -> dict[str, Any]:
     if not isinstance(raw_response, str):
         raise AgentExecutionError(
@@ -210,36 +154,6 @@ def parse_payload(raw_response: str, criterion_id: str) -> dict[str, Any]:
             f"GAD criterion {criterion_id} returned an invalid response"
         )
     return parsed
-
-
-def parse_grouped_payload(
-    raw_response: str,
-    definitions: tuple[CriterionDefinition, ...],
-) -> dict[str, dict[str, Any]]:
-    """Parse a grouped response and require one object per requested criterion."""
-    parsed = parse_payload(raw_response, "grouped")
-    criteria = parsed.get("criteria")
-    if not isinstance(criteria, dict):
-        raise AgentExecutionError("GAD grouped response returned invalid criteria")
-
-    expected_ids = {definition.criterion_id for definition in definitions}
-    if set(criteria) != expected_ids:
-        missing = sorted(expected_ids - set(criteria))
-        unexpected = sorted(set(criteria) - expected_ids)
-        raise AgentExecutionError(
-            "GAD grouped response criterion mismatch "
-            f"(missing={missing}, unexpected={unexpected})"
-        )
-
-    result: dict[str, dict[str, Any]] = {}
-    for criterion_id in (definition.criterion_id for definition in definitions):
-        payload = criteria[criterion_id]
-        if not isinstance(payload, dict):
-            raise AgentExecutionError(
-                f"GAD criterion {criterion_id} returned an invalid response"
-            )
-        result[criterion_id] = payload
-    return result
 
 
 def _non_negative_int(value: Any, field: str, criterion_id: str) -> int:
@@ -360,9 +274,7 @@ __all__ = [
     "CRITERIA",
     "REGISTERED_CODES",
     "CriterionDefinition",
-    "build_grouped_prompt",
     "build_prompt",
     "build_score",
-    "parse_grouped_payload",
     "parse_payload",
 ]

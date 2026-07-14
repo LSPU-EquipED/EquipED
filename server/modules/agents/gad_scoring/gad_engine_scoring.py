@@ -73,70 +73,23 @@ class GADScoredAgent(BaseAgent):
         actual_models: list[str] = []
         prompt_trimmed = chunks_dropped or text_excerpted
 
-        balance_definition = next(
-            definition for definition in registry.CRITERIA if definition.balance
-        )
-        qualitative_definitions = tuple(
-            definition for definition in registry.CRITERIA if not definition.balance
-        )
-
-        # Call 1 keeps representation counting isolated because its output
-        # contract and measurement logic differ from the four instance-based
-        # criteria.
-        balance_prompt = registry.build_prompt(balance_definition, packed_chunks)
-        balance_budget = self._enforce_total_prompt_budget(
-            balance_prompt,
-            budget_chars=settings.agent_total_prompt_budget_chars,
-        )
-        prompt_trimmed = prompt_trimmed or balance_budget.trimmed
-        balance_response, balance_model = self._call_llm(
-            balance_budget.prompt,
-            temperature=0.0,
-        )
-        raw_by_criterion[balance_definition.criterion_id] = registry.parse_payload(
-            balance_response,
-            balance_definition.criterion_id,
-        )
-        actual_models.append(balance_model)
-
-        # Call 2 shares document context across the four instance-based
-        # criteria. The extra fixed-instruction allowance prevents the grouped
-        # contract from displacing document evidence that fit the original
-        # per-agent chunk budget.
-        grouped_prompt = registry.build_grouped_prompt(
-            qualitative_definitions,
-            packed_chunks,
-        )
-        grouped_budget = self._enforce_total_prompt_budget(
-            grouped_prompt,
-            budget_chars=(
-                settings.agent_total_prompt_budget_chars
-                + settings.agent_prompt_budget_chars
-            ),
-        )
-        prompt_trimmed = prompt_trimmed or grouped_budget.trimmed
-        grouped_response, grouped_model = self._call_llm(
-            grouped_budget.prompt,
-            temperature=0.0,
-        )
-        raw_by_criterion.update(
-            registry.parse_grouped_payload(
-                grouped_response,
-                qualitative_definitions,
-            )
-        )
-        actual_models.append(grouped_model)
-
-        # Preserve canonical rubric ordering and the existing deterministic
-        # scoring/grounding path regardless of LLM call order.
         for definition in registry.CRITERIA:
-            scores.append(
-                registry.build_score(
-                    definition,
-                    raw_by_criterion[definition.criterion_id],
-                    packed_chunks,
-                )
+            prompt = registry.build_prompt(definition, packed_chunks)
+            budget = self._enforce_total_prompt_budget(
+                prompt,
+                budget_chars=settings.agent_total_prompt_budget_chars,
             )
+            prompt_trimmed = prompt_trimmed or budget.trimmed
+            # Like the SME extraction engine, GAD measurements are never
+            # creative. Temperature is an internal invariant, not a setting.
+            raw_response, actual_model = self._call_llm(
+                budget.prompt,
+                temperature=0.0,
+            )
+            payload = registry.parse_payload(raw_response, definition.criterion_id)
+            raw_by_criterion[definition.criterion_id] = payload
+            scores.append(registry.build_score(definition, payload, packed_chunks))
+            actual_models.append(actual_model)
 
         criterion_scores = tuple(scores)
         processing_seconds = time.perf_counter() - start
