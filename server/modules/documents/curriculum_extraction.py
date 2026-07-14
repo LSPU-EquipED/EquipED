@@ -8,11 +8,21 @@ label/value column split instead, then keeps the longest prose block in the
 value column as the course description.
 
 Validated against a single-course-per-page CMO layout (courses each get their
-own page, with a "Course Name"/"COURSE NAME" header line). CMOs that pack
-several courses onto one page are not handled here; `extract_curriculum_courses`
+own page, with a "Course Name"/"COURSE NAME" header line). `extract_curriculum_courses`
 returns no record for pages where no title line is found, and callers should
 fall back to generic chunking for a document where extraction yields too few
 records to be useful.
+
+A second, unrelated CMO layout is handled by `extract_curriculum_map_courses`:
+some CHED CMOs (e.g. CMO No. 25 s. 2015, covering BSCS/BSIS/BSIT in one PDF)
+lay multiple courses' learning outcomes out in one continuous table per
+program, under a "Curriculum Map for the Bachelor of Science in <Program>"
+section header, rather than one course per page. OCR of that table scrambles
+row-level code/description alignment too badly to reconstruct one record per
+course, so this extracts one chunk per page instead, and uses the section
+headers (not per-row parsing) to decide which pages to keep at all — callers
+pass the programs their institution actually offers so an unwanted program's
+section (e.g. Information Systems) is skipped entirely.
 """
 
 from __future__ import annotations
@@ -29,6 +39,38 @@ _GUTTER_SEARCH_LO_FRAC = 0.30
 _GUTTER_SEARCH_HI_FRAC = 0.70
 _GUTTER_DENSITY_PERCENTILE = 40
 _MIN_DESCRIPTION_WORDS = 8
+
+_MAP_HEADER_RE = re.compile(
+    r"Curriculum Map for the Bachelor of Science in\s+([A-Za-z ,]+)",
+    re.IGNORECASE,
+)
+_MAP_SECTION_END_RE = re.compile(
+    r"Section\s+11\b|Sample Means of Curriculum Delivery", re.IGNORECASE
+)
+_MAP_COURSE_CODE_RE = re.compile(r"\b[A-Z]{2,6}\s?\d{2,4}[A-Z]?\b")
+_MAP_MIN_SELECTABLE_LEN = 50
+DEFAULT_INCLUDED_PROGRAMS = ("computer science", "information technology")
+
+# Maps the program code a faculty/admin picks at curriculum upload time
+# (`Document.program`, stored trimmed/uppercased — see documents/service.py)
+# to the section-header keyword(s) in `extract_curriculum_map_courses`. Only
+# programs LSPU SCC's College of Computer Studies actually offers are listed;
+# an unrecognized or missing code falls back to `DEFAULT_INCLUDED_PROGRAMS`
+# (CS + IT, still never Information Systems) rather than narrowing further.
+PROGRAM_CODE_MAP_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "BSCS": ("computer science",),
+    "BSINFOTECH": ("information technology",),
+}
+
+
+def map_keywords_for_program(program: str | None) -> tuple[str, ...]:
+    """Resolve a selected program code to `extract_curriculum_map_courses` keywords."""
+
+    if program:
+        keywords = PROGRAM_CODE_MAP_KEYWORDS.get(program.strip().upper())
+        if keywords is not None:
+            return keywords
+    return DEFAULT_INCLUDED_PROGRAMS
 
 
 @dataclass(slots=True)
@@ -86,6 +128,75 @@ def extract_curriculum_courses(file_path: str) -> list[CourseRecord]:
             )
 
     return records
+
+
+def extract_curriculum_map_courses(
+    file_path: str,
+    *,
+    included_programs: tuple[str, ...] = DEFAULT_INCLUDED_PROGRAMS,
+) -> list[CourseRecord]:
+    """Extract one chunk per page from a multi-program "Curriculum Map" CMO.
+
+    Only pages that fall inside a section whose header matches one of
+    `included_programs` (case-insensitive substring match) are kept. Returns
+    an empty list if no such section header is found anywhere in the
+    document, so callers can use it as a second-pass fallback after
+    `extract_curriculum_courses` without misfiring on unrelated layouts.
+    """
+
+    try:
+        import fitz
+    except ModuleNotFoundError:
+        return []
+
+    try:
+        import pytesseract
+    except ModuleNotFoundError:
+        return []
+
+    try:
+        from PIL import Image
+    except ModuleNotFoundError:
+        return []
+
+    records: list[CourseRecord] = []
+    current_program: str | None = None
+    with fitz.open(file_path) as doc:
+        for index, page in enumerate(doc, start=1):
+            text = (page.get_text() or "").strip()
+            if len(text) < _MAP_MIN_SELECTABLE_LEN:
+                pixmap = page.get_pixmap(dpi=250)
+                image = Image.frombytes(
+                    "RGB", [pixmap.width, pixmap.height], pixmap.samples
+                )
+                text = _safe_ocr_string(pytesseract, image)
+
+            header_match = _MAP_HEADER_RE.search(text)
+            if header_match:
+                current_program = header_match.group(1).strip().lower()
+
+            if current_program is not None and any(
+                keyword in current_program for keyword in included_programs
+            ):
+                records.append(
+                    CourseRecord(
+                        page_number=index,
+                        course_title=_map_page_title(text, current_program, index),
+                        course_description=" ".join(text.split()),
+                    )
+                )
+
+            if _MAP_SECTION_END_RE.search(text):
+                current_program = None
+
+    return records
+
+
+def _map_page_title(text: str, program: str, page_number: int) -> str:
+    codes = sorted(set(_MAP_COURSE_CODE_RE.findall(text)))
+    if codes:
+        return f"{program.title()} curriculum: {', '.join(codes)}"
+    return f"{program.title()} curriculum (page {page_number})"
 
 
 def _find_title(text: str) -> str | None:
@@ -153,4 +264,11 @@ def _longest_prose_block(text: str) -> str:
     return max(candidates, key=len)
 
 
-__all__ = ["CourseRecord", "extract_curriculum_courses"]
+__all__ = [
+    "CourseRecord",
+    "DEFAULT_INCLUDED_PROGRAMS",
+    "PROGRAM_CODE_MAP_KEYWORDS",
+    "extract_curriculum_courses",
+    "extract_curriculum_map_courses",
+    "map_keywords_for_program",
+]

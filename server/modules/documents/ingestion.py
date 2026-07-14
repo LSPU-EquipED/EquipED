@@ -75,15 +75,23 @@ def ingest_document(
     file_path: str,
     source_type: str,
     document_id: str,
+    *,
+    program: str | None = None,
 ) -> list[DocumentChunkData]:
-    """Extract text from a PDF and return Layer-1 chunks."""
+    """Extract text from a PDF and return Layer-1 chunks.
+
+    `program` is the program code selected at upload time (only meaningful
+    for `source_type == "curriculum"`) — it scopes multi-program CMOs (see
+    `curriculum_extraction.extract_curriculum_map_courses`) down to the
+    program the document was uploaded for.
+    """
 
     domain = resolve_agent_domain(source_type)
     doc_uuid = uuid.UUID(document_id)
 
     if source_type == "curriculum":
         course_chunks = _ingest_curriculum_courses(
-            file_path, source_type, domain, doc_uuid
+            file_path, source_type, domain, doc_uuid, program
         )
         if course_chunks:
             return course_chunks
@@ -118,6 +126,7 @@ def _ingest_curriculum_courses(
     source_type: str,
     domain: str,
     doc_uuid: uuid.UUID,
+    program: str | None,
 ) -> list[DocumentChunkData]:
     """Per-course chunks for CMO-style curriculum PDFs.
 
@@ -126,9 +135,17 @@ def _ingest_curriculum_courses(
     aren't single-course-per-page CMOs still ingest normally.
     """
 
-    from .curriculum_extraction import extract_curriculum_courses
+    from .curriculum_extraction import (
+        extract_curriculum_courses,
+        extract_curriculum_map_courses,
+        map_keywords_for_program,
+    )
 
     records = extract_curriculum_courses(file_path)
+    if not records:
+        records = extract_curriculum_map_courses(
+            file_path, included_programs=map_keywords_for_program(program)
+        )
     chunks: list[DocumentChunkData] = []
     for record in records:
         text = f"Course: {record.course_title}\n\n{record.course_description}"
