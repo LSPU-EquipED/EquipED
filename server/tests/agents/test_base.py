@@ -477,7 +477,7 @@ def test_concrete_agents_use_mocked_llm_response(monkeypatch) -> None:
         }
     )
 
-    # GAD has its own criterion-specific, five-call scoring contract. This
+    # GAD has its own criterion-specific, two-call scoring contract. This
     # generic BaseAgent response-shape test therefore applies only to ITSO.
     for agent in [ITSO(llm_client=fake_llm)]:
         result = agent.run(
