@@ -17,6 +17,7 @@ import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
 import { FeedbackPanel } from './FeedbackPanel';
 import { formatScore } from './scoreHelpers';
+import { ScorecardPdfExport } from './ScorecardPdfExport';
 import type {
   CriterionScoreItem,
   EvaluationResultsResponse,
@@ -273,6 +274,11 @@ export function ScoreDashboard({
                   {formatScore(results.overall_score)} of 4
                 </span>
               )}
+            </div>
+          )}
+          {results && isTerminal && (
+            <div className="mt-4">
+              <ScorecardPdfExport results={results} />
             </div>
           )}
         </div>
