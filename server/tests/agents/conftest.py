@@ -184,6 +184,7 @@ def _mock_settings(**overrides):
         "agent_prompt_budget_chars": 5000,
         "agent_small_doc_threshold": 6,
         "agent_total_prompt_budget_chars": 8000,
+        "itso_policy_delivery_enabled": False,
     }
     defaults.update(overrides)
 
