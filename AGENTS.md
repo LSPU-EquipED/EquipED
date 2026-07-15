@@ -19,8 +19,7 @@
 - `server/core/` is infrastructure-only. Do not move business rules or orchestration logic into `core/`.
 - Frontend remains feature-driven. `client/src/features/*` must stay self-contained and must not import from one another.
 - `client/src/shared/` is strictly for code proven to be reused by at least two features.
-- Evaluation jobs follow the contract in `openspec/specs/evaluations/spec.md`: Layer 3 multi-agent evaluation runs, then stops honestly at the unimplemented Layer 4 boundary.
-- Phase 1 execution remains sequential via FastAPI `BackgroundTasks`; parallel execution and Celery/Redis are deferred.
+- Evaluation jobs follow the contract in `openspec/specs/evaluations/spec.md`: Layer 3 multi-agent evaluation runs via FastAPI BackgroundTasks with supervisor-managed ThreadPoolExecutor for parallel agent execution. Layer 4 synthesis produces the monitoring matrix as the terminal output; no further automated layers run. Celery/Redis remain deferred.
 
 ## Product And Compliance Constraints
 
@@ -58,7 +57,7 @@
 - `server/modules/feedback/` — preference logging.
 - `server/modules/admin/` — prompt management and preference review.
 - `server/db/` — migration/config scaffold only.
-- `server/tests/` — test scaffold only.
+- `server/tests/` — integration and unit tests matching the module structure.
 - `client/src/app/` — routing tree, global providers, and layout shell.
 - `client/src/features/` — feature-owned components, hooks, API files, and types.
 - `client/src/shared/` — intentionally sparse shared layer for code reused by 2+ features.
@@ -70,9 +69,14 @@
 - Evaluation must execute Layer 3 multi-agent evaluation and stop honestly at the Layer 4 boundary defined in `openspec/specs/evaluations/spec.md`.
 - Later-phase multi-agent behavior must follow the spec contract rather than implied implementation details.
 - SLMs are direct evaluation input; do not embed them into ChromaDB.
-- Only reference documents (syllabus, curriculum) and rubrics belong in the Chroma vector store.
+- Only reference documents (syllabus, curriculum), rubrics, and policy documents (admin-only Chroma collection) belong in the vector store. SLMs are never embedded.
 - The EMBEDDING lifecycle status has been removed; do not reintroduce it.
 - chroma_data, uploads directories, and equiped_dev.db are anchored to the repository root.
+- Local OCR must fail closed on errors; ingestion does not proceed with partial or degraded OCR output.
+- Partial evaluations (curriculum missing, Coordinator skipped) produce job status COMPLETED and matrix status COMPLETED_PARTIAL — evaluation completes honestly with gaps flagged.
+- ITSO policy evidence delivery defaults to disabled; when enabled it is local/residency-gated — no external policy data egress.
+- Per-agent model routing and fallback must preserve attribution; each evaluation trace records which model generated each agent output.
+- Admin-only Model Validation surface; optional toxicity check runs local-only.
 
 ## Working Rules
 

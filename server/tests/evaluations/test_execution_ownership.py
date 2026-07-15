@@ -254,9 +254,19 @@ def test_terminal_transition_clears_execution_token_fields() -> None:
     SessionLocal = _make_session_factory()
     session = SessionLocal()
     try:
-        job = _make_job(session, status=EvaluationStatus.SYNTHESIZING)
+        job = _make_job(session, status=EvaluationStatus.SUBMITTED)
         token = uuid4()
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
+        # Progress through PREPROCESSING and EVALUATING to reach SYNTHESIZING
+        transition_evaluation_status(
+            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,
+        )
+        transition_evaluation_status(
+            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,
+        )
+        transition_evaluation_status(
+            job.evaluation_id, EvaluationStatus.SYNTHESIZING, session, execution_token=token,
+        )
 
         transition_evaluation_status(
             job.evaluation_id,
@@ -279,9 +289,16 @@ def test_terminal_transition_to_failed_clears_execution_token_fields() -> None:
     SessionLocal = _make_session_factory()
     session = SessionLocal()
     try:
-        job = _make_job(session, status=EvaluationStatus.EVALUATING)
+        job = _make_job(session, status=EvaluationStatus.SUBMITTED)
         token = uuid4()
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
+        # Progress to EVALUATING before failing
+        transition_evaluation_status(
+            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,
+        )
+        transition_evaluation_status(
+            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,
+        )
 
         transition_evaluation_status(
             job.evaluation_id,
@@ -698,5 +715,256 @@ def test_recovery_returns_zero_when_no_interrupted_jobs() -> None:
         )
         recovered = recover_interrupted_evaluation_jobs(SessionLocal)
         assert recovered == 0
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests: acquire only SUBMITTED, recovery catches tokenless
+# ---------------------------------------------------------------------------
+
+
+def test_acquire_only_allows_submitted() -> None:
+    """acquire_evaluation_execution must reject PREPROCESSING, EVALUATING,
+    SYNTHESIZING — only SUBMITTED jobs with null token are claimable."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        submitted = _make_job(session, status=EvaluationStatus.SUBMITTED)
+        pre = _make_job(session, status=EvaluationStatus.PREPROCESSING)
+        evaluating = _make_job(session, status=EvaluationStatus.EVALUATING)
+        synthesizing = _make_job(session, status=EvaluationStatus.SYNTHESIZING)
+        completed = _make_job(session, status=EvaluationStatus.COMPLETED)
+        failed = _make_job(session, status=EvaluationStatus.FAILED)
+
+        assert acquire_evaluation_execution(session, submitted.evaluation_id, uuid4()) is True
+        assert acquire_evaluation_execution(session, pre.evaluation_id, uuid4()) is False
+        assert acquire_evaluation_execution(session, evaluating.evaluation_id, uuid4()) is False
+        assert acquire_evaluation_execution(session, synthesizing.evaluation_id, uuid4()) is False
+        assert acquire_evaluation_execution(session, completed.evaluation_id, uuid4()) is False
+        assert acquire_evaluation_execution(session, failed.evaluation_id, uuid4()) is False
+    finally:
+        session.close()
+
+
+def test_recovery_finds_tokenless_evaluating(monkeypatch) -> None:
+    """Recovery must find EVALUATING jobs even with NULL execution_token
+    (the scenario where a crash happened during a status transition that
+    cleared the token but before reaching a terminal state)."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        owner_id = uuid4()
+        _seed_active_prompts(session)
+        document_id = _add_document(session, owner_id=owner_id, source_type="slm")
+
+        # Tokenless EVALUATING — the core regression case.
+        tokenless_stuck = EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=document_id,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.EVALUATING.value,
+            error_message="Previous transient error",
+            submitted_by=owner_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+            execution_token=None,
+            execution_started_at=None,
+            execution_heartbeat_at=None,
+        )
+        session.add(tokenless_stuck)
+
+        # Token-bearing EVALUATING — classic stale runner case.
+        stale_token = uuid4()
+        token_stuck = EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=document_id,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.EVALUATING.value,
+            error_message=None,
+            submitted_by=owner_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+            execution_token=stale_token,
+            execution_started_at=datetime.now(UTC),
+            execution_heartbeat_at=datetime.now(UTC),
+        )
+        session.add(token_stuck)
+
+        # Clean SUBMITTED — must not be recovered.
+        clean = EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=document_id,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.SUBMITTED.value,
+            error_message=None,
+            submitted_by=owner_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+            execution_token=None,
+        )
+        session.add(clean)
+
+        # Terminal COMPLETED — must not be touched.
+        terminal = EvaluationJob(
+            evaluation_id=uuid4(),
+            document_id=document_id,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.COMPLETED.value,
+            error_message=None,
+            submitted_by=owner_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            execution_token=None,
+        )
+        session.add(terminal)
+        session.commit()
+
+        from server.core import database as core_database
+        from server.modules.evaluations import orchestrator as orch
+
+        monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
+
+        seen: list = []
+
+        def fake_run(self, **kwargs):
+            seen.append(kwargs.get("evaluation_id"))
+            return SupervisorResult(
+                evaluation_id=kwargs["evaluation_id"],
+                document_id=kwargs["document_id"],
+                agent_results=[
+                    AgentEvaluationResult(
+                        agent_name="sme",
+                        evaluation_id=kwargs["evaluation_id"],
+                        document_id=kwargs["document_id"],
+                        subtotal=1,
+                        criterion_scores=(
+                            CriterionScore(
+                                criterion_id="c1",
+                                criterion_title="Criterion 1",
+                                score=1,
+                                justification="ok",
+                            ),
+                        ),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                ],
+            )
+
+        monkeypatch.setattr(orch.Supervisor, "run_evaluation", fake_run)
+
+        recovered = recover_interrupted_evaluation_jobs(SessionLocal)
+        # Both tokenless and token-bearing stuck jobs should be recovered.
+        assert recovered == 2
+        assert tokenless_stuck.evaluation_id in seen
+        assert token_stuck.evaluation_id in seen
+
+        session.expire_all()
+
+        # Tokenless stuck: reset to clean SUBMITTED, then ran to terminal.
+        refreshed_tokenless = session.get(EvaluationJob, tokenless_stuck.evaluation_id)
+        assert refreshed_tokenless.status == EvaluationStatus.COMPLETED.value
+        assert refreshed_tokenless.execution_token is None
+        # Prior transient error must be cleared.
+        assert refreshed_tokenless.error_message is None
+
+        # Token-bearing stuck: same.
+        refreshed_token = session.get(EvaluationJob, token_stuck.evaluation_id)
+        assert refreshed_token.status == EvaluationStatus.COMPLETED.value
+        assert refreshed_token.execution_token is None
+
+        # Clean SUBMITTED: untouched.
+        refreshed_clean = session.get(EvaluationJob, clean.evaluation_id)
+        assert refreshed_clean.status == EvaluationStatus.SUBMITTED.value
+
+        # Terminal COMPLETED: untouched.
+        refreshed_terminal = session.get(EvaluationJob, terminal.evaluation_id)
+        assert refreshed_terminal.status == EvaluationStatus.COMPLETED.value
+    finally:
+        session.close()
+
+
+def test_recovery_preserves_agent_results_on_tokenless_recovery(monkeypatch) -> None:
+    """When AgentResult rows already exist for a tokenless stuck job,
+    recovery must skip the supervisor and resume from synthesis, producing
+    no duplicate AgentResult rows."""
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        owner_id = uuid4()
+        _seed_active_prompts(session)
+        document_id = _add_document(session, owner_id=owner_id, source_type="slm")
+
+        evaluation_id = uuid4()
+        job = EvaluationJob(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            syllabus_id=None,
+            curriculum_id=None,
+            status=EvaluationStatus.EVALUATING.value,
+            error_message="timed out",
+            submitted_by=owner_id,
+            submitted_at=datetime.now(UTC),
+            completed_at=None,
+            execution_token=None,
+        )
+        session.add(job)
+
+        # Pre-existing AgentResult rows — must survive recovery.
+        existing = AgentResult(
+            agent_result_id=uuid4(),
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_name="sme",
+            subtotal=2.0,
+            processing_seconds=0.1,
+            token_count=4,
+            model_name="local-model",
+            summary="previous run",
+            success=True,
+        )
+        session.add(existing)
+        session.commit()
+
+        from server.core import database as core_database
+        from server.modules.evaluations import orchestrator as orch
+
+        monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
+
+        supervisor_calls: list = []
+
+        def explode_if_called(self, **kwargs):
+            supervisor_calls.append(kwargs.get("evaluation_id"))
+            raise AssertionError(
+                "Supervisor.run_evaluation should not be called when "
+                "AgentResult rows already exist"
+            )
+
+        monkeypatch.setattr(orch.Supervisor, "run_evaluation", explode_if_called)
+
+        recovered = recover_interrupted_evaluation_jobs(SessionLocal)
+        assert recovered == 1
+        assert supervisor_calls == []
+
+        session.expire_all()
+        # No duplicate AgentResult rows.
+        assert (
+            session.query(AgentResult)
+            .filter_by(evaluation_id=evaluation_id)
+            .count()
+            == 1
+        )
+        refreshed = session.get(EvaluationJob, evaluation_id)
+        assert refreshed.status == EvaluationStatus.COMPLETED.value
+        assert refreshed.error_message is None
     finally:
         session.close()

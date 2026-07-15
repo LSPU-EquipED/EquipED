@@ -1,2 +1,3 @@
-"""Criterion-specific extraction prompts and deterministic GAD score bands."""
+"""Criterion-specific extraction prompts, deterministic GAD score bands,
+and single-pass combined extraction support."""
 

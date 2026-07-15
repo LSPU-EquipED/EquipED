@@ -380,7 +380,7 @@ def acquire_evaluation_execution(
         .where(
             EvaluationJob.evaluation_id == evaluation_id,
             EvaluationJob.execution_token.is_(None),
-            EvaluationJob.status.not_in(_TERMINAL_STATUSES),
+            EvaluationJob.status == EvaluationStatus.SUBMITTED.value,
         )
         .values(
             execution_token=execution_token,
