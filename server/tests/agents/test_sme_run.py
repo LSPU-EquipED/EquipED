@@ -126,7 +126,11 @@ def test_full_success_scores_all_ten_from_grouped_pass(monkeypatch) -> None:
     )
 
     assert result.success is True
-    assert result.summary == ""
+    # Summary is now a deterministic, code-computed positive-then-improve
+    # sentence pair -- not empty (see sme._build_improvement_summary).
+    assert result.summary != ""
+    assert "strongest area" in result.summary
+    assert "consider" in result.summary
     scored_codes = {s.criterion_id for s in result.criterion_scores}
     assert scored_codes == registry.REGISTERED_CODES
     for score in result.criterion_scores:

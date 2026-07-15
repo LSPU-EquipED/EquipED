@@ -75,6 +75,21 @@ function getAdjectivalRating(average: number) {
   return 'Poor';
 }
 
+// Only SME and Coordinator get a generated summary (code-computed --
+// "areas to improve" / "objective-curriculum alignment"). GAD and ITSO
+// keep the original per-criterion justification dump.
+const SUMMARY_AGENT_IDS: ReadonlySet<ExportAgentId> = new Set(['sme', 'coordinator']);
+
+function getExportComments(domainData: ExportDomainData): string {
+  if (SUMMARY_AGENT_IDS.has(domainData.agentId) && domainData.summary) {
+    return domainData.summary;
+  }
+  return domainData.criteria
+    .filter((c) => c.justification)
+    .map((c) => c.justification)
+    .join('\n\n');
+}
+
 function buildExportHtml(domainData: ExportDomainData) {
   const config = AGENT_CONFIGS[domainData.agentId] || {
     code: 'N/A',
@@ -98,10 +113,7 @@ function buildExportHtml(domainData: ExportDomainData) {
     )
     .join('');
 
-  const comments = domainData.criteria
-    .filter((c) => c.justification)
-    .map((c) => escapeHtml(c.justification))
-    .join('\n\n');
+  const comments = escapeHtml(getExportComments(domainData));
 
   return `<!doctype html>
 <html>
@@ -233,10 +245,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
   const average = getExportAverage(domainData);
   const adjectivalRating = getAdjectivalRating(average);
 
-  const comments = domainData.criteria
-    .filter((c) => c.justification)
-    .map((c) => c.justification)
-    .join('\n\n');
+  const comments = getExportComments(domainData);
 
   return (
     <div className="mx-auto min-h-[11in] w-[8.5in] resize overflow-auto border border-slate-200 bg-white p-12 text-[11px] text-black">

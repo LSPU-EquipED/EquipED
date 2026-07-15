@@ -32,6 +32,7 @@ So Coordinator now has three entry points instead of one:
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 import time
 import uuid
@@ -49,6 +50,101 @@ from .scoring import curriculum_alignment, objective_alignment, skeleton
 logger = logging.getLogger(__name__)
 
 _CURRICULUM_N_RESULTS = 3
+
+
+def _build_alignment_summary(criterion_scores: tuple[CriterionScore, ...]) -> str:
+    """Summarize objective-to-curriculum alignment from Coordinator's own
+    A-05 score.
+
+    A-05 is the one criterion Coordinator always computes independently
+    (curriculum-grounded when a curriculum is attached, SLM-only otherwise --
+    see ``run()``), so it's the only source of Coordinator-specific insight;
+    the other 9 scores are reused from SME (see ``merge_with_sme``) and
+    would misrepresent Coordinator's own review if summarized here.
+    """
+    a05 = next((c for c in criterion_scores if c.criterion_id == "A-05"), None)
+    if a05 is None:
+        return ""
+    return f"Objective-curriculum alignment: {a05.justification}"
+
+
+def _build_llm_alignment_summary(
+    criterion_scores: tuple[CriterionScore, ...],
+    client: Any,
+) -> str:
+    """LLM-written Coordinator summary: a positive observation first (which
+    may cite ANY strong criterion across the full merged rubric, not just
+    A-05), then the single area most in need of improvement -- Coordinator's
+    own objective-curriculum alignment (A-05) when it has a real gap,
+    otherwise the weakest-scoring criterion elsewhere.
+
+    Requires the FULL merged 10-criterion set to let the positive line draw
+    on more than A-05 -- callers with only A-05 available (e.g. Coordinator's
+    own ``run()``, before SME's scores are merged in) should not call this;
+    use ``_build_alignment_summary`` instead and let the merge step upgrade
+    it later. The LLM only rephrases facts already computed by the engine
+    (scores and their justifications); it is not asked to score anything.
+    Falls back to the deterministic ``_build_alignment_summary`` text (A-05
+    only) if the call fails, the response isn't valid JSON, or no client is
+    available -- a summary-generation failure must never take down
+    Coordinator's result.
+    """
+    fallback = _build_alignment_summary(criterion_scores)
+    a05 = next((c for c in criterion_scores if c.criterion_id == "A-05"), None)
+    if a05 is None or client is None:
+        return fallback
+
+    others = sorted(
+        (c for c in criterion_scores if c.criterion_id != "A-05"),
+        key=lambda c: -c.score,
+    )
+    others_context = [
+        {"criterion": c.criterion_title, "score": c.score, "note": c.justification}
+        for c in others
+    ]
+
+    prompt = json.dumps(
+        {
+            "task": "Write a 2-sentence Program Coordinator review comment "
+            "using ONLY these facts -- invent nothing.",
+            "your_criterion": {
+                "name": "Objective-Curriculum Alignment",
+                "score": a05.score,
+                "note": a05.justification,
+            },
+            "other_rubric_context": others_context,
+            "score_scale": "1=Poor, 4=Very Satisfactory",
+            "structure": "Sentence 1 = positive (your_criterion or the "
+            "best entry in other_rubric_context). Sentence 2 = area to "
+            "improve (your_criterion if it has a real gap, else the "
+            "lowest-scoring entry in other_rubric_context).",
+            "style": "Terse, qualitative, no raw numbers/percentages, no "
+            "filler openers. Example: 'Objectives are well-aligned with "
+            "the curriculum. Assessment types are limited; more variety "
+            "would strengthen coverage.'",
+            "instructions": 'Return ONLY valid JSON: {"summary": "..."}.',
+        },
+        ensure_ascii=False,
+    )
+
+    try:
+        raw = client.generate(prompt, temperature=0.3, max_new_tokens=220)
+        payload = raw.strip()
+        if payload.startswith("```"):
+            payload = payload.strip("`")
+            if payload.lower().startswith("json"):
+                payload = payload[4:]
+        parsed = json.loads(payload.strip())
+        summary = parsed.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            return summary.strip()
+    except Exception as exc:
+        logger.warning(
+            "Coordinator LLM summary generation failed, using deterministic "
+            "fallback: %s",
+            str(exc)[:200],
+        )
+    return fallback
 
 
 class Coordinator(EngineScoredAgent):
@@ -159,7 +255,11 @@ class Coordinator(EngineScoredAgent):
             document_id=document_id,
             subtotal=float(criterion_score.score),
             criterion_scores=(criterion_score,),
-            summary="",
+            # Cheap placeholder -- only A-05 is known here. merge_with_sme()
+            # (or run_full_independent()) regenerates the real summary once
+            # the full 10-criterion context is available, so this value
+            # never reaches a user; no LLM call is worth spending on it.
+            summary=_build_alignment_summary((criterion_score,)),
             model_name=getattr(client, "model", get_llm_model_name()),
             processing_seconds=total_seconds,
             token_count=len(full_text.split()),
@@ -171,13 +271,21 @@ class Coordinator(EngineScoredAgent):
     def merge_with_sme(
         coordinator_result: AgentEvaluationResult,
         sme_result: AgentEvaluationResult,
+        *,
+        llm_client: Any | None = None,
     ) -> AgentEvaluationResult:
         """Splice SME's 9 non-A-05 scores with Coordinator's own A-05 score.
 
-        Pure -- no I/O, no LLM calls. Called from ``evaluations/orchestrator.py``
-        after both agents have already finished running. Coordinator's and
-        SME's rubric text is identical by design (see module docstring), so
-        the 9 reused scores' titles need no re-lookup.
+        No I/O beyond one optional LLM call: the summary is generated here
+        (not in Coordinator's own ``run()``) specifically because this is
+        the first point where the FULL 10-criterion context exists --
+        letting the summary's positive line cite any strong criterion, not
+        just A-05 (see ``_build_llm_alignment_summary``). Called from
+        ``evaluations/orchestrator.py`` after both agents have already
+        finished running. Coordinator's and SME's rubric text is
+        intentionally identical (see module docstring), so the 9 reused
+        scores' titles need no re-lookup. If ``llm_client`` is ``None`` or
+        the call fails, falls back to the deterministic A-05-only summary.
         """
         coordinator_a05 = next(
             (
@@ -203,6 +311,7 @@ class Coordinator(EngineScoredAgent):
             agent_name=coordinator_result.agent_name,
             criterion_scores=merged_scores,
             subtotal=subtotal,
+            summary=_build_llm_alignment_summary(merged_scores, llm_client),
             model_name=coordinator_result.model_name,
             processing_seconds=coordinator_result.processing_seconds,
             token_count=coordinator_result.token_count,
@@ -233,6 +342,7 @@ class Coordinator(EngineScoredAgent):
 
         if llm_client is not None:
             self._llm_client = llm_client
+        client = self._llm_client or get_llm_client()
 
         curriculum_id = (reference_document_ids or {}).get("curriculum")
         curriculum_text = ""
@@ -265,20 +375,24 @@ class Coordinator(EngineScoredAgent):
             basket_extract_kwargs=basket_extract_kwargs,
         )
 
-        if not curriculum_text:
-            return result
+        if curriculum_text:
+            try:
+                result = self._apply_curriculum_alignment(
+                    result=result,
+                    raw_baskets=raw_baskets,
+                    curriculum_text=curriculum_text,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Coordinator curriculum alignment check failed, keeping "
+                    "SLM-only A-05: %s",
+                    str(exc)[:200],
+                )
 
-        try:
-            return self._apply_curriculum_alignment(
-                result=result, raw_baskets=raw_baskets, curriculum_text=curriculum_text
-            )
-        except Exception as exc:
-            logger.warning(
-                "Coordinator curriculum alignment check failed, keeping "
-                "SLM-only A-05: %s",
-                str(exc)[:200],
-            )
-            return result
+        return dataclasses.replace(
+            result,
+            summary=_build_llm_alignment_summary(result.criterion_scores, client),
+        )
 
     def _prepare_curriculum_text(
         self, document_id: uuid.UUID, curriculum_id: Any, db: Any | None
