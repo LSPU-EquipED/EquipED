@@ -35,6 +35,11 @@ import type {
   ModelValidationCriterionScore,
   ModelValidationItem,
 } from '../types';
+import {
+  calculateConfusionMatrixMetrics,
+  emptyConfusionMatrix,
+  hasConfusionMatrixData,
+} from '../utils/confusionMatrix';
 
 const terminalStatuses = new Set(['COMPLETED', 'FAILED']);
 const criterionKey = (agentId: string, criterionId: string) => `${agentId}:${criterionId}`;
@@ -882,50 +887,7 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-type ConfusionMatrixMetrics = {
-  accuracy: number | null;
-  precision: number | null;
-  recall: number | null;
-};
-
 type ValidationAgentId = (typeof validationAgents)[number]['id'];
-
-const emptyConfusionMatrix = () => Array.from({ length: 4 }, () => [0, 0, 0, 0]);
-
-function calculateConfusionMatrixMetrics(matrix: number[][]): ConfusionMatrixMetrics {
-  const size = matrix.length;
-  const total = matrix.reduce(
-    (matrixTotal, row) => matrixTotal + row.reduce((rowTotal, count) => rowTotal + count, 0),
-    0,
-  );
-
-  if (total === 0) {
-    return { accuracy: null, precision: null, recall: null };
-  }
-
-  let exactMatches = 0;
-  const precisionByClass: number[] = [];
-  const recallByClass: number[] = [];
-
-  for (let classIndex = 0; classIndex < size; classIndex += 1) {
-    const truePositives = matrix[classIndex]?.[classIndex] ?? 0;
-    const predictedCount = matrix.reduce((sum, row) => sum + (row[classIndex] ?? 0), 0);
-    const expectedCount = matrix[classIndex]?.reduce((sum, count) => sum + count, 0) ?? 0;
-
-    exactMatches += truePositives;
-    if (predictedCount > 0) precisionByClass.push(truePositives / predictedCount);
-    if (expectedCount > 0) recallByClass.push(truePositives / expectedCount);
-  }
-
-  const average = (values: number[]) =>
-    values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-
-  return {
-    accuracy: exactMatches / total,
-    precision: average(precisionByClass),
-    recall: average(recallByClass),
-  };
-}
 
 function CircularMetric({
   label,
@@ -989,8 +951,30 @@ function ConfusionMatrix({
   isError: boolean;
 }) {
   const [selectedAgent, setSelectedAgent] = useState<'all' | ValidationAgentId>('all');
+  // Pull the per-agent matrix straight from the API response. We never
+  // synthesise one from scratch: if the API did not return a 4×4 grid
+  // with at least one counted cell, the per-agent breakdown is honest
+  // "unavailable" and must not be rendered as a fabricated all-zero
+  // table. The aggregate "all" view is allowed to display a real
+  // all-zero matrix per the Model Validation spec, so it keeps its
+  // current behaviour.
+  const perAgentMatrix = selectedAgent === 'all' ? null : (agentMatrices?.[selectedAgent] ?? null);
+  const isPerAgentBreakdownMissing =
+    selectedAgent !== 'all' && !hasConfusionMatrixData(perAgentMatrix);
+  // The matrix consumed for metric calculations and the table intensity
+  // must only ever be a real, comparable 4×4 grid. A missing key, the
+  // wrong shape, or an all-zero grid are all routed to a fresh empty
+  // matrix so the metric helpers either return nulls or — at worst —
+  // `0/0` denominators that already short-circuit inside the helper.
+  // The aggregate "all" view always uses the API-supplied matrix,
+  // including a legitimate all-zero response per the Model Validation
+  // spec.
   const displayedMatrix =
-    selectedAgent === 'all' ? matrix : (agentMatrices?.[selectedAgent] ?? emptyConfusionMatrix());
+    selectedAgent === 'all'
+      ? matrix
+      : hasConfusionMatrixData(perAgentMatrix)
+        ? perAgentMatrix
+        : emptyConfusionMatrix();
   const maximum = Math.max(1, ...displayedMatrix.flat());
   const metrics = calculateConfusionMatrixMetrics(displayedMatrix);
   const selectedLabel = selectedAgent === 'all' ? 'All agents' : agentLabel(selectedAgent);
@@ -1050,57 +1034,74 @@ function ConfusionMatrix({
             <p className="text-xs leading-relaxed text-slate-600">
               Precision and recall are macro averages across score classes with available samples.
             </p>
-            <table
-              className="mx-auto border-collapse text-center"
-              aria-label="Score confusion matrix"
-            >
-              <thead>
-                <tr>
-                  <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-slate-600">
-                    Expected ↓
-                  </th>
-                  {labels.map((label) => (
-                    <th
-                      key={label}
-                      scope="col"
-                      className="h-12 min-w-20 border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800"
-                    >
-                      Predicted {label}
+            {isPerAgentBreakdownMissing ? (
+              <div
+                role="status"
+                data-testid="per-agent-breakdown-unavailable"
+                className="rounded-sm border border-slate-200 bg-slate-50 px-4 py-6 text-center"
+              >
+                <p className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                  Breakdown unavailable
+                </p>
+                <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600">
+                  {selectedLabel} has no recorded expected-vs-actual score pairs yet, so a
+                  per-evaluator confusion matrix cannot be drawn. Run a validation against this
+                  agent to populate it.
+                </p>
+              </div>
+            ) : (
+              <table
+                className="mx-auto border-collapse text-center"
+                aria-label="Score confusion matrix"
+              >
+                <thead>
+                  <tr>
+                    <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                      Expected ↓
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {displayedMatrix.map((row, rowIndex) => (
-                  <tr key={labels[rowIndex]}>
-                    <th
-                      scope="row"
-                      className="h-20 border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800"
-                    >
-                      Expected {labels[rowIndex]}
-                    </th>
-                    {row.map((count, columnIndex) => {
-                      const intensity = count / maximum;
-                      const diagonal = rowIndex === columnIndex;
-                      return (
-                        <td
-                          key={`${rowIndex}-${columnIndex}`}
-                          className="h-20 min-w-20 border border-slate-200 text-xl font-bold tabular-nums text-slate-900"
-                          style={{
-                            backgroundColor: diagonal
-                              ? `rgba(59, 150, 62, ${0.08 + intensity * 0.48})`
-                              : `rgba(242, 200, 17, ${0.05 + intensity * 0.5})`,
-                          }}
-                          aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
-                        >
-                          {count}
-                        </td>
-                      );
-                    })}
+                    {labels.map((label) => (
+                      <th
+                        key={label}
+                        scope="col"
+                        className="h-12 min-w-20 border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800"
+                      >
+                        Predicted {label}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {displayedMatrix.map((row, rowIndex) => (
+                    <tr key={labels[rowIndex]}>
+                      <th
+                        scope="row"
+                        className="h-20 border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800"
+                      >
+                        Expected {labels[rowIndex]}
+                      </th>
+                      {row.map((count, columnIndex) => {
+                        const intensity = count / maximum;
+                        const diagonal = rowIndex === columnIndex;
+                        return (
+                          <td
+                            key={`${rowIndex}-${columnIndex}`}
+                            className="h-20 min-w-20 border border-slate-200 text-xl font-bold tabular-nums text-slate-900"
+                            style={{
+                              backgroundColor: diagonal
+                                ? `rgba(59, 150, 62, ${0.08 + intensity * 0.48})`
+                                : `rgba(242, 200, 17, ${0.05 + intensity * 0.5})`,
+                            }}
+                            aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
+                          >
+                            {count}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
