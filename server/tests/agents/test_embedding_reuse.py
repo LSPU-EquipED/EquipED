@@ -117,6 +117,11 @@ def test_precompute_falls_back_to_text_when_no_embedding(monkeypatch) -> None:
     )
 
     supervisor = Supervisor()
+    # Stub lazy embedding computation to return None so the text fallback is
+    # exercised — passing query_embedding=None no longer means "no embedding,"
+    # it means "compute one lazily via _compute_query_embedding."
+    monkeypatch.setattr(supervisor, "_compute_query_embedding", lambda text: None)
+
     result = supervisor._build_precomputed_context(
         "query text",
         query_embedding=None,

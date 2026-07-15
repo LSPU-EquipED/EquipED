@@ -110,7 +110,7 @@ BACKEND API (FastAPI)
 | Term Weighting | Key term analysis | scikit-learn TfidfVectorizer | ≥ 1.4 |
 | Embedding | Text vectorization | SentenceTransformers `paraphrase-multilingual-MiniLM-L12-v2` | ≥ 3.0 |
 | Vector Database | Embedding store & retrieval | ChromaDB | ≥ 0.5 |
-| LLM | Agent reasoning | Local open-source LLM backend (Gemma-preferred, Llama-compatible, configurable) | Latest |
+| LLM | Agent reasoning | Per-agent model routing: configurable via `LLM_MODEL_SME`, `LLM_MODEL_COORD`, `LLM_MODEL_GAD`, `LLM_MODEL_ITSO` env vars; fallback attribution and model provenance recorded in `agent_results.provenance` | Latest |
 | Agent Framework | Orchestration | LangChain AgentExecutor | ≥ 0.2 |
 | Relational DB | Metadata, logs, schemas | PostgreSQL | ≥ 15 |
 | ORM | Database access | SQLAlchemy + Alembic | ≥ 2.0 |
@@ -126,6 +126,10 @@ SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED
 ```
 
 Job state is persisted in PostgreSQL (`evaluation_jobs` table). The frontend polls job status via TanStack Query until `COMPLETED` or `FAILED`.
+
+**Deliberate partial evaluation.** When no curriculum is available for the confirmed program, the evaluation completes with job status `COMPLETED` but synthesizes with deliberate gaps. The monitoring matrix row receives `COMPLETED_PARTIAL` status. The `partial_without_curriculum` and `partial_reason` columns on `evaluation_jobs` carry this deliberate-partial signal. The Coordinator agent is skipped; remaining agents continue normally.
+
+**Execution ownership.** Each evaluation job has an `execution_token` column (UUID, nullable). Only jobs in `SUBMITTED` status with a NULL token can be claimed by a background worker. On startup, a recovery scan resets non-terminal jobs with a NULL token back to `SUBMITTED` for re-claim.
 
 ### 2.4 Repository Structure
 
@@ -212,7 +216,13 @@ equiped/
 │   │   └── migrations/              # Alembic migration scripts (auto-generated)
 │   │
 │   └── tests/
-│       ├── modules/                 # Mirror of modules/ — one test file per module service
+│       ├── agents/                  # Agent evaluation tests
+│       ├── evaluations/             # Evaluation lifecycle tests
+│       ├── documents/               # Document ingestion tests
+│       ├── admin/                   # Admin prompt/preference tests
+│       ├── core/                    # Infrastructure tests (config, db, llm client)
+│       ├── embeddings/              # Vector embedding tests
+│       ├── rubrics/                 # Rubric retrieval tests
 │       └── conftest.py              # Shared fixtures (test DB, mock LLM client)
 │
 │
@@ -455,7 +465,21 @@ def compute_tfidf_corpus(slm_chunks: list[DocumentChunk]) -> dict[str, float]:
 
 > **Note:** Stop words are intentionally disabled. The `english` stop word list in scikit-learn will incorrectly strip Filipino function words. A custom bilingual stop word list should be defined once the SLM corpus is collected. This is tracked as OTI-01.
 
-### 3.5 Failure Handling
+### 3.5 OCR Modes
+
+The ingestion pipeline supports three OCR modes, configured via `OCR_MODE` env variable:
+
+| Mode | Behavior |
+|---|---|
+| `optional` (default) | Applies Tesseract OCR only to pages without sufficient selectable text (≥ 20 chars) |
+| `required` | Applies Tesseract OCR to all pages regardless of selectable text presence |
+| `disabled` | Skips OCR entirely; pages without selectable text produce empty chunks and the ingestion proceeds (fails open) |
+
+**Language packs:** `eng+fil` (English and Filipino). **Limits:** 25 pages maximum per document, scanned at 200 DPI. **Fail-closed:** if any OCR page errors, the entire document preprocessing is aborted — no chunks, embeddings, or orphaned files are persisted.
+
+**Upload durability:** Before ingestion begins, a write-ahead `PENDING` row is inserted into the `documents` table with `processing_status = 'PENDING'`. An OCR readiness probe is available at `GET /documents/ready` to verify Tesseract is installed and reachable before upload.
+
+### 3.6 Failure Handling
 
 | Failure | Behavior |
 |---|---|
@@ -507,17 +531,21 @@ ChromaDB stores embeddings for reference and rubric content in named collections
 | `col_rubric_coordinator` | Program Coordinator rubric chunks | Coordinator agent |
 | `col_rubric_gad` | GAD rubric criteria chunks | GAD agent |
 | `col_rubric_itso` | ITSO rubric criteria chunks | ITSO agent |
+| `col_policy_all` | Admin-only policy library: institutional policies for ITSO domain (`intellectual_property`, `data_privacy`, `academic_rights`, `general_itso`) | ITSO agent (admin-managed, residency-gated; evidence delivery disabled by default) |
 
 Each document in a collection stores the following metadata alongside its embedding:
 
 ```python
 {
-    "chunk_id":    str,   # UUID
-    "document_id": str,   # FK to documents table
-    "source_type": str,   # as defined in DocumentChunk
-    "page_number": int,
-    "is_ocr":      bool,
-    "token_count": int
+    "chunk_id":     str,   # UUID
+    "document_id":  str,   # FK to documents table
+    "source_type":  str,   # as defined in DocumentChunk
+    "page_number":  int,
+    "is_ocr":       bool,
+    "token_count":  int,
+    "policy_area":  str,   # policy domain for col_policy_all (e.g. "intellectual_property")
+    "section_ref":  str,   # section reference within source document
+    "chunk_index":  int    # ordinal position within source document
 }
 ```
 
@@ -619,14 +647,14 @@ def retrieve_context(
 
 ### 5.1 Agent Architecture Overview
 
-All agents share the same local LLM backbone. The backend is intended to be Gemma-preferred, Llama-compatible, and configurable. Agents are differentiated by their system prompt, the ChromaDB collections they query for retrieval context, and the rubric criteria they evaluate against. The SLM chunk text being evaluated is always supplied directly.
+Agents use configurable per-agent model routing. Each agent has an independent model assignment via environment variables (`LLM_MODEL_SME`, `LLM_MODEL_COORD`, `LLM_MODEL_GAD`, `LLM_MODEL_ITSO`), with fallback attribution and model provenance recorded in `agent_results.provenance`. Agents are differentiated by their system prompt, the ChromaDB collections they query for retrieval context, and the rubric criteria they evaluate against. The SLM chunk text being evaluated is always supplied directly.
 
 The **Supervisor Agent** orchestrates the evaluation workflow. It does not perform rubric evaluation itself — it routes SLM chunks to subagents and manages job state.
 
 Each **Subagent** receives a batch of SLM chunks directly and for each chunk:
 1. Retrieves relevant rubric context from its scoped collection
 2. Retrieves relevant reference context (syllabus/curriculum) where applicable
-3. Calls the LLM with the chunk text as the direct evaluation input plus the separately retrieved context and rubric criteria
+3. Calls the LLM (using its assigned model) with the chunk text as the direct evaluation input plus the separately retrieved context and rubric criteria
 4. Parses the structured response into an `AgentEvaluationResult`
 
 ### 5.2 System Prompt Architecture
@@ -739,23 +767,15 @@ async def run_evaluation(evaluation_id: str, document_id: str) -> EvaluationJobR
     # Load all SLM chunks for this document from the document store / traceable chunk records
     slm_chunks = get_slm_chunks_for_document(document_id)
 
-    # Run all four subagents — can be parallelized in Phase 2
-    # Phase 1: sequential execution for simplicity and debuggability
-    results = []
-
-    for agent_fn in [run_sme_agent, run_coordinator_agent,
-                     run_gad_agent, run_itso_agent]:
-        try:
-            result = await agent_fn(
-                slm_chunks=slm_chunks,
-                document_id=document_id,
-                evaluation_id=evaluation_id
-            )
-            results.append(result)
-        except AgentParseError as e:
-            log_agent_error(evaluation_id, str(e))
-            # Continue with remaining agents; mark this result as errored
-            results.append(build_error_result(agent_fn, evaluation_id, str(e)))
+    # Run all four subagents in parallel via ThreadPoolExecutor
+    # Supervisor manages the pool and collects results; each agent runs independently
+    results = await run_agents_parallel(
+        agent_fns=[run_sme_agent, run_coordinator_agent,
+                   run_gad_agent, run_itso_agent],
+        slm_chunks=slm_chunks,
+        document_id=document_id,
+        evaluation_id=evaluation_id
+    )
 
     return EvaluationJobResult(
         evaluation_id=evaluation_id,
@@ -764,7 +784,7 @@ async def run_evaluation(evaluation_id: str, document_id: str) -> EvaluationJobR
     )
 ```
 
-> **Phase 1 note:** Agents run sequentially. Parallel execution (via `asyncio.gather`) is deferred to Phase 2 once agent behavior is validated individually.
+> **Note:** Agents execute in parallel via a supervisor-managed `ThreadPoolExecutor`. The evaluation is dispatched as a FastAPI `BackgroundTask`. Celery/Redis task queue remains deferred (see Section 12.3).
 
 ### 5.6 Subagent Implementation Pattern
 
@@ -824,11 +844,11 @@ async def run_sme_agent(
 The same pattern applies to `run_coordinator_agent`, `run_gad_agent`, and `run_itso_agent`, with the following differences:
 
 | Agent | Rubric Collection | Reference Collection | Additional Context |
-|---|---|---|---|
+|---|---|---|---|---|
 | `sme` | `col_rubric_sme` | `col_reference_all` | Direct SLM chunk input |
 | `coordinator` | `col_rubric_coordinator` | `col_reference_all` | Direct SLM chunk input + syllabus alignment query |
-| `gad` | `col_rubric_gad` | None | Direct SLM chunk input |
-| `itso` | `col_rubric_itso` | None | Direct SLM chunk input |
+| `gad` | `col_rubric_gad` | None | Direct SLM chunk input; single-pass combined fact-extraction LLM call, deterministic registry maps facts to 1–4 scores, grounding validation, bounded repair, temperature 0.0 |
+| `itso` | `col_rubric_itso` | `col_policy_all` (residency-gated, disabled by default) | Direct SLM chunk input; deterministic local citation prechecks, temperature 0.0 |
 
 ---
 
@@ -932,12 +952,9 @@ def extract_flags(agent_results: list[AgentEvaluationResult]) -> list[Evaluation
     return flags
 ```
 
-### 6.3 Report Generation (Deferred to Layer 5)
+### 6.3 Report Generation
 
-Full report generation (D-03: Final Evaluation Report, PDF export) is deferred to a later phase.
-The current Layer 4 synthesis produces the weighted score and monitoring matrix update; the
-structured `evaluation_reports` table and downloadable report artifacts will be implemented
-in a subsequent change.
+Layer 4 synthesis produces the weighted score and monitoring matrix update. A client-side truthful scorecard PDF export is implemented via jsPDF with bundled NotoSans font, available in the evaluation report view. The structured `evaluation_reports` table remains available for server-side report data.
 
 ### 6.4 Monitoring Matrix Update
 
@@ -962,6 +979,8 @@ def update_monitoring_matrix(
         feedback_status="NO_FEEDBACK"
     )
 ```
+
+**Deliberate partial (no curriculum).** When the evaluation was submitted without a curriculum (confirmed program but no uploaded curriculum document), the job reaches `COMPLETED` status but the monitoring matrix is set to `COMPLETED_PARTIAL`. The Coordinator agent is skipped; SME, GAD, and ITSO results are synthesized normally. The `partial_without_curriculum` and `partial_reason` columns on `evaluation_jobs` encode this signal, and the matrix update reads them to set `evaluation_status` accordingly.
 
 ---
 
@@ -1102,6 +1121,9 @@ CREATE TABLE document_chunks (
     token_count     INTEGER,
     is_ocr          BOOLEAN DEFAULT FALSE,
     chroma_stored   BOOLEAN DEFAULT FALSE,
+    policy_area     VARCHAR(100),          -- "intellectual_property" | "data_privacy" | "academic_rights" | "general_itso"
+    section_ref     VARCHAR(200),          -- Section reference within source document
+    chunk_index     INTEGER,               -- Ordinal position within source document
     created_at      TIMESTAMPTZ DEFAULT now()
 );
 
@@ -1115,19 +1137,23 @@ CREATE INDEX idx_chunks_agent_domain ON document_chunks(agent_domain);
 
 ```sql
 CREATE TABLE evaluation_jobs (
-    evaluation_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id     UUID NOT NULL REFERENCES documents(document_id),
-    status          VARCHAR(50) NOT NULL DEFAULT 'SUBMITTED',
+    evaluation_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id                UUID NOT NULL REFERENCES documents(document_id),
+    status                     VARCHAR(50) NOT NULL DEFAULT 'SUBMITTED',
         -- "SUBMITTED" | "PREPROCESSING"
         -- | "EVALUATING" | "SYNTHESIZING" | "COMPLETED" | "FAILED"
-    error_message   TEXT,
-    submitted_by    UUID REFERENCES users(user_id),
-    submitted_at    TIMESTAMPTZ DEFAULT now(),
-    completed_at    TIMESTAMPTZ
+    error_message              TEXT,
+    submitted_by               UUID REFERENCES users(user_id),
+    submitted_at               TIMESTAMPTZ DEFAULT now(),
+    completed_at               TIMESTAMPTZ,
+    execution_token            UUID,                -- Claim token for background worker; NULL = unclaimed
+    partial_without_curriculum BOOLEAN DEFAULT FALSE, -- True when no curriculum was available
+    partial_reason             TEXT                  -- Human-readable reason for deliberate partial
 );
 
 CREATE INDEX idx_jobs_document_id ON evaluation_jobs(document_id);
 CREATE INDEX idx_jobs_status ON evaluation_jobs(status);
+CREATE INDEX idx_jobs_execution_token ON evaluation_jobs(execution_token) WHERE execution_token IS NULL;
 ```
 
 ### 8.4 `agent_results`
@@ -1143,6 +1169,9 @@ CREATE TABLE agent_results (
     processing_time_s   NUMERIC(8,3),
     llm_tokens_used     INTEGER,
     error               TEXT,
+    provenance          JSONB,           -- Model routing metadata: requested_model, actual_model,
+                                         -- requested_temperature, fallback_occurred, repair_occurred,
+                                         -- precheck results (ITSO), prompt_trimmed, reference_context_dropped
     created_at          TIMESTAMPTZ DEFAULT now()
 );
 ```
@@ -1582,11 +1611,55 @@ Query preference logs with filtering.
 
 ---
 
+#### `POST /admin/model-validation`
+Run model validation on a completed evaluation. Admin-only; all checks run locally.
+
+**Request:**
+```json
+{
+  "evaluation_id": "uuid"
+}
+```
+
+**Response `200`:**
+```json
+{
+  "toxicity_check": {
+    "optional": true,
+    "toxicity_score": 0.02,
+    "flagged_criteria": []
+  },
+  "per_criterion_comparison": {
+    "sme": { "score": 32, "max": 40, "deviation": 0.5 },
+    "coordinator": { "score": 24, "max": 28, "deviation": 1.0 }
+  },
+  "confusion_matrices": {
+    "gad": {
+      "true_positive": 5,
+      "false_positive": 1,
+      "false_negative": 0,
+      "true_negative": 2
+    }
+  },
+  "coordinator_metrics": {
+    "agreement_rate": 0.85,
+    "criteria_correlation": 0.72
+  }
+}
+```
+
+---
+
 ## 10. Frontend Architecture
 
 **Stack:** React 18 + Vite + TanStack Router + TanStack Query  
 **Language:** TypeScript  
+**Test framework:** Vitest (`client/vitest.config.ts`)
 **Structure:** Feature-driven (see Section 2.4)
+
+Client test files live next to their source files in `__tests__` directories:
+- `client/src/features/evaluation/utils/__tests__/` — PDF export utility tests
+- `client/src/features/evaluation/components/__tests__/` — component unit tests
 
 ### 10.1 Route Structure
 
@@ -1665,7 +1738,7 @@ export function useMonitoringMatrix(filters: MatrixFilters) {
 
 | Component | Feature | Route | Responsibility |
 |---|---|---|---|
-| `UploadForm` | `upload` | `/upload` | PDF file input; source type selector; syllabus/curriculum association dropdowns; fires `useUploadDocument` then `useSubmitEvaluation` |
+| `UploadForm` | `upload` | `/upload` | PDF file input (SLM-only for faculty); program-confirmed curriculum selection; fires `useUploadDocument` then `useSubmitEvaluation`; admin manages references/policies/rubrics via separate admin upload |
 | `EvaluationStatusBanner` | `evaluation` | `/evaluations/:id` | Renders pipeline progress using `useEvaluationStatus`; disappears on `COMPLETED` |
 | `Scorecard` | `evaluation` | `/evaluations/:id` | Renders per-domain scores and per-criterion breakdown from report (D-01) |
 | `FlagList` | `evaluation` | `/evaluations/:id` | Renders contextual document highlights with criterion and justification (D-02) |
@@ -1787,12 +1860,11 @@ This map shows data flow between all major components, tracing the full path of 
 **Planned approach:** Taghipour & Ng (2016) RNN-AES model adapted for SLM text. Would run as a pre-processing step before agent evaluation, providing a coherence score that is injected into the SME agent's context.  
 **Integration point:** Between Layer 2 and Layer 3. Output: a `coherence_score` (0.0–1.0) attached to each SLM document, passed to the SME agent as additional context.
 
-### 12.2 Parallel Agent Execution (Phase 2)
+### 12.2 Parallel Agent Execution
 
-**Status:** Deferred  
-**Current:** Agents execute sequentially in Phase 1  
-**Planned:** Replace sequential loop in `supervisor.py` with `asyncio.gather` for concurrent agent execution  
-**Condition:** Implement after individual agent behavior is validated and evaluation latency is benchmarked as unacceptably high
+**Status:** Implemented
+**Implementation:** Agents execute in parallel via a supervisor-managed `ThreadPoolExecutor`, dispatched as a FastAPI `BackgroundTask`.
+**Note:** This replaced the original sequential Phase 1 design. Celery/Redis remain deferred (see Section 12.3).
 
 ### 12.3 Task Queue (Phase 2)
 
@@ -1815,7 +1887,7 @@ This map shows data flow between all major components, tracing the full path of 
 | OTI-06 | Local LLM backend data handling policy confirmation (RA 10173 compliance) | Section 2.2 | LSPU SCC IT | Pending institutional review (not confirmed yet) |
 | OTI-07 | Minimum preference log volume threshold before prompt update is actionable | Section 7.1 | Research team + advisor | Pending advisor input |
 | OTI-08 | Exact custom chunker boundary threshold value — initial default may need tuning per corpus | Section 3.3 | Development team | Pending corpus testing |
-| OTI-09 | PDF report generation for D-03 download — library selection (WeasyPrint vs ReportLab) | Section 6.3 | Development team | Pending decision |
+| OTI-09 | PDF report generation for D-03 download — library selection (WeasyPrint vs ReportLab) | Section 6.3 | Development team | **Resolved: client-side jsPDF with NotoSans bundled font** |
 
 ## 14. ITSO Scoring Consistency Baseline — Operator Guidance
 
