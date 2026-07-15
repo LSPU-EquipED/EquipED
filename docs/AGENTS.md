@@ -10,8 +10,8 @@
 - Do not present open decisions as settled architecture.
 - When reconciling inconsistencies, preserve the canonical structure already established in `openspec/specs/` unless the change is intentional.
 - Keep terminology, path names, route names, module names, and lifecycle states consistent with the rest of the repo.
-- The evaluation lifecycle is: SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED. There is no EMBEDDING step.
-- SLM = direct evaluation input (not embedded). Reference/rubric = ChromaDB-embedded corpus.
+- The evaluation lifecycle is: SUBMITTED → PREPROCESSING → EVALUATING → SYNTHESIZING → COMPLETED | FAILED. There is no EMBEDDING step. Intentional partial evaluations (Coordinator skipped) produce job COMPLETED, matrix COMPLETED_PARTIAL.
+- SLM = direct evaluation input (not embedded). Reference/rubric and policy (admin-only collection) = ChromaDB-embedded corpus. ITSO policy evidence delivery is local/residency-gated.
 - chroma_data and uploads live at the repository root, not inside server/.
 
 ## What Not To Do Here
