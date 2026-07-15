@@ -4,7 +4,8 @@ import { AlertTriangle, Loader2, CheckCircle, Flag } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
-import { formatScore, cleanJustification } from './scoreHelpers';
+import { formatScore, cleanJustification, overallScoreDisplay } from '../utils/scoreHelpers';
+import { ScorecardPdfExport } from './ScorecardPdfExport';
 
 const STATUS_MESSAGES: Record<string, string> = {
   SUBMITTED: 'Job submitted, waiting to start...',
@@ -111,19 +112,35 @@ export function Scorecard() {
             )}
           </div>
         </div>
-        {results && (
-          <div className="text-right">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Synthesized Score
-            </p>
-            <p className="mt-1 text-3xl font-bold text-primary">
-              {typeof results.synthesized_score === 'number'
-                ? formatScore(results.synthesized_score)
-                : '—'}
-              <span className="text-lg text-slate-500 font-normal">/4</span>
-            </p>
-          </div>
-        )}
+        {results && (() => {
+          const display = overallScoreDisplay({
+            overallScore: results.overall_score,
+            synthesizedScore: results.synthesized_score,
+          });
+          return (
+            <div className="flex shrink-0 items-center gap-5">
+              <ScorecardPdfExport results={results} />
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Overall (1-4 scale)
+                </p>
+                <p
+                  className="mt-1 text-3xl font-bold text-primary"
+                  data-testid="overall-score"
+                >
+                  {display.canonicalText}
+                </p>
+                <p
+                  className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500"
+                  data-testid="monitoring-percent"
+                  title="0-100 monitoring percentage derived from the canonical 1-4 score."
+                >
+                  Monitoring: {display.monitoringText}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
       </header>
 
       <main className="flex-1 overflow-y-auto p-10">

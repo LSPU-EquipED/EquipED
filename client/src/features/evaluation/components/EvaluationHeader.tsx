@@ -49,15 +49,30 @@ export function EvaluationHeader({
   const partialReason = results?.partial_reason || status?.partial_reason;
 
   const domainScore = results?.domain_scores[selectedAgent.id];
+  // The persisted `EvaluationResponse` carries `submitted_by`; the
+  // `EvaluationResultsResponse` does not, so we leave the reviewer
+  // unavailable rather than invent a name.
+  const reviewer = null;
   const domainData: ExportDomainData = {
     agentId: selectedAgent.id,
-    documentTitle: document?.title || 'Unknown Document',
-    program: document?.program ?? undefined,
+    documentTitle: document?.title ?? undefined,
+    program: document?.program ?? null,
+    courseTitle: document?.courseTitle ?? null,
+    courseCode: document?.courseCode ?? null,
+    academicYear: document?.academicYear ?? null,
+    reviewer,
+    evaluationId: evaluationId ?? undefined,
+    isPartial,
+    partialReason: partialReason ?? null,
+    evaluationStatus: results?.evaluation_status,
     subtotal: domainScore?.subtotal || 0,
-    max_score: domainScore?.max_score || 100,
+    max_score: domainScore?.max_score || 4,
     status: domainScore?.status || 'UNKNOWN',
+    adjectival_rating: domainScore?.adjectival_rating,
     criteria: domainScore?.criteria || [],
     summary: domainScore?.summary,
+    results,
+    document: document ?? null,
   };
 
   const handleViewFullReport = () => {
