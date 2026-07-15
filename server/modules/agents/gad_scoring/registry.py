@@ -105,6 +105,9 @@ CRITERIA: tuple[CriterionDefinition, ...] = (
     ),
 )
 
+REGISTRY_VERSION = 1
+"""Increment when score-band thresholds change."""
+
 REGISTERED_CODES: frozenset[str] = frozenset(
     definition.criterion_id for definition in CRITERIA
 )

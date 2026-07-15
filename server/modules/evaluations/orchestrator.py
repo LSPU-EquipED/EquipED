@@ -421,18 +421,25 @@ def _reconcile_coordinator_result(
 
 
 def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
-    """Recover non-terminal evaluation jobs whose execution tokens are stale.
+    """Recover evaluation jobs stuck in non-terminal, non-SUBMITTED statuses.
 
-    On startup, any non-terminal job that still holds an execution_token
-    belongs to a runner that did not finish (e.g. crashed mid-run). This
+    At startup, any job in PREPROCESSING, EVALUATING, or SYNTHESIZING is
+    considered stuck — whether it holds a stale execution_token (classic
+    crashed-runner case) or has no token at all (e.g. a crash during a
+    terminal transition that cleared the token before completing). This
     helper:
 
-      1. Clears the internal execution ownership fields on those rows so
-         they can be re-claimed.
-      2. Sequentially re-runs each one through :func:`run_evaluation_job`,
+      1. Finds all jobs with one of those stuck statuses (regardless of
+         execution_token).
+      2. Atomically resets them to clean SUBMITTED, clearing the execution
+         token, timestamps, and any prior transient error_message.
+      3. Sequentially re-runs each one through :func:`run_evaluation_job`,
          which is idempotent: if AgentResult rows already exist for the
          evaluation, the supervisor is skipped and the orchestrator
          resumes from synthesis/finalization.
+
+    Terminal jobs (COMPLETED/FAILED) and clean SUBMITTED jobs are never
+    touched.
 
     Returns the number of recovered jobs.
     """
@@ -442,17 +449,15 @@ def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
 
     session = db_session_factory()
     try:
-        terminal = (
-            EvaluationStatus.COMPLETED.value,
-            EvaluationStatus.FAILED.value,
+        stuck_statuses = (
+            EvaluationStatus.PREPROCESSING.value,
+            EvaluationStatus.EVALUATING.value,
+            EvaluationStatus.SYNTHESIZING.value,
         )
         candidate_ids = [
             row[0]
             for row in session.query(EvaluationJob.evaluation_id)
-            .filter(
-                EvaluationJob.execution_token.isnot(None),
-                EvaluationJob.status.notin_(terminal),
-            )
+            .filter(EvaluationJob.status.in_(stuck_statuses))
             .all()
         ]
         if not candidate_ids:
@@ -473,6 +478,7 @@ def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
                 execution_token=None,
                 execution_started_at=None,
                 execution_heartbeat_at=None,
+                error_message=None,
             )
         )
         session.commit()

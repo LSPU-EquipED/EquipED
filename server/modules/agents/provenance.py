@@ -39,6 +39,16 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
         "repair_occurred",
         "prompt_trimmed",
         "reference_context_dropped",
+        # Phase 2 — GAD single-pass extraction (3.3)
+        "extraction_schema_version",
+        "registry_version",
+        "evidence_candidates",
+        "evidence_accepted",
+        "evidence_rejected",
+        # Phase 2 — GAD timing (3.4)
+        "gad_extraction_seconds",
+        "gad_validation_seconds",
+        "gad_scoring_seconds",
     }
 )
 
@@ -66,6 +76,14 @@ _PROVENANCE_TYPES: dict[str, type | tuple[type, type]] = {
     "repair_occurred": bool,
     "prompt_trimmed": bool,
     "reference_context_dropped": int,
+    "extraction_schema_version": str,
+    "registry_version": int,
+    "evidence_candidates": int,
+    "evidence_accepted": int,
+    "evidence_rejected": int,
+    "gad_extraction_seconds": (int, float),
+    "gad_validation_seconds": (int, float),
+    "gad_scoring_seconds": (int, float),
 }
 
 # Bounded string/list value caps per key.
@@ -78,6 +96,7 @@ _PROVENANCE_MAX_LEN: dict[str, int] = {
     "chunk_ids_ordered": 64,
     "policy_delivery_state": 20,
     "policy_retrieval_version": 10,
+    "extraction_schema_version": 10,
 }
 
 _SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
