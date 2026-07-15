@@ -879,6 +879,95 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+type ConfusionMatrixMetrics = {
+  accuracy: number | null;
+  precision: number | null;
+  recall: number | null;
+};
+
+function calculateConfusionMatrixMetrics(matrix: number[][]): ConfusionMatrixMetrics {
+  const size = matrix.length;
+  const total = matrix.reduce(
+    (matrixTotal, row) => matrixTotal + row.reduce((rowTotal, count) => rowTotal + count, 0),
+    0,
+  );
+
+  if (total === 0) {
+    return { accuracy: null, precision: null, recall: null };
+  }
+
+  let exactMatches = 0;
+  const precisionByClass: number[] = [];
+  const recallByClass: number[] = [];
+
+  for (let classIndex = 0; classIndex < size; classIndex += 1) {
+    const truePositives = matrix[classIndex]?.[classIndex] ?? 0;
+    const predictedCount = matrix.reduce((sum, row) => sum + (row[classIndex] ?? 0), 0);
+    const expectedCount = matrix[classIndex]?.reduce((sum, count) => sum + count, 0) ?? 0;
+
+    exactMatches += truePositives;
+    if (predictedCount > 0) precisionByClass.push(truePositives / predictedCount);
+    if (expectedCount > 0) recallByClass.push(truePositives / expectedCount);
+  }
+
+  const average = (values: number[]) =>
+    values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+
+  return {
+    accuracy: exactMatches / total,
+    precision: average(precisionByClass),
+    recall: average(recallByClass),
+  };
+}
+
+function CircularMetric({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number | null;
+  color: string;
+}) {
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const boundedValue = value == null ? 0 : Math.min(1, Math.max(0, value));
+  const percentage = value == null ? null : boundedValue * 100;
+
+  return (
+    <div className="flex min-w-0 items-center gap-3 border border-slate-200 bg-slate-50 p-3">
+      <div
+        className="relative size-24 shrink-0"
+        role="img"
+        aria-label={`${label}: ${percentage == null ? 'unavailable' : `${percentage.toFixed(1)} percent`}`}
+      >
+        <svg className="size-24 -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth="8"
+            strokeLinecap="butt"
+            strokeDasharray={`${boundedValue * circumference} ${circumference}`}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-lg font-bold tabular-nums text-slate-900">
+          {percentage == null ? '—' : `${percentage.toFixed(1)}%`}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-800">{label}</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+          {label === 'Accuracy' ? 'Exact score matches' : 'Macro average by score class'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function ConfusionMatrix({
   labels,
   matrix,
@@ -891,6 +980,7 @@ function ConfusionMatrix({
   isError: boolean;
 }) {
   const maximum = Math.max(1, ...matrix.flat());
+  const metrics = calculateConfusionMatrixMetrics(matrix);
 
   return (
     <div className="overflow-hidden rounded-sm border border-slate-200 bg-white">
@@ -910,57 +1000,67 @@ function ConfusionMatrix({
             Unable to load validation metrics.
           </p>
         ) : (
-          <table
-            className="mx-auto border-collapse text-center"
-            aria-label="Score confusion matrix"
-          >
-            <thead>
-              <tr>
-                <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-slate-600">
-                  Expected ↓
-                </th>
-                {labels.map((label) => (
-                  <th
-                    key={label}
-                    scope="col"
-                    className="h-12 min-w-20 border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800"
-                  >
-                    Predicted {label}
+          <div className="grid gap-5">
+            <div className="grid gap-3 md:grid-cols-3" aria-label="Confusion matrix metrics">
+              <CircularMetric label="Accuracy" value={metrics.accuracy} color="#1b3b87" />
+              <CircularMetric label="Precision" value={metrics.precision} color="#3b963e" />
+              <CircularMetric label="Recall" value={metrics.recall} color="#3eaed4" />
+            </div>
+            <p className="text-xs leading-relaxed text-slate-600">
+              Precision and recall are macro averages across score classes with available samples.
+            </p>
+            <table
+              className="mx-auto border-collapse text-center"
+              aria-label="Score confusion matrix"
+            >
+              <thead>
+                <tr>
+                  <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                    Expected ↓
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {matrix.map((row, rowIndex) => (
-                <tr key={labels[rowIndex]}>
-                  <th
-                    scope="row"
-                    className="h-20 border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800"
-                  >
-                    Expected {labels[rowIndex]}
-                  </th>
-                  {row.map((count, columnIndex) => {
-                    const intensity = count / maximum;
-                    const diagonal = rowIndex === columnIndex;
-                    return (
-                      <td
-                        key={`${rowIndex}-${columnIndex}`}
-                        className="h-20 min-w-20 border border-slate-200 text-xl font-bold tabular-nums text-slate-900"
-                        style={{
-                          backgroundColor: diagonal
-                            ? `rgba(59, 150, 62, ${0.08 + intensity * 0.48})`
-                            : `rgba(242, 200, 17, ${0.05 + intensity * 0.5})`,
-                        }}
-                        aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
-                      >
-                        {count}
-                      </td>
-                    );
-                  })}
+                  {labels.map((label) => (
+                    <th
+                      key={label}
+                      scope="col"
+                      className="h-12 min-w-20 border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800"
+                    >
+                      Predicted {label}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {matrix.map((row, rowIndex) => (
+                  <tr key={labels[rowIndex]}>
+                    <th
+                      scope="row"
+                      className="h-20 border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800"
+                    >
+                      Expected {labels[rowIndex]}
+                    </th>
+                    {row.map((count, columnIndex) => {
+                      const intensity = count / maximum;
+                      const diagonal = rowIndex === columnIndex;
+                      return (
+                        <td
+                          key={`${rowIndex}-${columnIndex}`}
+                          className="h-20 min-w-20 border border-slate-200 text-xl font-bold tabular-nums text-slate-900"
+                          style={{
+                            backgroundColor: diagonal
+                              ? `rgba(59, 150, 62, ${0.08 + intensity * 0.48})`
+                              : `rgba(242, 200, 17, ${0.05 + intensity * 0.5})`,
+                          }}
+                          aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
+                        >
+                          {count}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
       <div className="flex flex-wrap gap-4 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-600">
