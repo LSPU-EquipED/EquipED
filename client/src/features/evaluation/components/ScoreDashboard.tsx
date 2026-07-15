@@ -16,7 +16,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
 import { FeedbackPanel } from './FeedbackPanel';
-import { formatScore } from './scoreHelpers';
+import { formatScore } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import type {
   CriterionScoreItem,
@@ -286,11 +286,12 @@ export function ScoreDashboard({
           <div
             className="grid size-28 place-items-center rounded-full border-4 bg-white p-3"
             style={{ borderColor: scoreRingColor }}
+            title="Monitoring percentage (0-100 scale) derived from the 1-4 canonical subtotal. The adjectival rating below is the canonical 1-4 evaluation."
           >
             <div className="text-center">
               <div className="text-3xl font-bold text-slate-900">{selectedScore.score}</div>
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                score
+                monitoring %
               </div>
             </div>
           </div>
@@ -575,9 +576,10 @@ export function ScoreDashboard({
                       'bg-[#f2c811] text-[#1e293b]',
                     selectedScore.score < 70 && 'bg-[#b91c1c] text-white',
                   )}
+                  title="Monitoring percentage (0-100) derived from the canonical 1-4 subtotal. The adjectival rating below is on the 1-4 scale."
                 >
                   <Target className="size-3.5" aria-hidden="true" />
-                  {selectedScore.score}% score
+                  {selectedScore.score}% monitoring
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm text-slate-500">

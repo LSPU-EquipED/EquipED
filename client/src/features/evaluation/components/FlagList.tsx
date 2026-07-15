@@ -1,7 +1,7 @@
 import { Flag, FileText } from 'lucide-react';
 import type { EvaluationFlagItem } from '../types';
 import type { ClientDocumentChunk } from '@/shared/types/documents';
-import { cleanJustification, formatScore } from './scoreHelpers';
+import { cleanJustification, formatScore } from '../utils/scoreHelpers';
 
 type FlagListProps = {
   readonly flags?: readonly EvaluationFlagItem[];

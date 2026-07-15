@@ -1,6 +1,6 @@
 import { MessageSquareText, Quote } from 'lucide-react';
 import type { CriterionScoreItem } from '../types';
-import { cleanJustification } from './scoreHelpers';
+import { cleanJustification } from '../utils/scoreHelpers';
 
 type FeedbackPanelProps = {
   readonly criteria?: readonly CriterionScoreItem[];
