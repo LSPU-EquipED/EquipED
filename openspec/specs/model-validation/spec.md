@@ -118,6 +118,8 @@ The system SHALL persist and show each expected criterion score beside the corre
 
 The system SHALL compute evaluation latency, score-class perplexity, and a contextual toxicity estimate for completed validation runs. Score-class perplexity SHALL be `exp(mean absolute score error)` over the institutional 1–4 scale so that a perfect score match has perplexity 1.00. Toxicity SHALL be assessed dynamically from generated summaries and justifications by the configured local or self-hosted LLM backend, with a numeric score, bounded label, concise explanation, and model provenance persisted on the validation record.
 
+Generated comments SHALL remain stored with their authoritative evaluation outputs in `agent_results.summary` and `criterion_scores.justification`. The `model_validations` row SHALL store the resulting toxicity assessment, explanation, model provenance, error, and assessment time rather than duplicating the generated comments.
+
 #### Scenario: Completed run contributes metrics
 
 - **WHEN** a validation evaluation completes with persisted agent output
@@ -135,6 +137,8 @@ The system SHALL compute evaluation latency, score-class perplexity, and a conte
 
 The system SHALL aggregate all available expected and actual criterion-score pairs into a 4×4 confusion matrix with expected classes as rows and predicted classes as columns.
 
+The metrics response SHALL also provide a 4×4 matrix for each active evaluator domain so an admin can isolate SME, Program Coordinator, GAD, and ITSO agreement without changing the overall aggregate. An agent matrix with no available score pairs SHALL remain present with zero counts and unavailable derived metrics.
+
 The Model Validation page SHALL derive accuracy, macro precision, and macro recall from the displayed confusion matrix and SHALL present the three values as circular percentage visualizations. Macro precision and macro recall SHALL average only score classes that have an available denominator; when the matrix contains no comparisons, the visualizations SHALL show that the metrics are unavailable rather than inventing zero-percent performance.
 
 #### Scenario: Validation analytics are displayed
@@ -142,6 +146,7 @@ The Model Validation page SHALL derive accuracy, macro precision, and macro reca
 - **WHEN** at least one completed validation exists
 - **THEN** the admin SHALL see latency, score-class perplexity, toxicity, and the confusion matrix together as a visual interpretation
 - **AND** the confusion matrix SHALL show circular accuracy, macro precision, and macro recall summaries calculated from its counts
+- **AND** the admin SHALL be able to switch between all-agent results and the Program Coordinator or another individual evaluator domain
 
 #### Scenario: Validation analytics have no compared scores
 

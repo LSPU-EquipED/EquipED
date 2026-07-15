@@ -488,6 +488,10 @@ def create_model_validation(
         db=db,
         with_commit=False,
     )
+    # Persist the FK parent before adding the benchmark child. PostgreSQL
+    # enforces this constraint immediately; the flush stays inside the same
+    # transaction, so later failures still roll the entire operation back.
+    db.flush()
     validation = ModelValidation(
         validation_id=uuid.uuid4(),
         evaluation_id=evaluation.evaluation_id,
@@ -889,7 +893,7 @@ def _score_class(score: float) -> int:
 
 
 def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
-    """Aggregate criterion score pairs into scalar metrics and a 4x4 matrix."""
+    """Aggregate score pairs into overall and per-agent 4x4 matrices."""
 
     completed = [
         item
@@ -904,10 +908,17 @@ def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
         if score.actual_score is not None and score.absolute_error is not None
     ]
     matrix = [[0 for _ in range(4)] for _ in range(4)]
+    agent_matrices = {
+        agent_id: [[0 for _ in range(4)] for _ in range(4)]
+        for agent_id in AGENT_NAMES
+    }
     for score in paired_scores:
         expected_class = _score_class(score.expected_score)
         actual_class = _score_class(score.actual_score)
         matrix[expected_class - 1][actual_class - 1] += 1
+        agent_matrix = agent_matrices.get(score.agent_id)
+        if agent_matrix is not None:
+            agent_matrix[expected_class - 1][actual_class - 1] += 1
 
     completed_count = len(completed)
     if not paired_scores:
@@ -915,6 +926,7 @@ def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
             completed_runs=completed_count,
             class_labels=["1", "2", "3", "4"],
             confusion_matrix=matrix,
+            agent_confusion_matrices=agent_matrices,
         )
 
     mean_absolute_error = sum(score.absolute_error for score in paired_scores) / len(
@@ -938,4 +950,5 @@ def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
         ),
         class_labels=["1", "2", "3", "4"],
         confusion_matrix=matrix,
+        agent_confusion_matrices=agent_matrices,
     )

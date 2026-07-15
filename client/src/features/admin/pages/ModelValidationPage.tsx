@@ -364,8 +364,10 @@ export function ModelValidationPage() {
             />
           </dl>
           <div className="grid gap-2 border-t border-slate-200 p-4 text-xs leading-relaxed text-slate-600">
-            <p>Score perplexity is e raised to mean absolute score error; 1.00 is ideal.</p>
-            <p>Toxicity is assessed contextually by the configured model and remains advisory.</p>
+            <p>
+              Toxicity reads stored agent summaries and criterion justifications. Model Validation
+              stores the resulting assessment and model provenance, not a duplicate comment.
+            </p>
             <p>Automated evaluations remain advisory. Human review is authoritative.</p>
           </div>
         </div>
@@ -380,6 +382,7 @@ export function ModelValidationPage() {
               [0, 0, 0, 0],
             ]
           }
+          agentMatrices={metricSummary.data?.agent_confusion_matrices}
           isLoading={metricSummary.isLoading}
           isError={metricSummary.isError}
         />
@@ -885,6 +888,10 @@ type ConfusionMatrixMetrics = {
   recall: number | null;
 };
 
+type ValidationAgentId = (typeof validationAgents)[number]['id'];
+
+const emptyConfusionMatrix = () => Array.from({ length: 4 }, () => [0, 0, 0, 0]);
+
 function calculateConfusionMatrixMetrics(matrix: number[][]): ConfusionMatrixMetrics {
   const size = matrix.length;
   const total = matrix.reduce(
@@ -971,16 +978,22 @@ function CircularMetric({
 function ConfusionMatrix({
   labels,
   matrix,
+  agentMatrices,
   isLoading,
   isError,
 }: {
   labels: string[];
   matrix: number[][];
+  agentMatrices?: Record<string, number[][]>;
   isLoading: boolean;
   isError: boolean;
 }) {
-  const maximum = Math.max(1, ...matrix.flat());
-  const metrics = calculateConfusionMatrixMetrics(matrix);
+  const [selectedAgent, setSelectedAgent] = useState<'all' | ValidationAgentId>('all');
+  const displayedMatrix =
+    selectedAgent === 'all' ? matrix : (agentMatrices?.[selectedAgent] ?? emptyConfusionMatrix());
+  const maximum = Math.max(1, ...displayedMatrix.flat());
+  const metrics = calculateConfusionMatrixMetrics(displayedMatrix);
+  const selectedLabel = selectedAgent === 'all' ? 'All agents' : agentLabel(selectedAgent);
 
   return (
     <div className="overflow-hidden rounded-sm border border-slate-200 bg-white">
@@ -1001,6 +1014,34 @@ function ConfusionMatrix({
           </p>
         ) : (
           <div className="grid gap-5">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Filter confusion matrix by evaluator"
+            >
+              {[{ id: 'all', label: 'All agents' }, ...validationAgents].map((agent) => {
+                const isSelected = selectedAgent === agent.id;
+                return (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedAgent(agent.id as 'all' | ValidationAgentId)}
+                    className={cn(
+                      'rounded-sm border px-3 py-2 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                      isSelected
+                        ? 'border-[#1b3b87] bg-[#1b3b87] text-white'
+                        : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50',
+                    )}
+                  >
+                    {agent.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-sm font-semibold text-slate-800" aria-live="polite">
+              Showing {selectedLabel} score agreement
+            </p>
             <div className="grid gap-3 md:grid-cols-3" aria-label="Confusion matrix metrics">
               <CircularMetric label="Accuracy" value={metrics.accuracy} color="#1b3b87" />
               <CircularMetric label="Precision" value={metrics.precision} color="#3b963e" />
@@ -1030,7 +1071,7 @@ function ConfusionMatrix({
                 </tr>
               </thead>
               <tbody>
-                {matrix.map((row, rowIndex) => (
+                {displayedMatrix.map((row, rowIndex) => (
                   <tr key={labels[rowIndex]}>
                     <th
                       scope="row"
