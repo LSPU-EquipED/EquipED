@@ -149,6 +149,7 @@ export interface ModelValidationMetricsResponse {
   mean_toxicity_score: number | null;
   class_labels: string[];
   confusion_matrix: number[][];
+  agent_confusion_matrices: Record<'sme' | 'coordinator' | 'gad' | 'itso', number[][]>;
 }
 
 export interface ModelValidationCreateBody {

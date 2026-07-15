@@ -191,6 +191,7 @@ class ModelValidationMetricsResponse(BaseModel):
     mean_toxicity_score: float | None = None
     class_labels: list[str]
     confusion_matrix: list[list[int]]
+    agent_confusion_matrices: dict[str, list[list[int]]] = Field(default_factory=dict)
 
 
 class AdminEvaluationResponse(BaseModel):

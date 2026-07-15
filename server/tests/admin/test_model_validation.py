@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from fastapi.testclient import TestClient
 from server.modules.admin.models import ModelValidation, ModelValidationCriterionScore
+from server.modules.admin.schemas import ModelValidationMetricsResponse
 from server.modules.admin.service import (
     assess_model_validation_toxicity,
     sync_model_validation_criterion_results,
@@ -123,6 +124,18 @@ def test_model_validation_requires_admin(
     assert response.status_code == 403
 
 
+def test_metrics_schema_tolerates_missing_agent_breakdown() -> None:
+    """A staggered dev reload must not turn the metrics endpoint into a 500."""
+
+    response = ModelValidationMetricsResponse(
+        completed_runs=0,
+        class_labels=["1", "2", "3", "4"],
+        confusion_matrix=[[0, 0, 0, 0] for _ in range(4)],
+    )
+
+    assert response.agent_confusion_matrices == {}
+
+
 def _setup_validation(
     db_session, admin_user, expected_scores=None, program: str = "BSCS"
 ):
@@ -154,6 +167,19 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     monkeypatch,
 ) -> None:
     expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    original_flush = db_session.flush
+    flush_states: list[tuple[bool, bool]] = []
+
+    def tracked_flush(*args, **kwargs):
+        flush_states.append(
+            (
+                any(isinstance(item, EvaluationJob) for item in db_session.new),
+                any(isinstance(item, ModelValidation) for item in db_session.new),
+            )
+        )
+        return original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(db_session, "flush", tracked_flush)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -183,6 +209,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     )
 
     assert response.status_code == 202
+    assert (True, False) in flush_states
     payload = response.json()
     assert payload["partial_without_curriculum"] is False
     assert len(payload["criterion_scores"]) == 4
@@ -261,6 +288,47 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     assert metrics["score_perplexity"] == 2.7183
     assert metrics["mean_toxicity_score"] == 0.2
     assert metrics["confusion_matrix"][2][3] == 1
+    assert metrics["agent_confusion_matrices"]["sme"][2][3] == 1
+    assert metrics["agent_confusion_matrices"]["coordinator"] == [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]
+
+    coordinator_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="coordinator",
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="coordinator-test-model",
+        summary="Curriculum alignment needs revision.",
+        success=True,
+    )
+    db_session.add(coordinator_result)
+    db_session.flush()
+    db_session.add(
+        CriterionScore(
+            agent_result_id=coordinator_result.agent_result_id,
+            evaluation_id=job.evaluation_id,
+            document_id=slm.document_id,
+            criterion_id="COORD-1",
+            criterion_title="Coordinator quality",
+            score=2,
+            justification="The expected curriculum alignment was not demonstrated.",
+        )
+    )
+    db_session.commit()
+    sync_model_validation_criterion_results(job.evaluation_id, db_session)
+
+    coordinator_metrics_response = client.get("/api/v1/admin/model-validations/metrics")
+    assert coordinator_metrics_response.status_code == 200
+    coordinator_metrics = coordinator_metrics_response.json()
+    assert coordinator_metrics["confusion_matrix"][3][1] == 1
+    assert coordinator_metrics["agent_confusion_matrices"]["coordinator"][3][1] == 1
+    assert coordinator_metrics["agent_confusion_matrices"]["sme"][3][1] == 0
 
     failed_assessment = assess_model_validation_toxicity(
         job.evaluation_id,
