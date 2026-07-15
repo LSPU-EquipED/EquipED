@@ -135,10 +135,18 @@ The system SHALL compute evaluation latency, score-class perplexity, and a conte
 
 The system SHALL aggregate all available expected and actual criterion-score pairs into a 4×4 confusion matrix with expected classes as rows and predicted classes as columns.
 
+The Model Validation page SHALL derive accuracy, macro precision, and macro recall from the displayed confusion matrix and SHALL present the three values as circular percentage visualizations. Macro precision and macro recall SHALL average only score classes that have an available denominator; when the matrix contains no comparisons, the visualizations SHALL show that the metrics are unavailable rather than inventing zero-percent performance.
+
 #### Scenario: Validation analytics are displayed
 
 - **WHEN** at least one completed validation exists
 - **THEN** the admin SHALL see latency, score-class perplexity, toxicity, and the confusion matrix together as a visual interpretation
+- **AND** the confusion matrix SHALL show circular accuracy, macro precision, and macro recall summaries calculated from its counts
+
+#### Scenario: Validation analytics have no compared scores
+
+- **WHEN** the confusion matrix contains no expected and predicted score pairs
+- **THEN** accuracy, macro precision, and macro recall SHALL be displayed as unavailable
 
 ### Requirement: Performance analytics lead the Model Validation workspace
 
