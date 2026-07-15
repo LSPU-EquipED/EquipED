@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from fastapi.testclient import TestClient
 from server.modules.admin.models import ModelValidation, ModelValidationCriterionScore
+from server.modules.admin.schemas import ModelValidationMetricsResponse
 from server.modules.admin.service import (
     assess_model_validation_toxicity,
     sync_model_validation_criterion_results,
@@ -123,6 +124,18 @@ def test_model_validation_requires_admin(
     assert response.status_code == 403
 
 
+def test_metrics_schema_tolerates_missing_agent_breakdown() -> None:
+    """A staggered dev reload must not turn the metrics endpoint into a 500."""
+
+    response = ModelValidationMetricsResponse(
+        completed_runs=0,
+        class_labels=["1", "2", "3", "4"],
+        confusion_matrix=[[0, 0, 0, 0] for _ in range(4)],
+    )
+
+    assert response.agent_confusion_matrices == {}
+
+
 def _setup_validation(
     db_session, admin_user, expected_scores=None, program: str = "BSCS"
 ):
@@ -154,6 +167,19 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     monkeypatch,
 ) -> None:
     expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    original_flush = db_session.flush
+    flush_states: list[tuple[bool, bool]] = []
+
+    def tracked_flush(*args, **kwargs):
+        flush_states.append(
+            (
+                any(isinstance(item, EvaluationJob) for item in db_session.new),
+                any(isinstance(item, ModelValidation) for item in db_session.new),
+            )
+        )
+        return original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(db_session, "flush", tracked_flush)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -183,6 +209,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     )
 
     assert response.status_code == 202
+    assert (True, False) in flush_states
     payload = response.json()
     assert payload["partial_without_curriculum"] is False
     assert len(payload["criterion_scores"]) == 4
@@ -261,6 +288,47 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     assert metrics["score_perplexity"] == 2.7183
     assert metrics["mean_toxicity_score"] == 0.2
     assert metrics["confusion_matrix"][2][3] == 1
+    assert metrics["agent_confusion_matrices"]["sme"][2][3] == 1
+    assert metrics["agent_confusion_matrices"]["coordinator"] == [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+    ]
+
+    coordinator_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="coordinator",
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="coordinator-test-model",
+        summary="Curriculum alignment needs revision.",
+        success=True,
+    )
+    db_session.add(coordinator_result)
+    db_session.flush()
+    db_session.add(
+        CriterionScore(
+            agent_result_id=coordinator_result.agent_result_id,
+            evaluation_id=job.evaluation_id,
+            document_id=slm.document_id,
+            criterion_id="COORD-1",
+            criterion_title="Coordinator quality",
+            score=2,
+            justification="The expected curriculum alignment was not demonstrated.",
+        )
+    )
+    db_session.commit()
+    sync_model_validation_criterion_results(job.evaluation_id, db_session)
+
+    coordinator_metrics_response = client.get("/api/v1/admin/model-validations/metrics")
+    assert coordinator_metrics_response.status_code == 200
+    coordinator_metrics = coordinator_metrics_response.json()
+    assert coordinator_metrics["confusion_matrix"][3][1] == 1
+    assert coordinator_metrics["agent_confusion_matrices"]["coordinator"][3][1] == 1
+    assert coordinator_metrics["agent_confusion_matrices"]["sme"][3][1] == 0
 
     failed_assessment = assess_model_validation_toxicity(
         job.evaluation_id,
@@ -651,3 +719,158 @@ def test_cross_admin_access(
     )
     assert eval_resp.status_code == 200
     assert eval_resp.json()["evaluation_id"] == created_eval_id
+
+
+# ---------------------------------------------------------------------------
+# Regression: summary aggregation with zero matched pairs
+# ---------------------------------------------------------------------------
+
+
+def test_metrics_includes_completed_run_with_zero_matched_pairs(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    monkeypatch,
+) -> None:
+    """All COMPLETED runs count toward run-level totals even when they have
+    zero synchronized criterion pairs.  Criterion-pair-dependent metrics
+    use only matched pairs.
+    """
+    monkeypatch.setattr(
+        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+    )
+    _auth(client, auth_cookies_admin)
+
+    # ── Seed rubrics once, create two SLM/curriculum doc pairs ──────────
+    expected_scores = _seed_active_rubrics(db_session)
+    slm1 = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="slm",
+        chroma_stored=False,
+    )
+    cur1 = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+    )
+    slm2 = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="slm",
+        chroma_stored=False,
+    )
+    cur2 = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+    )
+
+    # ── Validation 1: matched run (sync SME criterion) ──────────────────
+    resp1 = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm1.document_id),
+            "curriculum_id": str(cur1.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp1.status_code == 202
+    data1 = resp1.json()
+    eval_id1 = uuid.UUID(data1["evaluation_id"])
+
+    job1 = db_session.get(EvaluationJob, eval_id1)
+    job1.status = "COMPLETED"
+    job1.completed_at = job1.submitted_at + timedelta(seconds=10)
+    agent_result = AgentResult(
+        evaluation_id=eval_id1,
+        document_id=slm1.document_id,
+        agent_name="sme",
+        subtotal=4.0,
+        processing_seconds=4.0,
+        token_count=20,
+        model_name="test-model",
+        summary="The review is acceptable.",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+    db_session.add(
+        CriterionScore(
+            agent_result_id=agent_result.agent_result_id,
+            evaluation_id=eval_id1,
+            document_id=slm1.document_id,
+            criterion_id="SME-1",
+            criterion_title="Quality",
+            score=4,
+            justification="Meets expectations.",
+        )
+    )
+    db_session.commit()
+    sync_model_validation_criterion_results(eval_id1, db_session)
+
+    # Set toxicity on the matched run
+    assess_model_validation_toxicity(
+        eval_id1,
+        db_session,
+        llm_client=_ContextualToxicityClient(),
+    )
+
+    # ── Validation 2: COMPLETED, zero matched pairs (no sync) ──────────
+    resp2 = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm2.document_id),
+            "curriculum_id": str(cur2.document_id),
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp2.status_code == 202
+    data2 = resp2.json()
+    eval_id2 = uuid.UUID(data2["evaluation_id"])
+
+    job2 = db_session.get(EvaluationJob, eval_id2)
+    job2.status = "COMPLETED"
+    job2.completed_at = job2.submitted_at + timedelta(seconds=30)
+    db_session.commit()
+
+    # ── Verify metrics aggregation ──────────────────────────────────────
+    metrics_resp = client.get("/api/v1/admin/model-validations/metrics")
+    assert metrics_resp.status_code == 200
+    metrics = metrics_resp.json()
+
+    # Run-level totals include BOTH completed validations
+    assert metrics["completed_runs"] == 2, (
+        f"Expected 2 completed runs, got {metrics['completed_runs']}"
+    )
+    assert metrics["mean_latency_seconds"] == 20.0, (
+        f"Expected latency (10+30)/2=20.0, got {metrics['mean_latency_seconds']}"
+    )
+    assert metrics["mean_toxicity_score"] == 0.2, (
+        f"Expected toxicity 0.2 (only matched run assessed), "
+        f"got {metrics['mean_toxicity_score']}"
+    )
+
+    # Criterion-pair-dependent metrics from the matched run only
+    assert metrics["mean_absolute_error"] == 1.0, (
+        f"Expected MAE 1.0 (only sme matched), got {metrics['mean_absolute_error']}"
+    )
+    assert metrics["score_perplexity"] == 2.7183, (
+        f"Expected perplexity exp(1.0)=2.7183, got {metrics['score_perplexity']}"
+    )
+    assert metrics["confusion_matrix"][2][3] == 1, (
+        f"Expected sme expected=3→actual=4 at [2][3]=1, "
+        f"got {metrics['confusion_matrix']}"
+    )
+    assert metrics["agent_confusion_matrices"]["sme"][2][3] == 1
+    # Other agents have zero matched pairs
+    for agent in ("coordinator", "gad", "itso"):
+        assert metrics["agent_confusion_matrices"][agent] == [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ], f"Agent {agent} should have empty matrix"

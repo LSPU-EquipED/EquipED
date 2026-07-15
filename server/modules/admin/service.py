@@ -488,6 +488,10 @@ def create_model_validation(
         db=db,
         with_commit=False,
     )
+    # Persist the FK parent before adding the benchmark child. PostgreSQL
+    # enforces this constraint immediately; the flush stays inside the same
+    # transaction, so later failures still roll the entire operation back.
+    db.flush()
     validation = ModelValidation(
         validation_id=uuid.uuid4(),
         evaluation_id=evaluation.evaluation_id,
@@ -889,53 +893,67 @@ def _score_class(score: float) -> int:
 
 
 def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
-    """Aggregate criterion score pairs into scalar metrics and a 4x4 matrix."""
+    """Aggregate score pairs into overall and per-agent 4x4 matrices.
 
-    completed = [
+    All COMPLETED runs count toward run-level totals (completed_runs,
+    latency, toxicity) regardless of whether they have synchronized
+    expected-vs-actual criterion pairs.  Criterion-pair-dependent metrics
+    (MAE, perplexity, confusion matrices) use only matched pairs.
+    """
+
+    # All COMPLETED runs — including those with zero matched pairs.
+    all_completed = [
         item
         for item in list_model_validations(db)
         if item.status == EvaluationStatus.COMPLETED
-        and any(score.actual_score is not None for score in item.criterion_scores)
     ]
+    # Only matched pairs count for criterion-pair-dependent metrics.
     paired_scores = [
         score
-        for item in completed
+        for item in all_completed
         for score in item.criterion_scores
         if score.actual_score is not None and score.absolute_error is not None
     ]
     matrix = [[0 for _ in range(4)] for _ in range(4)]
+    agent_matrices = {
+        agent_id: [[0 for _ in range(4)] for _ in range(4)]
+        for agent_id in AGENT_NAMES
+    }
     for score in paired_scores:
         expected_class = _score_class(score.expected_score)
         actual_class = _score_class(score.actual_score)
         matrix[expected_class - 1][actual_class - 1] += 1
+        agent_matrix = agent_matrices.get(score.agent_id)
+        if agent_matrix is not None:
+            agent_matrix[expected_class - 1][actual_class - 1] += 1
 
-    completed_count = len(completed)
-    if not paired_scores:
-        return ModelValidationMetricsResponse(
-            completed_runs=completed_count,
-            class_labels=["1", "2", "3", "4"],
-            confusion_matrix=matrix,
-        )
-
-    mean_absolute_error = sum(score.absolute_error for score in paired_scores) / len(
-        paired_scores
-    )
+    completed_count = len(all_completed)
     latencies = [
-        item.latency_seconds for item in completed if item.latency_seconds is not None
+        item.latency_seconds for item in all_completed if item.latency_seconds is not None
     ]
     toxicities = [
-        item.toxicity_score for item in completed if item.toxicity_score is not None
+        item.toxicity_score for item in all_completed if item.toxicity_score is not None
     ]
+    mean_absolute_error = None
+    score_perplexity = None
+    if paired_scores:
+        mae_val = sum(score.absolute_error for score in paired_scores) / len(
+            paired_scores
+        )
+        mean_absolute_error = round(mae_val, 4)
+        score_perplexity = round(math.exp(mae_val), 4)
+
     return ModelValidationMetricsResponse(
         completed_runs=completed_count,
-        mean_absolute_error=round(mean_absolute_error, 4),
+        mean_absolute_error=mean_absolute_error,
         mean_latency_seconds=(
             round(sum(latencies) / len(latencies), 4) if latencies else None
         ),
-        score_perplexity=round(math.exp(mean_absolute_error), 4),
+        score_perplexity=score_perplexity,
         mean_toxicity_score=(
             round(sum(toxicities) / len(toxicities), 6) if toxicities else None
         ),
         class_labels=["1", "2", "3", "4"],
         confusion_matrix=matrix,
+        agent_confusion_matrices=agent_matrices,
     )
