@@ -16,7 +16,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
 import { FeedbackPanel } from './FeedbackPanel';
-import { formatScore } from '../utils/scoreHelpers';
+import { formatScore, agentShortLabel, agentDisplayLabel } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import type {
   CriterionScoreItem,
@@ -310,63 +310,79 @@ export function ScoreDashboard({
       <div className="px-10 py-8">
         {evaluationId && (
           <div className="mb-6">
-            <div className="flex items-center gap-1">
-              {PIPELINE_STAGES.map((stage, index) => {
-                const currentIndex = getStageIndex(status?.status);
-                const isFailed = status?.status === 'FAILED';
-                const isCompleted =
-                  !isFailed &&
-                  (index < currentIndex ||
-                    (status?.status === 'COMPLETED' && index === currentIndex));
-                const isCurrent =
-                  !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
-                const isUpcoming = isFailed || index > currentIndex;
+            {!isTerminal ? (
+              <div className="flex items-center gap-1">
+                {PIPELINE_STAGES.map((stage, index) => {
+                  const currentIndex = getStageIndex(status?.status);
+                  const isFailed = status?.status === 'FAILED';
+                  const isCompleted =
+                    !isFailed &&
+                    (index < currentIndex ||
+                      (status?.status === 'COMPLETED' && index === currentIndex));
+                  const isCurrent =
+                    !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
+                  const isUpcoming = isFailed || index > currentIndex;
 
-                return (
-                  <div key={stage.key} className="flex flex-1 items-center">
-                    <div
-                      className={cn(
-                        'flex flex-1 flex-col items-center gap-1.5 rounded-md py-2',
-                        isCurrent && 'bg-primary/5',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'grid size-6 place-items-center rounded-full text-xs font-bold',
-                          isCompleted && 'bg-primary text-primary-foreground',
-                          isCurrent && 'border-2 border-primary text-primary',
-                          isUpcoming && 'border border-muted-foreground/30 text-slate-500',
-                        )}
-                      >
-                        {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
-                        {isCurrent && (
-                          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                        )}
-                        {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-[10px] font-semibold uppercase tracking-wider',
-                          isCompleted && 'text-primary',
-                          isCurrent && 'text-primary',
-                          isUpcoming && 'text-slate-500',
-                        )}
-                      >
-                        {stage.label}
-                      </span>
-                    </div>
-                    {index < PIPELINE_STAGES.length - 1 && (
+                  return (
+                    <div key={stage.key} className="flex flex-1 items-center">
                       <div
                         className={cn(
-                          'mx-1 h-px w-4 flex-shrink-0',
-                          isCompleted ? 'bg-primary' : 'bg-border',
+                          'flex flex-1 flex-col items-center gap-1.5 rounded-md py-2',
+                          isCurrent && 'bg-primary/5',
                         )}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      >
+                        <span
+                          className={cn(
+                            'grid size-6 place-items-center rounded-full text-xs font-bold',
+                            isCompleted && 'bg-primary text-primary-foreground',
+                            isCurrent && 'border-2 border-primary text-primary',
+                            isUpcoming && 'border border-muted-foreground/30 text-slate-500',
+                          )}
+                        >
+                          {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
+                          {isCurrent && (
+                            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                          )}
+                          {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-[10px] font-semibold uppercase tracking-wider',
+                            isCompleted && 'text-primary',
+                            isCurrent && 'text-primary',
+                            isUpcoming && 'text-slate-500',
+                          )}
+                        >
+                          {stage.label}
+                        </span>
+                      </div>
+                      {index < PIPELINE_STAGES.length - 1 && (
+                        <div
+                          className={cn(
+                            'mx-1 h-px w-4 flex-shrink-0',
+                            isCompleted ? 'bg-primary' : 'bg-border',
+                          )}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-bold text-slate-600 uppercase tracking-widest select-none">
+                {status?.status === 'COMPLETED' ? (
+                  <>
+                    <CheckCircle2 className="size-4 text-[#3b963e]" />
+                    <span>Evaluation Matrix Ready</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="size-4 text-[#b91c1c]" />
+                    <span>Evaluation pipeline stopped</span>
+                  </>
+                )}
+              </div>
+            )}
             {status?.status === 'FAILED' && (
               <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-[#b91c1c]/5 px-3 py-2">
                 <div className="flex items-center gap-2">
@@ -445,82 +461,53 @@ export function ScoreDashboard({
           </div>
         )}
 
-        <p className="mb-4 mt-8 text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">
-          Evaluation Agent
-        </p>
-        <div className="grid gap-3 xl:grid-cols-2">
-          {agents.map((agent) => {
-            const Icon = agent.icon;
-            const isActive = agent.id === selectedAgentId;
-            const agentState = getAgentCardState(agent.id, results, isPartial);
+        <div className="mt-6 border-b border-slate-200">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Select evaluation domain">
+            {agents.map((agent) => {
+              const Icon = agent.icon;
+              const isActive = agent.id === selectedAgentId;
+              const agentState = getAgentCardState(agent.id, results, isPartial);
 
-            return (
-              <button
-                key={agent.name}
-                type="button"
-                onClick={() => onSelectAgent(agent.id)}
-                className={cn(
-                  'flex min-h-20 flex-wrap items-center gap-4 rounded-sm border border-slate-200 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
-                  isActive
-                    ? 'border-slate-900 bg-foreground text-background'
-                    : 'bg-white hover:bg-slate-50/60',
-                )}
-                aria-pressed={isActive}
-              >
-                <span
+              return (
+                <button
+                  key={agent.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => onSelectAgent(agent.id)}
                   className={cn(
-                    'grid size-12 shrink-0 place-items-center rounded-lg',
-                    isActive ? 'bg-white/15' : 'bg-slate-50',
+                    'flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all focus:outline-none cursor-pointer',
+                    isActive
+                      ? 'border-[#1b3b87] text-[#1b3b87]'
+                      : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-200',
                   )}
                 >
-                  <Icon className="size-5" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">{agent.name}</span>
-                  <span
-                    className={cn(
-                      'mt-1 block text-sm',
-                      isActive ? 'text-background/75' : 'text-slate-500',
-                    )}
-                  >
-                    {agent.subtitle}
-                  </span>
-                </span>
-                {agentState !== 'pending' && (
-                  <span
-                    className={cn(
-                      'ml-auto flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                      agentState === 'done' && 'bg-[#3b963e]/10 text-[#3b963e]',
-                      agentState === 'running' && 'bg-primary/10 text-primary',
-                      agentState === 'failed' && 'bg-[#b91c1c]/10 text-[#b91c1c]',
-                      agentState === 'skipped' && 'bg-[#f2c811]/10 text-[#1e293b]',
-                    )}
-                  >
-                    {agentState === 'done' && (
-                      <CheckCircle2 className="size-3" aria-hidden="true" />
-                    )}
-                    {agentState === 'running' && (
-                      <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-                    )}
-                    {agentState === 'failed' && <XCircle className="size-3" aria-hidden="true" />}
-                    {agentState === 'skipped' && (
-                      <AlertTriangle className="size-3" aria-hidden="true" />
-                    )}
-                    {agentState === 'done'
-                      ? 'Complete'
-                      : agentState === 'running'
-                        ? 'Running'
-                        : agentState === 'skipped'
-                          ? 'Skipped'
-                          : 'Failed'}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                  <Icon className="size-3.5" aria-hidden="true" />
+                  <span>{agentShortLabel(agent.id)}</span>
+                  
+                  {agentState !== 'pending' && (
+                    <span
+                      className={cn(
+                        'ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-tight',
+                        agentState === 'done' && 'bg-[#3b963e]/10 text-[#3b963e]',
+                        agentState === 'running' && 'bg-primary/10 text-primary',
+                        agentState === 'failed' && 'bg-[#b91c1c]/10 text-[#b91c1c]',
+                        agentState === 'skipped' && 'bg-[#f2c811]/15 text-[#1e293b]',
+                      )}
+                    >
+                      {agentState === 'done' && 'OK'}
+                      {agentState === 'running' && 'RUN'}
+                      {agentState === 'skipped' && 'SKIP'}
+                      {agentState === 'failed' && 'FAIL'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <section className="mt-10 grid gap-5">
+        <section className="mt-6 grid gap-5">
           <div
             className={cn(
               'rounded-sm border bg-white p-5',
