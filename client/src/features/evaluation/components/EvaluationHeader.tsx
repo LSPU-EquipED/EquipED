@@ -82,40 +82,39 @@ export function EvaluationHeader({
   };
 
   return (
-    <header className="flex min-h-24 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-10">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Selected Document
-        </p>
-        <h1 className="mt-2 truncate text-2xl font-bold tracking-tight text-slate-900">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <h1 className="truncate text-sm font-bold tracking-tight text-slate-900" title={document?.title ?? ''}>
           {document?.title ?? 'Loading document...'}
         </h1>
-        {isPartial && (
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-sm border border-[#f2c811]/50 bg-[#f2c811]/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-[#1e293b]">
-            <AlertTriangle className="size-3.5" aria-hidden="true" />
-            Partial Evaluation
-          </div>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-sm border border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-50">
-          <FileText className="size-4 text-slate-400" aria-hidden="true" />
+
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-50 select-none">
+          <FileText className="size-3 text-slate-400" aria-hidden="true" />
           {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
         </span>
 
         {isTerminal && hasResults && results?.duration_seconds != null && (
           <span
-            className="inline-flex items-center gap-1.5 rounded-sm border border-slate-200 px-3 py-2 font-mono text-xs font-semibold tabular-nums text-slate-600 bg-slate-50"
+            className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-semibold tabular-nums text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-sm select-none"
             title="Evaluation duration"
           >
-            <Clock className="size-3.5 text-slate-400" aria-hidden="true" />
+            <Clock className="size-3 text-slate-400" aria-hidden="true" />
             {formatDuration(results.duration_seconds)}
           </span>
         )}
 
+        {isPartial && (
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-[#f2c811]/40 bg-[#f2c811]/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#1e293b] select-none">
+            <AlertTriangle className="size-3 text-[#f2c811]" aria-hidden="true" />
+            Partial Review
+          </span>
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
           disabled={!hasResults || !isTerminal}
           onClick={() => setShowExportModal(true)}
           title={
@@ -126,19 +125,19 @@ export function EvaluationHeader({
               : undefined
           }
         >
-          <Download className="size-4 mr-2" aria-hidden="true" />
+          <Download className="size-3.5 mr-1.5" aria-hidden="true" />
           Export
         </button>
 
         <button
           type="button"
-          className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
+          className="inline-flex h-8 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
           disabled={!isTerminal || !evaluationId}
           onClick={handleViewFullReport}
           title={!isTerminal ? 'Available once evaluation completes' : undefined}
         >
-          <Eye className="size-4 mr-2" aria-hidden="true" />
-          View Full Report
+          <Eye className="size-3.5 mr-1.5" aria-hidden="true" />
+          Full Report
         </button>
 
         {showExportModal && (
