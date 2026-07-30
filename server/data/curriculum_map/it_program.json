@@ -1,0 +1,20 @@
+{
+  "program": "BSIT",
+  "objectives": [
+    { "code": "IT03", "description": "Apply knowledge of computing appropriate to the discipline." },
+    { "code": "IT08", "description": "Function effectively as an individual and as a member or leader in diverse teams and in multidisciplinary settings." },
+    { "code": "IT11", "description": "Understand the reasoning behind professional, ethical, legal, security, and social issues and responsibilities." }
+  ],
+  "courses": [
+    {
+      "course_code": "IT301",
+      "course_title": "Data Structures and Algorithms",
+      "objective_levels": { "IT03": "E", "IT08": "I", "IT11": "" }
+    },
+    {
+      "course_code": "IT401",
+      "course_title": "Capstone Project 1",
+      "objective_levels": { "IT03": "D", "IT08": "D", "IT11": "D" }
+    }
+  ]
+}
