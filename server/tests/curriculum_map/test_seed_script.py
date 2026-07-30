@@ -5,7 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from server.modules.curriculum_map.models import Course, CurriculumMapCell, CurriculumObjective
+from server.modules.curriculum_map.models import (
+    Course,
+    CurriculumMapCell,
+    CurriculumObjective,
+)
 from server.scripts.seed_curriculum_map import seed_curriculum_map
 
 ROOT = Path(__file__).resolve().parents[2]
