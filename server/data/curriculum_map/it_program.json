@@ -1,20 +1,154 @@
 {
   "program": "BSIT",
   "objectives": [
-    { "code": "IT03", "description": "Apply knowledge of computing appropriate to the discipline." },
+    { "code": "IT01", "description": "Able to apply knowledge of computing fundamentals, technical concepts and practices and standards in IT as the \"application of core information technologies, mathematics, science and domain knowledge appropriate for the information technology practice to the abstraction and conceptualization of solution models from defined problems and requirements.\"" },
+    { "code": "IT02", "description": "Identify, formulate, research literature, and analyze user needs and taking them into account to solve complex information computing problems, reaching substantiated conclusions using fundamental principles of mathematics, computing fundamentals, technical concepts and practices in the core information technologies and relevant domain principles." },
+    { "code": "IT03", "description": "Design and evaluate possible solutions for complex computing problems, and design and evaluate systems, components, or processes that meet specified user needs with appropriate consideration for public health and safety, cultural, societal, and environmental considerations." },
+    { "code": "IT04", "description": "Ability to assist in the creation of an effective project plan to implement solution that includes cost estimation, process evaluation and risk management." },
+    { "code": "IT05", "description": "Ability to effectively integrate IT-based solutions into the user environment." },
+    { "code": "IT06", "description": "Ability to administer delivered information systems to adapt to emerging needs of the user organization by integrating IT-based solutions into the user's environment." },
+    { "code": "IT07", "description": "Communicate effectively with the computing community and with society at large (in local and international scenes) about complex computing activities by being able to comprehend and write effective reports, design documentation, make effective presentations, and give and understand clear instructions." },
     { "code": "IT08", "description": "Function effectively as an individual and as a member or leader in diverse teams and in multidisciplinary settings." },
-    { "code": "IT11", "description": "Understand the reasoning behind professional, ethical, legal, security, and social issues and responsibilities." }
+    { "code": "IT09", "description": "Create, select, adapt and apply appropriate techniques resources and modern computing tools to complex computing activities with an understanding of the limitations." },
+    { "code": "IT10", "description": "Understand and assess societal, health, safety, legal, and cultural issues within local and global contexts, and the consequential responsibilities relevant to professional responsibilities." },
+    { "code": "IT11", "description": "Understands and commits to professional responsibilities, ethics, and norms of professional computing practice." },
+    { "code": "IT12", "description": "Recognize the need, and have the ability to engage independent learning for continual development as a computing professional." }
   ],
   "courses": [
     {
-      "course_code": "IT301",
-      "course_title": "Data Structures and Algorithms",
-      "objective_levels": { "IT03": "E", "IT08": "I", "IT11": "" }
+      "course_code": "IT-INTRO",
+      "course_title": "Introduction to Information Technology Computing",
+      "objective_levels": { "IT03": "I", "IT07": "I", "IT10": "I", "IT11": "I", "IT12": "I" }
     },
     {
-      "course_code": "IT401",
-      "course_title": "Capstone Project 1",
-      "objective_levels": { "IT03": "D", "IT08": "D", "IT11": "D" }
+      "course_code": "IT-FUNDPROG",
+      "course_title": "Fundamentals of Programming",
+      "objective_levels": { "IT01": "I", "IT07": "I", "IT09": "I" }
+    },
+    {
+      "course_code": "IT-INTERPROG",
+      "course_title": "Intermediate Programming",
+      "objective_levels": { "IT01": "E", "IT02": "I", "IT05": "I", "IT06": "E", "IT08": "E", "IT09": "I" }
+    },
+    {
+      "course_code": "IT-HCI1",
+      "course_title": "Human Computer Interaction 1",
+      "objective_levels": { "IT02": "E", "IT03": "I", "IT04": "I", "IT05": "E", "IT06": "E", "IT07": "E" }
+    },
+    {
+      "course_code": "IT-DISCMATH",
+      "course_title": "Discrete Mathematics",
+      "objective_levels": { "IT01": "I", "IT03": "I", "IT10": "I", "IT11": "I" }
+    },
+    {
+      "course_code": "IT-DSA",
+      "course_title": "Data Structure and Algorithm",
+      "objective_levels": { "IT01": "I", "IT07": "I", "IT09": "I" }
+    },
+    {
+      "course_code": "IT-INFOMGT",
+      "course_title": "Information Management",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT05": "E", "IT06": "E", "IT07": "E", "IT08": "E", "IT10": "I" }
+    },
+    {
+      "course_code": "IT-QMMS",
+      "course_title": "Quantitative Methods including Modeling and Simulation",
+      "objective_levels": { "IT02": "D", "IT03": "D", "IT06": "D" }
+    },
+    {
+      "course_code": "IT-OOP",
+      "course_title": "Object-Oriented Programming",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT05": "E", "IT06": "I", "IT07": "E", "IT09": "E", "IT10": "E" }
+    },
+    {
+      "course_code": "IT-PLATTECH",
+      "course_title": "Platform Technologies",
+      "objective_levels": { "IT02": "E", "IT03": "E", "IT04": "E", "IT05": "E", "IT06": "E" }
+    },
+    {
+      "course_code": "IT-ADVDB",
+      "course_title": "Advance Database Systems",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT07": "E" }
+    },
+    {
+      "course_code": "IT-MMSYS",
+      "course_title": "Multimedia Systems",
+      "objective_levels": { "IT02": "I", "IT06": "E", "IT07": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-IPT1",
+      "course_title": "Integrative Programming Technologies 1",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT04": "E", "IT05": "E", "IT06": "E", "IT07": "E" }
+    },
+    {
+      "course_code": "IT-NET1",
+      "course_title": "Networking 1",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT07": "E" }
+    },
+    {
+      "course_code": "IT-WEBSYS",
+      "course_title": "Web Systems and Technologies",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT05": "E", "IT07": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-SIA1",
+      "course_title": "System Integration and Architecture 1",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT06": "E", "IT07": "E", "IT08": "E", "IT09": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-NET2",
+      "course_title": "Networking 2",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT06": "E", "IT07": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-SPI",
+      "course_title": "Social and Professional Issues",
+      "objective_levels": { "IT03": "E", "IT08": "E", "IT09": "E", "IT10": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-IPT2",
+      "course_title": "Integrative Programming Technologies 2",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT06": "E", "IT07": "E" }
+    },
+    {
+      "course_code": "IT-ADET",
+      "course_title": "Applications Development and Emerging Technologies",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "D", "IT05": "D", "IT06": "D" }
+    },
+    {
+      "course_code": "IT-IAS1",
+      "course_title": "Information Assurance and Security 1",
+      "objective_levels": { "IT02": "E", "IT03": "E", "IT07": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-SIA2",
+      "course_title": "System Integration and Architecture 2",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT06": "E", "IT07": "E", "IT08": "E", "IT09": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-MRIT",
+      "course_title": "Methods of Research for IT",
+      "objective_levels": { "IT01": "E", "IT02": "E", "IT03": "E", "IT04": "E", "IT05": "E", "IT06": "E", "IT07": "E", "IT08": "E", "IT09": "E", "IT10": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-IAS2",
+      "course_title": "Information Assurance and Security 2",
+      "objective_levels": { "IT02": "E", "IT03": "E", "IT06": "E", "IT07": "E", "IT11": "E", "IT12": "E" }
+    },
+    {
+      "course_code": "IT-SAM",
+      "course_title": "System Administration and Maintenance",
+      "objective_levels": { "IT04": "D", "IT06": "D", "IT07": "D", "IT11": "D", "IT12": "D" }
+    },
+    {
+      "course_code": "IT-CAPSTONE",
+      "course_title": "Capstone Project",
+      "objective_levels": { "IT01": "D", "IT02": "D", "IT03": "D", "IT04": "D", "IT05": "D", "IT06": "D", "IT07": "D", "IT08": "D", "IT09": "D", "IT10": "D", "IT11": "D", "IT12": "D" }
+    },
+    {
+      "course_code": "IT-OJT",
+      "course_title": "On-the-Job Training (600 Hours)",
+      "objective_levels": { "IT01": "D", "IT02": "D", "IT03": "D", "IT04": "D", "IT05": "D", "IT06": "D", "IT07": "D", "IT08": "D", "IT09": "D", "IT10": "D", "IT11": "D", "IT12": "D" }
     }
   ]
 }
