@@ -93,7 +93,14 @@ export function AlignmentCheckPage() {
         </div>
       ) : null}
 
-      {runCheck.data ? (
+      {runCheck.data && !runCheck.data.success ? (
+        <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-sm font-semibold text-[#b91c1c]">
+          <AlertTriangle className="size-4 shrink-0" />
+          {runCheck.data.error_message ?? 'Curriculum alignment check failed.'}
+        </div>
+      ) : null}
+
+      {runCheck.data && runCheck.data.success ? (
         <div className="grid flex-1 grid-cols-2 gap-4 overflow-hidden">
           <div className="overflow-hidden rounded-sm border border-slate-200">
             <SlmReadingPane ref={readingPaneRef} pages={pagesData?.pages ?? []} />
