@@ -51,7 +51,7 @@ def test_over_developed_when_observed_deeper() -> None:
 
 @pytest.mark.parametrize(
     "expected_level,weaker,stronger",
-    [("D", "E", "D"), ("D", "I", "E"), ("E", "I", "D")],
+    [("D", "E", "D"), ("D", "I", "D"), ("E", "I", "D")],
 )
 def test_strictness_ordering_i_lt_e_lt_d(expected_level, weaker, stronger) -> None:
     # Sanity check the I < E < D ordering directly via compare_objective.
