@@ -15,6 +15,7 @@ from server.modules.agents.scoring import (
     objective_alignment,
     prescriptive_feedback,
     progress_monitoring,
+    skeleton,
     slicing,
     topic_coherence,
     varied_assessment,
@@ -605,3 +606,201 @@ class TestAccurateSectionsCompute:
         assert result.total == 0
         assert result.score == 1
         assert result.pct is None
+
+
+class TestLearnerTransformationNormalization:
+    def test_direct_alias_normalization(self) -> None:
+        assert learner_transformation._normalize_level("list") == "remember"
+        assert learner_transformation._normalize_level("explain") == "understand"
+        assert learner_transformation._normalize_level("compare") == "analyze"
+        assert learner_transformation._normalize_level("justify") == "evaluate"
+
+    def test_canonical_prefix_compatibility(self) -> None:
+        assert learner_transformation._normalize_level("remember") == "remember"
+        assert learner_transformation._normalize_level("understand") == "understand"
+        assert learner_transformation._normalize_level("apply-level") == "apply"
+        assert learner_transformation._normalize_level("analyze-level") == "analyze"
+        assert learner_transformation._normalize_level("evaluate") == "evaluate"
+        assert learner_transformation._normalize_level("create") == "create"
+
+    def test_case_and_whitespace_handling(self) -> None:
+        assert learner_transformation._normalize_level("  list  ") == "remember"
+        assert learner_transformation._normalize_level("EXPLAIN") == "understand"
+        assert learner_transformation._normalize_level(" Compare ") == "analyze"
+        assert learner_transformation._normalize_level("JUSTIFY") == "evaluate"
+
+    def test_unknown_and_combined_labels(self) -> None:
+        assert learner_transformation._normalize_level("listing") == ""
+        assert learner_transformation._normalize_level("list/explain") == ""
+        assert learner_transformation._normalize_level("compare-contrast") == ""
+        assert learner_transformation._normalize_level("unknown_verb") == ""
+
+
+class TestLearnerTransformationScoreBoundary:
+    def test_approved_higher_order_aliases_retained(self) -> None:
+        tasks = [
+            {"text": "Task 1", "bloom_level": "compare", "evidence": "Compare X and Y."},
+            {"text": "Task 2", "bloom_level": "justify", "evidence": "Justify your answer."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 2
+        assert result.total == 2
+        assert result.score == 4
+
+    def test_empty_evidence_does_not_promote_alias(self) -> None:
+        tasks = [
+            {"text": "Task 1", "bloom_level": "compare", "evidence": ""},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 0
+        assert result.total == 1
+        assert result.score == 1
+
+    def test_unknown_label_not_promoted(self) -> None:
+        tasks = [
+            {"text": "Task 1", "bloom_level": "listing", "evidence": "List items."},
+            {"text": "Task 2", "bloom_level": "list/explain", "evidence": "Explain items."},
+        ]
+        result = learner_transformation.compute(tasks)
+        assert result.higher_order == 0
+        assert result.total == 2
+        assert result.score == 1
+
+
+class TestPrescriptiveFeedbackBoilerplateGuard:
+    def test_high_confidence_copyright_boilerplate_rejected(self) -> None:
+        mechanisms = [
+            {
+                "text": "Copyright Notice",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Copyright © 2025 by LSPU. All rights reserved.",
+            }
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 0
+        assert result.score == 1
+
+    def test_high_confidence_fair_use_boilerplate_rejected(self) -> None:
+        mechanisms = [
+            {
+                "text": "Disclaimer",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "This material is used under fair use for educational purposes.",
+            }
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 0
+
+    def test_high_confidence_reproduction_prohibition_rejected(self) -> None:
+        mechanisms = [
+            {
+                "text": "Prohibition",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "No part of this publication may be reproduced without written permission of the publisher.",
+            }
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 0
+
+    def test_section_plus_ra_boilerplate_rejected(self) -> None:
+        mechanisms = [
+            {
+                "text": "RA Notice",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Pursuant to Section 176 of Republic Act 8293, no copyright shall subsist in any work of the Government of the Philippines.",
+            },
+            {
+                "text": "RA Notice 2",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Under Section 12 of R.A. 10173, data privacy principles apply.",
+            },
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 0
+
+    def test_genuine_praise_preserved(self) -> None:
+        mechanisms = [
+            {
+                "text": "Praise",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Great job completing this module! Congratulations on finishing!",
+            }
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 1
+
+    def test_legal_themed_non_positive_reinforcement_preserved(self) -> None:
+        mechanisms = [
+            {
+                "text": "Legal Answer Key",
+                "feedback_type": "answer_key",
+                "evidence": "Q1 answer: RA 8293 Section 176 applies.",
+            },
+            {
+                "text": "Legal Rubric",
+                "feedback_type": "rubric",
+                "evidence": "Policy compliance rubric per Section 2.",
+            },
+            {
+                "text": "Legal Remediation",
+                "feedback_type": "remediation_referral",
+                "evidence": "If missed item 3, review Section 5 of Republic Act 10173.",
+            },
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 3
+        assert result.score == 4
+
+    def test_ra_citation_alone_or_generic_section_words_preserved(self) -> None:
+        mechanisms = [
+            {
+                "text": "Citation",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Reference: RA 8293 Section 176",
+            },
+            {
+                "text": "Section Note",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Per section 2 of policy guidelines.",
+            },
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 2
+
+    def test_mixed_praise_plus_boilerplate_preserved(self) -> None:
+        mechanisms = [
+            {
+                "text": "Mixed Note",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Copyright © 2025 by LSPU. Great job completing this module!",
+            },
+            {
+                "text": "Mixed Note 2",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Copyright © 2025 by LSPU. You did wonderfully!",
+            },
+        ]
+        result = prescriptive_feedback.compute(mechanisms)
+        assert len(result.genuine) == 2
+
+
+class TestPromptContent:
+    def test_standalone_and_grouped_a01_prompts_require_canonical_and_examples(self) -> None:
+        for prompt in (learner_transformation.PROMPT, skeleton.BASKET_A2_PROMPT):
+            assert "canonical category name" in prompt
+            assert "compare" in prompt
+            assert "analyze" in prompt
+            assert "explain" in prompt
+            assert "understand" in prompt
+            assert "justify" in prompt
+            assert "evaluate" in prompt
+            assert "list" in prompt
+            assert "remember" in prompt
+            assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
+
+    def test_standalone_and_grouped_a04_prompts_exclude_boilerplate_and_require_minimal_quote(self) -> None:
+        for prompt in (prescriptive_feedback.PROMPT, skeleton.BASKET_B1_PROMPT):
+            assert "legal disclaimers" in prompt or "legal disclaimers," in prompt
+            assert "copyright notices" in prompt
+            assert "fair-use" in prompt
+            assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
