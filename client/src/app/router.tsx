@@ -19,6 +19,7 @@ import { HistoryPage } from '../features/history/pages/HistoryPage';
 import { EvaluationInterfacePage } from '../features/evaluation/pages/EvaluationInterfacePage';
 import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
 import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
+import { AlignmentCheckPage } from '../features/curriculumAlignment/pages/AlignmentCheckPage';
 
 // Admin Pages
 import {
@@ -127,6 +128,12 @@ const matrixRoute = createRoute({
   ),
 });
 
+const alignmentRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'alignment',
+  component: AlignmentCheckPage,
+});
+
 const adminRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'admin',
@@ -209,6 +216,7 @@ const routeTree = rootRoute.addChildren([
     documentEvaluationRoute,
     evaluationDetailRoute,
     matrixRoute,
+    alignmentRoute,
     adminRoute.addChildren([
       adminHomeRoute,
       adminUsersRoute,

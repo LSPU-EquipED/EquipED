@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import {
   BookOpen,
+  BookOpenCheck,
   ClipboardList,
   FilePlus2,
   FileUp,
@@ -37,6 +38,7 @@ const workspaceNavItems: readonly NavItem[] = [
   { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
   { to: '/evaluations', label: 'Evaluations', icon: ClipboardList, exact: true },
+  { to: '/alignment', label: 'Curriculum Alignment', icon: BookOpenCheck, exact: true },
 ] as const;
 
 const adminNavItems: readonly NavItem[] = [
