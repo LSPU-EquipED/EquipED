@@ -32,7 +32,15 @@ from .models import (
 # budget-guard discipline as agents/base.py's prompt packing (design spec
 # section 7: "SLM text exceeds prompt context budget"), just simpler since
 # this pipeline sends one document's full text rather than ranked chunks.
-_MAX_SLM_TEXT_CHARS = 20000
+#
+# 20000 was too large in practice: a worst-case course (all 12 objectives,
+# ~2800 chars of JSON) plus the ~1550-char prompt template plus 20000 chars
+# of SLM text plus the requested 1800-token completion pushed the total
+# request past this model's per-request token ceiling on Groq (observed:
+# HTTP 413 "Request too large" for llama-3.1-8b-instant). 6000 keeps the
+# worst-case total prompt under ~2600 tokens even before the completion
+# budget, with real margin instead of running at the ceiling.
+_MAX_SLM_TEXT_CHARS = 6000
 _HEAD_TAIL_MARKER = "\n\n[...middle of document omitted...]\n\n"
 _HALF_BUDGET = (_MAX_SLM_TEXT_CHARS - len(_HEAD_TAIL_MARKER)) // 2
 

@@ -2,6 +2,32 @@
 
 Branch: `feat/curriculum-alignment-pipeline` (not merged — for manual testing first)
 
+## ⚠️ Open issue as of end of last session
+
+Running a real check against the live LLM (Groq, `llama-3.1-8b-instant`) was
+still producing **"The alignment check could not complete (LLM error or
+invalid response)."** A first root cause was found and fixed (see "Session 2
+fixes" below — the request was too large for the provider, HTTP 413), but
+the error persisted after that fix on a retry, and the session ended before
+a fresh log capture could confirm whether it's the same 413 recurring at a
+still-too-high budget, or a different failure. **Start next session here:**
+
+1. Make sure the backend server is running (see Setup below).
+2. Retry a check from the browser.
+3. Read the fresh error from the backend console/log — search for
+   `Curriculum alignment LLM check failed:` — that line has the real
+   underlying exception message.
+4. If it's still HTTP 413: the budget in `service.py`'s `_MAX_SLM_TEXT_CHARS`
+   (currently 6000) needs to go lower still, or `max_new_tokens` in
+   `alignment_check.py` (currently 1200) needs to shrink further. Compute:
+   `len(PROMPT template) + len(objectives JSON for the course) + SLM text
+   budget`, roughly ÷4 for a token estimate, and check that + max_new_tokens
+   stays comfortably under this model's actual context window (check Groq's
+   docs for `llama-3.1-8b-instant`'s real limit — it may be smaller than
+   assumed).
+5. If it's a different error (timeout, auth, malformed JSON from the model,
+   etc.) — that's a new bug, not a recurrence of the budget issue.
+
 ## What was built
 
 A new, fully independent pipeline that checks whether an uploaded SLM aligns
@@ -44,12 +70,40 @@ made-up depth level outside I/E/D; and long SLMs are now sampled from both
 the start *and* end of the document (not just the start), since real
 assessment content usually sits at the bottom of an SLM.
 
-**Test status:** 47/47 new backend tests passing, 90/90 frontend tests
-passing, full existing backend suite re-run with zero new regressions (same
-5 pre-existing, unrelated failures as before this branch existed). This has
-**not** been tested against a real Postgres database or in a real browser —
-the sandbox this was built in has no database configured. That's what the
-plan below is for.
+**Test status:** 48/48 backend tests passing, 90/90 frontend tests passing,
+full existing backend suite re-run with zero new regressions (same 5
+pre-existing, unrelated failures as before this branch existed).
+
+## Session 2: what manual testing found and fixed
+
+The plan above was written before this feature had ever touched a real
+database or a real browser. Once it was, manual testing found three real
+bugs that no automated test caught, all now fixed and committed:
+
+1. **Seed script path bug** (commit `f8aa0f4`): `python -m
+   server.scripts.seed_curriculum_map` failed with `FileNotFoundError` —
+   the script's `main()` built its JSON path one directory too shallow.
+   Every existing test passed anyway because they all call the inner
+   `seed_curriculum_map()` function directly with an already-loaded payload,
+   never exercising `main()`'s path logic. Fixed, with a regression test
+   added. Confirmed working against a real Postgres DB: migration applied
+   cleanly, seed ran and is idempotent (27 courses / 12 objectives / 172
+   cells, verified by direct query after seeding twice).
+2. **Misleading error display** (commit `aa3c78f`): when the backend
+   returns a "soft failure" (HTTP 201 with `success: false` and a real
+   `error_message` — the failure-masking fix from the final review),
+   the frontend was rendering it through the results table's generic
+   empty-state text ("No mapped objectives for this course") instead of
+   an actual error box. Fixed — the page now checks `success` and shows
+   `error_message` properly.
+3. **LLM request too large** (commit not yet made / uncommitted at session
+   end — see "Open issue" above): a real check against the live LLM hit
+   HTTP 413 from Groq for `llama-3.1-8b-instant` — the prompt (SLM text +
+   up to 12 objective descriptions + template) plus the requested 1800-token
+   completion exceeded the provider's per-request limit. Reduced
+   `_MAX_SLM_TEXT_CHARS` from 20000→6000 and `max_new_tokens` from
+   1800→1200 in an attempt to fix it — **this was not yet confirmed working
+   before the session ended.**
 
 ## Known gaps (not blocking, but worth knowing before/while testing)
 

@@ -83,7 +83,12 @@ def run_alignment_llm(
                 content=slm_text,
             ),
             temperature=0.0,
-            max_new_tokens=1800,
+            # Reduced from 1800: a worst-case 12-objective response is a
+            # short JSON array (code/bool/level/short-quote per entry) and
+            # doesn't need that much room; the larger value contributed to
+            # the provider's per-request token ceiling being exceeded
+            # (see the budget note on _MAX_SLM_TEXT_CHARS in service.py).
+            max_new_tokens=1200,
         )
         data = json.loads(raw)
         raw_results = list(data.get("results", []))
