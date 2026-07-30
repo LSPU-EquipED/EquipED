@@ -1,7 +1,7 @@
 ## Scope
 
 - This directory covers backend implementation under `server/`.
-- Preserve the FastAPI modular monolith shape defined in `openspec/specs/` and supported by `docs/TDD.md`.
+- Preserve the FastAPI modular monolith shape defined in `openspec/specs/`.
 
 ## Backend Guardrails
 
@@ -27,6 +27,6 @@
 
 ## Before Making Backend Changes
 
-- Read `../openspec/specs/` first, then `../docs/TDD.md` and `../docs/PRD.md` as support.
-- Prefer `../openspec/specs/` over `../docs/TDD.md` and `../docs/PRD.md` when they differ.
+- Read `../openspec/specs/` first, then `../docs/PRD.md` as support.
+- Prefer `../openspec/specs/` over `../docs/PRD.md` when they differ.
 - Keep compliance constraints in mind: human review is authoritative and document data handling must remain conservative.

@@ -91,22 +91,46 @@ The system includes four internal evaluator subagents that operate on institutio
 
 ## 4. System Scope
 
-### 4.1 In Scope
+### 4.1 Academic & Program Scope
 
-- Evaluation of SLMs submitted as PDF documents
-- Processing of reference documents: course syllabi, curriculum guides, and institutional evaluation rubrics
-- Automated evaluation across four stakeholder rubric domains: Organization & Presentation, Assessment, Inclusivity & Gender Sensitivity, and IP & Data Privacy
-- Generation of rubric-based scores, document highlights, and a consolidated evaluation report per SLM
-- A web dashboard for document submission, results display, feedback collection, and evaluation history
-- A preference logging mechanism that captures evaluator feedback and supports iterative improvement of evaluation outputs
+The system is deployed for **Laguna State Polytechnic University – Santa Cruz Campus (LSPU SCC)** within the **College of Computer Studies (CCS)**. Current product scope supports the following canonical degree programs:
+- **`BSInfoTech`** (Bachelor of Science in Information Technology) — *Note: `BSIT` is explicitly not used as the canonical code to prevent ambiguity with Industrial Technology.*
+- **`BSCS`** (Bachelor of Science in Computer Science)
 
-### 4.2 Out of Scope
+Other academic departments and campuses within LSPU SCC are explicitly designated for future institutional expansion.
 
-- Evaluation of instructional materials other than SLMs (e.g., textbooks, slide decks, video content)
-- Evaluation based on rubrics or standards from institutions other than LSPU SCC
-- Automatic generation of revised or corrected SLM content
-- Real-time collaborative review between multiple evaluators on the same session
-- Processing of SLM content written in languages other than English and Filipino
+### 4.2 In Scope
+
+- **Document Processing:** Processing of CCS SLMs (submitted as PDF documents), CCS curriculum guides, and LSPU CCS syllabi, alongside institutional evaluation rubrics.
+- **Evaluation Domains:** Automated evaluation across four stakeholder rubric domains: Organization & Presentation (SME), Assessment (SME), Curriculum Alignment & OBE (Program Coordinator), Inclusivity & Gender Sensitivity (GAD Unit), and IP & Data Privacy (ITSO).
+- **Evaluation Modes:**
+  - **Full Syllabus-Aware Evaluation:** Requires an authoritative LSPU CCS course syllabus to evaluate alignment with course learning outcomes and curriculum objectives.
+  - **Deliberate Partial Evaluation:** When an authoritative syllabus is absent, faculty may deliberately choose to continue a clearly marked partial evaluation. A missing syllabus does not silently remain a full curriculum-only evaluation.
+- **Outputs & Management:** Generation of rubric-based scores, contextual document highlights, consolidated evaluation reports (D-03), web dashboard (D-05), and an Instructional Materials Monitoring Matrix (D-04).
+- **Feedback & Optimization:** Admin-only preference logging mechanism (D-06) capturing Accept / Reject / Edit feedback on agent outputs to support iterative prompt updates.
+
+### 4.3 Reference Authority & Calibration Policy
+
+- **Authoritative Reference Data:** Official LSPU CCS syllabi, curriculum guides, and institutional rubrics are the sole authoritative sources for live evaluation evidence.
+- **Secondary Calibration Materials:** Publicly accessible curriculum or benchmark materials from other Philippine state universities serve strictly as secondary calibration materials for offline prompt tuning and benchmark alignment. They shall never serve as live evaluation retrieval evidence. Private university materials are explicitly excluded from this calibration source policy.
+- **Historical SLM Calibration Corpus:** Historical SLMs may only be used as an admin-only, de-identified calibration corpus paired with recorded human-reviewed outcomes for model/prompt calibration. They shall never be ingested or retrieved as live evaluation evidence.
+
+### 4.4 Out of Scope
+
+- Evaluation of instructional materials other than SLMs (e.g., textbooks, slide decks, video content).
+- Evaluation of programs, courses, or departments outside the LSPU SCC College of Computer Studies (CCS).
+- Evaluation based on rubrics or standards from institutions other than LSPU SCC.
+- Live retrieval or inclusion of secondary external materials (from other state universities) or historical SLMs during live SLM evaluations.
+- Automatic generation of revised or corrected SLM content.
+- Real-time collaborative review between multiple evaluators on the same session.
+- Processing of SLM content written in languages other than English and Filipino.
+
+### 4.5 Future Scope & Expansion
+
+The following capabilities are identified as governed future expansion directions and are **not currently implemented**:
+- **Institutional Expansion:** Expanding scope to other LSPU SCC academic departments and campuses beyond the College of Computer Studies.
+- **Governed Calibration Corpus:** Implementation of the admin-only, de-identified historical SLM calibration dataset with recorded human-reviewed outcomes.
+- **Secondary Source Ingestion Pipeline:** Automated ingestion and management of external secondary calibration materials from other Philippine state universities.
 
 ---
 
@@ -248,10 +272,12 @@ A persistent record of:
 
 ### 8.2 Data Constraints
 
-- All data is sourced exclusively from LSPU SCC institutional documents
-- Documents containing personally identifiable information must be anonymized before ingestion
-- Evaluation accuracy is directly dependent on the quality and internal consistency of reference documents; incoherent or incomplete syllabi will degrade initial output reliability
-- The preference logging system (D-06) requires a minimum corpus of evaluator feedback interactions before prompt refinements are actionable
+- Live evaluation reference data is sourced exclusively from LSPU CCS institutional documents (syllabi, curriculum guides, rubrics).
+- Public materials from other Philippine state universities may be referenced strictly for secondary prompt calibration, never as live evaluation retrieval evidence. Private university materials are excluded from calibration policy.
+- Historical SLMs are restricted to an admin-only, de-identified calibration corpus with recorded human review decisions for future prompt alignment (governed future capability; not currently implemented), and are never used as live evaluation evidence.
+- Documents containing personally identifiable information must be anonymized before ingestion.
+- Evaluation accuracy is directly dependent on the quality and internal consistency of reference documents; incoherent or incomplete syllabi will degrade initial output reliability. Full syllabus-aware evaluation requires an authoritative LSPU CCS syllabus; when absent, deliberate partial evaluation is supported.
+- The preference logging system (D-06) requires a minimum corpus of evaluator feedback interactions before prompt refinements are actionable.
 
 ---
 
@@ -338,7 +364,7 @@ Individual criterion scores within each domain are summed per rubric. The instit
 
 | Constraint | Description |
 |---|---|
-| **Institutional Scope** | System is designed exclusively for LSPU SCC. Rubric calibration, knowledge base content, and scoring logic are not intended for other institutions. |
+| **Institutional & Departmental Scope** | System is designed exclusively for LSPU SCC College of Computer Studies (CCS) supporting canonical programs `BSInfoTech` and `BSCS`. Rubric calibration, knowledge base content, and scoring logic are specific to LSPU CCS. Other LSPU SCC departments and external institutions are outside current product scope. |
 | **Language Scope** | English and Filipino only. Other languages are outside scope. |
 | **Human Oversight** | System outputs are advisory. Final evaluation authority remains with institutional evaluators. System outputs do not constitute official CID decisions without evaluator confirmation. |
 | **Prompt-Based Optimization** | Preference-driven improvement operates through agent prompt updates, not model weight modification. This is a constraint of the local prompt-driven LLM backend architecture. |
