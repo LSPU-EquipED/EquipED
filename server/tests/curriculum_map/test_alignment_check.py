@@ -54,8 +54,18 @@ def test_hallucinated_objective_code_is_filtered() -> None:
     client = FakeClient(
         {
             "results": [
-                {"objective_code": "IT08", "is_addressed": True, "observed_level": "E", "evidence": "x"},
-                {"objective_code": "IT99", "is_addressed": True, "observed_level": "D", "evidence": "y"},
+                {
+                    "objective_code": "IT08",
+                    "is_addressed": True,
+                    "observed_level": "E",
+                    "evidence": "x",
+                },
+                {
+                    "objective_code": "IT99",
+                    "is_addressed": True,
+                    "observed_level": "D",
+                    "evidence": "y",
+                },
             ]
         }
     )
