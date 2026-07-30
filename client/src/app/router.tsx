@@ -20,14 +20,16 @@ import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
 import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
 
 // Admin Pages
-import { AdminHomePage } from '../features/admin/pages/AdminHomePage';
-import { UserManagementPage } from '../features/admin/pages/UserManagementPage';
-import { AdminUploadPage } from '../features/admin/pages/AdminUploadPage';
-import { ReferenceLibraryPage } from '../features/admin/pages/ReferenceLibraryPage';
-import { AgentPromptPage } from '../features/admin/pages/AgentPromptPage';
-import { PreferenceLogPage } from '../features/admin/pages/PreferenceLogPage';
-import { RubricEditorPage } from '../features/admin/pages/RubricEditorPage';
-import { ModelValidationPage } from '../features/admin/pages/ModelValidationPage';
+import {
+  AdminHomePage,
+  AdminUploadPage,
+  AgentPromptPage,
+  ModelValidationPage,
+  PreferenceLogPage,
+  ReferenceLibraryPage,
+  RubricEditorPage,
+  UserManagementPage,
+} from '../features/admin';
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,

@@ -65,6 +65,7 @@ export function DocumentPane({
   // Synchronize current page when available pages change
   useEffect(() => {
     if (availablePages.length > 0 && !availablePages.includes(currentPage)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentPage(availablePages[0]);
     }
   }, [availablePages, currentPage]);
