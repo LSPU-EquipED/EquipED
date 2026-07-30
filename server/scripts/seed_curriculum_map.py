@@ -88,7 +88,7 @@ def seed_curriculum_map(db: Any, payload: dict[str, Any]) -> None:
 def main() -> None:
     from server.core.database import get_session_factory
 
-    seed_path = ROOT / "data" / "curriculum_map" / "it_program.json"
+    seed_path = ROOT / "server" / "data" / "curriculum_map" / "it_program.json"
     payload = json.loads(seed_path.read_text(encoding="utf-8"))
 
     session = get_session_factory()()

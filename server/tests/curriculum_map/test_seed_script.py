@@ -10,6 +10,7 @@ from server.modules.curriculum_map.models import (
     CurriculumMapCell,
     CurriculumObjective,
 )
+from server.scripts import seed_curriculum_map as seed_script
 from server.scripts.seed_curriculum_map import seed_curriculum_map
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,3 +50,18 @@ def test_seed_is_idempotent(db_session) -> None:
 
     courses = db_session.query(Course).all()
     assert len(courses) == len(payload["courses"])
+
+
+def test_main_resolves_seed_json_path_that_actually_exists() -> None:
+    """Regression test: main() previously built its JSON path one directory
+    too shallow (``ROOT / "data" / ...`` instead of ``ROOT / "server" /
+    "data" / ...``), so ``python -m server.scripts.seed_curriculum_map``
+    failed with FileNotFoundError despite every other test in this file
+    passing -- those tests call ``seed_curriculum_map()`` directly with an
+    independently-loaded payload and never exercise ``main()``'s path
+    resolution at all.
+    """
+    seed_path = (
+        seed_script.ROOT / "server" / "data" / "curriculum_map" / "it_program.json"
+    )
+    assert seed_path.is_file()
