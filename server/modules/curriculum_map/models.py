@@ -61,7 +61,9 @@ class CurriculumMapCell(Base):
         UniqueConstraint(
             "course_id", "objective_id", name="uq_curriculum_map_cells_course_objective"
         ),
-        CheckConstraint("level IN ('I', 'E', 'D')", name="ck_curriculum_map_cells_level"),
+        CheckConstraint(
+            "level IN ('I', 'E', 'D')", name="ck_curriculum_map_cells_level"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -94,7 +96,9 @@ class CurriculumAlignmentCheck(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    objective_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    objective_results: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, nullable=False
+    )
     summary: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
