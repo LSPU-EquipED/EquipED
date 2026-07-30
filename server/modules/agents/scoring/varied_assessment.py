@@ -16,7 +16,7 @@ labels drift ("quiz" vs "short quiz") and can inflate the count artificially,
 which is exactly the instability this project has been fixing criterion by
 criterion. A type counts only if a real assessment can be quoted as evidence --
 a bare title like "Final Exam" with no content is not enough (same real-content
-rule as A-05 / OP-02 / OP-03 / OP-05 / A-01, see docs/sme-scoring-basis.md).
+rule as A-05 / OP-02 / OP-03 / OP-05 / A-01, see openspec/specs/sme-engine-scoring/spec.md).
 
 Shape mirrors enhancement_activities.py: a pure ``compute`` (facts -> band)
 plus a thin ``evaluate`` wrapper the CLI uses to run it standalone.

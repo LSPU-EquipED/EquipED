@@ -23,12 +23,12 @@ prompt" approach as A-01/A-02 -- but the type only gates WHAT counts as
 monitoring; the four-type taxonomy is not itself the denominator. A mechanism
 counts only if real content can be quoted as evidence -- a bare heading with no
 content is not enough (same real-content rule as the other criteria, see
-docs/sme-scoring-basis.md). Accepted trade-off: a narrow-but-frequent module
+openspec/specs/sme-engine-scoring/spec.md). Accepted trade-off: a narrow-but-frequent module
 (e.g. five reflections and nothing else) can score high on breadth it doesn't
 have -- a softer failure than under-counting on-going-ness, and tunable via
 THRESHOLDS if real SLMs show it's a problem.
 
-Where the mechanisms live: per docs/sme-scoring-basis.md section 3, SLM tasks
+Where the mechanisms live: per openspec/specs/sme-engine-scoring/spec.md, SLM tasks
 and assessments are concentrated near the BOTTOM of the PDF under a strong
 header (usually "Performance Task(s)"). The input slice anchors on that
 section header and reads to the end -- the same header-anchored approach as

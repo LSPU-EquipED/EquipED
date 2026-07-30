@@ -14,7 +14,7 @@ The LLM only enumerates the tasks and judges per task whether the directions are
 clear; the band is computed in code. A task counts as "clear" ONLY IF the actual
 direction text can be quoted -- a bare title like "Activity 1" with no instructions
 under it is exactly the deficiency this criterion penalizes (same real-content rule
-as A-05 / OP-02, see docs/sme-scoring-basis.md).
+as A-05 / OP-02, see openspec/specs/sme-engine-scoring/spec.md).
 
 Shape mirrors interactivity.py / objective_alignment.py: a pure ``compute`` (facts
 -> band) plus a thin ``evaluate`` wrapper the CLI uses to run it standalone.

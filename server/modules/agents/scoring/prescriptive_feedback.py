@@ -20,7 +20,7 @@ Deliberately counts DISTINCT TYPES, not instances -- the same choice as A-02,
 not A-03. The rubric bundles "positive feedback AND prescriptive guides" as
 one requirement, which reads as a call for VARIETY of feedback approaches, not
 frequency: five answer keys and nothing else should not outscore one answer key
-plus a rubric plus a remediation referral. See docs/sme-scoring-basis.md and
+plus a rubric plus a remediation referral. See openspec/specs/sme-engine-scoring/spec.md and
 the a02-a03-types-vs-instances design note.
 
 The LLM only enumerates feedback mechanisms and classifies each into one of
@@ -43,6 +43,7 @@ thin ``evaluate`` wrapper the CLI uses to run it standalone.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -61,6 +62,54 @@ FEEDBACK_TYPES: tuple[str, ...] = (
     "remediation_referral",  # "if you got X, review/do Y" / corrective activity
     "positive_reinforcement",  # encouraging/motivational language re: performance
 )
+
+_BOILERPLATE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\ball[- ]rights[- ]reserved\b", re.IGNORECASE),
+    re.compile(
+        r"(?:\bcopyright\b|©|\(c\))\s*(?:notice|owner|by|publisher|granted|\d{4}|[A-Za-z0-9_\s]{1,30}\b(?:19|20)\d{2}\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bcopyright\s+notice\b|\bcopyright\s+owner\b", re.IGNORECASE),
+    re.compile(r"\bfair[- ]use\b", re.IGNORECASE),
+    re.compile(r"\bno\s+part\s+of\s+this\b", re.IGNORECASE),
+    re.compile(r"\bwithout\s+(?:the\s+)?(?:prior\s+)?(?:written\s+)?permission\b", re.IGNORECASE),
+    re.compile(
+        r"\breproduced\s+or\s+transmitted\b|\breproduction\s+(?:or|and)\s+distribution\b|\bprohibited\s+without\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:under|pursuant\s+to)\s+(?:section|[0-9A-Za-z._-]+|\s+)+?(?:republic\s+act|r\.?a\.?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:under|pursuant\s+to)\s+(?:republic\s+act|r\.?a\.?)\s+(?:section|[0-9A-Za-z._-]+|\s+)+",
+        re.IGNORECASE,
+    ),
+)
+
+_PRAISE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"\b(?:great|good|nice|excellent|fantastic|wonderful|amazing|awesome)\s+(?:job|work|effort|done)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:congratulations|congratulation|congrats|bravo|well\s+done|keep\s+it\s+up|keep\s+up\s+the\s+good\s+work|proud\s+of\s+you)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\byou\s+did\s+(?:wonderfully|well)\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _is_high_confidence_boilerplate(text: str) -> bool:
+    return any(pattern.search(text) for pattern in _BOILERPLATE_PATTERNS)
+
+
+def _has_explicit_praise(text: str) -> bool:
+    return any(pattern.search(text) for pattern in _PRAISE_PATTERNS)
+
 
 PROMPT = f"""You are analyzing a Self-Paced Learning Module (SLM).
 
@@ -89,21 +138,24 @@ a specific assessment. Classify each into EXACTLY ONE of these four types:
                               "Congratulations on finishing!")
 
 STRICT rules:
-- You must be able to quote the actual text as evidence. A bare heading with no
-  content (e.g. just "Feedback") is NOT sufficient -- still list it, but with
-  empty "evidence".
+- Do NOT classify legal disclaimers, copyright notices, fair-use statements,
+  reproduction/distribution prohibitions, administrative boilerplate, or
+  institutional-policy notices as feedback mechanisms.
+- You must quote a minimal evidence quote directly evidencing the feedback
+  mechanism. A bare heading with no content (e.g. just "Feedback") is NOT
+  sufficient -- still list it, but with empty "evidence".
 - List EVERY distinct mechanism you find, even more than one of the same type.
 - If a mechanism does not clearly fit one of the four types, do not force it
   -- omit it rather than guessing.
 
 For each mechanism found, put a short label in "text", one of the four types
-in "feedback_type", and the exact text as evidence.
+in "feedback_type", and the minimal evidence quote as evidence.
 
 Return ONLY valid JSON in exactly this shape:
 {{{{
   "mechanisms": [
-    {{{{"id": 1, "text": "short label", "feedback_type": "answer_key",
-      "evidence": "exact mechanism text"}}}}
+    {{{{\"id\": 1, \"text\": \"short label\", \"feedback_type\": \"answer_key\",
+      \"evidence\": \"minimal evidence quote\"}}}}
   ]
 }}}}
 
@@ -165,6 +217,9 @@ def compute(mechanisms: list[dict[str, Any]]) -> FeedbackResult:
         kind = _normalize_type(str(mechanism.get("feedback_type", "")))
         if not kind:  # unrecognized type -> dropped, not guessed
             continue
+        if kind == "positive_reinforcement":
+            if _is_high_confidence_boilerplate(evidence) and not _has_explicit_praise(evidence):
+                continue
         genuine.append(mechanism)
         types.add(kind)
 

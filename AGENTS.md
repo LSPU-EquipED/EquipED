@@ -1,13 +1,12 @@
 ## Architectural Scope
 
 - `openspec/specs/` is the canonical implementation contract source.
-- Use `docs/TDD.md` and `docs/PRD.md` as supporting reference docs; do not let them override `openspec/specs/`.
+- Use `docs/PRD.md` as supporting reference docs; do not let them override `openspec/specs/`.
 - Keep the repo aligned with current implemented behavior and current spec state; do not reintroduce stale scaffold-only assumptions.
 
 ## Highest-Value Files
 
 - `openspec/specs/` — implementation contracts and accepted product behavior.
-- `docs/TDD.md` — supporting technical blueprint and architecture notes.
 - `docs/PRD.md` — supporting scope, roles, deliverables, and constraints.
 - `server/AGENTS.md` — backend guardrails for the modular monolith.
 - `client/AGENTS.md` — frontend guardrails for the feature-driven client.
@@ -34,7 +33,6 @@
 - `README.md` — active setup/runtime guidance.
 - `openspec/specs/` — implementation contracts.
 - `docs/PRD.md` — supporting product scope and constraints.
-- `docs/TDD.md` — supporting technical blueprint.
 - `server/` — backend implementation and module boundaries.
 - `client/` — frontend implementation and feature boundaries.
 - `uploads/`, `chroma_data/`, and `equiped_dev.db` — local runtime data at the repository root.
@@ -61,7 +59,7 @@
 - `client/src/app/` — routing tree, global providers, and layout shell.
 - `client/src/features/` — feature-owned components, hooks, API files, and types.
 - `client/src/shared/` — intentionally sparse shared layer for code reused by 2+ features.
-- `docs/` — PRD/TDD documentation only.
+- `docs/` — PRD documentation only.
 
 ### Execution Flow Constraints
 
@@ -81,7 +79,7 @@
 ## Working Rules
 
 - Read `openspec/specs/` first for implementation behavior.
-- Use `docs/TDD.md` and `docs/PRD.md` only to resolve supporting context.
+- Use `docs/PRD.md` only to resolve supporting context.
 - Call out assumptions explicitly in commits and PRs.
 
 ## Design And Branding

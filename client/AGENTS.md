@@ -1,7 +1,7 @@
 ## Scope
 
 - This directory covers frontend implementation under `client/`.
-- Preserve the feature-driven structure defined in `openspec/specs/` and supported by `docs/TDD.md`.
+- Preserve the feature-driven structure defined in `openspec/specs/`.
 
 ## Frontend Guardrails
 
@@ -21,6 +21,6 @@
 
 ## Before Making Frontend Changes
 
-- Read `../openspec/specs/` first, then `../docs/TDD.md` for supporting structure notes.
+- Read `../openspec/specs/` first for supporting structure notes.
 - Prefer promoting code to `shared/` only after real duplication exists.
 - Keep role-gated routes, document ownership, and admin/faculty surfaces aligned with the implementation contracts.

@@ -7,7 +7,7 @@ criteria into "baskets" by the slice they need, extracting each basket's facts
 with ONE LLM call, so several criteria share a call instead of each paying
 for its own.
 
-History of this design (see docs/sme-scoring-progress.md for full detail):
+History of this design (see openspec/specs/sme-engine-scoring/spec.md for the canonical contract):
 
 1. First attempt: 2 baskets (all 7 assessment/task criteria in one call, all 3
    content criteria in another). Rejected outright by the provider -- HTTP 413,
@@ -221,17 +221,21 @@ document.
 List every TASK the student is asked to perform: any activity, exercise,
 quiz, performance task, or prompt that requires the student to DO something.
 For EACH task, provide ALL of the following:
-- "bloom_level": classify what the student must actually DO into exactly one
-  of: "remember", "understand", "apply", "analyze", "evaluate", "create" (if
-  unsure between two, pick the lower one).
+- "bloom_level": classify what the student must actually DO into exactly one of
+  the six canonical category names: "remember", "understand", "apply",
+  "analyze", "evaluate", "create" (if unsure between two, pick the lower one).
+  You MUST return the canonical category name, NOT the example action verb (for
+  example, if the task is to "compare", return "analyze"; if to "explain", return
+  "understand"; if to "justify", return "evaluate"; if to "list", return "remember").
 - "directions": the exact instruction text telling the student what to do.
 - "has_clear_directions": true ONLY IF the directions tell the student what
   to do well enough to actually perform the task; false for a bare title with
   no instructions, or vague/incomplete instructions. If unsure, false.
-- "evidence": the exact task text (same as "directions" is fine).
+- "evidence": minimal evidence quote (the exact instruction or task sentence;
+  same as "directions" is fine).
 
 STRICT rules:
-- You must be able to quote real content as "directions"/"evidence". A bare
+- You must quote minimal evidence in "directions"/"evidence". A bare
   title/heading with no content under it is NOT sufficient -- still list the
   task, but with empty directions/evidence.
 - List each DISTINCT task once. Do not repeat the same task.
@@ -363,11 +367,15 @@ sides of a boundary.
    - "remediation_referral"   -- explicit guidance on what to do if struggling
    - "positive_reinforcement" -- encouraging/motivational language about
                                  performance or effort
-   If it does not clearly fit one of the four, omit it.
+   If it does not clearly fit one of the four, omit it. Do NOT classify
+   legal disclaimers, copyright notices, fair-use statements, reproduction/distribution
+   prohibitions, administrative boilerplate, or institutional-policy notices
+   as feedback mechanisms.
 
 STRICT rules:
-- You must be able to quote actual text as evidence. A bare heading with no
-  content is NOT sufficient -- still list it, with an empty evidence field.
+- You must quote a minimal evidence quote directly evidencing the feedback
+  mechanism. A bare heading with no content is NOT sufficient -- still list it,
+  with an empty evidence field.
 - List each DISTINCT item once per list.
 
 Return ONLY valid JSON in exactly this shape:

@@ -1,7 +1,7 @@
 """Deterministic band functions: measurements -> 1-4 score.
 
 Pure, side-effect free, and unit-tested. These encode the scoring bands from
-docs/sme-scoring-basis.md so that scoring is consistent by construction.
+openspec/specs/sme-engine-scoring/spec.md so that scoring is consistent by construction.
 """
 
 from __future__ import annotations

@@ -18,7 +18,7 @@ computes the band. Keeping that boundary in code -- not the prompt -- makes it
 auditable and changeable without touching the LLM call. A task counts as
 higher-order ONLY IF the actual task text can be quoted -- a bare title like
 "Activity 1" with no content under it is not evidence of transformation (same
-real-content rule as A-05 / OP-02 / OP-03, see docs/sme-scoring-basis.md).
+real-content rule as A-05 / OP-02 / OP-03, see openspec/specs/sme-engine-scoring/spec.md).
 
 Why ACTIVITIES and not OBJECTIVES: the rubric says students must be "engaged in
 transforming" -- engagement is something a student DOES, and that happens in the
@@ -28,7 +28,7 @@ already reads the objectives) and (b) miss the exact gap this criterion exists t
 catch: a module that *promises* higher-order objectives but only delivers recall
 worksheets.
 
-Where the tasks live: per docs/sme-scoring-basis.md section 3, SLM tasks are
+Where the tasks live: per openspec/specs/sme-engine-scoring/spec.md, SLM tasks are
 concentrated near the BOTTOM of the PDF under a strong header (usually
 "Performance Task(s)"), not spread through the lecture body. The input slice
 therefore anchors on that section HEADER and reads to the end -- NOT on activity
@@ -88,7 +88,7 @@ List every TASK the student is asked to perform: any activity, exercise, quiz,
 performance task, or prompt that requires the student to DO something.
 
 For EACH task, classify its Bloom's Taxonomy cognitive level based on what the
-student must actually DO, using exactly one of these six levels:
+student must actually DO, using exactly one of these six canonical category names:
 - "remember"   -- recall facts, terms, definitions (e.g. list, define, name)
 - "understand" -- explain or summarize in their own words (e.g. describe, explain)
 - "apply"      -- use a concept in a new situation (e.g. solve, demonstrate, use)
@@ -96,16 +96,21 @@ student must actually DO, using exactly one of these six levels:
 - "evaluate"   -- judge, critique, justify a position (e.g. critique, defend, assess)
 - "create"     -- produce something new (e.g. design, build, compose, propose)
 
+IMPORTANT: You MUST return the canonical category name ("remember", "understand",
+"apply", "analyze", "evaluate", or "create"), NOT the example action verb (for
+example, if the task is to "compare", return "analyze"; if to "explain", return
+"understand"; if to "justify", return "evaluate"; if to "list", return "remember").
+
 STRICT rules:
 - Classify by what the student must actually DO, not by the topic's difficulty.
-- You must be able to quote the actual task text as evidence. A bare task TITLE
-  with no content under it (e.g. just "Activity 1") is NOT evidence -- still list
-  it, but with empty "evidence".
+- You must quote a minimal evidence quote (the exact instruction or task sentence)
+  in "evidence". A bare task TITLE with no content under it (e.g. just "Activity 1")
+  is NOT evidence -- still list it, but with empty "evidence".
 - If you are unsure between two levels, pick the LOWER one.
 - List each DISTINCT task once. Do not repeat the same task.
 
-For each task put a short label in "text", the Bloom level in "bloom_level", and
-the exact task text in "evidence".
+For each task put a short label in "text", the canonical Bloom level in "bloom_level", and
+the minimal evidence quote in "evidence".
 
 Return ONLY valid JSON in exactly this shape:
 {{
@@ -144,10 +149,20 @@ def slice_for_transformation(text: str, *, body: int = 9000) -> str:
     return text[start : start + body]
 
 
+BLOOM_ALIASES: dict[str, str] = {
+    "list": "remember",
+    "explain": "understand",
+    "compare": "analyze",
+    "justify": "evaluate",
+}
+
+
 def _normalize_level(raw: str) -> str:
     """Map free-text Bloom level to one of KNOWN_LEVELS, or "" if unrecognized.
 
-    Matches by prefix so "analyzing"/"analyze"/"Analyze" all map to "analyze".
+    Matches by prefix for canonical levels (e.g. "analyzing" -> "analyze").
+    Also maps exact observed aliases after trim/casefold: list -> remember,
+    explain -> understand, compare -> analyze, justify -> evaluate.
     Unrecognized text normalizes to "" and is treated as lower-order --
     conservative, per the "if unsure, pick the lower one" prompt rule.
     """
@@ -155,7 +170,7 @@ def _normalize_level(raw: str) -> str:
     for level in KNOWN_LEVELS:
         if cleaned.startswith(level):
             return level
-    return ""
+    return BLOOM_ALIASES.get(cleaned, "")
 
 
 @dataclass

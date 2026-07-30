@@ -100,9 +100,9 @@ docker compose up --build client-smoke
 
 Avoid treating `db + chroma + server + client` as a fully supported full-stack Docker mode yet. It can be attempted, but it is not the documented primary workflow at this stage.
 
-## API Contract (Scaffold)
+## API Documentation
 
-See `docs/API.md` for the minimal Phase 1 API contract.
+When the server is running, open [http://localhost:8000/docs](http://localhost:8000/docs) for the live OpenAPI documentation. Canonical behavioral contracts live in `openspec/specs/`.
 
 ## Local Dev
 
