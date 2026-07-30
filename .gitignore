@@ -1,13 +1,15 @@
-# Tools
+# Agent and local tooling
 .gemini/
 .omg/
 .opencode/
 .antigravitycli/
-openspec/changes
-skills-lock.json
 .slim/
-.agents/
 .impeccable/
+.cortexit/
+skills-lock.json
+
+# OpenSpec working changes
+openspec/changes/
 
 # Environment files
 .env
@@ -28,23 +30,27 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Frontend
+# Frontend build dependencies and output
 node_modules/
 dist/
 build/
 
-# Logs / OS / editor
-*.log
-.DS_Store
-Thumbs.db
-*.db
-*.sqlite
-.vscode/
-.idea/
-
 # Local runtime artifacts
 uploads/*
 !uploads/.gitkeep
-
 chroma_data/*
 !chroma_data/.gitkeep
+
+# Local Tesseract language data
+tessdata_local/
+
+# Local databases
+*.db
+*.sqlite
+
+# Logs, operating system, and editor files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
