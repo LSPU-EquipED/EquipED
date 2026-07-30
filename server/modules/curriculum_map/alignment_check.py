@@ -15,6 +15,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_VALID_OBSERVED_LEVELS = {"I", "E", "D", None}
+
 PROMPT = """You are checking a Self-Paced Learning Module (SLM) against a
 list of curriculum objectives it is expected to address.
 
@@ -97,11 +99,24 @@ def run_alignment_llm(
         code = item.get("objective_code")
         if code not in valid_codes:
             continue
+        observed_level = item.get("observed_level")
+        if observed_level not in _VALID_OBSERVED_LEVELS:
+            # Hallucinated/malformed depth reading -- drop the whole result
+            # so the caller falls back to "no LLM result for this
+            # objective" (is_addressed=False -> not_addressed), the same
+            # safe-fallback behavior already used for hallucinated codes.
+            logger.warning(
+                "Curriculum alignment LLM returned invalid observed_level "
+                "%r for objective %s; dropping result",
+                observed_level,
+                code,
+            )
+            continue
         filtered.append(
             {
                 "objective_code": code,
                 "is_addressed": bool(item.get("is_addressed", False)),
-                "observed_level": item.get("observed_level"),
+                "observed_level": observed_level,
                 "evidence": item.get("evidence"),
             }
         )

@@ -20,4 +20,19 @@ class AlignmentCheckNotFoundError(Exception):
     """Raised when the requested alignment check does not exist."""
 
 
-__all__ = ["CourseNotFoundError", "NoCurriculumMapError", "AlignmentCheckNotFoundError"]
+class DocumentAccessDeniedError(Exception):
+    """Raised when the acting user does not own the target document.
+
+    Mirrors ``documents/service.py``'s owner-only rule for SLMs and other
+    non-reference, non-policy document types (see
+    ``_is_document_accessible``). Mapped to a 404 (not 403) at the router
+    layer to avoid leaking whether the document exists.
+    """
+
+
+__all__ = [
+    "CourseNotFoundError",
+    "NoCurriculumMapError",
+    "AlignmentCheckNotFoundError",
+    "DocumentAccessDeniedError",
+]

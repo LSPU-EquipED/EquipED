@@ -86,3 +86,55 @@ def test_empty_objectives_returns_empty_list_without_calling_llm() -> None:
     results = run_alignment_llm(client, [], "text")
     assert results == []
     assert client.calls == []
+
+
+def test_invalid_observed_level_result_is_dropped() -> None:
+    client = FakeClient(
+        {
+            "results": [
+                {
+                    "objective_code": "IT08",
+                    "is_addressed": True,
+                    "observed_level": "Advanced",
+                    "evidence": "students work in pairs",
+                },
+                {
+                    "objective_code": "IT09",
+                    "is_addressed": True,
+                    "observed_level": "E",
+                    "evidence": "students apply it",
+                },
+            ]
+        }
+    )
+    objectives = [
+        {"code": "IT08", "description": "Teamwork"},
+        {"code": "IT09", "description": "Communication"},
+    ]
+    results = run_alignment_llm(client, objectives, "text")
+    assert [r["objective_code"] for r in results] == ["IT09"]
+
+
+def test_null_observed_level_is_kept_when_not_addressed() -> None:
+    client = FakeClient(
+        {
+            "results": [
+                {
+                    "objective_code": "IT08",
+                    "is_addressed": False,
+                    "observed_level": None,
+                    "evidence": None,
+                }
+            ]
+        }
+    )
+    objectives = [{"code": "IT08", "description": "Teamwork"}]
+    results = run_alignment_llm(client, objectives, "text")
+    assert results == [
+        {
+            "objective_code": "IT08",
+            "is_addressed": False,
+            "observed_level": None,
+            "evidence": None,
+        }
+    ]

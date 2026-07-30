@@ -18,6 +18,7 @@ from .document_text import extract_document_pages, find_evidence_page
 from .exceptions import (
     AlignmentCheckNotFoundError,
     CourseNotFoundError,
+    DocumentAccessDeniedError,
     NoCurriculumMapError,
 )
 from .models import (
@@ -32,12 +33,55 @@ from .models import (
 # section 7: "SLM text exceeds prompt context budget"), just simpler since
 # this pipeline sends one document's full text rather than ranked chunks.
 _MAX_SLM_TEXT_CHARS = 20000
+_HEAD_TAIL_MARKER = "\n\n[...middle of document omitted...]\n\n"
+_HALF_BUDGET = (_MAX_SLM_TEXT_CHARS - len(_HEAD_TAIL_MARKER)) // 2
 
 
 def _cap_slm_text(text: str) -> str:
+    """Cap SLM text to the prompt budget via a head+tail window sample.
+
+    Real assessment content (the material that distinguishes "D" depth
+    from "E") tends to sit at the END of SLM PDFs, under a "Performance
+    Task(s)" section, not the start -- so a hard head-truncation
+    systematically hides exactly the evidence needed to detect
+    Demonstrative-level work. Keep roughly the first half of the budget
+    (objectives/intro) and the last half (assessments/performance tasks)
+    instead of just the head.
+    """
     if len(text) <= _MAX_SLM_TEXT_CHARS:
         return text
-    return text[:_MAX_SLM_TEXT_CHARS].rstrip() + "\n\n[...truncated for length...]"
+    head = text[:_HALF_BUDGET].rstrip()
+    tail = text[-_HALF_BUDGET:].lstrip()
+    return head + _HEAD_TAIL_MARKER + tail
+
+
+def _empty_summary(total_mapped_objectives: int) -> dict[str, int]:
+    return {
+        "total_mapped_objectives": total_mapped_objectives,
+        "match": 0,
+        "under_developed": 0,
+        "over_developed": 0,
+        "not_addressed": 0,
+    }
+
+
+def _require_owned_document(
+    document_id: uuid.UUID, current_user_id: uuid.UUID, db: Any
+) -> None:
+    """Raise DocumentAccessDeniedError unless the document exists and is
+    owned by ``current_user_id``.
+
+    Curriculum-map documents are always SLMs (or other non-reference,
+    non-policy types) in practice, so this mirrors only the owner-only
+    branch of ``documents/service.py::_is_document_accessible`` -- inlined
+    rather than imported, since that helper is private to the documents
+    module.
+    """
+    from server.modules.documents.models import Document
+
+    document = db.get(Document, document_id)
+    if document is None or document.uploaded_by != current_user_id:
+        raise DocumentAccessDeniedError(f"Document {document_id} not found")
 
 
 def list_courses(db: Any) -> list[Course]:
@@ -78,9 +122,11 @@ def run_curriculum_alignment_check(
     *,
     document_id: uuid.UUID,
     course_id: uuid.UUID,
+    current_user_id: uuid.UUID,
     db: Any,
     llm_client: Any | None = None,
 ) -> CurriculumAlignmentCheck:
+    _require_owned_document(document_id, current_user_id, db)
     course = _get_course(course_id, db)
     mapped = _get_mapped_objectives(course.course_id, db)
     if not mapped:
@@ -89,6 +135,20 @@ def run_curriculum_alignment_check(
         )
 
     pages = extract_document_pages(document_id)
+    if not pages:
+        check = CurriculumAlignmentCheck(
+            document_id=document_id,
+            course_id=course.course_id,
+            model_name=None,
+            objective_results=[],
+            summary=_empty_summary(len(mapped)),
+            success=False,
+            error_message="Could not extract text from the SLM PDF.",
+        )
+        db.add(check)
+        db.commit()
+        return check
+
     slm_text = _cap_slm_text("\n\n".join(pages))
 
     client = llm_client or get_llm_client()
@@ -97,6 +157,23 @@ def run_curriculum_alignment_check(
         [{"code": m["code"], "description": m["description"]} for m in mapped],
         slm_text,
     )
+    if not llm_results:
+        check = CurriculumAlignmentCheck(
+            document_id=document_id,
+            course_id=course.course_id,
+            model_name=getattr(client, "model", None),
+            objective_results=[],
+            summary=_empty_summary(len(mapped)),
+            success=False,
+            error_message=(
+                "The alignment check could not complete (LLM error or "
+                "invalid response)."
+            ),
+        )
+        db.add(check)
+        db.commit()
+        return check
+
     llm_by_code = {r["objective_code"]: r for r in llm_results}
 
     objective_results: list[dict[str, Any]] = []
@@ -156,15 +233,20 @@ def run_curriculum_alignment_check(
     return check
 
 
-def get_alignment_check(check_id: uuid.UUID, db: Any) -> CurriculumAlignmentCheck:
+def get_alignment_check(
+    check_id: uuid.UUID, current_user_id: uuid.UUID, db: Any
+) -> CurriculumAlignmentCheck:
     check = db.get(CurriculumAlignmentCheck, check_id)
     if check is None:
         raise AlignmentCheckNotFoundError(f"Alignment check {check_id} not found")
+    _require_owned_document(check.document_id, current_user_id, db)
     return check
 
 
-def get_document_pages_for_check(check_id: uuid.UUID, db: Any) -> list[str]:
-    check = get_alignment_check(check_id, db)
+def get_document_pages_for_check(
+    check_id: uuid.UUID, current_user_id: uuid.UUID, db: Any
+) -> list[str]:
+    check = get_alignment_check(check_id, current_user_id, db)
     return extract_document_pages(check.document_id)
 
 

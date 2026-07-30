@@ -17,6 +17,7 @@ from server.modules.auth.service import AuthenticatedUser
 from .exceptions import (
     AlignmentCheckNotFoundError,
     CourseNotFoundError,
+    DocumentAccessDeniedError,
     NoCurriculumMapError,
 )
 from .schemas import (
@@ -68,8 +69,15 @@ def run_check_endpoint(
 ) -> AlignmentCheckResponse:
     try:
         check = run_curriculum_alignment_check(
-            document_id=body.document_id, course_id=body.course_id, db=db
+            document_id=body.document_id,
+            course_id=body.course_id,
+            current_user_id=_current_user.id,
+            db=db,
         )
+    except DocumentAccessDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except CourseNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
@@ -88,8 +96,8 @@ def get_check_endpoint(
     db: Any = Depends(get_db_session),
 ) -> AlignmentCheckResponse:
     try:
-        check = get_alignment_check(check_id, db)
-    except AlignmentCheckNotFoundError as exc:
+        check = get_alignment_check(check_id, _current_user.id, db)
+    except (AlignmentCheckNotFoundError, DocumentAccessDeniedError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
@@ -103,8 +111,8 @@ def get_document_pages_endpoint(
     db: Any = Depends(get_db_session),
 ) -> DocumentPagesResponse:
     try:
-        pages = get_document_pages_for_check(check_id, db)
-    except AlignmentCheckNotFoundError as exc:
+        pages = get_document_pages_for_check(check_id, _current_user.id, db)
+    except (AlignmentCheckNotFoundError, DocumentAccessDeniedError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc

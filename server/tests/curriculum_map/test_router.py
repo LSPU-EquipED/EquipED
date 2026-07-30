@@ -41,10 +41,10 @@ def test_list_courses_returns_seeded_courses(client, db_session) -> None:
 
 
 def test_run_check_returns_404_for_unknown_course(client, db_session) -> None:
-    _login(client, db_session)
+    user = _login(client, db_session)
     document = Document(
         title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
-        uploaded_by=uuid.uuid4(),
+        uploaded_by=user.user_id,
     )
     db_session.add(document)
     db_session.commit()
@@ -57,8 +57,28 @@ def test_run_check_returns_404_for_unknown_course(client, db_session) -> None:
 
 
 def test_run_check_returns_422_for_unmapped_course(client, db_session) -> None:
-    _login(client, db_session)
+    user = _login(client, db_session)
     course = Course(course_code="IT999", course_title="Unmapped", program="BSIT")
+    document = Document(
+        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
+        uploaded_by=user.user_id,
+    )
+    db_session.add_all([course, document])
+    db_session.commit()
+
+    response = client.post(
+        "/api/v1/curriculum-map/checks",
+        json={
+            "document_id": str(document.document_id),
+            "course_id": str(course.course_id),
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_run_check_returns_404_for_non_owner_document(client, db_session) -> None:
+    _login(client, db_session)
+    course = Course(course_code="IT301", course_title="Data Structures", program="BSIT")
     document = Document(
         title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
         uploaded_by=uuid.uuid4(),
@@ -73,7 +93,7 @@ def test_run_check_returns_422_for_unmapped_course(client, db_session) -> None:
             "course_id": str(course.course_id),
         },
     )
-    assert response.status_code == 422
+    assert response.status_code == 404
 
 
 def test_get_check_returns_404_for_unknown_id(client, db_session) -> None:
