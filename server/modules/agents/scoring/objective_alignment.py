@@ -4,7 +4,7 @@ Measurement type: coverage ratio (aligned objectives / total objectives) on the
 moderate scale. The LLM only enumerates and judges per objective; the band is
 computed in code. A bare assessment title is NOT sufficient evidence -- when the
 actual instruments are absent, alignment cannot be demonstrated and the score is
-low by design (see docs/sme-scoring-basis.md sections 6 and 9).
+low by design (see openspec/specs/sme-engine-scoring/spec.md).
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def compute(
     This is the half that stays per-criterion. The facts it needs (objectives,
     assessments, per-objective alignment judgments) can be produced by this
     criterion's own call OR merged from a shared skeleton/group call later;
-    either way the scoring math is identical. See docs/sme-scoring-basis.md s.11.
+    either way the scoring math is identical. See openspec/specs/sme-engine-scoring/spec.md.
     """
     # Count DISTINCT measured objectives, not alignment rows: the LLM may emit
     # several rows per objective (one per matching assessment), which would

@@ -15,7 +15,7 @@ An enhancement activity is one offered BEYOND the required core lessons/tasks:
 enrichment, extension, extra practice, real-world application, or independent /
 further exploration. It counts ONLY IF it has actual content the student acts on (a
 bare "Enrichment" heading is not enough) -- the same real-content rule as A-05 /
-OP-02 / OP-03 (see docs/sme-scoring-basis.md sections 5-6).
+OP-02 / OP-03 (see openspec/specs/sme-engine-scoring/spec.md).
 
 Shape mirrors interactivity.py: a pure ``compute`` (facts -> band) plus a thin
 ``evaluate`` wrapper the CLI uses to run it standalone.

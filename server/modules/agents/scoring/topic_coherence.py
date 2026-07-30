@@ -9,7 +9,7 @@ BLOCKS, then judge each consecutive transition as coherent or not.
 
 mapped on the moderate scale (>=80% -> 4, >=50% -> 3, >=20% -> 2, else 1).
 
-Short-document fallback (docs/sme-scoring-basis.md s.6): with FEWER THAN 4
+Short-document fallback (openspec/specs/sme-engine-scoring/spec.md): with FEWER THAN 4
 transitions, a percentage swings too wildly for one bad transition to be a fair
 signal (e.g. 1 issue out of 2 transitions = 50%, the same score a genuinely
 mixed module would get). Below that threshold we instead count ISSUES directly:
@@ -39,7 +39,7 @@ from .bands import ratio_band
 from .slicing import GAP_MARKER, downsample
 
 # Below this many transitions, use the issue-count fallback instead of a ratio
-# (docs/sme-scoring-basis.md s.6).
+# (openspec/specs/sme-engine-scoring/spec.md).
 MIN_TRANSITIONS_FOR_RATIO = 4
 
 # Issue count -> band for the short-document fallback: 0 -> 4, 1 -> 3, 2 -> 2,

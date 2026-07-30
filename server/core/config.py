@@ -93,7 +93,7 @@ class Settings:
 
     # Seconds to wait between the SME scoring engine's LLM calls (grouped
     # basket calls and any per-criterion fallback calls), to respect the
-    # provider token/min limit. 0 = no wait. See docs/sme-scoring-basis.md.
+    # provider token/min limit. 0 = no wait. See openspec/specs/sme-engine-scoring/spec.md.
     sme_scoring_call_delay_seconds: int = 0
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).

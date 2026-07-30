@@ -1,7 +1,7 @@
 """Shared slicing helpers used by more than one criterion.
 
 Criteria that judge the MAIN LESSON CONTENT (as opposed to the tasks/
-assessments section near the bottom -- see docs/sme-scoring-basis.md s.3) need
+assessments section near the bottom -- see openspec/specs/sme-engine-scoring/spec.md) need
 a different strategy: they must see representative content from across the
 WHOLE document, not just one contiguous window, because "coherent from Unit to
 Chapter" or "sections have accurate information" is a judgment about the full
