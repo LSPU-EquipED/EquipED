@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
@@ -21,6 +21,8 @@ from .exceptions import (
     NoCurriculumMapError,
 )
 from .schemas import (
+    AlignmentCheckListItemResponse,
+    AlignmentCheckListResponse,
     AlignmentCheckResponse,
     CourseListResponse,
     CourseResponse,
@@ -29,8 +31,10 @@ from .schemas import (
     RunAlignmentCheckRequest,
 )
 from .service import (
+    delete_alignment_check,
     get_alignment_check,
     get_document_pages_for_check,
+    list_alignment_checks,
     list_courses,
     run_curriculum_alignment_check,
 )
@@ -54,6 +58,24 @@ def list_courses_endpoint(
             )
             for c in courses
         ]
+    )
+
+
+@router.get("/checks", response_model=AlignmentCheckListResponse)
+def list_checks_endpoint(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> AlignmentCheckListResponse:
+    items, total = list_alignment_checks(
+        current_user_id=_current_user.id, page=page, page_size=page_size, db=db
+    )
+    return AlignmentCheckListResponse(
+        items=[AlignmentCheckListItemResponse(**item) for item in items],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -102,6 +124,20 @@ def get_check_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
     return _to_response(check, db)
+
+
+@router.delete("/checks/{check_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_check_endpoint(
+    check_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> None:
+    try:
+        delete_alignment_check(check_id, _current_user.id, db)
+    except (AlignmentCheckNotFoundError, DocumentAccessDeniedError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
 
 
 @router.get("/checks/{check_id}/document-pages", response_model=DocumentPagesResponse)

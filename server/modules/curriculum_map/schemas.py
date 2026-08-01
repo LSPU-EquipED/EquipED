@@ -57,6 +57,25 @@ class AlignmentCheckResponse(BaseModel):
     error_message: str | None = None
 
 
+class AlignmentCheckListItemResponse(BaseModel):
+    check_id: UUID
+    document_id: UUID
+    document_title: str
+    course_id: UUID
+    course_title: str
+    run_at: datetime
+    success: bool
+    error_message: str | None = None
+    summary: AlignmentCheckSummary
+
+
+class AlignmentCheckListResponse(BaseModel):
+    items: list[AlignmentCheckListItemResponse]
+    total: int
+    page: int
+    page_size: int
+
+
 class DocumentPageResponse(BaseModel):
     page_number: int
     text: str
@@ -73,6 +92,8 @@ __all__ = [
     "AlignmentCheckSummary",
     "RunAlignmentCheckRequest",
     "AlignmentCheckResponse",
+    "AlignmentCheckListItemResponse",
+    "AlignmentCheckListResponse",
     "DocumentPageResponse",
     "DocumentPagesResponse",
 ]
