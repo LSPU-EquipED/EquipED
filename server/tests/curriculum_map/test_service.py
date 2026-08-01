@@ -19,6 +19,7 @@ from server.modules.curriculum_map.exceptions import (
 )
 from server.modules.curriculum_map.models import (
     Course,
+    CurriculumAlignmentCheck,
     CurriculumMapCell,
     CurriculumObjective,
 )
@@ -334,3 +335,130 @@ def test_cap_slm_text_keeps_head_and_tail_for_long_text() -> None:
     assert head_marker in capped
     assert tail_marker in capped
     assert service._HEAD_TAIL_MARKER in capped
+
+
+def test_list_checks_returns_only_current_users_checks_newest_first(db_session) -> None:
+    course, _ = _make_course_with_map(db_session)
+    owner = uuid.uuid4()
+    other_owner = uuid.uuid4()
+
+    mine_doc = _make_document(db_session, uploaded_by=owner)
+    other_doc = _make_document(db_session, uploaded_by=other_owner)
+
+    older = CurriculumAlignmentCheck(
+        document_id=mine_doc.document_id,
+        course_id=course.course_id,
+        objective_results=[],
+        summary={"total_mapped_objectives": 0},
+        success=True,
+    )
+    db_session.add(older)
+    db_session.commit()
+
+    newer = CurriculumAlignmentCheck(
+        document_id=mine_doc.document_id,
+        course_id=course.course_id,
+        objective_results=[],
+        summary={"total_mapped_objectives": 0},
+        success=True,
+    )
+    db_session.add(newer)
+    db_session.commit()
+
+    not_mine = CurriculumAlignmentCheck(
+        document_id=other_doc.document_id,
+        course_id=course.course_id,
+        objective_results=[],
+        summary={"total_mapped_objectives": 0},
+        success=True,
+    )
+    db_session.add(not_mine)
+    db_session.commit()
+
+    items, total = service.list_alignment_checks(
+        current_user_id=owner, page=1, page_size=20, db=db_session
+    )
+    assert total == 2
+    assert [i["check_id"] for i in items] == [newer.check_id, older.check_id]
+    assert items[0]["document_title"] == "Sample SLM"
+    assert items[0]["course_title"] == "Data Structures"
+
+
+def test_list_checks_paginates(db_session) -> None:
+    course, _ = _make_course_with_map(db_session)
+    owner = uuid.uuid4()
+    document = _make_document(db_session, uploaded_by=owner)
+
+    for _ in range(3):
+        db_session.add(
+            CurriculumAlignmentCheck(
+                document_id=document.document_id,
+                course_id=course.course_id,
+                objective_results=[],
+                summary={"total_mapped_objectives": 0},
+                success=True,
+            )
+        )
+        db_session.commit()
+
+    page_1, total = service.list_alignment_checks(
+        current_user_id=owner, page=1, page_size=2, db=db_session
+    )
+    page_2, _ = service.list_alignment_checks(
+        current_user_id=owner, page=2, page_size=2, db=db_session
+    )
+    assert total == 3
+    assert len(page_1) == 2
+    assert len(page_2) == 1
+
+
+def test_list_checks_returns_empty_for_user_with_none(db_session) -> None:
+    items, total = service.list_alignment_checks(
+        current_user_id=uuid.uuid4(), page=1, page_size=20, db=db_session
+    )
+    assert items == []
+    assert total == 0
+
+
+def test_delete_check_removes_row(db_session) -> None:
+    course, _ = _make_course_with_map(db_session)
+    owner = uuid.uuid4()
+    document = _make_document(db_session, uploaded_by=owner)
+    check = CurriculumAlignmentCheck(
+        document_id=document.document_id,
+        course_id=course.course_id,
+        objective_results=[],
+        summary={"total_mapped_objectives": 0},
+        success=True,
+    )
+    db_session.add(check)
+    db_session.commit()
+    check_id = check.check_id
+
+    service.delete_alignment_check(check_id, owner, db_session)
+
+    assert db_session.get(CurriculumAlignmentCheck, check_id) is None
+
+
+def test_delete_check_raises_for_nonexistent_check(db_session) -> None:
+    with pytest.raises(AlignmentCheckNotFoundError):
+        service.delete_alignment_check(uuid.uuid4(), uuid.uuid4(), db_session)
+
+
+def test_delete_check_raises_for_non_owner(db_session) -> None:
+    course, _ = _make_course_with_map(db_session)
+    owner = uuid.uuid4()
+    other_user = uuid.uuid4()
+    document = _make_document(db_session, uploaded_by=owner)
+    check = CurriculumAlignmentCheck(
+        document_id=document.document_id,
+        course_id=course.course_id,
+        objective_results=[],
+        summary={"total_mapped_objectives": 0},
+        success=True,
+    )
+    db_session.add(check)
+    db_session.commit()
+
+    with pytest.raises(DocumentAccessDeniedError):
+        service.delete_alignment_check(check.check_id, other_user, db_session)

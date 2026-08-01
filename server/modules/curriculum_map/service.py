@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 from server.core.llm import get_llm_client
+from sqlalchemy import text
 
 from .alignment_check import run_alignment_llm
 from .comparison import compare_objective
@@ -258,9 +259,69 @@ def get_document_pages_for_check(
     return extract_document_pages(check.document_id)
 
 
+def list_alignment_checks(
+    *,
+    current_user_id: uuid.UUID,
+    page: int,
+    page_size: int,
+    db: Any,
+) -> tuple[list[dict[str, Any]], int]:
+    """Return (items, total) of this user's past checks, newest first.
+
+    Joins CurriculumAlignmentCheck -> Document (ownership filter + title)
+    -> Course (title). Deliberately excludes objective_results/evidence --
+    those are only fetched per-check via get_alignment_check.
+    """
+    from server.modules.documents.models import Document
+
+    query = (
+        db.query(CurriculumAlignmentCheck, Document.title, Course.course_title)
+        .join(Document, CurriculumAlignmentCheck.document_id == Document.document_id)
+        .join(Course, CurriculumAlignmentCheck.course_id == Course.course_id)
+        .filter(Document.uploaded_by == current_user_id)
+        .order_by(
+            CurriculumAlignmentCheck.run_at.desc(),
+            text("curriculum_alignment_checks.rowid DESC"),
+        )
+    )
+    total = query.count()
+    rows = query.offset((page - 1) * page_size).limit(page_size).all()
+    items = [
+        {
+            "check_id": check.check_id,
+            "document_id": check.document_id,
+            "document_title": document_title,
+            "course_id": check.course_id,
+            "course_title": course_title,
+            "run_at": check.run_at,
+            "success": check.success,
+            "error_message": check.error_message,
+            "summary": check.summary,
+        }
+        for check, document_title, course_title in rows
+    ]
+    return items, total
+
+
+def delete_alignment_check(
+    check_id: uuid.UUID, current_user_id: uuid.UUID, db: Any
+) -> None:
+    """Delete one check. Ownership-checked the same way get_alignment_check
+    is: the check must exist and its document must belong to the caller.
+    """
+    check = db.get(CurriculumAlignmentCheck, check_id)
+    if check is None:
+        raise AlignmentCheckNotFoundError(f"Alignment check {check_id} not found")
+    _require_owned_document(check.document_id, current_user_id, db)
+    db.delete(check)
+    db.commit()
+
+
 __all__ = [
     "list_courses",
+    "list_alignment_checks",
     "run_curriculum_alignment_check",
     "get_alignment_check",
     "get_document_pages_for_check",
+    "delete_alignment_check",
 ]
