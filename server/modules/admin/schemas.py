@@ -120,10 +120,13 @@ class ExpectedCriterionScoreCreate(BaseModel):
 
 
 class ModelValidationCreateRequest(BaseModel):
-    """Create a benchmark without exposing expected criterion scores to agents."""
+    """Create a benchmark without exposing expected criterion scores to agents.
+
+    Curriculum selection is retired: every new validation run is a
+    curriculum-retired partial evaluation of an admin-uploaded SLM.
+    """
 
     document_id: uuid.UUID
-    curriculum_id: uuid.UUID | None = None
     syllabus_id: uuid.UUID | None = None
     partial_without_curriculum: bool = False
     expected_scores: list[ExpectedCriterionScoreCreate] = Field(min_length=1)
@@ -205,6 +208,7 @@ class AdminEvaluationResponse(BaseModel):
     error_message: str | None = None
     partial_without_curriculum: bool = False
     partial_reason: str | None = None
+    confirmed_program: str | None = None
     submitted_by: uuid.UUID | None = None
     submitted_at: datetime
     completed_at: datetime | None = None
