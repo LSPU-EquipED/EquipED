@@ -32,9 +32,6 @@ def test_no_api_path_can_fake_completed(
     syllabus_id = _add_document(
         db_session, owner_id=faculty.user_id, source_type="syllabus"
     )
-    curriculum_id = _add_document(
-        db_session, owner_id=faculty.user_id, source_type="curriculum"
-    )
     _seed_active_prompts(db_session)
 
     monkeypatch.setattr(
@@ -54,7 +51,8 @@ def test_no_api_path_can_fake_completed(
         json={
             "document_id": str(slm_id),
             "syllabus_id": str(syllabus_id),
-            "curriculum_id": str(curriculum_id),
+            "partial_without_curriculum": True,
+            "confirmed_program": "BSCS",
         },
     )
 
@@ -86,9 +84,6 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     slm_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
     syllabus_id = _add_document(
         db_session, owner_id=faculty.user_id, source_type="syllabus"
-    )
-    curriculum_id = _add_document(
-        db_session, owner_id=faculty.user_id, source_type="curriculum"
     )
     _seed_active_prompts(db_session)
 
@@ -175,7 +170,8 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
         json={
             "document_id": str(slm_id),
             "syllabus_id": str(syllabus_id),
-            "curriculum_id": str(curriculum_id),
+            "partial_without_curriculum": True,
+            "confirmed_program": "BSCS",
         },
     )
 
