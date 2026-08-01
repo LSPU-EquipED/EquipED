@@ -11,7 +11,6 @@ import uuid
 from typing import Any
 
 from server.core.llm import get_llm_client
-from sqlalchemy import text
 
 from .alignment_check import run_alignment_llm
 from .comparison import compare_objective
@@ -281,7 +280,7 @@ def list_alignment_checks(
         .filter(Document.uploaded_by == current_user_id)
         .order_by(
             CurriculumAlignmentCheck.run_at.desc(),
-            text("curriculum_alignment_checks.rowid DESC"),
+            CurriculumAlignmentCheck.check_id.desc(),
         )
     )
     total = query.count()
