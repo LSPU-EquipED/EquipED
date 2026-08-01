@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import { useFetch } from '@/shared/hooks/useFetch';
+import { isLspuSccProgram } from '@/shared/constants/programs';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import { evaluationApi } from '@/features/evaluation/api/evaluation.api';
 import { useSubmitEvaluation } from '@/features/upload/hooks/useSubmitEvaluation';
+import { resolveExistingEvaluation } from '@/features/evaluation/utils/setupState';
 import type { EvaluationStatusResponse } from '@/features/evaluation/types';
 
 const EVAL_STORAGE_PREFIX = 'equiped_eval_';
@@ -49,7 +51,13 @@ export function useEvaluationPageState(documentId?: string) {
   const hasRecoveredRef = useRef(false);
 
   const [selectedProgram, setSelectedProgram] = useState<string>('');
-  const effectiveProgram = selectedProgram || document?.program?.trim().toUpperCase() || '';
+
+  // A program detected in the SLM is a suggestion only: it is shown in the
+  // selector until the user replaces it, but the user must explicitly confirm
+  // it before submission. Unlisted detections never auto-fill the selector.
+  const detectedProgram = document?.program?.trim().toUpperCase() ?? null;
+  const effectiveProgram =
+    selectedProgram || (detectedProgram && isLspuSccProgram(detectedProgram) ? detectedProgram : '');
 
   // Document fetch effect
   useEffect(() => {
@@ -62,7 +70,7 @@ export function useEvaluationPageState(documentId?: string) {
 
   // Resolve evaluation. Backend list is authoritative; sessionStorage is only a
   // cache updated after the backend confirms an existing evaluation. A stale
-  // cached id must not bypass curriculum setup when no evaluation exists.
+  // cached id must not bypass setup when no evaluation exists.
   const {
     data: evaluationId,
     isLoading: isResolvingEval,
@@ -75,18 +83,12 @@ export function useEvaluationPageState(documentId?: string) {
       if (!documentId) throw new Error('No document ID');
 
       const list = await evaluationApi.listEvaluations(documentId);
-      if (list.items.length > 0) {
-        const nonFailed = list.items
-          .filter((item) => item.status !== 'FAILED')
-          .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
-
-        if (nonFailed.length > 0) {
-          const id = nonFailed[0].evaluation_id;
-          if (storageKey) {
-            sessionStorage.setItem(storageKey, id);
-          }
-          return id;
+      const resolvedId = resolveExistingEvaluation(list.items);
+      if (resolvedId) {
+        if (storageKey) {
+          sessionStorage.setItem(storageKey, resolvedId);
         }
+        return resolvedId;
       }
 
       if (storageKey) {
@@ -99,25 +101,16 @@ export function useEvaluationPageState(documentId?: string) {
     retry: false,
   });
 
-  // Curriculum suggestions for the confirmed program
-  const {
-    data: suggestionResponse,
-    isLoading: isLoadingSuggestions,
-    isError: isSuggestionsError,
-    error: suggestionsError,
-  } = useQuery({
-    queryKey: ['curriculum-suggestion', documentId, effectiveProgram],
-    queryFn: () => documentsApi.getCurriculumSuggestion(documentId!, effectiveProgram),
-    enabled: !!documentId && effectiveProgram.trim().length > 0,
-    retry: 1,
-  });
-
-  const submitFreshEvaluation = useCallback(
-    (curriculumId: string) => {
+  const submitConfirmedPartial = useCallback(
+    (program: string) => {
       if (!documentId || submitEvaluation.isPending) return;
 
       submitEvaluation
-        .mutateAsync({ document_id: documentId, curriculum_id: curriculumId })
+        .mutateAsync({
+          document_id: documentId,
+          partial_without_curriculum: true,
+          confirmed_program: program,
+        })
         .then((result) => {
           if (storageKey) {
             sessionStorage.setItem(storageKey, result.evaluation_id);
@@ -132,24 +125,6 @@ export function useEvaluationPageState(documentId?: string) {
     },
     [documentId, submitEvaluation, storageKey, queryClient],
   );
-
-  const submitPartialEvaluation = useCallback(() => {
-    if (!documentId || submitEvaluation.isPending) return;
-
-    submitEvaluation
-      .mutateAsync({ document_id: documentId, partial_without_curriculum: true })
-      .then((result) => {
-        if (storageKey) {
-          sessionStorage.setItem(storageKey, result.evaluation_id);
-        }
-        void queryClient.invalidateQueries({
-          queryKey: ['resolve-evaluation', documentId],
-        });
-      })
-      .catch(() => {
-        // Error is surfaced by the mutation; the user can retry from setup.
-      });
-  }, [documentId, submitEvaluation, storageKey, queryClient]);
 
   const handleRetrySubmit = useCallback(() => {
     submitEvaluation.reset();
@@ -232,8 +207,6 @@ export function useEvaluationPageState(documentId?: string) {
     return !!documentId && !evaluationId && !isResolvingEval && !isLoadingDocument && !!document;
   }, [documentId, evaluationId, isResolvingEval, isLoadingDocument, document]);
 
-  const hasReadyCurriculum = (suggestionResponse?.curriculumSuggestions.length ?? 0) > 0;
-
   // Document derived
   const documentTextGroups = useMemo(() => buildDocumentTextGroups(document), [document]);
   const chunkMap = useMemo(() => {
@@ -271,15 +244,9 @@ export function useEvaluationPageState(documentId?: string) {
     chunkMap,
     // Setup
     isSetupRequired,
-    selectedProgram,
     effectiveProgram,
+    detectedProgram,
     setSelectedProgram,
-    suggestionResponse,
-    isLoadingSuggestions,
-    isSuggestionsError,
-    suggestionsError,
-    hasReadyCurriculum,
-    submitFreshEvaluation,
-    submitPartialEvaluation,
+    submitConfirmedPartial,
   };
 }

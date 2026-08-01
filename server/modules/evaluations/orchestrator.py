@@ -98,7 +98,10 @@ def run_evaluation_job(
         if job.curriculum_id is not None:
             curriculum = session.get(Document, job.curriculum_id)
             if curriculum is None:
-                raise DocumentNotFoundError(f"Document {job.curriculum_id} not found")
+                logger.warning(
+                    "Curriculum document %s for historical job %s not found (cleared or purged); proceeding.",
+                    job.curriculum_id, evaluation_id
+                )
 
         transition_evaluation_status(
             evaluation_id,
@@ -136,9 +139,9 @@ def run_evaluation_job(
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-            if job.partial_without_curriculum:
-                # No-curriculum partial: construct Supervisor without
-                # ProgramCoordinator so coordinator review is skipped entirely.
+            if job.partial_without_curriculum or job.curriculum_id is None:
+                # No-curriculum partial or new curriculum-retired run: construct Supervisor
+                # without ProgramCoordinator so coordinator review is skipped entirely.
                 from server.modules.agents.gad import GADAgent
                 from server.modules.agents.itso import ITSOAgent
                 from server.modules.agents.sme import SMEAgent
@@ -234,10 +237,10 @@ def run_evaluation_job(
             flag_count=flag_count,
         )
 
-        # Deliberate no-curriculum partial evaluations always complete
-        # successfully (the user chose the degraded path). Accidental
+        # Deliberate no-curriculum partial evaluations (and curriculum-retired runs) always complete
+        # successfully (the user chose or system enforced the degraded path). Accidental
         # partials caused by agent failures still end as FAILED.
-        if job.partial_without_curriculum:
+        if job.partial_without_curriculum or job.curriculum_id is None:
             final_status = EvaluationStatus.COMPLETED
             partial_error = None
         elif synthesis_result["is_partial"]:

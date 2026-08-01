@@ -27,7 +27,9 @@ export function ReferenceRow({
   onRebuild,
   onDelete,
 }: ReferenceRowProps) {
-  const canRebuild = item.chunkCount > 0 && !item.chromaAvailable;
+  const isRetiredCurriculum = item.sourceType === 'curriculum';
+  const canRebuild =
+    !isRetiredCurriculum && item.chunkCount > 0 && !item.chromaAvailable;
 
   return (
     <tr className="hover:bg-slate-50/50">
@@ -110,11 +112,13 @@ export function ReferenceRow({
           isDeleting={isDeleting}
           isRebuilding={isRebuilding}
           rebuildTooltip={
-            item.chromaAvailable
-              ? 'Chroma vectors already present'
-              : item.chunkCount === 0
-                ? 'No chunks available to rebuild'
-                : 'Rebuild Chroma vectors from stored chunks'
+            isRetiredCurriculum
+              ? 'Curriculum lifecycle actions are retired'
+              : item.chromaAvailable
+                ? 'Chroma vectors already present'
+                : item.chunkCount === 0
+                  ? 'No chunks available to rebuild'
+                  : 'Rebuild Chroma vectors from stored chunks'
           }
           onPreview={onPreview}
           onRebuild={onRebuild}

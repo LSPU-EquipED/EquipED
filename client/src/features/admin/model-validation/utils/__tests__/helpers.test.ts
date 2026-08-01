@@ -1,6 +1,104 @@
 import { describe, expect, it } from 'vitest';
-import { formatTimestamp, groupCriteriaByAgent } from '../helpers';
-import type { ModelValidationCriterionScore } from '../../types';
+import {
+  areAllCriterionScoresComplete,
+  formatTimestamp,
+  groupCriteriaByAgent,
+} from '../helpers';
+import type { ModelValidationAgentCriteria, ModelValidationCriterionScore } from '../../types';
+
+const threeAgentCatalog: ModelValidationAgentCriteria[] = [
+  {
+    agent_id: 'sme',
+    agent_name: 'Subject Matter Expert',
+    rubric_version: 1,
+    criteria: [
+      {
+        criterion_id: 'SME_1',
+        title: 'Content accuracy',
+        description: 'Check content accuracy',
+        domain_title: 'Content',
+      },
+      {
+        criterion_id: 'SME_2',
+        title: 'Pedagogy',
+        description: 'Check pedagogy',
+        domain_title: 'Content',
+      },
+    ],
+  },
+  {
+    agent_id: 'gad',
+    agent_name: 'GAD',
+    rubric_version: 1,
+    criteria: [
+      {
+        criterion_id: 'GAD_1',
+        title: 'Gender sensitivity',
+        description: 'Check gender sensitivity',
+        domain_title: 'GAD',
+      },
+    ],
+  },
+  {
+    agent_id: 'itso',
+    agent_name: 'ITSO',
+    rubric_version: 1,
+    criteria: [
+      {
+        criterion_id: 'ITSO_1',
+        title: 'Data privacy',
+        description: 'Check data privacy',
+        domain_title: 'ITSO',
+      },
+    ],
+  },
+];
+
+describe('areAllCriterionScoresComplete', () => {
+  it('is complete for the 3-agent active catalog (SME/GAD/ITSO) once every criterion has a score, so Prepare is enabled', () => {
+    expect(
+      areAllCriterionScoresComplete(threeAgentCatalog, {
+        'sme:SME_1': '4',
+        'sme:SME_2': '3',
+        'gad:GAD_1': '2',
+        'itso:ITSO_1': '4',
+      }),
+    ).toBe(true);
+  });
+
+  it('is incomplete when any active criterion is missing a score', () => {
+    expect(
+      areAllCriterionScoresComplete(threeAgentCatalog, {
+        'sme:SME_1': '4',
+        'sme:SME_2': '3',
+        'gad:GAD_1': '2',
+      }),
+    ).toBe(false);
+  });
+
+  it('is incomplete when a score is out of the 1-4 scale', () => {
+    expect(
+      areAllCriterionScoresComplete(threeAgentCatalog, {
+        'sme:SME_1': '4',
+        'sme:SME_2': '3',
+        'gad:GAD_1': '2',
+        'itso:ITSO_1': '5',
+      }),
+    ).toBe(false);
+  });
+
+  it('is incomplete when the catalog is empty', () => {
+    expect(areAllCriterionScoresComplete([], {})).toBe(false);
+  });
+
+  it('is incomplete when an agent group has no criteria', () => {
+    const catalogWithEmptyGroup: ModelValidationAgentCriteria[] = [
+      ...threeAgentCatalog,
+      { agent_id: 'itso', agent_name: 'ITSO', rubric_version: 1, criteria: [] },
+    ];
+    expect(areAllCriterionScoresComplete(catalogWithEmptyGroup, {})).toBe(false);
+  });
+});
 
 describe('groupCriteriaByAgent', () => {
   it('groups criteria by agent id in standard agent order', () => {

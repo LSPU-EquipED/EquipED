@@ -77,9 +77,11 @@ def _seed_document(
 
 def _seed_active_rubrics(db_session) -> list[dict[str, object]]:
     expected_scores: list[dict[str, object]] = []
-    scores = {"sme": 3, "coordinator": 4, "gad": 2, "itso": 1}
-    codes = {"sme": "SME-1", "coordinator": "COORD-1", "gad": "GAD-1", "itso": "ITSO-1"}
-    for agent_id in ("sme", "coordinator", "gad", "itso"):
+    # Coordinator is excluded from curriculum-retired validation runs, so only
+    # the active evaluator agents (SME, GAD, ITSO) are benchmarked.
+    scores = {"sme": 3, "gad": 2, "itso": 1}
+    codes = {"sme": "SME-1", "gad": "GAD-1", "itso": "ITSO-1"}
+    for agent_id in ("sme", "gad", "itso"):
         rubric_set = RubricSet(
             agent_id=agent_id,
             name=f"{agent_id} validation rubric",
@@ -149,14 +151,7 @@ def _setup_validation(
         chroma_stored=False,
         program=program,
     )
-    curriculum = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
-        program=program,
-    )
-    return expected_scores, slm, curriculum
+    return expected_scores, slm
 
 
 def test_admin_creates_validation_without_leaking_expected_score_into_job(
@@ -166,7 +161,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     db_session,
     monkeypatch,
 ) -> None:
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     original_flush = db_session.flush
     flush_states: list[tuple[bool, bool]] = []
 
@@ -187,13 +182,13 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_response = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_response.status_code == 200
-    assert criteria_response.json()["total_criteria"] == 4
+    assert criteria_response.json()["total_criteria"] == 3
 
     incomplete_response = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores[:-1],
         },
     )
@@ -203,7 +198,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -211,8 +206,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     assert response.status_code == 202
     assert (True, False) in flush_states
     payload = response.json()
-    assert payload["partial_without_curriculum"] is False
-    assert len(payload["criterion_scores"]) == 4
+    assert payload["partial_without_curriculum"] is True
+    assert len(payload["criterion_scores"]) == 3
     assert all(item["actual_score"] is None for item in payload["criterion_scores"])
     job = db_session.get(EvaluationJob, uuid.UUID(payload["evaluation_id"]))
     validation = db_session.get(ModelValidation, uuid.UUID(payload["validation_id"]))
@@ -224,7 +219,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         .filter_by(validation_id=validation.validation_id)
         .all()
     )
-    assert len(stored_scores) == 4
+    assert len(stored_scores) == 3
 
     job.status = "COMPLETED"
     job.completed_at = job.submitted_at + timedelta(seconds=5)
@@ -296,40 +291,6 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         [0, 0, 0, 0],
     ]
 
-    coordinator_result = AgentResult(
-        evaluation_id=job.evaluation_id,
-        document_id=slm.document_id,
-        agent_name="coordinator",
-        subtotal=2.0,
-        processing_seconds=1.0,
-        token_count=10,
-        model_name="coordinator-test-model",
-        summary="Curriculum alignment needs revision.",
-        success=True,
-    )
-    db_session.add(coordinator_result)
-    db_session.flush()
-    db_session.add(
-        CriterionScore(
-            agent_result_id=coordinator_result.agent_result_id,
-            evaluation_id=job.evaluation_id,
-            document_id=slm.document_id,
-            criterion_id="COORD-1",
-            criterion_title="Coordinator quality",
-            score=2,
-            justification="The expected curriculum alignment was not demonstrated.",
-        )
-    )
-    db_session.commit()
-    sync_model_validation_criterion_results(job.evaluation_id, db_session)
-
-    coordinator_metrics_response = client.get("/api/v1/admin/model-validations/metrics")
-    assert coordinator_metrics_response.status_code == 200
-    coordinator_metrics = coordinator_metrics_response.json()
-    assert coordinator_metrics["confusion_matrix"][3][1] == 1
-    assert coordinator_metrics["agent_confusion_matrices"]["coordinator"][3][1] == 1
-    assert coordinator_metrics["agent_confusion_matrices"]["sme"][3][1] == 0
-
     failed_assessment = assess_model_validation_toxicity(
         job.evaluation_id,
         db_session,
@@ -375,7 +336,7 @@ def test_admin_can_detail_validation_record(
     monkeypatch,
 ) -> None:
     """Admin can retrieve a single validation record by ID; faculty cannot."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -384,7 +345,7 @@ def test_admin_can_detail_validation_record(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -415,7 +376,7 @@ def test_admin_can_view_linked_evaluation(
     monkeypatch,
 ) -> None:
     """Admin can open the linked evaluation through the admin-authorized path."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -424,7 +385,7 @@ def test_admin_can_view_linked_evaluation(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -459,25 +420,29 @@ def test_faculty_cannot_list_validations(
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Partial intent defaults false
+# Test 6: Curriculum-retired partial validation is always enforced
 # ---------------------------------------------------------------------------
 
 
-def test_validation_partial_without_curriculum_defaults_false(
+def test_validation_always_runs_partial_without_curriculum(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Omitting partial_without_curriculum defaults to False."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    """Every new validation run is a curriculum-retired partial evaluation.
+
+    The service forces partial_without_curriculum=True and curriculum_id=None
+    even when the request omits them or supplies a curriculum reference.
+    """
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
     _auth(client, auth_cookies_admin)
 
-    # Must include curriculum_id or set partial_without_curriculum=True
+    # Omitting partial_without_curriculum still produces a partial job.
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
@@ -485,18 +450,14 @@ def test_validation_partial_without_curriculum_defaults_false(
             "expected_scores": expected_scores,
         },
     )
-    assert resp.status_code == 422  # needs curriculum or explicit partial
+    assert resp.status_code == 202
+    assert resp.json()["partial_without_curriculum"] is True
 
-    resp2 = client.post(
-        "/api/v1/admin/model-validations",
-        json={
-            "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
-            "expected_scores": expected_scores,
-        },
-    )
-    assert resp2.status_code == 202
-    assert resp2.json()["partial_without_curriculum"] is False
+    job = db_session.get(EvaluationJob, uuid.UUID(resp.json()["evaluation_id"]))
+    assert job is not None
+    assert job.curriculum_id is None
+    assert job.partial_without_curriculum is True
+    assert job.confirmed_program == "BSCS"
 
 
 def test_validation_explicit_partial_without_curriculum(
@@ -507,7 +468,7 @@ def test_validation_explicit_partial_without_curriculum(
     monkeypatch,
 ) -> None:
     """Explicit partial_without_curriculum=True is accepted."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -526,48 +487,44 @@ def test_validation_explicit_partial_without_curriculum(
 
 
 # ---------------------------------------------------------------------------
-# Test 6b: Curriculum/program consistency — backend rejects mismatch
+# Test 6b: Coordinator expected scores are retired for Model Validation
 # ---------------------------------------------------------------------------
 
 
-def test_validation_rejects_program_mismatch(
+def test_validation_rejects_coordinator_expected_scores(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Curriculum whose program does not match SLM program is rejected."""
-    expected_scores = _seed_active_rubrics(db_session)
-    slm = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="slm",
-        chroma_stored=False,
-        program="BSCS",
-    )
-    wrong_program_curriculum = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
-        program="BSIT",
-    )
+    """Model Validation no longer accepts Program Coordinator expected scores."""
+    from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
     _auth(client, auth_cookies_admin)
 
+    coordinator_scores = expected_scores + [
+        {
+            "agent_id": "coordinator",
+            "criterion_id": "COORD-1",
+            "expected_score": 4,
+        }
+    ]
+
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(wrong_program_curriculum.document_id),
-            "expected_scores": expected_scores,
+            "partial_without_curriculum": True,
+            "expected_scores": coordinator_scores,
         },
     )
     assert resp.status_code == 422
-    assert "program" in resp.json()["detail"].lower()
+    assert "coordinator" in resp.json()["detail"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +540,7 @@ def test_toxicity_disabled_stores_none_with_message(
     monkeypatch,
 ) -> None:
     """When toxicity_assessment_enabled is False, toxicity fields stay null."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -592,7 +549,7 @@ def test_toxicity_disabled_stores_none_with_message(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -625,24 +582,24 @@ def test_validation_atomic_creation_rolls_back_on_failure(
     monkeypatch,
 ) -> None:
     """If validation creation fails, no orphan evaluation job remains."""
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
     _auth(client, auth_cookies_admin)
 
-    # Trigger a failure by providing a non-existent curriculum_id.
-    # The evaluation service validates curriculum existence; this should
+    # Trigger a failure by providing a non-existent document_id.
+    # The evaluation service masks the missing SLM as a 404; this should
     # prevent the whole transaction from committing.
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
-            "document_id": str(slm.document_id),
-            "curriculum_id": str(uuid.uuid4()),
+            "document_id": str(uuid.uuid4()),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
-    assert resp.status_code == 404  # curriculum doc not found
+    assert resp.status_code == 404  # SLM document not found
 
     # No evaluation job should exist from the failed attempt.
     eval_count = db_session.query(EvaluationJob).count()
@@ -675,7 +632,7 @@ def test_cross_admin_access(
     )
     db_session.commit()
 
-    expected_scores, slm, curriculum = _setup_validation(db_session, admin_user)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
     )
@@ -686,7 +643,7 @@ def test_cross_admin_access(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "curriculum_id": str(curriculum.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -742,7 +699,7 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
     )
     _auth(client, auth_cookies_admin)
 
-    # ── Seed rubrics once, create two SLM/curriculum doc pairs ──────────
+    # ── Seed rubrics once, create two SLM documents ─────────────────────
     expected_scores = _seed_active_rubrics(db_session)
     slm1 = _seed_document(
         db_session,
@@ -750,23 +707,11 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
         source_type="slm",
         chroma_stored=False,
     )
-    cur1 = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
-    )
     slm2 = _seed_document(
         db_session,
         owner_id=admin_user.user_id,
         source_type="slm",
         chroma_stored=False,
-    )
-    cur2 = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
     )
 
     # ── Validation 1: matched run (sync SME criterion) ──────────────────
@@ -774,7 +719,7 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm1.document_id),
-            "curriculum_id": str(cur1.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )
@@ -824,7 +769,7 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm2.document_id),
-            "curriculum_id": str(cur2.document_id),
+            "partial_without_curriculum": True,
             "expected_scores": expected_scores,
         },
     )

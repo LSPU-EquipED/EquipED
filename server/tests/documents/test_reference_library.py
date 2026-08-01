@@ -173,10 +173,10 @@ class TestSharedReferenceAccess:
 
 
 class TestEvaluationSharedReferenceValidation:
-    """1.3 Faculty can attach shared references to own SLM evaluations."""
+    """1.3 Faculty can attach shared syllabus references to own SLM evaluations."""
 
-    def test_faculty_uses_shared_syllabus_curriculum(self, db_session):
-        """Faculty-owned SLM + admin-uploaded syllabus/curriculum should validate."""
+    def test_faculty_uses_shared_syllabus_reference(self, db_session):
+        """Faculty-owned SLM + admin-uploaded shared syllabus reference validate."""
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
 
@@ -190,20 +190,19 @@ class TestEvaluationSharedReferenceValidation:
         db_session.commit()
 
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
-        # Admin-uploaded reference (shared)
+        # Admin-uploaded shared reference
         syllabus_id = _add_doc(db_session, owner_id=admin.user_id, source_type="syllabus")
-        curriculum_id = _add_doc(db_session, owner_id=admin.user_id, source_type="curriculum")
 
         # 'PROCESSED' + chunks + chroma_stored already set by _add_doc
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
         _add_chunk(db_session, document_id=syllabus_id, source_type="syllabus")
-        _add_chunk(db_session, document_id=curriculum_id, source_type="curriculum")
 
         response = create_evaluation(
             EvaluationSubmitRequest(
                 document_id=slm_id,
                 syllabus_id=syllabus_id,
-                curriculum_id=curriculum_id,
+                partial_without_curriculum=True,
+                confirmed_program="BSCS",
             ),
             submitted_by=faculty.user_id,
             db=db_session,
@@ -211,7 +210,8 @@ class TestEvaluationSharedReferenceValidation:
 
         assert response.document_id == slm_id
         assert response.syllabus_id == syllabus_id
-        assert response.curriculum_id == curriculum_id
+        assert response.curriculum_id is None
+        assert response.partial_without_curriculum is True
 
     def test_faculty_cannot_evaluate_other_faculty_slm_even_with_shared_refs(
         self, db_session
@@ -232,7 +232,11 @@ class TestEvaluationSharedReferenceValidation:
 
         with pytest.raises(DocNotFound):
             create_evaluation(
-                EvaluationSubmitRequest(document_id=slm_id),
+                EvaluationSubmitRequest(
+                    document_id=slm_id,
+                    partial_without_curriculum=True,
+                    confirmed_program="BSCS",
+                ),
                 submitted_by=fac2.user_id,
                 db=db_session,
             )
@@ -251,13 +255,6 @@ class TestEvaluationSharedReferenceValidation:
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
 
-        # Provide a valid processed curriculum so the mandatory curriculum_id
-        # check passes and the test reaches PENDING syllabus validation.
-        curriculum_id = _add_doc(
-            db_session, owner_id=admin.user_id, source_type="curriculum",
-        )
-        _add_chunk(db_session, document_id=curriculum_id, source_type="curriculum")
-
         pending_syllabus = _add_doc(
             db_session, owner_id=admin.user_id, source_type="syllabus",
             processing_status="PENDING",
@@ -268,7 +265,8 @@ class TestEvaluationSharedReferenceValidation:
                 EvaluationSubmitRequest(
                     document_id=slm_id,
                     syllabus_id=pending_syllabus,
-                    curriculum_id=curriculum_id,
+                    partial_without_curriculum=True,
+                    confirmed_program="BSCS",
                 ),
                 submitted_by=faculty.user_id,
                 db=db_session,

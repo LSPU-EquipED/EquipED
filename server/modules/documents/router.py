@@ -48,7 +48,6 @@ from .service import (
     delete_policy_document,
     delete_reference_document,
     embed_document_chunks,
-    get_curriculum_suggestions,
     get_document,
     list_documents,
     list_policy_documents,
@@ -250,6 +249,7 @@ def get_document_file(
 
 @router.get(
     "/{document_id}/curriculum-suggestion",
+    deprecated=True,
     response_model=CurriculumSuggestionResponse,
 )
 def get_curriculum_suggestion(
@@ -260,30 +260,13 @@ def get_curriculum_suggestion(
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> CurriculumSuggestionResponse:
-    """Return curriculum suggestions for an SLM document by confirmed program.
-
-    Requires authentication. The SLM document must be owned by the current
-    user (SLMs are owner-only; references are shared). The program parameter
-    is required and must be non-empty.
-    """
-    try:
-        return get_curriculum_suggestions(
-            document_id=document_id,
-            program=program,
-            current_user_id=_current_user.id,
-            current_user_role=_current_user.role.value,
-            db=db,
-        )
-    except DocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    """Retired curriculum suggestion endpoint. Always returns empty suggestions."""
+    return CurriculumSuggestionResponse(
+        document_id=document_id,
+        selected_program=program,
+        curriculum_suggestions=[],
+        unavailable_curricula=[],
+    )
 
 
 @router.delete("/{document_id}", response_model=ReferenceDeleteResponse)

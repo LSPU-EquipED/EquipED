@@ -17,13 +17,13 @@ class EvaluationSubmitRequest(BaseModel):
     syllabus_id: UUID | None = Field(None, description="ID of the syllabus document.")
     curriculum_id: UUID | None = Field(None, description="ID of the curriculum document.")
     partial_without_curriculum: bool = Field(
-        False,
+        ...,
         description=(
             "Explicit intent to proceed without a curriculum reference. "
-            "When True and curriculum_id is None, the system accepts a degraded "
-            "partial evaluation that skips Program Coordinator review."
+            "Must be explicitly set to True."
         ),
     )
+    confirmed_program: str = Field(..., min_length=1, description="Confirmed academic program code.")
 
 class EvaluationResponse(BaseModel):
     evaluation_id: UUID
@@ -34,6 +34,7 @@ class EvaluationResponse(BaseModel):
     error_message: str | None = None
     partial_without_curriculum: bool = False
     partial_reason: str | None = None
+    confirmed_program: str | None = None
     submitted_by: UUID | None = Field(None, description="User who submitted job.")
     submitted_at: datetime
     completed_at: datetime | None = None
@@ -48,6 +49,7 @@ class EvaluationListItem(BaseModel):
     status: EvaluationStatus
     partial_without_curriculum: bool = False
     partial_reason: str | None = None
+    confirmed_program: str | None = None
     submitted_at: datetime
     completed_at: datetime | None = None
     duration_seconds: float | None = None

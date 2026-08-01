@@ -1,8 +1,36 @@
-import type { ModelValidationCriterionScore, ModelValidationItem } from '../types';
+import type {
+  ModelValidationAgentCriteria,
+  ModelValidationCriterionScore,
+  ModelValidationItem,
+} from '../types';
 
 export const terminalStatuses = new Set(['COMPLETED', 'FAILED']);
 
 export const criterionKey = (agentId: string, criterionId: string) => `${agentId}:${criterionId}`;
+
+/**
+ * True when every criterion of every active agent group returned by the
+ * criterion catalog has an integer score in the 1–4 scale. Validity follows
+ * the catalog (SME/GAD/ITSO for curriculum-retired runs), never a fixed
+ * agent count, so missing groups can't block or unblock submission.
+ */
+export function areAllCriterionScoresComplete(
+  criterionDefinitions: ModelValidationAgentCriteria[],
+  expectedScores: Record<string, string>,
+): boolean {
+  if (criterionDefinitions.length === 0) {
+    return false;
+  }
+
+  return criterionDefinitions.every(
+    (agent) =>
+      agent.criteria.length > 0 &&
+      agent.criteria.every((criterion) => {
+        const score = Number(expectedScores[criterionKey(agent.agent_id, criterion.criterion_id)]);
+        return Number.isInteger(score) && score >= 1 && score <= 4;
+      }),
+  );
+}
 
 export const validationAgents = [
   { id: 'sme', label: 'Subject Matter Expert' },

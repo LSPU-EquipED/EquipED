@@ -1,13 +1,10 @@
 import { requestJson } from '@/shared/api/http';
 import {
   mapDocumentUploadResponse,
-  mapCurriculumSuggestionResponse,
   mapDocumentListResponse,
   mapDocumentResponse,
   type ClientDocument,
-  type CurriculumSuggestionResponse,
   type DocumentListResponse,
-  type RawCurriculumSuggestionResponse,
   type RawDocumentListResponse,
   type RawDocumentResponse,
   type RawDocumentUploadResponse,
@@ -62,17 +59,6 @@ async function getDocument(documentId: string): Promise<ClientDocument> {
   return mapDocumentResponse(response);
 }
 
-async function getCurriculumSuggestion(
-  documentId: string,
-  program: string,
-): Promise<CurriculumSuggestionResponse> {
-  const encodedProgram = encodeURIComponent(program.trim());
-  const response = await requestJson<RawCurriculumSuggestionResponse>(
-    `/documents/${documentId}/curriculum-suggestion?program=${encodedProgram}`,
-  );
-  return mapCurriculumSuggestionResponse(response);
-}
-
 async function uploadDocument(input: UploadDocumentInput): Promise<DocumentUploadResponse> {
   const formData = new FormData();
   formData.append('file', input.file);
@@ -92,7 +78,6 @@ async function uploadDocument(input: UploadDocumentInput): Promise<DocumentUploa
 export const documentsApi = {
   getDocument,
   listDocuments,
-  getCurriculumSuggestion,
   uploadDocument,
 };
 

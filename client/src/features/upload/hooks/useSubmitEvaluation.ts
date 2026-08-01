@@ -8,9 +8,8 @@ export function useSubmitEvaluation() {
   return useMutation({
     mutationFn: (data: {
       document_id: string;
-      syllabus_id?: string;
-      curriculum_id?: string;
-      partial_without_curriculum?: boolean;
+      partial_without_curriculum: true;
+      confirmed_program: string;
     }) =>
       requestJson<EvaluationResponse>('/evaluations/', {
         method: 'POST',

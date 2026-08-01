@@ -102,7 +102,7 @@ export function ReferenceLibraryTab() {
             <BookOpen className="mx-auto size-8 text-slate-300" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-slate-600">No references found.</p>
             <p className="mt-1 text-xs font-medium text-slate-500">
-              Upload a syllabus or curriculum to get started.
+              Upload a syllabus or policy to get started.
             </p>
             <Link
               to="/admin/ingest"

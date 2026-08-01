@@ -13,6 +13,7 @@ from typing import Any
 from server.core.config import get_settings
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user as auth_create_user
+from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
@@ -37,6 +38,9 @@ from .schemas import (
 )
 
 VALID_AGENTS = {"sme", "coordinator", "gad", "itso"}
+# New curriculum-retired evaluations never dispatch the Program Coordinator,
+# so Model Validation only benchmarks the active evaluator agents.
+ACTIVE_VALIDATION_AGENTS = ("sme", "gad", "itso")
 AGENT_NAMES = {
     "sme": "Subject Matter Expert",
     "coordinator": "Program Coordinator",
@@ -454,34 +458,24 @@ def create_model_validation(
             + "; ".join(details)
         )
 
-    # Program consistency: when curriculum_id is provided, the curriculum
-    # document's program must match the SLM document's program (normalized).
+    # Program confirmation: the SLM document's detected program is used as the
+    # confirmed program for the retired-curriculum partial validation run.
     slm_doc = db.get(Document, request.document_id)
     if slm_doc is None:
-        from server.modules.documents.exceptions import DocumentNotFoundError
         raise DocumentNotFoundError(f"Document {request.document_id} not found")
-    if request.curriculum_id is not None:
-        curriculum_doc = db.get(Document, request.curriculum_id)
-        if curriculum_doc is None:
-            from server.modules.documents.exceptions import DocumentNotFoundError
-            raise DocumentNotFoundError(
-                f"Curriculum document {request.curriculum_id} not found"
-            )
-        slm_program = (slm_doc.program or "").strip().upper()
-        curriculum_program = (curriculum_doc.program or "").strip().upper()
-        if slm_program and curriculum_program and slm_program != curriculum_program:
-            raise InvalidEvaluationTargetError(
-                f"Curriculum program '{curriculum_program}' does not match "
-                f"SLM program '{slm_program}'. "
-                "Client should reload suggestions for the correct program."
-            )
+    confirmed_program = (slm_doc.program or "").strip()
+    if not confirmed_program:
+        raise InvalidEvaluationTargetError(
+            "Model Validation requires an SLM with a confirmed program."
+        )
 
     evaluation = create_evaluation(
         EvaluationSubmitRequest(
             document_id=request.document_id,
             syllabus_id=request.syllabus_id,
-            curriculum_id=request.curriculum_id,
-            partial_without_curriculum=request.partial_without_curriculum,
+            curriculum_id=None,
+            partial_without_curriculum=True,
+            confirmed_program=confirmed_program,
         ),
         submitted_by=created_by,
         submitted_by_role=created_by_role,
@@ -606,6 +600,7 @@ def get_admin_evaluation(
         error_message=job.error_message,
         partial_without_curriculum=job.partial_without_curriculum,
         partial_reason=job.partial_reason,
+        confirmed_program=job.confirmed_program,
         submitted_by=job.submitted_by,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,
@@ -624,10 +619,10 @@ def get_model_validation_criteria(db: Any) -> ModelValidationCriteriaResponse:
 def _active_validation_criterion_map(db: Any) -> dict[tuple[str, str], dict[str, str]]:
     groups = _active_validation_criteria(db)
     available_agents = {group.agent_id for group in groups if group.criteria}
-    missing_agents = sorted(VALID_AGENTS - available_agents)
+    missing_agents = sorted(set(ACTIVE_VALIDATION_AGENTS) - available_agents)
     if missing_agents:
         raise InvalidEvaluationTargetError(
-            "Active rubric criteria are required for every evaluator agent. Missing: "
+            "Active rubric criteria are required for every active evaluator agent. Missing: "
             + ", ".join(missing_agents)
         )
     criterion_map = {
@@ -643,7 +638,7 @@ def _active_validation_criterion_map(db: Any) -> dict[tuple[str, str], dict[str,
 
 def _active_validation_criteria(db: Any) -> list[ModelValidationAgentCriteria]:
     groups: list[ModelValidationAgentCriteria] = []
-    for agent_id in ("sme", "coordinator", "gad", "itso"):
+    for agent_id in ACTIVE_VALIDATION_AGENTS:
         rubric_set = (
             db.query(RubricSet)
             .filter(RubricSet.agent_id == agent_id, RubricSet.status == "active")

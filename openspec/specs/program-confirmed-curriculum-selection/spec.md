@@ -1,92 +1,20 @@
 # program-confirmed-curriculum-selection Specification
 
 ## Purpose
-Define the pre-evaluation setup flow that requires faculty to confirm the academic program and select the appropriate CHED curriculum reference before creating a fresh evaluation.
+Define the pre-evaluation setup flow that requires faculty to confirm the academic program before creating a fresh no-curriculum partial evaluation.
 
 ## Requirements
 
 ### Requirement: Evaluation setup requires program confirmation
-The system SHALL require a faculty user to confirm or select the academic program before creating a fresh evaluation that uses curriculum grounding.
+The system SHALL require a faculty user to explicitly confirm or select an allowed academic program before creating a new no-curriculum evaluation. A detected program is a suggestion only and SHALL NOT substitute for confirmation.
 
-#### Scenario: Program detected from SLM
-- **WHEN** a faculty user opens evaluation setup for a processed SLM with a detected program
-- **THEN** the system SHALL preselect that program
-- **AND** the faculty user SHALL be able to change the selected program before starting evaluation
+#### Scenario: Detected program is shown
+- **WHEN** evaluation setup opens for a processed SLM with detected metadata
+- **THEN** the system SHALL show the detected program and require confirmation or replacement before partial submission
 
-#### Scenario: Program not detected from SLM
-- **WHEN** a faculty user opens evaluation setup for a processed SLM with no detected program
-- **THEN** the system SHALL require the faculty user to select a program before curriculum suggestion is shown
+### Requirement: Fresh evaluation submission uses confirmed partial intent
+The system SHALL submit every new faculty evaluation without a curriculum ID, with explicit partial intent and persisted confirmed-program context. It SHALL not offer curriculum selection, upload, or rebuild recovery actions.
 
-#### Scenario: GE or minor subject does not imply program
-- **WHEN** an SLM only identifies a GE/minor course or subject title
-- **THEN** the system SHALL NOT infer program from that course or subject alone
-
-### Requirement: Curriculum suggestions are program-driven
-The system SHALL suggest CHED curriculum references using the confirmed program. Course code, Sem/AY, and lesson title SHALL be displayed as context but SHALL NOT determine the curriculum. Program matching SHALL normalize values before comparison. If no embedding-ready curriculum exists, the setup flow SHALL present recovery actions instead of becoming a dead end.
-
-#### Scenario: Matching curriculum exists
-- **WHEN** a faculty user confirms program `BSCS` and an embedding-ready curriculum reference exists for `BSCS`
-- **THEN** the system SHALL suggest that curriculum for evaluation
-
-#### Scenario: Multiple curricula match program
-- **WHEN** multiple embedding-ready curriculum references match the confirmed program
-- **THEN** the system SHALL preselect the newest uploaded reference
-- **AND** the system SHALL allow the faculty user to choose another matching curriculum
-
-#### Scenario: No curriculum match exists
-- **WHEN** no embedding-ready curriculum reference exists for the confirmed program
-- **THEN** the system SHALL explain that no ready curriculum is available for the selected program
-- **AND** the system SHALL offer actions to upload or rebuild curriculum, change program, or continue with a no-curriculum partial evaluation
-
-#### Scenario: Unhealthy curriculum is available
-- **WHEN** a curriculum reference exists for the confirmed program but is not embedding-ready
-- **THEN** the system SHALL show it as unavailable for full evaluation and direct the user/admin to rebuild or re-upload it
-- **AND** the system SHALL still allow the user to choose a no-curriculum partial evaluation if they accept the degraded result
-
-#### Scenario: Program parameter is empty
-- **WHEN** the system requests curriculum suggestions without a selected program
-- **THEN** the system SHALL reject the suggestion request with a clear validation error instead of returning all curricula
-
-#### Scenario: Program values differ only by case or whitespace
-- **WHEN** the selected program is `bscs` and the curriculum reference stores `BSCS`
-- **THEN** the system SHALL treat them as the same program for suggestion purposes
-
-### Requirement: Fresh evaluation submission uses selected curriculum
-The system SHALL submit fresh full evaluations with the selected curriculum reference. Syllabus selection SHALL NOT be required by this flow. When no ready curriculum exists and the user explicitly chooses the degraded path, the system SHALL submit a no-curriculum partial evaluation instead of a full curriculum-grounded evaluation.
-
-#### Scenario: Faculty starts evaluation after confirming curriculum
-- **WHEN** a faculty user confirms an embedding-ready curriculum for their own SLM
-- **THEN** the system SHALL submit the evaluation with `document_id` and `curriculum_id`
-- **AND** `syllabus_id` SHALL be omitted or null
-
-#### Scenario: Faculty starts partial evaluation without curriculum
-- **WHEN** a faculty user confirms that no ready curriculum is available and chooses to continue partial
-- **THEN** the system SHALL submit the evaluation with `document_id`, no `curriculum_id`, and explicit no-curriculum partial intent
-- **AND** the UI SHALL preserve the selected program context for user understanding when available
-
-#### Scenario: Existing evaluation is reused
-- **WHEN** an evaluation already exists for the SLM and is reusable by the current frontend flow
-- **THEN** the system MAY skip setup and continue to the existing evaluation status/results view
-
-#### Scenario: Retry after failed evaluation
-- **WHEN** a faculty user retries a failed evaluation after clearing the existing evaluation state
-- **THEN** the system SHALL return to curriculum setup before creating a fresh evaluation
-
-### Requirement: Curriculum suggestion preserves RAG retrieval
-The system SHALL use curriculum suggestion only to select the curriculum document. Evaluation-time RAG retrieval SHALL continue to retrieve relevant chunks from the selected curriculum reference in ChromaDB.
-
-#### Scenario: Selected curriculum scopes retrieval
-- **WHEN** evaluation starts with a selected curriculum reference
-- **THEN** the evaluation pipeline SHALL use that curriculum reference as the source for reference context retrieval
-- **AND** ChromaDB retrieval SHALL still select relevant chunks from that curriculum
-
-### Requirement: Admin curriculum references require program metadata
-The system SHALL require program metadata for curriculum reference uploads or management because curriculum suggestion is program-driven. Program values SHALL be stored or compared using normalized program codes.
-
-#### Scenario: Admin uploads curriculum without program
-- **WHEN** an admin uploads a curriculum reference without a program value
-- **THEN** the system SHALL reject the upload or require the admin to provide a program before the curriculum can be used for suggestion
-
-#### Scenario: Admin uploads curriculum with program
-- **WHEN** an admin uploads a curriculum reference with a valid program value
-- **THEN** the system SHALL process the document normally and make it eligible for program-based suggestion once embedding-ready
+#### Scenario: Faculty starts a new evaluation
+- **WHEN** a faculty user confirms a program and acknowledges the partial warning
+- **THEN** the system SHALL submit a no-curriculum partial evaluation with the confirmed program

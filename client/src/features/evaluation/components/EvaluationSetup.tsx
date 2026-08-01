@@ -1,48 +1,24 @@
-import { useMemo } from 'react';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BookOpen,
-  CheckCircle,
-  Loader2,
-  Play,
-  Upload,
-  XCircle,
-} from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, BookOpen, Loader2, Play, ShieldAlert } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/http';
-import { cn } from '@/shared/components/utils';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
-import { LSPU_SCC_COLLEGE_PROGRAMS, isLspuSccProgram } from '@/shared/constants/programs';
-import type {
-  ClientDocument,
-  CurriculumSuggestionItem,
-  CurriculumSuggestionResponse,
-} from '@/shared/types/documents';
+import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
+import { canStartConfirmedPartial } from '@/features/evaluation/utils/setupState';
+import type { ClientDocument } from '@/shared/types/documents';
 
 type EvaluationSetupProps = {
   document: ClientDocument | null | undefined;
   isLoadingDocument: boolean;
   documentError: unknown;
   selectedProgram: string;
-  effectiveProgram: string;
+  detectedProgram: string | null;
   onSelectProgram: (program: string) => void;
-  suggestionResponse: CurriculumSuggestionResponse | undefined;
-  isLoadingSuggestions: boolean;
-  isSuggestionsError: boolean;
-  suggestionsError: unknown;
   isResolveError: boolean;
   resolveError: unknown;
-  selectedCurriculumId: string | null;
-  onSelectCurriculum: (documentId: string) => void;
-  hasReadyCurriculum: boolean;
   isSubmitting: boolean;
   submitError: unknown;
   onStart: () => void;
   onRetrySubmit: () => void;
-  isAdmin: boolean;
-  onUploadCurriculum: () => void;
-  onChangeProgram: () => void;
-  onContinuePartial: () => void;
 };
 
 function MetadataRow({ label, value }: { label: string; value: string | null | undefined }) {
@@ -56,115 +32,29 @@ function MetadataRow({ label, value }: { label: string; value: string | null | u
   );
 }
 
-function SuggestionRow({
-  item,
-  isSelected,
-  isPreferred,
-  isUnavailable,
-  onSelect,
-}: {
-  item: CurriculumSuggestionItem;
-  isSelected: boolean;
-  isPreferred: boolean;
-  isUnavailable: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={isUnavailable}
-      className={cn(
-        'flex w-full items-start gap-3 rounded-sm border px-4 py-3 text-left transition-colors',
-        isUnavailable
-          ? 'border-slate-200 bg-slate-50/50 opacity-70 cursor-not-allowed'
-          : isSelected
-            ? 'border-[#1b3b87] bg-[#1b3b87]/5'
-            : 'border-slate-200 bg-white hover:bg-slate-50/60',
-      )}
-    >
-      <span className="mt-0.5 shrink-0">
-        {isUnavailable ? (
-          <XCircle className="size-5 text-[#b91c1c]" aria-hidden="true" />
-        ) : isSelected ? (
-          <CheckCircle className="size-5 text-[#1b3b87]" aria-hidden="true" />
-        ) : (
-          <span className="block size-5 rounded-full border-2 border-slate-300" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
-        <span className="mt-1 flex flex-wrap items-center gap-2">
-          {isPreferred && !isUnavailable && (
-            <span className="inline-flex items-center rounded-sm bg-[#1b3b87] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-              Preferred
-            </span>
-          )}
-          <span
-            className={cn(
-              'inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-              isUnavailable ? 'bg-[#b91c1c]/10 text-[#b91c1c]' : 'bg-[#3b963e]/10 text-[#3b963e]',
-            )}
-          >
-            {isUnavailable ? 'Not indexed' : 'Ready / Indexed'}
-          </span>
-        </span>
-      </span>
-      {!isUnavailable && (
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          {item.program ?? ''}
-        </span>
-      )}
-    </button>
-  );
-}
-
 export function EvaluationSetup({
   document,
   isLoadingDocument,
   documentError,
   selectedProgram,
-  effectiveProgram,
+  detectedProgram,
   onSelectProgram,
-  suggestionResponse,
-  isLoadingSuggestions,
-  isSuggestionsError,
-  suggestionsError,
   isResolveError,
   resolveError,
-  selectedCurriculumId,
-  onSelectCurriculum,
-  hasReadyCurriculum,
   isSubmitting,
   submitError,
   onStart,
   onRetrySubmit,
-  isAdmin,
-  onUploadCurriculum,
-  onChangeProgram,
-  onContinuePartial,
 }: EvaluationSetupProps) {
-  const programGroups = useMemo(() => {
-    const detected = document?.program?.trim().toUpperCase();
-    if (!detected || isLspuSccProgram(detected)) {
-      return LSPU_SCC_COLLEGE_PROGRAMS;
-    }
+  const [programConfirmed, setProgramConfirmed] = useState(false);
+  const [partialAcknowledged, setPartialAcknowledged] = useState(false);
 
-    return [
-      {
-        code: 'DETECTED',
-        college: 'Detected from SLM',
-        programs: [{ code: detected, name: 'Unlisted detected program' }],
-      },
-      ...LSPU_SCC_COLLEGE_PROGRAMS,
-    ];
-  }, [document?.program]);
-
-  const readySuggestions = suggestionResponse?.curriculumSuggestions ?? [];
-  const unavailableSuggestions = suggestionResponse?.unavailableCurricula ?? [];
-  const preferredId = suggestionResponse?.preferredSuggestion?.documentId ?? null;
-  const showSuggestions = effectiveProgram.trim().length > 0;
-  const canStart = hasReadyCurriculum && selectedCurriculumId != null && !isSubmitting;
+  const canStart = canStartConfirmedPartial({
+    program: selectedProgram,
+    programConfirmed,
+    partialAcknowledged,
+    isSubmitting,
+  });
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto bg-white">
@@ -175,8 +65,8 @@ export function EvaluationSetup({
           </p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Evaluation Setup</h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
-            Confirm the academic program and CHED curriculum before starting the evaluation. The
-            selected curriculum scopes the reference retrieval for this SLM.
+            Confirm the academic program and acknowledge the partial review before starting the
+            evaluation. Nothing is submitted until you choose to start.
           </p>
         </div>
 
@@ -226,6 +116,12 @@ export function EvaluationSetup({
                 <MetadataRow label="Program" value={document.program.trim().toUpperCase()} />
               ) : null}
             </dl>
+            {document.program && !detectedProgram ? (
+              <p className="mt-3 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-3 py-2 text-xs font-semibold text-[#1e293b]">
+                The detected program is not an official LSPU SCC program code. Select the owning
+                program from the list below.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -236,92 +132,57 @@ export function EvaluationSetup({
               label="Academic Program"
               value={selectedProgram}
               onChange={onSelectProgram}
-              groups={programGroups}
-              placeholder={document?.program ? 'Confirm program' : 'Select a program'}
+              groups={LSPU_SCC_COLLEGE_PROGRAMS}
+              placeholder="Select a program"
               hint={
-                document?.program
-                  ? 'The detected program is preselected. Change it if the SLM belongs to a different program.'
-                  : 'The SLM did not identify a program. Select the owning program to find matching curricula.'
+                detectedProgram
+                  ? 'The detected program is preselected as a suggestion. Change it if it is not correct, then confirm below.'
+                  : 'No program was detected in the SLM. Select the owning program, then confirm below.'
               }
             />
+            <label className="mt-4 flex items-start gap-3 border-t border-slate-100 pt-4 text-sm font-semibold text-slate-900">
+              <input
+                type="checkbox"
+                checked={programConfirmed}
+                onChange={(event) => setProgramConfirmed(event.target.checked)}
+                className="mt-1 size-4 shrink-0 accent-[#1b3b87]"
+                aria-describedby="program-confirm-help"
+              />
+              <span id="program-confirm-help" className="min-w-0 leading-relaxed">
+                I confirm this SLM belongs to the selected program.
+              </span>
+            </label>
           </div>
         ) : null}
 
-        {showSuggestions && !isLoadingSuggestions && isSuggestionsError ? (
-          <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm font-semibold text-[#b91c1c]">
+        {!isLoadingDocument && !documentError ? (
+          <div className="rounded-sm border border-[#f2c811] bg-[#f2c811]/10 p-5">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#1e293b]" aria-hidden="true" />
               <div className="flex-1">
-                <p>{getErrorMessage(suggestionsError, 'Unable to load curriculum suggestions.')}</p>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                  Partial review
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-[#1e293b]">
+                  This evaluation runs without a curriculum reference. The Program Coordinator
+                  review will be skipped; SME, GAD, and ITSO will still review the SLM. The result
+                  is reported as partial and remains advisory.
+                </p>
               </div>
             </div>
-          </div>
-        ) : null}
-
-        {showSuggestions && isLoadingSuggestions ? (
-          <div className="flex items-center gap-3 rounded-sm border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            <Loader2 className="size-4 animate-spin text-[#1b3b87]" aria-hidden="true" />
-            Looking up CHED curricula for {effectiveProgram}…
-          </div>
-        ) : null}
-
-        {showSuggestions && !isLoadingSuggestions && !isSuggestionsError ? (
-          <div className="rounded-sm border border-slate-200 bg-white p-5">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-900">
-              CHED Curriculum
-            </h2>
-
-            {readySuggestions.length > 0 ? (
-              <div className="grid gap-3">
-                {readySuggestions.map((item) => (
-                  <SuggestionRow
-                    key={item.documentId}
-                    item={item}
-                    isSelected={selectedCurriculumId === item.documentId}
-                    isPreferred={preferredId === item.documentId}
-                    isUnavailable={false}
-                    onSelect={() => onSelectCurriculum(item.documentId)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-4 py-4 text-sm text-[#1e293b]">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <div className="flex-1">
-                    <p className="font-semibold">No indexed curriculum for {effectiveProgram}</p>
-                    <p className="mt-1 leading-relaxed">
-                      An admin must upload or rebuild the {effectiveProgram} CHED curriculum
-                      reference before evaluation can start.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {unavailableSuggestions.length > 0 ? (
-              <div className="mt-5">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Unavailable curricula
-                </p>
-                <div className="grid gap-3">
-                  {unavailableSuggestions.map((item) => (
-                    <SuggestionRow
-                      key={item.documentId}
-                      item={item}
-                      isSelected={false}
-                      isPreferred={false}
-                      isUnavailable
-                      onSelect={() => undefined}
-                    />
-                  ))}
-                </div>
-                <p className="mt-3 text-xs font-medium text-slate-500">
-                  These curricula are not ready for retrieval. Ask an admin to rebuild or re-upload
-                  them.
-                </p>
-              </div>
-            ) : null}
+            <label className="mt-4 flex items-start gap-3 border-t border-[#f2c811]/40 pt-4 text-sm font-semibold text-slate-900">
+              <input
+                type="checkbox"
+                checked={partialAcknowledged}
+                onChange={(event) => setPartialAcknowledged(event.target.checked)}
+                className="mt-1 size-4 shrink-0 accent-[#1b3b87]"
+                aria-describedby="partial-acknowledgement-help"
+              />
+              <span id="partial-acknowledgement-help" className="min-w-0 leading-relaxed">
+                I understand that the Program Coordinator review will be skipped and the result will
+                be marked as a partial evaluation.
+              </span>
+            </label>
           </div>
         ) : null}
 
@@ -345,101 +206,31 @@ export function EvaluationSetup({
               </div>
             ) : null}
 
-            {hasReadyCurriculum ? (
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={!canStart}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    Starting evaluation…
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-4" aria-hidden="true" />
-                    Start Evaluation
-                  </>
-                )}
-              </button>
-            ) : showSuggestions && !isLoadingSuggestions ? (
-              <div className="rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 p-5">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle
-                    className="mt-0.5 size-5 shrink-0 text-[#1e293b]"
-                    aria-hidden="true"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-[#1e293b]">
-                      No ready curriculum for {effectiveProgram}
-                    </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[#1e293b]">
-                      You can upload or rebuild the {effectiveProgram} CHED curriculum reference,
-                      choose a different program, or continue with a partial evaluation.
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-[#1e293b]">
-                      <strong>Partial mode:</strong> SME, GAD, and ITSO will still review the SLM,
-                      but the Program Coordinator curriculum-grounded review will be skipped. The
-                      result will be marked partial.
-                    </p>
-                  </div>
-                </div>
+            <button
+              type="button"
+              onClick={onStart}
+              disabled={!canStart}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Starting evaluation…
+                </>
+              ) : (
+                <>
+                  <Play className="size-4" aria-hidden="true" />
+                  Start Evaluation
+                </>
+              )}
+            </button>
 
-                <div className="mt-5 grid gap-3">
-                  {isAdmin ? (
-                    <button
-                      type="button"
-                      onClick={onUploadCurriculum}
-                      disabled={isSubmitting}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Upload className="size-4" aria-hidden="true" />
-                      Upload Curriculum
-                    </button>
-                  ) : (
-                    <div className="rounded-sm border border-[#f2c811]/30 bg-white px-4 py-3">
-                      <p className="text-sm font-semibold text-[#1e293b]">
-                        Upload Curriculum — admin only
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                        Ask an admin to upload or rebuild the {effectiveProgram} CHED curriculum
-                        reference. Once it is indexed, return here to run a full evaluation.
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={onChangeProgram}
-                    disabled={isSubmitting}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 border border-slate-300 bg-white px-4 text-sm font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <ArrowLeft className="size-4" aria-hidden="true" />
-                    Change Program
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onContinuePartial}
-                    disabled={isSubmitting}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 border border-[#f2c811] bg-white px-4 text-sm font-semibold uppercase tracking-wide text-[#1e293b] transition-colors hover:bg-[#f2c811]/10 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#f2c811] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                        Starting partial evaluation…
-                      </>
-                    ) : (
-                      <>
-                        <Play className="size-4" aria-hidden="true" />
-                        Continue Partial
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+            {!canStart && !isSubmitting ? (
+              <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
+                {selectedProgram
+                  ? 'Confirm the program and acknowledge the partial review to start.'
+                  : 'Select and confirm a program to start.'}
+              </p>
             ) : null}
           </div>
         ) : null}
