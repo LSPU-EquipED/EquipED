@@ -34,6 +34,18 @@ export const statusConfig: Record<
     label: 'Failed',
     badgeClass: 'bg-[#b91c1c] text-white',
   },
+  CLEANUP_PENDING: {
+    label: 'Cleanup Pending',
+    badgeClass: 'bg-[#b91c1c] text-white',
+  },
+};
+
+// Fallback for any processing_status the backend sends that isn't in
+// statusConfig yet -- avoids a hard crash (reading .badgeClass off
+// undefined) the next time the two fall out of sync.
+export const unknownStatusFallback: { label: string; badgeClass: string } = {
+  label: 'Unknown',
+  badgeClass: 'bg-slate-400 text-white',
 };
 
 export function formatDate(value: string) {
