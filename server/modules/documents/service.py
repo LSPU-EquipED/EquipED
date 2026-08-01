@@ -949,15 +949,23 @@ def _validate_upload(
         raise UnsupportedFileTypeError("Only PDF uploads are supported")
     if source_type not in SOURCE_TYPES:
         raise UnsupportedFileTypeError(f"Unsupported source_type: {source_type}")
-    # RBAC: only admins can upload institutional knowledge base documents
+
+    # RBAC: only admins can upload institutional knowledge base documents (curriculum, syllabus, policy, rubrics)
     if user_role != "admin" and source_type in _ADMIN_ONLY_SOURCE_TYPES:
         raise ForbiddenUploadError(
             f"Only administrators can upload {source_type} documents. "
             "Faculty members can only upload SLM documents."
         )
-    # Curriculum documents require a program for program-driven suggestion
-    if source_type == "curriculum" and not (program and program.strip()):
-        raise UnsupportedFileTypeError("Program is required for curriculum documents.")
+
+    # Direct upload restrictions for retired PDF intake types
+    if source_type == "curriculum":
+        raise UnsupportedFileTypeError(
+            "Direct curriculum document uploads have been retired."
+        )
+    if source_type in ("rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"):
+        raise UnsupportedFileTypeError(
+            f"Direct PDF upload for {source_type} is not supported. Use structured rubric tables."
+        )
     # Policy documents require a valid policy_area
     if source_type == "policy":
         if not (policy_area and policy_area.strip()):

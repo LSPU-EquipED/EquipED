@@ -75,14 +75,28 @@ def create_evaluation(
         user_role=submitted_by_role,
     )
 
-    if req.curriculum_id is None and not req.partial_without_curriculum:
+    if not req.partial_without_curriculum:
         raise InvalidEvaluationTargetError(
-            "curriculum_id is required for evaluation submission "
-            "unless partial_without_curriculum is explicitly True."
+            "Every evaluation must explicitly set partial_without_curriculum=True."
         )
-    # When curriculum_id IS present, full evaluation semantics win
-    # regardless of the partial flag.
-    effective_partial = req.partial_without_curriculum and req.curriculum_id is None
+
+    if req.curriculum_id is not None:
+        raise InvalidEvaluationTargetError(
+            "curriculum_id submission is retired; new evaluations run without curriculum."
+        )
+
+    if not (req.confirmed_program and req.confirmed_program.strip()):
+        raise InvalidEvaluationTargetError(
+            "confirmed_program is required for evaluation submission."
+        )
+
+    from server.modules.documents.metadata import _LSPU_PROGRAMS
+    confirmed_prog = req.confirmed_program.strip()
+    if not any(confirmed_prog.upper() == p.upper() for p in _LSPU_PROGRAMS):
+        raise InvalidEvaluationTargetError(
+            f"Invalid confirmed_program '{confirmed_prog}'. Must be a valid institutional program."
+        )
+
     syllabus = None
     if req.syllabus_id:
         syllabus = _validate_evaluation_target(
@@ -91,28 +105,17 @@ def create_evaluation(
             db,
             expected_source_type="syllabus",
         )
-    curriculum = None
-    if req.curriculum_id:
-        curriculum = _validate_evaluation_target(
-            req.curriculum_id,
-            submitted_by,
-            db,
-            expected_source_type="curriculum",
-        )
 
     job = EvaluationJob(
         evaluation_id=uuid.uuid4(),
         document_id=document.document_id,
         syllabus_id=syllabus.document_id if syllabus is not None else None,
-        curriculum_id=curriculum.document_id if curriculum is not None else None,
+        curriculum_id=None,
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
-        partial_without_curriculum=effective_partial,
-        partial_reason=(
-            "No curriculum reference was available; Coordinator review was skipped."
-            if effective_partial
-            else None
-        ),
+        partial_without_curriculum=True,
+        partial_reason="Curriculum evaluation flow retired; Coordinator review skipped.",
+        confirmed_program=confirmed_prog.upper(),
         submitted_by=submitted_by,
         submitted_at=datetime.now(UTC),
         completed_at=None,
@@ -130,6 +133,7 @@ def create_evaluation(
         error_message=job.error_message,
         partial_without_curriculum=job.partial_without_curriculum,
         partial_reason=job.partial_reason,
+        confirmed_program=job.confirmed_program,
         submitted_by=job.submitted_by,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,
@@ -218,6 +222,7 @@ def get_evaluation(
         error_message=row.error_message,
         partial_without_curriculum=row.partial_without_curriculum,
         partial_reason=row.partial_reason,
+        confirmed_program=row.confirmed_program,
         submitted_by=row.submitted_by,
         submitted_at=row.submitted_at,
         completed_at=row.completed_at,
@@ -260,6 +265,7 @@ def list_evaluations(
                 status=EvaluationStatus(row.status),
                 partial_without_curriculum=row.partial_without_curriculum,
                 partial_reason=row.partial_reason,
+                confirmed_program=row.confirmed_program,
                 submitted_at=row.submitted_at,
                 completed_at=row.completed_at,
                 duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
