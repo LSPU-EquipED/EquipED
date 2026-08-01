@@ -29,3 +29,19 @@ def test_returns_none_for_empty_quote() -> None:
 def test_returns_first_matching_page_when_quote_repeats() -> None:
     pages = ["First mention of teamwork.", "Second mention of teamwork."]
     assert find_evidence_page(pages, "teamwork") == 1
+
+
+def test_matches_quote_across_a_pdf_line_wrap() -> None:
+    """Regression test: PDFs wrap text with embedded newlines at each line
+    break, but an LLM quoting that text back naturally flattens it into
+    flowing prose (joining wrapped lines with a space). A naive exact
+    substring check fails here and silently downgrades a real match to
+    "not addressed" -- this must match despite the differing whitespace.
+    """
+    pages = ["Students are introduced to clear instructions\nwhen working with teams."]
+    assert find_evidence_page(pages, "clear instructions when working with teams") == 1
+
+
+def test_matches_quote_with_collapsed_whitespace_variants() -> None:
+    pages = ["Line one.\n\nLine   two   has  extra   spaces."]
+    assert find_evidence_page(pages, "Line two has extra spaces.") == 1

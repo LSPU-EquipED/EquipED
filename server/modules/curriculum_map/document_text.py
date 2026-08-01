@@ -11,10 +11,26 @@ frontend's click-to-scroll link.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_WHITESPACE_RUN = re.compile(r"\s+")
+
+
+def _normalize_whitespace(text: str) -> str:
+    """Collapse any run of whitespace (including newlines) to a single space.
+
+    PDFs wrap text with embedded newlines at each line break, but an LLM
+    quoting that text back naturally flattens it into flowing prose (joining
+    wrapped lines with a space instead of preserving the newline). Without
+    this normalization, a substring check between the two would fail for
+    almost every genuine quote, silently downgrading real matches to
+    "not addressed" (see find_evidence_page).
+    """
+    return _WHITESPACE_RUN.sub(" ", text).strip()
 
 
 def extract_document_pages(document_id: uuid.UUID) -> list[str]:
@@ -58,10 +74,11 @@ def find_evidence_page(pages: list[str], quote: str) -> int | None:
     both to ground an LLM's evidence claim (substring check) and to give
     the frontend a page number to jump to.
     """
-    if not quote.strip():
+    normalized_quote = _normalize_whitespace(quote)
+    if not normalized_quote:
         return None
     for index, page_text in enumerate(pages, start=1):
-        if quote in page_text:
+        if normalized_quote in _normalize_whitespace(page_text):
             return index
     return None
 
