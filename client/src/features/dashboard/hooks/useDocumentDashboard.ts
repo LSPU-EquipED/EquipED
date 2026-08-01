@@ -6,6 +6,9 @@ import { sourceTypeLabels } from '../utils/document.utils';
 
 export type StatusFilter = 'all' | 'PROCESSED' | 'PENDING' | 'FAILED';
 
+const isProcessingStatus = (status: ClientDocument['processingStatus']) =>
+  status === 'PENDING' || status === 'PROCESSING' || status === 'CLEANUP_PENDING';
+
 export function useDocumentDashboard() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -27,7 +30,9 @@ export function useDocumentDashboard() {
     queryFn: () => dashboardApi.listDocuments({ sourceType: 'slm' }),
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
-      return items.some((d: ClientDocument) => d.processingStatus === 'PENDING') ? 4000 : false;
+      return items.some((d: ClientDocument) => isProcessingStatus(d.processingStatus))
+        ? 4000
+        : false;
     },
   });
 
@@ -36,7 +41,7 @@ export function useDocumentDashboard() {
     return {
       total: items.length,
       ready: items.filter((d) => d.processingStatus === 'PROCESSED').length,
-      processing: items.filter((d) => d.processingStatus === 'PENDING').length,
+      processing: items.filter((d) => isProcessingStatus(d.processingStatus)).length,
       failed: items.filter((d) => d.processingStatus === 'FAILED').length,
     };
   }, [data?.items]);
@@ -46,7 +51,11 @@ export function useDocumentDashboard() {
     const items = data?.items ?? [];
 
     return items.filter((doc) => {
-      const matchesStatus = statusFilter === 'all' || doc.processingStatus === statusFilter;
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'PENDING'
+          ? isProcessingStatus(doc.processingStatus)
+          : doc.processingStatus === statusFilter);
       const matchesSearch =
         !normalizedSearch ||
         [doc.title, doc.program, doc.courseTitle, sourceTypeLabels[doc.sourceType]]

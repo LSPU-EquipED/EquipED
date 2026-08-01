@@ -42,6 +42,7 @@ from .schemas import (
     ReferenceDeleteResponse,
     ReferenceLibraryResponse,
     ReferenceRebuildResponse,
+    SyllabusOutcomesResponse,
 )
 from .service import (
     create_document,
@@ -49,6 +50,7 @@ from .service import (
     delete_reference_document,
     embed_document_chunks,
     get_document,
+    get_syllabus_outcomes,
     list_documents,
     list_policy_documents,
     list_reference_documents,
@@ -198,6 +200,27 @@ def get_document_by_id(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
+        ) from exc
+
+
+@router.get("/{document_id}/outcomes", response_model=SyllabusOutcomesResponse)
+def get_document_outcomes(
+    document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> SyllabusOutcomesResponse:
+    try:
+        return get_syllabus_outcomes(
+            document_id=document_id,
+            current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
 

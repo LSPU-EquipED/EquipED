@@ -4,6 +4,8 @@ import type {
   EvaluationResultsResponse,
   EvaluationStatusResponse,
   EvaluationListResponse,
+  SyllabusOutcomesResponse,
+  SyllabusAlignmentStartResponse,
 } from '../types';
 
 export const evaluationApi = {
@@ -22,5 +24,18 @@ export const evaluationApi = {
 
   getEvaluationResults: async (id: string): Promise<EvaluationResultsResponse> => {
     return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`);
+  },
+
+  getSyllabusOutcomes: async (id: string): Promise<SyllabusOutcomesResponse> => {
+    return requestJson<SyllabusOutcomesResponse>(`/documents/${id}/outcomes`);
+  },
+
+  startSmeSyllabusAlignment: async (
+    evaluationId: string,
+  ): Promise<SyllabusAlignmentStartResponse> => {
+    return requestJson<SyllabusAlignmentStartResponse>(
+      `/evaluations/${evaluationId}/sme-syllabus-alignment`,
+      { method: 'POST' },
+    );
   },
 };

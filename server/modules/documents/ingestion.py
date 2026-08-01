@@ -99,6 +99,9 @@ def ingest_document(
     pages = _extract_pages(file_path)
     chunks: list[DocumentChunkData] = []
 
+    if source_type == "syllabus":
+        return _ingest_syllabus_outcomes(pages, domain, doc_uuid)
+
     if source_type == "policy":
         return _ingest_policy_document(pages, domain, doc_uuid)
 
@@ -119,6 +122,28 @@ def ingest_document(
             )
 
     return chunks
+
+
+def _ingest_syllabus_outcomes(
+    pages: list[ExtractedPage], domain: str, doc_uuid: uuid.UUID
+) -> list[DocumentChunkData]:
+    from .syllabus_extraction import extract_syllabus_outcomes
+
+    return [
+        DocumentChunkData(
+            chunk_id=uuid.uuid4(),
+            document_id=doc_uuid,
+            source_type="syllabus",
+            agent_domain=domain,
+            page_number=record.page_number,
+            text=record.description,
+            token_count=_token_count(record.description),
+            is_ocr=record.is_ocr,
+            section_ref=f"syllabus_outcome:{record.code}",
+            chunk_index=record.row_index,
+        )
+        for record in extract_syllabus_outcomes(pages)
+    ]
 
 
 def _ingest_curriculum_courses(

@@ -22,6 +22,62 @@ export interface DomainScoreBlock {
   status: string;
   adjectival_rating?: string;
   summary?: string;
+  syllabus_alignment?: SyllabusAlignment | null;
+}
+
+export type SyllabusAlignmentStatus =
+  | 'MEETS'
+  | 'PARTIALLY_MEETS'
+  | 'DOES_NOT_MEET'
+  | 'UNAVAILABLE';
+
+export interface SyllabusTopicEvidence {
+  topic_id: string;
+  topic: string;
+  slm_chunk_id: string;
+  slm_page_number?: number | null;
+  slm_evidence: string;
+  status: 'ALIGNED' | 'NOT_ALIGNED';
+  rationale: string;
+}
+
+export interface SyllabusOutcomeMatch extends SyllabusTopicEvidence {
+  chunk_id: string;
+  outcome_code: string;
+  outcome_text: string;
+  page_number?: number | null;
+}
+
+export interface SyllabusAlignment {
+  status: SyllabusAlignmentStatus;
+  statement: string;
+  syllabus_document_id?: string | null;
+  total_topics: number;
+  aligned_topics: number;
+  outcome_matches: SyllabusOutcomeMatch[];
+  unmatched_topics: SyllabusTopicEvidence[];
+  advisory_only: true;
+  processing_state?: 'RUNNING' | 'COMPLETED' | 'FAILED';
+}
+
+export interface SyllabusAlignmentStartResponse {
+  evaluation_id: string;
+  processing_state: 'RUNNING';
+}
+
+export interface SyllabusOutcomeItem {
+  outcome_code: string;
+  outcome_text: string;
+  page_number: number;
+  extraction_method: 'ocr' | 'embedded_text';
+  chunk_id: string;
+  row_index: number;
+}
+
+export interface SyllabusOutcomesResponse {
+  document_id: string;
+  document_title: string;
+  outcomes: SyllabusOutcomeItem[];
 }
 
 export interface EvaluationFlagItem {
@@ -84,6 +140,7 @@ export interface EvaluationListResponse {
 export interface EvaluationResultsResponse {
   evaluation_id: string;
   document_id: string;
+  syllabus_id?: string | null;
   document_title?: string;
   program?: string;
   synthesized_score: number;

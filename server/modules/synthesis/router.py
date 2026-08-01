@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.documents.models import Document
@@ -21,9 +21,27 @@ from server.modules.synthesis.schemas import (
     EvaluationResultsResponse,
     MatrixListResponse,
     MatrixRowItem,
+    SyllabusAlignmentStartResponse,
 )
+from server.modules.synthesis.service import start_sme_syllabus_alignment
 
 router = APIRouter(prefix="/evaluations", tags=["synthesis"])
+
+
+@router.post(
+    "/{evaluation_id}/sme-syllabus-alignment",
+    response_model=SyllabusAlignmentStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_sme_alignment(
+    evaluation_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(require_authenticated_user),
+    db=Depends(get_db_session),
+):
+    return start_sme_syllabus_alignment(
+        db, evaluation_id, current_user.id, background_tasks
+    )
 
 
 @router.get("/{evaluation_id}/results", response_model=EvaluationResultsResponse)
@@ -80,6 +98,9 @@ def get_evaluation_results(
             .get("adjectival_rating"),
             "provenance": result.provenance,
             "summary": result.summary,
+            "syllabus_alignment": (result.advisory_outputs or {}).get(
+                "syllabus_alignment"
+            ),
         }
         for result in agent_results
     }
@@ -91,6 +112,7 @@ def get_evaluation_results(
     return EvaluationResultsResponse(
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
+        syllabus_id=job.syllabus_id,
         document_title=document.title if document else None,
         program=document.program if document else None,
         synthesized_score=float(synthesis_result["synthesized_score"]),

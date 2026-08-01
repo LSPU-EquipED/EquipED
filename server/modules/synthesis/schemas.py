@@ -44,6 +44,7 @@ class DomainScoreBlock(BaseModel):
     adjectival_rating: str | None = None
     provenance: dict | None = None
     summary: str = ""
+    syllabus_alignment: dict | None = None
 
 
 class EvaluationFlagItem(BaseModel):
@@ -60,6 +61,7 @@ class EvaluationFlagItem(BaseModel):
 class EvaluationResultsResponse(BaseModel):
     evaluation_id: UUID
     document_id: UUID
+    syllabus_id: UUID | None = None
     document_title: str | None = None
     program: str | None = None
     synthesized_score: float
@@ -75,6 +77,11 @@ class EvaluationResultsResponse(BaseModel):
     submitted_at: datetime | None = None
     completed_at: datetime | None = None
     duration_seconds: float | None = None
+
+
+class SyllabusAlignmentStartResponse(BaseModel):
+    evaluation_id: UUID
+    processing_state: str
 
 
 class MatrixRowItem(BaseModel):
@@ -104,6 +111,7 @@ __all__ = [
     "CriterionScoreItem",
     "DomainScoreBlock",
     "EvaluationResultsResponse",
+    "SyllabusAlignmentStartResponse",
     "EvaluationFlagItem",
     "MatrixRowItem",
     "MatrixListResponse",

@@ -57,6 +57,21 @@ class DocumentChunkResponse(BaseModel):
     chunk_index: int | None = None
 
 
+class SyllabusOutcomeItem(BaseModel):
+    outcome_code: str
+    outcome_text: str
+    page_number: int
+    extraction_method: str
+    chunk_id: UUID
+    row_index: int
+
+
+class SyllabusOutcomesResponse(BaseModel):
+    document_id: UUID
+    document_title: str
+    outcomes: list[SyllabusOutcomeItem] = Field(default_factory=list)
+
+
 class PolicyLibraryItem(BaseModel):
     """Lightweight policy item with computed health for the admin policy library."""
     document_id: UUID
@@ -218,6 +233,8 @@ __all__ = [
     "PROCESSING_STATUSES",
     "DocumentChunkData",
     "DocumentChunkResponse",
+    "SyllabusOutcomeItem",
+    "SyllabusOutcomesResponse",
     "DocumentUploadResponse",
     "DocumentResponse",
     "DocumentListResponse",

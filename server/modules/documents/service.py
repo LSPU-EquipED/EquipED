@@ -604,6 +604,52 @@ def get_document(
     )
 
 
+def get_syllabus_outcomes(
+    document_id: uuid.UUID,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
+    db: Any | None = None,
+):
+    """Return authoritative persisted outcome rows for a shared syllabus."""
+    from .schemas import SyllabusOutcomeItem, SyllabusOutcomesResponse
+
+    document = get_document(
+        document_id, current_user_id, current_user_role, db=db
+    )
+    if document.source_type != "syllabus":
+        raise ValueError("Outcomes are only available for syllabus documents.")
+    chunks = sorted(
+        (
+            chunk
+            for chunk in get_document_chunks(document_id, db=db)
+            if (getattr(chunk, "section_ref", None) or "").startswith(
+                "syllabus_outcome:"
+            )
+        ),
+        key=lambda chunk: (
+            getattr(chunk, "chunk_index", None)
+            if getattr(chunk, "chunk_index", None) is not None
+            else 10**9,
+            getattr(chunk, "page_number", 0),
+        ),
+    )
+    return SyllabusOutcomesResponse(
+        document_id=document_id,
+        document_title=document.title,
+        outcomes=[
+            SyllabusOutcomeItem(
+                outcome_code=str(chunk.section_ref).split(":", 1)[1],
+                outcome_text=str(chunk.text),
+                page_number=int(chunk.page_number),
+                extraction_method="ocr" if bool(chunk.is_ocr) else "embedded_text",
+                chunk_id=chunk.chunk_id,
+                row_index=int(chunk.chunk_index or 0),
+            )
+            for chunk in chunks
+        ],
+    )
+
+
 def list_documents(
     source_type: str | None,
     program: str | None,
@@ -1513,6 +1559,7 @@ __all__ = [
     "embed_document_chunks",
     "get_curriculum_suggestions",
     "get_document",
+    "get_syllabus_outcomes",
     "get_document_chunks",
     "get_healthy_policy_allowlist",
     "list_documents",
