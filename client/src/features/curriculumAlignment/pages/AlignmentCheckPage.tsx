@@ -3,18 +3,23 @@ import { useRef, useState } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/http';
 import { documentsApi } from '@/shared/api/documents.api';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CourseSelector } from '../components/CourseSelector';
 import { AlignmentResultsTable } from '../components/AlignmentResultsTable';
+import { AlignmentHistoryList } from '../components/AlignmentHistoryList';
 import { SlmReadingPane, type SlmReadingPaneHandle } from '../components/SlmReadingPane';
 import { useCourses } from '../hooks/useCourses';
 import { useRunAlignmentCheck } from '../hooks/useRunAlignmentCheck';
+import { useAlignmentCheck } from '../hooks/useAlignmentCheck';
 import { useDocumentPages } from '../hooks/useDocumentPages';
+import type { AlignmentCheckListItem } from '../types';
 
 export function AlignmentCheckPage() {
   const [documentId, setDocumentId] = useState('');
   const [courseId, setCourseId] = useState('');
+  const [activeCheckId, setActiveCheckId] = useState<string | null>(null);
   const readingPaneRef = useRef<SlmReadingPaneHandle>(null);
+  const queryClient = useQueryClient();
 
   const { data: documentsData } = useQuery({
     queryKey: ['curriculum-map', 'documents-for-picker'],
@@ -22,14 +27,29 @@ export function AlignmentCheckPage() {
   });
   const { data: coursesData, isLoading: coursesLoading } = useCourses();
   const runCheck = useRunAlignmentCheck();
-  const { data: pagesData } = useDocumentPages(runCheck.data?.check_id ?? null);
+  const activeCheck = useAlignmentCheck(activeCheckId);
+  const { data: pagesData } = useDocumentPages(activeCheckId);
 
   const documents = documentsData?.items ?? [];
   const courses = coursesData?.items ?? [];
 
   const handleRun = () => {
     if (!documentId || !courseId) return;
-    runCheck.mutate({ documentId, courseId });
+    runCheck.mutate(
+      { documentId, courseId },
+      {
+        onSuccess: (data) => {
+          setActiveCheckId(data.check_id);
+          queryClient.invalidateQueries({ queryKey: ['curriculum-map', 'checks'] });
+        },
+      },
+    );
+  };
+
+  const handleSelectHistoryItem = (item: AlignmentCheckListItem) => {
+    setDocumentId(item.document_id);
+    setCourseId(item.course_id);
+    setActiveCheckId(item.check_id);
   };
 
   return (
@@ -93,24 +113,46 @@ export function AlignmentCheckPage() {
         </div>
       ) : null}
 
-      {runCheck.data && !runCheck.data.success ? (
-        <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-sm font-semibold text-[#b91c1c]">
-          <AlertTriangle className="size-4 shrink-0" />
-          {runCheck.data.error_message ?? 'Curriculum alignment check failed.'}
-        </div>
+      {!runCheck.isPending && !runCheck.isError && activeCheckId === null ? (
+        <AlignmentHistoryList onSelect={handleSelectHistoryItem} />
       ) : null}
 
-      {runCheck.data && runCheck.data.success ? (
-        <div className="grid flex-1 grid-cols-2 gap-4 overflow-hidden">
-          <div className="overflow-hidden rounded-sm border border-slate-200">
-            <SlmReadingPane ref={readingPaneRef} pages={pagesData?.pages ?? []} />
-          </div>
-          <div className="overflow-y-auto rounded-sm border border-slate-200 bg-white">
-            <AlignmentResultsTable
-              objectiveResults={runCheck.data.objective_results}
-              onEvidenceClick={(pageNumber) => readingPaneRef.current?.scrollToPage(pageNumber)}
-            />
-          </div>
+      {!runCheck.isPending && !runCheck.isError && activeCheckId !== null ? (
+        <div className="flex flex-1 flex-col gap-3 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setActiveCheckId(null)}
+            className="self-start text-xs font-bold uppercase tracking-wider text-[#1b3b87] hover:underline"
+          >
+            ← Back to history
+          </button>
+
+          {activeCheck.isLoading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <Loader2 className="size-8 animate-spin text-[#1b3b87]" />
+            </div>
+          ) : null}
+
+          {activeCheck.data && !activeCheck.data.success ? (
+            <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-sm font-semibold text-[#b91c1c]">
+              <AlertTriangle className="size-4 shrink-0" />
+              {activeCheck.data.error_message ?? 'Curriculum alignment check failed.'}
+            </div>
+          ) : null}
+
+          {activeCheck.data && activeCheck.data.success ? (
+            <div className="grid flex-1 grid-cols-2 gap-4 overflow-hidden">
+              <div className="overflow-hidden rounded-sm border border-slate-200">
+                <SlmReadingPane ref={readingPaneRef} pages={pagesData?.pages ?? []} />
+              </div>
+              <div className="overflow-y-auto rounded-sm border border-slate-200 bg-white">
+                <AlignmentResultsTable
+                  objectiveResults={activeCheck.data.objective_results}
+                  onEvidenceClick={(pageNumber) => readingPaneRef.current?.scrollToPage(pageNumber)}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
