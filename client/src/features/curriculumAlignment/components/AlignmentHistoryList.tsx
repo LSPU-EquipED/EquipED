@@ -5,13 +5,12 @@
 // consistent, but this is its own implementation.
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
 import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
 import { useDeleteAlignmentCheck } from '../hooks/useDeleteAlignmentCheck';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import type { AlignmentCheckListItem } from '../types';
-
-const PAGE_SIZE = 20;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {
@@ -29,13 +28,14 @@ type AlignmentHistoryListProps = {
 
 export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [pendingDelete, setPendingDelete] = useState<AlignmentCheckListItem | null>(null);
-  const { data, isLoading, isError, error } = useAlignmentCheckHistory(page, PAGE_SIZE);
+  const { data, isLoading, isError, error } = useAlignmentCheckHistory(page, pageSize);
   const deleteCheck = useDeleteAlignmentCheck();
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
-  const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
 
   // Auto-clamp to valid page when empty pagination occurs (stale page after delete)
   useEffect(() => {
@@ -170,26 +170,91 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/30 px-6 py-3">
-          <button
-            type="button"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(p - 1, 1))}
-            className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/30 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Show</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+              className="h-8 cursor-pointer rounded-sm border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+            >
+              <option value={10}>10 rows</option>
+              <option value={25}>25 rows</option>
+              <option value={50}>50 rows</option>
+            </select>
+          </div>
+
+          <div className="text-xs font-bold uppercase tracking-wider tabular-nums text-slate-500">
             Page {page} of {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-            className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Next
-          </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] disabled:opacity-40 disabled:hover:bg-white"
+            >
+              Previous
+            </button>
+
+            {Array.from({ length: totalPages }).map((_, idx) => {
+              const p = idx + 1;
+              const isCurrent = p === page;
+
+              if (totalPages > 5 && p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
+                if (p === 2 && page > 3) {
+                  return (
+                    <span
+                      key="dots-start"
+                      className="select-none px-1 text-xs font-bold text-slate-400"
+                    >
+                      ...
+                    </span>
+                  );
+                }
+                if (p === totalPages - 1 && page < totalPages - 2) {
+                  return (
+                    <span
+                      key="dots-end"
+                      className="select-none px-1 text-xs font-bold text-slate-400"
+                    >
+                      ...
+                    </span>
+                  );
+                }
+                return null;
+              }
+
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPage(p)}
+                  className={cn(
+                    'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                    isCurrent
+                      ? 'bg-[#1b3b87] text-white'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                  )}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              disabled={page === totalPages}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] disabled:opacity-40 disabled:hover:bg-white"
+            >
+              Next
+            </button>
+          </div>
         </div>
       ) : null}
     </div>
