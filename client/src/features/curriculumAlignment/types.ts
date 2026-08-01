@@ -51,3 +51,22 @@ export interface DocumentPage {
 export interface DocumentPagesResponse {
   pages: DocumentPage[];
 }
+
+export interface AlignmentCheckListItem {
+  check_id: string;
+  document_id: string;
+  document_title: string;
+  course_id: string;
+  course_title: string;
+  run_at: string;
+  success: boolean;
+  error_message: string | null;
+  summary: AlignmentCheckSummary;
+}
+
+export interface AlignmentCheckListResponse {
+  items: AlignmentCheckListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
