@@ -133,6 +133,13 @@ export function AlignmentCheckPage() {
             </div>
           ) : null}
 
+          {activeCheck.isError ? (
+            <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-sm font-semibold text-[#b91c1c]">
+              <AlertTriangle className="size-4 shrink-0" />
+              {getErrorMessage(activeCheck.error, 'Could not load this check.')}
+            </div>
+          ) : null}
+
           {activeCheck.data && !activeCheck.data.success ? (
             <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-sm font-semibold text-[#b91c1c]">
               <AlertTriangle className="size-4 shrink-0" />

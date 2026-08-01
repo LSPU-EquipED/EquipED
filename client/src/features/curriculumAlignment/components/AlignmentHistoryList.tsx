@@ -2,7 +2,7 @@
 // dashboard/components/DocumentPagination.tsx, since features must stay
 // self-contained (CLAUDE.md module boundaries). Same reasoning
 // SlmReadingPane.tsx already documents for its own click-to-scroll reimpl.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/http';
 import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
@@ -24,6 +24,14 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+
+  // Auto-clamp to valid page when empty pagination occurs (stale page after delete)
+  useEffect(() => {
+    if (!isLoading && items.length === 0 && page > 1) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPage(Math.max(page - 1, 1));
+    }
+  }, [isLoading, items.length, page]);
 
   const handleDelete = (item: AlignmentCheckListItem, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -51,7 +59,7 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
     );
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && page === 1) {
     return (
       <div className="flex flex-1 items-center justify-center rounded-sm border border-dashed border-slate-200 bg-slate-50/30 p-8 text-center text-sm font-semibold text-slate-500">
         No checks yet. Pick a document and course above, then run a check to see it here.
@@ -94,14 +102,26 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
             <button
               type="button"
               onClick={(e) => handleDelete(item, e)}
+              disabled={deleteCheck.isPending}
               aria-label="Delete check"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-[#b91c1c]/10 hover:text-[#b91c1c] focus:outline-none focus:ring-2 focus:ring-[#b91c1c]"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-[#b91c1c]/10 hover:text-[#b91c1c] focus:outline-none focus:ring-2 focus:ring-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Trash2 className="size-4" />
+              {deleteCheck.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4" />
+              )}
             </button>
           </div>
         ))}
       </div>
+
+      {deleteCheck.isError ? (
+        <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 px-4 py-3 text-sm font-semibold text-[#b91c1c]">
+          <AlertTriangle className="size-4 shrink-0" />
+          {getErrorMessage(deleteCheck.error, 'Could not delete this check.')}
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/30 px-4 py-3">
         <button
