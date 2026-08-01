@@ -13,6 +13,7 @@ import type { AppRouterContext } from './runtime';
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { requireRole } from '../features/auth/guards/RoleGuard';
+import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
 import { UploadPage } from '../features/upload/pages/UploadPage';
 import { HistoryPage } from '../features/history/pages/HistoryPage';
 import { EvaluationInterfacePage } from '../features/evaluation/pages/EvaluationInterfacePage';
@@ -80,6 +81,12 @@ const dashboardRoute = createRoute({
 const uploadRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'upload',
+  beforeLoad: ({ context }) => {
+    const access = resolveUploadRouteAccess(context.auth.user?.role);
+    if (!access.allowed) {
+      throw redirect({ to: access.redirectTo });
+    }
+  },
   component: () => (
     <div className="px-6 py-7">
       <UploadPage />

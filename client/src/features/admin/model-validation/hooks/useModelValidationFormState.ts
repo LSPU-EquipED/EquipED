@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -8,27 +7,21 @@ import {
 } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
-import type {
-  CurriculumSuggestionResponse,
-  DocumentUploadResponse,
-} from '@/shared/types/documents';
+import type { DocumentUploadResponse } from '@/shared/types/documents';
 import { modelValidationApi } from '../api/modelValidation.api';
 import type { ModelValidationCreateBody } from '../types';
-import { criterionKey } from '../utils/helpers';
+import { areAllCriterionScoresComplete, criterionKey } from '../utils/helpers';
 import { useModelValidationCriteria } from './useModelValidationQueries';
 
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const persistedProgramRef = useRef<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [program, setProgram] = useState('');
   const [expectedScores, setExpectedScores] = useState<Record<string, string>>({});
   const [uploaded, setUploaded] = useState<DocumentUploadResponse | null>(null);
-  const [curriculumId, setCurriculumId] = useState('');
-  const [allowPartial, setAllowPartial] = useState(false);
   const [partialChoiceAcknowledged, setPartialChoiceAcknowledged] = useState(false);
 
   const criterionCatalog = useModelValidationCriteria();
@@ -41,36 +34,6 @@ export function useModelValidationFormState() {
   });
 
   const normalizedProgram = program.trim().toUpperCase();
-  const suggestionsQuery = useQuery<CurriculumSuggestionResponse>({
-    queryKey: [
-      'model-validation',
-      'curriculum-suggestion',
-      uploaded?.documentId,
-      normalizedProgram,
-    ],
-    queryFn: () => {
-      if (!uploaded) {
-        throw new Error('No uploaded document');
-      }
-      return documentsApi.getCurriculumSuggestion(uploaded.documentId, normalizedProgram);
-    },
-    enabled: !!uploaded && normalizedProgram.length > 0,
-    retry: 1,
-  });
-  const suggestions = suggestionsQuery.data ?? null;
-
-  useEffect(() => {
-    if (uploaded && suggestions && !suggestionsQuery.isFetching) {
-      persistedProgramRef.current = normalizedProgram;
-    }
-  }, [uploaded, suggestions, normalizedProgram, suggestionsQuery.isFetching]);
-
-  useEffect(() => {
-    if (!uploaded) return;
-    if (!persistedProgramRef.current) return;
-    if (normalizedProgram === persistedProgramRef.current) return;
-    setCurriculumId('');
-  }, [uploaded, normalizedProgram]);
 
   const uploadMutation = useMutation({
     mutationFn: async (input: { file: File; title: string; program: string }) => {
@@ -88,10 +51,7 @@ export function useModelValidationFormState() {
     },
     onSuccess: (document) => {
       setUploaded(document);
-      setCurriculumId('');
-      setAllowPartial(false);
       setPartialChoiceAcknowledged(false);
-      persistedProgramRef.current = '';
     },
   });
 
@@ -121,10 +81,7 @@ export function useModelValidationFormState() {
       setProgram('');
       setExpectedScores({});
       setUploaded(null);
-      setCurriculumId('');
-      setAllowPartial(false);
       setPartialChoiceAcknowledged(false);
-      persistedProgramRef.current = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
   });
@@ -133,37 +90,24 @@ export function useModelValidationFormState() {
   const orderedCriterionKeys = criterionDefinitions.flatMap((agent) =>
     agent.criteria.map((criterion) => criterionKey(agent.agent_id, criterion.criterion_id)),
   );
-  const allCriterionScoresComplete =
-    criterionDefinitions.length === 4 &&
-    (criterionCatalog.data?.total_criteria ?? 0) > 0 &&
-    criterionDefinitions.every((agent) =>
-      agent.criteria.every((criterion) => {
-        const score = Number(expectedScores[criterionKey(agent.agent_id, criterion.criterion_id)]);
-        return Number.isInteger(score) && score >= 1 && score <= 4;
-      }),
-    );
-  const readyCurricula = suggestions?.curriculumSuggestions ?? [];
-  const unavailableCurricula = suggestions?.unavailableCurricula ?? [];
+  // Validity derives from the active criterion catalog (SME/GAD/ITSO after
+  // curriculum retirement), not a fixed agent count.
+  const allCriterionScoresComplete = areAllCriterionScoresComplete(
+    criterionDefinitions,
+    expectedScores,
+  );
   const uploadedProcessingStatus =
     uploadedDocument.data?.processingStatus ?? uploaded?.processingStatus;
   const uploadedDocumentReady =
     uploadedProcessingStatus === 'PROCESSED' && (uploadedDocument.data?.chunks.length ?? 0) > 0;
-  const isSuggestionsLoading = suggestionsQuery.isLoading || suggestionsQuery.isFetching;
-  const isSuggestionsError = suggestionsQuery.isError;
-  const showPartialOption = uploadedDocumentReady && readyCurricula.length === 0;
   const canSubmitEvaluation =
-    uploadedDocumentReady &&
-    allCriterionScoresComplete &&
-    (!!curriculumId || (allowPartial && partialChoiceAcknowledged && readyCurricula.length === 0));
+    uploadedDocumentReady && allCriterionScoresComplete && partialChoiceAcknowledged;
   const error = uploadMutation.error ?? uploadedDocument.error ?? validationMutation.error;
 
   const resetPreparedUpload = () => {
     setFile(null);
     setUploaded(null);
-    setCurriculumId('');
-    setAllowPartial(false);
     setPartialChoiceAcknowledged(false);
-    persistedProgramRef.current = '';
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -171,16 +115,13 @@ export function useModelValidationFormState() {
     const nextFile = event.target.files?.[0] ?? null;
     setFile(nextFile);
     setUploaded(null);
-    setCurriculumId('');
+    setPartialChoiceAcknowledged(false);
     if (nextFile && !title.trim()) setTitle(nextFile.name.replace(/\.pdf$/i, ''));
   };
 
   const handleProgramChange = (nextProgram: string) => {
     const normalized = nextProgram.trim().toUpperCase();
     setProgram(normalized);
-    if (uploaded) {
-      setCurriculumId('');
-    }
   };
 
   const handlePrepare = (event: FormEvent) => {
@@ -217,8 +158,7 @@ export function useModelValidationFormState() {
     if (!uploaded || !canSubmitEvaluation) return;
     validationMutation.mutate({
       document_id: uploaded.documentId,
-      curriculum_id: curriculumId || undefined,
-      partial_without_curriculum: !curriculumId && allowPartial && partialChoiceAcknowledged,
+      partial_without_curriculum: true,
       expected_scores: criterionDefinitions.flatMap((agent) =>
         agent.criteria.map((criterion) => ({
           agent_id: agent.agent_id,
@@ -241,10 +181,6 @@ export function useModelValidationFormState() {
     expectedScores,
     setExpectedScores,
     uploaded,
-    curriculumId,
-    setCurriculumId,
-    allowPartial,
-    setAllowPartial,
     partialChoiceAcknowledged,
     setPartialChoiceAcknowledged,
     criterionCatalog,
@@ -252,13 +188,8 @@ export function useModelValidationFormState() {
     validationMutation,
     criterionDefinitions,
     allCriterionScoresComplete,
-    readyCurricula,
-    unavailableCurricula,
     uploadedProcessingStatus,
     uploadedDocumentReady,
-    isSuggestionsLoading,
-    isSuggestionsError,
-    showPartialOption,
     canSubmitEvaluation,
     error,
     normalizedProgram,

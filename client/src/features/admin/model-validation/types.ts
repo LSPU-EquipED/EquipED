@@ -46,7 +46,6 @@ export interface ModelValidationMetricsResponse {
 
 export interface ModelValidationCreateBody {
   document_id: string;
-  curriculum_id?: string;
   partial_without_curriculum?: boolean;
   expected_scores: Array<{
     agent_id: 'sme' | 'coordinator' | 'gad' | 'itso';

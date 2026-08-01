@@ -26,10 +26,6 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
     expectedScores,
     setExpectedScores,
     uploaded,
-    curriculumId,
-    setCurriculumId,
-    allowPartial,
-    setAllowPartial,
     partialChoiceAcknowledged,
     setPartialChoiceAcknowledged,
     criterionCatalog,
@@ -37,16 +33,10 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
     validationMutation,
     criterionDefinitions,
     allCriterionScoresComplete,
-    readyCurricula,
-    unavailableCurricula,
     uploadedProcessingStatus,
     uploadedDocumentReady,
-    isSuggestionsLoading,
-    isSuggestionsError,
-    showPartialOption,
     canSubmitEvaluation,
     error,
-    normalizedProgram,
     resetPreparedUpload,
     handleFile,
     handleProgramChange,
@@ -94,7 +84,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
           groups={LSPU_SCC_COLLEGE_PROGRAMS}
           placeholder="Select the SLM program"
           required
-          hint="Used to find the matching indexed curriculum."
+          hint="Recorded as the confirmed program for this validation."
         />
 
         <div className="grid min-w-0 gap-4 border-t border-slate-200 pt-5">
@@ -112,10 +102,10 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
             <p className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 p-3 text-sm font-semibold text-[#b91c1c]">
               Unable to load the active rubric criteria.
             </p>
-          ) : criterionDefinitions.length !== 4 ||
+          ) : criterionDefinitions.length === 0 ||
             criterionDefinitions.some((agent) => agent.criteria.length === 0) ? (
             <p className="rounded-sm border border-[#f2c811] bg-[#f2c811]/10 p-3 text-sm font-semibold text-slate-800">
-              No active rubric criteria are available. Activate all four agent rubrics first.
+              No active rubric criteria are available. Activate the evaluator agent rubrics first.
             </p>
           ) : (
             criterionDefinitions.map((agent) => (
@@ -245,116 +235,42 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
                 Confirming the SLM is fully processed…
               </div>
             )}
-            {uploadedDocumentReady && isSuggestionsLoading ? (
-              <div
-                role="status"
-                className="flex items-center gap-2 rounded-sm border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600"
-              >
-                <Loader2 className="size-4 animate-spin text-[#1b3b87]" aria-hidden="true" />
-                Loading curriculum suggestions for {normalizedProgram}…
-              </div>
-            ) : null}
-            {uploadedDocumentReady && isSuggestionsError ? (
-              <p
-                role="alert"
-                className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 p-3 text-sm font-semibold text-[#b91c1c]"
-              >
-                Unable to load curriculum suggestions for {normalizedProgram}. Try a different
-                program or retry the upload.
-              </p>
-            ) : null}
-            {uploadedDocumentReady &&
-            !isSuggestionsLoading &&
-            !isSuggestionsError &&
-            readyCurricula.length ? (
-              <label className="grid gap-2 text-xs font-bold uppercase tracking-wider text-slate-600">
-                Curriculum reference
-                <select
-                  value={curriculumId}
-                  onChange={(event) => setCurriculumId(event.target.value)}
-                  className="h-10 min-w-0 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm font-semibold normal-case tracking-normal focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
-                >
-                  {readyCurricula.map((item) => (
-                    <option key={item.documentId} value={item.documentId}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            {uploadedDocumentReady &&
-            !isSuggestionsLoading &&
-            !isSuggestionsError &&
-            unavailableCurricula.length > 0 ? (
-              <div className="rounded-sm border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
-                <p className="font-semibold text-slate-800">
-                  Unavailable curricula for {normalizedProgram}
-                </p>
-                <p className="mt-1">
-                  {unavailableCurricula.length} reference
-                  {unavailableCurricula.length === 1 ? '' : 's'} not ready for retrieval. Ask an
-                  admin to rebuild or re-upload them before full evaluation.
-                </p>
-              </div>
-            ) : null}
-            {showPartialOption && !isSuggestionsLoading && !isSuggestionsError ? (
+
+            {uploadedDocumentReady ? (
               <fieldset className="grid gap-3 rounded-sm border border-[#f2c811] bg-[#f2c811]/10 p-4 text-sm text-slate-900">
                 <legend className="px-1 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Partial validation opt-in
+                  Partial validation
                 </legend>
-                <label className="flex items-start gap-3 font-semibold text-slate-900">
-                  <input
-                    type="checkbox"
-                    checked={allowPartial}
-                    onChange={(event) => {
-                      setAllowPartial(event.target.checked);
-                      if (!event.target.checked) {
-                        setPartialChoiceAcknowledged(false);
-                      }
-                    }}
-                    className="mt-1 size-4 shrink-0 accent-[#1b3b87]"
-                  />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-slate-900">
-                      Continue with a partial validation.
-                    </span>
-                    <span className="mt-1 block text-xs font-medium leading-relaxed text-slate-700">
-                      No indexed curriculum is available for {normalizedProgram}. Coordinator
-                      curriculum-grounded review will be skipped. SME, GAD, and ITSO will still
-                      evaluate the SLM. The result is marked partial and remains advisory.
-                    </span>
-                  </span>
-                </label>
-                {allowPartial ? (
-                  <label className="flex items-start gap-3 border-t border-[#f2c811]/40 pt-3 text-xs font-semibold text-slate-800">
-                    <input
-                      type="checkbox"
-                      checked={partialChoiceAcknowledged}
-                      onChange={(event) => setPartialChoiceAcknowledged(event.target.checked)}
-                      className="mt-0.5 size-4 shrink-0 accent-[#1b3b87]"
-                      aria-describedby="partial-acknowledgement-help"
-                    />
-                    <span id="partial-acknowledgement-help" className="min-w-0 leading-relaxed">
-                      I understand that the Coordinator agent will be skipped and the evaluation
-                      will be reported as a partial result.
-                    </span>
-                  </label>
-                ) : null}
-                <p
-                  id="partial-mode-warning"
-                  className="flex items-start gap-2 border-t border-[#f2c811]/40 pt-3 text-xs font-semibold text-slate-800"
-                >
+                <p className="flex items-start gap-2 leading-relaxed font-semibold text-slate-900">
                   <ShieldAlert
                     className="mt-0.5 size-4 shrink-0 text-[#b91c1c]"
                     aria-hidden="true"
                   />
-                  <span className="leading-relaxed">
-                    Partial validation never claims curriculum-grounded Coordinator review
-                    occurred. Pick a different program above to use a ready curriculum instead.
+                  <span className="min-w-0">
+                    This validation runs without a curriculum reference. The Coordinator agent
+                    will be skipped; SME, GAD, and ITSO will still evaluate the SLM. The result is
+                    marked partial and remains advisory.
                   </span>
                 </p>
+                <label className="flex items-start gap-3 border-t border-[#f2c811]/40 pt-3 text-xs font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={partialChoiceAcknowledged}
+                    onChange={(event) => setPartialChoiceAcknowledged(event.target.checked)}
+                    className="mt-0.5 size-4 shrink-0 accent-[#1b3b87]"
+                    aria-describedby="validation-partial-acknowledgement-help"
+                  />
+                  <span
+                    id="validation-partial-acknowledgement-help"
+                    className="min-w-0 leading-relaxed"
+                  >
+                    I understand that the Coordinator agent will be skipped and the validation
+                    will be reported as a partial result.
+                  </span>
+                </label>
               </fieldset>
             ) : null}
+
             <button
               type="button"
               onClick={handleStart}

@@ -2,40 +2,34 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'r
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft, CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
 import { documentsApi } from '@/shared/api/documents.api';
-import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { cn } from '@/shared/components/utils';
-import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
 import {
   POLICY_AREA_LABELS,
   POLICY_AREAS,
   type DocumentUploadResponse,
   type PolicyArea,
-  type ReferenceSourceType,
 } from '@/shared/types/documents';
 import { useAdminUpload } from '../hooks/useAdminUpload';
 
 const POLL_INTERVAL_MS = 4000;
 
-type AdminUploadSourceType = ReferenceSourceType | 'policy';
+type AdminUploadSourceType = 'syllabus' | 'policy';
 
 const sourceTypeLabels: Record<AdminUploadSourceType, string> = {
   syllabus: 'Syllabus',
-  curriculum: 'Curriculum',
   policy: 'Policy',
 };
 
-const referenceTypes: AdminUploadSourceType[] = ['syllabus', 'curriculum', 'policy'];
+const referenceTypes: AdminUploadSourceType[] = ['syllabus', 'policy'];
 
 export function AdminUploadPage() {
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useAdminUpload();
   const [sourceType, setSourceType] = useState<AdminUploadSourceType>('syllabus');
   const [title, setTitle] = useState('');
-  const [program, setProgram] = useState('');
   const [policyArea, setPolicyArea] = useState<PolicyArea>('general_itso');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isProgramRequired = sourceType === 'curriculum';
   const isPolicyAreaRequired = sourceType === 'policy';
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +51,7 @@ export function AdminUploadPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!file || !title.trim() || (isProgramRequired && !program.trim())) {
+    if (!file || !title.trim()) {
       return;
     }
 
@@ -72,7 +66,6 @@ export function AdminUploadPage() {
         file,
         sourceType,
         title,
-        program: isProgramRequired ? program.trim().toUpperCase() : undefined,
         policyArea: isPolicyAreaRequired ? policyArea : undefined,
       });
       setUploadResult(result);
@@ -81,7 +74,7 @@ export function AdminUploadPage() {
     }
   };
 
-  // Reference documents (curriculum/syllabus) return PROCESSING immediately —
+  // Reference documents (syllabus/policy) return PROCESSING immediately —
   // OCR runs in a background task, so poll until it lands on PROCESSED/FAILED.
   useEffect(() => {
     if (!uploadResult || uploadResult.processingStatus !== 'PROCESSING') {
@@ -124,7 +117,6 @@ export function AdminUploadPage() {
     resetUpload(null);
     setFile(null);
     setTitle('');
-    setProgram('');
     setPolicyArea('general_itso');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -134,11 +126,7 @@ export function AdminUploadPage() {
   const isProcessing = uploadResult?.processingStatus === 'PROCESSING';
   const isSuccess = uploadResult?.processingStatus === 'PROCESSED';
   const isFailed = uploadResult?.processingStatus === 'FAILED';
-  const canSubmit =
-    !!file &&
-    title.trim().length > 0 &&
-    (!isProgramRequired || program.trim().length > 0) &&
-    (!isPolicyAreaRequired || !!policyArea);
+  const canSubmit = !!file && title.trim().length > 0 && (!isPolicyAreaRequired || !!policyArea);
 
   return (
     <section className="grid gap-6">
@@ -195,19 +183,6 @@ export function AdminUploadPage() {
           />
         </div>
 
-        {isProgramRequired ? (
-          <ProgramSelector
-            id="ref-program"
-            label="Program"
-            value={program}
-            onChange={setProgram}
-            groups={LSPU_SCC_COLLEGE_PROGRAMS}
-            placeholder="Select a program"
-            required={isProgramRequired}
-            hint="Required for curriculum references. Program codes are saved as uppercase."
-          />
-        ) : null}
-
         {isPolicyAreaRequired ? (
           <div className="space-y-2">
             <label
@@ -249,7 +224,7 @@ export function AdminUploadPage() {
               {file ? file.name : 'Drop a PDF here or browse files'}
             </span>
             <span className="text-center text-xs text-slate-500 font-medium">
-              PDF only. Upload syllabus, curriculum, or policy references for embedding.
+              PDF only. Upload syllabus or policy references for embedding.
             </span>
             <input
               id="ref-file"

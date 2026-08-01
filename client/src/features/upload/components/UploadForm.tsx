@@ -1,25 +1,21 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type DragEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
-import type { DocumentSourceType, DocumentUploadResponse } from '@/shared/types/documents';
+import type { DocumentUploadResponse } from '@/shared/types/documents';
+import { shouldNavigateToEvaluation } from '@/features/upload/utils/uploadFlow';
 
 import { UploadHeader } from './UploadHeader';
 import { UploadIntakeFields } from './UploadIntakeFields';
 import { UploadDropzone } from './UploadDropzone';
 import { UploadSummaryLedger } from './UploadSummaryLedger';
 
-const sourceType: DocumentSourceType = 'slm';
+const sourceType = 'slm';
 
-const sourceTypeLabels: Record<DocumentSourceType, string> = {
+const sourceTypeLabels: Record<string, string> = {
   slm: 'SLM',
-  syllabus: 'Syllabus',
-  rubric_sme: 'SME Rubric',
-  rubric_coord: 'Coordinator Rubric',
-  rubric_gad: 'GAD Rubric',
-  rubric_itso: 'ITSO Rubric',
-  curriculum: 'Curriculum',
 };
 
 function titleFromFilename(filename: string): string {
@@ -28,6 +24,7 @@ function titleFromFilename(filename: string): string {
 
 export function UploadForm() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useUploadDocument();
   const [title, setTitle] = useState('');
@@ -35,6 +32,7 @@ export function UploadForm() {
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigationTriggeredRef = useRef(false);
 
   const handleDragOver = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
@@ -93,6 +91,17 @@ export function UploadForm() {
         title,
       });
       setUploadResult(result);
+
+      // A processed SLM continues to its evaluation page exactly once. Failed
+      // or pending results stay on the upload experience with error handling.
+      if (shouldNavigateToEvaluation(result) && !navigationTriggeredRef.current) {
+        navigationTriggeredRef.current = true;
+        void queryClient.invalidateQueries({ queryKey: ['documents'] });
+        void navigate({
+          to: '/documents/$documentId/evaluation',
+          params: { documentId: result.documentId },
+        });
+      }
     } catch {
       // Error state is surfaced via errorMessage from the hook
     }
@@ -161,7 +170,7 @@ export function UploadForm() {
               ? 'Your document has been uploaded and processed successfully.'
               : isFailed
                 ? 'Upload completed, but document processing failed.'
-                : 'Review the upload details, then add the document to the dashboard inventory.'}
+                : 'Review the upload details, then upload the document to begin.'}
           </p>
         </div>
 
@@ -218,7 +227,7 @@ export function UploadForm() {
                 )}
                 <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
                   {isSuccess
-                    ? 'The document is now in your dashboard inventory.'
+                    ? 'Continuing to the evaluation page…'
                     : 'You can try uploading the file again or contact support if the issue persists.'}
                 </p>
               </>
@@ -248,7 +257,7 @@ export function UploadForm() {
                   )}
                 </button>
                 <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
-                  Uploading adds the document to inventory only. Evaluation is a later workflow.
+                  After processing, you will continue to the evaluation page for this SLM.
                 </p>
               </>
             )}
