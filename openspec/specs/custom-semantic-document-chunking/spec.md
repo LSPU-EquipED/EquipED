@@ -116,3 +116,10 @@ A document with `source_type == "slm"` MAY have `chroma_stored == False` without
 #### Scenario: Reference document with chroma_stored == False is incomplete
 - **WHEN** a reference document (syllabus, curriculum) or rubric has `chroma_stored == False` after upload
 - **THEN** the system SHALL treat the document as not yet fully processed since embedding is expected for these source types
+
+### Requirement: Retired curriculum and rubric PDFs are not ingestion targets
+The active document ingestion pipeline SHALL NOT process or embed newly uploaded curriculum or rubric PDF source types. SLM handling, syllabus embedding, and policy collection handling remain unchanged.
+
+#### Scenario: Retired source reaches ingestion
+- **WHEN** a curriculum or rubric PDF source request reaches document validation
+- **THEN** the system SHALL reject it before extraction, chunking, or embedding
