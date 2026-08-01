@@ -36,10 +36,18 @@ export function buildApiUrl(path: string) {
 }
 
 async function parseResponseBody(response: Response) {
+  // A 204 has no body by definition, even though FastAPI still sends
+  // Content-Type: application/json on it -- calling response.json() on
+  // that empty body throws "Unexpected end of JSON input".
+  if (response.status === 204) {
+    return null;
+  }
+
   const contentType = response.headers.get('content-type') ?? '';
 
   if (contentType.includes('application/json')) {
-    return response.json();
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   }
 
   const text = await response.text();
