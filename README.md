@@ -1,177 +1,152 @@
 # EquipED
 
-EquipED is a multi-agent SLM evaluation system being developed for LSPU SCC. The current repository is still in an active build phase, so this README focuses on the agreed development topology and the current local/Docker workflow.
+EquipED is an advisory, multi-agent evaluation system for Self-Paced Learning
+Modules (SLMs) at **Laguna State Polytechnic University – Santa Cruz Campus,
+College of Computer Studies**.
 
-## Development Topology
+It helps faculty and CID staff review SLMs against institutional rubrics while
+keeping human review authoritative. Current academic scope is limited to
+**BSInfoTech** and **BSCS**.
 
-The current official development topology is:
+## What it does
 
-- **Frontend:** local on each developer machine
-- **Backend:** local on each developer machine
-- **Relational DB:** shared Neon PostgreSQL
-- **Vector DB:** local Chroma per developer
-- **Uploads:** local per developer machine
+- Accepts faculty-owned SLM PDF uploads and extracts selectable or scanned text.
+- Runs SME, Program Coordinator, GAD, and ITSO evaluation perspectives in
+  parallel, then produces a consolidated scorecard and monitoring-matrix entry.
+- Uses LSPU CCS curriculum, syllabus, rubric, and approved policy documents as
+  local reference evidence. SLMs are direct evaluation input and are never
+  embedded into ChromaDB.
+- Requires a faculty-confirmed program and curriculum for a full evaluation. A
+  clearly labelled partial evaluation can continue without a curriculum; the
+  Coordinator is skipped and the result is marked partial.
+- Provides Admin workflows for reference/policy ingestion, user management,
+  prompt history, preference logs, monitoring, and model validation.
+- Exports truthful client-side PDF scorecards.
 
-Neon is a temporary development database host for team collaboration. The long-term production target remains localized LSPU-hosted infrastructure, including PostgreSQL, Chroma, and local file storage.
+Generated results are advisory only and do not replace institutional review or
+approval.
 
-## Docker in This Phase
+## Data and deployment model
 
-Docker is a **local infrastructure and smoke-test helper** in the current phase, not the canonical full-stack runtime.
+Development currently uses local frontend/backend processes, local uploads and
+Chroma state, and may use a shared Neon PostgreSQL database for team work.
+Neon is temporary development infrastructure only.
 
-- `chroma` is the main local service intended for day-to-day development
-- `db` remains available as an **optional local PostgreSQL fallback** for validation and future pre-production checks
-- `server` and `server-smoke` are optional backend container flows for local runtime and smoke testing
-- `client` and `client-smoke` are optional frontend container flows for local runtime and smoke testing
-- running backend and frontend separately is the preferred Docker workflow for now
+The production target is an institution-controlled LSPU server with local
+PostgreSQL, uploads, and ChromaDB. Policy evidence delivery to an LLM is
+disabled by default and must remain local/residency-gated when enabled.
 
-```bash
-docker compose up --build chroma
-```
+## Prerequisites
 
-You can verify Chroma is running with:
+- Python 3.12 and [uv](https://docs.astral.sh/uv/)
+- Node 20, Corepack, and pnpm 9.12.0
+- Docker Compose only when using optional container services
+- Tesseract with `eng` and `fil` language packs to process scanned PDFs
+  (required in production; optional for text-only development)
 
-```bash
-docker compose ps
-curl http://localhost:8001/api/v1/heartbeat
-```
+## Quick start
 
-```bash
-docker compose down -v
-```
-
-Notes:
-- Do **not** treat `docker compose up` by itself as the official way to run the full stack.
-- Postgres is exposed on `5433`, FastAPI on `8000`, backend smoke on `8002`, Vite on `5173`, built client preview on `4173`, and ChromaDB on `8001` (mapped to container `8000`).
-- `server` and `server-smoke` target the real FastAPI app and use `/health` as the first-pass smoke signal.
-- `server` boot has been validated after adding the missing `python-multipart` dependency to the backend runtime.
-
-### Optional Backend Container Commands
-
-Run the backend locally in Docker:
-
-```bash
-docker compose up --build server
-```
-
-Run the backend smoke path:
+From the repository root:
 
 ```bash
-docker compose up --build server-smoke
-```
-
-Notes:
-- `server` uses the `dev` target from `server/Dockerfile` and serves FastAPI on `http://localhost:8000`
-- `server-smoke` uses the `smoke` target from `server/Dockerfile` and exposes the same app on `http://localhost:8002`
-- first-pass backend smoke validation is `GET /health`, not full `/ready`
-- compose defaults `DATABASE_URL` to the local `db` service, but you can override it with a Neon URL in your shell or root `.env`
-- backend container flows always point Chroma at the compose `chroma` service rather than host `localhost`
-- local fallback Postgres is reachable from the host on `localhost:5433`
-
-### Optional Client Container Commands
-
-Run the client locally in Docker:
-
-```bash
-docker compose up --build client
-```
-
-Run the built client preview for smoke testing:
-
-```bash
-docker compose up --build client-smoke
-```
-
-Notes:
-- `client` uses the `dev` target from `client/Dockerfile` and serves Vite on `http://localhost:5173`
-- `client-smoke` uses the `smoke` target from `client/Dockerfile` and serves the built app on `http://localhost:4173`
-- the `client` service mounts `./client` into the container so local edits are reflected in the running dev server
-
-### Recommended Docker Usage Right Now
-
-Use Docker services independently while feature work is still evolving:
-
-```bash
-docker compose up --build chroma
-docker compose up --build server
-docker compose up --build server-smoke
-docker compose up --build client
-docker compose up --build client-smoke
-```
-
-Avoid treating `db + chroma + server + client` as a fully supported full-stack Docker mode yet. It can be attempted, but it is not the documented primary workflow at this stage.
-
-## API Documentation
-
-When the server is running, open [http://localhost:8000/docs](http://localhost:8000/docs) for the live OpenAPI documentation. Canonical behavioral contracts live in `openspec/specs/`.
-
-## Local Dev
-
-### Server (Python 3.12)
-
-From the **repo root**:
-
-```bash
+cp .env.example .env
 uv sync --project server
-uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+
+cd client
+pnpm install
+cd ..
 ```
 
-Notes:
-- `server/.python-version` pins the intended local Python version to `3.12.10`
-- `uv.lock` already exists, so `uv sync` is the preferred backend install path
-- **Do NOT use** `python main.py runserver` — this repo uses FastAPI with `uvicorn`, not Django
-- **Do NOT run from inside `server/`** — `server/main.py` uses absolute imports (`from server.core...`) that require the repo root to be in `PYTHONPATH`
-- **Do NOT run** `uv sync` from the repo root without `--project server` — there is no root `pyproject.toml`
+Configure `.env` with the development database URL, LLM settings, and any local
+OCR configuration before running the app. Do not commit credentials.
 
-### Client (Node 20 + pnpm 9.12.0)
+Start the backend:
+
+```bash
+make server
+```
+
+Start the client in another terminal:
 
 ```bash
 cd client
-pnpm install
 pnpm dev
 ```
 
-Notes:
-- `client/package.json` declares `packageManager: pnpm@9.12.0`
-- `client/Dockerfile` uses Node 20, which is the intended local runtime target as well
+Open the client at <http://localhost:5173>. The live FastAPI documentation is
+available at <http://localhost:8000/docs>.
 
-Before starting local app processes:
+### Why `make server` runs from the repository root
 
-- point `DATABASE_URL` to the shared Neon development database
-- start or connect to your **local** Chroma instance
-- keep in mind that uploads and Chroma state are local to your own machine
+The FastAPI application is imported as `server.main:app`, and backend modules
+use absolute `server.*` imports. The root Make target selects
+`server/pyproject.toml` while keeping the repository root on Python's import
+path:
 
-Recommended start order:
+```bash
+uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-1. start local Chroma
-2. configure `.env`
-3. run the backend locally
-4. run the frontend locally
+## Common commands
 
-## Shared Relational State vs Local Retrieval State
+| Task | Command |
+| --- | --- |
+| Start the backend | `make server` |
+| Run backend tests | `uv run --project server pytest server/tests` |
+| Lint backend | `uv run --project server ruff check server` |
+| Start the client | `cd client && pnpm dev` |
+| Run client tests | `cd client && pnpm test` |
+| Lint client | `cd client && pnpm lint` |
+| Build client | `cd client && pnpm build` |
+| Check API liveness | `curl http://localhost:8000/health` |
+| Check runtime readiness | `curl http://localhost:8000/ready` |
 
-Neon gives the team a shared relational source of truth for records such as users, sessions, document metadata, and other PostgreSQL-backed state.
+`/health` is a liveness check. `/ready` verifies configured runtime
+dependencies; it can return `503` when a required dependency is unavailable.
 
-Chroma is different: each developer runs their own local vector store. That means a document row existing in the shared database does **not** guarantee that another developer can retrieve or evaluate against that same document on their machine.
+## Local storage and optional Docker services
 
-Practical rule:
+By default, local runtime data is anchored at the repository root:
 
-- use shared Neon rows for collaboration and integration
-- treat Chroma-backed retrieval and evaluation as reliable only for documents ingested into your own local Chroma instance
+- `uploads/` — uploaded PDF files
+- `chroma_data/` — local Chroma persistence
+- `equiped_dev.db` — local development database, when used
 
-## Revisit Conditions
+Docker is optional for local infrastructure and smoke testing; it is not the
+canonical full-stack development workflow. To run the optional Chroma service:
 
-Revisit this topology when any of the following becomes true:
+```bash
+docker compose up --build chroma
+```
 
-1. multiple developers need to evaluate the exact same document corpus consistently
-2. real institutional/private documents are used regularly in development
-3. retrieval quality becomes central to daily cross-machine testing
-4. pre-production/localization work begins on LSPU-hosted infrastructure
-5. the app containers need to become the primary, reliable full-stack runtime path rather than optional helper flows
+The Compose file also provides optional `db`, `server`, `server-smoke`,
+`client`, and `client-smoke` services. Refer to `docker-compose.yml` for their
+ports and environment overrides.
 
-When pre-production starts, validate the app against local PostgreSQL rather than relying only on Neon.
+## Repository guide
 
-## Reference Corpus Guidance
+```text
+server/          FastAPI modular monolith
+client/          React feature-driven application
+openspec/specs/  Canonical implementation contracts
+docs/            Product and architecture reference material
+uploads/         Local uploaded documents
+chroma_data/     Local vector-store data
+```
 
-The team does **not** need a standardized shared Chroma corpus yet.
+Key entry points:
 
-For now, each developer may use their own local ingestion state while features are still under active construction. If retrieval-heavy collaboration becomes frequent, introduce a small shared reference corpus that every developer ingests locally for consistent testing.
+- `server/main.py` — FastAPI application
+- `client/src/main.tsx` — client bootstrap
+- `client/src/app/router.tsx` — route tree
+- `client/src/features/` — feature-owned UI, APIs, hooks, and types
+
+## Documentation and contracts
+
+- [Product requirements](docs/PRD.md)
+- [Architecture overview](docs/ARCHITECTURE.md)
+- [Canonical OpenSpec contracts](openspec/specs/)
+- [Live API documentation](http://localhost:8000/docs)
+
+OpenSpec contracts define accepted implementation behavior. The PRD provides
+product scope and supporting context; it does not override an OpenSpec contract.
