@@ -8,6 +8,7 @@ grounding) against a real (in-memory sqlite) db_session.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from server.modules.curriculum_map import service
@@ -352,6 +353,7 @@ def test_list_checks_returns_only_current_users_checks_newest_first(db_session) 
         summary={"total_mapped_objectives": 0},
         success=True,
     )
+    older.run_at = datetime(2024, 1, 1, 10, 0, 0, tzinfo=UTC)
     db_session.add(older)
     db_session.commit()
 
@@ -362,6 +364,7 @@ def test_list_checks_returns_only_current_users_checks_newest_first(db_session) 
         summary={"total_mapped_objectives": 0},
         success=True,
     )
+    newer.run_at = datetime(2024, 1, 1, 11, 0, 0, tzinfo=UTC)
     db_session.add(newer)
     db_session.commit()
 
