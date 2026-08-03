@@ -2,7 +2,12 @@ import { ChevronRight } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { cn } from '@/shared/components/utils';
 import type { ClientDocument } from '@/shared/types/documents';
-import { sourceTypeLabels, statusConfig, formatDate } from '../utils/document.utils';
+import {
+  sourceTypeLabels,
+  statusConfig,
+  unknownStatusFallback,
+  formatDate,
+} from '../utils/document.utils';
 
 interface DocumentTableProps {
   documents: ClientDocument[];
@@ -40,7 +45,7 @@ export function DocumentTable({ documents, flashId, onOpenEvaluation }: Document
         <tbody className="divide-y divide-slate-100">
           {documents.map((document) => {
             const isReady = document.processingStatus === 'PROCESSED';
-            const statusMeta = statusConfig[document.processingStatus];
+            const statusMeta = statusConfig[document.processingStatus] ?? unknownStatusFallback;
             const isFlashing = flashId === document.documentId;
 
             return (
