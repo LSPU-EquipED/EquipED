@@ -18,6 +18,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -64,6 +65,7 @@ class CurriculumMapCell(Base):
         CheckConstraint(
             "level IN ('I', 'E', 'D')", name="ck_curriculum_map_cells_level"
         ),
+        Index("idx_curriculum_map_cells_course_id", "course_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -82,6 +84,14 @@ class CurriculumMapCell(Base):
 
 class CurriculumAlignmentCheck(Base):
     __tablename__ = "curriculum_alignment_checks"
+    __table_args__ = (
+        Index(
+            "idx_curriculum_alignment_checks_document_run_at",
+            "document_id",
+            "run_at",
+        ),
+        Index("idx_curriculum_alignment_checks_course_id", "course_id"),
+    )
 
     check_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -96,6 +106,7 @@ class CurriculumAlignmentCheck(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provenance: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     objective_results: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON, nullable=False
     )

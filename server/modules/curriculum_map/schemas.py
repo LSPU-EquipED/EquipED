@@ -37,6 +37,10 @@ class AlignmentCheckSummary(BaseModel):
     under_developed: int
     over_developed: int
     not_addressed: int
+    #: Absence observed only within a bounded (page-limited) evaluation --
+    #: never a whole-document "not addressed" claim. Legacy checks without
+    #: this key default to 0.
+    not_observed: int = 0
 
 
 class RunAlignmentCheckRequest(BaseModel):
