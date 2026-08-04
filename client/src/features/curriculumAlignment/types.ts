@@ -9,7 +9,32 @@ export interface CourseListResponse {
   items: Course[];
 }
 
-export type AlignmentStatus = 'match' | 'under-developed' | 'over-developed' | 'not_addressed';
+export type AlignmentStatus = 'match' | 'under-developed' | 'over-developed' | 'not_addressed' | 'not_observed';
+
+export type AlignmentCoverageScope = 'full' | 'bounded' | 'legacy_unknown';
+
+export interface AlignmentCoverage {
+  scope: AlignmentCoverageScope;
+  total_pages: number | null;
+  evaluated_pages: number | null;
+  total_chars: number | null;
+  evaluated_chars: number | null;
+  strategy?: string | null;
+}
+
+export interface AlignmentFailure {
+  kind?: string | null;
+  detail?: string | null;
+  classification?: string | null;
+}
+
+export interface AlignmentProvenance {
+  coverage?: AlignmentCoverage | null;
+  failure_kind?: string | null;
+  failure?: AlignmentFailure | null;
+  error_kind?: string | null;
+  text_source?: string | null;
+}
 
 export interface ObjectiveResult {
   code: string;
@@ -28,6 +53,7 @@ export interface AlignmentCheckSummary {
   under_developed: number;
   over_developed: number;
   not_addressed: number;
+  not_observed?: number;
 }
 
 export interface AlignmentCheck {
@@ -41,6 +67,8 @@ export interface AlignmentCheck {
   summary: AlignmentCheckSummary;
   success: boolean;
   error_message: string | null;
+  provenance?: AlignmentProvenance | null;
+  coverage?: AlignmentCoverage | null;
 }
 
 export interface DocumentPage {

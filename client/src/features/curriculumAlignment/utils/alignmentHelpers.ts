@@ -8,6 +8,7 @@ const STATUS_LABELS: Record<AlignmentStatus, string> = {
   'under-developed': 'Under-developed',
   'over-developed': 'Over-developed',
   not_addressed: 'Not addressed',
+  not_observed: 'Not observed in evaluated pages',
 };
 
 const STATUS_BADGE_CLASSES: Record<AlignmentStatus, string> = {
@@ -15,6 +16,7 @@ const STATUS_BADGE_CLASSES: Record<AlignmentStatus, string> = {
   'over-developed': 'border-[#3eaed4]/30 bg-[#3eaed4]/10 text-[#3eaed4]',
   'under-developed': 'border-[#f2c811]/30 bg-[#f2c811]/10 text-[#8a6d00]',
   not_addressed: 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]',
+  not_observed: 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]',
 };
 
 export function statusLabel(status: AlignmentStatus): string {

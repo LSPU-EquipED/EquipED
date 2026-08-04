@@ -3,15 +3,23 @@
 // column rhythm, same nested evidence box under a row with a quote.
 import { cn } from '@/shared/components/utils';
 import { statusBadgeClasses, statusLabel } from '../utils/alignmentHelpers';
+import {
+  getEvidenceNavigation,
+  getResultDowngradeNote,
+  normalizeBoundedStatus,
+} from '../utils/alignmentState';
 import type { ObjectiveResult } from '../types';
+import type { AlignmentCoverageScope } from '../types';
 
 type AlignmentResultsTableProps = {
   objectiveResults: ObjectiveResult[];
-  onEvidenceClick?: (pageNumber: number) => void;
+  coverageScope?: AlignmentCoverageScope;
+  onEvidenceClick?: (pageNumber: number, evidence?: string | null) => void;
 };
 
 export function AlignmentResultsTable({
   objectiveResults,
+  coverageScope = 'legacy_unknown',
   onEvidenceClick,
 }: AlignmentResultsTableProps) {
   if (objectiveResults.length === 0) {
@@ -33,37 +41,50 @@ export function AlignmentResultsTable({
         </tr>
       </thead>
       <tbody>
-        {objectiveResults.map((result) => (
-          <tr key={result.code} className="border-t border-slate-100 align-top">
-            <td className="px-4 py-3">
-              <div className="text-sm font-semibold text-slate-800">{result.code}</div>
-              <div className="text-xs text-slate-500">{result.description}</div>
-              {result.evidence ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    result.evidence_page != null && onEvidenceClick?.(result.evidence_page)
-                  }
-                  className="mt-2 block w-full rounded-sm border border-slate-100 bg-slate-50 p-2.5 text-left text-xs font-medium leading-[1.6] text-slate-600 transition-colors hover:bg-slate-100"
+        {objectiveResults.map((result) => {
+          const normalizedStatus = normalizeBoundedStatus(result.status, coverageScope);
+          const downgradeNote = getResultDowngradeNote(result.status, normalizedStatus);
+
+          return (
+            <tr key={result.code} className="border-t border-slate-100 align-top">
+              <td className="px-4 py-3">
+                <div className="text-sm font-semibold text-slate-800">{result.code}</div>
+                <div className="text-xs text-slate-500">{result.description}</div>
+                {result.evidence ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = getEvidenceNavigation(result.evidence_page, result.evidence);
+                      if (target) {
+                        onEvidenceClick?.(target.pageNumber, target.evidence);
+                      }
+                    }}
+                    className="mt-2 block w-full rounded-sm border border-slate-100 bg-slate-50 p-2.5 text-left text-xs font-medium leading-[1.6] text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    &ldquo;{result.evidence}&rdquo;
+                  </button>
+                ) : null}
+                {downgradeNote ? (
+                  <p className="mt-2 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-2 py-1.5 text-xs font-medium text-[#8a6d00]">
+                    {downgradeNote}
+                  </p>
+                ) : null}
+              </td>
+              <td className="px-4 py-3 font-bold text-slate-800">{result.expected_level}</td>
+              <td className="px-4 py-3 font-bold text-slate-800">{result.observed_level ?? '—'}</td>
+              <td className="px-4 py-3">
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-sm border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider',
+                    statusBadgeClasses(normalizedStatus),
+                  )}
                 >
-                  &ldquo;{result.evidence}&rdquo;
-                </button>
-              ) : null}
-            </td>
-            <td className="px-4 py-3 font-bold text-slate-800">{result.expected_level}</td>
-            <td className="px-4 py-3 font-bold text-slate-800">{result.observed_level ?? '—'}</td>
-            <td className="px-4 py-3">
-              <span
-                className={cn(
-                  'inline-flex items-center rounded-sm border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider',
-                  statusBadgeClasses(result.status),
-                )}
-              >
-                {statusLabel(result.status)}
-              </span>
-            </td>
-          </tr>
-        ))}
+                  {statusLabel(normalizedStatus)}
+                </span>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

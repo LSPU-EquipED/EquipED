@@ -16,6 +16,7 @@ function getRouteTitle(routeId?: string): string {
   if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
     return 'Evaluation Interface';
   if (routeId.includes('/matrix')) return 'Monitoring Matrix';
+  if (routeId.includes('/alignment')) return 'Curriculum Alignment';
   if (routeId.includes('/admin/users')) return 'User Management';
   if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
   if (routeId.includes('/admin/references')) return 'Reference Library';

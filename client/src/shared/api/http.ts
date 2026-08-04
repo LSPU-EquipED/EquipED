@@ -14,16 +14,23 @@ export class ApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
   readonly detail: string | null;
+  readonly headers: Record<string, string>;
 
   constructor(
     message: string,
-    options: { status: number; payload: unknown; detail?: string | null },
+    options: {
+      status: number;
+      payload: unknown;
+      detail?: string | null;
+      headers?: Record<string, string>;
+    },
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = options.status;
     this.payload = options.payload;
     this.detail = options.detail ?? null;
+    this.headers = options.headers ?? {};
   }
 }
 
@@ -107,6 +114,7 @@ export async function requestJson<TResponse>(
       status: response.status,
       payload,
       detail,
+      headers: Object.fromEntries(response.headers.entries()),
     });
   }
 
