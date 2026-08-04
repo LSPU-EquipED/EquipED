@@ -57,19 +57,33 @@ class DocumentChunkResponse(BaseModel):
     chunk_index: int | None = None
 
 
-class SyllabusOutcomeItem(BaseModel):
-    outcome_code: str
-    outcome_text: str
+class SyllabusCourseContentItem(BaseModel):
+    content_ref: str
+    content_text: str
     page_number: int
     extraction_method: str
     chunk_id: UUID
     row_index: int
 
 
-class SyllabusOutcomesResponse(BaseModel):
+class SyllabusCourseContentsResponse(BaseModel):
     document_id: UUID
     document_title: str
-    outcomes: list[SyllabusOutcomeItem] = Field(default_factory=list)
+    contents: list[SyllabusCourseContentItem] = Field(default_factory=list)
+
+
+class SyllabusReferenceOption(BaseModel):
+    document_id: UUID
+    title: str
+    program: str | None = None
+    course_code: str | None = None
+    academic_year: str | None = None
+    content_count: int
+
+
+class SyllabusReferenceOptionsResponse(BaseModel):
+    items: list[SyllabusReferenceOption] = Field(default_factory=list)
+    total: int
 
 
 class PolicyLibraryItem(BaseModel):
@@ -233,8 +247,10 @@ __all__ = [
     "PROCESSING_STATUSES",
     "DocumentChunkData",
     "DocumentChunkResponse",
-    "SyllabusOutcomeItem",
-    "SyllabusOutcomesResponse",
+    "SyllabusCourseContentItem",
+    "SyllabusCourseContentsResponse",
+    "SyllabusReferenceOption",
+    "SyllabusReferenceOptionsResponse",
     "DocumentUploadResponse",
     "DocumentResponse",
     "DocumentListResponse",

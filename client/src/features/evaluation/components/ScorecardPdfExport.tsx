@@ -175,18 +175,6 @@ function drawAgentSection(
     return y + reasonLines.length * 3.8 + 4;
   }
 
-  if (section.advisoryStatement) {
-    setTextStyle(pdf, activeFont, 8.5, 'normal');
-    pdf.setTextColor(30, 41, 59);
-    const advisoryLines = pdf.splitTextToSize(
-      `Content-Syllabus Alignment (advisory): ${section.advisoryStatement}`,
-      contentWidth,
-    );
-    y = ensureRoom(pdf, y, advisoryLines.length * 3.8 + 5, margin);
-    pdf.text(advisoryLines, margin, y);
-    y += advisoryLines.length * 3.8 + 4;
-  }
-
   if (section.criteria.length === 0) {
     setTextStyle(pdf, activeFont, 8.5, 'normal');
     pdf.setTextColor(80, 80, 80);

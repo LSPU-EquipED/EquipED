@@ -46,7 +46,6 @@ export interface ReportAgentSection {
   adjectivalRating: string;
   monitoringPercent: number | null;
   criteria: ReadonlyArray<ReportCriterion>;
-  advisoryStatement: string;
 }
 
 export interface ReportCriterion {
@@ -209,8 +208,6 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
       adjectivalRating: domain?.adjectival_rating || adjectivalRating(subtotal),
       monitoringPercent: monitoring,
       criteria: domain ? buildCriterionRows(domain.criteria) : [],
-      advisoryStatement:
-        agentId === 'sme' ? domain?.syllabus_alignment?.statement || '' : '',
     };
   });
 
@@ -234,7 +231,6 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
           ? monitoringPercentage(domain.subtotal, domain.max_score || CANONICAL_MAX_SCORE)
           : null,
       criteria: domain ? buildCriterionRows(domain.criteria) : [],
-      advisoryStatement: domain?.syllabus_alignment?.statement || '',
     });
   }
 

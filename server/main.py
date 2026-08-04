@@ -30,6 +30,7 @@ MODULE_ROUTER_PATHS = (
     "server.modules.auth.router",
     "server.modules.synthesis.router",
     "server.modules.evaluations.router",
+    "server.modules.evaluations.alignment_router",
     "server.modules.feedback.router",
     "server.modules.admin.router",
     "server.modules.curriculum_map.router",
@@ -107,6 +108,25 @@ def _recover_interrupted_evaluations() -> None:
         logger.exception("Evaluation startup recovery failed.")
 
 
+def _fail_interrupted_syllabus_alignments() -> None:
+    """Close standalone alignment runs whose BackgroundTask was interrupted."""
+    settings = get_settings()
+    if not settings.database_configured:
+        return
+    try:
+        from server.modules.evaluations.alignment_service import (
+            fail_interrupted_syllabus_alignments,
+        )
+
+        failed = fail_interrupted_syllabus_alignments(get_session_factory())
+        if failed:
+            logger.info(
+                "Marked %d interrupted syllabus alignment run(s) failed.", failed
+            )
+    except Exception:
+        logger.exception("Syllabus alignment startup recovery failed.")
+
+
 def _recover_cleanup_pending_documents() -> None:
     """Retry cleanup for documents left in CLEANUP_PENDING status."""
     settings = get_settings()
@@ -175,6 +195,7 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         _bootstrap_admin_if_needed()
         _recover_interrupted_evaluations()
+        _fail_interrupted_syllabus_alignments()
         _recover_cleanup_pending_documents()
         _recover_no_database_uploads()
         try:

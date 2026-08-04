@@ -18,7 +18,6 @@ import { getErrorMessage } from '@/shared/api/http';
 import { FeedbackPanel } from './FeedbackPanel';
 import { formatScore, agentShortLabel } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
-import { SyllabusAlignmentPanel } from './SyllabusAlignmentPanel';
 import type {
   CriterionScoreItem,
   EvaluationResultsResponse,
@@ -602,14 +601,6 @@ export function ScoreDashboard({
             </div>
           </div>
 
-          {selectedAgent.id === 'sme' && domainScore && (
-            <SyllabusAlignmentPanel
-              alignment={domainScore.syllabus_alignment}
-              syllabusId={results?.syllabus_id}
-              evaluationId={evaluationId}
-              onRefresh={refetchResults}
-            />
-          )}
 
           <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
             <table className="w-full text-left border-collapse border-spacing-0">

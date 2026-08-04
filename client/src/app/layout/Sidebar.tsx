@@ -10,6 +10,7 @@ import {
   FolderOpen,
   LayoutDashboard,
   Library,
+  ListChecks,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -39,6 +40,7 @@ const workspaceNavItems: readonly NavItem[] = [
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
   { to: '/evaluations', label: 'Evaluations', icon: ClipboardList, exact: true },
   { to: '/alignment', label: 'Curriculum Alignment', icon: BookOpenCheck, exact: true },
+  { to: '/syllabus-alignment', label: 'Syllabus Alignment', icon: ListChecks, exact: true },
 ] as const;
 
 const adminNavItems: readonly NavItem[] = [

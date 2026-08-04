@@ -10,119 +10,8 @@ from typing import Any
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.documents.models import DocumentChunk
 from server.modules.synthesis.models import AgentResult, CriterionScore, EvaluationFlag
-from server.modules.synthesis.schemas import SyllabusAlignmentStartResponse
 
 logger = logging.getLogger(__name__)
-
-
-def start_sme_syllabus_alignment(
-    db: Any,
-    evaluation_id: uuid.UUID,
-    submitted_by: uuid.UUID,
-    background_tasks: Any,
-):
-    """Validate and queue an alignment run independent of evaluation scoring."""
-    from fastapi import HTTPException
-    from server.modules.evaluations.models import EvaluationJob
-
-    job = db.get(EvaluationJob, evaluation_id)
-    if job is None or job.submitted_by != submitted_by:
-        raise HTTPException(status_code=404, detail="Evaluation not found")
-    if job.syllabus_id is None:
-        raise HTTPException(
-            status_code=422, detail="A syllabus must be selected before alignment."
-        )
-    sme_result = (
-        db.query(AgentResult)
-        .filter_by(evaluation_id=evaluation_id, agent_name="sme")
-        .one_or_none()
-    )
-    if sme_result is None or not sme_result.success:
-        raise HTTPException(
-            status_code=409,
-            detail="SME scoring must complete successfully before alignment.",
-        )
-
-    current = (sme_result.advisory_outputs or {}).get("syllabus_alignment") or {}
-    if current.get("processing_state") != "RUNNING":
-        pending = {
-            "status": "UNAVAILABLE",
-            "statement": "Content-syllabus alignment is processing.",
-            "syllabus_document_id": str(job.syllabus_id),
-            "total_topics": 0,
-            "aligned_topics": 0,
-            "outcome_matches": [],
-            "unmatched_topics": [],
-            "advisory_only": True,
-            "processing_state": "RUNNING",
-        }
-        sme_result.advisory_outputs = {
-            **(sme_result.advisory_outputs or {}),
-            "syllabus_alignment": pending,
-        }
-        db.commit()
-        background_tasks.add_task(
-            run_sme_syllabus_alignment_job,
-            evaluation_id,
-            sme_result.agent_result_id,
-        )
-    return SyllabusAlignmentStartResponse(
-        evaluation_id=evaluation_id, processing_state="RUNNING"
-    )
-
-
-def run_sme_syllabus_alignment_job(
-    evaluation_id: uuid.UUID, agent_result_id: uuid.UUID
-) -> None:
-    """Background worker that updates only SME advisory output JSON."""
-    from server.core.database import get_session_factory
-    from server.core.llm import get_llm_client_for_agent
-    from server.modules.agents import syllabus_alignment
-    from server.modules.documents.models import DocumentChunk
-    from server.modules.evaluations.models import EvaluationJob
-
-    session = get_session_factory()()
-    try:
-        job = session.get(EvaluationJob, evaluation_id)
-        result_row = session.get(AgentResult, agent_result_id)
-        if job is None or result_row is None or job.syllabus_id is None:
-            return
-        chunks = (
-            session.query(DocumentChunk)
-            .filter_by(document_id=job.document_id)
-            .order_by(DocumentChunk.page_number, DocumentChunk.chunk_index)
-            .all()
-        )
-        chunk_infos = [
-            {
-                "chunk_id": str(chunk.chunk_id),
-                "page_number": chunk.page_number,
-                "text": chunk.text,
-            }
-            for chunk in chunks
-            if chunk.text
-        ]
-        try:
-            alignment = syllabus_alignment.evaluate(
-                get_llm_client_for_agent("sme"), chunk_infos, job.syllabus_id
-            )
-            alignment["processing_state"] = (
-                "FAILED" if alignment["status"] == "UNAVAILABLE" else "COMPLETED"
-            )
-        except Exception as exc:
-            logger.exception("Standalone SME syllabus alignment failed")
-            alignment = syllabus_alignment.unavailable(
-                "the advisory analysis failed", job.syllabus_id
-            )
-            alignment["processing_state"] = "FAILED"
-            alignment["statement"] = f"{alignment['statement']} ({str(exc)[:200]})"
-        result_row.advisory_outputs = {
-            **(result_row.advisory_outputs or {}),
-            "syllabus_alignment": alignment,
-        }
-        session.commit()
-    finally:
-        session.close()
 
 
 def persist_agent_outputs(
@@ -239,6 +128,4 @@ def _validated_chunk_ids(db: Any, chunk_ids: tuple[str, ...]) -> list[uuid.UUID]
 __all__ = [
     "persist_agent_outputs",
     "persist_evaluation_results",
-    "run_sme_syllabus_alignment_job",
-    "start_sme_syllabus_alignment",
 ]

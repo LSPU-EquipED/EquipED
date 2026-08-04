@@ -604,26 +604,26 @@ def get_document(
     )
 
 
-def get_syllabus_outcomes(
+def get_syllabus_course_contents(
     document_id: uuid.UUID,
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any | None = None,
 ):
-    """Return authoritative persisted outcome rows for a shared syllabus."""
-    from .schemas import SyllabusOutcomeItem, SyllabusOutcomesResponse
+    """Return authoritative persisted Course Contents chunks for a syllabus."""
+    from .schemas import SyllabusCourseContentItem, SyllabusCourseContentsResponse
 
     document = get_document(
         document_id, current_user_id, current_user_role, db=db
     )
     if document.source_type != "syllabus":
-        raise ValueError("Outcomes are only available for syllabus documents.")
+        raise ValueError("Course contents are only available for syllabus documents.")
     chunks = sorted(
         (
             chunk
             for chunk in get_document_chunks(document_id, db=db)
             if (getattr(chunk, "section_ref", None) or "").startswith(
-                "syllabus_outcome:"
+                "syllabus_course_content:"
             )
         ),
         key=lambda chunk: (
@@ -633,13 +633,13 @@ def get_syllabus_outcomes(
             getattr(chunk, "page_number", 0),
         ),
     )
-    return SyllabusOutcomesResponse(
+    return SyllabusCourseContentsResponse(
         document_id=document_id,
         document_title=document.title,
-        outcomes=[
-            SyllabusOutcomeItem(
-                outcome_code=str(chunk.section_ref).split(":", 1)[1],
-                outcome_text=str(chunk.text),
+        contents=[
+            SyllabusCourseContentItem(
+                content_ref=str(chunk.section_ref).split(":", 1)[1],
+                content_text=str(chunk.text),
                 page_number=int(chunk.page_number),
                 extraction_method="ocr" if bool(chunk.is_ocr) else "embedded_text",
                 chunk_id=chunk.chunk_id,
@@ -800,6 +800,75 @@ def list_reference_documents(
         )
 
     return ReferenceLibraryResponse(items=items, total=len(items))
+
+
+def is_syllabus_reference_ready(document: Document, db: Any) -> tuple[bool, int]:
+    """Check authoritative Course Contents and the local retrieval index."""
+    if document.source_type != "syllabus" or document.processing_status != "PROCESSED":
+        return False, 0
+    from server.modules.auth.models import User, UserRole
+
+    uploaded_by_admin = (
+        db.query(User)
+        .filter(
+            User.user_id == document.uploaded_by,
+            User.role == UserRole.ADMIN,
+        )
+        .count()
+        > 0
+    )
+    if not uploaded_by_admin:
+        return False, 0
+    content_count = (
+        db.query(DocumentChunk)
+        .filter(
+            DocumentChunk.document_id == document.document_id,
+            DocumentChunk.section_ref.like("syllabus_course_content:%"),
+        )
+        .count()
+    )
+    if content_count == 0:
+        return False, 0
+    from server.modules.embeddings.service import check_chroma_availability
+
+    return (
+        check_chroma_availability(str(document.document_id), "syllabus"),
+        content_count,
+    )
+
+
+def list_available_syllabus_references(db: Any):
+    """Return shared syllabi that can be used by the alignment retrieval path."""
+    from server.modules.documents.schemas import (
+        SyllabusReferenceOption,
+        SyllabusReferenceOptionsResponse,
+    )
+
+    rows = (
+        db.query(Document)
+        .filter(
+            Document.source_type == "syllabus",
+            Document.processing_status == "PROCESSED",
+        )
+        .order_by(Document.uploaded_at.desc())
+        .all()
+    )
+    items = []
+    for row in rows:
+        ready, content_count = is_syllabus_reference_ready(row, db)
+        if not ready:
+            continue
+        items.append(
+            SyllabusReferenceOption(
+                document_id=row.document_id,
+                title=row.title,
+                program=row.program,
+                course_code=row.course_code,
+                academic_year=row.academic_year,
+                content_count=content_count,
+            )
+        )
+    return SyllabusReferenceOptionsResponse(items=items, total=len(items))
 
 
 def stream_document_file(
@@ -1015,7 +1084,9 @@ def _validate_upload(
     # Policy documents require a valid policy_area
     if source_type == "policy":
         if not (policy_area and policy_area.strip()):
-            raise UnsupportedFileTypeError("policy_area is required for policy documents.")
+            raise UnsupportedFileTypeError(
+                "policy_area is required for policy documents."
+            )
         if policy_area not in VALID_POLICY_AREAS:
             raise UnsupportedFileTypeError(
                 f"Invalid policy_area '{policy_area}'. Valid values: "
@@ -1559,11 +1630,13 @@ __all__ = [
     "embed_document_chunks",
     "get_curriculum_suggestions",
     "get_document",
-    "get_syllabus_outcomes",
+    "get_syllabus_course_contents",
     "get_document_chunks",
     "get_healthy_policy_allowlist",
     "list_documents",
     "list_reference_documents",
+    "list_available_syllabus_references",
+    "is_syllabus_reference_ready",
     "process_document_ingestion",
     "stream_document_file",
     "delete_reference_document",

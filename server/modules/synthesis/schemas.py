@@ -44,7 +44,6 @@ class DomainScoreBlock(BaseModel):
     adjectival_rating: str | None = None
     provenance: dict | None = None
     summary: str = ""
-    syllabus_alignment: dict | None = None
 
 
 class EvaluationFlagItem(BaseModel):
@@ -79,11 +78,6 @@ class EvaluationResultsResponse(BaseModel):
     duration_seconds: float | None = None
 
 
-class SyllabusAlignmentStartResponse(BaseModel):
-    evaluation_id: UUID
-    processing_state: str
-
-
 class MatrixRowItem(BaseModel):
     matrix_id: UUID
     document_id: UUID
@@ -111,7 +105,6 @@ __all__ = [
     "CriterionScoreItem",
     "DomainScoreBlock",
     "EvaluationResultsResponse",
-    "SyllabusAlignmentStartResponse",
     "EvaluationFlagItem",
     "MatrixRowItem",
     "MatrixListResponse",
