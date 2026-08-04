@@ -93,7 +93,8 @@ class Settings:
 
     # Seconds to wait between the SME scoring engine's LLM calls (grouped
     # basket calls and any per-criterion fallback calls), to respect the
-    # provider token/min limit. 0 = no wait. See openspec/specs/sme-engine-scoring/spec.md.
+    # provider token/min limit. 0 = no wait. See
+    # openspec/specs/sme-engine-scoring/spec.md.
     sme_scoring_call_delay_seconds: int = 0
 
     # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
@@ -161,6 +162,10 @@ class Settings:
     toxicity_model_name: str | None = None
     toxicity_api_key: str | None = None
     toxicity_request_timeout_seconds: int = 30
+
+    curriculum_alignment_max_concurrent_checks: int = 4
+    curriculum_alignment_max_checks_per_user: int = 1
+    curriculum_alignment_recheck_cooldown_seconds: int = 30
 
     @property
     def database_configured(self) -> bool:
@@ -374,6 +379,63 @@ def get_settings() -> Settings:
             "TOXICITY_REQUEST_TIMEOUT_SECONDS must be at least 1"
         )
 
+    curriculum_alignment_max_concurrent_checks_raw = _env(
+        "CURRICULUM_ALIGNMENT_MAX_CONCURRENT_CHECKS", "4"
+    )
+    try:
+        parsed_curriculum_alignment_max_concurrent_checks = int(
+            curriculum_alignment_max_concurrent_checks_raw or "4"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_MAX_CONCURRENT_CHECKS must be a valid integer"
+        ) from exc
+    if parsed_curriculum_alignment_max_concurrent_checks < 1:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_MAX_CONCURRENT_CHECKS must be at least 1"
+        )
+
+    curriculum_alignment_max_checks_per_user_raw = _env(
+        "CURRICULUM_ALIGNMENT_MAX_CHECKS_PER_USER", "1"
+    )
+    try:
+        parsed_curriculum_alignment_max_checks_per_user = int(
+            curriculum_alignment_max_checks_per_user_raw or "1"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_MAX_CHECKS_PER_USER must be a valid integer"
+        ) from exc
+    if parsed_curriculum_alignment_max_checks_per_user < 1:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_MAX_CHECKS_PER_USER must be at least 1"
+        )
+
+    curriculum_alignment_recheck_cooldown_seconds_raw = _env(
+        "CURRICULUM_ALIGNMENT_RECHECK_COOLDOWN_SECONDS", "30"
+    )
+    try:
+        parsed_curriculum_alignment_recheck_cooldown_seconds = int(
+            curriculum_alignment_recheck_cooldown_seconds_raw or "30"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_RECHECK_COOLDOWN_SECONDS must be a valid integer"
+        ) from exc
+    if parsed_curriculum_alignment_recheck_cooldown_seconds < 0:
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_RECHECK_COOLDOWN_SECONDS must be zero or positive"
+        )
+
+    if (
+        parsed_curriculum_alignment_max_checks_per_user
+        > parsed_curriculum_alignment_max_concurrent_checks
+    ):
+        raise ConfigurationError(
+            "CURRICULUM_ALIGNMENT_MAX_CHECKS_PER_USER must be less than or equal to "
+            "CURRICULUM_ALIGNMENT_MAX_CONCURRENT_CHECKS"
+        )
+
     # Cross-field validation: the chunk budget must leave room for the rest
     # of the prompt payload. Otherwise the total-budget safety net is a
     # no-op (document_chunks alone would already exceed it, so the trim
@@ -473,6 +535,15 @@ def get_settings() -> Settings:
         toxicity_model_name=toxicity_model_name,
         toxicity_api_key=toxicity_api_key,
         toxicity_request_timeout_seconds=parsed_toxicity_request_timeout_seconds,
+        curriculum_alignment_max_concurrent_checks=(
+            parsed_curriculum_alignment_max_concurrent_checks
+        ),
+        curriculum_alignment_max_checks_per_user=(
+            parsed_curriculum_alignment_max_checks_per_user
+        ),
+        curriculum_alignment_recheck_cooldown_seconds=(
+            parsed_curriculum_alignment_recheck_cooldown_seconds
+        ),
         embedding_model_name=_env(
             "EMBEDDING_MODEL_NAME",
             "paraphrase-multilingual-MiniLM-L12-v2",

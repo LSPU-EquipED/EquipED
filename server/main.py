@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 from importlib import import_module
@@ -21,6 +22,8 @@ from server.db.metadata import import_model_modules
 from server.modules.auth.service import bootstrap_admin_if_configured
 
 logger = logging.getLogger(__name__)
+
+_LOG_CAT_ALIGNMENT_RATE_LIMIT_SCOPE = "curriculum_alignment_limiter.process_scope"
 
 MODULE_ROUTER_PATHS = (
     "server.modules.documents.router",
@@ -141,9 +144,32 @@ def _recover_no_database_uploads() -> None:
         logger.exception("No-DB upload recovery startup check failed.")
 
 
+def _warn_if_alignment_limits_are_multi_process() -> None:
+    """Warn once when runtime worker count weakens process-local limits."""
+    web_concurrency = os.getenv("WEB_CONCURRENCY")
+    if web_concurrency is None:
+        return
+    try:
+        workers = int(web_concurrency)
+    except ValueError:
+        return
+    if workers <= 1:
+        return
+
+    logger.warning(
+        "Alignment rate-limit and cooldown checks are process-local in this backend; "
+        "with WEB_CONCURRENCY=%d, caps are enforced per worker and may under-enforce "
+        "total concurrency and cooldown behavior.",
+        workers,
+        extra={"category": _LOG_CAT_ALIGNMENT_RATE_LIMIT_SCOPE},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     import_model_modules()
+
+    _warn_if_alignment_limits_are_multi_process()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
