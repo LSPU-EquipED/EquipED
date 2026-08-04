@@ -88,19 +88,26 @@ class TestPolicyEvidenceLineage:
         assert len(h) == 1, f"Expected 1 head, got {len(h)}: {h}"
 
     def test_chain_walks_linearly(self):
-        """Walking from head to root visits every revision once, linear."""
+        """Walking from head to root visits every revision once, linear.
+
+        The chain now tops out at a merge revision (two parents), so the walk
+        follows the full ancestry rather than a single down_revision.
+        """
         script = ScriptDirectory.from_config(_cfg())
 
-        head = script.get_heads()[0]
         seen: list[str] = []
-        rev = script.get_revision(head)
-        while rev is not None:
-            seen.append(rev.revision)
-            down = rev.down_revision  # type: ignore[assignment]
+        stack: list[str] = [script.get_heads()[0]]
+        while stack:
+            rev_id = stack.pop()
+            if rev_id in seen:
+                continue
+            seen.append(rev_id)
+            down = script.get_revision(rev_id).down_revision
             if isinstance(down, str):
-                rev = script.get_revision(down) if down else None
+                if down:
+                    stack.append(down)
             else:
-                rev = None
+                stack.extend(down or ())
 
         # Must include the new policy_area revision
         assert any(
@@ -108,8 +115,8 @@ class TestPolicyEvidenceLineage:
         ), "Chain must include 20260713_0005 (add document_chunks.policy_area)"
 
         # Must start at baseline
-        assert seen[-1] == "20260507_0001", (
-            f"Chain root must be 20260507_0001, got {seen[-1]}"
+        assert "20260507_0001" in seen, (
+            f"Chain root must be 20260507_0001, got {seen}"
         )
 
         # No duplicate revisions
@@ -181,28 +188,31 @@ class TestPolicyEvidenceLineage:
     # ------------------------------------------------------------------
 
     def test_full_chain_revision_order(self):
-        """Verify section_ref/chunk_index revisions precede policy_area."""
+        """Verify section_ref/chunk_index revisions precede policy_area via
+        direct ancestry, valid with the merge revision in the chain."""
         script = ScriptDirectory.from_config(_cfg())
 
-        head = script.get_heads()[0]
-        rev_ids: list[str] = []
-        rev = script.get_revision(head)
-        while rev is not None:
-            rev_ids.append(rev.revision)
-            down = rev.down_revision  # type: ignore[assignment]
-            if isinstance(down, str):
-                rev = script.get_revision(down) if down else None
-            else:
-                rev = None
+        def _ancestors(rev_id: str) -> set[str]:
+            """All revisions reachable by following down_revision (handles
+            the merge revision's tuple of parents)."""
+            seen: set[str] = set()
+            stack: list[str] = [rev_id]
+            while stack:
+                current = stack.pop()
+                if current in seen:
+                    continue
+                seen.add(current)
+                down = script.get_revision(current).down_revision
+                if isinstance(down, str):
+                    if down:
+                        stack.append(down)
+                else:
+                    stack.extend(down or ())
+            return seen
 
-        rev_ids.reverse()  # chronological order
-
-        # 20260713_0001 creates section_ref + chunk_index
-        idx_0001 = rev_ids.index("20260713_0001")
-        # 20260713_0005 adds policy_area to document_chunks
-        idx_0005 = rev_ids.index("20260713_0005")
-
-        assert idx_0001 < idx_0005, (
-            "section_ref/chunk_index (0001) must be added before "
-            "policy_area (0005)"
+        # 20260713_0001 (section_ref/chunk_index) must be a strict ancestor
+        # of 20260713_0005 (policy_area) — asserted directly from the DAG,
+        # not inferred from any traversal order.
+        assert "20260713_0001" in _ancestors("20260713_0005"), (
+            "section_ref/chunk_index (0001) must be added before policy_area (0005)"
         )

@@ -7,6 +7,7 @@ describe('statusLabel', () => {
     expect(statusLabel('under-developed')).toBe('Under-developed');
     expect(statusLabel('over-developed')).toBe('Over-developed');
     expect(statusLabel('not_addressed')).toBe('Not addressed');
+    expect(statusLabel('not_observed')).toBe('Not observed in evaluated pages');
   });
 });
 

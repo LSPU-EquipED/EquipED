@@ -10,16 +10,44 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { DocumentPage } from '../types';
 
 export type SlmReadingPaneHandle = {
-  scrollToPage: (pageNumber: number) => void;
+  scrollToPage: (pageNumber: number, evidenceText?: string | null) => void;
+};
+
+type Match = {
+  before: string;
+  match: string;
+  after: string;
 };
 
 type SlmReadingPaneProps = {
   pages: DocumentPage[];
 };
 
+function findEvidenceMatchIndex(text: string, evidenceText: string): Match | null {
+  if (!evidenceText) {
+    return null;
+  }
+
+  const normalizedText = text;
+  const normalizedEvidence = evidenceText.trim();
+  const idx = normalizedText.toLowerCase().indexOf(normalizedEvidence.toLowerCase());
+
+  if (idx === -1) {
+    return null;
+  }
+
+  return {
+    before: text.slice(0, idx),
+    match: text.slice(idx, idx + normalizedEvidence.length),
+    after: text.slice(idx + normalizedEvidence.length),
+  };
+}
+
 export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPaneProps>(
   function SlmReadingPane({ pages }, ref) {
     const [currentPage, setCurrentPage] = useState<number>(pages[0]?.page_number ?? 1);
+    const [highlight, setHighlight] = useState<string>('');
+    const [highlighted, setHighlighted] = useState(false);
     const [flashed, setFlashed] = useState(false);
 
     useEffect(() => {
@@ -29,12 +57,26 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
     }, [pages, currentPage]);
 
     useImperativeHandle(ref, () => ({
-      scrollToPage: (pageNumber: number) => {
+      scrollToPage: (pageNumber: number, evidenceText?: string | null) => {
+        const hasPage = pages.some((page) => page.page_number === pageNumber);
+        if (!hasPage) {
+          return;
+        }
+
         setCurrentPage(pageNumber);
+        setHighlight(evidenceText?.trim() ?? '');
+
         setTimeout(() => {
           setFlashed(true);
-          setTimeout(() => setFlashed(false), 1500);
-        }, 150);
+          setTimeout(() => setFlashed(false), 1200);
+        }, 120);
+
+        if (!evidenceText) {
+          return;
+        }
+
+        setHighlighted(true);
+        setTimeout(() => setHighlighted(false), 1200);
       },
     }));
 
@@ -48,6 +90,10 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
 
     const currentIndex = pages.findIndex((p) => p.page_number === currentPage);
     const activePage = pages[currentIndex] ?? pages[0];
+    const match =
+      currentIndex >= 0 && highlighted
+        ? findEvidenceMatchIndex(activePage.text, highlight)
+        : null;
 
     const handlePrevPage = () => {
       if (currentIndex > 0) setCurrentPage(pages[currentIndex - 1].page_number);
@@ -81,9 +127,9 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
                 onChange={(e) => setCurrentPage(Number(e.target.value))}
                 className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer focus:ring-0 border-0 p-0"
               >
-                {pages.map((page, idx) => (
+                {pages.map((page) => (
                   <option key={page.page_number} value={page.page_number}>
-                    Page {idx + 1} of {pages.length}
+                    Page {page.page_number}
                   </option>
                 ))}
               </select>
@@ -110,7 +156,15 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
               Page {activePage.page_number}
             </div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-              {activePage.text}
+              {match ? (
+                <>
+                  {match.before}
+                  <mark className="rounded-sm bg-[#f2c811]/35 px-0.5 text-slate-900">{match.match}</mark>
+                  {match.after}
+                </>
+              ) : (
+                activePage.text
+              )}
             </div>
           </div>
         </div>

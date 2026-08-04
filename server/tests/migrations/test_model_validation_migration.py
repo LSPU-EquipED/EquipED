@@ -184,16 +184,21 @@ class TestChainStructure:
 
     def test_revision_in_chain(self):
         script = ScriptDirectory.from_config(_cfg("sqlite://"))
-        head = script.get_heads()[0]
-        rev = script.get_revision(head)
+        # The chain now contains a merge revision with two parents, so walk
+        # the full ancestry instead of following a single linear down_revision.
         seen: list[str] = []
-        while rev is not None:
-            seen.append(rev.revision)
-            down = rev.down_revision
+        stack: list[str] = [script.get_heads()[0]]
+        while stack:
+            rev_id = stack.pop()
+            if rev_id in seen:
+                continue
+            seen.append(rev_id)
+            down = script.get_revision(rev_id).down_revision
             if isinstance(down, str):
-                rev = script.get_revision(down) if down else None
+                if down:
+                    stack.append(down)
             else:
-                rev = None
+                stack.extend(down or ())
         assert REVISION in seen, f"{REVISION} not found in chain: {seen}"
 
     def test_base_revision_is_parent(self):

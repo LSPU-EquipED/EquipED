@@ -5,9 +5,9 @@ Revises: 20260716_0001
 Create Date: 2026-07-30
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "20260730_0001"
 down_revision = "20260716_0001"
@@ -49,7 +49,9 @@ def upgrade():
         sa.UniqueConstraint(
             "course_id", "objective_id", name="uq_curriculum_map_cells_course_objective"
         ),
-        sa.CheckConstraint("level IN ('I', 'E', 'D')", name="ck_curriculum_map_cells_level"),
+        sa.CheckConstraint(
+            "level IN ('I', 'E', 'D')", name="ck_curriculum_map_cells_level"
+        ),
     )
 
     op.create_table(
@@ -57,7 +59,12 @@ def upgrade():
         sa.Column("check_id", sa.Uuid(), primary_key=True, nullable=False),
         sa.Column("document_id", sa.Uuid(), nullable=False),
         sa.Column("course_id", sa.Uuid(), nullable=False),
-        sa.Column("run_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "run_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("model_name", sa.String(length=100), nullable=True),
         sa.Column("objective_results", sa.JSON(), nullable=False),
         sa.Column("summary", sa.JSON(), nullable=False),
