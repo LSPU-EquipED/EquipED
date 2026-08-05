@@ -20,6 +20,9 @@ import { EvaluationInterfacePage } from '../features/evaluation/pages/Evaluation
 import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
 import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
 import { AlignmentCheckPage } from '../features/curriculumAlignment/pages/AlignmentCheckPage';
+import { SyllabusAlignmentPage } from '../features/alignment/pages/SyllabusAlignmentPage';
+import { SyllabusAlignmentWorkspacePage } from '../features/alignment/pages/SyllabusAlignmentWorkspacePage';
+import { SyllabusAlignmentReportPage } from '../features/alignment/pages/SyllabusAlignmentReportPage';
 
 // Admin Pages
 import {
@@ -115,6 +118,27 @@ const evaluationDetailRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations/$id',
   component: ScorecardPage,
+});
+
+const syllabusAlignmentRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'syllabus-alignment',
+  beforeLoad: requireRole(['faculty']),
+  component: SyllabusAlignmentPage,
+});
+
+const syllabusAlignmentWorkspaceRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'syllabus-alignment/$documentId',
+  beforeLoad: requireRole(['faculty']),
+  component: SyllabusAlignmentWorkspacePage,
+});
+
+const syllabusAlignmentReportRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'syllabus-alignment/$documentId/report',
+  beforeLoad: requireRole(['faculty']),
+  component: SyllabusAlignmentReportPage,
 });
 
 const matrixRoute = createRoute({
@@ -215,6 +239,9 @@ const routeTree = rootRoute.addChildren([
     evaluationsRoute,
     documentEvaluationRoute,
     evaluationDetailRoute,
+    syllabusAlignmentRoute,
+    syllabusAlignmentWorkspaceRoute,
+    syllabusAlignmentReportRoute,
     matrixRoute,
     alignmentRoute,
     adminRoute.addChildren([

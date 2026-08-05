@@ -23,6 +23,9 @@ class RetrievedChunk:
     page_number: int | None
     is_ocr: bool | None
     token_count: int | None
+    chunk_id: str | None = None
+    section_ref: str | None = None
+    chunk_index: int | None = None
 
 
 def retrieve_context(
@@ -131,6 +134,9 @@ def _parse_chroma_results(result: dict[str, Any]) -> list[RetrievedChunk]:
                 page_number=metadata.get("page_number"),
                 is_ocr=metadata.get("is_ocr"),
                 token_count=metadata.get("token_count"),
+                chunk_id=metadata.get("chunk_id"),
+                section_ref=metadata.get("section_ref"),
+                chunk_index=metadata.get("chunk_index"),
             )
         )
     return parsed

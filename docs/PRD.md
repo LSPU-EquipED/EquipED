@@ -203,7 +203,7 @@ A persistent record of:
 
 | ID | Requirement | Deliverable | Priority |
 |---|---|---|---|
-| FR-06 | The system shall evaluate each submitted SLM against the SME rubric criteria for Organization & Presentation and Assessment domains | D-01, D-02 | High |
+| FR-06 | The system shall evaluate each submitted SLM against the SME rubric criteria for Organization & Presentation and Assessment domains, and provide a standalone non-scoring Syllabus Alignment workspace that compares an owned SLM with an explicitly selected, retrieval-ready syllabus using the SME model configuration and one replaceable current result per SLM | D-01, D-02 | High |
 | FR-07 | The system shall evaluate each submitted SLM against the Program Coordinator rubric criteria, verifying alignment with the associated syllabus learning outcomes and curriculum objectives | D-01, D-02 | High |
 | FR-08 | The system shall evaluate each submitted SLM against the GAD Unit rubric criteria for Inclusivity & Gender Sensitivity | D-01, D-02 | High |
 | FR-09 | The system shall evaluate each submitted SLM against the ITSO rubric criteria for IP compliance and Data Privacy | D-01, D-02 | High |

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any
 
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.documents.models import DocumentChunk
 from server.modules.synthesis.models import AgentResult, CriterionScore, EvaluationFlag
+
+logger = logging.getLogger(__name__)
 
 
 def persist_agent_outputs(
@@ -34,6 +37,7 @@ def persist_agent_outputs(
                 error_message=agent_result.error_message,
                 raw_response=agent_result.raw_response,
                 provenance=agent_result.provenance,
+                advisory_outputs=agent_result.advisory_outputs,
             )
             db.add(result_row)
             db.flush()
@@ -54,6 +58,7 @@ def persist_agent_outputs(
             error_message=agent_result.error_message,
             raw_response=agent_result.raw_response,
             provenance=agent_result.provenance,
+            advisory_outputs=agent_result.advisory_outputs,
         )
         db.add(result_row)
         db.flush()
@@ -120,4 +125,7 @@ def _validated_chunk_ids(db: Any, chunk_ids: tuple[str, ...]) -> list[uuid.UUID]
     return valid_chunk_ids
 
 
-__all__ = ["persist_agent_outputs", "persist_evaluation_results"]
+__all__ = [
+    "persist_agent_outputs",
+    "persist_evaluation_results",
+]

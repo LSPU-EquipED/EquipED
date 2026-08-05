@@ -138,6 +138,7 @@ def test_full_success_scores_all_ten_from_grouped_pass(monkeypatch) -> None:
         assert score.chunk_ids == ()
         assert score.criterion_title == f"{score.criterion_id} Title"
     assert result.subtotal == sum(s.score for s in result.criterion_scores) / 10
+    assert result.advisory_outputs is None
     # Exactly 6 basket calls, no fallback needed.
     assert client.calls == 6
 

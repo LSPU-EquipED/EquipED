@@ -16,7 +16,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
 import { FeedbackPanel } from './FeedbackPanel';
-import { formatScore, agentShortLabel, agentDisplayLabel } from '../utils/scoreHelpers';
+import { formatScore, agentShortLabel } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import type {
   CriterionScoreItem,
@@ -600,6 +600,7 @@ export function ScoreDashboard({
               )}
             </div>
           </div>
+
 
           <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
             <table className="w-full text-left border-collapse border-spacing-0">

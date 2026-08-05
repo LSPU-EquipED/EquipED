@@ -67,3 +67,11 @@ The admin frontend SHALL provide a Reference Library page showing references and
 #### Scenario: Admin rebuilds from library
 - **WHEN** a reference or policy has missing Chroma vectors but stored chunks
 - **THEN** the UI SHALL offer a Rebuild embeddings action
+
+### Requirement: Ready syllabi are available to the SME alignment selector
+The system SHALL expose an authenticated, read-only list of admin-managed syllabus references that are ready in both authoritative SQL outcome storage and the local Chroma reference collection. Faculty access to this list SHALL NOT grant upload, rebuild, or delete permissions.
+
+#### Scenario: Faculty opens the SME alignment selector
+- **WHEN** an authenticated faculty evaluation owner requests available syllabi
+- **THEN** the system SHALL return only processed syllabus documents with persisted outcome rows and local Chroma vectors
+- **AND** SHALL exclude curricula, policies, failed syllabi, and syllabi with missing vectors

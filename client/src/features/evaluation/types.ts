@@ -84,6 +84,7 @@ export interface EvaluationListResponse {
 export interface EvaluationResultsResponse {
   evaluation_id: string;
   document_id: string;
+  syllabus_id?: string | null;
   document_title?: string;
   program?: string;
   synthesized_score: number;

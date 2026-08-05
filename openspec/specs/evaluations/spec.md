@@ -91,6 +91,12 @@ The system SHALL only expose evaluation status for jobs owned by the authenticat
 - **WHEN** an authenticated user requests the status of an evaluation job owned by a different user
 - **THEN** the system SHALL deny access and SHALL not disclose the other job's status
 
+#### Scenario: Accepted evaluation appears in the evaluation interfaces
+- **WHEN** the backend accepts a new evaluation job
+- **THEN** the client SHALL immediately display the accepted job in the document evaluation interface
+- **AND** SHALL refresh the authenticated user's Evaluations dashboard
+- **AND** the dashboard SHALL poll while it contains non-terminal jobs so completion or failure is shown without a manual page refresh
+
 ### Requirement: Evaluation lifecycle status sequence
 Evaluation jobs SHALL progress through the following status sequence: `SUBMITTED` → `PREPROCESSING` → `EVALUATING` → `SYNTHESIZING` → `COMPLETED`. Jobs that encounter errors SHALL transition to `FAILED` from any non-terminal status. The `EMBEDDING` status SHALL NOT be used. During the `EVALUATING` phase, the system SHALL emit a heartbeat before dispatching parallel agents and after all agents complete.
 

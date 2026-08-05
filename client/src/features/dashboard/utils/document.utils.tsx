@@ -35,18 +35,20 @@ export const statusConfig: Record<
     badgeClass: 'bg-[#b91c1c] text-white',
   },
   CLEANUP_PENDING: {
-    label: 'Cleanup Pending',
-    badgeClass: 'bg-[#b91c1c] text-white',
+    label: 'Cleanup pending',
+    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
+    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
 };
 
-// Fallback for any processing_status the backend sends that isn't in
-// statusConfig yet -- avoids a hard crash (reading .badgeClass off
-// undefined) the next time the two fall out of sync.
-export const unknownStatusFallback: { label: string; badgeClass: string } = {
-  label: 'Unknown',
-  badgeClass: 'bg-slate-400 text-white',
+const unknownStatusConfig = {
+  label: 'Unavailable',
+  badgeClass: 'bg-slate-600 text-white',
 };
+
+export function getStatusMeta(status: string | null | undefined) {
+  return statusConfig[status as DocumentProcessingStatus] ?? unknownStatusConfig;
+}
 
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {

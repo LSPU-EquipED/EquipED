@@ -25,7 +25,6 @@ from server.modules.synthesis.schemas import (
 
 router = APIRouter(prefix="/evaluations", tags=["synthesis"])
 
-
 @router.get("/{evaluation_id}/results", response_model=EvaluationResultsResponse)
 def get_evaluation_results(
     evaluation_id: uuid.UUID,
@@ -91,6 +90,7 @@ def get_evaluation_results(
     return EvaluationResultsResponse(
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
+        syllabus_id=job.syllabus_id,
         document_title=document.title if document else None,
         program=document.program if document else None,
         synthesized_score=float(synthesis_result["synthesized_score"]),

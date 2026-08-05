@@ -170,8 +170,10 @@ export function useEvaluationPageState(documentId?: string) {
   useEffect(() => {
     if (status?.status === 'COMPLETED' || status?.status === 'FAILED') {
       void refetchResults();
+      void queryClient.invalidateQueries({ queryKey: ['history'] });
+      void queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     }
-  }, [status?.status, refetchResults]);
+  }, [status?.status, refetchResults, queryClient]);
 
   // Derived state
   const isTerminal = status?.status === 'COMPLETED' || status?.status === 'FAILED';

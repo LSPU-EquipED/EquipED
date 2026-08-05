@@ -23,4 +23,5 @@ export const evaluationApi = {
   getEvaluationResults: async (id: string): Promise<EvaluationResultsResponse> => {
     return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`);
   },
+
 };

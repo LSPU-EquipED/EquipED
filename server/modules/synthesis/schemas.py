@@ -60,6 +60,7 @@ class EvaluationFlagItem(BaseModel):
 class EvaluationResultsResponse(BaseModel):
     evaluation_id: UUID
     document_id: UUID
+    syllabus_id: UUID | None = None
     document_title: str | None = None
     program: str | None = None
     synthesized_score: float

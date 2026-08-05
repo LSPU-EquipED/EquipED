@@ -123,7 +123,8 @@ class SME(EngineScoredAgent):
             db=db,
         )
         return dataclasses.replace(
-            result, summary=_build_improvement_summary(result.criterion_scores)
+            result,
+            summary=_build_improvement_summary(result.criterion_scores),
         )
 
 

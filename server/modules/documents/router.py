@@ -42,6 +42,8 @@ from .schemas import (
     ReferenceDeleteResponse,
     ReferenceLibraryResponse,
     ReferenceRebuildResponse,
+    SyllabusCourseContentsResponse,
+    SyllabusReferenceOptionsResponse,
 )
 from .service import (
     create_document,
@@ -49,6 +51,8 @@ from .service import (
     delete_reference_document,
     embed_document_chunks,
     get_document,
+    get_syllabus_course_contents,
+    list_available_syllabus_references,
     list_documents,
     list_policy_documents,
     list_reference_documents,
@@ -124,6 +128,18 @@ def list_references(
     return list_reference_documents(db=db)
 
 
+@router.get(
+    "/syllabi/available",
+    response_model=SyllabusReferenceOptionsResponse,
+)
+def list_available_syllabi(
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> SyllabusReferenceOptionsResponse:
+    """List shared, retrieval-ready syllabus references for alignment."""
+    return list_available_syllabus_references(db=db)
+
+
 @router.get("/policies", response_model=PolicyLibraryResponse)
 def list_policies(
     _current_user: AuthenticatedUser = Depends(require_admin),
@@ -157,7 +173,10 @@ def delete_policy(
         ) from exc
 
 
-@router.post("/policies/{document_id}/rebuild-embeddings", response_model=PolicyRebuildResponse)
+@router.post(
+    "/policies/{document_id}/rebuild-embeddings",
+    response_model=PolicyRebuildResponse,
+)
 def rebuild_policy_embeddings_endpoint(
     document_id: UUID,
     _current_user: AuthenticatedUser = Depends(require_admin),
@@ -201,6 +220,32 @@ def get_document_by_id(
         ) from exc
 
 
+@router.get(
+    "/{document_id}/course-contents",
+    response_model=SyllabusCourseContentsResponse,
+)
+def get_document_course_contents(
+    document_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> SyllabusCourseContentsResponse:
+    try:
+        return get_syllabus_course_contents(
+            document_id=document_id,
+            current_user_id=_current_user.id,
+            current_user_role=_current_user.role.value,
+            db=db,
+        )
+    except DocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+
 @router.get("", response_model=DocumentListResponse)
 def list_documents_endpoint(
     source_type: str | None = Query(default=None),
@@ -227,7 +272,7 @@ def get_document_file(
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> FileResponse:
-    """Stream a document's PDF file. References shared; SLMs owner-only; policy admin-only."""
+    """Stream a PDF. References are shared; SLMs owner-only; policy admin-only."""
     try:
         file_path = stream_document_file(
             document_id=document_id,
@@ -255,7 +300,9 @@ def get_document_file(
 def get_curriculum_suggestion(
     document_id: UUID,
     program: str = Query(
-        ..., min_length=1, description="Confirmed academic program for curriculum matching"
+        ...,
+        min_length=1,
+        description="Confirmed academic program for curriculum matching",
     ),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
@@ -298,7 +345,10 @@ def delete_document(
         ) from exc
 
 
-@router.post("/{document_id}/rebuild-embeddings", response_model=ReferenceRebuildResponse)
+@router.post(
+    "/{document_id}/rebuild-embeddings",
+    response_model=ReferenceRebuildResponse,
+)
 def rebuild_document_embeddings(
     document_id: UUID,
     _current_user: AuthenticatedUser = Depends(require_admin),

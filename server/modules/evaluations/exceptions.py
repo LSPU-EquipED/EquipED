@@ -30,6 +30,14 @@ class EvaluationExecutionOwnershipError(EvaluationsError):
     """Raised when a status transition lacks a valid execution token."""
 
 
+class SyllabusAlignmentNotFoundError(EvaluationsError):
+    """Raised when an alignment run or owned SLM cannot be found."""
+
+
+class InvalidSyllabusAlignmentTargetError(EvaluationsError):
+    """Raised when the SLM or syllabus cannot be used for alignment."""
+
+
 __all__ = [
     "EvaluationsError",
     "EvaluationNotFoundError",
@@ -39,4 +47,6 @@ __all__ = [
     "EvaluationPipelineUnavailableError",
     "InvalidEvaluationTargetError",
     "EvaluationExecutionOwnershipError",
+    "InvalidSyllabusAlignmentTargetError",
+    "SyllabusAlignmentNotFoundError",
 ]
