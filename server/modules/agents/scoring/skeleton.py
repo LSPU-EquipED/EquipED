@@ -494,7 +494,11 @@ _CURRICULUM_TEXT_CHAR_CAP = 3000
 
 
 def extract_basket_a1(
-    client: Any, text: str, *, curriculum_text: str | None = None
+    client: Any,
+    text: str,
+    *,
+    curriculum_text: str | None = None,
+    roadmap_context: str | None = None,
 ) -> dict[str, Any]:
     """One LLM call -> raw facts dict for A-02/A-05.
 
@@ -503,6 +507,13 @@ def extract_basket_a1(
     curriculum-alignment judgments for A-05 -- this avoids a second LLM call
     for Coordinator's curriculum-aware A-05 (see ``coordinator.py``). SME
     never passes this, so its prompt and call are byte-for-byte unchanged.
+
+    ``roadmap_context`` is an optional, additive advisory string (the
+    formatted program-roadmap note from the Coordinator) appended to the A1
+    prompt as a ``PROGRAM ROADMAP CONTEXT`` section. It is supplementary
+    context for the extraction LLM only -- it never replaces
+    ``curriculum_text`` and never alters scoring math. When ``None`` (the
+    default), behavior is byte-identical to the historical prompt.
     """
     content = slice_for_basket_a1(text)
     if curriculum_text and curriculum_text.strip():
@@ -514,6 +525,12 @@ def extract_basket_a1(
     else:
         prompt = BASKET_A1_PROMPT.format(content=content)
         max_tokens = 1800
+    if roadmap_context and roadmap_context.strip():
+        prompt = (
+            prompt
+            + "\n\nPROGRAM ROADMAP CONTEXT:\n"
+            + roadmap_context.strip()
+        )
     raw = client.generate(
         prompt,
         temperature=0.0,  # determinism: see spike findings

@@ -20,6 +20,7 @@ from server.core.llm import get_llm_client_for_agent
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.coordinator import ProgramCoordinator
 from server.modules.agents.supervisor import Supervisor
+from server.modules.curriculum_map.service import resolve_roadmap_course_context
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
@@ -152,6 +153,18 @@ def run_evaluation_job(
                 )
             else:
                 supervisor = Supervisor(db=session)
+            # Resolve program-roadmap context once, before the supervisor
+            # context is built. Advisory-only: any failure yields None and
+            # leaves the evaluation unaffected.
+            roadmap_ctx = None
+            try:
+                roadmap_ctx = resolve_roadmap_course_context(
+                    program=job.confirmed_program,
+                    course_code=document.course_code,
+                    db=session,
+                )
+            except Exception:
+                roadmap_ctx = None
             supervisor_result = supervisor.run_evaluation(
                 evaluation_id=evaluation_id,
                 document_id=job.document_id,
@@ -165,7 +178,8 @@ def run_evaluation_job(
                             if job.curriculum_id
                             else {}
                         ),
-                    }
+                    },
+                    **({"roadmap": roadmap_ctx} if roadmap_ctx else {}),
                 },
             )
             if not supervisor_result.agent_results:
@@ -183,6 +197,7 @@ def run_evaluation_job(
                 slm_chunks=slm_chunks,
                 slm_text=slm_text,
                 session=session,
+                roadmap_context=roadmap_ctx,
             )
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat after all agent futures complete.
@@ -343,6 +358,7 @@ def _reconcile_coordinator_result(
     slm_chunks: list[Any],
     slm_text: str,
     session: Any,
+    roadmap_context: dict[str, Any] | None = None,
 ) -> list[AgentEvaluationResult]:
     """Complete Coordinator's result using SME's, or fall back to
     Coordinator's own full independent scoring.
@@ -404,6 +420,7 @@ def _reconcile_coordinator_result(
             db=session,
             llm_client=get_llm_client_for_agent("coordinator"),
             reference_document_ids=reference_document_ids,
+            roadmap_context=roadmap_context,
         )
     except Exception as exc:
         logger.warning(

@@ -14,6 +14,13 @@ class CourseNotFoundError(Exception):
     """
 
 
+class RoadmapNotFoundError(Exception):
+    """Raised when the requested program roadmap does not exist.
+
+    Router maps to 404.
+    """
+
+
 class NoCurriculumMapError(Exception):
     """Raised when a course has zero mapped curriculum objectives.
 
@@ -105,6 +112,7 @@ class AlignmentCheckCooldownError(Exception):
 
 __all__ = [
     "CourseNotFoundError",
+    "RoadmapNotFoundError",
     "NoCurriculumMapError",
     "AlignmentCheckNotFoundError",
     "DocumentAccessDeniedError",

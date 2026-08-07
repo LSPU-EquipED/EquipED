@@ -113,6 +113,11 @@ class Supervisor:
         if reference_document_ids is None:
             reference_document_ids = {}
 
+        # Advisory program-roadmap context (Coordinator only). Extracted from
+        # the context dict, mirroring reference_document_ids; passed to the
+        # coordinator agent alone (SME/GAD/ITSO never receive it).
+        roadmap_context = context.get("roadmap")
+
         query_text = query_text or "\n".join(info["text"] for info in chunk_infos)
 
         # Pre-compute retrieval context per source-type (not merged).
@@ -162,6 +167,8 @@ class Supervisor:
                 client = get_llm_client_for_agent(agent_name)
                 # Only ITSO receives the frozen precheck snapshot and
                 # ITSO-specific temperature. Other agents use defaults.
+                # The coordinator alone receives the advisory program-roadmap
+                # context (SME/GAD/ITSO never receive it).
                 extra_kwargs: dict[str, Any] = {}
                 if agent_name == "itso":
                     extra_kwargs["llm_temperature"] = settings.get_agent_temperature(
@@ -169,6 +176,8 @@ class Supervisor:
                     )
                     extra_kwargs["provenance"] = itso_provenance_phase1
                     extra_kwargs["policy_evidence"] = itso_policy_evidence
+                if agent_name == "coordinator":
+                    extra_kwargs["roadmap_context"] = roadmap_context
                 future = pool.submit(
                     self._run_single_agent,
                     agent=agent,
@@ -255,6 +264,7 @@ class Supervisor:
         llm_temperature: float | None = None,
         provenance: dict[str, Any] | None = None,
         policy_evidence: dict[str, Any] | None = None,
+        roadmap_context: dict[str, Any] | None = None,
     ) -> AgentEvaluationResult:
         """Execute a single agent with timing and error handling.
 
@@ -268,20 +278,25 @@ class Supervisor:
         """
         agent_start = time.perf_counter()
         try:
-            agent_result = agent.run(
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                chunk_infos=chunk_infos,
-                context_text=context_text,
-                prompt_version=prompt_row.prompt_text,
-                prompt_version_id=prompt_row.version_id,
-                reference_document_ids=reference_document_ids,
-                precomputed_context=precomputed_context,
-                llm_client=llm_client,
-                llm_temperature=llm_temperature,
-                provenance=provenance,
-                policy_evidence=policy_evidence,
-            )
+            run_kwargs: dict[str, Any] = {
+                "evaluation_id": evaluation_id,
+                "document_id": document_id,
+                "chunk_infos": chunk_infos,
+                "context_text": context_text,
+                "prompt_version": prompt_row.prompt_text,
+                "prompt_version_id": prompt_row.version_id,
+                "reference_document_ids": reference_document_ids,
+                "precomputed_context": precomputed_context,
+                "llm_client": llm_client,
+                "llm_temperature": llm_temperature,
+                "provenance": provenance,
+                "policy_evidence": policy_evidence,
+            }
+            # Advisory program-roadmap context flows ONLY to the coordinator.
+            # ITSO's base.run has no **kwargs, so it must never receive it.
+            if agent_name == "coordinator":
+                run_kwargs["roadmap_context"] = roadmap_context
+            agent_result = agent.run(**run_kwargs)
             agent_seconds = time.perf_counter() - agent_start
             logger.info(
                 "[EVAL_TIMING] agent=%s | status=ok | seconds=%.3f | parallel=true",

@@ -28,6 +28,7 @@ from .exceptions import (
     DocumentSourceTypeError,
     NoCurriculumMapError,
     NoUsableDocumentTextError,
+    RoadmapNotFoundError,
 )
 from .limiter import alignment_check_slot_context
 from .schemas import (
@@ -38,6 +39,11 @@ from .schemas import (
     CourseResponse,
     DocumentPageResponse,
     DocumentPagesResponse,
+    RoadmapCourseResponse,
+    RoadmapDetailResponse,
+    RoadmapListResponse,
+    RoadmapSummaryResponse,
+    RoadmapYearResponse,
     RunAlignmentCheckRequest,
 )
 from .service import (
@@ -45,8 +51,11 @@ from .service import (
     delete_alignment_check,
     get_alignment_check,
     get_document_pages_for_check,
+    get_roadmap_detail,
     list_alignment_checks,
     list_courses,
+    list_roadmap_courses,
+    list_roadmaps,
     run_curriculum_alignment_check,
 )
 
@@ -201,6 +210,103 @@ def get_document_pages_endpoint(
             for page in pages
         ]
     )
+
+
+@router.get("/roadmaps", response_model=RoadmapListResponse)
+def list_roadmaps_endpoint(
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> RoadmapListResponse:
+    roadmaps = list_roadmaps(db)
+    return RoadmapListResponse(
+        items=[
+            RoadmapSummaryResponse(
+                roadmap_id=r.roadmap_id,
+                program=r.program,
+                specialization=r.specialization,
+                version_number=r.version_number,
+                status=r.status,
+                created_at=r.created_at,
+                updated_at=r.updated_at,
+            )
+            for r in roadmaps
+        ],
+        total=len(roadmaps),
+    )
+
+
+@router.get("/roadmaps/{roadmap_id}", response_model=RoadmapDetailResponse)
+def get_roadmap_endpoint(
+    roadmap_id: UUID,
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> RoadmapDetailResponse:
+    try:
+        roadmap, years = get_roadmap_detail(roadmap_id, db)
+    except RoadmapNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    return RoadmapDetailResponse(
+        roadmap_id=roadmap.roadmap_id,
+        program=roadmap.program,
+        specialization=roadmap.specialization,
+        version_number=roadmap.version_number,
+        status=roadmap.status,
+        years=[
+            RoadmapYearResponse(
+                year_id=y["year_id"],
+                year_number=y["year_number"],
+                semester=y["semester"],
+                label=y["label"],
+                description=y["description"],
+                courses=[
+                    RoadmapCourseResponse(
+                        id=c.id,
+                        course_code=c.course_code,
+                        course_title=c.course_title,
+                        course_status=c.course_status,
+                        tech_stack=c.tech_stack,
+                        competency_stage=c.competency_stage,
+                        learning_outcomes_summary=c.learning_outcomes_summary,
+                    )
+                    for c in y["courses"]
+                ],
+            )
+            for y in years
+        ],
+    )
+
+
+@router.get(
+    "/roadmaps/{roadmap_id}/courses",
+    response_model=list[RoadmapCourseResponse],
+)
+def list_roadmap_courses_endpoint(
+    roadmap_id: UUID,
+    year: int = Query(..., ge=1, le=10),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    _current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> list[RoadmapCourseResponse]:
+    try:
+        courses = list_roadmap_courses(roadmap_id, year, semester, db)
+    except RoadmapNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    return [
+        RoadmapCourseResponse(
+            id=c.id,
+            course_code=c.course_code,
+            course_title=c.course_title,
+            course_status=c.course_status,
+            tech_stack=c.tech_stack,
+            competency_stage=c.competency_stage,
+            learning_outcomes_summary=c.learning_outcomes_summary,
+        )
+        for c in courses
+    ]
 
 
 def _to_response(check: Any, db: Any) -> AlignmentCheckResponse:

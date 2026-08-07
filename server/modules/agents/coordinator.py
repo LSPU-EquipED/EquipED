@@ -52,6 +52,43 @@ logger = logging.getLogger(__name__)
 _CURRICULUM_N_RESULTS = 3
 
 
+def _format_roadmap_note(roadmap_context: dict[str, Any] | None) -> str:
+    """Compact advisory sentence(s) from a program-roadmap context dict.
+
+    Produces a short note like: "Program roadmap places this course at Year
+    {year} Semester {semester} with {competency_stage} competency; prescribed
+    tech stack: {tech_stack}." Optional pieces (semester, tech_stack,
+    competency_stage) are omitted when None. An empty dict (or None) yields an
+    empty string, and any non-dict value returns "" rather than raising.
+    Purely advisory -- never affects scoring.
+    """
+    if not isinstance(roadmap_context, dict) or not roadmap_context:
+        return ""
+
+    year = roadmap_context.get("year")
+    semester = roadmap_context.get("semester")
+    tech_stack = roadmap_context.get("tech_stack")
+    competency_stage = roadmap_context.get("competency_stage")
+
+    position = ""
+    if year is not None:
+        semester_part = f" Semester {semester}" if semester is not None else ""
+        position = f"Year {year}{semester_part}"
+
+    stage_part = (
+        f" with {competency_stage} competency" if competency_stage else ""
+    )
+    tech_part = f" prescribed tech stack: {tech_stack}" if tech_stack else ""
+
+    if not position and not stage_part and not tech_part:
+        return ""
+
+    body = f"{position}{stage_part}"
+    if tech_part:
+        body = f"{body};{tech_part}".rstrip("; ")
+    return f"Program roadmap places this course at {body}."
+
+
 def _build_alignment_summary(criterion_scores: tuple[CriterionScore, ...]) -> str:
     """Summarize objective-to-curriculum alignment from Coordinator's own
     A-05 score.
@@ -168,6 +205,7 @@ class Coordinator(EngineScoredAgent):
         db: Any | None = None,
         llm_client: Any | None = None,
         reference_document_ids: dict[str, Any] | None = None,
+        roadmap_context: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> AgentEvaluationResult:
         """Cheap single-call A-05 check -- called by Supervisor in parallel
@@ -203,8 +241,17 @@ class Coordinator(EngineScoredAgent):
                 curriculum_text = ""
 
         client = self._llm_client or get_llm_client()
+        roadmap_note = None
+        if roadmap_context:
+            try:
+                roadmap_note = _format_roadmap_note(roadmap_context) or None
+            except Exception:
+                roadmap_note = None
         basket = skeleton.extract_basket_a1(
-            client, full_text, curriculum_text=curriculum_text or None
+            client,
+            full_text,
+            curriculum_text=curriculum_text or None,
+            roadmap_context=roadmap_note,
         )
         objectives = list(basket.get("objectives", []))
 
@@ -329,6 +376,7 @@ class Coordinator(EngineScoredAgent):
         db: Any | None = None,
         llm_client: Any | None = None,
         reference_document_ids: dict[str, Any] | None = None,
+        roadmap_context: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> AgentEvaluationResult:
         """Full independent engine pass (6 calls, all 10 criteria).
@@ -360,8 +408,21 @@ class Coordinator(EngineScoredAgent):
                 curriculum_text = ""
 
         raw_baskets: dict[str, dict[str, Any]] = {}
+        roadmap_note = None
+        if roadmap_context:
+            try:
+                roadmap_note = _format_roadmap_note(roadmap_context) or None
+            except Exception:
+                roadmap_note = None
         basket_extract_kwargs = (
-            {"A1": {"curriculum_text": curriculum_text}} if curriculum_text else None
+            {
+                "A1": {
+                    "curriculum_text": curriculum_text or None,
+                    "roadmap_context": roadmap_note or None,
+                }
+            }
+            if curriculum_text or roadmap_note
+            else None
         )
 
         result = self._run_full_engine_scoring(
