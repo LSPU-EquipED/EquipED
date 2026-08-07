@@ -3,7 +3,7 @@
   "mcp": {
     "Neon": {
       "type": "remote",
-      "url": "https://mcp.neon.tech/mcp",
+      "url": "https://mcp.neon.tech/mcp?projectId=steep-cake-88153631",
       "enabled": true
     }
   }
