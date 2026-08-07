@@ -65,6 +65,11 @@ MERGE_REV = "20260802_0001"
 HARDEN_REV = "20260802_0002"
 BRANCH_A = "20260730_0001"
 BRANCH_B = "20260801_0001"
+#: Current single head: the program-roadmap change grafted the advisory
+#: repair (20260808_0000) and roadmap tables (20260808_0001) onto the
+#: syllabus-alignment branch and merged it with the hardening branch, then
+#: added the roadmap-course uniqueness revision (20260808_0002).
+CHAIN_HEAD_REV = "20260808_0002"
 
 #: Common ancestor of both feature branches; the former-curriculum head shape.
 FORMER_CURRICULUM_ANCESTOR = "20260716_0001"
@@ -336,7 +341,7 @@ class TestChainStructure:
         script = ScriptDirectory.from_config(_cfg("sqlite://"))
         heads = script.get_heads()
         assert len(heads) == 1, f"Expected 1 head, got {len(heads)}: {heads}"
-        assert heads == [HARDEN_REV]
+        assert heads == [CHAIN_HEAD_REV]
 
     def test_chain_contains_merge_and_hardening(self):
         script = ScriptDirectory.from_config(_cfg())
