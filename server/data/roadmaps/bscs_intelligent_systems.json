@@ -1,0 +1,240 @@
+{
+  "program": "BSCS",
+  "specialization": "Intelligent Systems",
+  "version_number": 1,
+  "status": "active",
+  "source_document_path": null,
+  "years": [
+    {
+      "year_number": 1,
+      "semester": 1,
+      "label": "Computing Foundations",
+      "courses": [
+        {
+          "course_code": "ITEC 101",
+          "course_title": "Introduction to Computing",
+          "tech_stack": "Git, GitHub, Linux, Python (Introduction)",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Introduce computing concepts, open-source development, version control, and Linux environment."
+        },
+        {
+          "course_code": "ITEC 102",
+          "course_title": "Fundamentals of Programming",
+          "tech_stack": "Python, C++",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Develop problem-solving skills using procedural programming and algorithm design."
+        }
+      ]
+    },
+    {
+      "year_number": 1,
+      "semester": 2,
+      "label": "Computing Foundations",
+      "courses": [
+        {
+          "course_code": "ITEC 103",
+          "course_title": "Intermediate Programming",
+          "tech_stack": "Python, Java",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Develop modular programming, object-oriented concepts, and software development practices."
+        },
+        {
+          "course_code": "CMSC 101",
+          "course_title": "Discrete Structures I",
+          "tech_stack": "Python",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Implement mathematical algorithms using Python."
+        }
+      ]
+    },
+    {
+      "year_number": 2,
+      "semester": 1,
+      "label": "Core Computer Science",
+      "courses": [
+        {
+          "course_code": "CMSC 203",
+          "course_title": "Object-Oriented Programming",
+          "tech_stack": "Java",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Develop desktop and enterprise applications using object-oriented principles."
+        },
+        {
+          "course_code": "ITEC 104",
+          "course_title": "Data Structures and Algorithms",
+          "tech_stack": "C++, Python",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Implement efficient algorithms, recursion, searching, sorting, and graph algorithms."
+        },
+        {
+          "course_code": "ITEC 105",
+          "course_title": "Information Management",
+          "tech_stack": "SQL, MySQL, PostgreSQL",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Design relational databases, SQL programming, normalization, and database administration."
+        }
+      ]
+    },
+    {
+      "year_number": 2,
+      "semester": 2,
+      "label": "Core Computer Science",
+      "courses": [
+        {
+          "course_code": "ITEC 106",
+          "course_title": "Application Development and Emerging Technologies",
+          "tech_stack": "JavaScript, Firebase",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Develop responsive web and cloud-connected mobile applications."
+        },
+        {
+          "course_code": "CSEL 301",
+          "course_title": "Computational Science",
+          "tech_stack": "Python, NumPy, Matplotlib",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Numerical computation, simulation, and scientific visualization."
+        },
+        {
+          "course_code": "CSEL 302",
+          "course_title": "Parallel and Distributed Computing",
+          "tech_stack": "Docker, Kubernetes",
+          "competency_stage": "Intermediate",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Introduce virtualization, distributed systems, and container technologies."
+        }
+      ]
+    },
+    {
+      "year_number": 3,
+      "semester": 1,
+      "label": "Artificial Intelligence Core",
+      "courses": [
+        {
+          "course_code": "CMSC 309",
+          "course_title": "Software Engineering I",
+          "tech_stack": "GitHub Actions",
+          "competency_stage": "Advanced",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Implement version control, collaborative software development, and Continuous Integration (CI)."
+        },
+        {
+          "course_code": "CMSC 310",
+          "course_title": "Networks and Communications",
+          "tech_stack": "Docker",
+          "competency_stage": "Advanced",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Deploy network services and containerized applications."
+        },
+        {
+          "course_code": "PROP-IS",
+          "course_title": "Intelligent Systems I (Proposed)",
+          "tech_stack": "Scikit-learn, Pandas, NumPy",
+          "competency_stage": "Advanced",
+          "course_status": "proposed",
+          "learning_outcomes_summary": "Build predictive models using supervised and unsupervised learning techniques."
+        }
+      ]
+    },
+    {
+      "year_number": 3,
+      "semester": 2,
+      "label": "Artificial Intelligence Core",
+      "courses": [
+        {
+          "course_code": "CMSC 311",
+          "course_title": "Software Engineering II",
+          "tech_stack": "Docker, GitHub Actions",
+          "competency_stage": "Advanced",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Continuous Integration/Continuous Deployment (CI/CD), automated software testing, and deployment."
+        },
+        {
+          "course_code": "CMSC 313",
+          "course_title": "Human Computer Interaction",
+          "tech_stack": "Power BI, Tableau",
+          "competency_stage": "Advanced",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Design interactive dashboards and user-centered analytics interfaces."
+        },
+        {
+          "course_code": "PROP-ML",
+          "course_title": "Machine Learning (Proposed)",
+          "tech_stack": "TensorFlow, Keras, PyTorch",
+          "competency_stage": "Advanced",
+          "course_status": "proposed",
+          "learning_outcomes_summary": "Design, train, evaluate, and optimize neural network models."
+        },
+        {
+          "course_code": "PROP-CV",
+          "course_title": "Computer Vision (Proposed)",
+          "tech_stack": "OpenCV",
+          "competency_stage": "Advanced",
+          "course_status": "proposed",
+          "learning_outcomes_summary": "Develop intelligent vision systems for object detection, OCR, and facial recognition."
+        },
+        {
+          "course_code": "PROP-NLP",
+          "course_title": "Natural Language Processing (Proposed)",
+          "tech_stack": "Hugging Face Transformers",
+          "competency_stage": "Advanced",
+          "course_status": "proposed",
+          "learning_outcomes_summary": "Develop intelligent chatbots, text classification, sentiment analysis, and language models."
+        }
+      ]
+    },
+    {
+      "year_number": 3,
+      "semester": null,
+      "label": "Summer - Undergraduate Thesis I",
+      "courses": [
+        {
+          "course_code": "CMSC 501",
+          "course_title": "Undergraduate Thesis I",
+          "tech_stack": "TensorFlow, PyTorch, LangChain, LlamaIndex",
+          "competency_stage": "Advanced",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Conduct AI-based research and develop intelligent systems using modern AI frameworks."
+        }
+      ]
+    },
+    {
+      "year_number": 4,
+      "semester": 1,
+      "label": "Professional Practice",
+      "courses": [
+        {
+          "course_code": "CMSC 503",
+          "course_title": "Internship",
+          "tech_stack": "Microsoft Azure AI, AWS AI Services, Google Vertex AI",
+          "competency_stage": "Professional",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Deploy AI applications in cloud platforms and participate in industry-based projects."
+        }
+      ]
+    },
+    {
+      "year_number": 4,
+      "semester": 2,
+      "label": "Professional Practice",
+      "courses": [
+        {
+          "course_code": "CMSC 502",
+          "course_title": "Undergraduate Thesis II",
+          "tech_stack": "MLflow, Docker, Kubernetes, LangChain, LlamaIndex",
+          "competency_stage": "Professional",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Deploy production-ready AI systems, implement experiment tracking, model lifecycle management, Retrieval-Augmented Generation (RAG), and Large Language Model (LLM) applications."
+        }
+      ]
+    }
+  ]
+}

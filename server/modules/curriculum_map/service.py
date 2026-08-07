@@ -35,6 +35,7 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import get_llm_client
+from sqlalchemy import func
 
 from .alignment_check import AlignmentCheckOutcome, run_alignment_check
 from .alignment_runtime import RETRY_BACKOFF_SECONDS
@@ -57,12 +58,16 @@ from .exceptions import (
     DocumentSourceTypeError,
     NoCurriculumMapError,
     NoUsableDocumentTextError,
+    RoadmapNotFoundError,
 )
 from .models import (
     Course,
     CurriculumAlignmentCheck,
     CurriculumMapCell,
     CurriculumObjective,
+    ProgramRoadmap,
+    RoadmapCourse,
+    RoadmapYear,
 )
 
 # Safety cap on the joined SLM text sent to the LLM. Mirrors the same
@@ -113,12 +118,17 @@ _REJECTED_RESPONSE_KINDS = frozenset({"response_schema", "response_coverage"})
 def _normalize_program(program: str | None) -> str | None:
     """Map the legacy ``BSIT`` alias onto the canonical ``BSInfoTech``.
 
-    Any other value (including None) is returned unchanged so callers can
+    Input is stripped and uppercased first so matching is case-insensitive
+    (``bsit``, ``BsIt``, ``BSIT`` all map to ``BSInfoTech``). Any other value
+    (including None) is returned in canonical-case form so callers can
     distinguish "unsupported" from "matches".
     """
-    if program in _PROGRAM_ALIASES:
+    if program is None:
+        return None
+    normalized = program.strip().upper()
+    if normalized in _PROGRAM_ALIASES:
         return _CANONICAL_PROGRAM
-    return program
+    return normalized
 
 
 def _empty_summary(total_mapped_objectives: int) -> dict[str, int]:
@@ -313,6 +323,149 @@ def _persistable_provenance(
 
 def list_courses(db: Any) -> list[Course]:
     return db.query(Course).order_by(Course.course_code).all()
+
+
+def list_roadmaps(db: Any) -> list[ProgramRoadmap]:
+    """All program roadmaps, ordered by program, specialization, then version
+    (newest first within a pair)."""
+    return (
+        db.query(ProgramRoadmap)
+        .order_by(
+            ProgramRoadmap.program,
+            ProgramRoadmap.specialization,
+            ProgramRoadmap.version_number.desc(),
+        )
+        .all()
+    )
+
+
+def get_roadmap(roadmap_id: uuid.UUID, db: Any) -> ProgramRoadmap:
+    roadmap = db.get(ProgramRoadmap, roadmap_id)
+    if roadmap is None:
+        raise RoadmapNotFoundError(f"Roadmap {roadmap_id} not found")
+    return roadmap
+
+
+def get_roadmap_detail(
+    roadmap_id: uuid.UUID, db: Any
+) -> tuple[ProgramRoadmap, list[dict[str, Any]]]:
+    """Return the roadmap plus its years (ordered by year_number, semester
+    nulls first), each year carrying its courses ordered by course_code."""
+    roadmap = get_roadmap(roadmap_id, db)
+    years = (
+        db.query(RoadmapYear)
+        .filter(RoadmapYear.roadmap_id == roadmap_id)
+        .order_by(
+            RoadmapYear.year_number,
+            RoadmapYear.semester.is_(None),
+            RoadmapYear.semester,
+        )
+        .all()
+    )
+    result: list[dict[str, Any]] = []
+    for year in years:
+        courses = (
+            db.query(RoadmapCourse)
+            .filter(RoadmapCourse.year_id == year.year_id)
+            .order_by(RoadmapCourse.course_code)
+            .all()
+        )
+        result.append(
+            {
+                "year_id": year.year_id,
+                "year_number": year.year_number,
+                "semester": year.semester,
+                "label": year.label,
+                "description": year.description,
+                "courses": courses,
+            }
+        )
+    return roadmap, result
+
+
+def list_roadmap_courses(
+    roadmap_id: uuid.UUID, year_number: int, semester: int | None, db: Any
+) -> list[RoadmapCourse]:
+    """Courses of one roadmap for a given year. When ``semester`` is None all
+    semesters of the year are included; otherwise only that semester. Raises
+    ``RoadmapNotFoundError`` when the roadmap is missing."""
+    get_roadmap(roadmap_id, db)
+    query = (
+        db.query(RoadmapCourse)
+        .join(RoadmapYear, RoadmapCourse.year_id == RoadmapYear.year_id)
+        .filter(
+            RoadmapCourse.roadmap_id == roadmap_id,
+            RoadmapYear.year_number == year_number,
+        )
+    )
+    if semester is not None:
+        query = query.filter(RoadmapYear.semester == semester)
+    return (
+        query.order_by(
+            RoadmapYear.year_number,
+            RoadmapYear.semester.is_(None),
+            RoadmapYear.semester,
+            RoadmapCourse.course_code,
+        )
+        .all()
+    )
+
+
+def resolve_roadmap_course_context(
+    *, program: str | None, course_code: str | None, db: Any
+) -> dict[str, Any] | None:
+    """Resolve a course's roadmap context for agent reference.
+
+    Returns None when program/course_code is missing or empty, when no
+    ``active`` roadmap exists for the program, when no course row matches the
+    code (case-insensitive), or when the matched course is ``proposed``.
+    Never raises. Program is normalized (``BSIT`` -> ``BSInfoTech``, case-
+    insensitive) then matched case-insensitively against ``roadmap.program``;
+    when multiple active roadmaps exist (shouldn't), the highest version wins.
+    """
+    if not program or not course_code:
+        return None
+    canonical = _normalize_program(program)
+    if canonical is None:
+        return None
+
+    roadmap = (
+        db.query(ProgramRoadmap)
+        .filter(
+            func.lower(ProgramRoadmap.program) == canonical.lower(),
+            ProgramRoadmap.status == "active",
+        )
+        .order_by(ProgramRoadmap.version_number.desc())
+        .limit(1)
+        .first()
+    )
+    if roadmap is None:
+        return None
+
+    course = (
+        db.query(RoadmapCourse)
+        .filter(
+            RoadmapCourse.roadmap_id == roadmap.roadmap_id,
+            func.lower(RoadmapCourse.course_code) == course_code.strip().lower(),
+        )
+        .order_by(RoadmapCourse.id)
+        .first()
+    )
+    if course is None or course.course_status == "proposed":
+        return None
+
+    year = db.get(RoadmapYear, course.year_id)
+    if year is None:
+        return None
+    return {
+        "course_code": course.course_code,
+        "course_title": course.course_title,
+        "year": year.year_number,
+        "semester": year.semester,
+        "tech_stack": course.tech_stack,
+        "competency_stage": course.competency_stage,
+        "course_status": course.course_status,
+    }
 
 
 def _get_course(course_id: uuid.UUID, db: Any) -> Course:
@@ -594,6 +747,11 @@ def delete_alignment_check(
 
 __all__ = [
     "list_courses",
+    "list_roadmaps",
+    "get_roadmap",
+    "get_roadmap_detail",
+    "list_roadmap_courses",
+    "resolve_roadmap_course_context",
     "list_alignment_checks",
     "run_curriculum_alignment_check",
     "get_alignment_check",
