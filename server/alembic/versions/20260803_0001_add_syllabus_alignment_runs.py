@@ -1,5 +1,12 @@
 """add standalone syllabus alignment runs
 
+Repair note (2026-08-08): this migration was never applied through the
+stamped chain (the shared dev DB already carries the table and indexes via
+out-of-band application), so upgrade/downgrade are conditional: they create
+or drop the table and each index only when the target state differs. The
+legacy-artifact backfill runs only when this migration creates the table,
+so it can never insert duplicates on databases that already hold data.
+
 Revision ID: 20260803_0001
 Revises: 20260801_0001
 Create Date: 2026-08-03
@@ -10,6 +17,7 @@ from __future__ import annotations
 import uuid
 
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 from alembic import op
 
@@ -20,8 +28,26 @@ depends_on = None
 
 _VALID_COMPLETED_LEVELS = {"MEETS", "PARTIALLY_MEETS", "DOES_NOT_MEET"}
 
+_TABLE_NAME = "syllabus_alignment_runs"
+_INDEX_NAMES = (
+    "idx_syllabus_alignment_owner_created",
+    "idx_syllabus_alignment_slm_created",
+    "idx_syllabus_alignment_syllabus",
+    "uq_syllabus_alignment_active_slm",
+)
 
-def upgrade() -> None:
+
+def _has_table(name: str) -> bool:
+    bind = op.get_bind()
+    return name in inspect(bind).get_table_names()
+
+
+def _has_index(name: str) -> bool:
+    bind = op.get_bind()
+    return name in [i["name"] for i in inspect(bind).get_indexes(_TABLE_NAME)]
+
+
+def _create_table() -> None:
     op.create_table(
         "syllabus_alignment_runs",
         sa.Column("alignment_id", sa.Uuid(), nullable=False),
@@ -65,31 +91,34 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["syllabus_document_id"], ["documents.document_id"]),
         sa.PrimaryKeyConstraint("alignment_id"),
     )
-    op.create_index(
-        "idx_syllabus_alignment_owner_created",
-        "syllabus_alignment_runs",
-        ["requested_by", "created_at"],
-    )
-    op.create_index(
-        "idx_syllabus_alignment_slm_created",
-        "syllabus_alignment_runs",
-        ["slm_document_id", "created_at"],
-    )
-    op.create_index(
-        "idx_syllabus_alignment_syllabus",
-        "syllabus_alignment_runs",
-        ["syllabus_document_id"],
-    )
-    op.create_index(
-        "uq_syllabus_alignment_active_slm",
-        "syllabus_alignment_runs",
-        ["slm_document_id"],
-        unique=True,
-        postgresql_where=sa.text("status IN ('QUEUED', 'RUNNING')"),
-        sqlite_where=sa.text("status IN ('QUEUED', 'RUNNING')"),
-    )
-    if not op.get_context().as_sql:
-        _backfill_legacy_alignment_artifacts()
+def _create_indexes() -> None:
+    if not _has_index("idx_syllabus_alignment_owner_created"):
+        op.create_index(
+            "idx_syllabus_alignment_owner_created",
+            "syllabus_alignment_runs",
+            ["requested_by", "created_at"],
+        )
+    if not _has_index("idx_syllabus_alignment_slm_created"):
+        op.create_index(
+            "idx_syllabus_alignment_slm_created",
+            "syllabus_alignment_runs",
+            ["slm_document_id", "created_at"],
+        )
+    if not _has_index("idx_syllabus_alignment_syllabus"):
+        op.create_index(
+            "idx_syllabus_alignment_syllabus",
+            "syllabus_alignment_runs",
+            ["syllabus_document_id"],
+        )
+    if not _has_index("uq_syllabus_alignment_active_slm"):
+        op.create_index(
+            "uq_syllabus_alignment_active_slm",
+            "syllabus_alignment_runs",
+            ["slm_document_id"],
+            unique=True,
+            postgresql_where=sa.text("status IN ('QUEUED', 'RUNNING')"),
+            sqlite_where=sa.text("status IN ('QUEUED', 'RUNNING')"),
+        )
 
 
 def _backfill_legacy_alignment_artifacts() -> None:
@@ -191,17 +220,19 @@ def _backfill_legacy_alignment_artifacts() -> None:
         )
 
 
+def upgrade() -> None:
+    if not _has_table(_TABLE_NAME):
+        _create_table()
+        _create_indexes()
+        if not op.get_context().as_sql:
+            _backfill_legacy_alignment_artifacts()
+    else:
+        _create_indexes()
+
+
 def downgrade() -> None:
-    op.drop_index(
-        "uq_syllabus_alignment_active_slm", table_name="syllabus_alignment_runs"
-    )
-    op.drop_index(
-        "idx_syllabus_alignment_syllabus", table_name="syllabus_alignment_runs"
-    )
-    op.drop_index(
-        "idx_syllabus_alignment_slm_created", table_name="syllabus_alignment_runs"
-    )
-    op.drop_index(
-        "idx_syllabus_alignment_owner_created", table_name="syllabus_alignment_runs"
-    )
-    op.drop_table("syllabus_alignment_runs")
+    for index_name in _INDEX_NAMES:
+        if _has_index(index_name):
+            op.drop_index(index_name, table_name=_TABLE_NAME)
+    if _has_table(_TABLE_NAME):
+        op.drop_table(_TABLE_NAME)
