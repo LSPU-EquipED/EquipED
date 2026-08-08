@@ -6,6 +6,14 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
+from server.modules.admin.model_validation_service import (
+    create_model_validation,
+    get_admin_evaluation,
+    get_model_validation_criteria,
+    get_model_validation_detail,
+    get_model_validation_metrics,
+    list_model_validations,
+)
 from server.modules.admin.models import ModelValidation
 from server.modules.admin.prompt_service import (
     create_prompt_version,
@@ -30,18 +38,11 @@ from server.modules.admin.schemas import (
     PromptVersionResponse,
     SystemSummaryResponse,
 )
-from server.modules.admin.service import (
+from server.modules.admin.system_service import get_system_summary
+from server.modules.admin.user_service import (
     create_admin_user,
-    create_model_validation,
     deactivate_user,
-    get_admin_evaluation,
-    get_model_validation_criteria,
-    get_model_validation_detail,
-    get_model_validation_metrics,
-    get_system_summary,
     hard_delete_user,
-    list_model_validations,
-    list_preference_logs,
     list_users,
     update_user,
 )
@@ -50,6 +51,7 @@ from server.modules.auth.service import AuthenticatedUser
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.feedback.service import list_preference_logs
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/admin", tags=["admin"])

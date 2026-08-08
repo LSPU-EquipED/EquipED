@@ -6,12 +6,12 @@ import uuid
 from datetime import timedelta
 
 from fastapi.testclient import TestClient
-from server.modules.admin.models import ModelValidation, ModelValidationCriterionScore
-from server.modules.admin.schemas import ModelValidationMetricsResponse
-from server.modules.admin.service import (
+from server.modules.admin.model_validation_service import (
     assess_model_validation_toxicity,
     sync_model_validation_criterion_results,
 )
+from server.modules.admin.models import ModelValidation, ModelValidationCriterionScore
+from server.modules.admin.schemas import ModelValidationMetricsResponse
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
@@ -499,7 +499,6 @@ def test_validation_rejects_coordinator_expected_scores(
     monkeypatch,
 ) -> None:
     """Model Validation no longer accepts Program Coordinator expected scores."""
-    from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(

@@ -1,4 +1,4 @@
-"""Admin helpers for prompts, users, system metrics, and model validation."""
+"""Admin model-validation helpers: benchmarks, criteria, metrics, toxicity."""
 
 from __future__ import annotations
 
@@ -11,18 +11,14 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from server.core.config import get_settings
-from server.modules.auth.models import User, UserRole
-from server.modules.auth.service import create_user as auth_create_user
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.modules.evaluations.service import create_evaluation
-from server.modules.feedback.service import list_preference_logs
 from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 from server.modules.synthesis.models import AgentResult, CriterionScore
-from sqlalchemy import func
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
@@ -50,13 +46,6 @@ _TOXICITY_INPUT_CHARS = 6000
 
 
 __all__ = [
-    "list_preference_logs",
-    "list_users",
-    "create_admin_user",
-    "update_user",
-    "deactivate_user",
-    "hard_delete_user",
-    "get_system_summary",
     "create_model_validation",
     "list_model_validations",
     "get_model_validation_detail",
@@ -66,146 +55,6 @@ __all__ = [
     "sync_model_validation_criterion_results",
     "assess_model_validation_toxicity",
 ]
-
-
-# ---------------------------------------------------------------------------
-# User management
-# ---------------------------------------------------------------------------
-
-
-def list_users(db: Any) -> list[User]:
-    """Return all registered users."""
-    return db.query(User).order_by(User.created_at.desc()).all()
-
-
-def create_admin_user(
-    db: Any,
-    *,
-    name: str,
-    email: str,
-    password: str,
-    role: str = "faculty",
-) -> User:
-    """Create a new user via the auth service.
-
-    Re-uses the existing create_user logic for password hashing and persistence.
-    """
-    user_role = UserRole(role)
-    return auth_create_user(
-        db,
-        name=name,
-        email=email,
-        password=password,
-        role=user_role,
-        is_active=True,
-    )
-
-
-def update_user(
-    db: Any,
-    user_id: uuid.UUID,
-    *,
-    name: str | None = None,
-    email: str | None = None,
-    is_active: bool | None = None,
-) -> User:
-    """Update an existing user by ID. Only provided (non-None) fields are changed.
-
-    Raises ValueError if the user is not found or the email is already taken.
-    """
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if user is None:
-        raise ValueError("User not found")
-
-    if email is not None and email != user.email:
-        existing = db.query(User).filter(User.email == email).first()
-        if existing is not None:
-            raise ValueError("Email already in use")
-        user.email = email
-
-    if name is not None:
-        user.name = name
-
-    if is_active is not None:
-        user.is_active = is_active
-
-    db.flush()
-    return user
-
-
-def deactivate_user(db: Any, user_id: uuid.UUID) -> User:
-    """Deactivate a user account by setting is_active=False.
-
-    Raises ValueError if the user is not found.
-    """
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if user is None:
-        raise ValueError("User not found")
-
-    user.is_active = False
-    db.flush()
-    return user
-
-
-def hard_delete_user(db: Any, user_id: uuid.UUID) -> None:
-    """Permanently delete a user from the database.
-
-    Raises ValueError if the user is not found.
-    """
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if user is None:
-        raise ValueError("User not found")
-
-    db.delete(user)
-    db.flush()
-
-
-# ---------------------------------------------------------------------------
-# System metrics
-# ---------------------------------------------------------------------------
-
-_TERMINAL_STATUSES = {
-    EvaluationStatus.COMPLETED.value,
-    EvaluationStatus.FAILED.value,
-}
-
-
-def get_system_summary(db: Any) -> dict[str, int]:
-    """Return system-wide counts for the admin dashboard."""
-    from server.modules.documents.models import Document
-
-    total_documents = db.query(func.count()).select_from(Document).scalar() or 0
-
-    total_faculty = (
-        db.query(func.count())
-        .select_from(User)
-        .filter(User.role == UserRole.FACULTY)
-        .scalar()
-        or 0
-    )
-
-    active_evaluations = (
-        db.query(func.count())
-        .select_from(EvaluationJob)
-        .filter(EvaluationJob.status.not_in(_TERMINAL_STATUSES))
-        .scalar()
-        or 0
-    )
-
-    failed_evaluations = (
-        db.query(func.count())
-        .select_from(EvaluationJob)
-        .filter(EvaluationJob.status == EvaluationStatus.FAILED.value)
-        .scalar()
-        or 0
-    )
-
-    return {
-        "total_documents": total_documents,
-        "total_faculty": total_faculty,
-        "active_evaluations": active_evaluations,
-        "failed_evaluations": failed_evaluations,
-    }
 
 
 def _model_validation_response(
@@ -472,8 +321,8 @@ def _active_validation_criterion_map(db: Any) -> dict[tuple[str, str], dict[str,
     missing_agents = sorted(set(ACTIVE_VALIDATION_AGENTS) - available_agents)
     if missing_agents:
         raise InvalidEvaluationTargetError(
-            "Active rubric criteria are required for every active evaluator agent. Missing: "
-            + ", ".join(missing_agents)
+            "Active rubric criteria are required for every active evaluator "
+            "agent. Missing: " + ", ".join(missing_agents)
         )
     criterion_map = {
         (group.agent_id, criterion.criterion_id): {
@@ -774,7 +623,9 @@ def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
 
     completed_count = len(all_completed)
     latencies = [
-        item.latency_seconds for item in all_completed if item.latency_seconds is not None
+        item.latency_seconds
+        for item in all_completed
+        if item.latency_seconds is not None
     ]
     toxicities = [
         item.toxicity_score for item in all_completed if item.toxicity_score is not None
