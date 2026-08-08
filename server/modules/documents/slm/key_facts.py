@@ -14,7 +14,11 @@ def extract_key_facts(
     lesson_title: str | None,
     program: str | None,
 ) -> dict[str, object]:
-    texts = [str(chunk.get("text", "")) for chunk in chunks if str(chunk.get("text", "")).strip()]
+    texts = [
+        str(chunk.get("text", ""))
+        for chunk in chunks
+        if str(chunk.get("text", "")).strip()
+    ]
     corpus = "\n".join(texts).lower()
 
     page_numbers = [
@@ -23,7 +27,9 @@ def extract_key_facts(
         if isinstance(chunk.get("page_number"), int)
     ]
 
-    outcome_hits = len(re.findall(r"learning outcomes?|course outcomes?|objective[s]?", corpus))
+    outcome_hits = len(
+        re.findall(r"learning outcomes?|course outcomes?|objective[s]?", corpus)
+    )
     assessment_weights = re.findall(r"\b\d{1,3}\s*%\b", corpus)
 
     return {
@@ -39,10 +45,12 @@ def extract_key_facts(
             token in corpus for token in ("gender", "inclusiv", "inclusive", "equity")
         ),
         "has_privacy_language": any(
-            token in corpus for token in ("data privacy", "privacy", "personal data", "ra 10173")
+            token in corpus
+            for token in ("data privacy", "privacy", "personal data", "ra 10173")
         ),
         "has_ip_language": any(
-            token in corpus for token in ("intellectual property", "ip policy", "copyright")
+            token in corpus
+            for token in ("intellectual property", "ip policy", "copyright")
         ),
         "has_references_section": any(
             token in corpus for token in ("references", "bibliography", "sources")

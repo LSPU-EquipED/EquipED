@@ -13,7 +13,6 @@ from unittest import mock
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -75,7 +74,10 @@ def _add_chunk(db_session, *, document_id, source_type: str = "slm"):
 def _login(client, email, password=None):
     if password is None:
         password = _TEST_PASSWORD
-    resp = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    resp = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
     assert resp.status_code == 200, f"Login failed: {resp.status_code} {resp.text}"
     return resp
 
@@ -84,18 +86,18 @@ def _login(client, email, password=None):
 
 
 class TestReferenceSourceTypeHelpers:
-    """1.1 Reference source-type helpers for syllabus and curriculum only."""
+    """1.1 Reference source-type helpers for syllabus only (curriculum retired)."""
 
     def test_reference_source_types_defined(self):
         assert "syllabus" in REFERENCE_SOURCE_TYPES
-        assert "curriculum" in REFERENCE_SOURCE_TYPES
+        assert "curriculum" not in REFERENCE_SOURCE_TYPES
         assert "slm" not in REFERENCE_SOURCE_TYPES
         assert "rubric_sme" not in REFERENCE_SOURCE_TYPES
 
     def test_is_reference_helper(self, db_session):
         from server.modules.documents.service import is_reference_source_type
         assert is_reference_source_type("syllabus") is True
-        assert is_reference_source_type("curriculum") is True
+        assert is_reference_source_type("curriculum") is False
         assert is_reference_source_type("slm") is False
         assert is_reference_source_type("rubric_sme") is False
 
@@ -104,7 +106,7 @@ class TestSharedReferenceAccess:
     """1.2 Document detail/list access: references shared, SLMs owner-only."""
 
     def test_faculty_can_read_admin_uploaded_reference(self, client, db_session):
-        """Faculty can GET a syllabus/curriculum reference uploaded by admin."""
+        """Faculty can GET a syllabus reference uploaded by admin."""
         admin = create_user(db_session, name="Admin", email="admin@ref.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
         faculty = create_user(db_session, name="Faculty", email="faculty@ref.com",
@@ -157,8 +159,8 @@ class TestSharedReferenceAccess:
 
         _add_doc(db_session, owner_id=admin.user_id,
                  source_type="syllabus", title="Admin Syllabus")
-        fac_slm = _add_doc(db_session, owner_id=faculty.user_id,
-                           source_type="slm", title="My SLM")
+        _add_doc(db_session, owner_id=faculty.user_id,
+                 source_type="slm", title="My SLM")
         _add_doc(db_session, owner_id=admin.user_id,
                  source_type="slm", title="Admin SLM")
 
@@ -179,7 +181,6 @@ class TestEvaluationSharedReferenceValidation:
         """Faculty-owned SLM + admin-uploaded shared syllabus reference validate."""
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
-
         from server.tests.evaluations.conftest import _seed_active_prompts
         _seed_active_prompts(db_session)
 
@@ -191,7 +192,9 @@ class TestEvaluationSharedReferenceValidation:
 
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
         # Admin-uploaded shared reference
-        syllabus_id = _add_doc(db_session, owner_id=admin.user_id, source_type="syllabus")
+        syllabus_id = _add_doc(
+            db_session, owner_id=admin.user_id, source_type="syllabus"
+        )
 
         # 'PROCESSED' + chunks + chroma_stored already set by _add_doc
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
@@ -217,7 +220,9 @@ class TestEvaluationSharedReferenceValidation:
         self, db_session
     ):
         """Ownership check for SLM remains strict even if refs are shared."""
-        from server.modules.documents.exceptions import DocumentNotFoundError as DocNotFound
+        from server.modules.documents.exceptions import (
+            DocumentNotFoundError as DocNotFound,
+        )
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
 
@@ -281,7 +286,7 @@ class TestAdminReferenceList:
     """2.1-2.2 Admin-only reference library list endpoint."""
 
     def test_admin_lists_references(self, client, db_session):
-        """Admin can list syllabus/curriculum documents with health info."""
+        """Admin can list syllabus documents; legacy curriculum is excluded."""
         admin = create_user(db_session, name="Admin", email="a@reflist.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
         faculty = create_user(db_session, name="Faculty", email="f@reflist.com",
@@ -290,6 +295,7 @@ class TestAdminReferenceList:
 
         _add_doc(db_session, owner_id=admin.user_id,
                  source_type="syllabus", title="Syllabus A")
+        # Legacy curriculum row must not appear in the active reference library
         _add_doc(db_session, owner_id=admin.user_id,
                  source_type="curriculum", title="Curriculum B")
         # Faculty SLM should not appear in reference list
@@ -298,14 +304,16 @@ class TestAdminReferenceList:
 
         _login(client, admin.email)
         resp = client.get("/api/v1/documents/references")
-        assert resp.status_code == 200, f"Expected 200 got {resp.status_code}: {resp.text[:200]}"
+        assert resp.status_code == 200, (
+            f"Expected 200 got {resp.status_code}: {resp.text[:200]}"
+        )
         data = resp.json()
         titles = {item["title"] for item in data["items"]}
         assert "Syllabus A" in titles
-        assert "Curriculum B" in titles
+        assert "Curriculum B" not in titles
         assert "Faculty SLM" not in titles
-        assert len(data["items"]) == 2
-        assert data["total"] == 2
+        assert len(data["items"]) == 1
+        assert data["total"] == 1
 
     def test_reference_list_has_health_fields(self, client, db_session):
         """Reference list items include computed health indicators."""
@@ -342,7 +350,7 @@ class TestAdminReferenceList:
         assert resp.status_code == 403
 
     def test_reference_list_excludes_rubrics(self, client, db_session):
-        """Rubric documents do not appear in reference list."""
+        """Rubric and legacy curriculum documents do not appear in reference list."""
         admin = create_user(db_session, name="Admin", email="a@norb.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
         db_session.commit()
@@ -359,7 +367,7 @@ class TestAdminReferenceList:
         assert resp.status_code == 200
         titles = {item["title"] for item in resp.json()["items"]}
         assert "Syllabus" in titles
-        assert "Curriculum" in titles
+        assert "Curriculum" not in titles
         assert "Rubric" not in titles
 
     def test_reference_list_empty(self, client, db_session):
@@ -451,11 +459,16 @@ class TestEmbeddingHelpers:
     def test_delete_chroma_vectors_safe_call(self):
         """delete_chroma_vectors returns False for missing collection gracefully."""
         from server.modules.embeddings.service import delete_chroma_vectors
-        # Non-existent document ID; should not raise
-        result = delete_chroma_vectors(
-            str(uuid.uuid4()), "syllabus"
-        )
-        # No Chroma configured in test env, so should return False
+        # Isolate Chroma state: simulate a client with no matching collection so
+        # this deterministically exercises the safe no-collection path even when
+        # a collection exists in the environment.
+        fake_client = mock.Mock()
+        fake_client.get_collection.side_effect = RuntimeError("no such collection")
+        with patch("server.modules.embeddings.service.get_chroma_client",
+                   return_value=fake_client):
+            result = delete_chroma_vectors(
+                str(uuid.uuid4()), "syllabus"
+            )
         assert result is False
 
     def test_check_chroma_availability_safe_call(self):
@@ -465,6 +478,52 @@ class TestEmbeddingHelpers:
             str(uuid.uuid4()), "syllabus"
         )
         assert result is False
+
+
+class TestCountDocumentReferences:
+    """The delete-lock gate counts jobs referencing a doc via syllabus/curriculum.
+
+    ``delete_reference_document`` delegates its 409-conflict check to the
+    explicit ``count_document_references`` interface in the evaluations
+    module instead of importing ``EvaluationJob`` directly.
+    """
+
+    def test_counts_syllabus_and_curriculum_references(self, db_session) -> None:
+        from server.modules.evaluations.document_references import (
+            count_document_references,
+        )
+        from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
+
+        doc_id = uuid.uuid4()
+        other_id = uuid.uuid4()
+
+        def _job(*, syllabus=None, curriculum=None):
+            db_session.add(
+                EvaluationJob(
+                    evaluation_id=uuid.uuid4(),
+                    document_id=uuid.uuid4(),
+                    syllabus_id=syllabus,
+                    curriculum_id=curriculum,
+                    status=EvaluationStatus.SUBMITTED.value,
+                    submitted_at=datetime.now(UTC),
+                )
+            )
+            db_session.commit()
+
+        _job(syllabus=doc_id)
+        _job(curriculum=doc_id)
+        _job(syllabus=other_id)  # references a different document
+
+        assert count_document_references(doc_id, db_session) == 2
+        assert count_document_references(other_id, db_session) == 1
+        assert count_document_references(uuid.uuid4(), db_session) == 0
+
+    def test_returns_zero_without_db(self) -> None:
+        from server.modules.evaluations.document_references import (
+            count_document_references,
+        )
+
+        assert count_document_references(uuid.uuid4()) == 0
 
 
 class TestAdminDelete:
@@ -528,32 +587,21 @@ class TestAdminDelete:
         assert resp.status_code == 409
         assert "referenced" in resp.json()["detail"].lower()
 
-    def test_delete_conflict_for_curriculum(self, client, db_session):
-        """Delete returns 409 when evaluation references via curriculum_id."""
-        from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-
-        admin = create_user(db_session, name="Admin", email="a@curconflict.com",
+    def test_delete_rejected_for_legacy_curriculum(self, client, db_session):
+        """Legacy curriculum rows are rejected by the reference delete endpoint."""
+        admin = create_user(db_session, name="Admin", email="a@curretire.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
         db_session.commit()
 
         curr_id = _add_doc(db_session, owner_id=admin.user_id,
-                           source_type="curriculum", title="Referenced Curriculum")
-
-        db_session.add(
-            EvaluationJob(
-                evaluation_id=uuid.uuid4(),
-                document_id=uuid.uuid4(),
-                curriculum_id=curr_id,
-                status=EvaluationStatus.SUBMITTED.value,
-                submitted_by=admin.user_id,
-                submitted_at=datetime.now(UTC),
-            )
-        )
-        db_session.commit()
+                           source_type="curriculum", title="Legacy Curriculum")
 
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{curr_id}")
-        assert resp.status_code == 409
+        assert resp.status_code == 422
+        assert "syllabus" in resp.json()["detail"].lower()
+        # Historical curriculum row is preserved
+        assert db_session.get(Document, curr_id) is not None
 
     def test_delete_tolerates_missing_local_file(self, client, db_session):
         """Delete completes even when the local PDF file is missing."""
@@ -583,7 +631,9 @@ class TestAdminDelete:
         )
         assert resp.status_code == 403
 
-    def test_admin_cannot_delete_slm_through_reference_endpoint(self, client, db_session):
+    def test_admin_cannot_delete_slm_through_reference_endpoint(
+        self, client, db_session
+    ):
         """DELETE /documents/{id} rejects SLM documents with 422."""
         admin = create_user(db_session, name="Admin", email="a@noslmdelete.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
@@ -595,9 +645,11 @@ class TestAdminDelete:
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{slm_id}")
         assert resp.status_code == 422
-        assert "syllabus and curriculum" in resp.json()["detail"].lower()
+        assert "syllabus" in resp.json()["detail"].lower()
 
-    def test_admin_cannot_delete_rubric_through_reference_endpoint(self, client, db_session):
+    def test_admin_cannot_delete_rubric_through_reference_endpoint(
+        self, client, db_session
+    ):
         """DELETE /documents/{id} rejects rubric documents with 422."""
         admin = create_user(db_session, name="Admin", email="a@norubdel.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
@@ -609,7 +661,7 @@ class TestAdminDelete:
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{rubric_id}")
         assert resp.status_code == 422
-        assert "syllabus and curriculum" in resp.json()["detail"].lower()
+        assert "syllabus" in resp.json()["detail"].lower()
 
 
 class TestAdminRebuild:
@@ -625,7 +677,9 @@ class TestAdminRebuild:
                           source_type="syllabus", title="Rebuild Me")
         _add_chunk(db_session, document_id=ref_id, source_type="syllabus")
 
-        with patch("server.modules.embeddings.service.embed_and_store_chunks") as mock_embed:
+        with patch(
+            "server.modules.embeddings.service.embed_and_store_chunks"
+        ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
             resp = client.post(f"/api/v1/documents/{ref_id}/rebuild-embeddings")
@@ -675,8 +729,25 @@ class TestAdminRebuild:
         )
         assert resp.status_code == 403
 
+    def test_rebuild_rejected_for_legacy_curriculum(self, client, db_session):
+        """Legacy curriculum rows are rejected by the rebuild endpoint."""
+        admin = create_user(db_session, name="Admin", email="a@currb.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        db_session.commit()
+
+        curr_id = _add_doc(db_session, owner_id=admin.user_id,
+                           source_type="curriculum", title="Legacy Curriculum")
+        _add_chunk(db_session, document_id=curr_id, source_type="curriculum")
+
+        _login(client, admin.email)
+        resp = client.post(f"/api/v1/documents/{curr_id}/rebuild-embeddings")
+        assert resp.status_code == 422
+        assert "syllabus" in resp.json()["detail"].lower()
+        # Historical curriculum row and its chunks are preserved
+        assert db_session.get(Document, curr_id) is not None
+
     def test_rebuild_sets_chroma_stored(self, client, db_session):
-        """Rebuild marks all chunks chroma_stored=True so evaluation readiness passes."""
+        """Rebuild marks chunks chroma_stored for evaluation readiness."""
         admin = create_user(db_session, name="Admin", email="a@chromarb.com",
                             password=_TEST_PASSWORD, role=UserRole.ADMIN)
         db_session.commit()
@@ -701,7 +772,9 @@ class TestAdminRebuild:
         )
         db_session.commit()
 
-        with patch("server.modules.embeddings.service.embed_and_store_chunks") as mock_embed:
+        with patch(
+            "server.modules.embeddings.service.embed_and_store_chunks"
+        ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
             resp = client.post(f"/api/v1/documents/{ref_id}/rebuild-embeddings")
@@ -711,6 +784,107 @@ class TestAdminRebuild:
         chunk = db_session.get(DocumentChunk, chunk_id)
         assert chunk is not None
         assert chunk.chroma_stored is True
+
+
+class TestLegacyCurriculumRetired:
+    """Legacy curriculum rows are maintenance-only — never visible via detail,
+    list, or file endpoints, even to their original uploader or an admin."""
+
+    def test_owner_detail_denied_for_curriculum(self, client, db_session):
+        """Original uploader gets 404 on a legacy curriculum row detail."""
+        owner = create_user(db_session, name="Owner", email="o@currdet.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        db_session.commit()
+
+        curr_id = _add_doc(db_session, owner_id=owner.user_id,
+                           source_type="curriculum", title="Legacy Curriculum")
+
+        _login(client, owner.email)
+        resp = client.get(f"/api/v1/documents/{curr_id}")
+        assert resp.status_code == 404
+        # Row is preserved (maintenance-only, not deleted)
+        assert db_session.get(Document, curr_id) is not None
+
+    def test_admin_detail_denied_for_curriculum(self, client, db_session):
+        """Admin gets 404 on a legacy curriculum row detail."""
+        admin = create_user(db_session, name="Admin", email="a@curradm.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        db_session.commit()
+
+        curr_id = _add_doc(db_session, owner_id=admin.user_id,
+                           source_type="curriculum", title="Legacy Curriculum")
+
+        _login(client, admin.email)
+        resp = client.get(f"/api/v1/documents/{curr_id}")
+        assert resp.status_code == 404
+
+    def test_curriculum_excluded_from_list_for_owner_and_admin(
+        self, client, db_session
+    ):
+        """Legacy curriculum rows never appear in ordinary document lists."""
+        admin = create_user(db_session, name="Admin", email="a@currlist.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        faculty = create_user(db_session, name="Faculty", email="f@currlist.com",
+                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        db_session.commit()
+
+        _add_doc(db_session, owner_id=admin.user_id,
+                 source_type="curriculum", title="Legacy Curriculum")
+        _add_doc(db_session, owner_id=admin.user_id,
+                 source_type="syllabus", title="Active Syllabus")
+        _add_doc(db_session, owner_id=faculty.user_id,
+                 source_type="slm", title="Own SLM")
+
+        for email in (admin.email, faculty.email):
+            _login(client, email)
+            resp = client.get("/api/v1/documents")
+            assert resp.status_code == 200
+            titles = {item["title"] for item in resp.json()["items"]}
+            assert "Legacy Curriculum" not in titles
+            if email == admin.email:
+                assert "Active Syllabus" in titles
+            else:
+                assert "Own SLM" in titles
+
+    def test_owner_file_denied_for_curriculum(self, client, db_session):
+        """Original uploader gets 404 on a legacy curriculum PDF file."""
+        owner = create_user(db_session, name="Owner", email="o@currfile.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        db_session.commit()
+
+        pdf_path = Path("/tmp/test_curriculum_preview.pdf")
+        pdf_path.write_bytes(b"%PDF-1.4 curriculum")
+
+        try:
+            curr_id = _add_doc(db_session, owner_id=owner.user_id,
+                               source_type="curriculum", title="Legacy Curriculum",
+                               file_path=str(pdf_path))
+
+            _login(client, owner.email)
+            resp = client.get(f"/api/v1/documents/{curr_id}/file")
+            assert resp.status_code == 404
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    def test_admin_file_denied_for_curriculum(self, client, db_session):
+        """Admin gets 404 on a legacy curriculum PDF file."""
+        admin = create_user(db_session, name="Admin", email="a@curradmfile.com",
+                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        db_session.commit()
+
+        pdf_path = Path("/tmp/test_curriculum_admin_preview.pdf")
+        pdf_path.write_bytes(b"%PDF-1.4 curriculum")
+
+        try:
+            curr_id = _add_doc(db_session, owner_id=admin.user_id,
+                               source_type="curriculum", title="Legacy Curriculum",
+                               file_path=str(pdf_path))
+
+            _login(client, admin.email)
+            resp = client.get(f"/api/v1/documents/{curr_id}/file")
+            assert resp.status_code == 404
+        finally:
+            pdf_path.unlink(missing_ok=True)
 
 
 class TestSLMOwnershipStrict:
@@ -753,7 +927,11 @@ class TestSLMOwnershipStrict:
 @pytest.fixture(autouse=True)
 def _cleanup_global_state():
     """Clean up shared in-memory state to avoid polluting other tests."""
-    from server.modules.documents.service import _MEM_CHUNKS, _MEM_DOCUMENTS, _MEM_DOCUMENT_OWNERS
+    from server.modules.documents.service import (
+        _MEM_CHUNKS,
+        _MEM_DOCUMENT_OWNERS,
+        _MEM_DOCUMENTS,
+    )
     yield
     ids_to_remove = []
     for doc_id, doc in list(_MEM_DOCUMENTS.items()):

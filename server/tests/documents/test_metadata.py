@@ -15,6 +15,7 @@ from server.modules.documents.metadata import (
 # 4.1 — _detect_program with known programs
 # ---------------------------------------------------------------------------
 
+
 class TestDetectProgram:
     def test_rejects_bsn(self) -> None:
         assert _detect_program("This is a BSN curriculum document") is None
@@ -43,9 +44,9 @@ class TestDetectProgram:
         """Both spellings in one document yield a single canonical value."""
         assert _detect_program("BSIT (BSInfoTech) curriculum") == "BSInfoTech"
 
-# ---------------------------------------------------------------------------
-# 4.2 — _detect_program rejects non-program acronyms
-# ---------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------
+    # 4.2 — _detect_program rejects non-program acronyms
+    # ---------------------------------------------------------------------------
 
     def test_rejects_pdf(self) -> None:
         """PDF is a common false positive — must not be detected as a program."""
@@ -72,6 +73,7 @@ class TestDetectProgram:
 # 4.3 — _detect_academic_year with standard formats
 # ---------------------------------------------------------------------------
 
+
 class TestDetectAcademicYear:
     def test_detects_year_range(self) -> None:
         assert _detect_academic_year("Academic Year 2025-2026") == "2025-2026"
@@ -93,6 +95,7 @@ class TestDetectAcademicYear:
 # 4.4 — _detect_course_code with standard formats
 # ---------------------------------------------------------------------------
 
+
 class TestDetectCourseCode:
     def test_detects_ccs_101(self) -> None:
         assert _detect_course_code("CCS 101 is the intro course") == "CCS 101"
@@ -110,6 +113,7 @@ class TestDetectCourseCode:
 # ---------------------------------------------------------------------------
 # 4.9 — _detect_lesson_title
 # ---------------------------------------------------------------------------
+
 
 class TestDetectLessonTitle:
     def test_detects_standard_label(self) -> None:
@@ -157,6 +161,7 @@ class TestDetectLessonTitle:
 # 4.11 — SLM cover page integration (full detect_metadata)
 # ---------------------------------------------------------------------------
 
+
 class TestSlmCoverPageIntegration:
     def test_detects_all_fields_from_slm_cover(self) -> None:
         """Verify metadata fields emitted from an SLM cover."""
@@ -184,6 +189,7 @@ class TestSlmCoverPageIntegration:
 # ---------------------------------------------------------------------------
 # 4.5 — detect_metadata returns all nulls when no patterns match
 # ---------------------------------------------------------------------------
+
 
 class TestDetectMetadataAllNull:
     def test_returns_all_nulls_for_empty_text(self) -> None:
@@ -213,6 +219,7 @@ class TestDetectMetadataAllNull:
 # 4.6 — Detection only scans first ~6000 chars
 # ---------------------------------------------------------------------------
 
+
 class TestDetectionLimit:
     def test_detects_early_pattern(self) -> None:
         """Pattern within first 6000 chars should be detected."""
@@ -241,6 +248,7 @@ class TestDetectionLimit:
 # 4.7 — Detection does not block preprocessing on exception
 # ---------------------------------------------------------------------------
 
+
 class TestDetectionNonBlocking:
     def test_detect_metadata_does_not_raise(self) -> None:
         """detect_metadata itself should handle internal exceptions gracefully."""
@@ -258,7 +266,6 @@ class TestDetectionNonBlocking:
         from uuid import UUID, uuid4
 
         from fastapi import UploadFile
-        from server.modules.documents.preprocessing import SlmProcessingResult
         from server.modules.documents.schemas import DocumentChunkData
         from server.modules.documents.service import (
             _MEM_CHUNKS,
@@ -266,6 +273,7 @@ class TestDetectionNonBlocking:
             _MEM_DOCUMENTS,
             create_document,
         )
+        from server.modules.documents.slm import SlmProcessingResult
 
         # Clean in-memory state for isolation
         _MEM_DOCUMENTS.clear()
@@ -294,9 +302,7 @@ class TestDetectionNonBlocking:
         def _raise_on_detect(text: str) -> dict[str, str | None]:
             raise ValueError("metadata detection failed")
 
-        def _fake_prepare_slm_package(
-            chunks, **kwargs
-        ) -> SlmProcessingResult:
+        def _fake_prepare_slm_package(chunks, **kwargs) -> SlmProcessingResult:
             return SlmProcessingResult(
                 document_summary="A test summary.",
                 document_outline=[],
@@ -306,7 +312,7 @@ class TestDetectionNonBlocking:
                 readiness_status="READY",
             )
 
-        monkeypatch.setattr("server.modules.documents.service.UPLOAD_ROOT", tmp_path)
+        monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
         monkeypatch.setattr(
             "server.modules.documents.service.ingest_document", _fake_ingest
         )
@@ -349,14 +355,14 @@ class TestDetectionNonBlocking:
 
         # Verify the warning was logged
         assert any(
-            "Metadata detection failed" in record.message
-            for record in caplog.records
+            "Metadata detection failed" in record.message for record in caplog.records
         )
 
 
 # ---------------------------------------------------------------------------
 # 4.8 — Manual program is not overwritten by auto-detection
 # ---------------------------------------------------------------------------
+
 
 class TestManualProgramPreserved:
     def test_detected_program_does_not_override_manual_when_set(self) -> None:

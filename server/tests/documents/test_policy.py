@@ -125,8 +125,8 @@ class TestPolicyIsDistinctSourceType:
         assert "policy" not in REFERENCE_SOURCE_TYPES
 
     def test_reference_types_exclude_policy(self):
-        """Only syllabus and curriculum are reference types."""
-        assert REFERENCE_SOURCE_TYPES == {"syllabus", "curriculum"}
+        """Only syllabus is an active reference type."""
+        assert REFERENCE_SOURCE_TYPES == {"syllabus"}
 
     def test_policy_has_own_source_type_set(self):
         assert POLICY_SOURCE_TYPES == {"policy"}
@@ -143,7 +143,7 @@ class TestPolicyIsDistinctSourceType:
         from server.modules.documents.service import is_reference_source_type
         assert is_reference_source_type("policy") is False
         assert is_reference_source_type("syllabus") is True
-        assert is_reference_source_type("curriculum") is True
+        assert is_reference_source_type("curriculum") is False
 
 
 # ── 1.2: policy_area validation ─────────────────────────────────────

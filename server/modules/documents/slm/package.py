@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .extraction import extract_key_facts
+from .key_facts import extract_key_facts
 from .outline import build_outline
 from .summarization import build_document_summary, build_section_summaries
 
@@ -64,7 +64,9 @@ def prepare_slm_package(
     if not key_facts.get("has_inclusivity_language"):
         warnings.append("Inclusivity language was not detected in the uploaded SLM.")
     if not key_facts.get("has_ip_language"):
-        warnings.append("IP or copyright language was not detected in the uploaded SLM.")
+        warnings.append(
+            "IP or copyright language was not detected in the uploaded SLM."
+        )
 
     readiness_status = "READY" if not warnings else "NEEDS_REVIEW"
     return SlmProcessingResult(

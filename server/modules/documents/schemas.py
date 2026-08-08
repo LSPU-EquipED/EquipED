@@ -18,8 +18,11 @@ SOURCE_TYPES = (
     "policy",
 )
 
-# Source types that are institution-shared references (not SLMs or rubrics)
-REFERENCE_SOURCE_TYPES = frozenset({"syllabus", "curriculum"})
+# Source types that are institution-shared references (not SLMs or rubrics).
+# The ordinary active reference lifecycle is syllabus-only. Curriculum remains
+# in SOURCE_TYPES only for legacy/historical/maintenance purge recognition and
+# is intentionally NOT an active reference source.
+REFERENCE_SOURCE_TYPES = frozenset({"syllabus"})
 
 # Source types that are policy documents (distinct from shared references)
 POLICY_SOURCE_TYPES = frozenset({"policy"})

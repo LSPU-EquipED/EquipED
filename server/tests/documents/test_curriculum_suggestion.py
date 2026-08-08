@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import patch
 
-import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -23,7 +21,16 @@ def _login(client, email: str) -> None:
     assert resp.status_code == 200, f"Login failed for {email}: {resp.text}"
 
 
-def _add_doc(db_session, *, owner_id, source_type, title, program=None, processing_status="PROCESSED", uploaded_at=None):
+def _add_doc(
+    db_session,
+    *,
+    owner_id,
+    source_type,
+    title,
+    program=None,
+    processing_status="PROCESSED",
+    uploaded_at=None,
+):
     doc = Document(
         document_id=uuid.uuid4(),
         title=title,
@@ -55,10 +62,10 @@ def _add_chunk(db_session, *, document_id, source_type):
 
 
 class TestCurriculumSuggestion:
-    """Backend curriculum suggestion endpoint returns empty suggestions after retirement."""
+    """Backend curriculum suggestion returns empty after retirement."""
 
     def test_curriculum_suggestion_returns_empty_response(self, client, db_session):
-        """Deprecated suggestion endpoint returns empty suggestions for any requested program."""
+        """Deprecated suggestion returns empty for any requested program."""
         faculty = create_user(
             db_session,
             name="Faculty",
