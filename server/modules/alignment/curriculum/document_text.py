@@ -7,8 +7,9 @@ is already persisted as chunks, so there is no PDF reprocessing step that can
 fail or degrade, and the text the pipeline consumes is exactly the text the
 ingestion pipeline already validated.
 
-Pages are ordered by (page_number, chunk_index, created_at) -- the same
-deterministic order the documents module uses -- and grouped per page, so
+The documents service's canonical chunk reader orders rows by
+(chunk_index, page_number, created_at); pages are then sorted by page number
+and grouped, so
 prompt input, evidence grounding, and the reading pane all see identical page
 text.
 
@@ -58,47 +59,32 @@ def _normalize_whitespace(text: str) -> str:
 def load_document_pages(db: Any, document_id: uuid.UUID) -> list[DocumentPage]:
     """Build deterministic per-page text from persisted SLM chunks.
 
-    Chunks are ordered by ``page_number`` then ``chunk_index`` (then
-    ``created_at`` as a tiebreaker), and each page's text is the join of its
-    chunks in that order. Chunks without a page number and non-SLM chunks are
-    never used.
+    The documents service's canonical chunk reader supplies chunk ordering;
+    each page's text joins chunks in that order. Chunks without a page number
+    and non-SLM chunks are never used.
 
     Returns ``[]`` when the document has no usable persisted text -- the
     caller must fail honestly rather than fall back to raw PDF reopening.
     """
-    from server.modules.documents.models import DocumentChunk
+    from server.modules.documents.service import get_document_chunks
 
-    rows = (
-        db.query(DocumentChunk)
-        .filter(
-            DocumentChunk.document_id == document_id,
-            DocumentChunk.source_type == _SLM_SOURCE_TYPE,
-        )
-        .order_by(
-            DocumentChunk.page_number.asc().nullsfirst(),
-            DocumentChunk.chunk_index.asc().nullsfirst(),
-            DocumentChunk.created_at.asc(),
-        )
-        .all()
-    )
-
-    pages: list[DocumentPage] = []
-    current_number: int | None = None
-    current_parts: list[str] = []
+    rows = [
+        chunk
+        for chunk in get_document_chunks(document_id, db=db)
+        if chunk.source_type == _SLM_SOURCE_TYPE
+    ]
+    page_parts: dict[int, list[str]] = {}
     for chunk in rows:
         if chunk.page_number is None:
             continue
         text = (chunk.text or "").strip()
         if not text:
             continue
-        if current_number is not None and chunk.page_number != current_number:
-            pages.append(DocumentPage(current_number, "\n\n".join(current_parts)))
-            current_parts = []
-        current_number = chunk.page_number
-        current_parts.append(text)
-    if current_number is not None and current_parts:
-        pages.append(DocumentPage(current_number, "\n\n".join(current_parts)))
-    return pages
+        page_parts.setdefault(chunk.page_number, []).append(text)
+    return [
+        DocumentPage(page_number, "\n\n".join(page_parts[page_number]))
+        for page_number in sorted(page_parts)
+    ]
 
 
 def find_evidence_page(pages: list[DocumentPage], quote: str) -> int | None:
