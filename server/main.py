@@ -30,7 +30,7 @@ MODULE_ROUTER_PATHS = (
     "server.modules.auth.router",
     "server.modules.synthesis.router",
     "server.modules.evaluations.router",
-    "server.modules.evaluations.alignment_router",
+    "server.modules.syllabus_alignment.router",
     "server.modules.feedback.router",
     "server.modules.admin.router",
     "server.modules.curriculum_map.router",
@@ -114,7 +114,7 @@ def _fail_interrupted_syllabus_alignments() -> None:
     if not settings.database_configured:
         return
     try:
-        from server.modules.evaluations.alignment_service import (
+        from server.modules.syllabus_alignment.service import (
             fail_interrupted_syllabus_alignments,
         )
 

@@ -7,6 +7,11 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
 from server.modules.admin.models import ModelValidation
+from server.modules.admin.prompt_service import (
+    create_prompt_version,
+    list_prompt_versions,
+    revert_prompt_version,
+)
 from server.modules.admin.schemas import (
     AdminEvaluationResponse,
     AdminUserCreateRequest,
@@ -28,7 +33,6 @@ from server.modules.admin.schemas import (
 from server.modules.admin.service import (
     create_admin_user,
     create_model_validation,
-    create_prompt_version,
     deactivate_user,
     get_admin_evaluation,
     get_model_validation_criteria,
@@ -38,9 +42,7 @@ from server.modules.admin.service import (
     hard_delete_user,
     list_model_validations,
     list_preference_logs,
-    list_prompt_versions,
     list_users,
-    revert_prompt_version,
     update_user,
 )
 from server.modules.auth.dependencies import require_admin

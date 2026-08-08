@@ -10,19 +10,19 @@ from typing import Any
 from server.core.config import get_settings
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.documents.service import is_syllabus_reference_ready
-from server.modules.evaluations.alignment_schemas import (
-    SyllabusAlignmentRunResponse,
-    SyllabusAlignmentSlmItem,
-    SyllabusAlignmentSlmListResponse,
-)
-from server.modules.evaluations.exceptions import (
+from server.modules.syllabus_alignment.exceptions import (
     InvalidSyllabusAlignmentTargetError,
     SyllabusAlignmentNotFoundError,
 )
-from server.modules.evaluations.models import (
+from server.modules.syllabus_alignment.models import (
     SyllabusAlignmentLevel,
     SyllabusAlignmentRun,
     SyllabusAlignmentStatus,
+)
+from server.modules.syllabus_alignment.schemas import (
+    SyllabusAlignmentRunResponse,
+    SyllabusAlignmentSlmItem,
+    SyllabusAlignmentSlmListResponse,
 )
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -173,7 +173,7 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
     """Execute one persisted run without touching evaluation or agent results."""
     from server.core.database import get_session_factory
     from server.core.llm import get_llm_client_for_agent
-    from server.modules.agents import syllabus_alignment
+    from server.modules.syllabus_alignment import evaluator as syllabus_alignment
 
     session = get_session_factory()()
     try:
