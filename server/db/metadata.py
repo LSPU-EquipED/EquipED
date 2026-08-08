@@ -16,7 +16,7 @@ def import_model_modules() -> None:
         models as _syllabus_alignment_models,  # noqa: F401
     )
     from server.modules.auth import models as _auth_models  # noqa: F401
-    from server.modules.curriculum_map import (
+    from server.modules.curriculum import (
         models as _curriculum_map_models,  # noqa: F401
     )
     from server.modules.documents import models as _document_models  # noqa: F401

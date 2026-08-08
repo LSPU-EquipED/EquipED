@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from server.modules.curriculum_map.models import (
+from server.modules.curriculum.models import (
     Course,
     CurriculumMapCell,
     CurriculumObjective,

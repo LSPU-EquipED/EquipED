@@ -33,7 +33,7 @@ if str(ROOT) not in sys.path:
 
 from sqlalchemy import func  # noqa: E402
 
-from server.modules.curriculum_map.models import (  # noqa: E402
+from server.modules.curriculum.models import (  # noqa: E402
     Course,
     ProgramRoadmap,
     RoadmapCourse,

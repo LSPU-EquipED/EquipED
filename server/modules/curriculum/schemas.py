@@ -1,4 +1,4 @@
-# server/modules/curriculum_map/schemas.py
+# server/modules/curriculum/schemas.py
 """Pydantic schemas for curriculum-map endpoints."""
 
 from __future__ import annotations
@@ -18,22 +18,6 @@ class CourseResponse(BaseModel):
 
 class CourseListResponse(BaseModel):
     items: list[CourseResponse]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class RoadmapSummaryResponse(BaseModel):

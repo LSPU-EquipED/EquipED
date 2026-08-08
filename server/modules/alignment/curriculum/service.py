@@ -35,8 +35,8 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import get_llm_client
-from server.modules.curriculum_map.models import Course
-from server.modules.curriculum_map.service import (
+from server.modules.curriculum.models import Course
+from server.modules.curriculum.service import (
     get_course,
     get_mapped_objectives,
     normalize_program,

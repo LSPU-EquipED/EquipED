@@ -34,8 +34,8 @@ from server.modules.alignment.curriculum.exceptions import (
     NoUsableDocumentTextError,
 )
 from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
-from server.modules.curriculum_map import service as curriculum_map_service
-from server.modules.curriculum_map.models import (
+from server.modules.curriculum import service as curriculum_map_service
+from server.modules.curriculum.models import (
     Course,
     CurriculumMapCell,
     CurriculumObjective,
