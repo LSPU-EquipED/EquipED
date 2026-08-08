@@ -9,7 +9,7 @@ overrides whatever observed_level accompanies it.
 from __future__ import annotations
 
 import pytest
-from server.modules.curriculum_map.comparison import compare_objective
+from server.modules.alignment.curriculum.comparison import compare_objective
 
 
 def test_not_addressed_when_is_addressed_false() -> None:

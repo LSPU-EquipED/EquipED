@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 
+from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
 from server.modules.curriculum_map.models import (
     Course,
-    CurriculumAlignmentCheck,
     CurriculumMapCell,
     CurriculumObjective,
 )

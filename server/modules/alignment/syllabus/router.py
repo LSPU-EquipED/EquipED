@@ -7,23 +7,23 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
-from server.modules.auth.dependencies import require_authenticated_user
-from server.modules.auth.service import AuthenticatedUser
-from server.modules.syllabus_alignment.exceptions import (
+from server.modules.alignment.syllabus.exceptions import (
     InvalidSyllabusAlignmentTargetError,
     SyllabusAlignmentNotFoundError,
 )
-from server.modules.syllabus_alignment.schemas import (
+from server.modules.alignment.syllabus.schemas import (
     SyllabusAlignmentCreateRequest,
     SyllabusAlignmentRunResponse,
     SyllabusAlignmentSlmListResponse,
 )
-from server.modules.syllabus_alignment.service import (
+from server.modules.alignment.syllabus.service import (
     create_syllabus_alignment,
     get_current_syllabus_alignment,
     get_syllabus_alignment,
     list_alignment_slms,
 )
+from server.modules.auth.dependencies import require_authenticated_user
+from server.modules.auth.service import AuthenticatedUser
 
 router = APIRouter(prefix="/syllabus-alignments", tags=["syllabus-alignments"])
 

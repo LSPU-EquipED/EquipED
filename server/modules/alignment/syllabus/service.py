@@ -8,21 +8,24 @@ from datetime import UTC, datetime
 from typing import Any
 
 from server.core.config import get_settings
-from server.modules.documents.models import Document, DocumentChunk
-from server.modules.documents.service import is_syllabus_reference_ready
-from server.modules.syllabus_alignment.exceptions import (
+from server.modules.alignment.syllabus.exceptions import (
     InvalidSyllabusAlignmentTargetError,
     SyllabusAlignmentNotFoundError,
 )
-from server.modules.syllabus_alignment.models import (
+from server.modules.alignment.syllabus.models import (
     SyllabusAlignmentLevel,
     SyllabusAlignmentRun,
     SyllabusAlignmentStatus,
 )
-from server.modules.syllabus_alignment.schemas import (
+from server.modules.alignment.syllabus.schemas import (
     SyllabusAlignmentRunResponse,
     SyllabusAlignmentSlmItem,
     SyllabusAlignmentSlmListResponse,
+)
+from server.modules.documents.models import Document, DocumentChunk
+from server.modules.documents.service import (
+    get_document_chunks,
+    is_syllabus_reference_ready,
 )
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -49,9 +52,21 @@ def _owned_slm(db: Any, document_id: uuid.UUID, owner_id: uuid.UUID) -> Document
     return document
 
 
-def _run_response(db: Any, run: SyllabusAlignmentRun) -> SyllabusAlignmentRunResponse:
-    slm = db.get(Document, run.slm_document_id)
-    syllabus = db.get(Document, run.syllabus_document_id)
+def _run_response(
+    db: Any,
+    run: SyllabusAlignmentRun,
+    document_lookup: dict[uuid.UUID, Document] | None = None,
+) -> SyllabusAlignmentRunResponse:
+    slm = (
+        document_lookup.get(run.slm_document_id)
+        if document_lookup is not None
+        else db.get(Document, run.slm_document_id)
+    )
+    syllabus = (
+        document_lookup.get(run.syllabus_document_id)
+        if document_lookup is not None
+        else db.get(Document, run.syllabus_document_id)
+    )
     return SyllabusAlignmentRunResponse(
         alignment_id=run.alignment_id,
         slm_document_id=run.slm_document_id,
@@ -173,7 +188,7 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
     """Execute one persisted run without touching evaluation or agent results."""
     from server.core.database import get_session_factory
     from server.core.llm import get_llm_client_for_agent
-    from server.modules.syllabus_alignment import evaluator as syllabus_alignment
+    from server.modules.alignment.syllabus import evaluator as syllabus_alignment
 
     session = get_session_factory()()
     try:
@@ -200,12 +215,12 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
         if run is None:
             return
 
-        chunks = (
-            session.query(DocumentChunk)
-            .filter_by(document_id=run.slm_document_id)
-            .order_by(DocumentChunk.page_number, DocumentChunk.chunk_index)
-            .all()
-        )
+        # The documents service is the canonical source of deterministic chunk ordering.
+        chunks = [
+            chunk
+            for chunk in get_document_chunks(run.slm_document_id, db=session)
+            if chunk.source_type == "slm"
+        ]
         chunk_infos = [
             {
                 "chunk_id": str(chunk.chunk_id),
@@ -215,15 +230,12 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
             for chunk in chunks
             if chunk.text
         ]
-        syllabus_chunks = (
-            session.query(DocumentChunk)
-            .filter(
-                DocumentChunk.document_id == run.syllabus_document_id,
-                DocumentChunk.section_ref.like("syllabus_course_content:%"),
-            )
-            .order_by(DocumentChunk.chunk_index, DocumentChunk.page_number)
-            .all()
-        )
+        syllabus_chunks = [
+            chunk
+            for chunk in get_document_chunks(run.syllabus_document_id, db=session)
+            if chunk.section_ref
+            and chunk.section_ref.startswith("syllabus_course_content:")
+        ]
         syllabus_contents = [
             {
                 "chunk_id": str(chunk.chunk_id),
@@ -258,7 +270,7 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
             run.alignment_level = level
             run.error_message = None
         session.commit()
-    except Exception as exc:
+    except Exception:
         session.rollback()
         logger.exception("Standalone syllabus alignment failed")
         failed = session.get(SyllabusAlignmentRun, alignment_id)
@@ -268,7 +280,10 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
             failed.justification = (
                 "Syllabus alignment could not be completed. You can retry this SLM."
             )
-            failed.error_message = str(exc)[:500]
+            failed.error_message = (
+                "Syllabus alignment could not be completed because the alignment "
+                "service failed. You can retry this SLM."
+            )
             failed.completed_at = _now()
             failed.updated_at = failed.completed_at
             session.commit()
@@ -325,6 +340,18 @@ def list_alignment_slms(
             SyllabusAlignmentRun.slm_document_id.in_(document_ids),
         ):
             latest[run.slm_document_id] = run
+        syllabus_ids = {run.syllabus_document_id for run in latest.values()}
+        syllabus_documents = (
+            db.query(Document).filter(Document.document_id.in_(syllabus_ids)).all()
+            if syllabus_ids
+            else []
+        )
+        document_lookup = {document.document_id: document for document in documents}
+        document_lookup.update(
+            {document.document_id: document for document in syllabus_documents}
+        )
+    else:
+        document_lookup = {}
     return SyllabusAlignmentSlmListResponse(
         items=[
             SyllabusAlignmentSlmItem(
@@ -340,7 +367,9 @@ def list_alignment_slms(
                     document.processing_status == "PROCESSED"
                     and chunk_counts.get(document.document_id, 0) > 0
                 ),
-                current_result=_run_response(db, latest[document.document_id])
+                current_result=_run_response(
+                    db, latest[document.document_id], document_lookup
+                )
                 if document.document_id in latest
                 else None,
             )

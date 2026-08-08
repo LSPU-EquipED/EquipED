@@ -7,16 +7,20 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 
+from server.modules.alignment import curriculum as alignment_curriculum
+from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.curriculum_map import router as curriculum_router
-from server.modules.curriculum_map.models import Course, CurriculumAlignmentCheck
+from server.modules.curriculum_map.models import Course
 from server.modules.documents.models import Document
 
 
 def _login(client, db_session, email="faculty@example.com"):
     user = create_user(
-        db_session, name="Faculty User", email=email, password="correct-horse-battery",
+        db_session,
+        name="Faculty User",
+        email=email,
+        password="correct-horse-battery",
         role=UserRole.FACULTY,
     )
     db_session.commit()
@@ -44,14 +48,15 @@ def test_list_courses_returns_seeded_courses(client, db_session) -> None:
     assert body["items"][0]["course_code"] == "IT301"
 
 
-def test_run_check_returns_409_for_unprocessed_document(
-    client, db_session
-) -> None:
+def test_run_check_returns_409_for_unprocessed_document(client, db_session) -> None:
     """An unprocessed SLM must fail the gate with 409, not reach the LLM."""
     user = _login(client, db_session)
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
-        uploaded_by=user.user_id, processing_status="PENDING",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
+        uploaded_by=user.user_id,
+        processing_status="PENDING",
     )
     db_session.add(document)
     db_session.commit()
@@ -67,12 +72,16 @@ def test_run_check_returns_404_for_unknown_course(
     client, db_session, monkeypatch
 ) -> None:
     """Unknown course id returns 404 once the document gate has passed."""
-    from server.modules.curriculum_map import service as service_module
+    from server.modules.alignment.curriculum import service as service_module
 
     user = _login(client, db_session)
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
-        uploaded_by=user.user_id, processing_status="PROCESSED", program="BSInfoTech",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
+        uploaded_by=user.user_id,
+        processing_status="PROCESSED",
+        program="BSInfoTech",
     )
     db_session.add(document)
     db_session.commit()
@@ -94,13 +103,17 @@ def test_run_check_returns_422_for_unmapped_course(
 ) -> None:
     """A BSIT course with no mapped objectives is 422 once the document gate
     has passed and the document has usable persisted text."""
-    from server.modules.curriculum_map import service as service_module
+    from server.modules.alignment.curriculum import service as service_module
 
     user = _login(client, db_session)
     course = Course(course_code="IT999", course_title="Unmapped", program="BSIT")
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
-        uploaded_by=user.user_id, processing_status="PROCESSED", program="BSInfoTech",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
+        uploaded_by=user.user_id,
+        processing_status="PROCESSED",
+        program="BSInfoTech",
     )
     db_session.add_all([course, document])
     db_session.commit()
@@ -186,17 +199,17 @@ def test_run_check_returns_429_when_slot_is_saturated(
     db_session.commit()
 
     base_settings = replace(
-        curriculum_router.get_settings(),
+        alignment_curriculum.router.get_settings(),
         curriculum_alignment_max_concurrent_checks=1,
         curriculum_alignment_max_checks_per_user=1,
     )
     previous_override = client.app.dependency_overrides.pop(
-        curriculum_router.get_settings,
+        alignment_curriculum.router.get_settings,
         None,
     )
-    client.app.dependency_overrides[curriculum_router.get_settings] = (
-        lambda: base_settings
-    )
+    client.app.dependency_overrides[
+        alignment_curriculum.router.get_settings
+    ] = lambda: base_settings
 
     started = threading.Event()
     release = threading.Event()
@@ -221,7 +234,9 @@ def test_run_check_returns_429_when_slot_is_saturated(
             model_name="fake",
         )
 
-    monkeypatch.setattr(curriculum_router, "run_curriculum_alignment_check", _slow_run)
+    monkeypatch.setattr(
+        alignment_curriculum.router, "run_curriculum_alignment_check", _slow_run
+    )
 
     def _first() -> None:
         client.post(
@@ -250,16 +265,22 @@ def test_run_check_returns_429_when_slot_is_saturated(
         release.set()
         first.join()
         if previous_override is None:
-            client.app.dependency_overrides.pop(curriculum_router.get_settings, None)
+            client.app.dependency_overrides.pop(
+                alignment_curriculum.router.get_settings, None
+            )
         else:
             client.app.dependency_overrides[
-                curriculum_router.get_settings
+                alignment_curriculum.router.get_settings
             ] = previous_override
+
+
 def test_run_check_returns_404_for_non_owner_document(client, db_session) -> None:
     _login(client, db_session)
     course = Course(course_code="IT301", course_title="Data Structures", program="BSIT")
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
         uploaded_by=uuid.uuid4(),
     )
     db_session.add_all([course, document])
@@ -290,7 +311,9 @@ def test_list_checks_returns_only_current_users_checks(client, db_session) -> No
     user = _login(client, db_session)
     course = Course(course_code="IT301", course_title="Data Structures", program="BSIT")
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
         uploaded_by=user.user_id,
     )
     db_session.add_all([course, document])
@@ -342,7 +365,9 @@ def test_delete_check_returns_404_for_non_owner_check(client, db_session) -> Non
     _login(client, db_session)
     course = Course(course_code="IT301", course_title="Data Structures", program="BSIT")
     other_owner_document = Document(
-        title="Not mine", source_type="slm", file_path="/tmp/x.pdf",
+        title="Not mine",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
         uploaded_by=uuid.uuid4(),
     )
     db_session.add_all([course, other_owner_document])
@@ -371,7 +396,9 @@ def test_delete_check_succeeds_for_owner(client, db_session) -> None:
     user = _login(client, db_session)
     course = Course(course_code="IT301", course_title="Data Structures", program="BSIT")
     document = Document(
-        title="Sample SLM", source_type="slm", file_path="/tmp/x.pdf",
+        title="Sample SLM",
+        source_type="slm",
+        file_path="/tmp/x.pdf",
         uploaded_by=user.user_id,
     )
     db_session.add_all([course, document])
