@@ -12,7 +12,7 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import get_llm_client_for_agent
-from server.modules.admin.service import get_active_prompt
+from server.modules.admin.prompt_service import get_active_prompt
 from server.modules.documents.models import DocumentChunk
 from server.modules.embeddings.policy_retrieval import (
     ITSO_POLICY_MAP,
