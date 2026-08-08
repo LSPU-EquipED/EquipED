@@ -135,7 +135,7 @@ def _recover_cleanup_pending_documents() -> None:
         return
 
     try:
-        from server.modules.documents.service import (
+        from server.modules.documents.journaling import (
             recover_cleanup_pending_documents,
         )
 
@@ -153,7 +153,9 @@ def _recover_cleanup_pending_documents() -> None:
 def _recover_no_database_uploads() -> None:
     """Clean stale upload artifacts from no-database development runs."""
     try:
-        from server.modules.documents.service import recover_no_database_upload_journal
+        from server.modules.documents.journaling import (
+            recover_no_database_upload_journal,
+        )
 
         recovered = recover_no_database_upload_journal()
         if recovered:
