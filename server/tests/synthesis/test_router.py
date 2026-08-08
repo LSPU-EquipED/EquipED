@@ -70,3 +70,74 @@ def test_matrix_preserves_historical_program_rows(matrix_client_data) -> None:
     response = matrix_client_data.get('/api/v1/evaluations/matrix')
     assert response.status_code == 200
     assert 'historical' in {item['document_title'] for item in response.json()['items']}
+
+
+def test_results_route_delegates_to_service(
+    client, db_session, seeded_user, monkeypatch
+) -> None:
+    """The results route hands off to the service boundary with user/db args."""
+    import uuid as _uuid
+
+    from server.modules.synthesis import router as synthesis_router
+    from server.modules.synthesis.schemas import EvaluationResultsResponse
+
+    captured: dict = {}
+    eval_id = _uuid.uuid4()
+
+    def fake_get(evaluation_id, current_user_id, db=None):
+        captured['evaluation_id'] = evaluation_id
+        captured['current_user_id'] = current_user_id
+        return EvaluationResultsResponse(
+            evaluation_id=evaluation_id,
+            document_id=_uuid.uuid4(),
+            domain_scores={},
+            synthesized_score=0.0,
+            active_agents=[],
+            failed_agents=[],
+            evaluation_status='COMPLETED',
+        )
+
+    monkeypatch.setattr(
+        synthesis_router, 'service_get_evaluation_results', fake_get
+    )
+    _login(client, seeded_user)
+
+    response = client.get(f'/api/v1/evaluations/{eval_id}/results')
+    assert response.status_code == 200
+    assert captured['evaluation_id'] == eval_id
+    assert captured['current_user_id'] == seeded_user.user_id
+
+
+def test_matrix_route_delegates_to_service(
+    client, db_session, seeded_user, monkeypatch
+) -> None:
+    """The matrix route hands off to the service boundary with query args."""
+    from server.modules.synthesis import router as synthesis_router
+    from server.modules.synthesis.schemas import MatrixListResponse
+
+    captured: dict = {}
+
+    def fake_get(program, status, page, page_size, db=None):
+        captured.update(
+            program=program, status=status, page=page, page_size=page_size
+        )
+        return MatrixListResponse(
+            items=[], total=0, page=page, page_size=page_size
+        )
+
+    monkeypatch.setattr(
+        synthesis_router, 'service_get_monitoring_matrix', fake_get
+    )
+    _login(client, seeded_user)
+
+    response = client.get(
+        '/api/v1/evaluations/matrix'
+        '?program=BSCS&status=COMPLETED&page=2&page_size=10'
+    )
+    assert response.status_code == 200
+    assert captured == {
+        'program': 'BSCS',
+        'status': 'COMPLETED',
+        'page': 2,
+        'page_size': 10,
+    }
