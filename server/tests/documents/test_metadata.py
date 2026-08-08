@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 from server.modules.documents.metadata import (
     _detect_academic_year,
@@ -13,20 +11,37 @@ from server.modules.documents.metadata import (
     detect_metadata,
 )
 
-
 # ---------------------------------------------------------------------------
 # 4.1 — _detect_program with known programs
 # ---------------------------------------------------------------------------
 
 class TestDetectProgram:
-    def test_detects_bsit(self) -> None:
-        assert _detect_program("This is a BSN curriculum document") == "BSN"
+    def test_rejects_bsn(self) -> None:
+        assert _detect_program("This is a BSN curriculum document") is None
 
-    def test_detects_bsa(self) -> None:
-        assert _detect_program("Course syllabus for BSA students") == "BSA"
+    def test_rejects_bsa(self) -> None:
+        assert _detect_program("Course syllabus for BSA students") is None
 
     def test_detects_bscs(self) -> None:
         assert _detect_program("BSCS Program Outcome Assessment") == "BSCS"
+
+    def test_detects_bsinfotech(self) -> None:
+        assert _detect_program("BSInfoTech Program Outcome Assessment") == "BSInfoTech"
+
+    def test_detects_bsit_alias_canonicalized(self) -> None:
+        """Legacy BSIT alias must be canonicalized to BSInfoTech."""
+        assert _detect_program("BSIT Program Outcome Assessment") == "BSInfoTech"
+
+    def test_detects_bsit_alias_among_noise(self) -> None:
+        """BSIT alongside false positives still canonicalizes."""
+        assert (
+            _detect_program("PDF document for the BSIT program URL http://example.com")
+            == "BSInfoTech"
+        )
+
+    def test_bsit_and_bsinfotech_dedupe_to_canonical(self) -> None:
+        """Both spellings in one document yield a single canonical value."""
+        assert _detect_program("BSIT (BSInfoTech) curriculum") == "BSInfoTech"
 
 # ---------------------------------------------------------------------------
 # 4.2 — _detect_program rejects non-program acronyms
@@ -48,9 +63,9 @@ class TestDetectProgram:
     def test_detects_program_among_noise(self) -> None:
         """When a real program code appears alongside false positives, detect it."""
         result = _detect_program(
-            "PDF document for the BSN program URL http://example.com"
+            "PDF document for the BSCS program URL http://example.com"
         )
-        assert result == "BSN"
+        assert result == "BSCS"
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +159,7 @@ class TestDetectLessonTitle:
 
 class TestSlmCoverPageIntegration:
     def test_detects_all_fields_from_slm_cover(self) -> None:
-        """Verify emission of course_code, academic_year, lesson_title from SLM cover."""
+        """Verify metadata fields emitted from an SLM cover."""
         text = (
             "Course: CMSC 313 — HUMAN COMPUTER INTERACTION\n"
             "Sem/AY: Second Semester/2025-2026\n"
@@ -201,22 +216,22 @@ class TestDetectMetadataAllNull:
 class TestDetectionLimit:
     def test_detects_early_pattern(self) -> None:
         """Pattern within first 6000 chars should be detected."""
-        text = "BSN program " + "x" * 5000
+        text = "BSInfoTech program " + "x" * 5000
         result = detect_metadata(text)
-        assert result["program"] == "BSN"
+        assert result["program"] == "BSInfoTech"
 
     def test_ignores_pattern_beyond_limit(self) -> None:
         """Pattern beyond 6000 chars should NOT be detected."""
         prefix = "x" * 6000
-        text = prefix + " BSN program "
+        text = prefix + " BSIT program "
         result = detect_metadata(text)
         assert result["program"] is None
 
     def test_mixed_detection_within_limit(self) -> None:
         """Multiple metadata fields within limit should all be detected."""
-        text = "BSN program AY 2025 CCS 101\nLesson Title: Test Lesson\n" + "y " * 500
+        text = "BSCS program AY 2025 CCS 101\nLesson Title: Test Lesson\n" + "y " * 500
         result = detect_metadata(text)
-        assert result["program"] == "BSN"
+        assert result["program"] == "BSCS"
         assert result["academic_year"] == "AY 2025"
         assert result["course_code"] == "CCS 101"
         assert result["lesson_title"] == "Test Lesson"
@@ -232,13 +247,13 @@ class TestDetectionNonBlocking:
         # If we pass something weird that causes an internal error,
         # detect_metadata still catches it via the service wrapper.
         # But the function itself uses re which shouldn't raise on str input.
-        result = detect_metadata("BSN normal text")
-        assert result["program"] == "BSN"
+        result = detect_metadata("bsit normal text")
+        assert result["program"] == "BSInfoTech"
 
     def test_service_wraps_detection_in_try_except(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path, caplog
     ) -> None:
-        """Verify that when detect_metadata raises during upload, it is caught and logged."""
+        """Verify detection errors are caught and logged during upload."""
         from io import BytesIO
         from uuid import UUID, uuid4
 
@@ -247,8 +262,8 @@ class TestDetectionNonBlocking:
         from server.modules.documents.schemas import DocumentChunkData
         from server.modules.documents.service import (
             _MEM_CHUNKS,
-            _MEM_DOCUMENTS,
             _MEM_DOCUMENT_OWNERS,
+            _MEM_DOCUMENTS,
             create_document,
         )
 
@@ -268,7 +283,7 @@ class TestDetectionNonBlocking:
                     agent_domain="all",
                     page_number=1,
                     text=(
-                        "This document discusses the BSN program "
+                        "This document discusses the BSCS program "
                         "for academic year 2025-2026 course CCS 101."
                     ),
                     token_count=16,
@@ -316,7 +331,7 @@ class TestDetectionNonBlocking:
             title="Test Document",
             course_title=None,
             lesson_title=None,
-            program="BSBA",  # manual program, should be preserved
+            program="bsit",  # manual program, should be preserved canonically
             uploaded_by=uuid4(),
             db=None,
         )
@@ -330,7 +345,7 @@ class TestDetectionNonBlocking:
 
         # Manual program is preserved in the stored response
         stored = _MEM_DOCUMENTS[result.document_id]
-        assert stored.program == "BSBA"
+        assert stored.program == "BSInfoTech"
 
         # Verify the warning was logged
         assert any(
@@ -346,8 +361,8 @@ class TestDetectionNonBlocking:
 class TestManualProgramPreserved:
     def test_detected_program_does_not_override_manual_when_set(self) -> None:
         """When program is manually set, auto-detected program is ignored."""
-        manual_program = "BSBA"
-        text = "This document is about the BSN program"
+        manual_program = "BSCS"
+        text = "This document is about the BSIT program"
 
         # Simulate the merge logic from service.py
         effective_program = manual_program
@@ -355,19 +370,19 @@ class TestManualProgramPreserved:
             detected = detect_metadata(text)
             effective_program = detected.get("program")
 
-        assert effective_program == "BSBA"  # manual wins, not BSN
+        assert effective_program == "BSCS"  # manual wins, not BSInfoTech
 
     def test_detected_program_used_when_manual_is_none(self) -> None:
         """When program is not manually set, auto-detected program is used."""
         manual_program = None
-        text = "This document is about the BSN program"
+        text = "This document is about the BSIT program"
 
         effective_program = manual_program
         if effective_program is None:
             detected = detect_metadata(text)
             effective_program = detected.get("program")
 
-        assert effective_program == "BSN"
+        assert effective_program == "BSInfoTech"
 
     def test_detected_lesson_title_does_not_override_manual(self) -> None:
         """When lesson_title is manually set, auto-detected value is ignored."""

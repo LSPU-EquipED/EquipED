@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
+from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.modules.evaluations.service import create_evaluation
@@ -58,6 +59,65 @@ def test_create_evaluation_persists_submitted_job_for_owned_docs(db_session) -> 
     assert row.confirmed_program == "BSCS"
 
 
+@pytest.mark.parametrize(
+    ("submitted_program", "stored_program"),
+    [("BSCS", "BSCS"), ("BSInfoTech", "BSInfoTech"), ("bsit", "BSInfoTech")],
+)
+def test_create_evaluation_canonicalizes_supported_programs(
+    db_session, submitted_program: str, stored_program: str
+) -> None:
+    owner = create_user(
+        db_session,
+        name="Program Owner",
+        email=f"{submitted_program.lower()}-program@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            partial_without_curriculum=True,
+            confirmed_program=submitted_program,
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+
+    assert response.confirmed_program == stored_program
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.confirmed_program == stored_program
+
+
+@pytest.mark.parametrize("submitted_program", ["BSEd", "BSN"])
+def test_create_evaluation_rejects_unsupported_programs(
+    db_session, submitted_program: str
+) -> None:
+    owner = create_user(
+        db_session,
+        name="Unsupported Program Owner",
+        email=f"unsupported-{submitted_program.lower()}@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    with pytest.raises(InvalidEvaluationTargetError, match="Only BSCS"):
+        create_evaluation(
+            EvaluationSubmitRequest(
+                document_id=slm_id,
+                partial_without_curriculum=True,
+                confirmed_program=submitted_program,
+            ),
+            submitted_by=owner.user_id,
+            db=db_session,
+        )
+
+
 def test_create_evaluation_without_syllabus_succeeds(db_session) -> None:
     """Can submit an evaluation with SLM only (no syllabus)."""
     owner = create_user(
@@ -91,7 +151,7 @@ def test_create_evaluation_without_syllabus_succeeds(db_session) -> None:
 
 
 def test_create_evaluation_requires_partial_intent(db_session) -> None:
-    """Submitting without explicit partial intent raises InvalidEvaluationTargetError."""
+    """Submitting without explicit partial intent raises an invalid-target error."""
     owner = create_user(
         db_session,
         name="Owner",
@@ -119,7 +179,7 @@ def test_create_evaluation_requires_partial_intent(db_session) -> None:
 
 
 def test_create_evaluation_requires_confirmed_program(db_session) -> None:
-    """Submitting without a valid confirmed program raises InvalidEvaluationTargetError."""
+    """Submitting without a valid confirmed program raises an invalid-target error."""
     owner = create_user(
         db_session,
         name="Owner",

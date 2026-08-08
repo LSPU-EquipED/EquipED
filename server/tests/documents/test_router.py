@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-from server.modules.auth.models import User
+from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user
-from server.modules.auth.models import UserRole
+from server.modules.documents.models import Document
 
 
 def test_list_documents_requires_authenticated_session(client: TestClient) -> None:
@@ -270,3 +270,58 @@ def test_faculty_list_shows_only_own_documents(
     assert data['total'] == 1
     assert len(data['items']) == 1
     assert data['items'][0]['title'] == 'Faculty2 Doc'
+
+
+def _add_document(db_session, user_id, title: str, program: str) -> Document:
+    document = Document(
+        title=title,
+        program=program,
+        source_type="slm",
+        file_path=f"/tmp/{title}.pdf",
+        uploaded_by=user_id,
+    )
+    db_session.add(document)
+    return document
+
+
+def _login(client: TestClient, user: User) -> None:
+    response = client.post(
+        '/api/v1/auth/login',
+        json={'email': user.email, 'password': 'correct-horse-battery'},
+    )
+    assert response.status_code == 200
+
+
+def test_list_documents_rejects_unsupported_program(
+    client: TestClient, seeded_user: User,
+) -> None:
+    _login(client, seeded_user)
+    response = client.get('/api/v1/documents/?program=BSEd')
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize('program', ['BSIT', 'bsinfotech'])
+def test_list_documents_canonicalizes_bsit_aliases(
+    client: TestClient, db_session, seeded_user: User, program: str,
+) -> None:
+    _add_document(db_session, seeded_user.user_id, 'modern', 'BSInfoTech')
+    _add_document(db_session, seeded_user.user_id, 'legacy', 'BSIT')
+    _add_document(db_session, seeded_user.user_id, 'other', 'BSCS')
+    db_session.commit()
+    _login(client, seeded_user)
+
+    response = client.get(f'/api/v1/documents/?program={program}')
+    assert response.status_code == 200
+    assert {item['title'] for item in response.json()['items']} == {'modern', 'legacy'}
+
+
+def test_list_documents_preserves_historical_program_rows(
+    client: TestClient, db_session, seeded_user: User,
+) -> None:
+    _add_document(db_session, seeded_user.user_id, 'historical', 'BSN')
+    db_session.commit()
+    _login(client, seeded_user)
+
+    response = client.get('/api/v1/documents/')
+    assert response.status_code == 200
+    assert 'historical' in {item['title'] for item in response.json()['items']}

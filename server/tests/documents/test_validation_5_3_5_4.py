@@ -8,11 +8,9 @@ verifies that:
 
 from __future__ import annotations
 
-import uuid
 from io import BytesIO
 
 import fitz  # PyMuPDF
-import pytest
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User
 
@@ -112,7 +110,7 @@ def test_upload_with_manual_program_not_overridden(
         data={
             "source_type": "slm",
             "title": "Manual Program Test",
-            "program": "bscs",  # Manual value — must NOT be overridden to BSN
+            "program": "bscs",  # Manual value — must be canonicalized, not overridden
         },
     )
 
@@ -129,7 +127,7 @@ def test_upload_with_manual_program_not_overridden(
     get_resp = client.get(f"/api/v1/documents/{doc_id}")
     assert get_resp.status_code == 200
     get_body = get_resp.json()
-    assert get_body["program"] == "bscs", \
+    assert get_body["program"] == "BSCS", \
         f"Manual program was overridden: {get_body['program']}"
     assert get_body["academic_year"] == "2025-2026"
     assert get_body["course_code"] == "CCS 101"
@@ -152,7 +150,7 @@ def test_upload_without_metadata_still_completes(
     client: TestClient,
     seeded_user: User,
 ) -> None:
-    """5.4 — Upload a PDF with no matching patterns; preprocessing completes normally."""
+    """5.4 — Upload a PDF with no matching patterns."""
     login_resp = client.post(
         "/api/v1/auth/login",
         json={"email": seeded_user.email, "password": "correct-horse-battery"},
