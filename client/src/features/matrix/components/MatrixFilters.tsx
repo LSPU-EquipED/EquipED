@@ -21,8 +21,7 @@ export function MatrixFilters({
         >
           <option value="all">All Programs</option>
           <option value="BSCS">Computer Science</option>
-          <option value="BSIT">Information Technology</option>
-          <option value="BSEd">Education</option>
+          <option value="BSInfoTech">Information Technology</option>
         </select>
       </div>
 
