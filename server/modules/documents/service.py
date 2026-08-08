@@ -26,7 +26,7 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .ingestion import ingest_document
-from .metadata import detect_metadata
+from .metadata import canonicalize_supported_program, detect_metadata
 from .models import VALID_POLICY_AREAS, Document, DocumentChunk
 from .policy_service import (  # noqa: F401  — re-exported for router
     delete_policy_document,
@@ -123,7 +123,9 @@ def create_document(
 ) -> DocumentUploadResponse:
     """Persist an upload and run Layer-1 ingestion."""
 
-    _validate_upload(file, source_type, program, user_role, policy_area=policy_area)
+    canonical_program = _validate_upload(
+        file, source_type, program, user_role, policy_area=policy_area
+    )
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
     doc_id = uuid.uuid4()
@@ -144,7 +146,7 @@ def create_document(
                 title=title,
                 course_title=course_title,
                 lesson_title=lesson_title,
-                program=program,
+                program=canonical_program,
                 source_type=source_type,
                 policy_area=policy_area,
                 file_path=str(target_path),
@@ -163,7 +165,7 @@ def create_document(
             title=title,
             course_title=course_title,
             lesson_title=lesson_title,
-            program=program,
+            program=canonical_program,
             policy_area=policy_area,
             uploaded_by=uploaded_by,
             original_filename=file.filename,
@@ -287,12 +289,9 @@ def _process_uploaded_document(
             )
 
     # Merge — never overwrite manually-provided values
-    effective_program = program
+    effective_program = canonicalize_supported_program(program)
     if effective_program is None and detected_metadata.get("program"):
         effective_program = detected_metadata["program"]
-    # Normalize program for curriculum documents to uppercase/trimmed
-    if source_type == "curriculum" and effective_program is not None:
-        effective_program = effective_program.strip().upper()
     effective_lesson_title = lesson_title
     if effective_lesson_title is None and detected_metadata.get("lesson_title"):
         effective_lesson_title = detected_metadata["lesson_title"]
@@ -401,9 +400,7 @@ def _persist_reference_stub(
     as a background task, so the upload request never blocks on OCR.
     """
 
-    effective_program = program
-    if source_type == "curriculum" and effective_program is not None:
-        effective_program = effective_program.strip().upper()
+    effective_program = canonicalize_supported_program(program)
 
     uploaded_at = datetime.now(UTC)
     response = DocumentResponse(
@@ -522,10 +519,9 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
 
         document = session.get(Document, document_id)
         if not document.program and detected_metadata.get("program"):
-            program = detected_metadata["program"]
-            if source_type == "curriculum" and program:
-                program = program.strip().upper()
-            document.program = program
+            document.program = canonicalize_supported_program(
+                detected_metadata["program"]
+            )
         if detected_metadata.get("academic_year"):
             document.academic_year = detected_metadata["academic_year"]
         if detected_metadata.get("course_code"):
@@ -678,7 +674,21 @@ def list_documents(
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
-            query = query.filter(Document.program == program)
+            canonical_program = canonicalize_supported_program(program)
+            if canonical_program is None:
+                raise ValueError(
+                    "Unsupported program filter. Only BSCS and BSInfoTech "
+                    "are supported; "
+                    "BSIT is accepted as an alias."
+                )
+            from sqlalchemy import func
+
+            values = [canonical_program]
+            if canonical_program == "BSInfoTech":
+                values.append("BSIT")
+            query = query.filter(
+                func.lower(Document.program).in_([value.lower() for value in values])
+            )
         total = query.count()
         rows = (
             query.order_by(Document.uploaded_at.desc())
@@ -734,7 +744,19 @@ def list_documents(
     if source_type:
         mem_items = [item for item in mem_items if item.source_type == source_type]
     if program:
-        mem_items = [item for item in mem_items if item.program == program]
+        canonical_program = canonicalize_supported_program(program)
+        if canonical_program is None:
+            raise ValueError(
+                "Unsupported program filter. Only BSCS and BSInfoTech "
+                "are supported; "
+                "BSIT is accepted as an alias."
+            )
+        accepted = {canonical_program.lower()}
+        if canonical_program == "BSInfoTech":
+            accepted.add("bsit")
+        mem_items = [
+            item for item in mem_items if (item.program or "").lower() in accepted
+        ]
     total = len(mem_items)
     start = (page - 1) * page_size
     end = start + page_size
@@ -1058,14 +1080,14 @@ def _validate_upload(
     program: str | None,
     user_role: str = "faculty",
     policy_area: str | None = None,
-) -> None:
+) -> str | None:
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
         raise UnsupportedFileTypeError("Only PDF uploads are supported")
     if source_type not in SOURCE_TYPES:
         raise UnsupportedFileTypeError(f"Unsupported source_type: {source_type}")
-
-    # RBAC: only admins can upload institutional knowledge base documents (curriculum, syllabus, policy, rubrics)
+    canonical_program = canonicalize_supported_program(program)
+    # RBAC: only admins can upload institutional knowledge base documents.
     if user_role != "admin" and source_type in _ADMIN_ONLY_SOURCE_TYPES:
         raise ForbiddenUploadError(
             f"Only administrators can upload {source_type} documents. "
@@ -1079,7 +1101,8 @@ def _validate_upload(
         )
     if source_type in ("rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"):
         raise UnsupportedFileTypeError(
-            f"Direct PDF upload for {source_type} is not supported. Use structured rubric tables."
+            f"Direct PDF upload for {source_type} is not supported. "
+            "Use structured rubric tables."
         )
     # Policy documents require a valid policy_area
     if source_type == "policy":
@@ -1097,6 +1120,12 @@ def _validate_upload(
         raise UnsupportedFileTypeError(
             "policy_area is only valid for policy documents."
         )
+    if program and program.strip() and canonical_program is None:
+        raise UnsupportedFileTypeError(
+            "Unsupported program. Only BSCS and BSInfoTech are supported; "
+            "BSIT is accepted as an alias."
+        )
+    return canonical_program
 
 
 def _persist_document(

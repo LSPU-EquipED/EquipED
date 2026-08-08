@@ -7,6 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
+from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.synthesis.matrix import compute_synthesized_score
@@ -137,7 +138,25 @@ def get_monitoring_matrix(
     query = db.query(MonitoringMatrix)
 
     if program:
-        query = query.filter(MonitoringMatrix.program == program)
+        canonical_program = canonicalize_supported_program(program)
+        if canonical_program is None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Unsupported program filter. Only BSCS and BSInfoTech are "
+                    "supported; BSIT is accepted as an alias."
+                ),
+            )
+        from sqlalchemy import func
+
+        values = [canonical_program]
+        if canonical_program == "BSInfoTech":
+            values.append("BSIT")
+        query = query.filter(
+            func.lower(MonitoringMatrix.program).in_(
+                [value.lower() for value in values]
+            )
+        )
     if status:
         query = query.filter(MonitoringMatrix.evaluation_status == status)
 

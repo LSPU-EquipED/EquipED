@@ -15,7 +15,9 @@ from server.modules.evaluations.models import EvaluationStatus
 class EvaluationSubmitRequest(BaseModel):
     document_id: UUID = Field(..., description="ID of the document to evaluate.")
     syllabus_id: UUID | None = Field(None, description="ID of the syllabus document.")
-    curriculum_id: UUID | None = Field(None, description="ID of the curriculum document.")
+    curriculum_id: UUID | None = Field(
+        None, description="ID of the curriculum document."
+    )
     partial_without_curriculum: bool = Field(
         ...,
         description=(
@@ -23,7 +25,9 @@ class EvaluationSubmitRequest(BaseModel):
             "Must be explicitly set to True."
         ),
     )
-    confirmed_program: str = Field(..., min_length=1, description="Confirmed academic program code.")
+    confirmed_program: str = Field(
+        ..., min_length=1, max_length=50, description="Confirmed academic program code."
+    )
 
 class EvaluationResponse(BaseModel):
     evaluation_id: UUID
@@ -70,5 +74,9 @@ class EvaluationStatusResponse(BaseModel):
     duration_seconds: float | None = None
 
 __all__ = [
-    "EvaluationSubmitRequest", "EvaluationResponse", "EvaluationListItem", "EvaluationListResponse", "EvaluationStatusResponse"
+    "EvaluationSubmitRequest",
+    "EvaluationResponse",
+    "EvaluationListItem",
+    "EvaluationListResponse",
+    "EvaluationStatusResponse",
 ]

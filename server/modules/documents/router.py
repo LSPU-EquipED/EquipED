@@ -31,6 +31,7 @@ from .exceptions import (
     ReferenceRebuildError,
     UnsupportedFileTypeError,
 )
+from .metadata import canonicalize_supported_program
 from .schemas import (
     CurriculumSuggestionResponse,
     DocumentListResponse,
@@ -255,6 +256,14 @@ def list_documents_endpoint(
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> DocumentListResponse:
+    if program and canonicalize_supported_program(program) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Unsupported program filter. Only BSCS and BSInfoTech are supported; "
+                "BSIT is accepted as an alias."
+            ),
+        )
     return list_documents(
         source_type=source_type,
         program=program,
