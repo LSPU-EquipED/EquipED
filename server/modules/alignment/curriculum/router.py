@@ -178,7 +178,7 @@ def get_document_pages_endpoint(
 
 
 def _to_response(check: Any, db: Any) -> AlignmentCheckResponse:
-    from server.modules.curriculum_map.models import Course
+    from server.modules.curriculum.models import Course
 
     course = db.get(Course, check.course_id)
     return AlignmentCheckResponse(

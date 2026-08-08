@@ -20,7 +20,7 @@ from server.core.llm import get_llm_client_for_agent
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.coordinator import ProgramCoordinator
 from server.modules.agents.supervisor import Supervisor
-from server.modules.curriculum_map.service import resolve_roadmap_course_context
+from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks

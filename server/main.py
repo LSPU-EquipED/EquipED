@@ -34,7 +34,7 @@ MODULE_ROUTER_PATHS = (
     "server.modules.alignment.curriculum.router",
     "server.modules.feedback.router",
     "server.modules.admin.router",
-    "server.modules.curriculum_map.router",
+    "server.modules.curriculum.router",
 )
 
 

@@ -14,9 +14,9 @@ import uuid
 import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.curriculum_map import service
-from server.modules.curriculum_map.exceptions import RoadmapNotFoundError
-from server.modules.curriculum_map.models import (
+from server.modules.curriculum import service
+from server.modules.curriculum.exceptions import RoadmapNotFoundError
+from server.modules.curriculum.models import (
     ProgramRoadmap,
     RoadmapCourse,
     RoadmapYear,

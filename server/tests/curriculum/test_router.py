@@ -11,7 +11,7 @@ from server.modules.alignment import curriculum as alignment_curriculum
 from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.curriculum_map.models import Course
+from server.modules.curriculum.models import Course
 from server.modules.documents.models import Document
 
 

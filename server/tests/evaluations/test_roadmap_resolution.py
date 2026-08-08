@@ -14,12 +14,12 @@ from uuid import uuid4
 
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.curriculum_map.models import (
+from server.modules.curriculum.models import (
     ProgramRoadmap,
     RoadmapCourse,
     RoadmapYear,
 )
-from server.modules.curriculum_map.service import resolve_roadmap_course_context
+from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import run_evaluation_job
 
