@@ -13,14 +13,14 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from server.modules.curriculum_map import service
-from server.modules.curriculum_map.alignment_check import (
+from server.modules.alignment.curriculum import service
+from server.modules.alignment.curriculum.alignment_check import (
     PROMPT_VERSION,
     AlignmentCheckOutcome,
     AlignmentProvenance,
     AlignmentResultItem,
 )
-from server.modules.curriculum_map.exceptions import (
+from server.modules.alignment.curriculum.exceptions import (
     AlignmentCheckCooldownError,
     AlignmentCheckNotFoundError,
     CourseNotFoundError,
@@ -33,9 +33,10 @@ from server.modules.curriculum_map.exceptions import (
     NoCurriculumMapError,
     NoUsableDocumentTextError,
 )
+from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
+from server.modules.curriculum_map import service as curriculum_map_service
 from server.modules.curriculum_map.models import (
     Course,
-    CurriculumAlignmentCheck,
     CurriculumMapCell,
     CurriculumObjective,
 )
@@ -182,7 +183,7 @@ def _success_outcome(results: list[AlignmentResultItem]) -> AlignmentCheckOutcom
 
 def test_list_courses_returns_seeded_courses(db_session) -> None:
     course, _ = _make_course_with_map(db_session)
-    courses = service.list_courses(db_session)
+    courses = curriculum_map_service.list_courses(db_session)
     assert [c.course_id for c in courses] == [course.course_id]
 
 

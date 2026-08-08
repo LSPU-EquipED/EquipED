@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 
-from server.modules.curriculum_map.document_text import (
+from server.modules.alignment.curriculum.document_text import (
     DocumentPage,
     find_evidence_page,
     load_document_pages,

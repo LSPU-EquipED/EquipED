@@ -7,8 +7,8 @@ import threading
 import time
 
 import pytest
-from server.modules.curriculum_map.exceptions import AlignmentCheckRateLimitError
-from server.modules.curriculum_map.limiter import AlignmentCheckLimiter
+from server.modules.alignment.curriculum.exceptions import AlignmentCheckRateLimitError
+from server.modules.alignment.curriculum.limiter import AlignmentCheckLimiter
 
 
 def test_limiter_releases_slot_after_successful_check() -> None:
@@ -146,8 +146,7 @@ def test_limiter_contention_bounded_wait_releases_threadpool() -> None:
     assert len(granted) == max_per_user
     assert len(denied) == worker_count - max_per_user
     assert all(
-        retry_after is not None and retry_after > 0
-        for _, __, retry_after in denied
+        retry_after is not None and retry_after > 0 for _, __, retry_after in denied
     )
     assert all(
         isinstance(retry_after, int) and retry_after > 0

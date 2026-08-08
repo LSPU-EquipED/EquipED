@@ -50,7 +50,7 @@ def test_startup_recovery_calls_new_service(
     monkeypatch.setattr(main, "get_settings", lambda: settings)
     monkeypatch.setattr(main, "get_session_factory", lambda: "factory")
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.service.fail_interrupted_syllabus_alignments",
+        "server.modules.alignment.syllabus.service.fail_interrupted_syllabus_alignments",
         lambda factory: calls.append(factory) or 0,
     )
 
@@ -70,8 +70,8 @@ def test_app_registers_syllabus_alignment_routes() -> None:
 
 
 def test_new_module_has_independent_import_boundary() -> None:
-    root = Path(__file__).resolve().parents[3]
-    package = root / "server" / "modules" / "syllabus_alignment"
+    root = Path(__file__).resolve().parents[4]
+    package = root / "server" / "modules" / "alignment" / "syllabus"
     forbidden = {"server.modules.evaluations", "server.modules.agents"}
     for source_path in package.glob("*.py"):
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
@@ -86,10 +86,10 @@ def test_new_module_has_independent_import_boundary() -> None:
     script = """
 import importlib
 for name in (
-    'server.modules.syllabus_alignment.router',
-    'server.modules.syllabus_alignment.service',
-    'server.modules.syllabus_alignment.evaluator',
-    'server.modules.syllabus_alignment.models',
+    'server.modules.alignment.syllabus.router',
+    'server.modules.alignment.syllabus.service',
+    'server.modules.alignment.syllabus.evaluator',
+    'server.modules.alignment.syllabus.models',
 ):
     importlib.import_module(name)
 for name in (
