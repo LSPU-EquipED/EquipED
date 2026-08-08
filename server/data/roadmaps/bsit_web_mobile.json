@@ -1,0 +1,130 @@
+{
+  "program": "BSIT",
+  "specialization": "Web and Mobile Application Development",
+  "version_number": 1,
+  "status": "active",
+  "source_document_path": null,
+  "years": [
+    {
+      "year_number": 1,
+      "semester": 1,
+      "label": "Programming Foundations",
+      "courses": [
+        {
+          "course_code": "ITEC 101",
+          "course_title": "Introduction to Information Technology",
+          "tech_stack": "Windows/Linux, HTML5, CSS3, VS Code, Git",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Introduces computing fundamentals, computer systems, Internet technologies, emerging technologies, and the IT profession."
+        },
+        {
+          "course_code": "ITEC 102",
+          "course_title": "Fundamentals of Programming",
+          "tech_stack": "Python / Java, VS Code, GitHub",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Covers structured programming, algorithms, problem-solving techniques, and software development fundamentals."
+        }
+      ]
+    },
+    {
+      "year_number": 1,
+      "semester": 2,
+      "label": "Programming Foundations",
+      "courses": [
+        {
+          "course_code": "ITEC 103",
+          "course_title": "Intermediate Programming",
+          "tech_stack": "Java, OOP Concepts, Git",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Develops programming proficiency through object-oriented programming, modular design, file processing, and exception handling."
+        },
+        {
+          "course_code": "ITEP 101",
+          "course_title": "Human Computer Interaction",
+          "tech_stack": "Figma, Adobe XD, Canva",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Introduces user-centered design, usability engineering, accessibility, and interface evaluation."
+        },
+        {
+          "course_code": "ITEP 102",
+          "course_title": "Discrete Mathematics",
+          "tech_stack": "Python, MATLAB (optional)",
+          "competency_stage": "Foundation",
+          "course_status": "existing",
+          "learning_outcomes_summary": "Covers logic, sets, relations, functions, graphs, trees, proofs, and mathematical reasoning for computing."
+        }
+      ]
+    },
+    {
+      "year_number": 2,
+      "semester": 1,
+      "label": "Full-Stack Web Development Fundamentals",
+      "courses": [
+        {"course_code": "ITEC 204", "course_title": "Data Structures and Algorithms", "tech_stack": "Java, C++, Python", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Introduces data organization, searching, sorting, recursion, graphs, trees, and algorithm complexity."},
+        {"course_code": "ITEC 205", "course_title": "Information Management", "tech_stack": "MySQL, PostgreSQL, phpMyAdmin", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers database concepts, data modeling, normalization, SQL programming, and relational database design."},
+        {"course_code": "ITEL 201", "course_title": "Object-Oriented Programming", "tech_stack": "Java, IntelliJ IDEA / Eclipse", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers object-oriented analysis, design, and implementation using classes, inheritance, and polymorphism."},
+        {"course_code": "ITEL 202", "course_title": "Platform Technologies", "tech_stack": "Linux, Windows Server, VirtualBox", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers computer hardware, operating systems, virtualization, and computing platforms."}
+      ]
+    },
+    {
+      "year_number": 2,
+      "semester": 2,
+      "label": "Full-Stack Web Development Fundamentals",
+      "courses": [
+        {"course_code": "ITEP 204", "course_title": "Advanced Database Systems", "tech_stack": "PostgreSQL, MongoDB, MySQL", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers enterprise databases, query optimization, distributed databases, transactions, and data warehousing."},
+        {"course_code": "ITEP 205", "course_title": "Multimedia Systems", "tech_stack": "Adobe Photoshop, Illustrator, Canva, Premiere Pro", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers digital graphics, audio, video, animation, multimedia authoring, and digital content production."},
+        {"course_code": "ITEP 206", "course_title": "Integrative Programming Technologies 1", "tech_stack": "PHP Laravel, Node.js, Express.js", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers scripting languages, software integration, middleware, APIs, and interoperable systems."},
+        {"course_code": "ITEP 207", "course_title": "Networking 1", "tech_stack": "Cisco Packet Tracer, Cisco IOS", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Introduces network architectures, TCP/IP, routing, switching, LAN technologies, and network devices."},
+        {"course_code": "ITEL 203", "course_title": "Web Systems and Technologies", "tech_stack": "HTML5, CSS3, JavaScript, Bootstrap, Tailwind CSS", "competency_stage": "Intermediate", "course_status": "existing", "learning_outcomes_summary": "Covers responsive web application development using client-side and server-side technologies."}
+      ]
+    },
+    {
+      "year_number": 3,
+      "semester": 1,
+      "label": "Modern Web and Mobile Application Development",
+      "courses": [
+        {"course_code": "ITEP 308", "course_title": "System Integration and Architecture 1", "tech_stack": "REST API, JSON, Postman", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers enterprise architecture, systems integration, SOA, and business process integration."},
+        {"course_code": "ITEP 309", "course_title": "Networking 2", "tech_stack": "Cisco Packet Tracer, Cisco IOS", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers enterprise networking, VLANs, routing protocols, WAN technologies, and network administration."},
+        {"course_code": "ITEL 304", "course_title": "Integrative Programming Technologies 2", "tech_stack": "Node.js, Express.js, Docker", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers enterprise application integration, middleware, distributed computing, and RESTful APIs."},
+        {"course_code": "ITST 301", "course_title": "Principles of Web Design", "tech_stack": "HTML5, CSS3, Tailwind CSS, Figma", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers responsive web design, accessibility, usability, typography, color theory, and information architecture."},
+        {"course_code": "ITST 302", "course_title": "Web and Database Integration", "tech_stack": "Laravel, MySQL, PHP, REST API", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers development of dynamic database-driven web applications using server-side programming."}
+      ]
+    },
+    {
+      "year_number": 3,
+      "semester": 2,
+      "label": "Modern Web and Mobile Application Development",
+      "courses": [
+        {"course_code": "ITEC 306", "course_title": "Applications Development and Emerging Technologies", "tech_stack": "Flutter, React, AI APIs", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Explores modern application development frameworks, software innovation, and emerging technologies."},
+        {"course_code": "ITEP 311", "course_title": "Information Assurance and Security 1", "tech_stack": "OWASP, JWT, OAuth2", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Introduces cybersecurity principles, risk assessment, information assurance, and security controls."},
+        {"course_code": "ITEL 305", "course_title": "System Integration and Architecture 2", "tech_stack": "Docker, Kubernetes (Introduction)", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers advanced enterprise architecture, cloud integration, middleware, and interoperability."},
+        {"course_code": "ITST 303", "course_title": "Client-Server Technologies", "tech_stack": "Node.js, Express.js, REST API, Postman", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers distributed systems, RESTful APIs, web services, asynchronous communication, and middleware."},
+        {"course_code": "ITST 304", "course_title": "Mobile Computing", "tech_stack": "Flutter, Dart, Android Studio, Firebase", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers Android and cross-platform mobile application development, deployment, and mobile architecture."},
+        {"course_code": "ITST 305", "course_title": "Cloud Computing", "tech_stack": "AWS, Microsoft Azure, Google Cloud Platform, Firebase", "competency_stage": "Advanced", "course_status": "existing", "learning_outcomes_summary": "Covers cloud architecture, virtualization, cloud services, deployment models, scalability, and security."}
+      ]
+    },
+    {
+      "year_number": 4,
+      "semester": 1,
+      "label": "Industry Experience and Professional Practice",
+      "courses": [
+        {"course_code": "ITEP 413", "course_title": "Information Assurance and Security 2", "tech_stack": "OWASP ZAP, Wireshark", "competency_stage": "Professional", "course_status": "existing", "learning_outcomes_summary": "Covers advanced cybersecurity, cryptography, network defense, ethical hacking, and digital forensics."},
+        {"course_code": "ITEP 414", "course_title": "System Administration and Maintenance", "tech_stack": "Linux Server, Docker, Nginx", "competency_stage": "Professional", "course_status": "existing", "learning_outcomes_summary": "Covers server installation, operating systems, virtualization, system monitoring, and maintenance."},
+        {"course_code": "ITEP 415", "course_title": "Capstone Project 2", "tech_stack": "GitHub, Docker, CI/CD, Cloud Deployment", "competency_stage": "Professional", "course_status": "existing", "learning_outcomes_summary": "Focuses on implementation, testing, deployment, evaluation, and presentation of the completed capstone project."},
+        {"course_code": "ITST 306", "course_title": "UX/UI and Cross Platform Applications", "tech_stack": "Flutter, React Native, Figma", "competency_stage": "Professional", "course_status": "existing", "learning_outcomes_summary": "Covers user experience design, prototyping, usability evaluation, and cross-platform application development."}
+      ]
+    },
+    {
+      "year_number": 4,
+      "semester": 2,
+      "label": "Industry Experience and Professional Practice",
+      "courses": [
+        {"course_code": "ITEP 503", "course_title": "On-the-Job Training", "tech_stack": "GitHub, Jira, Docker, AWS, Azure, CI/CD", "competency_stage": "Professional", "course_status": "existing"}
+      ]
+    }
+  ]
+}
