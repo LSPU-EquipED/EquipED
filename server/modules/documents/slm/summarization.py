@@ -6,7 +6,9 @@ from collections.abc import Iterable
 
 
 def summarize_section(section: dict[str, object]) -> str:
-    evidence = [str(item).strip() for item in section.get("evidence", []) if str(item).strip()]
+    evidence = [
+        str(item).strip() for item in section.get("evidence", []) if str(item).strip()
+    ]
     if not evidence:
         return ""
     summary = evidence[0]
@@ -15,7 +17,9 @@ def summarize_section(section: dict[str, object]) -> str:
     return summary[:360]
 
 
-def build_section_summaries(outline: Iterable[dict[str, object]]) -> list[dict[str, object]]:
+def build_section_summaries(
+    outline: Iterable[dict[str, object]],
+) -> list[dict[str, object]]:
     summaries: list[dict[str, object]] = []
     for section in outline:
         summary = summarize_section(section)
@@ -36,7 +40,11 @@ def build_document_summary(
     outline: Iterable[dict[str, object]],
     key_facts: dict[str, object],
 ) -> str:
-    section_titles = [str(section.get("title", "")).strip() for section in outline if section.get("title")]
+    section_titles = [
+        str(section.get("title", "")).strip()
+        for section in outline
+        if section.get("title")
+    ]
     highlights = []
     if key_facts.get("has_privacy_language"):
         highlights.append("privacy language present")

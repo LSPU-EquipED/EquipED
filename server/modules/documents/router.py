@@ -32,6 +32,18 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .metadata import canonicalize_supported_program
+from .policy_service import (
+    delete_policy_document,
+    list_policy_documents,
+    rebuild_policy_embeddings,
+)
+from .reference_service import (
+    delete_reference_document,
+    get_syllabus_course_contents,
+    list_available_syllabus_references,
+    list_reference_documents,
+    rebuild_reference_embeddings,
+)
 from .schemas import (
     CurriculumSuggestionResponse,
     DocumentListResponse,
@@ -48,18 +60,10 @@ from .schemas import (
 )
 from .service import (
     create_document,
-    delete_policy_document,
-    delete_reference_document,
     embed_document_chunks,
     get_document,
-    get_syllabus_course_contents,
-    list_available_syllabus_references,
     list_documents,
-    list_policy_documents,
-    list_reference_documents,
     process_document_ingestion,
-    rebuild_policy_embeddings,
-    rebuild_reference_embeddings,
     stream_document_file,
 )
 
@@ -99,7 +103,7 @@ def upload_document(
         if response.processing_status == "PROCESSED":
             background_tasks.add_task(embed_document_chunks, response.document_id)
         elif response.processing_status == "PROCESSING":
-            # Reference documents (syllabus/curriculum) defer OCR/extraction to
+            # Reference documents (syllabus) defer OCR/extraction to
             # a background task since scanned CMOs can take minutes to process.
             background_tasks.add_task(process_document_ingestion, response.document_id)
         return response
@@ -125,7 +129,7 @@ def list_references(
     _current_user: AuthenticatedUser = Depends(require_admin),
     db: Any = Depends(get_db_session),
 ) -> ReferenceLibraryResponse:
-    """Admin-only reference library listing of syllabus/curriculum documents."""
+    """Admin-only reference library listing of syllabus documents."""
     return list_reference_documents(db=db)
 
 

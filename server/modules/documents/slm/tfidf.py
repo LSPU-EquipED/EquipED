@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .exceptions import ExtractionFailedError
-from .schemas import DocumentChunkData
+from ..exceptions import ExtractionFailedError
+from ..schemas import DocumentChunkData
 
 
 def compute_tfidf_corpus(slm_chunks: list[DocumentChunkData]) -> dict[str, float]:

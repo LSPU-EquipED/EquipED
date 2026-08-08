@@ -65,7 +65,7 @@ class ReferenceRebuildError(DocumentsError):
 
 class ReferenceDeleteInvalidTypeError(DocumentsError):
     """Raised when attempting to delete a non-reference document type.
-    Only syllabus and curriculum documents can be deleted through this endpoint.
+    Only syllabus documents can be deleted through this endpoint.
     """
 
 

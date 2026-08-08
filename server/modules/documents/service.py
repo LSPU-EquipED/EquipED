@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import shutil
 import uuid
@@ -16,48 +15,33 @@ from server.core.config import get_settings
 from server.core.database import get_session_factory
 from server.modules.embeddings.service import embed_and_store_chunks
 
+from . import paths
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
     ForbiddenUploadError,
-    ReferenceDeleteConflictError,
-    ReferenceDeleteInvalidTypeError,
-    ReferenceRebuildError,
     UnsupportedFileTypeError,
 )
 from .ingestion import ingest_document
+from .journaling import (
+    _cleanup_failed_upload,
+    _create_upload_marker,
+    _remove_upload_marker,
+)
 from .metadata import canonicalize_supported_program, detect_metadata
 from .models import VALID_POLICY_AREAS, Document, DocumentChunk
-from .policy_service import (  # noqa: F401  — re-exported for router
-    delete_policy_document,
-    get_healthy_policy_allowlist,
-    is_retrieval_ready_policy_document,
-    is_source_healthy_policy_document,
-    list_policy_documents,
-    rebuild_policy_embeddings,
-    validate_policy_chunks,
-)
-from .preprocessing import prepare_slm_package
 from .schemas import (
     POLICY_SOURCE_TYPES,
     REFERENCE_SOURCE_TYPES,
     SOURCE_TYPES,
-    CurriculumSuggestionItem,
-    CurriculumSuggestionResponse,
     DocumentChunkResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
-    ReferenceDeleteResponse,
-    ReferenceLibraryItem,
-    ReferenceLibraryResponse,
-    ReferenceRebuildResponse,
 )
-from .tfidf import compute_tfidf_corpus
+from .slm import prepare_slm_package
+from .slm.tfidf import compute_tfidf_corpus
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-UPLOAD_ROOT = _PROJECT_ROOT / "uploads"
-UPLOAD_JOURNAL_ROOT = UPLOAD_ROOT / ".upload-journal"
 logger = logging.getLogger(__name__)
 
 _MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
@@ -79,7 +63,7 @@ _ADMIN_ONLY_SOURCE_TYPES = {
 
 
 def is_reference_source_type(source_type: str) -> bool:
-    """Return True if the source type is a shared reference (syllabus or curriculum)."""
+    """Return True if the source type is an active shared reference (syllabus)."""
     return source_type in REFERENCE_SOURCE_TYPES
 
 
@@ -95,11 +79,14 @@ def _is_document_accessible(
 ) -> bool:
     """Check whether a user may read/access a document row.
 
-    Reference documents (syllabus, curriculum) are shared to all
+    Reference documents (syllabus) are shared to all
     authenticated users. Policy documents are admin-only — faculty
-    requests are denied without existence leakage. SLMs and other
-    types remain owner-only.
+    requests are denied without existence leakage. Legacy curriculum
+    rows are maintenance-only and never accessible here, even to their
+    original uploader. SLMs and other types remain owner-only.
     """
+    if document.source_type == "curriculum":
+        return False
     if is_reference_source_type(document.source_type):
         return True
     if is_policy_source_type(document.source_type):
@@ -126,10 +113,10 @@ def create_document(
     canonical_program = _validate_upload(
         file, source_type, program, user_role, policy_area=policy_area
     )
-    UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    paths.UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
     doc_id = uuid.uuid4()
-    target_path = UPLOAD_ROOT / f"{doc_id}.pdf"
+    target_path = paths.UPLOAD_ROOT / f"{doc_id}.pdf"
 
     runtime_db = db
     runtime_session = None
@@ -207,7 +194,7 @@ def _process_uploaded_document(
 ) -> DocumentUploadResponse:
     """Run ingestion after a DB-backed upload intent has been committed."""
 
-    # Reference documents (syllabus/curriculum) are often scanned CMOs that need
+    # Reference documents (syllabus) are often scanned CMOs that need
     # multi-minute OCR. Doing that on the request thread times out the upload
     # (surfaces as "Internal Server Error"), so we persist a PROCESSING stub,
     # return immediately, and let a background task (process_document_ingestion)
@@ -586,6 +573,8 @@ def get_document(
     fallback = _MEM_DOCUMENTS.get(document_id)
     if fallback is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
+    if fallback.source_type == "curriculum":
+        raise DocumentNotFoundError(f"Document {document_id} not found")
     if is_policy_source_type(fallback.source_type):
         if current_user_role != "admin":
             raise DocumentNotFoundError(f"Document {document_id} not found")
@@ -597,52 +586,6 @@ def get_document(
             raise DocumentNotFoundError(f"Document {document_id} not found")
     return fallback.model_copy(
         update={"chunks": _chunk_responses(get_document_chunks(document_id, db=None))}
-    )
-
-
-def get_syllabus_course_contents(
-    document_id: uuid.UUID,
-    current_user_id: uuid.UUID,
-    current_user_role: str,
-    db: Any | None = None,
-):
-    """Return authoritative persisted Course Contents chunks for a syllabus."""
-    from .schemas import SyllabusCourseContentItem, SyllabusCourseContentsResponse
-
-    document = get_document(
-        document_id, current_user_id, current_user_role, db=db
-    )
-    if document.source_type != "syllabus":
-        raise ValueError("Course contents are only available for syllabus documents.")
-    chunks = sorted(
-        (
-            chunk
-            for chunk in get_document_chunks(document_id, db=db)
-            if (getattr(chunk, "section_ref", None) or "").startswith(
-                "syllabus_course_content:"
-            )
-        ),
-        key=lambda chunk: (
-            getattr(chunk, "chunk_index", None)
-            if getattr(chunk, "chunk_index", None) is not None
-            else 10**9,
-            getattr(chunk, "page_number", 0),
-        ),
-    )
-    return SyllabusCourseContentsResponse(
-        document_id=document_id,
-        document_title=document.title,
-        contents=[
-            SyllabusCourseContentItem(
-                content_ref=str(chunk.section_ref).split(":", 1)[1],
-                content_text=str(chunk.text),
-                page_number=int(chunk.page_number),
-                extraction_method="ocr" if bool(chunk.is_ocr) else "embedded_text",
-                chunk_id=chunk.chunk_id,
-                row_index=int(chunk.chunk_index or 0),
-            )
-            for chunk in chunks
-        ],
     )
 
 
@@ -671,6 +614,8 @@ def list_documents(
             query = query.filter(
                 Document.source_type.notin_(POLICY_SOURCE_TYPES)
             )
+        # Legacy curriculum rows are maintenance-only — never exposed via list
+        query = query.filter(Document.source_type != "curriculum")
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -733,11 +678,14 @@ def list_documents(
         item
         for item in mem_items
         if (
-            _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
-            or is_reference_source_type(item.source_type)
-            or (
-                is_policy_source_type(item.source_type)
-                and current_user_role == "admin"
+            item.source_type != "curriculum"
+            and (
+                _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
+                or is_reference_source_type(item.source_type)
+                or (
+                    is_policy_source_type(item.source_type)
+                    and current_user_role == "admin"
+                )
             )
         )
     ]
@@ -768,131 +716,6 @@ def list_documents(
     )
 
 
-def list_reference_documents(
-    db: Any | None = None,
-) -> ReferenceLibraryResponse:
-    """Admin-only listing of syllabus/curriculum documents with computed health."""
-    if db is None:
-        return ReferenceLibraryResponse(items=[], total=0)
-
-    from server.modules.embeddings.service import check_chroma_availability
-
-    rows = (
-        db.query(Document)
-        .filter(Document.source_type.in_(REFERENCE_SOURCE_TYPES))
-        .order_by(Document.uploaded_at.desc())
-        .all()
-    )
-
-    items: list[ReferenceLibraryItem] = []
-    for row in rows:
-        chunk_count = (
-            db.query(DocumentChunk)
-            .filter(DocumentChunk.document_id == row.document_id)
-            .count()
-        )
-        file_exists = Path(row.file_path).exists() if row.file_path else False
-        chroma_available = check_chroma_availability(
-            str(row.document_id), row.source_type
-        )
-        embedding_ready = (
-            row.processing_status == "PROCESSED"
-            and chunk_count > 0
-            and chroma_available
-        )
-        items.append(
-            ReferenceLibraryItem(
-                document_id=row.document_id,
-                title=row.title,
-                source_type=row.source_type,
-                program=row.program,
-                course_code=row.course_code,
-                academic_year=row.academic_year,
-                course_title=row.course_title,
-                lesson_title=row.lesson_title,
-                page_count=row.page_count,
-                uploaded_at=row.uploaded_at,
-                uploaded_by=row.uploaded_by,
-                processing_status=row.processing_status,
-                file_exists=file_exists,
-                chunk_count=chunk_count,
-                chroma_available=chroma_available,
-                embedding_ready=embedding_ready,
-            )
-        )
-
-    return ReferenceLibraryResponse(items=items, total=len(items))
-
-
-def is_syllabus_reference_ready(document: Document, db: Any) -> tuple[bool, int]:
-    """Check authoritative Course Contents and the local retrieval index."""
-    if document.source_type != "syllabus" or document.processing_status != "PROCESSED":
-        return False, 0
-    from server.modules.auth.models import User, UserRole
-
-    uploaded_by_admin = (
-        db.query(User)
-        .filter(
-            User.user_id == document.uploaded_by,
-            User.role == UserRole.ADMIN,
-        )
-        .count()
-        > 0
-    )
-    if not uploaded_by_admin:
-        return False, 0
-    content_count = (
-        db.query(DocumentChunk)
-        .filter(
-            DocumentChunk.document_id == document.document_id,
-            DocumentChunk.section_ref.like("syllabus_course_content:%"),
-        )
-        .count()
-    )
-    if content_count == 0:
-        return False, 0
-    from server.modules.embeddings.service import check_chroma_availability
-
-    return (
-        check_chroma_availability(str(document.document_id), "syllabus"),
-        content_count,
-    )
-
-
-def list_available_syllabus_references(db: Any):
-    """Return shared syllabi that can be used by the alignment retrieval path."""
-    from server.modules.documents.schemas import (
-        SyllabusReferenceOption,
-        SyllabusReferenceOptionsResponse,
-    )
-
-    rows = (
-        db.query(Document)
-        .filter(
-            Document.source_type == "syllabus",
-            Document.processing_status == "PROCESSED",
-        )
-        .order_by(Document.uploaded_at.desc())
-        .all()
-    )
-    items = []
-    for row in rows:
-        ready, content_count = is_syllabus_reference_ready(row, db)
-        if not ready:
-            continue
-        items.append(
-            SyllabusReferenceOption(
-                document_id=row.document_id,
-                title=row.title,
-                program=row.program,
-                course_code=row.course_code,
-                academic_year=row.academic_year,
-                content_count=content_count,
-            )
-        )
-    return SyllabusReferenceOptionsResponse(items=items, total=len(items))
-
-
 def stream_document_file(
     document_id: uuid.UUID,
     current_user_id: uuid.UUID,
@@ -901,8 +724,9 @@ def stream_document_file(
 ) -> Path:
     """Return the local file path for a document, enforcing access rules.
 
-    Reference documents are shared to authenticated users.
-    Policy documents are admin-only.
+    Reference documents (syllabus) are shared to authenticated users.
+    Policy documents are admin-only. Legacy curriculum rows are
+    maintenance-only and never streamed here.
     SLMs remain owner-only.
     Raises DocumentNotFoundError if the document is not found, not
     accessible, or the local file is missing.
@@ -922,156 +746,6 @@ def stream_document_file(
         raise DocumentNotFoundError(f"Document file {document_id} not found")
 
     return file_path
-
-
-def delete_reference_document(
-    document_id: uuid.UUID,
-    db: Any | None = None,
-) -> ReferenceDeleteResponse:
-    """Admin-only delete of a reference document with best-effort cleanup.
-
-    1. Check for referencing EvaluationJob rows → 409 Conflict
-    2. Delete Chroma vectors (tolerate missing)
-    3. Delete DocumentChunk rows
-    4. Delete the Document row
-    5. Delete the local PDF file (tolerate missing)
-    """
-    if db is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    from server.modules.embeddings.service import delete_chroma_vectors
-    from server.modules.evaluations.models import EvaluationJob
-
-    row = db.get(Document, document_id)
-    if row is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    details: dict[str, object] = {}
-
-    # Step 0: Validate source type — only reference documents can be deleted here
-    if not is_reference_source_type(row.source_type):
-        err_msg = (
-            f"Document {document_id} has source_type='{row.source_type}'; "
-            "only syllabus and curriculum documents can be deleted "
-            "through this endpoint."
-        )
-        raise ReferenceDeleteInvalidTypeError(err_msg)
-
-    # Step 1: Check for evaluation job references
-    ref_count = (
-        db.query(EvaluationJob)
-        .filter(
-            (EvaluationJob.syllabus_id == document_id)
-            | (EvaluationJob.curriculum_id == document_id)
-        )
-        .count()
-    )
-    if ref_count > 0:
-        raise ReferenceDeleteConflictError(
-            f"Document {document_id} is referenced by {ref_count} evaluation job(s) "
-            "and cannot be deleted."
-        )
-
-    # Step 1: Delete Chroma vectors (tolerate missing)
-    try:
-        deleted_chroma = delete_chroma_vectors(str(document_id), row.source_type)
-        details["chroma_deleted"] = deleted_chroma
-    except Exception as exc:
-        logger.warning(
-            "Chroma deletion reported an issue during document cleanup",
-            extra={"document_id": str(document_id), "error": str(exc)},
-        )
-        details["chroma_warning"] = str(exc)
-
-    # Step 2: Delete DocumentChunk rows
-    chunk_count = (
-        db.query(DocumentChunk)
-        .filter(DocumentChunk.document_id == document_id)
-        .delete()
-    )
-    details["chunks_deleted"] = chunk_count
-
-    # Step 3: Delete the Document row
-    db.delete(row)
-    db.flush()
-
-    # Step 4: Delete the local PDF file (tolerate missing)
-    if row.file_path:
-        pdf_path = Path(row.file_path)
-        if pdf_path.exists():
-            try:
-                pdf_path.unlink()
-                details["file_deleted"] = True
-            except OSError as exc:
-                logger.warning(
-                    "Failed to delete local PDF file during document cleanup",
-                    extra={
-                        "document_id": str(document_id),
-                        "file_path": row.file_path,
-                        "error": str(exc),
-                    },
-                )
-                details["file_warning"] = str(exc)
-        else:
-            details["file_missing"] = True
-    else:
-        details["file_missing"] = True
-
-    db.commit()
-
-    return ReferenceDeleteResponse(
-        document_id=document_id,
-        deleted=True,
-        details=details,
-    )
-
-
-
-
-
-def rebuild_reference_embeddings(
-    document_id: uuid.UUID,
-    db: Any | None = None,
-) -> ReferenceRebuildResponse:
-    """Admin-only rebuild of Chroma embeddings from stored chunks for a
-    syllabus or curriculum document.
-    """
-    if db is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    from server.modules.embeddings.service import embed_and_store_chunks
-
-    row = db.get(Document, document_id)
-    if row is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    if not is_reference_source_type(row.source_type):
-        raise ReferenceRebuildError(
-            f"Rebuild is only supported for syllabus and curriculum documents, "
-            f"not {row.source_type}."
-        )
-
-    if row.processing_status != "PROCESSED":
-        raise ReferenceRebuildError(
-            f"Document {document_id} has status '{row.processing_status}'; "
-            "only PROCESSED documents can be rebuilt."
-        )
-
-    chunks = get_document_chunks(document_id, db=db)
-    if not chunks:
-        raise ReferenceRebuildError(
-            f"Document {document_id} has no stored chunks to rebuild embeddings from."
-        )
-
-    upserted = embed_and_store_chunks(chunks)
-    if db is not None and upserted:
-        _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
-    return ReferenceRebuildResponse(
-        document_id=document_id,
-        rebuilt=upserted > 0,
-        chunk_count=len(chunks),
-        details={"chunks_upserted": upserted},
-    )
 
 
 def _validate_upload(
@@ -1221,49 +895,6 @@ def _mark_interrupted_upload(
         )
 
 
-def _create_upload_marker(document_id: uuid.UUID, file_path: Path) -> Path:
-    """Durably claim a no-DB upload artifact before opening the PDF."""
-    upload_root_existed = UPLOAD_JOURNAL_ROOT.parent.exists()
-    journal_existed = UPLOAD_JOURNAL_ROOT.exists()
-    UPLOAD_JOURNAL_ROOT.mkdir(parents=True, exist_ok=True)
-    if not upload_root_existed:
-        _fsync_directory(UPLOAD_JOURNAL_ROOT.parent.parent)
-    if not journal_existed:
-        _fsync_directory(UPLOAD_JOURNAL_ROOT.parent)
-
-    marker = UPLOAD_JOURNAL_ROOT / f"{document_id}.pending"
-    descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", closefd=False) as handle:
-            handle.write(str(file_path))
-            handle.flush()
-            os.fsync(handle.fileno())
-    finally:
-        os.close(descriptor)
-    _fsync_directory(UPLOAD_JOURNAL_ROOT)
-    return marker
-
-
-def _fsync_directory(directory: Path) -> None:
-    """Persist a directory entry after creating a tracked artifact."""
-    descriptor = os.open(directory, os.O_RDONLY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _remove_upload_marker(marker: Path) -> None:
-    """Remove an ownership marker only after its upload has finalized."""
-    try:
-        marker.unlink(missing_ok=True)
-    except OSError:
-        logger.warning(
-            "Failed to remove no-DB upload ownership marker",
-            extra={"marker": str(marker)},
-        )
-
-
 def _persist_chunks(
     db: Any | None,
     document_id: uuid.UUID,
@@ -1399,35 +1030,6 @@ def _refresh_tfidf_if_needed(source_type: str) -> None:
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
 
 
-def _cleanup_failed_upload(file_path: Path) -> bool:
-    """Remove the uploaded file when preprocessing failed.
-
-    Tries to delete the file up to 3 times (bounded cleanup retries).
-    Returns True if deletion succeeds (or file already does not exist),
-    and False if deletion fails.
-    """
-    import time
-
-    for attempt in range(1, 4):
-        try:
-            if not file_path.exists():
-                return True
-            file_path.unlink()
-            logger.info(
-                f"Cleaned up failed upload file (attempt {attempt}/3)",
-                extra={"file_path": str(file_path)},
-            )
-            return True
-        except OSError as exc:
-            logger.warning(
-                f"Failed to clean up failed upload file (attempt {attempt}/3)",
-                extra={"file_path": str(file_path), "error": str(exc)},
-            )
-            if attempt < 3:
-                time.sleep(0.05 * attempt)
-    return False
-
-
 def _sanitize_error(raw_message: str) -> str:
     """Strip internal details (file paths, stack traces) from error messages."""
     # Exact mappings first
@@ -1476,206 +1078,14 @@ def _sanitize_error(raw_message: str) -> str:
     return sanitized
 
 
-def get_curriculum_suggestions(
-    document_id: uuid.UUID,
-    program: str,
-    current_user_id: uuid.UUID,
-    current_user_role: str,
-    db: Any | None = None,
-) -> CurriculumSuggestionResponse:
-    """Return curriculum suggestions for an SLM document by confirmed program.
-
-    1. Loads the SLM document (ownership check via get_document).
-    2. Validates and normalizes the confirmed program.
-    3. Queries curriculum documents matching the normalized program.
-    4. Separates ready (embedding-ready) and unavailable curricula.
-    5. Returns the newest ready curriculum as preferred_suggestion.
-    """
-    # Step 1: Load the document — access check happens inside get_document
-    doc = get_document(document_id, current_user_id, current_user_role, db)
-    if doc.source_type != "slm":
-        raise ValueError("Curriculum suggestions are only available for SLM documents.")
-
-    # Step 2: Validate and normalize program
-    program_stripped = program.strip()
-    if not program_stripped:
-        raise ValueError("Program must not be empty")
-
-    normalized_program = program_stripped.upper()
-
-    # Step 3: Query matching curriculum documents
-    matching_rows: list[Any] = []
-    if db is not None:
-        from sqlalchemy import func as sa_func
-
-        rows = (
-            db.query(Document)
-            .filter(
-                Document.source_type == "curriculum",
-                sa_func.upper(Document.program) == normalized_program,
-            )
-            .order_by(Document.uploaded_at.desc())
-            .all()
-        )
-        matching_rows = rows
-    else:
-        matching_rows = [
-            d
-            for d in _MEM_DOCUMENTS.values()
-            if d.source_type == "curriculum"
-            and (d.program or "").strip().upper() == normalized_program
-        ]
-        matching_rows.sort(key=lambda d: d.uploaded_at, reverse=True)
-
-    # Step 4: Separate ready vs unavailable
-    ready: list[CurriculumSuggestionItem] = []
-    unavailable: list[CurriculumSuggestionItem] = []
-
-    for row in matching_rows:
-        if db is not None:
-            chunk_count = (
-                db.query(DocumentChunk)
-                .filter(DocumentChunk.document_id == row.document_id)
-                .count()
-            )
-            from server.modules.embeddings.service import check_chroma_availability
-
-            chroma_available = check_chroma_availability(
-                str(row.document_id), "curriculum"
-            )
-            embedding_ready = (
-                row.processing_status == "PROCESSED"
-                and chunk_count > 0
-                and chroma_available
-            )
-        else:
-            embedding_ready = row.processing_status == "PROCESSED"
-
-        item = CurriculumSuggestionItem(
-            document_id=row.document_id,
-            title=row.title,
-            program=row.program,
-            embedding_ready=embedding_ready,
-            match_reason="selected_program",
-        )
-
-        if embedding_ready:
-            ready.append(item)
-        else:
-            unavailable.append(item)
-
-    # Step 5: Preferred = newest ready curriculum
-    preferred = ready[0] if ready else None
-
-    return CurriculumSuggestionResponse(
-        document_id=document_id,
-        detected_program=doc.program,
-        selected_program=program_stripped,
-        detected_course_code=doc.course_code,
-        detected_academic_year=doc.academic_year,
-        detected_lesson_title=doc.lesson_title,
-        preferred_suggestion=preferred,
-        curriculum_suggestions=ready,
-        unavailable_curricula=unavailable,
-    )
-
-
-def recover_cleanup_pending_documents(db_session_factory: Any) -> int:
-    """Recover tracked artifacts left by interrupted or failed uploads.
-
-    If cleanup succeeds, updates their status to FAILED.
-    Returns the number of successfully cleaned-up documents.
-    """
-    session = db_session_factory()
-    try:
-        docs = (
-            session.query(Document)
-            .filter(
-                Document.processing_status.in_(["PENDING", "CLEANUP_PENDING", "FAILED"])
-            )
-            .all()
-        )
-        if not docs:
-            return 0
-
-        recovered_count = 0
-        for doc in docs:
-            if not doc.file_path:
-                doc.processing_status = "FAILED"
-                recovered_count += 1
-                continue
-
-            pdf_path = Path(doc.file_path)
-            if _cleanup_failed_upload(pdf_path):
-                doc.processing_status = "FAILED"
-                recovered_count += 1
-
-        if recovered_count > 0:
-            session.commit()
-            logger.info(
-                f"Document cleanup startup recovery successfully cleaned up "
-                f"{recovered_count} pending files."
-            )
-        return recovered_count
-    except Exception:
-        logger.exception("Failed to recover cleanup-pending documents")
-        return 0
-    finally:
-        session.close()
-
-
-def recover_no_database_upload_journal() -> int:
-    """Remove stale no-DB upload artifacts tracked by ownership markers."""
-    if not UPLOAD_JOURNAL_ROOT.exists():
-        return 0
-
-    recovered_count = 0
-    upload_root = UPLOAD_ROOT.resolve()
-    for marker in UPLOAD_JOURNAL_ROOT.glob("*.pending"):
-        try:
-            file_path = Path(marker.read_text(encoding="utf-8").strip()).resolve()
-            if (
-                upload_root not in file_path.parents
-                or file_path.suffix.lower() != ".pdf"
-            ):
-                logger.warning(
-                    "Ignoring invalid no-DB upload ownership marker",
-                    extra={"marker": str(marker)},
-                )
-                continue
-            if _cleanup_failed_upload(file_path):
-                _remove_upload_marker(marker)
-                recovered_count += 1
-        except OSError:
-            logger.exception(
-                "Failed to recover no-DB upload ownership marker",
-                extra={"marker": str(marker)},
-            )
-    return recovered_count
-
-
 __all__ = [
     "create_document",
     "embed_document_chunks",
-    "get_curriculum_suggestions",
     "get_document",
-    "get_syllabus_course_contents",
     "get_document_chunks",
-    "get_healthy_policy_allowlist",
     "list_documents",
-    "list_reference_documents",
-    "list_available_syllabus_references",
-    "is_syllabus_reference_ready",
     "process_document_ingestion",
     "stream_document_file",
-    "delete_reference_document",
-    "rebuild_reference_embeddings",
     "is_reference_source_type",
     "is_policy_source_type",
-    "list_policy_documents",
-    "delete_policy_document",
-    "rebuild_policy_embeddings",
-    "recover_cleanup_pending_documents",
-    "recover_no_database_upload_journal",
-    "validate_policy_chunks",
 ]

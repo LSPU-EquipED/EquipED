@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from server.modules.documents.preprocessing import prepare_slm_package
+from server.modules.documents.slm import prepare_slm_package
 
 
 def test_prepare_slm_package_builds_structured_context() -> None:
@@ -13,7 +13,9 @@ def test_prepare_slm_package_builds_structured_context() -> None:
             "source_type": "slm",
             "agent_domain": "all",
             "page_number": 1,
-            "text": "Learning outcomes include critical thinking and programming basics.",
+            "text": (
+                "Learning outcomes include critical thinking and programming basics."
+            ),
             "token_count": 8,
             "is_ocr": False,
         },

@@ -477,8 +477,8 @@ def test_cleanup_failed_upload_retries_and_cleanup_pending(
 def test_recover_cleanup_pending_documents_success(monkeypatch, db_session) -> None:
     from pathlib import Path
 
+    from server.modules.documents.journaling import recover_cleanup_pending_documents
     from server.modules.documents.models import Document
-    from server.modules.documents.service import recover_cleanup_pending_documents
 
     doc_id = uuid.uuid4()
     temp_file = Path("/tmp/test_cleanup_pending_file.pdf")
@@ -511,8 +511,8 @@ def test_recover_cleanup_pending_documents_success(monkeypatch, db_session) -> N
 def test_recover_pending_document_upload_success(monkeypatch, db_session) -> None:
     from pathlib import Path
 
+    from server.modules.documents.journaling import recover_cleanup_pending_documents
     from server.modules.documents.models import Document
-    from server.modules.documents.service import recover_cleanup_pending_documents
 
     doc_id = uuid.uuid4()
     temp_file = Path("/tmp/test_pending_upload_file.pdf")
@@ -538,7 +538,7 @@ def test_recover_pending_document_upload_success(monkeypatch, db_session) -> Non
 def test_recover_no_database_upload_journal_removes_tracked_file(
     monkeypatch, tmp_path
 ) -> None:
-    from server.modules.documents import service
+    from server.modules.documents import journaling, paths
 
     upload_root = tmp_path / "uploads"
     journal_root = upload_root / ".upload-journal"
@@ -546,12 +546,12 @@ def test_recover_no_database_upload_journal_removes_tracked_file(
     upload_root.mkdir()
     file_path.write_bytes(b"dummy")
 
-    monkeypatch.setattr(service, "UPLOAD_ROOT", upload_root)
-    monkeypatch.setattr(service, "UPLOAD_JOURNAL_ROOT", journal_root)
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", upload_root)
+    monkeypatch.setattr(paths, "UPLOAD_JOURNAL_ROOT", journal_root)
 
-    marker = service._create_upload_marker(uuid.uuid4(), file_path)
+    marker = journaling._create_upload_marker(uuid.uuid4(), file_path)
 
-    assert service.recover_no_database_upload_journal() == 1
+    assert journaling.recover_no_database_upload_journal() == 1
     assert not file_path.exists()
     assert not marker.exists()
 
@@ -559,25 +559,25 @@ def test_recover_no_database_upload_journal_removes_tracked_file(
 def test_no_database_upload_marker_fsyncs_directory_entry(
     monkeypatch, tmp_path
 ) -> None:
-    from server.modules.documents import service
+    from server.modules.documents import journaling, paths
 
     upload_root = tmp_path / "uploads"
     journal_root = upload_root / ".upload-journal"
     file_path = upload_root / "interrupted.pdf"
     upload_root.mkdir()
 
-    monkeypatch.setattr(service, "UPLOAD_ROOT", upload_root)
-    monkeypatch.setattr(service, "UPLOAD_JOURNAL_ROOT", journal_root)
+    monkeypatch.setattr(paths, "UPLOAD_ROOT", upload_root)
+    monkeypatch.setattr(paths, "UPLOAD_JOURNAL_ROOT", journal_root)
 
-    original_fsync = service.os.fsync
+    original_fsync = journaling.os.fsync
     fsynced_directories: list[bool] = []
 
     def record_fsync(descriptor: int) -> None:
-        fsynced_directories.append(stat.S_ISDIR(service.os.fstat(descriptor).st_mode))
+        fsynced_directories.append(stat.S_ISDIR(journaling.os.fstat(descriptor).st_mode))
         original_fsync(descriptor)
 
-    monkeypatch.setattr(service.os, "fsync", record_fsync)
+    monkeypatch.setattr(journaling.os, "fsync", record_fsync)
 
-    service._create_upload_marker(uuid.uuid4(), file_path)
+    journaling._create_upload_marker(uuid.uuid4(), file_path)
 
     assert any(fsynced_directories)
