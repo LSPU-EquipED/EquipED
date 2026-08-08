@@ -318,6 +318,98 @@ def test_orchestrator_partial_without_curriculum_completes(
     assert matrix_row.evaluation_status == "COMPLETED_PARTIAL"
 
 
+def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
+    """get_document_chunks is queried once, before the empty check, and reused.
+
+    The same immutable ``slm_chunks`` list must feed both the emptiness guard
+    and the supervisor/synthesis path — no duplicate back-to-back query.
+    """
+    from server.core import database as core_database
+    from server.modules.agents.contracts import AgentEvaluationResult
+    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from sqlalchemy.orm import sessionmaker
+
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-chunk-once@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    _seed_active_prompts(db_session)
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+        partial_without_curriculum=True,
+        partial_reason="focused chunk-reuse test",
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    real_get_chunks = evaluation_orchestrator.get_document_chunks
+    calls: list[object] = []
+
+    def counting_get_chunks(document_id, db=None):
+        calls.append(document_id)
+        return real_get_chunks(document_id, db=db)
+
+    monkeypatch.setattr(
+        evaluation_orchestrator, "get_document_chunks", counting_get_chunks
+    )
+
+    def fake_run_evaluation(
+        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+    ):
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=[
+                AgentEvaluationResult(
+                    agent_name="sme",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=3,
+                    criterion_scores=(),
+                    summary="ok",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                    success=True,
+                    prompt_version_id=None,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor, "run_evaluation", fake_run_evaluation
+    )
+
+    run_evaluation_job(job.evaluation_id)
+
+    assert calls == [slm_id]  # exactly one chunk load
+    db_session.expire_all()
+    refreshed = db_session.get(EvaluationJob, job.evaluation_id)
+    assert refreshed is not None
+    assert refreshed.status == EvaluationStatus.COMPLETED.value
+
+
 def test_orchestrator_completes_when_layer3_returns_outputs(
     db_session, monkeypatch
 ) -> None:

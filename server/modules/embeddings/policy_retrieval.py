@@ -101,7 +101,7 @@ def retrieve_policy_context(
 
     # Delegate allowlist to the document-service contract.
     try:
-        from server.modules.documents.service import get_healthy_policy_allowlist
+        from server.modules.documents.policy_service import get_healthy_policy_allowlist
 
         allowlist = get_healthy_policy_allowlist(db)
     except Exception:
@@ -173,7 +173,7 @@ def _query_policy_area(
         return _unavailable_result(policy_area=policy_area)
 
     try:
-        from server.modules.documents.service import validate_policy_chunks
+        from server.modules.documents.policy_service import validate_policy_chunks
 
         raw_chunks = _parse_policy_chunks(result)
         # Build tuples for validation: (chunk_id, document_id, policy_area)

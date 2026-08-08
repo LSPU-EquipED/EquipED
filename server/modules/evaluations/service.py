@@ -175,7 +175,7 @@ def _validate_evaluation_target(
     is_admin = user_role == UserRole.ADMIN.value if user_role else False
     if not is_admin:
         # SLM documents require strict ownership. Reference documents
-        # (syllabus, curriculum) are shared to all authenticated users.
+        # (syllabus) are shared to all authenticated users.
         if expected_source_type == "slm" and document.uploaded_by != current_user_id:
             raise DocumentNotFoundError(f"Document {document_id} not found")
         if expected_source_type in REFERENCE_SOURCE_TYPES:
