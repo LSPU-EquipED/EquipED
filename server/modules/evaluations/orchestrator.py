@@ -100,7 +100,8 @@ def run_evaluation_job(
             curriculum = session.get(Document, job.curriculum_id)
             if curriculum is None:
                 logger.warning(
-                    "Curriculum document %s for historical job %s not found (cleared or purged); proceeding.",
+                    "Curriculum document %s for historical job %s not found "
+                    "(cleared or purged); proceeding.",
                     job.curriculum_id, evaluation_id
                 )
 
@@ -112,10 +113,14 @@ def run_evaluation_job(
         )
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
-        if not get_document_chunks(job.document_id, db=session):
+        slm_chunks = get_document_chunks(job.document_id, db=session)
+        if not slm_chunks:
             raise EvaluationPipelineUnavailableError(
                 "Document has no chunks for evaluation."
             )
+        slm_text = "\n".join(
+            [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
+        )
 
         transition_evaluation_status(
             evaluation_id,
@@ -124,11 +129,6 @@ def run_evaluation_job(
             execution_token=execution_token,
         )
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-
-        slm_chunks = get_document_chunks(job.document_id, db=session)
-        slm_text = "\n".join(
-            [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
-        )
 
         # 2) Idempotency check: if a prior attempt already persisted
         #    AgentResult rows, do not re-run the supervisor. Resume from
@@ -141,8 +141,9 @@ def run_evaluation_job(
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
             if job.partial_without_curriculum or job.curriculum_id is None:
-                # No-curriculum partial or new curriculum-retired run: construct Supervisor
-                # without ProgramCoordinator so coordinator review is skipped entirely.
+                # No-curriculum partial or new curriculum-retired run: construct
+                # Supervisor without ProgramCoordinator so coordinator review
+                # is skipped entirely.
                 from server.modules.agents.gad import GADAgent
                 from server.modules.agents.itso import ITSOAgent
                 from server.modules.agents.sme import SMEAgent
@@ -252,8 +253,9 @@ def run_evaluation_job(
             flag_count=flag_count,
         )
 
-        # Deliberate no-curriculum partial evaluations (and curriculum-retired runs) always complete
-        # successfully (the user chose or system enforced the degraded path). Accidental
+        # Deliberate no-curriculum partial evaluations (and curriculum-retired
+        # runs) always complete successfully (the user chose or system enforced
+        # the degraded path). Accidental
         # partials caused by agent failures still end as FAILED.
         if job.partial_without_curriculum or job.curriculum_id is None:
             final_status = EvaluationStatus.COMPLETED
@@ -283,7 +285,7 @@ def run_evaluation_job(
         # toxicity. A failure here must never make normal eval data
         # disappear or prevent a legitimate COMPLETED transition.
         if final_status == EvaluationStatus.COMPLETED:
-            from server.modules.admin.service import (
+            from server.modules.admin.model_validation_service import (
                 assess_model_validation_toxicity,
                 sync_model_validation_criterion_results,
             )

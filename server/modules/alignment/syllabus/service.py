@@ -23,10 +23,8 @@ from server.modules.alignment.syllabus.schemas import (
     SyllabusAlignmentSlmListResponse,
 )
 from server.modules.documents.models import Document, DocumentChunk
-from server.modules.documents.service import (
-    get_document_chunks,
-    is_syllabus_reference_ready,
-)
+from server.modules.documents.reference_service import is_syllabus_reference_ready
+from server.modules.documents.service import get_document_chunks
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
