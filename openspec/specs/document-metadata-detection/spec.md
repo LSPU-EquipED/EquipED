@@ -9,7 +9,7 @@ Define the contract for auto-detecting document metadata (program, academic_year
 The system SHALL extract `program`, `academic_year`, `course_code`, and `lesson_title` from document text using regex pattern matching during the preprocessing pipeline. Detection SHALL use only the Python `re` module — no LLM calls.
 
 #### Scenario: Program detected from cover page
-- **WHEN** a document's first 2-3 pages contain a known LSPU SCC program code (e.g., "BSIT", "BSED", "BSCS")
+- **WHEN** a document's first 2-3 pages contain `BSCS`, `BSInfoTech`, or legacy alias `BSIT`
 - **THEN** the system SHALL populate the `program` field with the detected code
 - **AND** if no known program code is found, `program` SHALL remain null — it is not forced from filename
 
@@ -39,11 +39,15 @@ The system SHALL run regex patterns against text from the first 2-3 pages (appro
 - **THEN** the system SHALL NOT detect it as the document's course code
 
 ### Requirement: Known program list matching
-The system SHALL match program codes against a curated list of LSPU SCC programs. This reduces false positives from generic acronyms.
+The system SHALL match only the active program catalog `BSCS` and `BSInfoTech`. The legacy `BSIT` alias SHALL be accepted case-insensitively and canonicalized to `BSInfoTech`; unsupported programs are ignored by detection.
 
 #### Scenario: Known program matched
-- **WHEN** the text contains "BSIT" and "BSIT" is in the known program list
-- **THEN** the system SHALL detect "BSIT" as the program
+- **WHEN** the text contains "BSInfoTech" which is in the known program list
+- **THEN** the system SHALL detect "BSInfoTech" as the program
+
+#### Scenario: Legacy alias canonicalized
+- **WHEN** the text contains "BSIT" and "BSIT" is in the known program list as an alias
+- **THEN** the system SHALL detect the program and store the canonical code "BSInfoTech"
 
 #### Scenario: Unknown acronym ignored
 - **WHEN** the text contains "PDF" which matches the course code pattern but is not a real program

@@ -1,5 +1,7 @@
 """
-Evaluations business logic layer. Enforces job lifecycle, role/ownership, and status transitions (including helpers for orchestrator use). Unauthorized access is always 404 (masked) for non-owners.
+Evaluations business logic layer. Enforces job lifecycle, role/ownership, and
+status transitions (including helpers for orchestrator use). Unauthorized
+access is always 404 (masked) for non-owners.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from server.modules.documents.exceptions import DocumentNotFoundError
+from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import (
@@ -62,7 +65,9 @@ def create_evaluation(
     with_commit: bool = True,
 ) -> EvaluationResponse:
     if db is None:
-        raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
+        raise EvaluationPipelineUnavailableError(
+            "Evaluation pipeline is not available yet."
+        )
 
     # Validate SLM ownership FIRST to preserve security masking:
     # a foreign SLM returns DocumentNotFoundError (404) before we
@@ -82,7 +87,8 @@ def create_evaluation(
 
     if req.curriculum_id is not None:
         raise InvalidEvaluationTargetError(
-            "curriculum_id submission is retired; new evaluations run without curriculum."
+            "curriculum_id submission is retired; new evaluations run without "
+            "curriculum."
         )
 
     if not (req.confirmed_program and req.confirmed_program.strip()):
@@ -90,11 +96,12 @@ def create_evaluation(
             "confirmed_program is required for evaluation submission."
         )
 
-    from server.modules.documents.metadata import _LSPU_PROGRAMS
     confirmed_prog = req.confirmed_program.strip()
-    if not any(confirmed_prog.upper() == p.upper() for p in _LSPU_PROGRAMS):
+    canonical_program = canonicalize_supported_program(confirmed_prog)
+    if canonical_program is None:
         raise InvalidEvaluationTargetError(
-            f"Invalid confirmed_program '{confirmed_prog}'. Must be a valid institutional program."
+            "Unsupported confirmed_program. Only BSCS and BSInfoTech are supported; "
+            "BSIT is accepted as an alias."
         )
 
     syllabus = None
@@ -114,8 +121,10 @@ def create_evaluation(
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
         partial_without_curriculum=True,
-        partial_reason="Curriculum evaluation flow retired; Coordinator review skipped.",
-        confirmed_program=confirmed_prog.upper(),
+        partial_reason=(
+            "Curriculum evaluation flow retired; Coordinator review skipped."
+        ),
+        confirmed_program=canonical_program,
         submitted_by=submitted_by,
         submitted_at=datetime.now(UTC),
         completed_at=None,
@@ -150,7 +159,9 @@ def _validate_evaluation_target(
     user_role: str | None = None,
 ) -> Document:
     if db is None:
-        raise EvaluationPipelineUnavailableError("Evaluation pipeline is not available yet.")
+        raise EvaluationPipelineUnavailableError(
+            "Evaluation pipeline is not available yet."
+        )
 
     from server.modules.auth.models import UserRole
     from server.modules.documents.schemas import REFERENCE_SOURCE_TYPES
@@ -198,7 +209,9 @@ def _validate_evaluation_target(
 
     return document
 
-def _check_ownership_or_404(row: EvaluationJob, current_user_id: uuid.UUID, current_user_role: str):
+def _check_ownership_or_404(
+    row: EvaluationJob, current_user_id: uuid.UUID, current_user_role: str
+):
     if row.submitted_by != current_user_id:
         # Always mask existence as 404 if not the owner.
         raise EvaluationNotFoundError("Not found.")

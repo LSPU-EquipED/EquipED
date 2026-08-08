@@ -5,12 +5,18 @@ from __future__ import annotations
 import tempfile
 import uuid
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User
-from server.modules.documents.exceptions import DocumentNotFoundError
+from server.modules.documents.exceptions import (
+    DocumentNotFoundError,
+    ForbiddenUploadError,
+    UnsupportedFileTypeError,
+)
 from server.modules.documents.schemas import DocumentChunkData, DocumentResponse
 from server.modules.documents.service import (
     _MEM_CHUNKS,
@@ -22,6 +28,79 @@ from server.modules.documents.service import (
     get_document,
     list_documents,
 )
+
+
+def test_upload_manual_bsit_is_canonicalized(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("server.modules.documents.service.UPLOAD_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.documents.service.ingest_document", lambda *args, **kwargs: []
+    )
+    result = create_document(
+        UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
+        "slm", "Program", None, None, "BSIT", uuid.uuid4(), db=None,
+    )
+    assert _MEM_DOCUMENTS[result.document_id].program == "BSInfoTech"
+
+
+def test_upload_unsupported_program_rejected_before_processing(
+    monkeypatch, tmp_path
+) -> None:
+    called = False
+
+    def ingest(*args, **kwargs):
+        nonlocal called
+        called = True
+        return []
+
+    monkeypatch.setattr("server.modules.documents.service.UPLOAD_ROOT", tmp_path)
+    monkeypatch.setattr("server.modules.documents.service.ingest_document", ingest)
+    with pytest.raises(UnsupportedFileTypeError, match="Only BSCS"):
+        create_document(
+            UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
+            "slm", "Program", None, None, "BSEd", uuid.uuid4(), db=None,
+        )
+    assert called is False
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_upload_rbac_precedes_unsupported_program() -> None:
+    from server.modules.documents.service import _validate_upload
+
+    with pytest.raises(ForbiddenUploadError):
+        _validate_upload(
+            UploadFile(filename="reference.pdf", file=BytesIO(b"pdf")),
+            "syllabus",
+            "BSEd",
+            user_role="faculty",
+        )
+
+
+def test_list_documents_program_filters_keep_legacy_rows() -> None:
+    _MEM_DOCUMENTS.clear()
+    _MEM_DOCUMENT_OWNERS.clear()
+    owner_id = uuid.uuid4()
+    for program in ("BSInfoTech", "BSIT", "BSCS", "BSN"):
+        document_id = uuid.uuid4()
+        _MEM_DOCUMENTS[document_id] = DocumentResponse(
+            document_id=document_id, title=program, source_type="slm",
+            program=program, processing_status="PROCESSED", has_ocr_pages=False,
+            uploaded_at=datetime.now(UTC), uploaded_by=owner_id,
+        )
+        _MEM_DOCUMENT_OWNERS[document_id] = owner_id
+
+    def programs(value):
+        return {
+            item.program
+            for item in list_documents(None, value, 1, 20, owner_id, "faculty")
+            .items
+        }
+
+    assert programs("bsit") == {"BSInfoTech", "BSIT"}
+    assert programs("bsinfotech") == {"BSInfoTech", "BSIT"}
+    assert programs("BSCS") == {"BSCS"}
+    assert programs(None) == {"BSInfoTech", "BSIT", "BSCS", "BSN"}
+    with pytest.raises(ValueError):
+        programs("BSEd")
 
 
 # ---------------------------------------------------------------------------
@@ -275,13 +354,14 @@ def test_existing_documents_are_not_auto_reprocessed(
     tmp_path,
 ) -> None:
     from io import BytesIO
+
     from fastapi import UploadFile
+    from server.modules.documents.schemas import DocumentChunkData
     from server.modules.documents.service import (
         _MEM_CHUNKS,
         _MEM_DOCUMENTS,
         create_document,
     )
-    from server.modules.documents.schemas import DocumentChunkData
 
     existing_id = uuid.uuid4()
     _MEM_DOCUMENTS.clear()
@@ -344,11 +424,11 @@ def test_existing_documents_are_not_auto_reprocessed(
 
 
 def test_persist_chunks_handles_empty_chunk_data(db_session) -> None:
+    from server.modules.documents.models import DocumentChunk
     from server.modules.documents.service import (
         _MEM_CHUNKS,
         _persist_chunks,
     )
-    from server.modules.documents.models import DocumentChunk
 
     document_id = uuid.uuid4()
 

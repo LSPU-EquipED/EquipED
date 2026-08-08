@@ -8,44 +8,30 @@ No LLM calls, no new dependencies beyond Python's built-in ``re`` module.
 from __future__ import annotations
 
 import re
-from typing import Any
 
-_LSPU_PROGRAMS = (
-    "BA-AB",
-    "BSBio",
-    "BSChem",
-    "BSMath",
-    "BSPsych",
-    "BSOA",
-    "BSE",
-    "BSA",
-    "MPA",
+_DETECTION_PROGRAMS = (
     "BSInfoTech",
+    "BSIT",
     "BSCS",
-    "MSIT",
-    "BSCrim",
-    "BSECE",
-    "BSME",
-    "BSEE",
-    "BSCE",
-    "BSCpE",
-    "BSInTech",
-    "BSHM",
-    "BSTM",
-    "JD",
-    "BSN",
-    "BSEd",
-    "BEEd",
-    "BTVTEd",
-    "BPEd",
-    "BTLEd",
-    "EdD",
-    "MAT-ENG",
-    "MAEd",
 )
 
 # Pre-compile patterns once at module load
-_PROGRAM_PATTERN = re.compile(r"\b(" + "|".join(sorted(_LSPU_PROGRAMS, key=len, reverse=True)) + r")\b")
+_PROGRAM_PATTERN = re.compile(
+    r"\b(" + "|".join(sorted(_DETECTION_PROGRAMS, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def canonicalize_supported_program(value: str | None) -> str | None:
+    """Return the canonical active program code, or ``None`` if unsupported."""
+    if not value or not value.strip():
+        return None
+    normalized = value.strip().casefold()
+    if normalized in {"bsinfotech", "bsit"}:
+        return "BSInfoTech"
+    if normalized == "bscs":
+        return "BSCS"
+    return None
 
 # Academic year patterns: "2025-2026", "2025 – 2026", "AY 2025", "SY 2025-2026"
 _ACADEMIC_YEAR_PATTERN = re.compile(
@@ -60,7 +46,9 @@ _COURSE_CODE_PATTERN = re.compile(r"\b([A-Z]{2,4})\s*(\d{3})\b")
 _DETECTION_LIMIT = 6000
 
 # Lesson title pattern: "Lesson Title: <value>"
-_LESSON_TITLE_PATTERN = re.compile(r"Lesson\s+Title[:\-]\s*([^\n]+)", re.MULTILINE | re.IGNORECASE)
+_LESSON_TITLE_PATTERN = re.compile(
+    r"Lesson\s+Title[:\-]\s*([^\n]+)", re.MULTILINE | re.IGNORECASE
+)
 
 
 def detect_metadata(text: str) -> dict[str, str | None]:
@@ -82,13 +70,14 @@ def _detect_program(text: str) -> str | None:
     """Match known LSPU SCC program codes, rejecting false positives.
 
     Filters out common false-positive acronyms like PDF, URL, HTTP, HTML.
+    The legacy ``BSIT`` alias is canonicalized to ``BSInfoTech`` so stored
+    document programs always use the canonical code.
     """
     seen: set[str] = set()
     candidates: list[str] = []
     for match in _PROGRAM_PATTERN.finditer(text):
-        code = match.group(1)
-        # Reject known non-program acronyms
-        if code in {"PDF", "URL", "HTTP", "HTML", "CSS", "JSON", "XML", "SQL", "API", "JSX", "TSX"}:
+        code = canonicalize_supported_program(match.group(1))
+        if code is None:
             continue
         if code not in seen:
             seen.add(code)
@@ -139,6 +128,7 @@ def _detect_lesson_title(text: str) -> str | None:
 
 __all__: list[str] = [
     "detect_metadata",
+    "canonicalize_supported_program",
     "_detect_program",
     "_detect_academic_year",
     "_detect_course_code",
