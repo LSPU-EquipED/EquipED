@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from server.modules.agents import syllabus_alignment
+from server.modules.syllabus_alignment import evaluator as syllabus_alignment
 
 
 class Client:
