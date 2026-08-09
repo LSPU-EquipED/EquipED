@@ -10,8 +10,7 @@ from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.service import persist_agent_outputs
-
-from .conftest import _seed_active_prompts
+from server.tests.agents.helpers import _seed_active_prompts
 
 
 def test_persist_agent_outputs_creates_flags_for_low_scores(db_session) -> None:

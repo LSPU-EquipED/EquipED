@@ -67,7 +67,7 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
 ) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations import router as evaluations_router
     from sqlalchemy.orm import sessionmaker
@@ -241,7 +241,7 @@ def test_results_partial_without_curriculum_returns_partial_reason(
 ) -> None:
     """Successful no-curriculum partial evaluation results return is_partial=True,
     partial_reason present, and Coordinator absent from active_agents."""
-    from server.modules.synthesis.models import AgentResult, CriterionScore
+    from server.modules.synthesis.models import AgentResult
 
     faculty = create_user(
         db_session,
@@ -265,7 +265,7 @@ def test_results_partial_without_curriculum_returns_partial_reason(
         submitted_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
         partial_without_curriculum=True,
-        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+        partial_reason="No curriculum reference was available; Coordinator review was skipped.",  # noqa: E501
     )
     db_session.add(job)
     db_session.flush()

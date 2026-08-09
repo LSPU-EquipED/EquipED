@@ -12,6 +12,7 @@ These tests cover the minimal Phase 1 execution guard:
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -20,10 +21,11 @@ from server.core.database import Base
 from server.db.metadata import import_model_modules
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.supervisor import SupervisorResult
+from server.modules.agents.supervision.result import SupervisorResult
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
+    EvaluationPipelineFailure,
 )
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import (
@@ -141,7 +143,7 @@ def test_only_one_runner_can_claim_a_job() -> None:
         token_a = uuid4()
         token_b = uuid4()
         assert acquire_evaluation_execution(session, job.evaluation_id, token_a) is True
-        assert acquire_evaluation_execution(session, job.evaluation_id, token_b) is False
+        assert acquire_evaluation_execution(session, job.evaluation_id, token_b) is False  # noqa: E501
 
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
@@ -207,7 +209,7 @@ def test_transition_with_wrong_token_raises_controlled_error() -> None:
         owner_token = uuid4()
         other_token = uuid4()
 
-        assert acquire_evaluation_execution(session, job.evaluation_id, owner_token) is True
+        assert acquire_evaluation_execution(session, job.evaluation_id, owner_token) is True  # noqa: E501
 
         with pytest.raises(EvaluationExecutionOwnershipError):
             transition_evaluation_status(
@@ -259,13 +261,13 @@ def test_terminal_transition_clears_execution_token_fields() -> None:
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
         # Progress through PREPROCESSING and EVALUATING to reach SYNTHESIZING
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,
+            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,
+            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.SYNTHESIZING, session, execution_token=token,
+            job.evaluation_id, EvaluationStatus.SYNTHESIZING, session, execution_token=token,  # noqa: E501
         )
 
         transition_evaluation_status(
@@ -294,10 +296,10 @@ def test_terminal_transition_to_failed_clears_execution_token_fields() -> None:
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
         # Progress to EVALUATING before failing
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,
+            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,
+            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,  # noqa: E501
         )
 
         transition_evaluation_status(
@@ -391,8 +393,11 @@ def test_orchestrator_failure_clears_execution_token(monkeypatch) -> None:
 
         monkeypatch.setattr(orch.Supervisor, "run_evaluation", boom_run_evaluation)
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(EvaluationPipelineFailure) as exc_info:
             run_evaluation_job(job.evaluation_id)
+        assert "supervisor exploded" not in str(exc_info.value)
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__ is True
 
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
@@ -686,8 +691,11 @@ def test_pre_claim_failure_does_not_transition(monkeypatch) -> None:
             orch_module, "acquire_evaluation_execution", raise_before_acquire
         )
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(EvaluationPipelineFailure) as exc_info:
             run_evaluation_job(job.evaluation_id)
+        assert "pre-claim failure" not in str(exc_info.value)
+        assert exc_info.value.__cause__ is None
+        assert exc_info.value.__suppress_context__ is True
 
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
@@ -737,12 +745,12 @@ def test_acquire_only_allows_submitted() -> None:
         completed = _make_job(session, status=EvaluationStatus.COMPLETED)
         failed = _make_job(session, status=EvaluationStatus.FAILED)
 
-        assert acquire_evaluation_execution(session, submitted.evaluation_id, uuid4()) is True
-        assert acquire_evaluation_execution(session, pre.evaluation_id, uuid4()) is False
-        assert acquire_evaluation_execution(session, evaluating.evaluation_id, uuid4()) is False
-        assert acquire_evaluation_execution(session, synthesizing.evaluation_id, uuid4()) is False
-        assert acquire_evaluation_execution(session, completed.evaluation_id, uuid4()) is False
-        assert acquire_evaluation_execution(session, failed.evaluation_id, uuid4()) is False
+        assert acquire_evaluation_execution(session, submitted.evaluation_id, uuid4()) is True  # noqa: E501
+        assert acquire_evaluation_execution(session, pre.evaluation_id, uuid4()) is False  # noqa: E501
+        assert acquire_evaluation_execution(session, evaluating.evaluation_id, uuid4()) is False  # noqa: E501
+        assert acquire_evaluation_execution(session, synthesizing.evaluation_id, uuid4()) is False  # noqa: E501
+        assert acquire_evaluation_execution(session, completed.evaluation_id, uuid4()) is False  # noqa: E501
+        assert acquire_evaluation_execution(session, failed.evaluation_id, uuid4()) is False  # noqa: E501
     finally:
         session.close()
 

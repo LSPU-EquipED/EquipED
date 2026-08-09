@@ -66,7 +66,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
 
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
 
     seen_statuses: list[EvaluationStatus] = []
@@ -157,7 +157,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
             EvaluationStatus.COMPLETED,
         ]
         assert refreshed.error_message is None
-        assert readback.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
+        assert readback.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1  # noqa: E501
     assert captured_context == {
         "reference_document_ids": {
             "syllabus": syllabus_id,
@@ -172,7 +172,7 @@ def test_orchestrator_partial_without_curriculum_completes(
     """A deliberate no-curriculum partial job skips Coordinator and ends COMPLETED."""
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
@@ -199,7 +199,7 @@ def test_orchestrator_partial_without_curriculum_completes(
         submitted_at=datetime.now(UTC),
         completed_at=None,
         partial_without_curriculum=True,
-        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+        partial_reason="No curriculum reference was available; Coordinator review was skipped.",  # noqa: E501
     )
     db_session.add(job)
     db_session.commit()
@@ -236,7 +236,7 @@ def test_orchestrator_partial_without_curriculum_completes(
         self, *, evaluation_id, document_id, chunks, query_text=None, context=None
     ):
         nonlocal captured_agents
-        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]
+        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]  # noqa: E501
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -318,6 +318,98 @@ def test_orchestrator_partial_without_curriculum_completes(
     assert matrix_row.evaluation_status == "COMPLETED_PARTIAL"
 
 
+def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
+    db_session, monkeypatch, caplog
+) -> None:
+    """Model-validation postprocessing failures do not fail a deliberate partial run."""
+    import re
+
+    from server.core import database as core_database
+    from server.modules.admin import model_validation_service
+    from server.modules.agents.contracts import AgentEvaluationResult
+    from server.modules.agents.supervision.result import SupervisorResult
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from sqlalchemy.orm import sessionmaker
+
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-model-validation-failure@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    _seed_active_prompts(db_session)
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        partial_without_curriculum=True,
+        partial_reason="Deliberate partial evaluation",
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    def fake_run_evaluation(
+        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+    ):
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=[
+                AgentEvaluationResult(
+                    agent_name="sme",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=3,
+                    criterion_scores=(),
+                    summary="ok",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                    success=True,
+                    prompt_version_id=None,
+                )
+            ],
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor, "run_evaluation", fake_run_evaluation
+    )
+    monkeypatch.setattr(
+        model_validation_service,
+        "sync_model_validation_criterion_results",
+        lambda *args: (_ for _ in ()).throw(
+            RuntimeError("MODEL_VALIDATION_SECRET_TEXT")
+        ),
+    )
+    monkeypatch.setattr(
+        model_validation_service, "assess_model_validation_toxicity", lambda *args: None
+    )
+
+    with caplog.at_level("WARNING"):
+        run_evaluation_job(job.evaluation_id)
+
+    db_session.expire_all()
+    refreshed = db_session.get(EvaluationJob, job.evaluation_id)
+    assert refreshed is not None
+    assert refreshed.status == EvaluationStatus.COMPLETED.value
+    assert "MODEL_VALIDATION_SECRET_TEXT" not in caplog.text
+    assert re.search(
+        r"category=RuntimeError reference=[0-9a-f]{16}(?:\s|$)", caplog.text
+    )
+
+
 def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     """get_document_chunks is queried once, before the empty check, and reused.
 
@@ -326,7 +418,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     """
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
@@ -415,7 +507,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
 ) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
@@ -502,12 +594,12 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
 
 
 def test_orchestrator_accidental_agent_failure_ends_failed(
-    db_session, monkeypatch
+    db_session, monkeypatch, caplog
 ) -> None:
     """Accidental partial caused by agent failure in a full evaluation ends FAILED."""
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.contracts import AgentEvaluationResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
@@ -596,10 +688,10 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     # mock that fallback to also fail, so this stays a pure unit test (no real
     # LLM call) while preserving the scenario: Coordinator never recovers, so
     # the evaluation still ends FAILED.
-    from server.modules.agents.coordinator import Coordinator
+    from server.modules.agents.coordinator.agent import Coordinator
 
     def fake_run_full_independent_failure(self, **kwargs):
-        raise RuntimeError("Coordinator LLM call failed")
+        raise RuntimeError("provider-secret-should-not-escape")
 
     monkeypatch.setattr(
         Coordinator, "run_full_independent", fake_run_full_independent_failure
@@ -616,3 +708,5 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     assert refreshed.status == EvaluationStatus.FAILED.value
     assert refreshed.error_message is not None
     assert "Coordinator" in refreshed.error_message
+    assert "provider-secret" not in refreshed.error_message
+    assert "provider-secret" not in caplog.text

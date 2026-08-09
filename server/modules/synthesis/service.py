@@ -8,6 +8,7 @@ import uuid
 from typing import Any
 
 from server.modules.agents.contracts import AgentEvaluationResult
+from server.modules.agents.provenance import sanitize_provenance
 from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
@@ -55,7 +56,7 @@ def persist_agent_outputs(
                 success=False,
                 error_message=agent_result.error_message,
                 raw_response=agent_result.raw_response,
-                provenance=agent_result.provenance,
+                provenance=sanitize_provenance(agent_result.provenance),
                 advisory_outputs=agent_result.advisory_outputs,
             )
             db.add(result_row)
@@ -76,7 +77,7 @@ def persist_agent_outputs(
             success=agent_result.success,
             error_message=agent_result.error_message,
             raw_response=agent_result.raw_response,
-            provenance=agent_result.provenance,
+            provenance=sanitize_provenance(agent_result.provenance),
             advisory_outputs=agent_result.advisory_outputs,
         )
         db.add(result_row)

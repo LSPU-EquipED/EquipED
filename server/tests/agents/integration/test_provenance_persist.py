@@ -6,13 +6,11 @@ from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.documents.models import Document, DocumentChunk
+from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.synthesis.models import AgentResult
 from server.modules.synthesis.service import persist_agent_outputs
-
-from .conftest import _seed_active_prompts
-
+from server.tests.agents.helpers import _seed_active_prompts
 
 # ------------------------------------------------------------------
 # Phase-1 + phase-2 provenance persistence
@@ -70,6 +68,9 @@ def test_provenance_persisted_with_agent_result(db_session) -> None:
         "repair_occurred": False,
         "prompt_trimmed": False,
         "reference_context_dropped": 0,
+        "summary_requested_model": "summary-model",
+        "summary_actual_model": "s" * 300,
+        "api_key": "secret-token-value",
     }
 
     persist_agent_outputs(
@@ -102,11 +103,17 @@ def test_provenance_persisted_with_agent_result(db_session) -> None:
     )
 
     result_row = db_session.query(AgentResult).one()
+    db_session.expire_all()
+    result_row = db_session.get(AgentResult, result_row.agent_result_id)
     assert result_row.provenance is not None
     assert result_row.provenance["precheck_version"] == "1"
     assert result_row.provenance["bibliography_found"] is True
     assert result_row.provenance["requested_model"] == "test-model"
     assert result_row.provenance["actual_model"] == "test-model"
+    assert result_row.provenance["summary_requested_model"] == "summary-model"
+    assert result_row.provenance["summary_actual_model"] == "s" * 200
+    assert "api_key" not in result_row.provenance
+    assert "secret-token-value" not in str(result_row.provenance)
 
 
 def test_provenance_fallback_attribution(db_session) -> None:

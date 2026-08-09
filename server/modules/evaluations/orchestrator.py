@@ -11,21 +11,24 @@ re-running the supervisor and resumes from synthesis/finalization.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
+import time
 import uuid
 from typing import Any
 
 from server.core.llm import get_llm_client_for_agent
 from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.coordinator import ProgramCoordinator
-from server.modules.agents.supervisor import Supervisor
+from server.modules.agents.coordinator.agent import Coordinator
+from server.modules.agents.coordinator.reconciliation import merge_with_sme
+from server.modules.agents.runtime.llm import FallbackAwareClient, error_reference
+from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
+    EvaluationPipelineFailure,
     EvaluationPipelineUnavailableError,
 )
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
@@ -43,6 +46,11 @@ from server.modules.synthesis.service import persist_agent_outputs
 from sqlalchemy import update
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_failure(exc: BaseException) -> tuple[str, str]:
+    """Return bounded, non-sensitive failure attribution."""
+    return type(exc).__name__[:64], error_reference(exc)
 
 
 def run_evaluation_job(
@@ -142,14 +150,14 @@ def run_evaluation_job(
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
             if job.partial_without_curriculum or job.curriculum_id is None:
                 # No-curriculum partial or new curriculum-retired run: construct
-                # Supervisor without ProgramCoordinator so coordinator review
+                # Supervisor without Coordinator so coordinator review
                 # is skipped entirely.
-                from server.modules.agents.gad import GADAgent
-                from server.modules.agents.itso import ITSOAgent
-                from server.modules.agents.sme import SMEAgent
+                from server.modules.agents.gad.agent import GAD
+                from server.modules.agents.itso.agent import ITSO
+                from server.modules.agents.sme.agent import SME
 
                 supervisor = Supervisor(
-                    agents=[SMEAgent(), GADAgent(), ITSOAgent()],
+                    agents=[SME(), GAD(), ITSO()],
                     db=session,
                 )
             else:
@@ -293,11 +301,15 @@ def run_evaluation_job(
             try:
                 sync_model_validation_criterion_results(evaluation_id, session)
                 assess_model_validation_toxicity(evaluation_id, session)
-            except Exception:
-                logger.exception(
+            except Exception as exc:
+                category, reference = _safe_failure(exc)
+                logger.warning(
                     "Model-validation postprocessing failed for evaluation %s"
-                    " — evaluation will still complete normally.",
+                    " — evaluation will still complete normally: category=%s "
+                    "reference=%s",
                     evaluation_id,
+                    category,
+                    reference,
                 )
 
         transition_evaluation_status(
@@ -309,28 +321,37 @@ def run_evaluation_job(
         )
     except Exception as exc:
         session.rollback()
+        category, reference = _safe_failure(exc)
         if execution_acquired:
             try:
                 transition_evaluation_status(
                     evaluation_id,
                     EvaluationStatus.FAILED,
                     session,
-                    error_message=str(exc),
+                    error_message=f"{category} (reference: {reference})",
                     execution_token=execution_token,
                 )
-            except Exception:
-                logger.exception(
-                    "Failed to record FAILED transition for evaluation %s",
+            except Exception as transition_exc:
+                transition_category, transition_reference = _safe_failure(
+                    transition_exc
+                )
+                logger.error(
+                    "Failed to record FAILED transition for evaluation %s: "
+                    "category=%s reference=%s",
                     evaluation_id,
+                    transition_category,
+                    transition_reference,
                 )
         else:
             logger.warning(
                 "Pre-claim failure for evaluation %s; ownership not acquired, "
-                "skipping FAILED transition. Error: %s",
+                "skipping FAILED transition. category=%s reference=%s",
                 evaluation_id,
-                str(exc)[:500],
+                *_safe_failure(exc),
             )
-        raise
+        raise EvaluationPipelineFailure(
+            f"EvaluationPipelineFailure (category={category}, reference={reference})"
+        ) from None
     finally:
         session.close()
 
@@ -383,7 +404,7 @@ def _reconcile_coordinator_result(
 
     if sme_result is not None and sme_result.success and coordinator_result.success:
         try:
-            merged = ProgramCoordinator.merge_with_sme(
+            merged = merge_with_sme(
                 coordinator_result,
                 sme_result,
                 llm_client=get_llm_client_for_agent("coordinator"),
@@ -392,11 +413,13 @@ def _reconcile_coordinator_result(
                 merged if r is coordinator_result else r for r in agent_results
             ]
         except Exception as exc:
+            category, reference = _safe_failure(exc)
             logger.warning(
                 "Coordinator/SME merge failed for evaluation %s, falling back "
-                "to independent scoring: %s",
+                "to independent scoring: category=%s reference=%s",
                 job.evaluation_id,
-                str(exc)[:200],
+                category,
+                reference,
             )
 
     chunk_infos = [
@@ -412,31 +435,55 @@ def _reconcile_coordinator_result(
         **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
         **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
     }
+    primary_client = get_llm_client_for_agent("coordinator")
+    fallback_client = FallbackAwareClient(primary_client, "coordinator")
+    fallback_started = time.perf_counter()
     try:
-        fallback_result = ProgramCoordinator().run_full_independent(
+        fallback_result = Coordinator().run_full_independent(
             evaluation_id=job.evaluation_id,
             document_id=job.document_id,
             chunk_infos=chunk_infos,
             context_text=slm_text,
             prompt_version_id=None,
             db=session,
-            llm_client=get_llm_client_for_agent("coordinator"),
+            llm_client=fallback_client,
             reference_document_ids=reference_document_ids,
             roadmap_context=roadmap_context,
         )
     except Exception as exc:
+        category, reference = _safe_failure(exc)
         logger.warning(
             "Coordinator independent fallback also failed for evaluation "
-            "%s: %s",
+            "%s: category=%s reference=%s",
             job.evaluation_id,
-            str(exc)[:200],
+            category,
+            reference,
         )
-        fallback_result = dataclasses.replace(
-            coordinator_result,
-            success=False,
-            error_message=str(exc)[:500],
-            criterion_scores=(),
+        fallback_result = AgentEvaluationResult(
+            agent_name="coordinator",
+            evaluation_id=job.evaluation_id,
+            document_id=job.document_id,
             subtotal=0.0,
+            criterion_scores=(),
+            summary="",
+            model_name=fallback_client.actual_model,
+            processing_seconds=time.perf_counter() - fallback_started,
+            token_count=0,
+            success=False,
+            error_message=(
+                "CoordinatorFallbackFailure "
+                f"(category={category}, reference={reference})"
+            ),
+            prompt_version_id=None,
+            raw_response=None,
+            metadata={},
+            provenance={
+                "requested_model": fallback_client.requested_model,
+                "actual_model": fallback_client.actual_model,
+                "fallback_occurred": fallback_client.fallback_occurred,
+                "repair": "independent_fallback",
+            },
+            advisory_outputs=None,
         )
 
     return [fallback_result if r is coordinator_result else r for r in agent_results]
@@ -519,10 +566,13 @@ def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
                 evaluation_id,
                 db_session_factory=db_session_factory,
             )
-        except Exception:
-            logger.exception(
-                "Recovery run failed for evaluation %s",
+        except Exception as exc:
+            category, reference = _safe_failure(exc)
+            logger.warning(
+                "Recovery run failed for evaluation %s: category=%s reference=%s",
                 evaluation_id,
+                category,
+                reference,
             )
 
     return len(candidate_ids)

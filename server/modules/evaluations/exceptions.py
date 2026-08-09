@@ -30,6 +30,10 @@ class EvaluationExecutionOwnershipError(EvaluationsError):
     """Raised when a status transition lacks a valid execution token."""
 
 
+class EvaluationPipelineFailure(EvaluationsError):
+    """Sanitized terminal failure raised after a job is durably failed."""
+
+
 __all__ = [
     "EvaluationsError",
     "EvaluationNotFoundError",
@@ -39,4 +43,5 @@ __all__ = [
     "EvaluationPipelineUnavailableError",
     "InvalidEvaluationTargetError",
     "EvaluationExecutionOwnershipError",
+    "EvaluationPipelineFailure",
 ]
