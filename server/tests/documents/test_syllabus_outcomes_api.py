@@ -117,10 +117,10 @@ def test_available_syllabi_lists_only_processed_references_with_contents_and_vec
         ]
     )
     db_session.commit()
-    from server.modules.embeddings import service as embedding_service
+    from server.modules.documents.syllabus import service as reference_service
 
     monkeypatch.setattr(
-        embedding_service,
+        reference_service,
         "check_chroma_availability",
         lambda document_id, _source_type: document_id == str(ready_id),
     )

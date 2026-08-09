@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from server.modules.documents.exceptions import ExtractionFailedError
-from server.modules.documents.syllabus_extraction import (
+from server.modules.documents.syllabus.extraction import (
     SyllabusCourseContentRecord,
     extract_syllabus_course_contents,
 )
@@ -149,9 +149,7 @@ def test_skips_a_repeated_header_when_present(monkeypatch):
         ],
     )
 
-    records = extract_syllabus_course_contents(
-        pdf, [PageText(1), PageText(2)]
-    )
+    records = extract_syllabus_course_contents(pdf, [PageText(1), PageText(2)])
 
     assert [record.content for record in records] == ["First topic", "Second topic"]
 
@@ -202,10 +200,12 @@ def test_fails_closed_for_multiple_course_contents_tables(monkeypatch):
 
 
 def test_ingestion_emits_only_course_content_chunks(monkeypatch):
-    from server.modules.documents.ingestion import _ingest_syllabus_course_contents
+    from server.modules.documents.ingestion.pipeline import (
+        _ingest_syllabus_course_contents,
+    )
 
     monkeypatch.setattr(
-        "server.modules.documents.syllabus_extraction.extract_syllabus_course_contents",
+        "server.modules.documents.syllabus.extraction.extract_syllabus_course_contents",
         lambda _file_path, _pages: [
             SyllabusCourseContentRecord(
                 content="Network models and routing fundamentals.",
