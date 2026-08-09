@@ -19,12 +19,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-VALID_POLICY_AREAS: frozenset[str] = frozenset({
-    "intellectual_property",
-    "data_privacy",
-    "academic_rights",
-    "general_itso",
-})
+VALID_POLICY_AREAS: frozenset[str] = frozenset(
+    {
+        "intellectual_property",
+        "data_privacy",
+        "academic_rights",
+        "general_itso",
+    }
+)
 
 
 class Document(Base):
@@ -69,8 +71,12 @@ class Document(Base):
     has_ocr_pages: Mapped[bool] = mapped_column(Boolean, default=False)
     processing_status: Mapped[str] = mapped_column(String(50), default="PENDING")
     structured_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    structured_outline: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    section_summaries: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    structured_outline: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON, nullable=True
+    )
+    section_summaries: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON, nullable=True
+    )
     key_facts: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     processing_warnings: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     evaluation_readiness: Mapped[str] = mapped_column(String(50), default="PENDING")

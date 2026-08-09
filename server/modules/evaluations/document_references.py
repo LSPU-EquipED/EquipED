@@ -1,6 +1,6 @@
 """Thin read-only interface from document lifecycle into evaluation jobs.
 
-The documents module (``reference_service``) needs to know whether a
+The documents syllabus service needs to know whether a
 reference document is still referenced by evaluation job(s) before it can
 be deleted. This module owns that query so the documents module never has
 to reach into ``evaluations.models`` directly, keeping the module boundary

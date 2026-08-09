@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from server.modules.documents import persistence
 from server.modules.documents.metadata import (
     _detect_academic_year,
     _detect_course_code,
@@ -268,17 +269,11 @@ class TestDetectionNonBlocking:
         from fastapi import UploadFile
         from server.modules.documents.schemas import DocumentChunkData
         from server.modules.documents.service import (
-            _MEM_CHUNKS,
-            _MEM_DOCUMENT_OWNERS,
-            _MEM_DOCUMENTS,
             create_document,
         )
         from server.modules.documents.slm import SlmProcessingResult
 
         # Clean in-memory state for isolation
-        _MEM_DOCUMENTS.clear()
-        _MEM_CHUNKS.clear()
-        _MEM_DOCUMENT_OWNERS.clear()
 
         def _fake_ingest(
             file_path: str, source_type: str, document_id: str
@@ -350,7 +345,7 @@ class TestDetectionNonBlocking:
         assert result.course_code is None
 
         # Manual program is preserved in the stored response
-        stored = _MEM_DOCUMENTS[result.document_id]
+        stored = persistence._MEM_DOCUMENTS[result.document_id]
         assert stored.program == "BSInfoTech"
 
         # Verify the warning was logged

@@ -12,7 +12,8 @@ import pytest
 from fastapi import UploadFile
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User
-from server.modules.documents import paths
+from server.modules.documents import paths, persistence
+from server.modules.documents.access import get_document, list_documents
 from server.modules.documents.exceptions import (
     DocumentNotFoundError,
     ForbiddenUploadError,
@@ -21,13 +22,8 @@ from server.modules.documents.exceptions import (
 from server.modules.documents.journaling import _cleanup_failed_upload
 from server.modules.documents.schemas import DocumentChunkData, DocumentResponse
 from server.modules.documents.service import (
-    _MEM_CHUNKS,
-    _MEM_DOCUMENT_OWNERS,
-    _MEM_DOCUMENTS,
     _sanitize_error,
     create_document,
-    get_document,
-    list_documents,
 )
 
 
@@ -48,9 +44,15 @@ def test_upload_manual_bsit_is_canonicalized(monkeypatch, tmp_path) -> None:
     )
     result = create_document(
         UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
-        "slm", "Program", None, None, "BSIT", uuid.uuid4(), db=None,
+        "slm",
+        "Program",
+        None,
+        None,
+        "BSIT",
+        uuid.uuid4(),
+        db=None,
     )
-    assert _MEM_DOCUMENTS[result.document_id].program == "BSInfoTech"
+    assert persistence._MEM_DOCUMENTS[result.document_id].program == "BSInfoTech"
 
 
 def test_upload_unsupported_program_rejected_before_processing(
@@ -68,7 +70,13 @@ def test_upload_unsupported_program_rejected_before_processing(
     with pytest.raises(UnsupportedFileTypeError, match="Only BSCS"):
         create_document(
             UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
-            "slm", "Program", None, None, "BSEd", uuid.uuid4(), db=None,
+            "slm",
+            "Program",
+            None,
+            None,
+            "BSEd",
+            uuid.uuid4(),
+            db=None,
         )
     assert called is False
     assert list(tmp_path.iterdir()) == []
@@ -87,23 +95,27 @@ def test_upload_rbac_precedes_unsupported_program() -> None:
 
 
 def test_list_documents_program_filters_keep_legacy_rows() -> None:
-    _MEM_DOCUMENTS.clear()
-    _MEM_DOCUMENT_OWNERS.clear()
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
     owner_id = uuid.uuid4()
     for program in ("BSInfoTech", "BSIT", "BSCS", "BSN"):
         document_id = uuid.uuid4()
-        _MEM_DOCUMENTS[document_id] = DocumentResponse(
-            document_id=document_id, title=program, source_type="slm",
-            program=program, processing_status="PROCESSED", has_ocr_pages=False,
-            uploaded_at=datetime.now(UTC), uploaded_by=owner_id,
+        persistence._MEM_DOCUMENTS[document_id] = DocumentResponse(
+            document_id=document_id,
+            title=program,
+            source_type="slm",
+            program=program,
+            processing_status="PROCESSED",
+            has_ocr_pages=False,
+            uploaded_at=datetime.now(UTC),
+            uploaded_by=owner_id,
         )
-        _MEM_DOCUMENT_OWNERS[document_id] = owner_id
+        persistence._MEM_DOCUMENT_OWNERS[document_id] = owner_id
 
     def programs(value):
         return {
             item.program
-            for item in list_documents(None, value, 1, 20, owner_id, "faculty")
-            .items
+            for item in list_documents(None, value, 1, 20, owner_id, "faculty").items
         }
 
     assert programs("bsit") == {"BSInfoTech", "BSIT"}
@@ -118,97 +130,102 @@ def test_list_documents_program_filters_keep_legacy_rows() -> None:
 # In-memory ownership / chunk ordering
 # ---------------------------------------------------------------------------
 
+
 def test_in_memory_documents_respect_ownership_scoping() -> None:
     # Clear any leftover state from other tests
-    _MEM_DOCUMENTS.clear()
-    _MEM_DOCUMENT_OWNERS.clear()
-    _MEM_CHUNKS.clear()
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+    persistence._MEM_CHUNKS.clear()
 
     doc_id = uuid.uuid4()
     owner_id = uuid.uuid4()
     other_id = uuid.uuid4()
     document = DocumentResponse(
         document_id=doc_id,
-        title='Memory Doc',
-        source_type='slm',
-        processing_status='PROCESSED',
+        title="Memory Doc",
+        source_type="slm",
+        processing_status="PROCESSED",
         has_ocr_pages=False,
         uploaded_at=datetime.now(UTC),
         uploaded_by=owner_id,
     )
-    _MEM_DOCUMENTS[doc_id] = document
-    _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+    persistence._MEM_DOCUMENTS[doc_id] = document
+    persistence._MEM_DOCUMENT_OWNERS[doc_id] = owner_id
 
-    owner_view = list_documents(None, None, 1, 20, owner_id, 'faculty', db=None)
+    owner_view = list_documents(None, None, 1, 20, owner_id, "faculty", db=None)
     assert owner_view.total == 1
     assert owner_view.items[0].document_id == doc_id
 
-    other_view = list_documents(None, None, 1, 20, other_id, 'admin', db=None)
+    other_view = list_documents(None, None, 1, 20, other_id, "admin", db=None)
     assert other_view.total == 0
     assert other_view.items == []
 
-    assert get_document(doc_id, owner_id, 'faculty', db=None).document_id == doc_id
+    assert get_document(doc_id, owner_id, "faculty", db=None).document_id == doc_id
     with pytest.raises(DocumentNotFoundError):
-        get_document(doc_id, other_id, 'faculty', db=None)
+        get_document(doc_id, other_id, "faculty", db=None)
 
-    _MEM_DOCUMENTS.clear()
-    _MEM_DOCUMENT_OWNERS.clear()
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
 
 
 def test_get_document_returns_chunks_ordered_by_page_for_owner() -> None:
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+    persistence._MEM_CHUNKS.clear()
     doc_id = uuid.uuid4()
     owner_id = uuid.uuid4()
     document = DocumentResponse(
         document_id=doc_id,
-        title='Chunked Memory Doc',
-        source_type='slm',
-        processing_status='PROCESSED',
+        title="Chunked Memory Doc",
+        source_type="slm",
+        processing_status="PROCESSED",
         has_ocr_pages=False,
         uploaded_at=datetime.now(UTC),
         uploaded_by=owner_id,
     )
-    _MEM_DOCUMENTS[doc_id] = document
-    _MEM_DOCUMENT_OWNERS[doc_id] = owner_id
-    _MEM_CHUNKS[doc_id] = [
+    persistence._MEM_DOCUMENTS[doc_id] = document
+    persistence._MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+    persistence._MEM_CHUNKS[doc_id] = [
         DocumentChunkData(
             chunk_id=uuid.uuid4(),
             document_id=doc_id,
-            source_type='slm',
-            agent_domain='all',
+            source_type="slm",
+            agent_domain="all",
             page_number=2,
-            text='page two text',
+            text="page two text",
             token_count=3,
             is_ocr=False,
         ),
         DocumentChunkData(
             chunk_id=uuid.uuid4(),
             document_id=doc_id,
-            source_type='slm',
-            agent_domain='all',
+            source_type="slm",
+            agent_domain="all",
             page_number=1,
-            text='page one text',
+            text="page one text",
             token_count=3,
             is_ocr=False,
         ),
     ]
 
-    response = get_document(doc_id, owner_id, 'faculty', db=None)
+    response = get_document(doc_id, owner_id, "faculty", db=None)
 
     assert [chunk.document_id for chunk in response.chunks] == [doc_id, doc_id]
     assert [chunk.page_number for chunk in response.chunks] == [1, 2]
     assert [chunk.text for chunk in response.chunks] == [
-        'page one text',
-        'page two text',
+        "page one text",
+        "page two text",
     ]
 
-    _MEM_CHUNKS.clear()
-    _MEM_DOCUMENTS.clear()
-    _MEM_DOCUMENT_OWNERS.clear()
+    persistence._MEM_CHUNKS.clear()
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
 
 
 # ---------------------------------------------------------------------------
 # Cleanup helpers
 # ---------------------------------------------------------------------------
+
 
 def test_cleanup_failed_upload_removes_existing_file() -> None:
     """Verify _cleanup_failed_upload removes an existing file."""
@@ -231,6 +248,7 @@ def test_cleanup_failed_upload_handles_missing_file() -> None:
 # ---------------------------------------------------------------------------
 # Sanitize helpers
 # ---------------------------------------------------------------------------
+
 
 def test_sanitize_error_strips_file_paths() -> None:
     """Verify _sanitize_error removes internal file paths."""
@@ -263,33 +281,34 @@ def test_sanitize_error_truncates_long_messages() -> None:
 # Failed upload integration tests (route + service behavior)
 # ---------------------------------------------------------------------------
 
+
 def test_upload_failed_processing_returns_error_message(
     client: TestClient,
     seeded_user: User,
 ) -> None:
     """Verify that when document processing fails, error_message is returned."""
     login_response = client.post(
-        '/api/v1/auth/login',
-        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery"},
     )
     assert login_response.status_code == 200
 
     # Upload a PDF that will fail extraction (not a real PDF structure)
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("broken.pdf", b"not-a-real-pdf-content", "application/pdf")},
         data={
-            'source_type': 'slm',
-            'title': 'Broken Document',
-            'program': 'BSCS',
+            "source_type": "slm",
+            "title": "Broken Document",
+            "program": "BSCS",
         },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data['processing_status'] == 'FAILED'
-    assert data['error_message'] is not None
-    assert len(data['error_message']) > 0
+    assert data["processing_status"] == "FAILED"
+    assert data["error_message"] is not None
+    assert len(data["error_message"]) > 0
 
 
 def test_failed_upload_cleans_up_orphaned_file(
@@ -298,25 +317,25 @@ def test_failed_upload_cleans_up_orphaned_file(
 ) -> None:
     """Verify that when document processing fails, the uploaded file is removed."""
     login_response = client.post(
-        '/api/v1/auth/login',
-        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery"},
     )
     assert login_response.status_code == 200
 
     # Upload a PDF that will fail extraction
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("broken.pdf", b"not-a-real-pdf-content", "application/pdf")},
         data={
-            'source_type': 'slm',
-            'title': 'Broken Document',
-            'program': 'BSCS',
+            "source_type": "slm",
+            "title": "Broken Document",
+            "program": "BSCS",
         },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data['processing_status'] == 'FAILED'
+    assert data["processing_status"] == "FAILED"
 
     # Verify the orphaned file was cleaned up
     uploads_dir = Path(__file__).resolve().parent.parent.parent.parent / "uploads"
@@ -330,35 +349,36 @@ def test_failed_upload_error_message_is_sanitized(
 ) -> None:
     """Verify that failed upload responses do not leak internal file paths."""
     login_response = client.post(
-        '/api/v1/auth/login',
-        json={'email': seeded_user.email, 'password': 'correct-horse-battery'},
+        "/api/v1/auth/login",
+        json={"email": seeded_user.email, "password": "correct-horse-battery"},
     )
     assert login_response.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('broken.pdf', b'not-a-real-pdf-content', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("broken.pdf", b"not-a-real-pdf-content", "application/pdf")},
         data={
-            'source_type': 'slm',
-            'title': 'Broken Document',
-            'program': 'BSCS',
+            "source_type": "slm",
+            "title": "Broken Document",
+            "program": "BSCS",
         },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert data['processing_status'] == 'FAILED'
-    error_msg = data.get('error_message', '')
+    assert data["processing_status"] == "FAILED"
+    error_msg = data.get("error_message", "")
     assert error_msg is not None
     # Should not contain internal filesystem paths
-    assert '/Volumes' not in error_msg
-    assert '/tmp/' not in error_msg
-    assert '/uploads/' not in error_msg
+    assert "/Volumes" not in error_msg
+    assert "/tmp/" not in error_msg
+    assert "/uploads/" not in error_msg
 
 
 # ---------------------------------------------------------------------------
 # Service-layer: document reprocessing and chunk persistence
 # ---------------------------------------------------------------------------
+
 
 def test_existing_documents_are_not_auto_reprocessed(
     monkeypatch: pytest.MonkeyPatch,
@@ -369,24 +389,24 @@ def test_existing_documents_are_not_auto_reprocessed(
     from fastapi import UploadFile
     from server.modules.documents.schemas import DocumentChunkData
     from server.modules.documents.service import (
-        _MEM_CHUNKS,
-        _MEM_DOCUMENTS,
         create_document,
     )
 
     existing_id = uuid.uuid4()
-    _MEM_DOCUMENTS.clear()
-    _MEM_CHUNKS.clear()
-    _MEM_CHUNKS[existing_id] = [DocumentChunkData(
-        chunk_id=uuid.uuid4(),
-        document_id=existing_id,
-        source_type="slm",
-        agent_domain="all",
-        page_number=1,
-        text="existing chunk",
-        token_count=2,
-        is_ocr=False,
-    )]
+    persistence._MEM_CHUNKS.clear()
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_CHUNKS[existing_id] = [
+        DocumentChunkData(
+            chunk_id=uuid.uuid4(),
+            document_id=existing_id,
+            source_type="slm",
+            agent_domain="all",
+            page_number=1,
+            text="existing chunk",
+            token_count=2,
+            is_ocr=False,
+        )
+    ]
 
     captured_calls: list[str] = []
 
@@ -396,16 +416,18 @@ def test_existing_documents_are_not_auto_reprocessed(
         document_id: str,
     ) -> list[DocumentChunkData]:
         captured_calls.append(document_id)
-        return [DocumentChunkData(
-            chunk_id=uuid.uuid4(),
-            document_id=uuid.UUID(document_id),
-            source_type=source_type,
-            agent_domain="all",
-            page_number=1,
-            text="new chunk",
-            token_count=2,
-            is_ocr=False,
-        )]
+        return [
+            DocumentChunkData(
+                chunk_id=uuid.uuid4(),
+                document_id=uuid.UUID(document_id),
+                source_type=source_type,
+                agent_domain="all",
+                page_number=1,
+                text="new chunk",
+                token_count=2,
+                is_ocr=False,
+            )
+        ]
 
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
@@ -430,20 +452,17 @@ def test_existing_documents_are_not_auto_reprocessed(
     )
 
     assert captured_calls == [str(result.document_id)]
-    assert existing_id in _MEM_CHUNKS
-    assert _MEM_CHUNKS[existing_id][0].text == "existing chunk"
+    assert existing_id in persistence._MEM_CHUNKS
+    assert persistence._MEM_CHUNKS[existing_id][0].text == "existing chunk"
 
 
 def test_persist_chunks_handles_empty_chunk_data(db_session) -> None:
     from server.modules.documents.models import DocumentChunk
-    from server.modules.documents.service import (
-        _MEM_CHUNKS,
-        _persist_chunks,
-    )
+    from server.modules.documents.persistence import _persist_chunks
 
     document_id = uuid.uuid4()
 
     _persist_chunks(db_session, document_id, [])
 
-    assert _MEM_CHUNKS[document_id] == []
+    assert persistence._MEM_CHUNKS[document_id] == []
     assert db_session.query(DocumentChunk).count() == 0

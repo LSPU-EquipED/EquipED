@@ -5,11 +5,10 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from server.modules.documents.ingestion import (
+from server.modules.documents.ingestion.chunking import (
     _DEFAULT_CHUNK_OVERLAP,
     _MAX_CHUNK_TOKENS,
     _MIN_MERGE_THRESHOLD,
-    ExtractedPage,
     _build_overlap_seed,
     _chunk_page_text,
     _ChunkDraft,
@@ -17,9 +16,8 @@ from server.modules.documents.ingestion import (
     _looks_weak_structure,
     _merge_tiny_chunks,
     _split_sentence_units,
-    ingest_document,
 )
-from server.modules.documents.schemas import DocumentChunkData
+from server.modules.documents.ingestion.pipeline import ExtractedPage, ingest_document
 
 
 def test_chunker_prefers_blank_line_structures() -> None:
@@ -76,7 +74,7 @@ def test_ingest_document_keeps_chunks_page_bounded(
         ),
     ]
     monkeypatch.setattr(
-        "server.modules.documents.ingestion._extract_pages",
+        "server.modules.documents.ingestion.pipeline._extract_pages",
         lambda _: pages,
     )
 
@@ -95,9 +93,10 @@ def test_oversized_text_is_hard_split_deterministically() -> None:
     assert len(chunks) == 2
     assert len(chunks[0].split()) <= _MAX_CHUNK_TOKENS
     assert len(chunks[1].split()) <= _MAX_CHUNK_TOKENS
-    assert chunks[1].split()[:_DEFAULT_CHUNK_OVERLAP] == chunks[0].split()[
-        -_DEFAULT_CHUNK_OVERLAP:
-    ]
+    assert (
+        chunks[1].split()[:_DEFAULT_CHUNK_OVERLAP]
+        == chunks[0].split()[-_DEFAULT_CHUNK_OVERLAP:]
+    )
 
 
 def test_tiny_fragments_merge_when_safe() -> None:

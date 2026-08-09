@@ -1,4 +1,4 @@
-"""Documents service orchestration for upload and retrieval."""
+"""Document upload lifecycle and background processing orchestration."""
 
 from __future__ import annotations
 
@@ -15,27 +15,23 @@ from server.core.config import get_settings
 from server.core.database import get_session_factory
 from server.modules.embeddings.service import embed_and_store_chunks
 
-from . import paths
+from . import paths, persistence
+from .access import is_reference_source_type
 from .exceptions import (
-    DocumentNotFoundError,
     ExtractionFailedError,
     ForbiddenUploadError,
     UnsupportedFileTypeError,
 )
-from .ingestion import ingest_document
+from .ingestion.pipeline import ingest_document
 from .journaling import (
     _cleanup_failed_upload,
     _create_upload_marker,
     _remove_upload_marker,
 )
 from .metadata import canonicalize_supported_program, detect_metadata
-from .models import VALID_POLICY_AREAS, Document, DocumentChunk
+from .models import VALID_POLICY_AREAS, Document
 from .schemas import (
-    POLICY_SOURCE_TYPES,
-    REFERENCE_SOURCE_TYPES,
     SOURCE_TYPES,
-    DocumentChunkResponse,
-    DocumentListResponse,
     DocumentResponse,
     DocumentUploadResponse,
 )
@@ -44,11 +40,7 @@ from .slm.tfidf import compute_tfidf_corpus
 
 logger = logging.getLogger(__name__)
 
-_MEM_DOCUMENTS: dict[uuid.UUID, DocumentResponse] = {}
-_MEM_DOCUMENT_OWNERS: dict[uuid.UUID, uuid.UUID] = {}
-_MEM_CHUNKS: dict[uuid.UUID, list[Any]] = {}
 _MEM_TFIDF: dict[str, float] = {}
-
 
 # Restricted source types that only admins can upload
 _ADMIN_ONLY_SOURCE_TYPES = {
@@ -60,40 +52,6 @@ _ADMIN_ONLY_SOURCE_TYPES = {
     "rubric_gad",
     "rubric_itso",
 }
-
-
-def is_reference_source_type(source_type: str) -> bool:
-    """Return True if the source type is an active shared reference (syllabus)."""
-    return source_type in REFERENCE_SOURCE_TYPES
-
-
-def is_policy_source_type(source_type: str) -> bool:
-    """Return True if the source type is a policy document."""
-    return source_type in POLICY_SOURCE_TYPES
-
-
-def _is_document_accessible(
-    document,
-    current_user_id: uuid.UUID,
-    current_user_role: str | None = None,
-) -> bool:
-    """Check whether a user may read/access a document row.
-
-    Reference documents (syllabus) are shared to all
-    authenticated users. Policy documents are admin-only — faculty
-    requests are denied without existence leakage. Legacy curriculum
-    rows are maintenance-only and never accessible here, even to their
-    original uploader. SLMs and other types remain owner-only.
-    """
-    if document.source_type == "curriculum":
-        return False
-    if is_reference_source_type(document.source_type):
-        return True
-    if is_policy_source_type(document.source_type):
-        return current_user_role == "admin"
-    if current_user_id is not None:
-        return document.uploaded_by == current_user_id
-    return False
 
 
 def create_document(
@@ -127,7 +85,7 @@ def create_document(
     upload_marker: Path | None = None
     try:
         if runtime_db is not None:
-            _create_upload_intent(
+            persistence._create_upload_intent(
                 runtime_db,
                 document_id=doc_id,
                 title=title,
@@ -169,7 +127,7 @@ def create_document(
             runtime_db.rollback()
         cleanup_ok = _cleanup_failed_upload(target_path)
         if runtime_db is not None:
-            _mark_interrupted_upload(runtime_db, doc_id, cleanup_ok)
+            persistence._mark_interrupted_upload(runtime_db, doc_id, cleanup_ok)
         if upload_marker is not None and cleanup_ok:
             _remove_upload_marker(upload_marker)
         raise
@@ -338,14 +296,14 @@ def _process_uploaded_document(
     )
 
     try:
-        _persist_document(
+        persistence._persist_document(
             runtime_db,
             response,
             str(target_path),
             uploaded_by,
             commit=False,
         )
-        _persist_chunks(runtime_db, doc_id, chunk_data, commit=False)
+        persistence._persist_chunks(runtime_db, doc_id, chunk_data, commit=False)
         if runtime_db is not None:
             runtime_db.commit()
     except Exception:
@@ -418,7 +376,9 @@ def _persist_reference_stub(
         runtime_session = get_session_factory()()
         runtime_db = runtime_session
     try:
-        _persist_document(runtime_db, response, str(target_path), uploaded_by)
+        persistence._persist_document(
+            runtime_db, response, str(target_path), uploaded_by
+        )
     finally:
         if runtime_session is not None:
             runtime_session.close()
@@ -502,7 +462,7 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
             _cleanup_failed_upload(Path(file_path))
             return
 
-        _persist_chunks(session, document_id, chunk_data)
+        persistence._persist_chunks(session, document_id, chunk_data)
 
         document = session.get(Document, document_id)
         if not document.program and detected_metadata.get("program"):
@@ -533,219 +493,6 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
         )
 
     _refresh_tfidf_if_needed(source_type)
-
-
-def get_document(
-    document_id: uuid.UUID,
-    current_user_id: uuid.UUID,
-    current_user_role: str,
-    db: Any | None = None,
-) -> DocumentResponse:
-    if db is not None:
-        row = db.get(Document, document_id)
-        if row is not None:
-            if not _is_document_accessible(row, current_user_id, current_user_role):
-                raise DocumentNotFoundError(f"Document {document_id} not found")
-            return DocumentResponse(
-                document_id=row.document_id,
-                title=row.title,
-                course_title=row.course_title,
-                lesson_title=row.lesson_title,
-                source_type=row.source_type,
-                policy_area=row.policy_area,
-                program=row.program,
-                academic_year=row.academic_year,
-                course_code=row.course_code,
-                page_count=row.page_count,
-                processing_status=row.processing_status,
-                has_ocr_pages=row.has_ocr_pages,
-                uploaded_at=row.uploaded_at,
-                uploaded_by=row.uploaded_by,
-                structured_summary=row.structured_summary,
-                structured_outline=row.structured_outline,
-                section_summaries=row.section_summaries,
-                key_facts=row.key_facts,
-                processing_warnings=row.processing_warnings,
-                evaluation_readiness=row.evaluation_readiness,
-                chunks=_chunk_responses(get_document_chunks(document_id, db=db)),
-            )
-
-    fallback = _MEM_DOCUMENTS.get(document_id)
-    if fallback is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-    if fallback.source_type == "curriculum":
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-    if is_policy_source_type(fallback.source_type):
-        if current_user_role != "admin":
-            raise DocumentNotFoundError(f"Document {document_id} not found")
-    elif is_reference_source_type(fallback.source_type):
-        pass  # shared to all
-    else:
-        owner_id = _MEM_DOCUMENT_OWNERS.get(document_id)
-        if owner_id != current_user_id:
-            raise DocumentNotFoundError(f"Document {document_id} not found")
-    return fallback.model_copy(
-        update={"chunks": _chunk_responses(get_document_chunks(document_id, db=None))}
-    )
-
-
-def list_documents(
-    source_type: str | None,
-    program: str | None,
-    page: int,
-    page_size: int,
-    current_user_id: uuid.UUID,
-    current_user_role: str,
-    db: Any | None = None,
-) -> DocumentListResponse:
-    items: list[DocumentResponse]
-    if db is not None:
-        query = db.query(Document)
-        from sqlalchemy import or_
-
-        query = query.filter(
-            or_(
-                Document.uploaded_by == current_user_id,
-                Document.source_type.in_(REFERENCE_SOURCE_TYPES),
-            )
-        )
-        # Policy documents are admin-only — never exposed to faculty via list
-        if current_user_role != "admin":
-            query = query.filter(
-                Document.source_type.notin_(POLICY_SOURCE_TYPES)
-            )
-        # Legacy curriculum rows are maintenance-only — never exposed via list
-        query = query.filter(Document.source_type != "curriculum")
-        if source_type:
-            query = query.filter(Document.source_type == source_type)
-        if program:
-            canonical_program = canonicalize_supported_program(program)
-            if canonical_program is None:
-                raise ValueError(
-                    "Unsupported program filter. Only BSCS and BSInfoTech "
-                    "are supported; "
-                    "BSIT is accepted as an alias."
-                )
-            from sqlalchemy import func
-
-            values = [canonical_program]
-            if canonical_program == "BSInfoTech":
-                values.append("BSIT")
-            query = query.filter(
-                func.lower(Document.program).in_([value.lower() for value in values])
-            )
-        total = query.count()
-        rows = (
-            query.order_by(Document.uploaded_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
-        items = [
-            DocumentResponse(
-                document_id=row.document_id,
-                title=row.title,
-                course_title=row.course_title,
-                lesson_title=row.lesson_title,
-                source_type=row.source_type,
-                policy_area=row.policy_area,
-                program=row.program,
-                academic_year=row.academic_year,
-                course_code=row.course_code,
-                page_count=row.page_count,
-                processing_status=row.processing_status,
-                has_ocr_pages=row.has_ocr_pages,
-                uploaded_at=row.uploaded_at,
-                uploaded_by=row.uploaded_by,
-                structured_summary=row.structured_summary,
-                structured_outline=row.structured_outline,
-                section_summaries=row.section_summaries,
-                key_facts=row.key_facts,
-                processing_warnings=row.processing_warnings,
-                evaluation_readiness=row.evaluation_readiness,
-            )
-            for row in rows
-        ]
-        return DocumentListResponse(
-            items=items,
-            total=total,
-            page=page,
-            page_size=page_size,
-        )
-
-    mem_items = list(_MEM_DOCUMENTS.values())
-    mem_items = [
-        item
-        for item in mem_items
-        if (
-            item.source_type != "curriculum"
-            and (
-                _MEM_DOCUMENT_OWNERS.get(item.document_id) == current_user_id
-                or is_reference_source_type(item.source_type)
-                or (
-                    is_policy_source_type(item.source_type)
-                    and current_user_role == "admin"
-                )
-            )
-        )
-    ]
-    if source_type:
-        mem_items = [item for item in mem_items if item.source_type == source_type]
-    if program:
-        canonical_program = canonicalize_supported_program(program)
-        if canonical_program is None:
-            raise ValueError(
-                "Unsupported program filter. Only BSCS and BSInfoTech "
-                "are supported; "
-                "BSIT is accepted as an alias."
-            )
-        accepted = {canonical_program.lower()}
-        if canonical_program == "BSInfoTech":
-            accepted.add("bsit")
-        mem_items = [
-            item for item in mem_items if (item.program or "").lower() in accepted
-        ]
-    total = len(mem_items)
-    start = (page - 1) * page_size
-    end = start + page_size
-    return DocumentListResponse(
-        items=mem_items[start:end],
-        total=total,
-        page=page,
-        page_size=page_size,
-    )
-
-
-def stream_document_file(
-    document_id: uuid.UUID,
-    current_user_id: uuid.UUID,
-    current_user_role: str | None = None,
-    db: Any | None = None,
-) -> Path:
-    """Return the local file path for a document, enforcing access rules.
-
-    Reference documents (syllabus) are shared to authenticated users.
-    Policy documents are admin-only. Legacy curriculum rows are
-    maintenance-only and never streamed here.
-    SLMs remain owner-only.
-    Raises DocumentNotFoundError if the document is not found, not
-    accessible, or the local file is missing.
-    """
-    if db is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    row = db.get(Document, document_id)
-    if row is None:
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    if not _is_document_accessible(row, current_user_id, current_user_role):
-        raise DocumentNotFoundError(f"Document {document_id} not found")
-
-    file_path = Path(row.file_path) if row.file_path else None
-    if file_path is None or not file_path.exists():
-        raise DocumentNotFoundError(f"Document file {document_id} not found")
-
-    return file_path
 
 
 def _validate_upload(
@@ -802,178 +549,6 @@ def _validate_upload(
     return canonical_program
 
 
-def _persist_document(
-    db: Any | None,
-    response: DocumentResponse,
-    file_path: str,
-    uploaded_by: uuid.UUID,
-    *,
-    commit: bool = True,
-) -> None:
-    _MEM_DOCUMENTS[response.document_id] = response
-    _MEM_DOCUMENT_OWNERS[response.document_id] = uploaded_by
-    if db is None:
-        return
-
-    db_row = db.get(Document, response.document_id)
-    if db_row is None:
-        db_row = Document(document_id=response.document_id)
-    db_row.title = response.title
-    db_row.course_title = response.course_title
-    db_row.lesson_title = response.lesson_title
-    db_row.program = response.program
-    db_row.academic_year = response.academic_year
-    db_row.course_code = response.course_code
-    db_row.source_type = response.source_type
-    db_row.policy_area = response.policy_area
-    db_row.file_path = file_path
-    db_row.uploaded_by = uploaded_by
-    db_row.uploaded_at = response.uploaded_at
-    db_row.page_count = response.page_count
-    db_row.has_ocr_pages = response.has_ocr_pages
-    db_row.processing_status = response.processing_status
-    db_row.structured_summary = response.structured_summary
-    db_row.structured_outline = response.structured_outline
-    db_row.section_summaries = response.section_summaries
-    db_row.key_facts = response.key_facts
-    db_row.processing_warnings = response.processing_warnings
-    db_row.evaluation_readiness = response.evaluation_readiness or "PENDING"
-    db.add(db_row)
-    if commit:
-        db.commit()
-
-
-def _create_upload_intent(
-    db: Any,
-    *,
-    document_id: uuid.UUID,
-    title: str,
-    course_title: str | None,
-    lesson_title: str | None,
-    program: str | None,
-    source_type: str,
-    policy_area: str | None,
-    file_path: str,
-    uploaded_by: uuid.UUID,
-) -> None:
-    """Commit a tracked PENDING document before opening its PDF artifact."""
-    db.add(
-        Document(
-            document_id=document_id,
-            title=title,
-            course_title=course_title,
-            lesson_title=lesson_title,
-            program=program,
-            source_type=source_type,
-            policy_area=policy_area,
-            file_path=file_path,
-            uploaded_by=uploaded_by,
-            uploaded_at=datetime.now(UTC),
-            processing_status="PENDING",
-            evaluation_readiness="PENDING",
-        )
-    )
-    db.commit()
-
-
-def _mark_interrupted_upload(
-    db: Any,
-    document_id: uuid.UUID,
-    cleanup_succeeded: bool,
-) -> None:
-    """Record the recoverable state left after an interrupted upload."""
-    try:
-        row = db.get(Document, document_id)
-        if row is not None:
-            row.processing_status = "FAILED" if cleanup_succeeded else "CLEANUP_PENDING"
-            db.commit()
-    except Exception:
-        db.rollback()
-        logger.exception(
-            "Failed to record interrupted upload cleanup state",
-            extra={"document_id": str(document_id)},
-        )
-
-
-def _persist_chunks(
-    db: Any | None,
-    document_id: uuid.UUID,
-    chunks: list[Any],
-    *,
-    commit: bool = True,
-) -> None:
-    _MEM_CHUNKS[document_id] = chunks
-    if db is None:
-        return
-
-    if not chunks:
-        if commit:
-            db.commit()
-        return
-
-    rows = [
-        DocumentChunk(
-            chunk_id=chunk.chunk_id,
-            document_id=chunk.document_id,
-            source_type=chunk.source_type,
-            agent_domain=chunk.agent_domain,
-            page_number=chunk.page_number,
-            text=chunk.text,
-            token_count=chunk.token_count,
-            is_ocr=chunk.is_ocr,
-            policy_area=getattr(chunk, "policy_area", None),
-            section_ref=getattr(chunk, "section_ref", None),
-            chunk_index=getattr(chunk, "chunk_index", None),
-        )
-        for chunk in chunks
-    ]
-    db.add_all(rows)
-    if commit:
-        db.commit()
-
-
-def get_document_chunks(document_id: uuid.UUID, db: Any | None = None) -> list[Any]:
-    if db is not None:
-        return (
-            db.query(DocumentChunk)
-            .filter(DocumentChunk.document_id == document_id)
-            .order_by(
-                DocumentChunk.chunk_index.asc().nullsfirst(),
-                DocumentChunk.page_number.asc(),
-                DocumentChunk.created_at.asc(),
-            )
-            .all()
-        )
-
-    return list(_MEM_CHUNKS.get(document_id, []))
-
-
-def _chunk_responses(chunks: list[Any]) -> list[DocumentChunkResponse]:
-    return [
-        DocumentChunkResponse(
-            chunk_id=chunk.chunk_id,
-            document_id=chunk.document_id,
-            source_type=chunk.source_type,
-            agent_domain=chunk.agent_domain,
-            page_number=chunk.page_number,
-            text=chunk.text,
-            token_count=chunk.token_count,
-            is_ocr=chunk.is_ocr,
-            policy_area=getattr(chunk, "policy_area", None),
-            section_ref=getattr(chunk, "section_ref", None),
-            chunk_index=getattr(chunk, "chunk_index", None),
-        )
-        for chunk in sorted(
-            chunks,
-            key=lambda item: (
-                item.document_id,
-                item.page_number if item.page_number is not None else 0,
-                item.chunk_id,
-            ),
-        )
-    ]
-
-
 def embed_document_chunks(document_id: uuid.UUID) -> int:
     """Embed a document's chunks and mark them as stored in Chroma."""
 
@@ -990,16 +565,18 @@ def embed_document_chunks(document_id: uuid.UUID) -> int:
             document = db.get(Document, document_id)
             source_type = document.source_type if document is not None else None
         else:
-            document = _MEM_DOCUMENTS.get(document_id)
+            document = persistence._MEM_DOCUMENTS.get(document_id)
             source_type = document.source_type if document is not None else None
 
         if source_type == "slm":
             return 0
 
-        chunks = get_document_chunks(document_id, db=db)
+        chunks = persistence.get_document_chunks(document_id, db=db)
         upserted = embed_and_store_chunks(chunks)
         if db is not None and upserted:
-            _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
+            persistence.mark_chunks_chroma_stored(
+                db, [chunk.chunk_id for chunk in chunks]
+            )
         elif db is None and upserted:
             for chunk in chunks:
                 if isinstance(chunk, dict):
@@ -1010,21 +587,14 @@ def embed_document_chunks(document_id: uuid.UUID) -> int:
             session.close()
 
 
-def _mark_chunks_chroma_stored(db: Any, chunk_ids: list[uuid.UUID]) -> None:
-    rows = db.query(DocumentChunk).filter(DocumentChunk.chunk_id.in_(chunk_ids)).all()
-    for row in rows:
-        row.chroma_stored = True
-    db.commit()
-
-
 def _refresh_tfidf_if_needed(source_type: str) -> None:
     if source_type != "slm":
         return
 
     slm_chunks: list[Any] = []
-    for document_id, metadata in _MEM_DOCUMENTS.items():
+    for document_id, metadata in persistence._MEM_DOCUMENTS.items():
         if metadata.source_type == "slm":
-            slm_chunks.extend(_MEM_CHUNKS.get(document_id, []))
+            slm_chunks.extend(persistence._MEM_CHUNKS.get(document_id, []))
 
     _MEM_TFIDF.clear()
     _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
@@ -1081,11 +651,5 @@ def _sanitize_error(raw_message: str) -> str:
 __all__ = [
     "create_document",
     "embed_document_chunks",
-    "get_document",
-    "get_document_chunks",
-    "list_documents",
     "process_document_ingestion",
-    "stream_document_file",
-    "is_reference_source_type",
-    "is_policy_source_type",
 ]

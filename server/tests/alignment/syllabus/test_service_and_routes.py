@@ -79,7 +79,9 @@ def test_standalone_run_persists_without_evaluation_or_agent_result(
 ):
     slm_id, syllabus_id = _documents(db_session, seeded_user.user_id)
     background = CapturedBackgroundTasks()
-    from server.modules.documents import reference_service as reference_document_service
+    from server.modules.documents.syllabus import (
+        service as reference_document_service,
+    )
 
     monkeypatch.setattr(
         reference_document_service,

@@ -11,10 +11,10 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from server.modules.documents import persistence
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document
-from server.modules.documents.service import get_document_chunks
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
     EvaluationNotFoundError,
@@ -194,7 +194,7 @@ def _validate_evaluation_target(
             "Document must be fully processed before evaluation."
         )
 
-    chunks = get_document_chunks(document_id, db=db)
+    chunks = persistence.get_document_chunks(document_id, db=db)
     if not chunks:
         raise InvalidEvaluationTargetError(
             "Document must have chunks before evaluation submission."
@@ -209,12 +209,14 @@ def _validate_evaluation_target(
 
     return document
 
+
 def _check_ownership_or_404(
     row: EvaluationJob, current_user_id: uuid.UUID, current_user_role: str
 ):
     if row.submitted_by != current_user_id:
         # Always mask existence as 404 if not the owner.
         raise EvaluationNotFoundError("Not found.")
+
 
 def get_evaluation(
     evaluation_id: uuid.UUID,
@@ -242,6 +244,7 @@ def get_evaluation(
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
     )
 
+
 def list_evaluations(
     page: int,
     page_size: int,
@@ -259,7 +262,7 @@ def list_evaluations(
         total = query.count()
         rows = (
             query.order_by(EvaluationJob.submitted_at.desc())
-            .offset((page-1) * page_size)
+            .offset((page - 1) * page_size)
             .limit(page_size)
             .all()
         )
@@ -282,12 +285,14 @@ def list_evaluations(
                 submitted_at=row.submitted_at,
                 completed_at=row.completed_at,
                 duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
-            ) for row in rows
+            )
+            for row in rows
         ]
         return EvaluationListResponse(
             items=items, total=total, page=page, page_size=page_size
         )
     return EvaluationListResponse(items=[], total=0, page=page, page_size=page_size)
+
 
 def get_evaluation_status(
     evaluation_id: uuid.UUID,

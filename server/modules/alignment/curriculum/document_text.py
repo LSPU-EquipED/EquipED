@@ -66,11 +66,11 @@ def load_document_pages(db: Any, document_id: uuid.UUID) -> list[DocumentPage]:
     Returns ``[]`` when the document has no usable persisted text -- the
     caller must fail honestly rather than fall back to raw PDF reopening.
     """
-    from server.modules.documents.service import get_document_chunks
+    from server.modules.documents import persistence
 
     rows = [
         chunk
-        for chunk in get_document_chunks(document_id, db=db)
+        for chunk in persistence.get_document_chunks(document_id, db=db)
         if chunk.source_type == _SLM_SOURCE_TYPE
     ]
     page_parts: dict[int, list[str]] = {}
