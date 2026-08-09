@@ -18,7 +18,8 @@ computes the band. Keeping that boundary in code -- not the prompt -- makes it
 auditable and changeable without touching the LLM call. A task counts as
 higher-order ONLY IF the actual task text can be quoted -- a bare title like
 "Activity 1" with no content under it is not evidence of transformation (same
-real-content rule as A-05 / OP-02 / OP-03, see openspec/specs/sme-engine-scoring/spec.md).
+real-content rule as A-05 / OP-02 / OP-03, see
+openspec/specs/sme-engine-scoring/spec.md).
 
 Why ACTIVITIES and not OBJECTIVES: the rubric says students must be "engaged in
 transforming" -- engagement is something a student DOES, and that happens in the
@@ -109,8 +110,8 @@ STRICT rules:
 - If you are unsure between two levels, pick the LOWER one.
 - List each DISTINCT task once. Do not repeat the same task.
 
-For each task put a short label in "text", the canonical Bloom level in "bloom_level", and
-the minimal evidence quote in "evidence".
+For each task put a short label in "text", the canonical Bloom level in
+"bloom_level", and the minimal evidence quote in "evidence".
 
 Return ONLY valid JSON in exactly this shape:
 {{

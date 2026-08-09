@@ -109,7 +109,8 @@ def compute(
     This is the half that stays per-criterion. The facts it needs (objectives,
     assessments, per-objective alignment judgments) can be produced by this
     criterion's own call OR merged from a shared skeleton/group call later;
-    either way the scoring math is identical. See openspec/specs/sme-engine-scoring/spec.md.
+    either way the scoring math is identical. See
+openspec/specs/sme-engine-scoring/spec.md.
     """
     # Count DISTINCT measured objectives, not alignment rows: the LLM may emit
     # several rows per objective (one per matching assessment), which would

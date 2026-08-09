@@ -6,16 +6,16 @@ functions the agent will call once facts come from a shared/grouped call.
 
 from __future__ import annotations
 
-from server.modules.agents.scoring import (
+from server.modules.agents.sme import (
     accurate_sections,
     clear_directions,
     enhancement_activities,
+    extraction,
     interactivity,
     learner_transformation,
     objective_alignment,
     prescriptive_feedback,
     progress_monitoring,
-    skeleton,
     slicing,
     topic_coherence,
     varied_assessment,
@@ -639,8 +639,16 @@ class TestLearnerTransformationNormalization:
 class TestLearnerTransformationScoreBoundary:
     def test_approved_higher_order_aliases_retained(self) -> None:
         tasks = [
-            {"text": "Task 1", "bloom_level": "compare", "evidence": "Compare X and Y."},
-            {"text": "Task 2", "bloom_level": "justify", "evidence": "Justify your answer."},
+            {
+                "text": "Task 1",
+                "bloom_level": "compare",
+                "evidence": "Compare X and Y.",
+            },
+            {
+                "text": "Task 2",
+                "bloom_level": "justify",
+                "evidence": "Justify your answer.",
+            },
         ]
         result = learner_transformation.compute(tasks)
         assert result.higher_order == 2
@@ -659,7 +667,11 @@ class TestLearnerTransformationScoreBoundary:
     def test_unknown_label_not_promoted(self) -> None:
         tasks = [
             {"text": "Task 1", "bloom_level": "listing", "evidence": "List items."},
-            {"text": "Task 2", "bloom_level": "list/explain", "evidence": "Explain items."},
+            {
+                "text": "Task 2",
+                "bloom_level": "list/explain",
+                "evidence": "Explain items.",
+            },
         ]
         result = learner_transformation.compute(tasks)
         assert result.higher_order == 0
@@ -685,7 +697,9 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
             {
                 "text": "Disclaimer",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "This material is used under fair use for educational purposes.",
+                "evidence": (
+                    "This material is used under fair use for educational purposes."
+                ),
             }
         ]
         result = prescriptive_feedback.compute(mechanisms)
@@ -696,7 +710,10 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
             {
                 "text": "Prohibition",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "No part of this publication may be reproduced without written permission of the publisher.",
+                "evidence": (
+                    "No part of this publication may be reproduced without written "
+                    "permission of the publisher."
+                ),
             }
         ]
         result = prescriptive_feedback.compute(mechanisms)
@@ -707,12 +724,17 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
             {
                 "text": "RA Notice",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "Pursuant to Section 176 of Republic Act 8293, no copyright shall subsist in any work of the Government of the Philippines.",
+                "evidence": (
+                    "Pursuant to Section 176 of Republic Act 8293, no copyright "
+                    "shall subsist in any work of the Government of the Philippines."
+                ),
             },
             {
                 "text": "RA Notice 2",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "Under Section 12 of R.A. 10173, data privacy principles apply.",
+                "evidence": (
+                    "Under Section 12 of R.A. 10173, data privacy principles apply."
+                ),
             },
         ]
         result = prescriptive_feedback.compute(mechanisms)
@@ -723,7 +745,9 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
             {
                 "text": "Praise",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "Great job completing this module! Congratulations on finishing!",
+                "evidence": (
+                    "Great job completing this module! Congratulations on finishing!"
+                ),
             }
         ]
         result = prescriptive_feedback.compute(mechanisms)
@@ -772,7 +796,9 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
             {
                 "text": "Mixed Note",
                 "feedback_type": "positive_reinforcement",
-                "evidence": "Copyright © 2025 by LSPU. Great job completing this module!",
+                "evidence": (
+                    "Copyright © 2025 by LSPU. Great job completing this module!"
+                ),
             },
             {
                 "text": "Mixed Note 2",
@@ -785,8 +811,10 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
 
 
 class TestPromptContent:
-    def test_standalone_and_grouped_a01_prompts_require_canonical_and_examples(self) -> None:
-        for prompt in (learner_transformation.PROMPT, skeleton.BASKET_A2_PROMPT):
+    def test_standalone_and_grouped_a01_prompts_require_canonical_and_examples(
+        self,
+    ) -> None:
+        for prompt in (learner_transformation.PROMPT, extraction.BASKET_A2_PROMPT):
             assert "canonical category name" in prompt
             assert "compare" in prompt
             assert "analyze" in prompt
@@ -798,8 +826,10 @@ class TestPromptContent:
             assert "remember" in prompt
             assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
 
-    def test_standalone_and_grouped_a04_prompts_exclude_boilerplate_and_require_minimal_quote(self) -> None:
-        for prompt in (prescriptive_feedback.PROMPT, skeleton.BASKET_B1_PROMPT):
+    def test_standalone_and_grouped_a04_prompts_exclude_boilerplate_and_require_minimal_quote(  # noqa: E501
+        self,
+    ) -> None:
+        for prompt in (prescriptive_feedback.PROMPT, extraction.BASKET_B1_PROMPT):
             assert "legal disclaimers" in prompt or "legal disclaimers," in prompt
             assert "copyright notices" in prompt
             assert "fair-use" in prompt

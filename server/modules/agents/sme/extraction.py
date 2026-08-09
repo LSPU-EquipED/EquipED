@@ -7,7 +7,8 @@ criteria into "baskets" by the slice they need, extracting each basket's facts
 with ONE LLM call, so several criteria share a call instead of each paying
 for its own.
 
-History of this design (see openspec/specs/sme-engine-scoring/spec.md for the canonical contract):
+History of this design (see openspec/specs/sme-engine-scoring/spec.md for the
+canonical contract):
 
 1. First attempt: 2 baskets (all 7 assessment/task criteria in one call, all 3
    content criteria in another). Rejected outright by the provider -- HTTP 413,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from server.modules.agents.scoring.bands import count_band, mean_band, ratio_band
+from server.modules.agents.sme.bands import count_band, mean_band, ratio_band
 
 
 class TestRatioBand:

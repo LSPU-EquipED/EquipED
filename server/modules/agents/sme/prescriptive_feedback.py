@@ -20,8 +20,9 @@ Deliberately counts DISTINCT TYPES, not instances -- the same choice as A-02,
 not A-03. The rubric bundles "positive feedback AND prescriptive guides" as
 one requirement, which reads as a call for VARIETY of feedback approaches, not
 frequency: five answer keys and nothing else should not outscore one answer key
-plus a rubric plus a remediation referral. See openspec/specs/sme-engine-scoring/spec.md and
-the a02-a03-types-vs-instances design note.
+plus a rubric plus a remediation referral. See
+openspec/specs/sme-engine-scoring/spec.md and the a02-a03-types-vs-instances
+design note.
 
 The LLM only enumerates feedback mechanisms and classifies each into one of
 four fixed, code-owned types (see FEEDBACK_TYPES below) -- same "boundary lives
@@ -72,7 +73,10 @@ _BOILERPLATE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bcopyright\s+notice\b|\bcopyright\s+owner\b", re.IGNORECASE),
     re.compile(r"\bfair[- ]use\b", re.IGNORECASE),
     re.compile(r"\bno\s+part\s+of\s+this\b", re.IGNORECASE),
-    re.compile(r"\bwithout\s+(?:the\s+)?(?:prior\s+)?(?:written\s+)?permission\b", re.IGNORECASE),
+    re.compile(
+        r"\bwithout\s+(?:the\s+)?(?:prior\s+)?(?:written\s+)?permission\b",
+        re.IGNORECASE,
+    ),
     re.compile(
         r"\breproduced\s+or\s+transmitted\b|\breproduction\s+(?:or|and)\s+distribution\b|\bprohibited\s+without\b",
         re.IGNORECASE,
@@ -218,7 +222,9 @@ def compute(mechanisms: list[dict[str, Any]]) -> FeedbackResult:
         if not kind:  # unrecognized type -> dropped, not guessed
             continue
         if kind == "positive_reinforcement":
-            if _is_high_confidence_boilerplate(evidence) and not _has_explicit_praise(evidence):
+            if _is_high_confidence_boilerplate(
+                evidence
+            ) and not _has_explicit_praise(evidence):
                 continue
         genuine.append(mechanism)
         types.add(kind)

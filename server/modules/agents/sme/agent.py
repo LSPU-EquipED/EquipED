@@ -6,9 +6,9 @@ import dataclasses
 import uuid
 from typing import Any
 
-from .contracts import AgentEvaluationResult, CriterionScore
-from .engine_scoring import EngineScoredAgent
-from .exceptions import AgentExecutionError
+from ..contracts import AgentEvaluationResult, CriterionScore
+from ..exceptions import AgentExecutionError
+from .pipeline import EngineScoredAgent
 
 # A criterion at or below this score is surfaced in the improvement summary.
 _IMPROVEMENT_THRESHOLD = 2
@@ -111,9 +111,6 @@ class SME(EngineScoredAgent):
         if not chunk_infos:
             raise AgentExecutionError("document chunks are required for evaluation")
 
-        if llm_client is not None:
-            self._llm_client = llm_client
-
         result = self._run_full_engine_scoring(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -121,6 +118,7 @@ class SME(EngineScoredAgent):
             context_text=context_text,
             prompt_version_id=prompt_version_id,
             db=db,
+            llm_client=llm_client,
         )
         return dataclasses.replace(
             result,
@@ -128,7 +126,4 @@ class SME(EngineScoredAgent):
         )
 
 
-SMEAgent = SME
-
-
-__all__ = ["SME", "SMEAgent"]
+__all__ = ["SME"]
