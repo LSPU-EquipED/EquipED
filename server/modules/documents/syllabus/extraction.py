@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from .exceptions import ExtractionFailedError
+from ..exceptions import ExtractionFailedError
 
 
 class PageText(Protocol):
