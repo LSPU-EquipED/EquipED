@@ -20,13 +20,14 @@ from typing import Any
 
 from server.modules.embeddings.service import check_chroma_availability
 
-from .exceptions import (
+from .. import persistence
+from ..exceptions import (
     DocumentNotFoundError,
     ReferenceDeleteInvalidTypeError,
     ReferenceRebuildError,
 )
-from .models import VALID_POLICY_AREAS, Document, DocumentChunk
-from .schemas import (
+from ..models import VALID_POLICY_AREAS, Document, DocumentChunk
+from ..schemas import (
     POLICY_SOURCE_TYPES,
     PolicyDeleteResponse,
     PolicyLibraryItem,
@@ -390,8 +391,7 @@ def rebuild_policy_embeddings(
 
     if row.source_type not in POLICY_SOURCE_TYPES:
         raise ReferenceRebuildError(
-            f"Rebuild is only supported for policy documents, "
-            f"not {row.source_type}."
+            f"Rebuild is only supported for policy documents, not {row.source_type}."
         )
 
     if not is_source_healthy_policy_document(row, db):
@@ -417,25 +417,13 @@ def rebuild_policy_embeddings(
 
     upserted = embed_and_store_chunks(chunks)
     if db is not None and upserted:
-        _mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
+        persistence.mark_chunks_chroma_stored(db, [chunk.chunk_id for chunk in chunks])
     return PolicyRebuildResponse(
         document_id=document_id,
         rebuilt=upserted > 0,
         chunk_count=len(chunks),
         details={"chunks_upserted": upserted},
     )
-
-
-def _mark_chunks_chroma_stored(db: Any, chunk_ids: list[uuid.UUID]) -> None:
-    """Mark chunks as chroma_stored after successful upsert."""
-    rows = (
-        db.query(DocumentChunk)
-        .filter(DocumentChunk.chunk_id.in_(chunk_ids))
-        .all()
-    )
-    for row in rows:
-        row.chroma_stored = True
-    db.commit()
 
 
 __all__ = [

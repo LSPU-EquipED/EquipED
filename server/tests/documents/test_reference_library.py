@@ -15,12 +15,14 @@ from unittest.mock import patch
 import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
+from server.modules.documents import persistence
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.documents.schemas import REFERENCE_SOURCE_TYPES
 
 _TEST_PASSWORD = "password123"
 
 # ── Helpers ─────────────────────────────────────────────────────────
+
 
 def _add_doc(
     db_session,
@@ -95,7 +97,8 @@ class TestReferenceSourceTypeHelpers:
         assert "rubric_sme" not in REFERENCE_SOURCE_TYPES
 
     def test_is_reference_helper(self, db_session):
-        from server.modules.documents.service import is_reference_source_type
+        from server.modules.documents.access import is_reference_source_type
+
         assert is_reference_source_type("syllabus") is True
         assert is_reference_source_type("curriculum") is False
         assert is_reference_source_type("slm") is False
@@ -107,14 +110,28 @@ class TestSharedReferenceAccess:
 
     def test_faculty_can_read_admin_uploaded_reference(self, client, db_session):
         """Faculty can GET a syllabus reference uploaded by admin."""
-        admin = create_user(db_session, name="Admin", email="admin@ref.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="faculty@ref.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="admin@ref.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="faculty@ref.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Shared Syllabus")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Shared Syllabus",
+        )
 
         _login(client, faculty.email)
         resp = client.get(f"/api/v1/documents/{ref_id}")
@@ -123,14 +140,25 @@ class TestSharedReferenceAccess:
 
     def test_faculty_cannot_read_other_faculty_slm(self, client, db_session):
         """Faculty cannot GET another faculty's SLM (owner-only)."""
-        fac1 = create_user(db_session, name="F1", email="f1@slm.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
-        fac2 = create_user(db_session, name="F2", email="f2@slm.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        fac1 = create_user(
+            db_session,
+            name="F1",
+            email="f1@slm.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        fac2 = create_user(
+            db_session,
+            name="F2",
+            email="f2@slm.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        slm_id = _add_doc(db_session, owner_id=fac1.user_id,
-                          source_type="slm", title="F1 SLM")
+        slm_id = _add_doc(
+            db_session, owner_id=fac1.user_id, source_type="slm", title="F1 SLM"
+        )
 
         _login(client, fac2.email)
         resp = client.get(f"/api/v1/documents/{slm_id}")
@@ -138,12 +166,18 @@ class TestSharedReferenceAccess:
 
     def test_admin_cannot_read_faculty_slm(self, client, db_session, seeded_user):
         """Admin cannot GET a faculty's SLM."""
-        faculty = create_user(db_session, name="Faculty", email="f@slm2.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@slm2.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        slm_id = _add_doc(db_session, owner_id=faculty.user_id,
-                          source_type="slm", title="Faculty SLM")
+        slm_id = _add_doc(
+            db_session, owner_id=faculty.user_id, source_type="slm", title="Faculty SLM"
+        )
 
         _login(client, seeded_user.email, "correct-horse-battery")
         resp = client.get(f"/api/v1/documents/{slm_id}")
@@ -151,27 +185,43 @@ class TestSharedReferenceAccess:
 
     def test_list_includes_shared_references(self, client, db_session):
         """Faculty listing documents should include shared references + own SLMs."""
-        admin = create_user(db_session, name="Admin", email="admin@list.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="faculty@list.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="admin@list.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="faculty@list.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="syllabus", title="Admin Syllabus")
-        _add_doc(db_session, owner_id=faculty.user_id,
-                 source_type="slm", title="My SLM")
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="slm", title="Admin SLM")
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Admin Syllabus",
+        )
+        _add_doc(
+            db_session, owner_id=faculty.user_id, source_type="slm", title="My SLM"
+        )
+        _add_doc(
+            db_session, owner_id=admin.user_id, source_type="slm", title="Admin SLM"
+        )
 
         _login(client, faculty.email)
         resp = client.get("/api/v1/documents")
         assert resp.status_code == 200
         data = resp.json()
         titles = {item["title"] for item in data["items"]}
-        assert "Admin Syllabus" in titles   # shared reference
-        assert "My SLM" in titles           # own SLM
-        assert "Admin SLM" not in titles    # other user's SLM
+        assert "Admin Syllabus" in titles  # shared reference
+        assert "My SLM" in titles  # own SLM
+        assert "Admin SLM" not in titles  # other user's SLM
 
 
 class TestEvaluationSharedReferenceValidation:
@@ -182,12 +232,23 @@ class TestEvaluationSharedReferenceValidation:
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
         from server.tests.evaluations.conftest import _seed_active_prompts
+
         _seed_active_prompts(db_session)
 
-        admin = create_user(db_session, name="Admin", email="a@eval.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="f@eval.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@eval.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@eval.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
@@ -226,10 +287,20 @@ class TestEvaluationSharedReferenceValidation:
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
 
-        fac1 = create_user(db_session, name="F1", email="f1@eval2.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
-        fac2 = create_user(db_session, name="F2", email="f2@eval2.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        fac1 = create_user(
+            db_session,
+            name="F1",
+            email="f1@eval2.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        fac2 = create_user(
+            db_session,
+            name="F2",
+            email="f2@eval2.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         slm_id = _add_doc(db_session, owner_id=fac1.user_id, source_type="slm")
@@ -251,17 +322,29 @@ class TestEvaluationSharedReferenceValidation:
         from server.modules.evaluations.schemas import EvaluationSubmitRequest
         from server.modules.evaluations.service import create_evaluation
 
-        admin = create_user(db_session, name="Admin", email="a@eval3.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="f@eval3.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@eval3.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@eval3.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         slm_id = _add_doc(db_session, owner_id=faculty.user_id, source_type="slm")
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
 
         pending_syllabus = _add_doc(
-            db_session, owner_id=admin.user_id, source_type="syllabus",
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
             processing_status="PENDING",
         )
 
@@ -287,20 +370,39 @@ class TestAdminReferenceList:
 
     def test_admin_lists_references(self, client, db_session):
         """Admin can list syllabus documents; legacy curriculum is excluded."""
-        admin = create_user(db_session, name="Admin", email="a@reflist.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="f@reflist.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@reflist.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@reflist.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="syllabus", title="Syllabus A")
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Syllabus A",
+        )
         # Legacy curriculum row must not appear in the active reference library
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="curriculum", title="Curriculum B")
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Curriculum B",
+        )
         # Faculty SLM should not appear in reference list
-        _add_doc(db_session, owner_id=faculty.user_id,
-                 source_type="slm", title="Faculty SLM")
+        _add_doc(
+            db_session, owner_id=faculty.user_id, source_type="slm", title="Faculty SLM"
+        )
 
         _login(client, admin.email)
         resp = client.get("/api/v1/documents/references")
@@ -317,12 +419,21 @@ class TestAdminReferenceList:
 
     def test_reference_list_has_health_fields(self, client, db_session):
         """Reference list items include computed health indicators."""
-        admin = create_user(db_session, name="Admin", email="a@health.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@health.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        doc_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Health Check")
+        doc_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Health Check",
+        )
         _add_chunk(db_session, document_id=doc_id, source_type="syllabus")
 
         _login(client, admin.email)
@@ -341,8 +452,13 @@ class TestAdminReferenceList:
 
     def test_faculty_cannot_access_reference_list(self, client, db_session):
         """Faculty gets 403 on admin reference list."""
-        faculty = create_user(db_session, name="Faculty", email="f@deny.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@deny.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         _login(client, faculty.email)
@@ -351,16 +467,27 @@ class TestAdminReferenceList:
 
     def test_reference_list_excludes_rubrics(self, client, db_session):
         """Rubric and legacy curriculum documents do not appear in reference list."""
-        admin = create_user(db_session, name="Admin", email="a@norb.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@norb.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="syllabus", title="Syllabus")
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="rubric_sme", title="Rubric")
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="curriculum", title="Curriculum")
+        _add_doc(
+            db_session, owner_id=admin.user_id, source_type="syllabus", title="Syllabus"
+        )
+        _add_doc(
+            db_session, owner_id=admin.user_id, source_type="rubric_sme", title="Rubric"
+        )
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Curriculum",
+        )
 
         _login(client, admin.email)
         resp = client.get("/api/v1/documents/references")
@@ -372,8 +499,13 @@ class TestAdminReferenceList:
 
     def test_reference_list_empty(self, client, db_session):
         """Empty reference list returns empty items."""
-        admin = create_user(db_session, name="Admin", email="a@empty.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@empty.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
         _login(client, admin.email)
@@ -387,19 +519,33 @@ class TestDocumentFileEndpoint:
 
     def test_faculty_can_preview_shared_reference_pdf(self, client, db_session):
         """Faculty can preview a shared reference PDF."""
-        admin = create_user(db_session, name="Admin", email="a@file1.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="f@file1.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@file1.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@file1.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         pdf_path = Path("/tmp/test_ref_preview.pdf")
         pdf_path.write_bytes(b"%PDF-1.4 test")
 
         try:
-            ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                              source_type="syllabus", title="Ref PDF",
-                              file_path=str(pdf_path))
+            ref_id = _add_doc(
+                db_session,
+                owner_id=admin.user_id,
+                source_type="syllabus",
+                title="Ref PDF",
+                file_path=str(pdf_path),
+            )
 
             _login(client, faculty.email)
             resp = client.get(f"/api/v1/documents/{ref_id}/file")
@@ -410,19 +556,33 @@ class TestDocumentFileEndpoint:
 
     def test_faculty_cannot_preview_other_faculty_slm_pdf(self, client, db_session):
         """Faculty cannot preview another faculty's SLM PDF."""
-        fac1 = create_user(db_session, name="F1", email="f1@slmfile.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
-        fac2 = create_user(db_session, name="F2", email="f2@slmfile.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        fac1 = create_user(
+            db_session,
+            name="F1",
+            email="f1@slmfile.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        fac2 = create_user(
+            db_session,
+            name="F2",
+            email="f2@slmfile.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         pdf_path = Path("/tmp/test_slm_preview.pdf")
         pdf_path.write_bytes(b"%PDF-1.4 slm")
 
         try:
-            slm_id = _add_doc(db_session, owner_id=fac1.user_id,
-                              source_type="slm", title="SLM PDF",
-                              file_path=str(pdf_path))
+            slm_id = _add_doc(
+                db_session,
+                owner_id=fac1.user_id,
+                source_type="slm",
+                title="SLM PDF",
+                file_path=str(pdf_path),
+            )
 
             _login(client, fac2.email)
             resp = client.get(f"/api/v1/documents/{slm_id}/file")
@@ -432,13 +592,22 @@ class TestDocumentFileEndpoint:
 
     def test_file_preview_missing_file(self, client, db_session):
         """Missing local PDF returns 404."""
-        admin = create_user(db_session, name="Admin", email="a@missfile.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@missfile.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Missing PDF",
-                          file_path="/nonexistent/path.pdf")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Missing PDF",
+            file_path="/nonexistent/path.pdf",
+        )
 
         _login(client, admin.email)
         resp = client.get(f"/api/v1/documents/{ref_id}/file")
@@ -459,24 +628,24 @@ class TestEmbeddingHelpers:
     def test_delete_chroma_vectors_safe_call(self):
         """delete_chroma_vectors returns False for missing collection gracefully."""
         from server.modules.embeddings.service import delete_chroma_vectors
+
         # Isolate Chroma state: simulate a client with no matching collection so
         # this deterministically exercises the safe no-collection path even when
         # a collection exists in the environment.
         fake_client = mock.Mock()
         fake_client.get_collection.side_effect = RuntimeError("no such collection")
-        with patch("server.modules.embeddings.service.get_chroma_client",
-                   return_value=fake_client):
-            result = delete_chroma_vectors(
-                str(uuid.uuid4()), "syllabus"
-            )
+        with patch(
+            "server.modules.embeddings.service.get_chroma_client",
+            return_value=fake_client,
+        ):
+            result = delete_chroma_vectors(str(uuid.uuid4()), "syllabus")
         assert result is False
 
     def test_check_chroma_availability_safe_call(self):
         """check_chroma_availability returns False gracefully with no Chroma."""
         from server.modules.embeddings.service import check_chroma_availability
-        result = check_chroma_availability(
-            str(uuid.uuid4()), "syllabus"
-        )
+
+        result = check_chroma_availability(str(uuid.uuid4()), "syllabus")
         assert result is False
 
 
@@ -531,17 +700,26 @@ class TestAdminDelete:
 
     def test_admin_delete_reference(self, client, db_session):
         """Admin can delete a reference document."""
-        admin = create_user(db_session, name="Admin", email="a@del1.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@del1.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
         pdf_path = Path("/tmp/test_del_ref.pdf")
         pdf_path.write_bytes(b"%PDF-1.4 delete")
 
         try:
-            ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                              source_type="syllabus", title="To Delete",
-                              file_path=str(pdf_path))
+            ref_id = _add_doc(
+                db_session,
+                owner_id=admin.user_id,
+                source_type="syllabus",
+                title="To Delete",
+                file_path=str(pdf_path),
+            )
             _add_chunk(db_session, document_id=ref_id, source_type="syllabus")
 
             _login(client, admin.email)
@@ -562,12 +740,21 @@ class TestAdminDelete:
         """Delete returns 409 when evaluation jobs reference the document."""
         from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 
-        admin = create_user(db_session, name="Admin", email="a@conflict.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@conflict.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        syllabus_id = _add_doc(db_session, owner_id=admin.user_id,
-                               source_type="syllabus", title="Referenced Syllabus")
+        syllabus_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Referenced Syllabus",
+        )
 
         # Create an evaluation job that references the syllabus
         db_session.add(
@@ -589,12 +776,21 @@ class TestAdminDelete:
 
     def test_delete_rejected_for_legacy_curriculum(self, client, db_session):
         """Legacy curriculum rows are rejected by the reference delete endpoint."""
-        admin = create_user(db_session, name="Admin", email="a@curretire.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@curretire.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        curr_id = _add_doc(db_session, owner_id=admin.user_id,
-                           source_type="curriculum", title="Legacy Curriculum")
+        curr_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Legacy Curriculum",
+        )
 
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{curr_id}")
@@ -605,13 +801,22 @@ class TestAdminDelete:
 
     def test_delete_tolerates_missing_local_file(self, client, db_session):
         """Delete completes even when the local PDF file is missing."""
-        admin = create_user(db_session, name="Admin", email="a@missdel.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@missdel.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Missing File",
-                          file_path="/nonexistent/missing.pdf")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Missing File",
+            file_path="/nonexistent/missing.pdf",
+        )
 
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{ref_id}")
@@ -621,26 +826,38 @@ class TestAdminDelete:
 
     def test_faculty_cannot_delete_reference(self, client, db_session):
         """Faculty gets 403 on reference delete."""
-        faculty = create_user(db_session, name="Faculty", email="f@denydel.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@denydel.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         _login(client, faculty.email)
-        resp = client.delete(
-            f"/api/v1/documents/{uuid.uuid4()}"
-        )
+        resp = client.delete(f"/api/v1/documents/{uuid.uuid4()}")
         assert resp.status_code == 403
 
     def test_admin_cannot_delete_slm_through_reference_endpoint(
         self, client, db_session
     ):
         """DELETE /documents/{id} rejects SLM documents with 422."""
-        admin = create_user(db_session, name="Admin", email="a@noslmdelete.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@noslmdelete.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        slm_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="slm", title="SLM Not Deletable")
+        slm_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="slm",
+            title="SLM Not Deletable",
+        )
 
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{slm_id}")
@@ -651,12 +868,21 @@ class TestAdminDelete:
         self, client, db_session
     ):
         """DELETE /documents/{id} rejects rubric documents with 422."""
-        admin = create_user(db_session, name="Admin", email="a@norubdel.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@norubdel.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        rubric_id = _add_doc(db_session, owner_id=admin.user_id,
-                             source_type="rubric_sme", title="Rubric Not Deletable")
+        rubric_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="rubric_sme",
+            title="Rubric Not Deletable",
+        )
 
         _login(client, admin.email)
         resp = client.delete(f"/api/v1/documents/{rubric_id}")
@@ -669,16 +895,25 @@ class TestAdminRebuild:
 
     def test_admin_rebuild_embeddings(self, client, db_session):
         """Admin can rebuild embeddings from existing chunks."""
-        admin = create_user(db_session, name="Admin", email="a@rebuild1.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@rebuild1.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Rebuild Me")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Rebuild Me",
+        )
         _add_chunk(db_session, document_id=ref_id, source_type="syllabus")
 
         with patch(
-            "server.modules.embeddings.service.embed_and_store_chunks"
+            "server.modules.documents.syllabus.service.embed_and_store_chunks"
         ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
@@ -690,12 +925,21 @@ class TestAdminRebuild:
 
     def test_rebuild_no_chunks_fails(self, client, db_session):
         """Rebuild rejected when no chunks exist."""
-        admin = create_user(db_session, name="Admin", email="a@nochunks.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@nochunks.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="No Chunks")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="No Chunks",
+        )
         # No chunks added
 
         _login(client, admin.email)
@@ -705,12 +949,21 @@ class TestAdminRebuild:
 
     def test_rebuild_unsupported_source_type_fails(self, client, db_session):
         """Rebuild rejected for non-reference source types."""
-        admin = create_user(db_session, name="Admin", email="a@badtype.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@badtype.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        slm_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="slm", title="SLM Not Rebuildable")
+        slm_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="slm",
+            title="SLM Not Rebuildable",
+        )
         _add_chunk(db_session, document_id=slm_id, source_type="slm")
 
         _login(client, admin.email)
@@ -719,24 +972,36 @@ class TestAdminRebuild:
 
     def test_faculty_cannot_rebuild(self, client, db_session):
         """Faculty gets 403 on rebuild."""
-        faculty = create_user(db_session, name="Faculty", email="f@denyrb.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@denyrb.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
         _login(client, faculty.email)
-        resp = client.post(
-            f"/api/v1/documents/{uuid.uuid4()}/rebuild-embeddings"
-        )
+        resp = client.post(f"/api/v1/documents/{uuid.uuid4()}/rebuild-embeddings")
         assert resp.status_code == 403
 
     def test_rebuild_rejected_for_legacy_curriculum(self, client, db_session):
         """Legacy curriculum rows are rejected by the rebuild endpoint."""
-        admin = create_user(db_session, name="Admin", email="a@currb.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@currb.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        curr_id = _add_doc(db_session, owner_id=admin.user_id,
-                           source_type="curriculum", title="Legacy Curriculum")
+        curr_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Legacy Curriculum",
+        )
         _add_chunk(db_session, document_id=curr_id, source_type="curriculum")
 
         _login(client, admin.email)
@@ -748,12 +1013,21 @@ class TestAdminRebuild:
 
     def test_rebuild_sets_chroma_stored(self, client, db_session):
         """Rebuild marks chunks chroma_stored for evaluation readiness."""
-        admin = create_user(db_session, name="Admin", email="a@chromarb.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@chromarb.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        ref_id = _add_doc(db_session, owner_id=admin.user_id,
-                          source_type="syllabus", title="Chroma Rebuild")
+        ref_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Chroma Rebuild",
+        )
 
         # Add a chunk with chroma_stored=False (simulating initial state)
         chunk_id = uuid.uuid4()
@@ -773,7 +1047,7 @@ class TestAdminRebuild:
         db_session.commit()
 
         with patch(
-            "server.modules.embeddings.service.embed_and_store_chunks"
+            "server.modules.documents.syllabus.service.embed_and_store_chunks"
         ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
@@ -792,12 +1066,21 @@ class TestLegacyCurriculumRetired:
 
     def test_owner_detail_denied_for_curriculum(self, client, db_session):
         """Original uploader gets 404 on a legacy curriculum row detail."""
-        owner = create_user(db_session, name="Owner", email="o@currdet.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        owner = create_user(
+            db_session,
+            name="Owner",
+            email="o@currdet.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        curr_id = _add_doc(db_session, owner_id=owner.user_id,
-                           source_type="curriculum", title="Legacy Curriculum")
+        curr_id = _add_doc(
+            db_session,
+            owner_id=owner.user_id,
+            source_type="curriculum",
+            title="Legacy Curriculum",
+        )
 
         _login(client, owner.email)
         resp = client.get(f"/api/v1/documents/{curr_id}")
@@ -807,12 +1090,21 @@ class TestLegacyCurriculumRetired:
 
     def test_admin_detail_denied_for_curriculum(self, client, db_session):
         """Admin gets 404 on a legacy curriculum row detail."""
-        admin = create_user(db_session, name="Admin", email="a@curradm.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@curradm.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
-        curr_id = _add_doc(db_session, owner_id=admin.user_id,
-                           source_type="curriculum", title="Legacy Curriculum")
+        curr_id = _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Legacy Curriculum",
+        )
 
         _login(client, admin.email)
         resp = client.get(f"/api/v1/documents/{curr_id}")
@@ -822,18 +1114,37 @@ class TestLegacyCurriculumRetired:
         self, client, db_session
     ):
         """Legacy curriculum rows never appear in ordinary document lists."""
-        admin = create_user(db_session, name="Admin", email="a@currlist.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
-        faculty = create_user(db_session, name="Faculty", email="f@currlist.com",
-                              password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@currlist.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
+        faculty = create_user(
+            db_session,
+            name="Faculty",
+            email="f@currlist.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="curriculum", title="Legacy Curriculum")
-        _add_doc(db_session, owner_id=admin.user_id,
-                 source_type="syllabus", title="Active Syllabus")
-        _add_doc(db_session, owner_id=faculty.user_id,
-                 source_type="slm", title="Own SLM")
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="curriculum",
+            title="Legacy Curriculum",
+        )
+        _add_doc(
+            db_session,
+            owner_id=admin.user_id,
+            source_type="syllabus",
+            title="Active Syllabus",
+        )
+        _add_doc(
+            db_session, owner_id=faculty.user_id, source_type="slm", title="Own SLM"
+        )
 
         for email in (admin.email, faculty.email):
             _login(client, email)
@@ -848,17 +1159,26 @@ class TestLegacyCurriculumRetired:
 
     def test_owner_file_denied_for_curriculum(self, client, db_session):
         """Original uploader gets 404 on a legacy curriculum PDF file."""
-        owner = create_user(db_session, name="Owner", email="o@currfile.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        owner = create_user(
+            db_session,
+            name="Owner",
+            email="o@currfile.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
         pdf_path = Path("/tmp/test_curriculum_preview.pdf")
         pdf_path.write_bytes(b"%PDF-1.4 curriculum")
 
         try:
-            curr_id = _add_doc(db_session, owner_id=owner.user_id,
-                               source_type="curriculum", title="Legacy Curriculum",
-                               file_path=str(pdf_path))
+            curr_id = _add_doc(
+                db_session,
+                owner_id=owner.user_id,
+                source_type="curriculum",
+                title="Legacy Curriculum",
+                file_path=str(pdf_path),
+            )
 
             _login(client, owner.email)
             resp = client.get(f"/api/v1/documents/{curr_id}/file")
@@ -868,17 +1188,26 @@ class TestLegacyCurriculumRetired:
 
     def test_admin_file_denied_for_curriculum(self, client, db_session):
         """Admin gets 404 on a legacy curriculum PDF file."""
-        admin = create_user(db_session, name="Admin", email="a@curradmfile.com",
-                            password=_TEST_PASSWORD, role=UserRole.ADMIN)
+        admin = create_user(
+            db_session,
+            name="Admin",
+            email="a@curradmfile.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.ADMIN,
+        )
         db_session.commit()
 
         pdf_path = Path("/tmp/test_curriculum_admin_preview.pdf")
         pdf_path.write_bytes(b"%PDF-1.4 curriculum")
 
         try:
-            curr_id = _add_doc(db_session, owner_id=admin.user_id,
-                               source_type="curriculum", title="Legacy Curriculum",
-                               file_path=str(pdf_path))
+            curr_id = _add_doc(
+                db_session,
+                owner_id=admin.user_id,
+                source_type="curriculum",
+                title="Legacy Curriculum",
+                file_path=str(pdf_path),
+            )
 
             _login(client, admin.email)
             resp = client.get(f"/api/v1/documents/{curr_id}/file")
@@ -892,14 +1221,25 @@ class TestSLMOwnershipStrict:
 
     def test_ownership_mask_on_detail(self, client, db_session):
         """SLM detail returns 404 for non-owners."""
-        fac1 = create_user(db_session, name="F1", email="f1@own.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
-        fac2 = create_user(db_session, name="F2", email="f2@own.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        fac1 = create_user(
+            db_session,
+            name="F1",
+            email="f1@own.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        fac2 = create_user(
+            db_session,
+            name="F2",
+            email="f2@own.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        slm_id = _add_doc(db_session, owner_id=fac1.user_id,
-                          source_type="slm", title="Owned SLM")
+        slm_id = _add_doc(
+            db_session, owner_id=fac1.user_id, source_type="slm", title="Owned SLM"
+        )
 
         for email in (fac2.email,):
             _login(client, email)
@@ -908,14 +1248,23 @@ class TestSLMOwnershipStrict:
 
     def test_ownership_mask_on_list(self, client, db_session):
         """SLMs from other users do not appear in list."""
-        fac1 = create_user(db_session, name="F1", email="f1@listown.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
-        fac2 = create_user(db_session, name="F2", email="f2@listown.com",
-                           password=_TEST_PASSWORD, role=UserRole.FACULTY)
+        fac1 = create_user(
+            db_session,
+            name="F1",
+            email="f1@listown.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
+        fac2 = create_user(
+            db_session,
+            name="F2",
+            email="f2@listown.com",
+            password=_TEST_PASSWORD,
+            role=UserRole.FACULTY,
+        )
         db_session.commit()
 
-        _add_doc(db_session, owner_id=fac1.user_id,
-                 source_type="slm", title="F1 SLM")
+        _add_doc(db_session, owner_id=fac1.user_id, source_type="slm", title="F1 SLM")
 
         _login(client, fac2.email)
         resp = client.get("/api/v1/documents")
@@ -927,17 +1276,12 @@ class TestSLMOwnershipStrict:
 @pytest.fixture(autouse=True)
 def _cleanup_global_state():
     """Clean up shared in-memory state to avoid polluting other tests."""
-    from server.modules.documents.service import (
-        _MEM_CHUNKS,
-        _MEM_DOCUMENT_OWNERS,
-        _MEM_DOCUMENTS,
-    )
     yield
     ids_to_remove = []
-    for doc_id, doc in list(_MEM_DOCUMENTS.items()):
+    for doc_id, doc in list(persistence._MEM_DOCUMENTS.items()):
         if doc.source_type in REFERENCE_SOURCE_TYPES:
             ids_to_remove.append(doc_id)
     for doc_id in ids_to_remove:
-        _MEM_DOCUMENTS.pop(doc_id, None)
-        _MEM_DOCUMENT_OWNERS.pop(doc_id, None)
-        _MEM_CHUNKS.pop(doc_id, None)
+        persistence._MEM_DOCUMENTS.pop(doc_id, None)
+        persistence._MEM_DOCUMENT_OWNERS.pop(doc_id, None)
+        persistence._MEM_CHUNKS.pop(doc_id, None)
