@@ -202,7 +202,7 @@ def create_app() -> FastAPI:
         _recover_cleanup_pending_documents()
         _recover_no_database_uploads()
         try:
-            from server.modules.documents.ocr import validate_ocr_installation
+            from server.modules.documents.ingestion.ocr import validate_ocr_installation
 
             validate_ocr_installation(settings)
         except Exception as exc:
@@ -282,7 +282,7 @@ def create_app() -> FastAPI:
             checks["llm"] = {"configured": True, "ready": ok, "detail": detail}
 
         try:
-            from server.modules.documents.ocr import validate_ocr_installation
+            from server.modules.documents.ingestion.ocr import validate_ocr_installation
 
             ocr_result = validate_ocr_installation(settings)
             if ocr_result["ready"]:

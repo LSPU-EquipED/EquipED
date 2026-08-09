@@ -21,6 +21,7 @@ from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
 
+from .access import get_document, list_documents, stream_document_file
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
@@ -32,17 +33,10 @@ from .exceptions import (
     UnsupportedFileTypeError,
 )
 from .metadata import canonicalize_supported_program
-from .policy_service import (
+from .policy.service import (
     delete_policy_document,
     list_policy_documents,
     rebuild_policy_embeddings,
-)
-from .reference_service import (
-    delete_reference_document,
-    get_syllabus_course_contents,
-    list_available_syllabus_references,
-    list_reference_documents,
-    rebuild_reference_embeddings,
 )
 from .schemas import (
     CurriculumSuggestionResponse,
@@ -61,10 +55,14 @@ from .schemas import (
 from .service import (
     create_document,
     embed_document_chunks,
-    get_document,
-    list_documents,
     process_document_ingestion,
-    stream_document_file,
+)
+from .syllabus.service import (
+    delete_reference_document,
+    get_syllabus_course_contents,
+    list_available_syllabus_references,
+    list_reference_documents,
+    rebuild_reference_embeddings,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])

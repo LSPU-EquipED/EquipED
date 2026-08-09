@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from server.modules.auth.models import User, UserRole
+from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 
 
@@ -22,21 +22,21 @@ def test_faculty_cannot_upload_syllabus(
     db_session.commit()
 
     login = client.post(
-        '/api/v1/auth/login',
-        json={'email': faculty.email, 'password': 'password123'},
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
     )
     assert login.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('syllabus.pdf', b'%PDF-1.4\n%syllabus', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("syllabus.pdf", b"%PDF-1.4\n%syllabus", "application/pdf")},
         data={
-            'source_type': 'syllabus',
-            'title': 'Test Syllabus',
+            "source_type": "syllabus",
+            "title": "Test Syllabus",
         },
     )
     assert response.status_code == 403
-    assert 'Only administrators' in response.json()['detail']
+    assert "Only administrators" in response.json()["detail"]
 
 
 def test_faculty_cannot_upload_curriculum(
@@ -54,17 +54,17 @@ def test_faculty_cannot_upload_curriculum(
     db_session.commit()
 
     login = client.post(
-        '/api/v1/auth/login',
-        json={'email': faculty.email, 'password': 'password123'},
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
     )
     assert login.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('curriculum.pdf', b'%PDF-1.4\n%curriculum', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("curriculum.pdf", b"%PDF-1.4\n%curriculum", "application/pdf")},
         data={
-            'source_type': 'curriculum',
-            'title': 'Test Curriculum',
+            "source_type": "curriculum",
+            "title": "Test Curriculum",
         },
     )
     assert response.status_code == 403
@@ -85,17 +85,17 @@ def test_faculty_cannot_upload_rubric(
     db_session.commit()
 
     login = client.post(
-        '/api/v1/auth/login',
-        json={'email': faculty.email, 'password': 'password123'},
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
     )
     assert login.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('rubric.pdf', b'%PDF-1.4\n%rubric', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("rubric.pdf", b"%PDF-1.4\n%rubric", "application/pdf")},
         data={
-            'source_type': 'rubric_sme',
-            'title': 'Test Rubric',
+            "source_type": "rubric_sme",
+            "title": "Test Rubric",
         },
     )
     assert response.status_code == 403
@@ -116,17 +116,17 @@ def test_admin_can_upload_syllabus(
     db_session.commit()
 
     login = client.post(
-        '/api/v1/auth/login',
-        json={'email': admin.email, 'password': 'password123'},
+        "/api/v1/auth/login",
+        json={"email": admin.email, "password": "password123"},
     )
     assert login.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('syllabus.pdf', b'%PDF-1.4\n%syllabus', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("syllabus.pdf", b"%PDF-1.4\n%syllabus", "application/pdf")},
         data={
-            'source_type': 'syllabus',
-            'title': 'Admin Syllabus',
+            "source_type": "syllabus",
+            "title": "Admin Syllabus",
         },
     )
     # Should not be 403 - may be 201 or processing failure, but not forbidden
@@ -148,18 +148,18 @@ def test_faculty_can_upload_slm(
     db_session.commit()
 
     login = client.post(
-        '/api/v1/auth/login',
-        json={'email': faculty.email, 'password': 'password123'},
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
     )
     assert login.status_code == 200
 
     response = client.post(
-        '/api/v1/documents/upload',
-        files={'file': ('slm.pdf', b'%PDF-1.4\n%slm', 'application/pdf')},
+        "/api/v1/documents/upload",
+        files={"file": ("slm.pdf", b"%PDF-1.4\n%slm", "application/pdf")},
         data={
-            'source_type': 'slm',
-            'title': 'Test SLM',
-            'program': 'BSCS',
+            "source_type": "slm",
+            "title": "Test SLM",
+            "program": "BSCS",
         },
     )
     assert response.status_code == 201

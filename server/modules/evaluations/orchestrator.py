@@ -25,7 +25,7 @@ from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
-from server.modules.documents.service import get_document_chunks
+from server.modules.documents.persistence import get_document_chunks
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
     EvaluationPipelineFailure,
@@ -110,7 +110,8 @@ def run_evaluation_job(
                 logger.warning(
                     "Curriculum document %s for historical job %s not found "
                     "(cleared or purged); proceeding.",
-                    job.curriculum_id, evaluation_id
+                    job.curriculum_id,
+                    evaluation_id,
                 )
 
         transition_evaluation_status(
@@ -409,9 +410,7 @@ def _reconcile_coordinator_result(
                 sme_result,
                 llm_client=get_llm_client_for_agent("coordinator"),
             )
-            return [
-                merged if r is coordinator_result else r for r in agent_results
-            ]
+            return [merged if r is coordinator_result else r for r in agent_results]
         except Exception as exc:
             category, reference = _safe_failure(exc)
             logger.warning(

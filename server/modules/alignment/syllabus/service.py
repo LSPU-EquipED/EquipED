@@ -22,9 +22,9 @@ from server.modules.alignment.syllabus.schemas import (
     SyllabusAlignmentSlmItem,
     SyllabusAlignmentSlmListResponse,
 )
+from server.modules.documents import persistence
 from server.modules.documents.models import Document, DocumentChunk
-from server.modules.documents.reference_service import is_syllabus_reference_ready
-from server.modules.documents.service import get_document_chunks
+from server.modules.documents.syllabus.service import is_syllabus_reference_ready
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -216,7 +216,9 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
         # The documents service is the canonical source of deterministic chunk ordering.
         chunks = [
             chunk
-            for chunk in get_document_chunks(run.slm_document_id, db=session)
+            for chunk in persistence.get_document_chunks(
+                run.slm_document_id, db=session
+            )
             if chunk.source_type == "slm"
         ]
         chunk_infos = [
@@ -230,7 +232,9 @@ def run_syllabus_alignment_job(alignment_id: uuid.UUID) -> None:
         ]
         syllabus_chunks = [
             chunk
-            for chunk in get_document_chunks(run.syllabus_document_id, db=session)
+            for chunk in persistence.get_document_chunks(
+                run.syllabus_document_id, db=session
+            )
             if chunk.section_ref
             and chunk.section_ref.startswith("syllabus_course_content:")
         ]
@@ -305,10 +309,14 @@ def get_current_syllabus_alignment(
     requested_by: uuid.UUID,
 ) -> SyllabusAlignmentRunResponse | None:
     _owned_slm(db, slm_document_id, requested_by)
-    run = db.query(SyllabusAlignmentRun).filter_by(
-        slm_document_id=slm_document_id,
-        requested_by=requested_by,
-    ).first()
+    run = (
+        db.query(SyllabusAlignmentRun)
+        .filter_by(
+            slm_document_id=slm_document_id,
+            requested_by=requested_by,
+        )
+        .first()
+    )
     return _run_response(db, run) if run is not None else None
 
 
