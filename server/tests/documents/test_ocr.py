@@ -9,12 +9,12 @@ from server.core.config import Settings
 from server.modules.documents.exceptions import (
     OcrLimitExceededError,
 )
-from server.modules.documents.ingestion import ingest_document
-from server.modules.documents.ocr import (
+from server.modules.documents.ingestion.ocr import (
     clear_ocr_validation_cache,
     perform_ocr_on_page,
     validate_ocr_installation,
 )
+from server.modules.documents.ingestion.pipeline import ingest_document
 
 
 class MockRect:
@@ -161,7 +161,7 @@ def test_ingest_document_scanned_success(monkeypatch) -> None:
 
     settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
     monkeypatch.setattr(
-        "server.modules.documents.ingestion.get_settings", lambda: settings
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
     )
 
     with (
@@ -195,7 +195,7 @@ def test_ingest_document_mixed_success(monkeypatch) -> None:
 
     settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
     monkeypatch.setattr(
-        "server.modules.documents.ingestion.get_settings", lambda: settings
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
     )
 
     with (
@@ -226,7 +226,7 @@ def test_ingest_document_blank_page(monkeypatch) -> None:
 
     settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
     monkeypatch.setattr(
-        "server.modules.documents.ingestion.get_settings", lambda: settings
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
     )
 
     with (
@@ -249,7 +249,7 @@ def test_ingest_document_ocr_limit_exceeded(monkeypatch) -> None:
 
     settings = Settings(tesseract_lang="eng", ocr_max_pages=1)
     monkeypatch.setattr(
-        "server.modules.documents.ingestion.get_settings", lambda: settings
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
     )
 
     with pytest.raises(OcrLimitExceededError) as exc_info:
@@ -316,7 +316,7 @@ def test_ready_route_sanitization_unexpected_error(monkeypatch) -> None:
 
     # Force an unexpected exception to leak
     with patch(
-        "server.modules.documents.ocr.validate_ocr_installation",
+        "server.modules.documents.ingestion.ocr.validate_ocr_installation",
         side_effect=PermissionError("/usr/bin/tesseract permission denied"),
     ):
         app = create_app()
@@ -573,7 +573,9 @@ def test_no_database_upload_marker_fsyncs_directory_entry(
     fsynced_directories: list[bool] = []
 
     def record_fsync(descriptor: int) -> None:
-        fsynced_directories.append(stat.S_ISDIR(journaling.os.fstat(descriptor).st_mode))
+        fsynced_directories.append(
+            stat.S_ISDIR(journaling.os.fstat(descriptor).st_mode)
+        )
         original_fsync(descriptor)
 
     monkeypatch.setattr(journaling.os, "fsync", record_fsync)

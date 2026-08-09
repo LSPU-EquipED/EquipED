@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from server.modules.documents.boilerplate import strip_repeated_page_boilerplate
+from server.modules.documents.ingestion.boilerplate import (
+    strip_repeated_page_boilerplate,
+)
 
 
 def test_strip_repeated_page_boilerplate_removes_shared_header_and_footer() -> None:
     pages = [
-        "LSPU SCC SLM\nProgram: BSCS\nPage 1 of 3\nDepartment of Computer Studies\n\nLearning outcomes include critical thinking.\n\nConfidential\nPrepared by LSPU",
-        "LSPU SCC SLM\nProgram: BSCS\nPage 2 of 3\nDepartment of Computer Studies\n\nAssessment is 30% quiz and 70% exam.\n\nConfidential\nPrepared by LSPU",
-        "LSPU SCC SLM\nProgram: BSCS\nPage 3 of 3\nDepartment of Computer Studies\n\nData privacy applies.\n\nConfidential\nPrepared by LSPU",
+        "LSPU SCC SLM\nProgram: BSCS\nPage 1 of 3\nDepartment of Computer Studies\n\nLearning outcomes include critical thinking.\n\nConfidential\nPrepared by LSPU",  # noqa: E501
+        "LSPU SCC SLM\nProgram: BSCS\nPage 2 of 3\nDepartment of Computer Studies\n\nAssessment is 30% quiz and 70% exam.\n\nConfidential\nPrepared by LSPU",  # noqa: E501
+        "LSPU SCC SLM\nProgram: BSCS\nPage 3 of 3\nDepartment of Computer Studies\n\nData privacy applies.\n\nConfidential\nPrepared by LSPU",  # noqa: E501
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)
@@ -53,9 +55,9 @@ def test_strip_repeated_page_boilerplate_keeps_distinct_front_matter() -> None:
 
 def test_strip_repeated_page_boilerplate_removes_varying_header_lines() -> None:
     pages = [
-        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Dela Cruz\nDepartment of Computer Studies\n\nUnit 1 lesson content.",
-        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Santos\nDepartment of Computer Studies\n\nUnit 2 lesson content.",
-        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Reyes\nDepartment of Computer Studies\n\nUnit 3 lesson content.",
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Dela Cruz\nDepartment of Computer Studies\n\nUnit 1 lesson content.",  # noqa: E501
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Santos\nDepartment of Computer Studies\n\nUnit 2 lesson content.",  # noqa: E501
+        "LSPU SCC SLM\nProgram: BSCS\nInstructor: Reyes\nDepartment of Computer Studies\n\nUnit 3 lesson content.",  # noqa: E501
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)
@@ -69,9 +71,9 @@ def test_strip_repeated_page_boilerplate_removes_varying_header_lines() -> None:
 
 def test_strip_repeated_page_boilerplate_removes_shifted_slm_header() -> None:
     pages = [
-        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 1 content.",
-        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 2 content.",
-        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 3 content.",
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 1 content.",  # noqa: E501
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 2 content.",  # noqa: E501
+        "Intro text\n\nRepublic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nPage 3 content.",  # noqa: E501
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)
@@ -85,9 +87,9 @@ def test_strip_repeated_page_boilerplate_removes_shifted_slm_header() -> None:
 
 def test_strip_repeated_page_boilerplate_keeps_pages_without_footer() -> None:
     pages = [
-        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nFirst page body.",
-        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nSecond page body.",
-        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nThird page body.",
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nFirst page body.",  # noqa: E501
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nSecond page body.",  # noqa: E501
+        "Republic of the Philippines\nLaguna State Polytechnic University\nISO 9001:2015 Certified\nLevel I Institutionally Accredited\n\nThird page body.",  # noqa: E501
     ]
 
     cleaned = strip_repeated_page_boilerplate(pages)

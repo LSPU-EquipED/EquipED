@@ -80,10 +80,14 @@ def _find_known_header_range(lines: list[str]) -> tuple[int, int] | None:
     start = matched_indexes[0]
     end = matched_indexes[-1] + 1
 
-    while start > 0 and _looks_header_like(lines[start - 1], _boilerplate_signature(lines[start - 1])):
+    while start > 0 and _looks_header_like(
+        lines[start - 1], _boilerplate_signature(lines[start - 1])
+    ):
         start -= 1
 
-    while end < len(lines) and _looks_header_like(lines[end], _boilerplate_signature(lines[end])):
+    while end < len(lines) and _looks_header_like(
+        lines[end], _boilerplate_signature(lines[end])
+    ):
         end += 1
 
     return start, end
@@ -100,7 +104,11 @@ def _matches_header_anchor(line: str) -> bool:
     if any(anchor in normalized for anchor in _HEADER_ANCHORS):
         return True
 
-    if "laguna state" in normalized and "polytechnic" in normalized and "university" in normalized:
+    if (
+        "laguna state" in normalized
+        and "polytechnic" in normalized
+        and "university" in normalized
+    ):
         return True
 
     if "iso 9001" in normalized and "certified" in normalized:
@@ -146,7 +154,9 @@ def _strip_repeated_header_lines(texts: list[str]) -> list[str]:
     return cleaned
 
 
-def _detect_repeated_sequence(texts: Sequence[str], *, from_start: bool) -> tuple[str, ...]:
+def _detect_repeated_sequence(
+    texts: Sequence[str], *, from_start: bool
+) -> tuple[str, ...]:
     threshold = max(2, (len(texts) * 2 + 2) // 3)
     candidate_counts: Counter[tuple[str, ...]] = Counter()
 
@@ -162,7 +172,9 @@ def _detect_repeated_sequence(texts: Sequence[str], *, from_start: bool) -> tupl
             block = lines[:size] if from_start else lines[-size:]
             candidate = tuple(
                 signature
-                for signature in (_line_signature(line, from_start=from_start) for line in block)
+                for signature in (
+                    _line_signature(line, from_start=from_start) for line in block
+                )
                 if signature
             )
             if len(candidate) == size:
@@ -222,7 +234,11 @@ def _canonicalize_line(line: str) -> str:
 def _boilerplate_signature(line: str) -> str:
     normalized = _canonicalize_line(line)
     normalized = re.sub(r"page\s+\d+\s+of\s+\d+", "page <num> of <num>", normalized)
-    normalized = re.sub(r"\b(program|course|department|school|section|subject)\s*:\s*[^\n]+", r"\1:", normalized)
+    normalized = re.sub(
+        r"\b(program|course|department|school|section|subject)\s*:\s*[^\n]+",
+        r"\1:",
+        normalized,
+    )
     normalized = re.sub(r"[^a-z0-9<> ]+", "", normalized)
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
