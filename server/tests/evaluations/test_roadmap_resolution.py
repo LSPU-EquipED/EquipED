@@ -134,7 +134,7 @@ def _run_orchestrator_capture(
     seed_roadmap: bool,
 ) -> dict:
     from server.core import database as core_database
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.documents.models import Document
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker

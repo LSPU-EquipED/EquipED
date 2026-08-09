@@ -10,12 +10,14 @@ function in isolation, with no real DB/LLM required.
 
 from __future__ import annotations
 
+import re
 import uuid
 from types import SimpleNamespace
 
+import server.modules.evaluations.orchestrator as orchestrator
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.coordinator import Coordinator, ProgramCoordinator
-from server.modules.agents.scoring import registry
+from server.modules.agents.coordinator.agent import Coordinator
+from server.modules.agents.sme import registry
 from server.modules.evaluations.orchestrator import _reconcile_coordinator_result
 
 
@@ -230,14 +232,16 @@ class TestReconcileFallback:
         assert result is fallback_result
 
     def test_fallback_itself_failing_marks_coordinator_failed_not_crash(
-        self, monkeypatch
+        self, monkeypatch, caplog
     ) -> None:
         sme_result = _sme_result(success=False)
         coordinator_result = _coordinator_result()
         agent_results = [sme_result, coordinator_result]
 
+        secret = "provider secret llm unavailable"
+
         def raise_error(self, **kwargs):
-            raise RuntimeError("llm unavailable")
+            raise RuntimeError(secret)
 
         monkeypatch.setattr(Coordinator, "run_full_independent", raise_error)
         monkeypatch.setattr(
@@ -255,7 +259,22 @@ class TestReconcileFallback:
 
         result = next(r for r in reconciled if r.agent_name == "coordinator")
         assert result.success is False
-        assert "llm unavailable" in result.error_message
+        assert "CoordinatorFallbackFailure" in result.error_message
+        assert secret not in result.error_message
+        match = re.search(r"reference=([0-9a-f]{16})", result.error_message)
+        assert match
+        assert secret not in caplog.text
+        assert result.summary == ""
+        assert result.raw_response is None
+        assert result.metadata == {}
+        assert result.advisory_outputs is None
+        assert result.provenance is not None
+        assert secret not in repr(result.provenance)
+        assert result.criterion_scores == ()
+        assert result.subtotal == 0.0
+        assert result.token_count == 0
+        assert result.processing_seconds >= 0
+        assert result.model_name == "unknown"
 
     def test_merge_raising_also_triggers_fallback(self, monkeypatch) -> None:
         # Both agents report success, but merge_with_sme itself misbehaves --
@@ -268,9 +287,7 @@ class TestReconcileFallback:
             raise ValueError("merge exploded")
 
         fallback_result = _coordinator_result(success=True)
-        monkeypatch.setattr(
-            ProgramCoordinator, "merge_with_sme", staticmethod(raise_merge_error)
-        )
+        monkeypatch.setattr(orchestrator, "merge_with_sme", raise_merge_error)
         monkeypatch.setattr(
             Coordinator,
             "run_full_independent",

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from fastapi.testclient import TestClient
 
+from fastapi.testclient import TestClient
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -104,9 +104,9 @@ def test_submit_evaluation_requires_partial_and_confirmed_program(
     db_session,
     monkeypatch,
 ) -> None:
-    """Direct submission without partial_without_curriculum=True or confirmed_program rejected."""
+    """Direct submission without partial_without_curriculum=True or confirmed_program rejected."""  # noqa: E501
     from server.modules.evaluations import router as evaluations_router
-    monkeypatch.setattr(evaluations_router, "run_evaluation_job", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evaluations_router, "run_evaluation_job", lambda *args, **kwargs: None)  # noqa: E501
 
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
@@ -195,7 +195,7 @@ def test_supervisor_excludes_coordinator_and_synthesizes_partial(
     client: TestClient,
     db_session,
 ) -> None:
-    """Supervisor execution skips Coordinator and synthesis produces partial matrix status."""
+    """Supervisor execution skips Coordinator and synthesis produces partial matrix status."""  # noqa: E501
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
     slm = Document(
@@ -273,7 +273,7 @@ def test_historical_evaluations_preserved_with_cleared_curriculum_fk(
     client: TestClient,
     db_session,
 ) -> None:
-    """Historical evaluation job details remain accessible even if curriculum_id is None or purged."""
+    """Historical evaluation job details remain accessible even if curriculum_id is None or purged."""  # noqa: E501
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
     slm = Document(
@@ -313,7 +313,7 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
     re-runs it, ending COMPLETED with no Coordinator output."""
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations.orchestrator import (
         recover_interrupted_evaluation_jobs,
@@ -362,7 +362,7 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
         self, *, evaluation_id, document_id, chunks, query_text=None, context=None
     ):
         nonlocal captured_agents
-        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]
+        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]  # noqa: E501
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
