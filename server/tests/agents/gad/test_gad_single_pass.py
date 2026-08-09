@@ -15,24 +15,30 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.gad import GAD
-from server.modules.agents.gad_scoring.registry import (
-    REGISTRY_VERSION,
-)
-from server.modules.agents.gad_scoring.single_pass import (
+from server.modules.agents.gad.agent import GAD
+from server.modules.agents.gad.envelope import (
     EXTRACTION_SCHEMA_VERSION,
+    parse_combined_response,
+)
+from server.modules.agents.gad.grounding import (
     MAX_INSTANCES_PER_CRITERION,
+    ground_instances,
+)
+from server.modules.agents.gad.prompt import (
     build_combined_prompt,
     build_combined_repair_prompt,
-    ground_instances,
-    parse_combined_response,
+)
+from server.modules.agents.gad.registry import (
+    REGISTRY_VERSION,
     score_from_combined,
 )
-from server.tests.agents.gad_comparison_harness import (
+from server.tests.agents.gad.gad_comparison_harness import (
     GADComparisonHarness,
     normalize_result,
 )
@@ -128,7 +134,7 @@ def _full_response(
 
 
 class TestParseCombinedResponseEdgeCases:
-    """Exhaustive edge cases beyond the core tests in test_gad_scoring.py."""
+    """Exhaustive edge cases beyond the core GAD scoring tests."""
 
     def test_empty_string_raises(self) -> None:
         with pytest.raises(AgentExecutionError, match="empty or non-string"):
@@ -1056,6 +1062,63 @@ class TestRepairPaths:
         assert result.subtotal == 0.0
         assert result.criterion_scores == ()
         assert result.error_message is not None
+
+    def test_same_instance_runs_are_isolated_across_clients(self) -> None:
+        barrier = threading.Barrier(2)
+
+        class _ConcurrentLLM:
+            def __init__(self, model: str) -> None:
+                self.model = model
+                self.calls = 0
+
+            def generate(self, prompt: str, **kwargs: object) -> str:
+                del prompt, kwargs
+                self.calls += 1
+                barrier.wait(timeout=5)
+                return json.dumps(_full_response(gad_02_summary=self.model))
+
+        first = _ConcurrentLLM("model-one")
+        second = _ConcurrentLLM("model-two")
+        agent = GAD(llm_client=first)
+
+        def run(client: _ConcurrentLLM):
+            return agent.run(
+                evaluation_id=uuid4(),
+                document_id=uuid4(),
+                chunk_infos=self.make_chunks(),
+                llm_client=client,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(run, (first, second)))
+
+        assert all(result.success for result in results)
+        assert {result.model_name for result in results} == {"model-one", "model-two"}
+        summaries = {
+            result.raw_response
+            and json.loads(result.raw_response)["gad-02"]["summary"]
+            for result in results
+        }
+        assert summaries == {"model-one", "model-two"}
+        assert {result.provenance["actual_model"] for result in results} == {
+            "model-one", "model-two"
+        }
+        assert first.calls == second.calls == 1
+        assert agent._default_llm_client is first
+
+    def test_invalid_response_log_contains_no_exception_secret(self, caplog) -> None:
+        secret = "provider-secret-should-not-be-logged"
+        llm = _TrackingLLM([f"invalid response: {secret}", "still invalid"])
+        with caplog.at_level("WARNING"):
+            result = GAD(llm_client=llm).run(
+                evaluation_id=uuid4(),
+                document_id=uuid4(),
+                chunk_infos=self.make_chunks(),
+            )
+        assert result.success is False
+        assert secret not in caplog.text
+        assert "category=AgentExecutionError" in caplog.text
+        assert "reference=" in caplog.text
 
 
 # ===========================================================================

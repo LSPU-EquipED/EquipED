@@ -7,30 +7,34 @@ from uuid import uuid4
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.gad import GAD
-from server.modules.agents.gad_scoring.female_male_count import (
-    score_representation_balance,
-)
-from server.modules.agents.gad_scoring.life_experiences import (
-    score_life_experience_instances,
-)
-from server.modules.agents.gad_scoring.peace_and_equality import (
-    score_peace_equality_instances,
-)
-from server.modules.agents.gad_scoring.potential import (
-    score_respect_potential_instances,
-)
-from server.modules.agents.gad_scoring.registry import (
-    REGISTRY_VERSION,
-)
-from server.modules.agents.gad_scoring.single_pass import (
+from server.modules.agents.gad.agent import GAD
+from server.modules.agents.gad.envelope import (
     EXTRACTION_SCHEMA_VERSION,
-    MAX_INSTANCES_PER_CRITERION,
-    build_combined_prompt,
-    ground_instances,
     parse_combined_response,
 )
-from server.modules.agents.gad_scoring.stereotypes import (
+from server.modules.agents.gad.female_male_count import (
+    score_representation_balance,
+)
+from server.modules.agents.gad.grounding import (
+    MAX_INSTANCES_PER_CRITERION,
+    ground_instances,
+)
+from server.modules.agents.gad.life_experiences import (
+    score_life_experience_instances,
+)
+from server.modules.agents.gad.peace_and_equality import (
+    score_peace_equality_instances,
+)
+from server.modules.agents.gad.potential import (
+    score_respect_potential_instances,
+)
+from server.modules.agents.gad.prompt import (
+    build_combined_prompt,
+)
+from server.modules.agents.gad.registry import (
+    REGISTRY_VERSION,
+)
+from server.modules.agents.gad.stereotypes import (
     score_stereotype_instances,
 )
 
@@ -177,9 +181,7 @@ def test_parse_rejects_numeric_score_field() -> None:
 
 def test_parse_rejects_score_in_instances() -> None:
     resp = _combined_response()
-    resp["gad-01"]["instances"] = [
-        {"excerpt": "test", "chunk_id": "c1", "score": 4}
-    ]
+    resp["gad-01"]["instances"] = [{"excerpt": "test", "chunk_id": "c1", "score": 4}]
     with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
         parse_combined_response(json.dumps(resp))
 
@@ -233,9 +235,7 @@ def test_ground_valid_instances() -> None:
         {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
         {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
     ]
-    excerpts, ids, rejected = ground_instances(
-        "gad-01", instances, _SAMPLE_CHUNKS
-    )
+    excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
     assert len(excerpts) == 2
     assert "c1" in ids
     assert "c2" in ids
@@ -243,12 +243,8 @@ def test_ground_valid_instances() -> None:
 
 
 def test_ground_rejects_unknown_chunk_id() -> None:
-    instances = [
-        {"excerpt": "Women cannot lead teams.", "chunk_id": "unknown-chunk"}
-    ]
-    excerpts, ids, rejected = ground_instances(
-        "gad-01", instances, _SAMPLE_CHUNKS
-    )
+    instances = [{"excerpt": "Women cannot lead teams.", "chunk_id": "unknown-chunk"}]
+    excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
     assert len(excerpts) == 0
     assert rejected == 1
 
@@ -258,29 +254,21 @@ def test_ground_rejects_duplicate_excerpt() -> None:
         {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
         {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
     ]
-    excerpts, ids, rejected = ground_instances(
-        "gad-01", instances, _SAMPLE_CHUNKS
-    )
+    excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
     assert len(excerpts) == 1
     assert rejected == 1
 
 
 def test_ground_rejects_excerpt_not_in_chunk() -> None:
-    instances = [
-        {"excerpt": "This text does not appear.", "chunk_id": "c1"}
-    ]
-    excerpts, ids, rejected = ground_instances(
-        "gad-01", instances, _SAMPLE_CHUNKS
-    )
+    instances = [{"excerpt": "This text does not appear.", "chunk_id": "c1"}]
+    excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
     assert len(excerpts) == 0
     assert rejected == 1
 
 
 def test_ground_rejects_malformed_instance() -> None:
     instances = [{"excerpt": "", "chunk_id": ""}]
-    excerpts, ids, rejected = ground_instances(
-        "gad-01", instances, _SAMPLE_CHUNKS
-    )
+    excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
     assert len(excerpts) == 0
     assert rejected == 1
 
@@ -333,26 +321,28 @@ def test_build_combined_prompt_no_score_fields() -> None:
 
 
 def test_gad_one_combined_call_yields_all_five_scores() -> None:
-    fake = _SequenceLLM([
-        _combined_response(
-            gad_01_instances=[
-                {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
-                {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
-            ],
-            gad_01_count=2,
-            gad_01_summary="Two stereotypical instances found.",
-            gad_02_female=4,
-            gad_02_male=1,
-            gad_02_summary="Representation is imbalanced toward female.",
-            gad_03_summary="No instances of unequal respect found.",
-            gad_04_instances=[
-                {"excerpt": "Girls should only take notes.", "chunk_id": "c2"},
-            ],
-            gad_04_count=1,
-            gad_04_summary="One instance favoring male experience.",
-            gad_05_summary="No discriminatory content found.",
-        )
-    ])
+    fake = _SequenceLLM(
+        [
+            _combined_response(
+                gad_01_instances=[
+                    {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
+                    {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
+                ],
+                gad_01_count=2,
+                gad_01_summary="Two stereotypical instances found.",
+                gad_02_female=4,
+                gad_02_male=1,
+                gad_02_summary="Representation is imbalanced toward female.",
+                gad_03_summary="No instances of unequal respect found.",
+                gad_04_instances=[
+                    {"excerpt": "Girls should only take notes.", "chunk_id": "c2"},
+                ],
+                gad_04_count=1,
+                gad_04_summary="One instance favoring male experience.",
+                gad_05_summary="No discriminatory content found.",
+            )
+        ]
+    )
     chunks = [
         {
             "chunk_id": "c1",
@@ -456,6 +446,7 @@ def test_repair_recovers_malformed_response() -> None:
 
 def test_unrecoverable_response_returns_failure() -> None:
     """When repair also fails, GAD returns failed result with metadata."""
+
     class _FailLLM:
         model = "gad-fail-model"
 
@@ -494,15 +485,17 @@ def test_unrecoverable_response_returns_failure() -> None:
 
 
 def test_provenance_contains_gad_scalar_keys() -> None:
-    fake = _SequenceLLM([
-        _combined_response(
-            gad_01_summary="s1",
-            gad_02_summary="s2",
-            gad_03_summary="s3",
-            gad_04_summary="s4",
-            gad_05_summary="s5",
-        )
-    ])
+    fake = _SequenceLLM(
+        [
+            _combined_response(
+                gad_01_summary="s1",
+                gad_02_summary="s2",
+                gad_03_summary="s3",
+                gad_04_summary="s4",
+                gad_05_summary="s5",
+            )
+        ]
+    )
     chunks = [
         {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
     ]
@@ -561,14 +554,19 @@ def test_repair_prompt_never_exceeds_budget() -> None:
 
     class _BigRepairLLM:
         model = "test"
+
         def generate(self, prompt: str, **kw) -> str:
             self.second_prompt = prompt
             if getattr(self, "called", False):
-                return json.dumps(_combined_response(
-                    gad_01_summary="s1", gad_02_summary="s2",
-                    gad_03_summary="s3", gad_04_summary="s4",
-                    gad_05_summary="s5",
-                ))
+                return json.dumps(
+                    _combined_response(
+                        gad_01_summary="s1",
+                        gad_02_summary="s2",
+                        gad_03_summary="s3",
+                        gad_04_summary="s4",
+                        gad_05_summary="s5",
+                    )
+                )
             self.called = True
             return '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}'
 
@@ -576,7 +574,9 @@ def test_repair_prompt_never_exceeds_budget() -> None:
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": "x" * 3000}]
 
     GAD(llm_client=llm).run(
-        evaluation_id=uuid4(), document_id=uuid4(), chunk_infos=chunks,
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=chunks,
     )
     # Repair prompt should be within budget (whether repair succeeded or not)
     assert len(llm.second_prompt) <= budget, (
@@ -592,11 +592,15 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
 
     class _ManyInstLLM:
         model = "test"
+
         def generate(self, prompt: str, **kw) -> str:
             resp = _combined_response(
-                gad_01_count=20, gad_01_instances=many,
-                gad_02_summary="s2", gad_03_summary="s3",
-                gad_04_summary="s4", gad_05_summary="s5",
+                gad_01_count=20,
+                gad_01_instances=many,
+                gad_02_summary="s2",
+                gad_03_summary="s3",
+                gad_04_summary="s4",
+                gad_05_summary="s5",
             )
             return json.dumps(resp)
 
@@ -606,7 +610,9 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
     ]
 
     result = GAD(llm_client=_ManyInstLLM()).run(
-        evaluation_id=uuid4(), document_id=uuid4(), chunk_infos=chunks,
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=chunks,
     )
 
     assert result.success is True
@@ -614,11 +620,11 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
     raw = result.raw_response
     assert raw is not None
     import json as _json
+
     parsed_raw = _json.loads(raw)
     persisted_instances = parsed_raw.get("gad-01", {}).get("instances", [])
     assert len(persisted_instances) <= max_inst, (
-        f"Persisted {len(persisted_instances)} instances, "
-        f"expected <= {max_inst}"
+        f"Persisted {len(persisted_instances)} instances, expected <= {max_inst}"
     )
     assert result.provenance["evidence_candidates"] <= max_inst
 
@@ -626,6 +632,7 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
 def test_repair_attempt_recorded_before_transport_failure() -> None:
     """Blocker 3: repair_occurred set True and llm_call_count=2 even
     when repair transport fails (not just after successful response)."""
+
     class _FailOnRepairLLM:
         model = "test"
         call_count = 0
@@ -633,14 +640,21 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
         def generate(self, prompt: str, **kw) -> str:
             self.call_count += 1
             if self.call_count == 1:
-                return json.dumps({"gad-01": {
-                    "instance_count": 0, "instances": [], "summary": "ok.",
-                }})
+                return json.dumps(
+                    {
+                        "gad-01": {
+                            "instance_count": 0,
+                            "instances": [],
+                            "summary": "ok.",
+                        }
+                    }
+                )
             raise RuntimeError("repair transport failure")
 
     llm = _FailOnRepairLLM()
     result = GAD(llm_client=llm).run(
-        evaluation_id=uuid4(), document_id=uuid4(),
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
         chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
     )
     assert result.success is False
@@ -652,17 +666,22 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     """Blocker 2: when ``score_from_combined`` raises, the engine-path
     returns a standard failed ``AgentEvaluationResult`` with correct
     provenance — no extra LLM call for recovery."""
-    import server.modules.agents.gad_scoring.single_pass as _sp
+    import server.modules.agents.gad.registry as _sp
 
     class _ScoreFailLLM:
         model = "test-model"
+
         def generate(self, prompt: str, **kw) -> str:
             # Return valid combined response that passes parsing.
-            return json.dumps(_combined_response(
-                gad_01_summary="s1", gad_02_summary="s2",
-                gad_03_summary="s3", gad_04_summary="s4",
-                gad_05_summary="s5",
-            ))
+            return json.dumps(
+                _combined_response(
+                    gad_01_summary="s1",
+                    gad_02_summary="s2",
+                    gad_03_summary="s3",
+                    gad_04_summary="s4",
+                    gad_05_summary="s5",
+                )
+            )
 
     original_score = _sp.score_from_combined
 
@@ -672,7 +691,8 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     try:
         _sp.score_from_combined = _failing_score  # type: ignore[assignment]
         result = GAD(llm_client=_ScoreFailLLM()).run(
-            evaluation_id=uuid4(), document_id=uuid4(),
+            evaluation_id=uuid4(),
+            document_id=uuid4(),
             chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
         )
     finally:
@@ -682,7 +702,8 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     assert len(result.criterion_scores) == 0
     assert result.subtotal == 0.0
     assert result.error_message is not None
-    assert "simulated scoring failure" in result.error_message
+    assert result.error_message.startswith("GADExecutionFailure (reference: ")
+    assert "simulated scoring failure" not in result.error_message
     # No extra LLM call was made for scoring recovery
     assert result.metadata["llm_call_count"] == 1
     assert result.provenance["repair_occurred"] is False
@@ -694,7 +715,7 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
     """When _REPAIR_OVERHEAD_RESERVE >= total budget, GAD fails before
     any LLM transport, raising AgentExecutionError."""
     from server.core.config import Settings
-    from server.modules.agents.gad_scoring.gad_engine_scoring import (
+    from server.modules.agents.gad.pipeline import (
         _REPAIR_OVERHEAD_RESERVE,
     )
 
@@ -702,13 +723,14 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
     tiny_budget = _REPAIR_OVERHEAD_RESERVE - 1  # just under reserve
     tiny_settings = Settings(agent_total_prompt_budget_chars=tiny_budget)
     monkeypatch.setattr(
-        "server.modules.agents.gad_scoring.gad_engine_scoring.get_settings",
+        "server.modules.agents.gad.pipeline.get_settings",
         lambda: tiny_settings,
     )
 
     class _NoopLLM:
         model = "test"
         called = False
+
         def generate(self, *a, **kw):
             self.called = True
             return "{}"
@@ -716,7 +738,8 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
     llm = _NoopLLM()
     with pytest.raises(AgentExecutionError, match="exceeds total prompt budget"):
         GAD(llm_client=llm).run(
-            evaluation_id=uuid4(), document_id=uuid4(),
+            evaluation_id=uuid4(),
+            document_id=uuid4(),
             chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
         )
     # No LLM call was ever made
@@ -726,6 +749,7 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
 def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
     """The same frozen packed chunks from the budget-enforced initial
     prompt are reused for repair and grounding — never repacked."""
+
     class _ChunkCheckLLM:
         model = "test"
         prompts: list[str] = []
@@ -733,14 +757,24 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
         def generate(self, prompt: str, **kw) -> str:
             self.prompts.append(prompt)
             if len(self.prompts) == 1:
-                return json.dumps({"gad-01": {
-                    "instance_count": 0, "instances": [], "summary": "ok.",
-                }})
-            return json.dumps(_combined_response(
-                gad_01_summary="s1", gad_02_summary="s2",
-                gad_03_summary="s3", gad_04_summary="s4",
-                gad_05_summary="s5",
-            ))
+                return json.dumps(
+                    {
+                        "gad-01": {
+                            "instance_count": 0,
+                            "instances": [],
+                            "summary": "ok.",
+                        }
+                    }
+                )
+            return json.dumps(
+                _combined_response(
+                    gad_01_summary="s1",
+                    gad_02_summary="s2",
+                    gad_03_summary="s3",
+                    gad_04_summary="s4",
+                    gad_05_summary="s5",
+                )
+            )
 
     llm = _ChunkCheckLLM()
     chunks = [
@@ -749,7 +783,9 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
     ]
 
     result = GAD(llm_client=llm).run(
-        evaluation_id=uuid4(), document_id=uuid4(), chunk_infos=chunks,
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        chunk_infos=chunks,
     )
     assert result.success is True
 
@@ -758,12 +794,13 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
     # plain-text suffix (repair instructions + error + partial). We parse the
     # JSON prefix by finding the boundary where the JSON ends.
     import json as _json
+
     initial_chunks = _json.loads(llm.prompts[0]).get("document_chunks", [])
 
     repair_raw = llm.prompts[1]
     # The JSON prefix ends at the closing brace of the initial prompt, which
     # is followed by "\n\nYour previous GAD extraction..."
-    json_boundary = repair_raw.find('\n\nYour previous GAD')
+    json_boundary = repair_raw.find("\n\nYour previous GAD")
     if json_boundary >= 0:
         repair_json = repair_raw[:json_boundary]
     else:

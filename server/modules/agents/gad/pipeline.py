@@ -6,6 +6,7 @@ combined extraction, one bounded repair, and deterministic registry scoring.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
@@ -15,11 +16,12 @@ from typing import Any
 from server.core.config import get_settings
 from server.core.llm import get_llm_model_name
 
-from ..base import BaseAgent
 from ..contracts import AgentEvaluationResult
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
-from . import registry, single_pass
+from ..runtime.llm import call_llm, error_reference
+from ..runtime.prompt_budget import enforce_total_prompt_budget, pack_chunks
+from . import envelope, prompt, registry
 
 logger = logging.getLogger(__name__)
 
@@ -46,36 +48,15 @@ logger = logging.getLogger(__name__)
 _REPAIR_OVERHEAD_RESERVE = 5500
 
 
-class GADScoredAgent(BaseAgent):
+class GADScoredAgent:
     """Base for GAD agents whose measurements are converted to bands in code."""
 
-    def _build_prompt(
-        self,
-        *,
-        chunk_infos: list[dict[str, Any]],
-        rubric_context: list[str],
-        reference_context: list[str],
-        reference_text: str | None,
-        prompt_version: str | None,
-    ) -> str:
-        """Retain the standard hook for diagnostics and prompt-policy tests.
+    agent_name = "gad"
+    rubric_source_type = "rubric_gad"
 
-        GAD uses its own GAD-local combined prompt builder (``single_pass``),
-        so this method returns a minimal placeholder for the BaseAgent
-        interface contract.
-        """
-        del rubric_context, reference_context, reference_text
-        return json.dumps(
-            {
-                "agent": self.agent_name,
-                "prompt_version": prompt_version,
-                "document_chunks": chunk_infos,
-                "instructions": [
-                    "GAD scoring uses single-pass fact-only extraction."
-                ],
-            },
-            ensure_ascii=False,
-        )
+    def __init__(self, *, llm_client: Any | None = None) -> None:
+        self._default_llm_client = llm_client
+
 
     def _run_gad_scoring(
         self,
@@ -86,6 +67,7 @@ class GADScoredAgent(BaseAgent):
         prompt_version: str | None,
         prompt_version_id: uuid.UUID | None,
         provenance: dict[str, Any] | None,
+        llm_client: Any | None = None,
     ) -> AgentEvaluationResult:
         """Execute single-pass GAD extraction.
 
@@ -94,6 +76,7 @@ class GADScoredAgent(BaseAgent):
         identity is ``prompt_version_id``.
         """
         settings = get_settings()
+        primary_client = llm_client or self._default_llm_client
 
         # ---- Reserve repair envelope overhead from total budget ----
         # The repair prompt = full initial prompt + _REPAIR_OVERHEAD_RESERVE.
@@ -112,7 +95,7 @@ class GADScoredAgent(BaseAgent):
         # Pack chunks using the repair-safe budget (accounts for instructions
         # AND repair overhead).  This ensures the same frozen chunks serve
         # both initial and repair calls within total_budget.
-        packed_chunks, chunks_dropped, text_excerpted = self._pack_chunks(
+        packed_chunks, chunks_dropped, text_excerpted = pack_chunks(
             chunk_infos,
             max_chunks=settings.agent_max_chunks,
             max_excerpt_chars=settings.agent_max_excerpt_chars,
@@ -121,6 +104,7 @@ class GADScoredAgent(BaseAgent):
                 repair_safe_budget,
             ),
             small_doc_threshold=settings.agent_small_doc_threshold,
+            domain_keywords=getattr(self, "domain_keywords", ()),
         )
         if not packed_chunks:
             raise AgentExecutionError(
@@ -130,7 +114,7 @@ class GADScoredAgent(BaseAgent):
 
         start = time.perf_counter()
         prompt_trimmed = chunks_dropped or text_excerpted
-        requested_model = getattr(self._llm_client, "model", get_llm_model_name())
+        requested_model = getattr(primary_client, "model", get_llm_model_name())
         had_fallback = False
         had_repair = False
 
@@ -146,7 +130,7 @@ class GADScoredAgent(BaseAgent):
         # ------------------------------------------------------------------
         gad_managed_prompt = prompt_version  # supervisor passes prompt text
 
-        combined_prompt = single_pass.build_combined_prompt(
+        combined_prompt = prompt.build_combined_prompt(
             packed_chunks=packed_chunks,
             prompt_version=str(prompt_version_id) if prompt_version_id else None,
             gad_managed_prompt=gad_managed_prompt,
@@ -159,9 +143,10 @@ class GADScoredAgent(BaseAgent):
         # _enforce_total_prompt_budget is a length check + warning pass.
         # The real packing cap comes from the prompt_budget_chars passed to
         # _pack_chunks above.
-        initial_budget = self._enforce_total_prompt_budget(
+        initial_budget = enforce_total_prompt_budget(
             combined_prompt,
             budget_chars=repair_safe_budget,
+            agent_name=self.agent_name,
         )
         combined_prompt = initial_budget.prompt
         prompt_trimmed = prompt_trimmed or initial_budget.trimmed
@@ -183,9 +168,11 @@ class GADScoredAgent(BaseAgent):
         raw_response: str | None = None
         actual_model: str = requested_model
         try:
-            raw_response, actual_model = self._call_llm(
+            raw_response, actual_model = call_llm(
                 combined_prompt,
                 temperature=0.0,
+                primary_client=primary_client,
+                agent_name=self.agent_name,
             )
         except AgentExecutionError:
             # Transport failure — return failed result immediately
@@ -233,14 +220,16 @@ class GADScoredAgent(BaseAgent):
         t0 = time.perf_counter()
         combined: dict[str, Any] | None = None
         try:
-            combined = single_pass.parse_combined_response(raw_response)
+            combined = envelope.parse_combined_response(raw_response)
         except AgentExecutionError as exc:
             # 3.1 — Single whole-envelope repair using SAME frozen context
             logger.warning(
-                "GAD combined response invalid, attempting repair: %s",
-                exc,
+                "GAD combined response invalid, attempting repair: "
+                "category=%s reference=%s",
+                type(exc).__name__,
+                error_reference(exc),
             )
-            repair_prompt = single_pass.build_combined_repair_prompt(
+            repair_prompt = prompt.build_combined_repair_prompt(
                 full_prompt_context=combined_prompt,
                 partial_response=raw_response or "",
                 error_detail=str(exc),
@@ -274,9 +263,11 @@ class GADScoredAgent(BaseAgent):
             # so even transport failure reflects the attempt.
             had_repair = True
             try:
-                repair_response, repair_model = self._call_llm(
+                repair_response, repair_model = call_llm(
                     repair_prompt,
                     temperature=0.0,
+                    primary_client=primary_client,
+                    agent_name=self.agent_name,
                 )
                 if repair_model != actual_model:
                     actual_model = repair_model
@@ -319,7 +310,7 @@ class GADScoredAgent(BaseAgent):
 
             # Parse the repair response
             try:
-                combined = single_pass.parse_combined_response(repair_response)
+                combined = envelope.parse_combined_response(repair_response)
             except AgentExecutionError as repair_parse_exc:
                 elapsed = time.perf_counter() - start
                 return _failed_result(
@@ -346,7 +337,7 @@ class GADScoredAgent(BaseAgent):
         t0 = time.perf_counter()
         try:
             criterion_scores, ev_candidates, ev_accepted, ev_rejected = (
-                single_pass.score_from_combined(combined, frozen_chunks)
+                registry.score_from_combined(combined, frozen_chunks)
             )
         except AgentExecutionError as exc:
             # Registry scoring failure is NOT repairable (design constraint)
@@ -400,7 +391,7 @@ class GADScoredAgent(BaseAgent):
                 initial_budget.trimmed or chunks_dropped or text_excerpted
             ),
             "reference_context_dropped": initial_budget.reference_context_dropped,
-            "extraction_schema_version": single_pass.EXTRACTION_SCHEMA_VERSION,
+            "extraction_schema_version": envelope.EXTRACTION_SCHEMA_VERSION,
             "registry_version": registry.REGISTRY_VERSION,
             "evidence_candidates": ev_candidates,
             "evidence_accepted": ev_accepted,
@@ -456,7 +447,7 @@ class GADScoredAgent(BaseAgent):
                 "scoring_mode": "single_pass_code_bands",
                 "llm_call_count": 1 if not had_repair else 2,
                 "prompt_version": str(prompt_version_id) if prompt_version_id else None,
-                "extraction_schema_version": single_pass.EXTRACTION_SCHEMA_VERSION,
+                "extraction_schema_version": envelope.EXTRACTION_SCHEMA_VERSION,
                 "registry_version": registry.REGISTRY_VERSION,
             },
         )
@@ -497,16 +488,18 @@ def _failed_result(
         "repair_occurred": had_repair,
         "prompt_trimmed": prompt_trimmed,
         "reference_context_dropped": 0,
-        "extraction_schema_version": single_pass.EXTRACTION_SCHEMA_VERSION,
+        "extraction_schema_version": envelope.EXTRACTION_SCHEMA_VERSION,
         "registry_version": registry.REGISTRY_VERSION,
     }
     sanitized = sanitize_provenance(runtime_provenance)
     merged_provenance = sanitized if sanitized is not None else {}
 
+    reference = hashlib.sha256(error_message.encode()).hexdigest()[:16]
     logger.warning(
-        "[GAD_FAILURE] seconds=%.3f | error=%s | repair=%s",
+        "[GAD_FAILURE] seconds=%.3f | category=GADExecutionFailure | "
+        "reference=%s | repair=%s",
         processing_seconds,
-        error_message[:200],
+        reference,
         had_repair,
     )
 
@@ -522,7 +515,7 @@ def _failed_result(
         token_count=0,
         prompt_version_id=prompt_version_id,
         success=False,
-        error_message=error_message,
+        error_message=f"GADExecutionFailure (reference: {reference})",
         raw_response=None,
         provenance=merged_provenance if merged_provenance else None,
         metadata={
