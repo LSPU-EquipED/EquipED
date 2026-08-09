@@ -5,9 +5,9 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from .contracts import AgentEvaluationResult
-from .exceptions import AgentExecutionError
-from .gad_scoring.gad_engine_scoring import GADScoredAgent
+from ..contracts import AgentEvaluationResult
+from ..exceptions import AgentExecutionError
+from .pipeline import GADScoredAgent
 
 
 class GAD(GADScoredAgent):
@@ -45,9 +45,6 @@ class GAD(GADScoredAgent):
         has_text = any(str(chunk.get("text", "")).strip() for chunk in chunk_infos)
         if not chunk_infos or not has_text:
             raise AgentExecutionError("document chunks are required for evaluation")
-        if llm_client is not None:
-            self._llm_client = llm_client
-
         return self._run_gad_scoring(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -55,10 +52,5 @@ class GAD(GADScoredAgent):
             prompt_version=prompt_version,
             prompt_version_id=prompt_version_id,
             provenance=provenance,
+            llm_client=llm_client,
         )
-
-
-GADAgent = GAD
-
-
-__all__ = ["GAD", "GADAgent"]
