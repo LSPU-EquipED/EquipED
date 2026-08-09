@@ -1,5 +1,5 @@
 """Tests for bounded chunk-aware (multi-anchor) reference retrieval in the
-supervisor's precomputed-context builder.
+builder's precomputed-context builder.
 
 These tests focus on the design contract:
 - Short / single-chunk documents keep the historical single-query path.
@@ -14,11 +14,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from server.modules.agents.supervisor import Supervisor
+from server.modules.agents.supervision.context import EvaluationContextBuilder
 from server.modules.embeddings.retrieval import RetrievedChunk
-
-from .conftest import _RetrievedChunk
-
+from server.tests.agents.helpers import _RetrievedChunk
 
 # ------------------------------------------------------------------
 # Anchor selection
@@ -34,90 +32,90 @@ def _chunks(texts: list[str]) -> list[dict[str, object]]:
 
 
 def test_select_reference_query_texts_empty_returns_empty() -> None:
-    supervisor = Supervisor()
-    assert supervisor._select_reference_query_texts([], max_anchors=3) == []
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    assert builder._select_reference_query_texts([], max_anchors=3) == []
 
 
 def test_select_reference_query_texts_handles_none_chunk_infos() -> None:
     """Legacy callers passing ``None`` should not crash and should return []."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     assert (
-        supervisor._select_reference_query_texts(None, max_anchors=3) == []  # type: ignore[arg-type]
+        builder._select_reference_query_texts(None, max_anchors=3) == []  # type: ignore[arg-type]  # noqa: E501
     )
 
 
 def test_select_reference_query_texts_max_anchors_zero_returns_empty() -> None:
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["a", "b", "c"])
-    assert supervisor._select_reference_query_texts(chunks, max_anchors=0) == []
+    assert builder._select_reference_query_texts(chunks, max_anchors=0) == []
 
 
 def test_select_reference_query_texts_single_non_empty_chunk() -> None:
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["only chunk"])
     assert (
-        supervisor._select_reference_query_texts(chunks, max_anchors=3)
+        builder._select_reference_query_texts(chunks, max_anchors=3)
         == ["only chunk"]
     )
 
 
 def test_select_reference_query_texts_two_non_empty_chunks_returns_both() -> None:
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["early", "late"])
     assert (
-        supervisor._select_reference_query_texts(chunks, max_anchors=3)
+        builder._select_reference_query_texts(chunks, max_anchors=3)
         == ["early", "late"]
     )
 
 
 def test_select_reference_query_texts_filters_whitespace_chunks() -> None:
     """Empty / whitespace-only chunks must be filtered out before selection."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["alpha", "", "   ", "\n\t", "beta", "gamma"])
     # 3 non-empty after filtering; below or equal to max_anchors=3, so all kept.
     assert (
-        supervisor._select_reference_query_texts(chunks, max_anchors=3)
+        builder._select_reference_query_texts(chunks, max_anchors=3)
         == ["alpha", "beta", "gamma"]
     )
 
 
 def test_select_reference_query_texts_uses_early_middle_late_for_long_docs() -> None:
     """For >max_anchors non-empty chunks, picks indices [0, mid, last]."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(7)])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=3)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=3)
     assert selected == ["chunk-0", "chunk-3", "chunk-6"]
 
 
 def test_select_reference_query_texts_early_middle_late_for_four_chunks() -> None:
     """For 4 non-empty chunks, indices are [0, 1, 3] (middle_index = (n-1)//2)."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(4)])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=3)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=3)
     assert selected == ["chunk-0", "chunk-1", "chunk-3"]
 
 
 def test_select_reference_query_texts_early_middle_late_for_ten_chunks() -> None:
     """For 10 chunks, indices are [0, 4, 9]."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(10)])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=3)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=3)
     assert selected == ["chunk-0", "chunk-4", "chunk-9"]
 
 
 def test_select_reference_query_texts_dedupes_overlapping_indices() -> None:
     """For 2 chunks, [0, 0, 1] should dedupe to [0, 1] preserving order."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["a", "b"])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=3)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=3)
     assert selected == ["a", "b"]
 
 
 def test_select_reference_query_texts_all_empty_returns_empty() -> None:
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["", "   ", "\n"])
     assert (
-        supervisor._select_reference_query_texts(chunks, max_anchors=3) == []
+        builder._select_reference_query_texts(chunks, max_anchors=3) == []
     )
 
 
@@ -127,30 +125,30 @@ def test_select_reference_query_texts_all_empty_returns_empty() -> None:
 
 
 def test_dedupe_context_chunks_preserves_first_seen_order() -> None:
-    supervisor = Supervisor()
-    out = supervisor._dedupe_context_chunks(["a", "b", "a", "c", "b"])
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._dedupe_context_chunks(["a", "b", "a", "c", "b"])
     assert out == ["a", "b", "c"]
 
 
 def test_dedupe_context_chunks_empty_input() -> None:
-    supervisor = Supervisor()
-    assert supervisor._dedupe_context_chunks([]) == []
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    assert builder._dedupe_context_chunks([]) == []
 
 
 def test_dedupe_context_chunks_all_unique() -> None:
-    supervisor = Supervisor()
-    assert supervisor._dedupe_context_chunks(["x", "y", "z"]) == ["x", "y", "z"]
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    assert builder._dedupe_context_chunks(["x", "y", "z"]) == ["x", "y", "z"]
 
 
 def test_dedupe_context_chunks_all_duplicates() -> None:
-    supervisor = Supervisor()
-    assert supervisor._dedupe_context_chunks(["a", "a", "a"]) == ["a"]
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    assert builder._dedupe_context_chunks(["a", "a", "a"]) == ["a"]
 
 
 def test_dedupe_context_chunks_treats_distinct_strings_as_distinct() -> None:
     """Whitespace differences should NOT be silently collapsed."""
-    supervisor = Supervisor()
-    out = supervisor._dedupe_context_chunks(["a", "a ", " a"])
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._dedupe_context_chunks(["a", "a ", " a"])
     assert out == ["a", "a ", " a"]
 
 
@@ -174,8 +172,8 @@ def test_retrieve_reference_context_for_queries_calls_retrieve_per_anchor(
         fake_retrieve,
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["anchor-0", "anchor-1", "anchor-2"],
         collection_name="col_reference_all",
         document_id_filter="ref-id-1",
@@ -201,8 +199,8 @@ def test_retrieve_reference_context_for_queries_dedupes_across_anchors(
         lambda *a, **k: [_RetrievedChunk("shared"), _RetrievedChunk(f"unique-{a[0]}")],
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1", "a2"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -225,8 +223,8 @@ def test_retrieve_reference_context_for_queries_caps_total_results(
         ],
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1", "a2"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -254,8 +252,8 @@ def test_retrieve_reference_context_for_queries_stops_when_cap_reached(
         fake_retrieve,
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1", "a2"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -282,8 +280,8 @@ def test_retrieve_reference_context_for_queries_continues_on_per_anchor_failure(
         flaky_retrieve,
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["good-0", "bad", "good-1"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -309,8 +307,8 @@ def test_retrieve_reference_context_for_queries_empty_input_returns_empty(
         fake_retrieve,
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         [],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -330,8 +328,8 @@ def test_retrieve_reference_context_for_queries_handles_empty_anchor_result(
         lambda *a, **k: [],
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -357,7 +355,7 @@ def test_build_precomputed_context_uses_single_query_for_single_chunk(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._retrieve_reference_context_for_queries",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -369,9 +367,9 @@ def test_build_precomputed_context_uses_single_query_for_single_chunk(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": "only one"}]
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=[0.1, 0.2],
         chunk_infos=chunks,
@@ -395,7 +393,7 @@ def test_build_precomputed_context_uses_single_query_for_legacy_caller(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._retrieve_reference_context_for_queries",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -407,8 +405,8 @@ def test_build_precomputed_context_uses_single_query_for_legacy_caller(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
-    result = supervisor._build_precomputed_context(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=[0.1, 0.2],
         chunk_infos=None,
@@ -436,9 +434,9 @@ def test_build_precomputed_context_uses_multi_anchor_for_long_doc(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -458,7 +456,7 @@ def test_build_precomputed_context_uses_multi_anchor_for_long_doc(
 def test_build_precomputed_context_multi_anchor_respects_caps(
     monkeypatch,
 ) -> None:
-    """Long doc path must apply _REFERENCE_N_RESULTS_PER_ANCHOR and _REFERENCE_MAX_TOTAL."""
+    """Long doc path must apply _REFERENCE_N_RESULTS_PER_ANCHOR and _REFERENCE_MAX_TOTAL."""  # noqa: E501
     captured: list[int] = []
 
     def fake_retrieve(query_text, collection, n_results=5, document_id_filter=None):
@@ -478,9 +476,9 @@ def test_build_precomputed_context_multi_anchor_respects_caps(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(10)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -490,8 +488,8 @@ def test_build_precomputed_context_multi_anchor_respects_caps(
     )
 
     # 3 anchors * n_results_per_query=2 = 6 raw, capped at 5.
-    assert all(n == Supervisor._REFERENCE_N_RESULTS_PER_ANCHOR for n in captured)
-    assert len(result["syllabus"]) == Supervisor._REFERENCE_MAX_TOTAL
+    assert all(n == EvaluationContextBuilder._REFERENCE_N_RESULTS_PER_ANCHOR for n in captured)  # noqa: E501
+    assert len(result["syllabus"]) == EvaluationContextBuilder._REFERENCE_MAX_TOTAL
 
 
 def test_build_precomputed_context_multi_anchor_dedupes_results(
@@ -511,9 +509,9 @@ def test_build_precomputed_context_multi_anchor_dedupes_results(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -543,13 +541,13 @@ def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> N
         lambda source_type: source_type,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_rubric_context",
+        "server.modules.agents.supervision.context.get_active_rubric_context",
         lambda agent_id, db: [f"rubric-for:{agent_id}"],
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -603,13 +601,13 @@ def test_build_precomputed_context_rubric_precompute_unaffected_by_anchors(
         lambda source_type: source_type,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_rubric_context",
+        "server.modules.agents.supervision.context.get_active_rubric_context",
         fake_rubric,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    supervisor._build_precomputed_context(
+    builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -649,9 +647,9 @@ def test_build_precomputed_context_falls_back_to_empty_on_retrieval_failure(
         lambda agent_id, db: [],
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -686,9 +684,9 @@ def test_build_precomputed_context_multi_anchor_continues_on_partial_failure(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -705,7 +703,7 @@ def test_build_precomputed_context_multi_anchor_continues_on_partial_failure(
 def test_build_precomputed_context_short_doc_does_not_use_anchor_text_filtering(
     monkeypatch,
 ) -> None:
-    """Whitespace-only chunks should not push a single non-empty doc into multi-anchor."""
+    """Whitespace-only chunks should not push a single non-empty doc into multi-anchor."""  # noqa: E501
     multi_anchor_calls = {"n": 0}
 
     def trap_multi_anchor(self, query_texts, **kwargs):
@@ -713,7 +711,7 @@ def test_build_precomputed_context_short_doc_does_not_use_anchor_text_filtering(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._retrieve_reference_context_for_queries",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -725,10 +723,10 @@ def test_build_precomputed_context_short_doc_does_not_use_anchor_text_filtering(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     # 1 non-empty + 2 whitespace -> 1 effective chunk -> single-query path.
     chunks = _chunks(["real-text", "   ", "\n"])
-    supervisor._build_precomputed_context(
+    builder._build_precomputed_context(
         "query text",
         query_embedding=[0.1, 0.2],
         chunk_infos=chunks,
@@ -740,43 +738,32 @@ def test_build_precomputed_context_short_doc_does_not_use_anchor_text_filtering(
     assert multi_anchor_calls["n"] == 0
 
 
-def test_build_precomputed_context_uses_real_retrieved_chunk_dataclass() -> None:
-    """Smoke check: the helper tolerates the real RetrievedChunk shape too.
+def test_build_precomputed_context_uses_real_retrieved_chunk_dataclass(
+    monkeypatch,
+) -> None:
+    """Merge real retrieval dataclasses in anchor and result order."""
+    def retrieve(query_text, collection_name, *, n_results, document_id_filter):
+        assert query_text in {"a0", "a1"}
+        assert collection_name == "col_reference_all"
+        assert n_results == 2
+        assert document_id_filter == "d1"
+        return [
+            RetrievedChunk("shared", 0.1, "d1", "reference", 1, False, 1),
+            RetrievedChunk(f"unique-{query_text}", 0.2, "d1", "reference", 1, False, 1),
+        ]
 
-    This guards against the implementation accidentally depending on a
-    duck-typed shape that differs from the real retrieval dataclass.
-    """
-    supervisor = Supervisor()
-    chunks = [
-        RetrievedChunk(
-            text="shared",
-            distance=0.1,
-            document_id="d1",
-            source_type="syllabus",
-            page_number=1,
-            is_ocr=False,
-            token_count=10,
-        ),
-        RetrievedChunk(
-            text="unique",
-            distance=0.2,
-            document_id="d1",
-            source_type="syllabus",
-            page_number=2,
-            is_ocr=False,
-            token_count=10,
-        ),
-    ]
-    out = supervisor._retrieve_reference_context_for_queries(
+    monkeypatch.setattr(
+        "server.modules.embeddings.retrieval.retrieve_context", retrieve
+    )
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1"],
         collection_name="col_reference_all",
         document_id_filter="d1",
         n_results_per_query=2,
-        max_total_results=5,
+        max_total_results=3,
     )
-    # Method is invoked with no patched retrieve_context, so it falls back
-    # via the per-anchor try/except -> empty list.
-    assert out == []
+    assert out == ["shared", "unique-a0", "unique-a1"]
 
 
 def test_uuid_smoke_for_reference_doc_ids() -> None:
@@ -791,19 +778,19 @@ def test_uuid_smoke_for_reference_doc_ids() -> None:
 
 
 def test_select_reference_query_texts_exactly_max_anchors_returns_all() -> None:
-    """Boundary: exactly max_anchors non-empty chunks -> all returned (no anchor selection)."""
-    supervisor = Supervisor()
+    """Boundary: exactly max_anchors non-empty chunks -> all returned (no anchor selection)."""  # noqa: E501
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["first", "second", "third"])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=3)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=3)
     # len(non_empty) == max_anchors -> short-doc path, all chunks returned.
     assert selected == ["first", "second", "third"]
 
 
 def test_select_reference_query_texts_max_anchors_one_returns_first() -> None:
     """max_anchors=1 with many chunks -> only the first non-empty chunk."""
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    selected = supervisor._select_reference_query_texts(chunks, max_anchors=1)
+    selected = builder._select_reference_query_texts(chunks, max_anchors=1)
     assert selected == ["chunk-0"]
 
 
@@ -819,8 +806,8 @@ def test_retrieve_reference_context_for_queries_all_anchors_fail(
         always_boom,
     )
 
-    supervisor = Supervisor()
-    out = supervisor._retrieve_reference_context_for_queries(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    out = builder._retrieve_reference_context_for_queries(
         ["a0", "a1", "a2"],
         collection_name="col_reference_all",
         document_id_filter=None,
@@ -853,13 +840,13 @@ def test_build_precomputed_context_empty_reference_document_ids(
         lambda source_type: source_type,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_rubric_context",
+        "server.modules.agents.supervision.context.get_active_rubric_context",
         lambda agent_id, db: [f"rubric-for:{agent_id}"],
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=[0.1, 0.2],
         chunk_infos=chunks,
@@ -886,7 +873,7 @@ def test_build_precomputed_context_empty_chunk_infos_list_uses_single_query(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._retrieve_reference_context_for_queries",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -898,8 +885,8 @@ def test_build_precomputed_context_empty_chunk_infos_list_uses_single_query(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
-    result = supervisor._build_precomputed_context(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=[0.1, 0.2],
         chunk_infos=[],
@@ -931,9 +918,9 @@ def test_build_precomputed_context_both_sources_use_multi_anchor(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -979,7 +966,7 @@ def test_build_precomputed_context_long_doc_does_not_compute_full_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._compute_query_embedding",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(
@@ -993,9 +980,9 @@ def test_build_precomputed_context_long_doc_does_not_compute_full_embedding(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    supervisor._build_precomputed_context(
+    builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -1019,7 +1006,7 @@ def test_build_precomputed_context_no_reference_ids_does_not_compute_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._compute_query_embedding",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(
@@ -1035,13 +1022,13 @@ def test_build_precomputed_context_no_reference_ids_does_not_compute_embedding(
         lambda source_type: source_type,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_rubric_context",
+        "server.modules.agents.supervision.context.get_active_rubric_context",
         lambda agent_id, db: [f"rubric-for:{agent_id}"],
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    supervisor._build_precomputed_context(
+    builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -1063,7 +1050,7 @@ def test_build_precomputed_context_short_doc_still_computes_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.Supervisor._compute_query_embedding",
+        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(
@@ -1077,9 +1064,9 @@ def test_build_precomputed_context_short_doc_still_computes_embedding(
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["only one chunk"])
-    supervisor._build_precomputed_context(
+    builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -1090,4 +1077,3 @@ def test_build_precomputed_context_short_doc_still_computes_embedding(
 
     # Short-doc path should compute embedding exactly once.
     assert compute_calls["n"] == 1
-

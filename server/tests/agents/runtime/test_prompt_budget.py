@@ -6,7 +6,7 @@ reference_text + instructions) from exceeding remote LLM provider request
 limits (e.g. Groq HTTP 413 "Request too large" / TPM rate limit).
 
 These tests exercise the `_enforce_total_prompt_budget` method on
-`BaseAgent` directly, with no real LLM calls. The method takes a JSON
+the runtime prompt-budget helper directly, with no real LLM calls. It takes a JSON
 prompt string and progressively trims it:
 
   1. reference_context entries (most expendable)
@@ -31,14 +31,13 @@ import json
 import logging
 from uuid import uuid4
 
-from .conftest import (
+from server.modules.agents.runtime.prompt_budget import enforce_total_prompt_budget
+from server.tests.agents.helpers import (
     _DummyAgent,
     _FakeLLM,
     _RetrievedChunk,
-    _mock_settings,
     patch_settings,
 )
-
 
 # ------------------------------------------------------------------
 # Direct method tests (deterministic, no LLM)
@@ -76,14 +75,15 @@ def _build_payload(
 
 def test_prompt_under_budget_passes_through_unchanged() -> None:
     """A prompt that already fits the budget is returned untouched."""
-    agent = _DummyAgent()
     prompt = _build_payload(
         rubric_context=["rubric-1"],
         reference_context=["ref-1"],
     )
     budget = len(prompt) + 1000  # generous
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
 
     assert result.prompt == prompt
     assert result.trimmed is False
@@ -93,14 +93,15 @@ def test_prompt_under_budget_passes_through_unchanged() -> None:
 
 def test_prompt_exactly_at_budget_passes_through_unchanged() -> None:
     """A prompt exactly at the budget boundary is not modified."""
-    agent = _DummyAgent()
     prompt = _build_payload(
         rubric_context=["rubric-1"],
         reference_context=["ref-1"],
     )
     budget = len(prompt)  # exactly equal
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
 
     assert result.prompt == prompt
     assert result.trimmed is False
@@ -110,7 +111,6 @@ def test_prompt_exactly_at_budget_passes_through_unchanged() -> None:
 
 def test_oversized_prompt_trims_reference_context_first() -> None:
     """When over budget, reference_context entries are dropped first."""
-    agent = _DummyAgent()
     # Build 3 large reference entries and small rubric; over a tight budget.
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     prompt = _build_payload(
@@ -120,7 +120,9 @@ def test_oversized_prompt_trims_reference_context_first() -> None:
     # Set a budget that forces at least one reference to be dropped.
     budget = len(prompt) - 600
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
     parsed = json.loads(result.prompt)
 
     # Trim was performed and 3 reference entries were dropped.
@@ -137,7 +139,6 @@ def test_oversized_prompt_trims_reference_context_first() -> None:
 
 def test_oversized_prompt_trims_rubric_context_after_references() -> None:
     """When reference drop is not enough, rubric_context is trimmed next."""
-    agent = _DummyAgent()
     # Small reference (expendable) and several long rubric entries.
     long_rubrics = [f"rubric criterion {i} " + ("Y" * 500) for i in range(3)]
     prompt = _build_payload(
@@ -149,7 +150,9 @@ def test_oversized_prompt_trims_rubric_context_after_references() -> None:
     # Rough size: 3 rubrics * 518 + small ref + JSON overhead ≈ 1700.
     budget = len(prompt) - 700
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
     parsed = json.loads(result.prompt)
 
     # Trim fired and the single small reference was dropped.
@@ -164,7 +167,6 @@ def test_oversized_prompt_trims_rubric_context_after_references() -> None:
 def test_individual_entry_truncation_when_dropping_not_enough() -> None:
     """When dropping all entries still leaves us over budget, surviving
     individual entries are truncated to ~400 chars + ellipsis."""
-    agent = _DummyAgent()
     # Single huge entry that we cannot drop without losing everything.
     huge = "Z" * 5000
     prompt = _build_payload(
@@ -175,7 +177,9 @@ def test_individual_entry_truncation_when_dropping_not_enough() -> None:
     # leave us with an empty prompt, so the safety net truncates it instead.
     budget = 800
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
     parsed = json.loads(result.prompt)
 
     # The rubric entry was truncated, not dropped (we keep at least one).
@@ -183,7 +187,7 @@ def test_individual_entry_truncation_when_dropping_not_enough() -> None:
     truncated = parsed["rubric_context"][0]
     assert truncated.endswith("...")
     # Truncation respects the ~400-char cap.
-    assert len(truncated) <= agent._ENTRY_TRUNCATE_CHARS
+    assert len(truncated) <= 400
     # And the result fits within budget (plus minimal JSON overhead).
     assert len(result.prompt) <= budget + 50
     # No reference entries existed, so none were dropped.
@@ -195,7 +199,6 @@ def test_individual_entry_truncation_when_dropping_not_enough() -> None:
 def test_entry_truncation_respects_cap_on_remaining_entries() -> None:
     """If we cannot drop everything, each remaining entry is capped at
     _ENTRY_TRUNCATE_CHARS, not the original entry size."""
-    agent = _DummyAgent()
     large_entry = "A" * 2000
     prompt = _build_payload(
         rubric_context=[large_entry, large_entry, large_entry],
@@ -204,7 +207,9 @@ def test_entry_truncation_respects_cap_on_remaining_entries() -> None:
     # Very tight budget: must drop references, then truncate rubric entries.
     budget = 1500
 
-    result = agent._enforce_total_prompt_budget(prompt, budget_chars=budget)
+    result = enforce_total_prompt_budget(
+        prompt, budget_chars=budget, agent_name="dummy"
+    )
     parsed = json.loads(result.prompt)
 
     # References dropped first.
@@ -212,17 +217,16 @@ def test_entry_truncation_respects_cap_on_remaining_entries() -> None:
     assert result.reference_context_dropped == 1
     # Each remaining rubric entry must be at most the truncation cap.
     for entry in parsed["rubric_context"]:
-        assert len(entry) <= agent._ENTRY_TRUNCATE_CHARS
+        assert len(entry) <= 400
         assert entry.endswith("...")
 
 
 def test_invalid_json_returns_prompt_unchanged(caplog) -> None:
     """A non-JSON prompt cannot be trimmed; return as-is and log a warning."""
-    agent = _DummyAgent()
     bad_prompt = "not valid json {{{" + "X" * 500
-    caplog.set_level(logging.WARNING, logger="server.modules.agents.base")
+    caplog.set_level(logging.WARNING)
 
-    result = agent._enforce_total_prompt_budget(bad_prompt, budget_chars=100)
+    result = enforce_total_prompt_budget(bad_prompt, budget_chars=100)
 
     assert result.prompt == bad_prompt
     assert result.trimmed is False
@@ -236,30 +240,31 @@ def test_invalid_json_returns_prompt_unchanged(caplog) -> None:
 
 def test_non_object_payload_returns_prompt_unchanged(caplog) -> None:
     """A top-level JSON array (not a dict) cannot be safely trimmed."""
-    agent = _DummyAgent()
     bad_prompt = json.dumps(["not", "a", "dict"] * 200)  # large array
-    caplog.set_level(logging.WARNING, logger="server.modules.agents.base")
+    caplog.set_level(
+        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
+    )
 
-    result = agent._enforce_total_prompt_budget(bad_prompt, budget_chars=100)
+    result = enforce_total_prompt_budget(bad_prompt, budget_chars=100)
 
     assert result.prompt == bad_prompt
     assert result.trimmed is False
     assert result.reference_context_dropped == 0
     assert any(
-        "EVAL_PROMPT_BUDGET" in r.message
-        and "non_object_payload" in r.message
+        "EVAL_PROMPT_BUDGET" in r.message and "non_object_payload" in r.message
         for r in caplog.records
     )
 
 
 def test_trim_emits_warning_with_expected_fields(caplog) -> None:
     """The trim path should log a warning with original/trimmed/budget fields."""
-    agent = _DummyAgent()
     long_refs = [f"ref {i} " + ("X" * 500) for i in range(3)]
     prompt = _build_payload(reference_context=long_refs)
-    caplog.set_level(logging.WARNING, logger="server.modules.agents.base")
+    caplog.set_level(
+        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
+    )
 
-    agent._enforce_total_prompt_budget(prompt, budget_chars=600)
+    enforce_total_prompt_budget(prompt, budget_chars=600, agent_name="dummy")
 
     warnings = [r for r in caplog.records if "EVAL_PROMPT_BUDGET" in r.message]
     assert len(warnings) == 1
@@ -272,11 +277,12 @@ def test_trim_emits_warning_with_expected_fields(caplog) -> None:
 
 def test_no_trim_emits_no_budget_warning(caplog) -> None:
     """A prompt that already fits should NOT emit EVAL_PROMPT_BUDGET warning."""
-    agent = _DummyAgent()
     prompt = _build_payload(reference_context=["small"])
-    caplog.set_level(logging.WARNING, logger="server.modules.agents.base")
+    caplog.set_level(
+        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
+    )
 
-    agent._enforce_total_prompt_budget(prompt, budget_chars=100_000)
+    enforce_total_prompt_budget(prompt, budget_chars=100_000)
 
     assert not any("EVAL_PROMPT_BUDGET" in r.message for r in caplog.records)
 
@@ -289,11 +295,11 @@ def test_no_trim_emits_no_budget_warning(caplog) -> None:
 def _patch_retrieval(monkeypatch) -> None:
     """Patch retrieval so we don't hit ChromaDB during the integration test."""
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context",
+        "server.modules.agents.itso.execution.retrieve_context",
         lambda *args, **kwargs: [_RetrievedChunk("context")],
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.resolve_collection_name",
+        "server.modules.agents.itso.execution.resolve_collection_name",
         lambda source_type: source_type,
     )
 
@@ -302,7 +308,7 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     """When the assembled prompt exceeds the total budget, run() should
     call _enforce_total_prompt_budget and emit both EVAL_PROMPT_SIZE and
     EVAL_PROMPT_BUDGET logs."""
-    caplog.set_level(logging.INFO, logger="server.modules.agents.base")
+    caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
 
     # Force retrieval to return a large rubric context so the prompt
@@ -313,7 +319,8 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
         return [huge_rubric, huge_rubric, huge_rubric]
 
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context", _huge_rubric,
+        "server.modules.agents.itso.execution.get_active_rubric_context",
+        _huge_rubric,
     )
     patch_settings(
         monkeypatch,
@@ -344,25 +351,22 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     # EVAL_PROMPT_SIZE log was emitted.
     size_logs = [r for r in caplog.records if "EVAL_PROMPT_SIZE" in r.message]
     assert any(
-        "agent=dummy" in r.message and "prompt_chars=" in r.message
-        for r in size_logs
+        "agent=itso" in r.message and "prompt_chars=" in r.message for r in size_logs
     )
     # And the budget-trim warning fired.
     assert any(
-        "EVAL_PROMPT_BUDGET" in r.message and "agent=dummy" in r.message
+        "EVAL_PROMPT_BUDGET" in r.message and "agent=itso" in r.message
         for r in caplog.records
     )
 
 
-def test_run_under_budget_logs_size_without_trim_warning(
-    monkeypatch, caplog
-) -> None:
+def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) -> None:
     """When the prompt is within budget, EVAL_PROMPT_SIZE logs but no
     EVAL_PROMPT_BUDGET warning should fire."""
-    caplog.set_level(logging.INFO, logger="server.modules.agents.base")
+    caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
+        "server.modules.agents.itso.execution.get_active_rubric_context",
         lambda *args, **kwargs: ["tiny rubric"],
     )
     patch_settings(
@@ -394,9 +398,7 @@ def test_run_under_budget_logs_size_without_trim_warning(
     size_logs = [r for r in caplog.records if "EVAL_PROMPT_SIZE" in r.message]
     assert any("prompt_chars=" in r.message for r in size_logs)
     # No EVAL_PROMPT_BUDGET warning (the prompt fit).
-    assert not any(
-        "EVAL_PROMPT_BUDGET" in r.message for r in caplog.records
-    )
+    assert not any("EVAL_PROMPT_BUDGET" in r.message for r in caplog.records)
 
 
 def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
@@ -410,10 +412,11 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
         return list(long_refs)
 
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context", _long_refs,
+        "server.modules.agents.itso.execution.retrieve_context",
+        _long_refs,
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
+        "server.modules.agents.itso.execution.get_active_rubric_context",
         lambda *args, **kwargs: [],
     )
     patch_settings(
@@ -469,18 +472,18 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
 
     # Long reference entries to force budget enforcement to drop them.
     long_refs = [
-        _RetrievedChunk(f"reference entry {i} " + ("X" * 500))
-        for i in range(3)
+        _RetrievedChunk(f"reference entry {i} " + ("X" * 500)) for i in range(3)
     ]
 
     def _long_refs(*args, **kwargs):
         return list(long_refs)
 
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context", _long_refs,
+        "server.modules.agents.itso.execution.retrieve_context",
+        _long_refs,
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
+        "server.modules.agents.itso.execution.get_active_rubric_context",
         lambda *args, **kwargs: [],
     )
     patch_settings(
@@ -525,7 +528,7 @@ def test_run_metadata_records_no_trim_when_under_budget(
     ``prompt_trimmed=False`` and ``reference_context_dropped=0``."""
     _patch_retrieval(monkeypatch)
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
+        "server.modules.agents.itso.execution.get_active_rubric_context",
         lambda *args, **kwargs: ["small rubric"],
     )
     patch_settings(
@@ -568,18 +571,18 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
     # One huge reference (always dropped) and several moderate ones
     # (may or may not be dropped depending on budget pressure).
     long_refs = [
-        _RetrievedChunk(f"reference entry {i} " + ("X" * 500))
-        for i in range(3)
+        _RetrievedChunk(f"reference entry {i} " + ("X" * 500)) for i in range(3)
     ]
 
     def _long_refs(*args, **kwargs):
         return list(long_refs)
 
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context", _long_refs,
+        "server.modules.agents.itso.execution.retrieve_context",
+        _long_refs,
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.get_active_rubric_context",
+        "server.modules.agents.itso.execution.get_active_rubric_context",
         lambda *args, **kwargs: [],
     )
     # Loose enough budget that references are dropped but we still record
