@@ -5,7 +5,7 @@ These lock the basket-key -> compute() arg mapping in scoring/registry.py
 silently misroute facts. All pure/no-LLM except the ``run_grouped`` tests,
 which use a FakeClient so no network call happens.
 
-This is the THIRD iteration of the basket design (see skeleton.py's module
+This is the THIRD iteration of the basket design (see extraction.py's module
 docstring for the full history): a merged 2-basket design was rejected
 outright by the provider (HTTP 413, too large); a 3-basket design fit the
 token budget but a real-SLM parity test showed monitoring, enhancement, and
@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.modules.agents.scoring import registry, skeleton
+from server.modules.agents.sme import extraction, registry
 
 
 # ---------------------------------------------------------------------------
@@ -246,19 +246,19 @@ class TestComputeBasketB2:
 
 
 # ---------------------------------------------------------------------------
-# skeleton.py slices: small doc passthrough + anchor-based slicing.
+# extraction.py slices: small doc passthrough + anchor-based slicing.
 # ---------------------------------------------------------------------------
 class TestSliceForBasketA1:
     def test_short_doc_passthrough(self) -> None:
         text = "Objectives...\n\nPerformance Task: do X."
-        assert skeleton.slice_for_basket_a1(text) == text
+        assert extraction.slice_for_basket_a1(text) == text
 
     def test_long_doc_anchors_on_section_header(self) -> None:
         head = "Objective 1: learn things.\n" * 300  # > 4000 chars
         lecture = "Lecture filler content. " * 500
         tail = "Performance Task: Design a poster. " * 300
         text = head + lecture + tail
-        sliced = skeleton.slice_for_basket_a1(text, head=4000, body=7000)
+        sliced = extraction.slice_for_basket_a1(text, head=4000, body=7000)
         assert "Design a poster" in sliced
         assert sliced.startswith(head[:4000])
         assert "[...lecture body omitted...]" in sliced
@@ -267,7 +267,7 @@ class TestSliceForBasketA1:
         head = "Objective 1: learn things.\n" * 300
         body = "Random content with no recognizable section header. " * 500
         text = head + body
-        sliced = skeleton.slice_for_basket_a1(text, head=4000, body=7000)
+        sliced = extraction.slice_for_basket_a1(text, head=4000, body=7000)
         assert sliced.endswith(body[-7000:])
 
 
@@ -276,22 +276,22 @@ class TestBottomSectionSlices:
 
     def test_short_doc_returns_whole_text(self) -> None:
         text = "Performance Task: do X."
-        assert skeleton.slice_for_basket_a2(text) == text
-        assert skeleton.slice_for_basket_a3(text) == text
-        assert skeleton.slice_for_basket_a4(text) == text
+        assert extraction.slice_for_basket_a2(text) == text
+        assert extraction.slice_for_basket_a3(text) == text
+        assert extraction.slice_for_basket_a4(text) == text
 
     def test_anchors_on_section_header_no_head(self) -> None:
         lecture = "Lecture filler content. " * 500
         tail = "Performance Task: Design a poster. " * 300
         text = lecture + tail
-        sliced = skeleton.slice_for_basket_a2(text, body=9000)
+        sliced = extraction.slice_for_basket_a2(text, body=9000)
         assert "Design a poster" in sliced
         assert "Lecture filler" not in sliced  # head is dropped entirely
 
     def test_no_anchor_falls_back_to_tail(self) -> None:
         body = "Random content with no recognizable section header. " * 500
-        assert skeleton.slice_for_basket_a3(body, body=9000) == body[-9000:]
-        assert skeleton.slice_for_basket_a4(body, body=9000) == body[-9000:]
+        assert extraction.slice_for_basket_a3(body, body=9000) == body[-9000:]
+        assert extraction.slice_for_basket_a4(body, body=9000) == body[-9000:]
 
 
 class TestExtractBaskets:
@@ -306,13 +306,13 @@ class TestExtractBaskets:
 
     def test_extract_basket_a1_parses_json(self) -> None:
         client = self.FakeClient({"objectives": [{"id": 1}], "assessments": []})
-        data = skeleton.extract_basket_a1(client, "some slm text")
+        data = extraction.extract_basket_a1(client, "some slm text")
         assert data["objectives"] == [{"id": 1}]
         assert len(client.calls) == 1
 
     def test_extract_basket_a1_without_curriculum_uses_base_prompt(self) -> None:
         client = self.FakeClient({"objectives": [], "assessments": []})
-        skeleton.extract_basket_a1(client, "some slm text")
+        extraction.extract_basket_a1(client, "some slm text")
         assert "CURRICULUM CONTENT" not in client.calls[0]
         assert "curriculum_alignment" not in client.calls[0]
 
@@ -329,7 +329,7 @@ class TestExtractBaskets:
                 ],
             }
         )
-        data = skeleton.extract_basket_a1(
+        data = extraction.extract_basket_a1(
             client, "some slm text", curriculum_text="Course: Foo\n\nBar"
         )
         assert len(client.calls) == 1  # one call, not two -- this is the whole point
@@ -341,32 +341,32 @@ class TestExtractBaskets:
 
     def test_extract_basket_a1_empty_curriculum_text_uses_base_prompt(self) -> None:
         client = self.FakeClient({"objectives": [], "assessments": []})
-        skeleton.extract_basket_a1(client, "some slm text", curriculum_text="   ")
+        extraction.extract_basket_a1(client, "some slm text", curriculum_text="   ")
         assert "CURRICULUM CONTENT" not in client.calls[0]
 
     def test_extract_basket_a2_parses_json(self) -> None:
         client = self.FakeClient({"tasks": []})
-        data = skeleton.extract_basket_a2(client, "some slm text")
+        data = extraction.extract_basket_a2(client, "some slm text")
         assert data == {"tasks": []}
 
     def test_extract_basket_a3_parses_json(self) -> None:
         client = self.FakeClient({"monitoring_mechanisms": []})
-        data = skeleton.extract_basket_a3(client, "some slm text")
+        data = extraction.extract_basket_a3(client, "some slm text")
         assert data == {"monitoring_mechanisms": []}
 
     def test_extract_basket_a4_parses_json(self) -> None:
         client = self.FakeClient({"enhancement_activities": []})
-        data = skeleton.extract_basket_a4(client, "some slm text")
+        data = extraction.extract_basket_a4(client, "some slm text")
         assert data == {"enhancement_activities": []}
 
     def test_extract_basket_b1_parses_json(self) -> None:
         client = self.FakeClient({"topics": [], "feedback_mechanisms": []})
-        data = skeleton.extract_basket_b1(client, "some slm text")
+        data = extraction.extract_basket_b1(client, "some slm text")
         assert data == {"topics": [], "feedback_mechanisms": []}
 
     def test_extract_basket_b2_parses_json(self) -> None:
         client = self.FakeClient({"sections": []})
-        data = skeleton.extract_basket_b2(client, "some slm text")
+        data = extraction.extract_basket_b2(client, "some slm text")
         assert data == {"sections": []}
 
 

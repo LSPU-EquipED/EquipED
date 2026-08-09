@@ -22,16 +22,17 @@ import logging
 import time
 from typing import Any
 
+from ..runtime.llm import error_reference
 from . import (
     accurate_sections,
     clear_directions,
     enhancement_activities,
+    extraction,
     interactivity,
     learner_transformation,
     objective_alignment,
     prescriptive_feedback,
     progress_monitoring,
-    skeleton,
     topic_coherence,
     varied_assessment,
 )
@@ -326,12 +327,12 @@ def _compute_basket_b2(criterion_code: str, basket: dict[str, Any]) -> Any:
 _BASKETS: tuple[
     tuple[str, frozenset[str], Any, Any], ...
 ] = (
-    ("A1", _BASKET_A1_CODES, skeleton.extract_basket_a1, _compute_basket_a1),
-    ("A2", _BASKET_A2_CODES, skeleton.extract_basket_a2, _compute_basket_a2),
-    ("A3", _BASKET_A3_CODES, skeleton.extract_basket_a3, _compute_basket_a3),
-    ("A4", _BASKET_A4_CODES, skeleton.extract_basket_a4, _compute_basket_a4),
-    ("B1", _BASKET_B1_CODES, skeleton.extract_basket_b1, _compute_basket_b1),
-    ("B2", _BASKET_B2_CODES, skeleton.extract_basket_b2, _compute_basket_b2),
+    ("A1", _BASKET_A1_CODES, extraction.extract_basket_a1, _compute_basket_a1),
+    ("A2", _BASKET_A2_CODES, extraction.extract_basket_a2, _compute_basket_a2),
+    ("A3", _BASKET_A3_CODES, extraction.extract_basket_a3, _compute_basket_a3),
+    ("A4", _BASKET_A4_CODES, extraction.extract_basket_a4, _compute_basket_a4),
+    ("B1", _BASKET_B1_CODES, extraction.extract_basket_b1, _compute_basket_b1),
+    ("B2", _BASKET_B2_CODES, extraction.extract_basket_b2, _compute_basket_b2),
 )
 
 
@@ -397,7 +398,10 @@ def run_grouped(
             basket = extract(client, text, **extra_kwargs)
         except Exception as exc:
             logger.warning(
-                "[SME_GROUPED] basket %s extraction failed: %s", name, str(exc)[:200]
+                "[SME_GROUPED] basket=%s extraction failed: category=%s | reference=%s",
+                name,
+                type(exc).__name__,
+                error_reference(exc),
             )
             basket = None
 
@@ -413,10 +417,12 @@ def run_grouped(
                 results[code] = _render(code, result)
             except Exception as exc:
                 logger.warning(
-                    "[SME_GROUPED] criterion=%s failed from basket %s: %s",
+                    "[SME_GROUPED] criterion=%s failed from basket %s: category=%s | "
+                    "reference=%s",
                     code,
                     name,
-                    str(exc)[:200],
+                    type(exc).__name__,
+                    error_reference(exc),
                 )
 
     return results
