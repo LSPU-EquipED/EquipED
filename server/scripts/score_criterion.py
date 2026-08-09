@@ -21,8 +21,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import fitz  # PyMuPDF  # noqa: E402
+
 from server.core.llm import get_llm_client  # noqa: E402
-from server.modules.agents.scoring import (  # noqa: E402
+from server.modules.agents.sme import (  # noqa: E402
     accurate_sections,
     clear_directions,
     enhancement_activities,
@@ -34,34 +35,34 @@ from server.modules.agents.scoring import (  # noqa: E402
     topic_coherence,
     varied_assessment,
 )
-from server.modules.agents.scoring.accurate_sections import (  # noqa: E402
+from server.modules.agents.sme.accurate_sections import (  # noqa: E402
     AccuracyResult,
 )
-from server.modules.agents.scoring.clear_directions import (  # noqa: E402
+from server.modules.agents.sme.clear_directions import (  # noqa: E402
     DirectionsResult,
 )
-from server.modules.agents.scoring.enhancement_activities import (  # noqa: E402
+from server.modules.agents.sme.enhancement_activities import (  # noqa: E402
     EnhancementResult,
 )
-from server.modules.agents.scoring.interactivity import (  # noqa: E402
+from server.modules.agents.sme.interactivity import (  # noqa: E402
     InteractivityResult,
 )
-from server.modules.agents.scoring.learner_transformation import (  # noqa: E402
+from server.modules.agents.sme.learner_transformation import (  # noqa: E402
     TransformationResult,
 )
-from server.modules.agents.scoring.objective_alignment import (  # noqa: E402
+from server.modules.agents.sme.objective_alignment import (  # noqa: E402
     AlignmentResult,
 )
-from server.modules.agents.scoring.prescriptive_feedback import (  # noqa: E402
+from server.modules.agents.sme.prescriptive_feedback import (  # noqa: E402
     FeedbackResult,
 )
-from server.modules.agents.scoring.progress_monitoring import (  # noqa: E402
+from server.modules.agents.sme.progress_monitoring import (  # noqa: E402
     MonitoringResult,
 )
-from server.modules.agents.scoring.topic_coherence import (  # noqa: E402
+from server.modules.agents.sme.topic_coherence import (  # noqa: E402
     CoherenceResult,
 )
-from server.modules.agents.scoring.varied_assessment import (  # noqa: E402
+from server.modules.agents.sme.varied_assessment import (  # noqa: E402
     VarietyResult,
 )
 

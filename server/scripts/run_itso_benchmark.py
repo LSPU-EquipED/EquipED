@@ -24,8 +24,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server.modules.agents.contracts import AgentEvaluationResult  # noqa: E402
-from server.modules.agents.itso import ITSOAgent  # noqa: E402
-from server.modules.agents.itso_precheck import run_itso_precheck  # noqa: E402
+from server.modules.agents.itso.agent import ITSO  # noqa: E402
+from server.modules.agents.itso.precheck import run_itso_precheck  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fixtures — known, reproducible SLM-like text and chunk data
@@ -166,10 +166,9 @@ class VariedFakeLLM:
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Monkeypatch target paths used by BaseAgent.run()
+# Monkeypatch target paths used by the ITSO runtime.
 _MONKEYPATCH_TARGETS = (
-    "server.modules.agents.base.get_settings",
-    "server.modules.agents.supervisor.get_settings",
+    "server.modules.agents.itso.execution.get_settings",
     "server.core.llm.get_settings",
 )
 
@@ -280,13 +279,13 @@ def run_agent_benchmark(
     if fake_llm is None:
         fake_llm = DeterministicFakeLLM()
 
-    # Inject precomputed_context so BaseAgent uses the cache instead of
+    # Inject precomputed_context so ITSO execution uses the cache instead of
     # querying the database for rubric/reference context.
     precomputed_context = {"rubric_itso": []}
 
     results: list[dict[str, Any]] = []
     for i in range(runs):
-        agent = ITSOAgent(llm_client=fake_llm)
+        agent = ITSO(llm_client=fake_llm)
         result = agent.run(
             evaluation_id=uuid4(),
             document_id=uuid4(),

@@ -26,8 +26,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import fitz  # PyMuPDF  # noqa: E402
+
 from server.core.llm import get_llm_client  # noqa: E402
-from server.modules.agents.scoring import registry  # noqa: E402
+from server.modules.agents.sme import registry  # noqa: E402
 
 UPLOADS = ROOT / "uploads"
 
