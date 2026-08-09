@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
 
@@ -21,6 +19,7 @@ def _clear_settings_cache(monkeypatch) -> None:
     runs.
     """
     from server.core import config as _config_mod
+
     _config_mod.get_settings.cache_clear()
     monkeypatch.setenv("AGENT_MAX_CHUNKS", "")
     monkeypatch.setenv("AGENT_MAX_EXCERPT_CHARS", "")

@@ -1,18 +1,18 @@
-"""Tests for supervisor embedding reuse in precomputation."""
+"""Tests for builder embedding reuse in precomputation."""
 
 from __future__ import annotations
 
-from server.modules.agents.supervisor import Supervisor
+from server.modules.agents.supervision.context import EvaluationContextBuilder
 
 
-def test_supervisor_compute_embedding_returns_none_for_empty() -> None:
+def test_builder_compute_embedding_returns_none_for_empty() -> None:
     """_compute_query_embedding should return None for empty/whitespace text."""
-    supervisor = Supervisor()
-    assert supervisor._compute_query_embedding("") is None
-    assert supervisor._compute_query_embedding("   ") is None
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    assert builder._compute_query_embedding("") is None
+    assert builder._compute_query_embedding("   ") is None
 
 
-def test_supervisor_compute_embedding_returns_list_for_text(monkeypatch) -> None:
+def test_builder_compute_embedding_returns_list_for_text(monkeypatch) -> None:
     """_compute_query_embedding should return a list of floats for valid text."""
     class FakeModel:
         def encode(self, texts, show_progress_bar=False):
@@ -26,12 +26,12 @@ def test_supervisor_compute_embedding_returns_list_for_text(monkeypatch) -> None
         lambda: FakeModel(),
     )
 
-    supervisor = Supervisor()
-    result = supervisor._compute_query_embedding("hello world")
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    result = builder._compute_query_embedding("hello world")
     assert result == [0.1, 0.2, 0.3]
 
 
-def test_supervisor_compute_embedding_returns_none_on_error(monkeypatch) -> None:
+def test_builder_compute_embedding_returns_none_on_error(monkeypatch) -> None:
     """_compute_query_embedding should return None when model fails."""
     def broken_model():
         raise RuntimeError("model broken")
@@ -41,8 +41,8 @@ def test_supervisor_compute_embedding_returns_none_on_error(monkeypatch) -> None
         broken_model,
     )
 
-    supervisor = Supervisor()
-    result = supervisor._compute_query_embedding("hello")
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    result = builder._compute_query_embedding("hello")
     assert result is None
 
 
@@ -50,15 +50,15 @@ def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
     """_build_precomputed_context should use embedding path when provided."""
     call_counts = {"with_embedding": 0, "with_text": 0}
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
         call_counts["with_embedding"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
-    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):  # noqa: E501
         call_counts["with_text"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -73,9 +73,9 @@ def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     embedding = [0.1, 0.2, 0.3]
-    result = supervisor._build_precomputed_context(
+    _ = builder._build_precomputed_context(
         "query text",
         query_embedding=embedding,
         reference_document_ids={
@@ -90,18 +90,18 @@ def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
 
 
 def test_precompute_falls_back_to_text_when_no_embedding(monkeypatch) -> None:
-    """_build_precomputed_context should fall back to text path when embedding is None."""
+    """_build_precomputed_context should fall back to text path when embedding is None."""  # noqa: E501
     call_counts = {"with_embedding": 0, "with_text": 0}
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
         call_counts["with_embedding"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
-    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):  # noqa: E501
         call_counts["with_text"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -116,13 +116,13 @@ def test_precompute_falls_back_to_text_when_no_embedding(monkeypatch) -> None:
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     # Stub lazy embedding computation to return None so the text fallback is
     # exercised — passing query_embedding=None no longer means "no embedding,"
     # it means "compute one lazily via _compute_query_embedding."
-    monkeypatch.setattr(supervisor, "_compute_query_embedding", lambda text: None)
+    monkeypatch.setattr(builder, "_compute_query_embedding", lambda text: None)
 
-    result = supervisor._build_precomputed_context(
+    _ = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         reference_document_ids={
@@ -156,11 +156,11 @@ def test_precompute_computes_embedding_once_for_multiple_sources(monkeypatch) ->
 
     retrieve_calls = []
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
         retrieve_calls.append(("embedding", collection))
         from server.modules.embeddings.retrieval import RetrievedChunk
 
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -171,9 +171,9 @@ def test_precompute_computes_embedding_once_for_multiple_sources(monkeypatch) ->
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
+    builder = EvaluationContextBuilder(db=None, agents=[])
     # Two reference document types should trigger two retrievals but only ONE embedding.
-    result = supervisor._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "test query",
         reference_document_ids={
             "syllabus": "00000000-0000-0000-0000-000000000001",
@@ -189,7 +189,7 @@ def test_precompute_computes_embedding_once_for_multiple_sources(monkeypatch) ->
 
 
 def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
-    """When query_embedding is passed explicitly, _compute_query_embedding must not be called."""
+    """When query_embedding is passed explicitly, _compute_query_embedding must not be called."""  # noqa: E501
     encode_calls = []
 
     def broken_model():
@@ -201,9 +201,9 @@ def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
         broken_model,
     )
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):
+    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]
+        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -214,8 +214,8 @@ def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
         lambda source_type: source_type,
     )
 
-    supervisor = Supervisor()
-    result = supervisor._build_precomputed_context(
+    builder = EvaluationContextBuilder(db=None, agents=[])
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=[0.5, 0.6, 0.7],
         reference_document_ids={
@@ -223,5 +223,5 @@ def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
         },
     )
 
-    assert encode_calls == [], "_compute_query_embedding should not be called when embedding is provided"
+    assert encode_calls == [], "_compute_query_embedding should not be called when embedding is provided"  # noqa: E501
     assert result["syllabus"] == ["emb:syllabus"]

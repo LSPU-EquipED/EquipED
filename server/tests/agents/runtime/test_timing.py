@@ -7,16 +7,15 @@ import time
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.base import _PhaseTimer
-
-from .conftest import _DummyAgent, _FakeLLM, _RetrievedChunk
+from server.modules.agents.runtime.timing import PhaseTimer
+from server.tests.agents.helpers import _DummyAgent, _FakeLLM, _RetrievedChunk
 
 
 def test_phase_timer_accumulates_and_logs(monkeypatch, caplog) -> None:
     """_PhaseTimer should accumulate durations and emit a structured log."""
-    caplog.set_level(logging.INFO, logger="server.modules.agents.base")
+    caplog.set_level(logging.INFO, logger="server.modules.agents.runtime.timing")
 
-    timer = _PhaseTimer("test_agent")
+    timer = PhaseTimer("test_agent")
 
     with timer.measure("retrieval"):
         time.sleep(0.01)
@@ -32,7 +31,8 @@ def test_phase_timer_accumulates_and_logs(monkeypatch, caplog) -> None:
 
     # Should have logged a single EVAL_TIMING line.
     timing_records = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "EVAL_TIMING" in r.message and "agent=test_agent" in r.message
     ]
     assert len(timing_records) == 1
@@ -48,16 +48,17 @@ def test_phase_timer_accumulates_and_logs(monkeypatch, caplog) -> None:
 
 def test_phase_timer_reports_parse_error(monkeypatch, caplog) -> None:
     """_PhaseTimer should include parse_error in log when present."""
-    caplog.set_level(logging.INFO, logger="server.modules.agents.base")
+    caplog.set_level(logging.INFO, logger="server.modules.agents.runtime.timing")
 
-    timer = _PhaseTimer("fail_agent")
+    timer = PhaseTimer("fail_agent")
     with timer.measure("parse"):
         time.sleep(0.001)
 
     timer.log_summary(prompt_chars=500, parse_error="invalid JSON")
 
     timing_records = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "EVAL_TIMING" in r.message and "parse_error=invalid JSON" in r.message
     ]
     assert len(timing_records) == 1
@@ -65,13 +66,13 @@ def test_phase_timer_reports_parse_error(monkeypatch, caplog) -> None:
 
 def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
     """A successful agent.run() should emit an EVAL_TIMING log line."""
-    caplog.set_level(logging.INFO, logger="server.modules.agents.base")
+    caplog.set_level(logging.INFO, logger="server.modules.agents.runtime.timing")
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context",
+        "server.modules.agents.itso.execution.retrieve_context",
         lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.resolve_collection_name",
+        "server.modules.agents.itso.execution.resolve_collection_name",
         lambda source_type: source_type,
     )
 
@@ -94,8 +95,9 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
     )
 
     timing_records = [
-        r for r in caplog.records
-        if "EVAL_TIMING" in r.message and "agent=dummy" in r.message
+        r
+        for r in caplog.records
+        if "EVAL_TIMING" in r.message and "agent=itso" in r.message
     ]
     assert len(timing_records) == 1
     msg = timing_records[0].message
@@ -108,27 +110,23 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
 
 def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
     """Supervisor run_evaluation should emit precompute and per-agent timing logs."""
-    from server.modules.agents.supervisor import Supervisor
+    from server.modules.agents.supervision.supervisor import Supervisor
+    from server.tests.agents.helpers import _BatchAgent, _seed_active_prompts
 
-    from .conftest import _BatchAgent, _seed_active_prompts
-
-    caplog.set_level(logging.INFO, logger="server.modules.agents.supervisor")
+    for logger_name in (
+        "server.modules.agents.supervision.context",
+        "server.modules.agents.supervision.dispatch",
+        "server.modules.agents.supervision.supervisor",
+    ):
+        caplog.set_level(logging.INFO, logger=logger_name)
 
     _seed_active_prompts(db_session)
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
-    monkeypatch.setattr("server.modules.agents.supervisor.time.sleep", lambda s: None)
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_prompt",
+        "server.modules.agents.supervision.context.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
-    monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_settings",
-        lambda: type(
-            "Settings", (), {"llm_agent_delay_seconds": 0, "llm_agent_delay_per_agent": {}},
-        )(),
-    )
-
     agent = _BatchAgent()
     supervisor = Supervisor(agents=[agent], db=db_session)
 
@@ -156,21 +154,24 @@ def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
 
     # Should have precompute timing log.
     precompute_logs = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "EVAL_TIMING" in r.message and "phase=precompute_context" in r.message
     ]
     assert len(precompute_logs) == 1
 
     # Should have per-agent timing log.
     agent_logs = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "EVAL_TIMING" in r.message and "agent=sme" in r.message
     ]
     assert len(agent_logs) == 1
 
     # Should have total evaluation timing log.
     total_logs = [
-        r for r in caplog.records
+        r
+        for r in caplog.records
         if "EVAL_TIMING" in r.message and "phase=evaluation_total" in r.message
     ]
     assert len(total_logs) == 1

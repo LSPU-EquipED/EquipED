@@ -6,6 +6,7 @@ and never leak raw text, secrets, or arbitrary caller keys.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -36,6 +37,9 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
         "actual_model",
         "requested_temperature",
         "fallback_occurred",
+        "summary_requested_model",
+        "summary_actual_model",
+        "summary_fallback_occurred",
         "repair_occurred",
         "prompt_trimmed",
         "reference_context_dropped",
@@ -73,6 +77,9 @@ _PROVENANCE_TYPES: dict[str, type | tuple[type, type]] = {
     "actual_model": str,
     "requested_temperature": (int, float),
     "fallback_occurred": bool,
+    "summary_requested_model": str,
+    "summary_actual_model": str,
+    "summary_fallback_occurred": bool,
     "repair_occurred": bool,
     "prompt_trimmed": bool,
     "reference_context_dropped": int,
@@ -93,6 +100,8 @@ _PROVENANCE_MAX_LEN: dict[str, int] = {
     "chunk_ids_hash": 128,
     "requested_model": 200,
     "actual_model": 200,
+    "summary_requested_model": 200,
+    "summary_actual_model": 200,
     "chunk_ids_ordered": 64,
     "policy_delivery_state": 20,
     "policy_retrieval_version": 10,
@@ -108,6 +117,10 @@ _SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
     "token",
     "credential",
 )
+
+_CHUNK_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+_POLICY_CRITERIA = frozenset({"ITSO-03", "ITSO-04", "ITSO-05"})
+_POLICY_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def sanitize_provenance(raw: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -136,6 +149,35 @@ def sanitize_provenance(raw: dict[str, Any] | None) -> dict[str, Any] | None:
         if expected_type is not None:
             if not isinstance(value, expected_type):
                 continue
+
+        if key == "chunk_ids_ordered":
+            if not all(
+                isinstance(chunk_id, str) and _CHUNK_ID_PATTERN.fullmatch(chunk_id)
+                for chunk_id in value
+            ):
+                continue
+
+        if key == "policy_evidence":
+            if set(value) != _POLICY_CRITERIA or any(
+                not isinstance(entry, dict)
+                or set(entry) != {"status", "chunk_count", "provenance_hash"}
+                or entry["status"] not in {"available", "unavailable"}
+                or isinstance(entry["chunk_count"], bool)
+                or not isinstance(entry["chunk_count"], int)
+                or not 0 <= entry["chunk_count"] <= 64
+                or not isinstance(entry["provenance_hash"], str)
+                or not _POLICY_HASH_PATTERN.fullmatch(entry["provenance_hash"])
+                for entry in value.values()
+            ):
+                continue
+            value = {
+                criterion: {
+                    "status": value[criterion]["status"],
+                    "chunk_count": value[criterion]["chunk_count"],
+                    "provenance_hash": value[criterion]["provenance_hash"],
+                }
+                for criterion in _POLICY_CRITERIA
+            }
 
         # Bounded string length.
         max_len = _PROVENANCE_MAX_LEN.get(key)

@@ -5,10 +5,9 @@ from __future__ import annotations
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.supervisor import Supervisor
+from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.documents.models import DocumentChunk
-
-from .conftest import (
+from server.tests.agents.helpers import (
     _BatchAgent,
     _FailingAgent,
     _RetrievedChunk,
@@ -61,7 +60,7 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     ]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_prompt",
+        "server.modules.agents.supervision.context.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
 
@@ -93,7 +92,7 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     }
 
     monkeypatch.setattr(
-        "server.modules.agents.supervisor.get_active_prompt",
+        "server.modules.agents.supervision.context.get_active_prompt",
         lambda agent_id, db: prompt_rows[agent_id],
     )
 
@@ -137,19 +136,20 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     assert failing_agent.calls == 1
     assert success_agent.batches == [["one", "two"]]
     assert len(result.agent_results) == 2
-    assert result.failures == {"coordinator": "agent failed"}
+    assert result.failures["coordinator"].startswith("RuntimeError (reference: ")
 
 
 def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> None:
     """Each agent should only receive its own rubric context from precomputed dict."""
-    from server.modules.agents.base import BaseAgent
+    from server.modules.agents.itso import execution
+    from server.modules.agents.runtime.context import ITSOExecutionContext
 
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context",
+        "server.modules.agents.itso.execution.retrieve_context",
         lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.resolve_collection_name",
+        "server.modules.agents.itso.execution.resolve_collection_name",
         lambda source_type: source_type,
     )
 
@@ -163,62 +163,29 @@ def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> Non
         "syllabus": ["syllabus-context"],
     }
 
-    class _CapturingAgent(BaseAgent):
-        agent_name = "sme"
-        rubric_source_type = "rubric_sme"
-        reference_source_types = ("syllabus",)
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.captured_rubric = None
-            self.captured_reference = None
-
-        def _build_prompt(self, *, rubric_context, reference_context, **kw):
-            self.captured_rubric = rubric_context
-            self.captured_reference = reference_context
-            return "{}"
-
-    from .conftest import _FakeLLM
-
-    agent = _CapturingAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        )
-    )
-
-    agent.run(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "doc text"}],
-        context_text="query",
+    context = ITSOExecutionContext(
+        evaluation_id=uuid4(), document_id=uuid4(),
+        chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "doc text"},),
         reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,
     )
-
-    # Agent should only get its own rubric context, not all merged together.
-    assert agent.captured_rubric == ["sme-only-context"]
-    assert agent.captured_reference == ["syllabus-context"]
+    assert execution._rubric("query", context) == ["itso-only-context"]
+    assert execution._references("query", context) == ["syllabus-context"]
 
 
 def test_precomputed_context_falls_back_when_source_type_missing(
-    monkeypatch, db_session,
+    monkeypatch,
 ) -> None:
     """Fall back to live retrieval when source type is not precomputed."""
-    from server.modules.agents.base import BaseAgent
-    from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
-
+    from server.modules.agents.itso import execution
+    from server.modules.agents.runtime.context import ITSOExecutionContext
     monkeypatch.setattr(
-        "server.modules.agents.base.retrieve_context",
+        execution,
+        "retrieve_context",
         lambda *args, **kwargs: [_RetrievedChunk("live-retrieved")],
     )
     monkeypatch.setattr(
-        "server.modules.agents.base.resolve_collection_name",
-        lambda source_type: source_type,
+        execution, "resolve_collection_name", lambda source_type: source_type
     )
 
     # Precomputed dict is missing the agent's rubric source type.
@@ -226,69 +193,15 @@ def test_precomputed_context_falls_back_when_source_type_missing(
         "rubric_coord": ["other-context"],
     }
 
-    rubric_set = RubricSet(
-        agent_id="sme",
-        name="SME Rubric v1",
-        version_number=1,
-        status="active",
+    monkeypatch.setattr(execution, "resolve_rubric_agent_id", lambda _: "sme")
+    monkeypatch.setattr(
+        execution, "get_active_rubric_context", lambda _: ["live-rubric"]
     )
-    db_session.add(rubric_set)
-    db_session.flush()
-    domain = RubricDomain(
-        rubric_set_id=rubric_set.rubric_set_id,
-        code="OP",
-        title="Organization & Presentation",
-        display_order=1,
-    )
-    db_session.add(domain)
-    db_session.flush()
-    db_session.add(
-        RubricCriterion(
-            rubric_domain_id=domain.rubric_domain_id,
-            criterion_code="OP-01",
-            title="Topic Coherence",
-            description="Topics are coherent from Unit to Chapter.",
-            display_order=1,
-        )
-    )
-    db_session.commit()
-
-    class _CapturingAgent(BaseAgent):
-        agent_name = "sme"
-        rubric_source_type = "rubric_sme"
-        reference_source_types = ()
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.captured_rubric = None
-
-        def _build_prompt(self, *, rubric_context, **kw):
-            self.captured_rubric = rubric_context
-            return "{}"
-
-    from .conftest import _FakeLLM
-
-    agent = _CapturingAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        )
-    )
-
-    agent.run(
-        evaluation_id=uuid4(),
-        document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "doc text"}],
+    context = ITSOExecutionContext(
+        evaluation_id=uuid4(), document_id=uuid4(),
+        chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "doc text"},),
+        reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,
     )
-
-    assert agent.captured_rubric[0] == "[SME Rubric v1]"
-    assert "Domain: Organization & Presentation" in agent.captured_rubric
-    assert (
-        "OP-01 | Title: Topic Coherence | Description: Topics are coherent from Unit to Chapter."
-        in agent.captured_rubric
-    )
+    assert execution._rubric("query", context) == ["live-rubric"]
+    assert execution._references("query", context) == ["live-retrieved"]
