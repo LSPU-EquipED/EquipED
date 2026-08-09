@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.modules.agents.scoring import curriculum_alignment
+from server.modules.agents.coordinator import curriculum as curriculum_alignment
 
 
 class TestCurriculumAlignmentCompute:
