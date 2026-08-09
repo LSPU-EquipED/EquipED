@@ -19,15 +19,23 @@ shared LLM rate limit. Coordinator now has three entry points:
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import uuid
 
 import pytest
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.coordinator import Coordinator
+from server.modules.agents.coordinator import curriculum
+from server.modules.agents.coordinator.agent import Coordinator
+from server.modules.agents.coordinator.reconciliation import merge_with_sme
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.scoring import registry
-
-from .test_sme_run import _ALL_BASKETS_IN_ORDER, _BASKET_A1, SequencedFakeClient
+from server.modules.agents.provenance import sanitize_provenance
+from server.modules.agents.sme import registry
+from server.tests.agents.helpers import (
+    _ALL_BASKETS_IN_ORDER,
+    _BASKET_A1,
+    SequencedFakeClient,
+)
 
 _TITLES = {code: f"{code} Coordinator Title" for code in registry.REGISTERED_CODES}
 
@@ -40,7 +48,7 @@ def _make_agent(monkeypatch, client) -> Coordinator:
         Coordinator, "_load_document_text", lambda self, document_id: None
     )
     monkeypatch.setattr(
-        "server.modules.agents.engine_scoring.get_active_rubric_criteria",
+        "server.modules.agents.sme.pipeline.get_active_rubric_criteria",
         lambda agent_id, db=None: _TITLES,
     )
     return agent
@@ -50,6 +58,50 @@ def _make_agent(monkeypatch, client) -> Coordinator:
 # run() -- the cheap, Supervisor-facing path: 1 call, 1 criterion (A-05).
 # ---------------------------------------------------------------------------
 class TestRunCheapPath:
+    @pytest.mark.parametrize("status", [429, 404, 503])
+    def test_persistent_assigned_model_uses_healthy_global_fallback(
+        self, monkeypatch, status
+    ) -> None:
+        assigned = type(
+            "AssignedClient",
+            (),
+            {
+                "model": "assigned-coordinator",
+                "generate": lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    RuntimeError(f"HTTP {status}")
+                ),
+            },
+        )()
+        fallback = type(
+            "FallbackClient",
+            (),
+            {
+                "model": "global-fallback",
+                "generate": lambda *_args, **_kwargs: json.dumps(_BASKET_A1),
+            },
+        )()
+        monkeypatch.setattr(
+            "server.modules.agents.runtime.llm.get_llm_client",
+            lambda: fallback,
+        )
+        agent = _make_agent(monkeypatch, assigned)
+
+        result = agent.run(
+            evaluation_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            chunk_infos=_CHUNK_INFOS,
+            context_text="full slm text",
+        )
+
+        assert result.success is True
+        assert result.model_name == "global-fallback"
+        assert result.provenance == {
+            "requested_model": "assigned-coordinator",
+            "actual_model": "global-fallback",
+            "fallback_occurred": True,
+        }
+        assert "HTTP" not in result.summary
+
     def test_makes_exactly_one_call_and_scores_only_a05(self, monkeypatch) -> None:
         client = SequencedFakeClient([_BASKET_A1])
         agent = _make_agent(monkeypatch, client)
@@ -76,8 +128,8 @@ class TestRunCheapPath:
         client = SequencedFakeClient([basket])
         agent = _make_agent(monkeypatch, client)
         monkeypatch.setattr(
-            Coordinator,
-            "_prepare_curriculum_text",
+            curriculum,
+            "prepare_curriculum_text",
             lambda self, document_id, curriculum_id, db: "Course: Foo\n\nBar",
         )
 
@@ -118,7 +170,7 @@ class TestRunCheapPath:
         def _raise(self, document_id, curriculum_id, db):
             raise RuntimeError("chroma unavailable")
 
-        monkeypatch.setattr(Coordinator, "_prepare_curriculum_text", _raise)
+        monkeypatch.setattr(curriculum, "prepare_curriculum_text", _raise)
 
         result = agent.run(
             evaluation_id=uuid.uuid4(),
@@ -243,8 +295,8 @@ class TestRunFullIndependent:
         client = SequencedFakeClient(baskets)
         agent = _make_agent(monkeypatch, client)
         monkeypatch.setattr(
-            Coordinator,
-            "_prepare_curriculum_text",
+            curriculum,
+            "prepare_curriculum_text",
             lambda self, document_id, curriculum_id, db: "Course: Foo\n\nBar",
         )
 
@@ -288,7 +340,7 @@ class TestRunFullIndependent:
         def _raise(self, document_id, curriculum_id, db):
             raise RuntimeError("chroma unavailable")
 
-        monkeypatch.setattr(Coordinator, "_prepare_curriculum_text", _raise)
+        monkeypatch.setattr(curriculum, "prepare_curriculum_text", _raise)
 
         result = agent.run_full_independent(
             evaluation_id=uuid.uuid4(),
@@ -356,7 +408,7 @@ class TestMergeWithSme:
         sme_result = self._sme_result()
         coordinator_result = self._coordinator_result(score=4)
 
-        merged = Coordinator.merge_with_sme(coordinator_result, sme_result)
+        merged = merge_with_sme(coordinator_result, sme_result)
 
         assert len(merged.criterion_scores) == 10
         merged_a05 = next(
@@ -373,7 +425,7 @@ class TestMergeWithSme:
         sme_result = self._sme_result()  # 9 criteria at score=3
         coordinator_result = self._coordinator_result(score=4)  # A-05 at 4
 
-        merged = Coordinator.merge_with_sme(coordinator_result, sme_result)
+        merged = merge_with_sme(coordinator_result, sme_result)
 
         expected = (3 * 9 + 4) / 10
         assert merged.subtotal == pytest.approx(expected)
@@ -382,7 +434,7 @@ class TestMergeWithSme:
         sme_result = self._sme_result()
         coordinator_result = self._coordinator_result()
 
-        merged = Coordinator.merge_with_sme(coordinator_result, sme_result)
+        merged = merge_with_sme(coordinator_result, sme_result)
 
         assert merged.agent_name == "coordinator"
         assert merged.model_name == coordinator_result.model_name
@@ -405,4 +457,82 @@ class TestMergeWithSme:
         )
 
         with pytest.raises(AgentExecutionError):
-            Coordinator.merge_with_sme(coordinator_result, sme_result)
+            merge_with_sme(coordinator_result, sme_result)
+
+    def test_merge_preserves_scoring_model_when_summary_uses_primary(self) -> None:
+        coordinator_result = dataclasses.replace(
+            self._coordinator_result(),
+            model_name="fallback-model",
+            provenance={
+                "requested_model": "assigned-model",
+                "actual_model": "fallback-model",
+                "fallback_occurred": True,
+            },
+        )
+        client = type(
+            "SummaryClient",
+            (),
+            {
+                "model": "summary-primary",
+                "generate": lambda *_args, **_kwargs: '{"summary":"good"}',
+            },
+        )()
+
+        merged = merge_with_sme(
+            coordinator_result, self._sme_result(), llm_client=client
+        )
+        provenance = sanitize_provenance(merged.provenance)
+
+        assert merged.model_name == "fallback-model"
+        assert merged.provenance["actual_model"] == "fallback-model"
+        assert merged.provenance["fallback_occurred"] is True
+        assert merged.provenance["summary_requested_model"] == "summary-primary"
+        assert merged.provenance["summary_actual_model"] == "summary-primary"
+        assert merged.provenance["summary_fallback_occurred"] is False
+        assert provenance == merged.provenance
+
+    def test_merge_records_summary_fallback_without_overwriting_scoring_model(
+        self, monkeypatch
+    ) -> None:
+        coordinator_result = self._coordinator_result()
+        coordinator_result = dataclasses.replace(
+            coordinator_result,
+            model_name="scoring-primary",
+            provenance={
+                "requested_model": "scoring-primary",
+                "actual_model": "scoring-primary",
+                "fallback_occurred": False,
+            },
+        )
+        primary = type(
+            "SummaryPrimary",
+            (),
+            {
+                "model": "summary-primary",
+                "generate": lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    RuntimeError("HTTP 429 provider-secret")
+                ),
+            },
+        )()
+        fallback = type(
+            "SummaryFallback",
+            (),
+            {
+                "model": "summary-fallback",
+                "generate": lambda *_args, **_kwargs: '{"summary":"safe"}',
+            },
+        )()
+        monkeypatch.setattr(
+            "server.modules.agents.runtime.llm.get_llm_client", lambda: fallback
+        )
+
+        merged = merge_with_sme(
+            coordinator_result, self._sme_result(), llm_client=primary
+        )
+
+        assert merged.model_name == "scoring-primary"
+        assert merged.provenance["actual_model"] == "scoring-primary"
+        assert merged.provenance["fallback_occurred"] is True
+        assert merged.provenance["summary_actual_model"] == "summary-fallback"
+        assert merged.provenance["summary_fallback_occurred"] is True
+        assert "provider-secret" not in merged.summary

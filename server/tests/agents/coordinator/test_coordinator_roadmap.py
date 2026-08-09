@@ -13,10 +13,12 @@ import json
 import uuid
 from datetime import UTC, datetime
 
-from server.modules.agents.coordinator import Coordinator, _format_roadmap_note
-from server.modules.agents.scoring import registry, skeleton
-
-from .test_sme_run import _BASKET_A1, SequencedFakeClient
+from server.modules.agents.coordinator.agent import Coordinator
+from server.modules.agents.coordinator.curriculum import (
+    format_roadmap_note as _format_roadmap_note,
+)
+from server.modules.agents.sme import extraction, registry
+from server.tests.agents.helpers import _BASKET_A1, SequencedFakeClient
 
 _TITLES = {code: f"{code} Coordinator Title" for code in registry.REGISTERED_CODES}
 
@@ -39,7 +41,7 @@ def _make_agent(monkeypatch, client) -> Coordinator:
         Coordinator, "_load_document_text", lambda self, document_id: None
     )
     monkeypatch.setattr(
-        "server.modules.agents.engine_scoring.get_active_rubric_criteria",
+        "server.modules.agents.sme.pipeline.get_active_rubric_criteria",
         lambda agent_id, db=None: _TITLES,
     )
     return agent
@@ -90,15 +92,15 @@ class _CaptureClient:
 def test_extract_basket_a1_none_identical_to_not_passing() -> None:
     c1 = _CaptureClient()
     c2 = _CaptureClient()
-    skeleton.extract_basket_a1(c1, "some slm text")
-    skeleton.extract_basket_a1(c2, "some slm text", roadmap_context=None)
+    extraction.extract_basket_a1(c1, "some slm text")
+    extraction.extract_basket_a1(c2, "some slm text", roadmap_context=None)
     assert c1.prompts == c2.prompts
     assert "PROGRAM ROADMAP CONTEXT" not in c1.prompts[0]
 
 
 def test_extract_basket_a1_appends_roadmap_context() -> None:
     client = _CaptureClient()
-    skeleton.extract_basket_a1(
+    extraction.extract_basket_a1(
         client, "some slm text", roadmap_context="Year 2 with Python competency"
     )
     prompt = client.prompts[0]
@@ -134,15 +136,14 @@ def test_partial_without_curriculum_excludes_coordinator(
 ) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult
-    from server.modules.agents.supervisor import SupervisorResult
+    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.auth.models import UserRole
     from server.modules.auth.service import create_user
     from server.modules.documents.models import Document, DocumentChunk
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
+    from server.tests.agents.helpers import _seed_active_prompts
     from sqlalchemy.orm import sessionmaker
-
-    from .conftest import _seed_active_prompts
 
     owner = create_user(
         db_session,
