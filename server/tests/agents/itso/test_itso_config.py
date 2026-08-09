@@ -6,9 +6,8 @@ from uuid import uuid4
 
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
-from server.modules.agents.itso import ITSOAgent
-
-from .conftest import _mock_settings
+from server.modules.agents.itso.agent import ITSO
+from server.tests.agents.helpers import _mock_settings
 
 _OK_RESPONSE = (
     '{"summary":"ok","criterion_scores":['
@@ -24,6 +23,48 @@ def _clear_settings_cache(monkeypatch) -> None:
     monkeypatch.setenv("LLM_TEMPERATURE_ITSO", "")
     monkeypatch.setenv("LLM_TEMPERATURE", "")
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
+
+
+def test_per_agent_delay_config_parses_json(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": 20, "gad": 5}')
+    try:
+        assert get_settings().llm_agent_delay_per_agent == {"itso": 20, "gad": 5}
+    finally:
+        get_settings.cache_clear()
+
+
+def test_per_agent_delay_config_defaults_empty(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", "")
+    try:
+        assert get_settings().llm_agent_delay_per_agent == {}
+    finally:
+        get_settings.cache_clear()
+
+
+def test_per_agent_delay_config_rejects_non_dict(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", "[20, 5]")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "must be a JSON object" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_per_agent_delay_config_rejects_non_int_values(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": "fast"}')
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "must be an integer" in str(exc)
+    finally:
+        get_settings.cache_clear()
 
 
 def test_itso_temperature_default(monkeypatch) -> None:
@@ -60,6 +101,19 @@ def test_itso_temperature_rejects_ge_one(monkeypatch) -> None:
         get_settings.cache_clear()
 
 
+def test_itso_temperature_rejects_negative(monkeypatch) -> None:
+    """Negative ITSO temperatures should raise the actual config error."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_TEMPERATURE_ITSO", "-0.1")
+    try:
+        get_settings()
+        raise AssertionError("expected ConfigurationError")
+    except ConfigurationError as exc:
+        assert "must be between 0.0" in str(exc)
+    finally:
+        get_settings.cache_clear()
+
+
 def test_itso_temperature_rejects_non_numeric(monkeypatch) -> None:
     """Non-numeric LLM_TEMPERATURE_ITSO should raise."""
     _clear_settings_cache(monkeypatch)
@@ -87,7 +141,7 @@ def test_get_agent_temperature_returns_global_for_other() -> None:
 
 
 def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
-    """ITSOAgent should receive the ITSO-specific temperature when
+    """ITSO should receive the ITSO-specific temperature when
     llm_temperature is passed explicitly (as the supervisor does)."""
     captured_temps: list[float] = []
 
@@ -99,11 +153,11 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
             return _OK_RESPONSE
 
     monkeypatch.setattr(
-        "server.modules.agents.base.get_settings",
+        "server.modules.agents.itso.execution.get_settings",
         lambda: _mock_settings(llm_temperature=0.5, llm_temperature_itso=0.0),
     )
 
-    agent = ITSOAgent(llm_client=_TempCaptureLLM())
+    agent = ITSO(llm_client=_TempCaptureLLM())
     result = agent.run(
         evaluation_id=uuid4(),
         document_id=uuid4(),
@@ -134,7 +188,7 @@ def test_itso_agent_records_requested_vs_actual_model() -> None:
         def generate(self, prompt, *, temperature, max_new_tokens):
             return _OK_RESPONSE
 
-    agent = ITSOAgent(llm_client=_ModelTrackingLLM())
+    agent = ITSO(llm_client=_ModelTrackingLLM())
     result = agent.run(
         evaluation_id=uuid4(),
         document_id=uuid4(),

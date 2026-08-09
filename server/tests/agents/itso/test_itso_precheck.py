@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-
-from server.modules.agents.itso_precheck import (
+from server.modules.agents.itso.precheck import (
     PRECHECK_VERSION,
-    ItsoPrecheckResult,
     run_itso_precheck,
 )
-
 
 # ------------------------------------------------------------------
 # Basic detection tests
