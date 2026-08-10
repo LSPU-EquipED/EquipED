@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-from server.tests.admin.conftest import admin_user  # noqa: F401
+from server.tests.admin.conftest import admin_user, faculty_user  # noqa: F401

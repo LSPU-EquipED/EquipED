@@ -1,4 +1,4 @@
-"""DPO pair export: builds (prompt, chosen, rejected) triples from EDIT feedback."""
+"""DPO pair export: builds one training pair per evaluation from EDIT feedback."""
 
 from __future__ import annotations
 
@@ -20,7 +20,20 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.scripts.export_dpo_pairs import export_dpo_pairs
 
 
-def _seed_evaluation(db_session, *, user_id):
+def _seed_evaluation(db_session, *, user_id, criteria=None):
+    """Seed one evaluation with an ITSO AgentResult and the given criteria.
+
+    `criteria` defaults to 3 criteria, each with a distinct original
+    score/justification, to exercise merging across multiple criteria per
+    evaluation.
+    """
+    if criteria is None:
+        criteria = [
+            ("itso-01", 4, "No plagiarism detected."),
+            ("itso-02", 3, "Bibliography section found with 5 entries."),
+            ("itso-03", 2, "No student data confidentiality statement found."),
+        ]
+
     document_id = uuid4()
     db_session.add(
         Document(
@@ -56,72 +69,148 @@ def _seed_evaluation(db_session, *, user_id):
     db_session.add(agent_result)
     db_session.flush()
 
-    score_row = CriterionScore(
-        agent_result_id=agent_result.agent_result_id,
-        evaluation_id=job.evaluation_id,
-        document_id=document_id,
-        criterion_id="itso-03",
-        criterion_title="Citation integrity",
-        score=3,
-        justification="Bibliography section found with 5 entries.",
-    )
-    db_session.add(score_row)
+    for criterion_id, score, justification in criteria:
+        db_session.add(
+            CriterionScore(
+                agent_result_id=agent_result.agent_result_id,
+                evaluation_id=job.evaluation_id,
+                document_id=document_id,
+                criterion_id=criterion_id,
+                criterion_title=criterion_id,
+                score=score,
+                justification=justification,
+            )
+        )
     db_session.commit()
     return job
 
 
-def test_export_builds_pair_from_edit_action(db_session, admin_user):
+def test_export_merges_one_edit_into_full_evaluation_response(db_session, admin_user):
     job = _seed_evaluation(db_session, user_id=admin_user.user_id)
     create_criterion_feedback(
         db_session,
         evaluation_id=job.evaluation_id,
-        criterion_id="itso-03",
+        criterion_id="itso-02",
         agent_name="itso",
         action="EDIT",
         user_id=admin_user.user_id,
         user_role="admin",
-        score=2,
-        justification="Bibliography entries are not APA-formatted.",
+        score=4,
+        justification=(
+            "In-text citations sufficient; no separate bibliography required."
+        ),
     )
 
     pairs = list(export_dpo_pairs(db_session))
 
     assert len(pairs) == 1
     pair = pairs[0]
-    assert pair["prompt"] == '{"agent": "itso", "document_chunks": []}'
-    assert json.loads(pair["chosen"]) == {
-        "score": 2,
-        "justification": "Bibliography entries are not APA-formatted.",
+    assert pair.prompt == '{"agent": "itso", "document_chunks": []}'
+    chosen = json.loads(pair.chosen)["criterion_scores"]
+    rejected = json.loads(pair.rejected)["criterion_scores"]
+
+    assert chosen["itso-02"] == {
+        "score": 4,
+        "justification": (
+            "In-text citations sufficient; no separate bibliography required."
+        ),
     }
-    assert json.loads(pair["rejected"]) == {
+    assert rejected["itso-02"] == {
         "score": 3,
         "justification": "Bibliography section found with 5 entries.",
     }
+    for cid in ("itso-01", "itso-03"):
+        assert chosen[cid] == rejected[cid]
+    assert set(chosen) == {"itso-01", "itso-02", "itso-03"}
+    assert pair.reviewer_ids == frozenset({admin_user.user_id})
 
 
-def test_export_skips_accept_and_reject_actions(db_session, admin_user):
+def test_export_skips_evaluation_with_no_real_edit(db_session, admin_user):
     job = _seed_evaluation(db_session, user_id=admin_user.user_id)
     create_criterion_feedback(
         db_session,
         evaluation_id=job.evaluation_id,
-        criterion_id="itso-03",
+        criterion_id="itso-01",
         agent_name="itso",
         action="ACCEPT",
         user_id=admin_user.user_id,
         user_role="admin",
     )
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-02",
+        agent_name="itso",
+        action="REJECT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+    )
+
+    assert list(export_dpo_pairs(db_session)) == []
+
+
+def test_export_skips_evaluation_where_only_edit_is_degenerate(
+    db_session, admin_user, caplog
+):
+    caplog.set_level(logging.WARNING, logger="server.scripts.export_dpo_pairs")
+    job = _seed_evaluation(db_session, user_id=admin_user.user_id)
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-01",
+        agent_name="itso",
+        action="EDIT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+        score=4,
+        justification="No plagiarism detected.",
+    )
 
     pairs = list(export_dpo_pairs(db_session))
     assert pairs == []
+    assert "no criterion had a real correction survive" in caplog.text
 
 
-def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplog):
-    # Pin the capturing handler directly on the exporter's logger so this
-    # assertion is immune to ambient global logging state (e.g. another
-    # test in the full suite disabling/reconfiguring logging elsewhere).
+def test_export_tracks_multiple_reviewers_on_one_evaluation(
+    db_session, admin_user, faculty_user
+):
+    job = _seed_evaluation(db_session, user_id=admin_user.user_id)
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-01",
+        agent_name="itso",
+        action="EDIT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+        score=3,
+        justification="Minor concern noted, not disqualifying.",
+    )
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-03",
+        agent_name="itso",
+        action="EDIT",
+        user_id=faculty_user.user_id,
+        user_role="admin",
+        score=4,
+        justification="Confidentiality addressed in section 2.",
+    )
+
+    pairs = list(export_dpo_pairs(db_session))
+
+    assert len(pairs) == 1
+    assert pairs[0].reviewer_ids == frozenset(
+        {admin_user.user_id, faculty_user.user_id}
+    )
+
+
+def test_export_skips_evaluation_missing_prompt_snapshot(
+    db_session, admin_user, caplog
+):
     caplog.set_level(logging.WARNING, logger="server.scripts.export_dpo_pairs")
     job = _seed_evaluation(db_session, user_id=admin_user.user_id)
-    # Simulate an AgentResult saved before Task 2 shipped (no prompt_text).
     db_session.query(AgentResult).filter_by(evaluation_id=job.evaluation_id).update(
         {"prompt_text": None}
     )
@@ -130,12 +219,12 @@ def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplo
     create_criterion_feedback(
         db_session,
         evaluation_id=job.evaluation_id,
-        criterion_id="itso-03",
+        criterion_id="itso-01",
         agent_name="itso",
         action="EDIT",
         user_id=admin_user.user_id,
         user_role="admin",
-        score=2,
+        score=1,
         justification="corrected",
     )
 
@@ -144,21 +233,79 @@ def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplo
     assert "no prompt_text snapshot" in caplog.text
 
 
-def test_export_skips_edit_identical_to_original(db_session, admin_user, caplog):
+def test_export_ignores_edit_for_unmatched_criterion_id(db_session, admin_user, caplog):
     caplog.set_level(logging.WARNING, logger="server.scripts.export_dpo_pairs")
     job = _seed_evaluation(db_session, user_id=admin_user.user_id)
+    # A real edit, so the evaluation still produces a pair...
     create_criterion_feedback(
         db_session,
         evaluation_id=job.evaluation_id,
-        criterion_id="itso-03",
+        criterion_id="itso-01",
+        agent_name="itso",
+        action="EDIT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+        score=2,
+        justification="Reconsidered: partial evidence of concern.",
+    )
+    # ...and a stray edit referencing a criterion_id that was never
+    # scored for this evaluation.
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-99",
         agent_name="itso",
         action="EDIT",
         user_id=admin_user.user_id,
         user_role="admin",
         score=3,
-        justification="Bibliography section found with 5 entries.",
+        justification="stray",
     )
 
     pairs = list(export_dpo_pairs(db_session))
-    assert pairs == []
-    assert "did not change score or justification" in caplog.text
+
+    assert len(pairs) == 1
+    chosen = json.loads(pairs[0].chosen)["criterion_scores"]
+    assert "itso-99" not in chosen
+    assert set(chosen) == {"itso-01", "itso-02", "itso-03"}
+    assert "itso-99" in caplog.text
+    assert "no matching CriterionScore row" in caplog.text
+
+
+def test_main_reports_diversity_summary(
+    db_session, admin_user, tmp_path, monkeypatch, caplog
+):
+    caplog.set_level(logging.INFO, logger="server.scripts.export_dpo_pairs")
+    job = _seed_evaluation(db_session, user_id=admin_user.user_id)
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-01",
+        agent_name="itso",
+        action="EDIT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+        score=3,
+        justification="Adjusted for context.",
+    )
+
+    output_path = tmp_path / "export.jsonl"
+    monkeypatch.setattr(
+        "server.core.database.get_session_factory",
+        lambda: (lambda: db_session),
+    )
+    monkeypatch.setattr(sys, "argv", ["export_dpo_pairs.py", str(output_path)])
+
+    from server.scripts import export_dpo_pairs as module
+
+    module.main()
+
+    assert (
+        "Wrote 1 DPO pairs across 1 evaluations, 1 documents, 1 reviewers"
+        in caplog.text
+    )
+    assert output_path.exists()
+    lines = output_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    written = json.loads(lines[0])
+    assert set(written) == {"prompt", "chosen", "rejected"}
