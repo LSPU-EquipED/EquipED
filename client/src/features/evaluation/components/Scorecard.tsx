@@ -7,6 +7,7 @@ import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import { formatScore, cleanJustification, overallScoreDisplay } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
+import { CriterionFeedbackControls } from './CriterionFeedbackControls';
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
@@ -306,6 +307,9 @@ export function Scorecard() {
                     <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-slate-500 w-[10rem]">
                       Status
                     </th>
+                    <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-slate-500 w-[9rem]">
+                      Reviewer
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -316,7 +320,7 @@ export function Scorecard() {
                     if (isSkipped) {
                       return (
                         <tr key={`${domain}-skipped`} className="bg-slate-50/20">
-                          <td colSpan={3} className="py-4 px-4">
+                          <td colSpan={4} className="py-4 px-4">
                             <div className="flex items-center gap-2 select-none">
                               <span className="inline-flex shrink-0 items-center rounded-sm bg-[#f2c811]/10 text-[#1e293b] px-2 py-0.5 text-[9px] font-extrabold border border-[#f2c811]/20 uppercase tracking-widest">
                                 {domain.toUpperCase()} SKIPPED
@@ -356,6 +360,7 @@ export function Scorecard() {
                               </span>
                             )}
                           </td>
+                          <td className="py-3 px-4 w-[9rem] border-t border-slate-200" />
                         </tr>
 
                         {/* Criterion Detail Rows with inline Justification */}
@@ -396,6 +401,14 @@ export function Scorecard() {
                                 >
                                   {isDomainError ? 'Failed' : isWeak ? 'Needs attention' : 'Acceptable'}
                                 </span>
+                              </td>
+                              <td className="py-4 px-4 align-top w-[9rem]">
+                                {domain === 'itso' && evaluation && (
+                                  <CriterionFeedbackControls
+                                    evaluationId={evaluation.evaluation_id}
+                                    criterion={criterion}
+                                  />
+                                )}
                               </td>
                             </tr>
                           );
