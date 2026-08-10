@@ -38,8 +38,26 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
     setDrafts((prev) => ({ ...prev, [criterionId]: { ...prev[criterionId], ...patch } }));
   }
 
+  // A criterion that isn't flagged as incorrect must keep a non-empty
+  // justification -- an empty EDIT justification is rejected by the backend
+  // (422) and, if it ever slipped through as whitespace, would pollute DPO
+  // training data. Block submission per-criterion instead of surfacing a
+  // generic post-submit failure.
+  const emptyJustificationIds = criteria
+    .filter((criterion) => {
+      const draft = drafts[criterion.criterion_id];
+      return !draft.rejected && draft.justification.trim() === '';
+    })
+    .map((criterion) => criterion.criterion_id);
+  const hasEmptyJustification = emptyJustificationIds.length > 0;
+
   async function handleSubmit() {
     setSubmitError(null);
+
+    if (hasEmptyJustification) {
+      setSubmitError('Justification cannot be empty. Fix the highlighted criteria below.');
+      return;
+    }
 
     const actions = criteria
       .map((criterion) => {
@@ -50,9 +68,10 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
             body: { agent_name: 'itso' as const, action: 'REJECT' as const },
           };
         }
+        const trimmedJustification = draft.justification.trim();
         const scoreChanged = draft.score !== criterion.score;
         const justificationChanged =
-          draft.justification.trim() !== criterion.justification.trim();
+          trimmedJustification !== criterion.justification.trim();
         if (scoreChanged || justificationChanged) {
           return {
             criterionId: criterion.criterion_id,
@@ -60,7 +79,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
               agent_name: 'itso' as const,
               action: 'EDIT' as const,
               score: draft.score,
-              justification: draft.justification,
+              justification: trimmedJustification,
             },
           };
         }
@@ -111,6 +130,9 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
         <div className="grid gap-4 px-5 py-4">
           {criteria.map((criterion) => {
             const draft = drafts[criterion.criterion_id];
+            const isJustificationEmpty = emptyJustificationIds.includes(
+              criterion.criterion_id,
+            );
             return (
               <div
                 key={criterion.criterion_id}
@@ -155,14 +177,24 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     Justification
                     <textarea
-                      className="mt-1 block w-full rounded-sm border border-slate-200 px-2 py-1 text-xs disabled:bg-slate-50 disabled:text-slate-400"
+                      className={`mt-1 block w-full rounded-sm border px-2 py-1 text-xs disabled:bg-slate-50 disabled:text-slate-400 ${
+                        isJustificationEmpty
+                          ? 'border-[#b91c1c] focus:outline-[#b91c1c]'
+                          : 'border-slate-200'
+                      }`}
                       rows={2}
+                      maxLength={4000}
                       value={draft.justification}
                       disabled={draft.rejected}
                       onChange={(event) =>
                         updateDraft(criterion.criterion_id, { justification: event.target.value })
                       }
                     />
+                    {isJustificationEmpty ? (
+                      <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-[#b91c1c]">
+                        Justification cannot be empty.
+                      </span>
+                    ) : null}
                   </label>
                 </div>
               </div>
@@ -189,7 +221,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
               type="button"
               className="rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#1b3b87] disabled:opacity-50"
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || hasEmptyJustification}
             >
               {isSubmitting ? 'Submitting…' : 'Submit'}
             </button>

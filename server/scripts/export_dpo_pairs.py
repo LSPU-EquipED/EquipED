@@ -116,6 +116,7 @@ def export_dpo_pairs(db: Any) -> Iterator[DpoPair]:
         original_scores = (
             db.query(CriterionScore)
             .filter(CriterionScore.agent_result_id == agent_result.agent_result_id)
+            .order_by(CriterionScore.criterion_id)
             .all()
         )
         if not original_scores:
