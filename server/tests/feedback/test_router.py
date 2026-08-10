@@ -14,8 +14,8 @@ from server.modules.feedback.models import PreferenceLog
 from server.tests.admin.conftest import _auth
 
 
-def test_criterion_feedback_requires_admin(
-    client: TestClient, auth_cookies_faculty, auth_cookies_admin, evaluation_job
+def test_criterion_feedback_requires_authentication(
+    client: TestClient, evaluation_job
 ):
     url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
     body = {"agent_name": "itso", "action": "ACCEPT"}
@@ -23,13 +23,37 @@ def test_criterion_feedback_requires_admin(
     response = client.post(url, json=body)
     assert response.status_code == 401
 
-    _auth(client, auth_cookies_faculty)
-    response = client.post(url, json=body)
-    assert response.status_code == 403
 
+def test_criterion_feedback_admin_allowed_on_any_evaluation(
+    client: TestClient, auth_cookies_admin, faculty_evaluation_job
+):
+    # Admin is not the owner (faculty_evaluation_job belongs to faculty_user)
+    # but must still be allowed -- admins can review any evaluation.
     _auth(client, auth_cookies_admin)
-    response = client.post(url, json=body)
+    url = f"/api/v1/feedback/{faculty_evaluation_job.evaluation_id}/criteria/itso-03"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
     assert response.status_code == 201
+
+
+def test_criterion_feedback_owning_faculty_allowed(
+    client: TestClient, auth_cookies_faculty, faculty_evaluation_job
+):
+    _auth(client, auth_cookies_faculty)
+    url = f"/api/v1/feedback/{faculty_evaluation_job.evaluation_id}/criteria/itso-03"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 201
+
+
+def test_criterion_feedback_non_owning_faculty_masked_as_404(
+    client: TestClient, auth_cookies_faculty, evaluation_job
+):
+    # evaluation_job is owned by admin_user, not faculty_user -- a faculty
+    # caller who doesn't own it must be masked as "not found", not 403, so
+    # they can't use this endpoint to probe which evaluation IDs exist.
+    _auth(client, auth_cookies_faculty)
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 404
 
 
 def test_criterion_feedback_edit_requires_score_and_justification(

@@ -41,16 +41,31 @@ def create_criterion_feedback(
     agent_name: str,
     action: str,
     user_id: uuid.UUID,
+    user_role: str,
     score: int | None = None,
     justification: str | None = None,
     notes: str | None = None,
 ) -> PreferenceLog:
     """Persist one reviewer feedback action for one agent's criterion.
 
-    Raises EvaluationNotFoundError if evaluation_id doesn't exist.
+    Admins may give feedback on any evaluation. Faculty may only give
+    feedback on evaluations they themselves submitted (self-review by the
+    document's own author is out of scope for the DPO training-data use
+    case, and would bias corrections toward whatever makes the submitter's
+    own material look better).
+
+    Raises EvaluationNotFoundError if evaluation_id doesn't exist OR if
+    the caller is faculty and does not own it -- ownership failures are
+    masked as "not found" rather than 403, matching the rest of the app's
+    ownership-scoped endpoints (e.g. evaluations.service._check_ownership_or_404),
+    so a faculty user can't use this endpoint to probe which evaluation
+    IDs exist.
     """
 
-    if db.get(EvaluationJob, evaluation_id) is None:
+    job = db.get(EvaluationJob, evaluation_id)
+    if job is None:
+        raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
+    if user_role != "admin" and job.submitted_by != user_id:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
 
     edited_json = (

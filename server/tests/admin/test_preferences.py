@@ -33,6 +33,7 @@ def test_admin_preferences_include_agent_and_criterion(
         agent_name="itso",
         action="ACCEPT",
         user_id=admin_user.user_id,
+        user_role="admin",
     )
 
     _auth(client, auth_cookies_admin)

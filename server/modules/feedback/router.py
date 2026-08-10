@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from server.core.database import get_db_session
-from server.modules.auth.dependencies import require_admin
+from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.feedback.exceptions import EvaluationNotFoundError
 from server.modules.feedback.schemas import (
@@ -27,7 +27,7 @@ def submit_criterion_feedback(
     evaluation_id: uuid.UUID,
     criterion_id: str,
     body: CriterionFeedbackCreate,
-    current_user: AuthenticatedUser = Depends(require_admin),
+    current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db=Depends(get_db_session),
 ):
     try:
@@ -38,6 +38,7 @@ def submit_criterion_feedback(
             agent_name=body.agent_name,
             action=body.action,
             user_id=current_user.id,
+            user_role=current_user.role,
             score=body.score,
             justification=body.justification,
             notes=body.notes,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -78,6 +79,7 @@ def test_export_builds_pair_from_edit_action(db_session, admin_user):
         agent_name="itso",
         action="EDIT",
         user_id=admin_user.user_id,
+        user_role="admin",
         score=2,
         justification="Bibliography entries are not APA-formatted.",
     )
@@ -106,6 +108,7 @@ def test_export_skips_accept_and_reject_actions(db_session, admin_user):
         agent_name="itso",
         action="ACCEPT",
         user_id=admin_user.user_id,
+        user_role="admin",
     )
 
     pairs = list(export_dpo_pairs(db_session))
@@ -113,6 +116,10 @@ def test_export_skips_accept_and_reject_actions(db_session, admin_user):
 
 
 def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplog):
+    # Pin the capturing handler directly on the exporter's logger so this
+    # assertion is immune to ambient global logging state (e.g. another
+    # test in the full suite disabling/reconfiguring logging elsewhere).
+    caplog.set_level(logging.WARNING, logger="server.scripts.export_dpo_pairs")
     job = _seed_evaluation(db_session, user_id=admin_user.user_id)
     # Simulate an AgentResult saved before Task 2 shipped (no prompt_text).
     db_session.query(AgentResult).filter_by(evaluation_id=job.evaluation_id).update(
@@ -127,6 +134,7 @@ def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplo
         agent_name="itso",
         action="EDIT",
         user_id=admin_user.user_id,
+        user_role="admin",
         score=2,
         justification="corrected",
     )

@@ -22,10 +22,8 @@ from server.tests.admin.conftest import (  # noqa: F401 — re-exported fixtures
 )
 
 
-@pytest.fixture()
-def evaluation_job(db_session, admin_user):  # noqa: F811 — pytest fixture shadow
-    # Document.uploaded_by is a required (non-nullable) FK to users.user_id,
-    # so this fixture depends on admin_user rather than passing None.
+def _make_evaluation_job(db_session, *, owner_id):
+    # Document.uploaded_by is a required (non-nullable) FK to users.user_id.
     document_id = uuid4()
     db_session.add(
         Document(
@@ -34,7 +32,7 @@ def evaluation_job(db_session, admin_user):  # noqa: F811 — pytest fixture sha
             program="BSCS",
             source_type="slm",
             file_path=f"uploads/{document_id}.pdf",
-            uploaded_by=admin_user.user_id,
+            uploaded_by=owner_id,
             uploaded_at=datetime.now(UTC),
             page_count=1,
             has_ocr_pages=False,
@@ -42,7 +40,23 @@ def evaluation_job(db_session, admin_user):  # noqa: F811 — pytest fixture sha
         )
     )
     db_session.flush()
-    job = EvaluationJob(evaluation_id=uuid4(), document_id=document_id)
+    # submitted_by is the ownership field create_criterion_feedback checks
+    # for non-admin callers (see server/modules/feedback/service.py).
+    job = EvaluationJob(
+        evaluation_id=uuid4(), document_id=document_id, submitted_by=owner_id
+    )
     db_session.add(job)
     db_session.commit()
     return job
+
+
+@pytest.fixture()
+def evaluation_job(db_session, admin_user):  # noqa: F811 — pytest fixture shadow
+    """An evaluation submitted by (owned by) the admin_user fixture."""
+    return _make_evaluation_job(db_session, owner_id=admin_user.user_id)
+
+
+@pytest.fixture()
+def faculty_evaluation_job(db_session, faculty_user):  # noqa: F811
+    """An evaluation submitted by (owned by) the faculty_user fixture."""
+    return _make_evaluation_job(db_session, owner_id=faculty_user.user_id)
