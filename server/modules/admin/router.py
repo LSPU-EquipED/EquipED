@@ -185,6 +185,8 @@ def get_preferences(
                 log_id=item.log_id,
                 evaluation_id=item.evaluation_id,
                 user_id=item.user_id,
+                agent_name=item.agent_name,
+                criterion_id=item.criterion_id,
                 action=item.action,
                 edited_json=item.edited_json,
                 notes=item.notes,
