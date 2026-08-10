@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Edit3, Loader2 } from 'lucide-react';
-import { alignmentApi } from '../api/alignment.api';
+import { alignmentApi } from '../api/syllabusAlignment.api';
 import { AlignmentReportActions } from '../components/AlignmentReportActions';
 import { AlignmentResultView } from '../components/AlignmentResultView';
 import { isAlignmentComplete } from '../utils/alignmentPresentation';

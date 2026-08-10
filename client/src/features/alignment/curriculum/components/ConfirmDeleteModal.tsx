@@ -1,4 +1,3 @@
-// client/src/features/curriculumAlignment/components/ConfirmDeleteModal.tsx
 // No shared confirm-modal primitive exists yet (every delete confirmation
 // elsewhere in the app -- e.g. admin/pages/UserManagementPage.tsx -- still
 // uses window.confirm), so this is a local, self-contained modal rather

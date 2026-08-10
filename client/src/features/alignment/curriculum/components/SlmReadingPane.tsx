@@ -1,4 +1,3 @@
-// client/src/features/curriculumAlignment/components/SlmReadingPane.tsx
 // Read-only per-page SLM viewer for this feature's own reading pane.
 // Deliberately NOT importing evaluation/components/DocumentPane.tsx --
 // features must stay self-contained (CLAUDE.md module boundaries) -- so

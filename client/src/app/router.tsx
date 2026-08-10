@@ -19,10 +19,10 @@ import { HistoryPage } from '../features/history/pages/HistoryPage';
 import { EvaluationInterfacePage } from '../features/evaluation/pages/EvaluationInterfacePage';
 import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
 import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
-import { AlignmentCheckPage } from '../features/curriculumAlignment/pages/AlignmentCheckPage';
-import { SyllabusAlignmentPage } from '../features/alignment/pages/SyllabusAlignmentPage';
-import { SyllabusAlignmentWorkspacePage } from '../features/alignment/pages/SyllabusAlignmentWorkspacePage';
-import { SyllabusAlignmentReportPage } from '../features/alignment/pages/SyllabusAlignmentReportPage';
+import { AlignmentCheckPage } from '../features/alignment/curriculum/pages/AlignmentCheckPage';
+import { SyllabusAlignmentPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentPage';
+import { SyllabusAlignmentWorkspacePage } from '../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage';
+import { SyllabusAlignmentReportPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentReportPage';
 
 // Admin Pages
 import {

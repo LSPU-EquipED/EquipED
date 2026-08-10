@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { documentsApi } from '@/shared/api/documents.api';
 import { getErrorMessage } from '@/shared/api/http';
 import type { ClientDocumentChunk } from '@/shared/types/documents';
-import { alignmentApi } from '../api/alignment.api';
+import { alignmentApi } from '../api/syllabusAlignment.api';
 import { AlignmentReportActions } from '../components/AlignmentReportActions';
 import { AlignmentResultView } from '../components/AlignmentResultView';
 import { ReplaceAlignmentModal } from '../components/ReplaceAlignmentModal';

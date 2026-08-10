@@ -1,4 +1,3 @@
-// client/src/features/curriculumAlignment/components/CourseSelector.tsx
 // Adapted from shared/components/ProgramSelector.tsx: same combobox
 // mechanics (search, keyboard nav, ARIA), backed by courses instead of
 // programs, with a flat (ungrouped) list since courses aren't organized
