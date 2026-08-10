@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, CheckCircle, Flag, FileText, Clock } from 'lucide-react';
@@ -7,7 +7,7 @@ import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import { formatScore, cleanJustification, overallScoreDisplay } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
-import { CriterionFeedbackControls } from './CriterionFeedbackControls';
+import { ItsoReviewModal } from './ItsoReviewModal';
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
@@ -36,6 +36,7 @@ export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
 
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
+  const [isItsoReviewOpen, setIsItsoReviewOpen] = useState(false);
 
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
@@ -307,9 +308,6 @@ export function Scorecard() {
                     <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-slate-500 w-[10rem]">
                       Status
                     </th>
-                    <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-slate-500 w-[9rem]">
-                      Reviewer
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -320,7 +318,7 @@ export function Scorecard() {
                     if (isSkipped) {
                       return (
                         <tr key={`${domain}-skipped`} className="bg-slate-50/20">
-                          <td colSpan={4} className="py-4 px-4">
+                          <td colSpan={3} className="py-4 px-4">
                             <div className="flex items-center gap-2 select-none">
                               <span className="inline-flex shrink-0 items-center rounded-sm bg-[#f2c811]/10 text-[#1e293b] px-2 py-0.5 text-[9px] font-extrabold border border-[#f2c811]/20 uppercase tracking-widest">
                                 {domain.toUpperCase()} SKIPPED
@@ -351,16 +349,26 @@ export function Scorecard() {
                             </span>
                           </td>
                           <td className="py-3 px-4 w-[10rem] border-t border-slate-200">
-                            {domainData.adjectival_rating && (
-                              <span className={cn(
-                                'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                                getAdjectivalRatingClasses(domainData.adjectival_rating)
-                              )}>
-                                {domainData.adjectival_rating}
-                              </span>
-                            )}
+                            <div className="flex items-center justify-between gap-2">
+                              {domainData.adjectival_rating && (
+                                <span className={cn(
+                                  'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                  getAdjectivalRatingClasses(domainData.adjectival_rating)
+                                )}>
+                                  {domainData.adjectival_rating}
+                                </span>
+                              )}
+                              {domain === 'itso' && (
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#1b3b87] hover:bg-[#1b3b87]/10"
+                                  onClick={() => setIsItsoReviewOpen(true)}
+                                >
+                                  Review Scores
+                                </button>
+                              )}
+                            </div>
                           </td>
-                          <td className="py-3 px-4 w-[9rem] border-t border-slate-200" />
                         </tr>
 
                         {/* Criterion Detail Rows with inline Justification */}
@@ -402,14 +410,6 @@ export function Scorecard() {
                                   {isDomainError ? 'Failed' : isWeak ? 'Needs attention' : 'Acceptable'}
                                 </span>
                               </td>
-                              <td className="py-4 px-4 align-top w-[9rem]">
-                                {domain === 'itso' && evaluation && (
-                                  <CriterionFeedbackControls
-                                    evaluationId={evaluation.evaluation_id}
-                                    criterion={criterion}
-                                  />
-                                )}
-                              </td>
                             </tr>
                           );
                         })}
@@ -419,6 +419,14 @@ export function Scorecard() {
                 </tbody>
               </table>
             </div>
+
+            {isItsoReviewOpen && results.domain_scores.itso && (
+              <ItsoReviewModal
+                evaluationId={evaluation.evaluation_id}
+                criteria={results.domain_scores.itso.criteria}
+                onClose={() => setIsItsoReviewOpen(false)}
+              />
+            )}
           </div>
         )}
       </main>
