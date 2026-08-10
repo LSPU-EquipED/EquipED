@@ -1,4 +1,3 @@
-// client/src/features/curriculumAlignment/components/AlignmentResultsTable.tsx
 // Styled like evaluation/components/Scorecard.tsx's criterion table: same
 // column rhythm, same nested evidence box under a row with a quote.
 import { cn } from '@/shared/components/utils';

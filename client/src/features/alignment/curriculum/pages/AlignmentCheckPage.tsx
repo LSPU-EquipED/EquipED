@@ -1,4 +1,3 @@
-// client/src/features/curriculumAlignment/pages/AlignmentCheckPage.tsx
 import { useMemo, useRef, useReducer } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, Loader2 } from 'lucide-react';
 import { documentsApi } from '@/shared/api/documents.api';

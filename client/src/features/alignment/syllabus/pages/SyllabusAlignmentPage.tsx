@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { AlertTriangle, BookOpenCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { getErrorMessage } from '@/shared/api/http';
-import { alignmentApi } from '../api/alignment.api';
+import { alignmentApi } from '../api/syllabusAlignment.api';
 import type { AlignmentLevel, AlignmentProcessingStatus } from '../types';
 
 const levelLabels: Record<AlignmentLevel, string> = {
