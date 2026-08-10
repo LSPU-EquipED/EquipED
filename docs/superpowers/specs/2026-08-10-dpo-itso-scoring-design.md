@@ -104,10 +104,26 @@ Body: {
 }
 ```
 
-- Restricted to `UserRole.ADMIN` (`server/modules/auth/models.py` defines
-  only `admin`/`faculty` — there is no separate CID-reviewer role today),
-  matching the existing `GET /admin/preferences` gating. Non-admin callers
-  get `403 Forbidden`, consistent with the rest of the admin surface.
+- **Amended during manual testing** (2026-08-10): originally restricted to
+  `UserRole.ADMIN` only, matching `GET /admin/preferences`'s gating. Manual
+  testing showed this silently 403'd the faculty users who actually submit
+  and would realistically review their own SLM evaluations. Access is now
+  admin-or-owning-faculty: any authenticated user may act on an evaluation
+  they submitted (`EvaluationJob.submitted_by`), and admins may act on any
+  evaluation. A non-owner faculty request is masked as `404 Not Found`
+  (not `403`) so it can't be used to probe which evaluation IDs exist —
+  matching `evaluations.service._check_ownership_or_404`'s existing
+  convention elsewhere in the app. Unauthenticated requests still get
+  `401`.
+  - This reopens the self-review conflict-of-interest question the
+    original admin-only scoping was meant to avoid: nothing stops a
+    faculty member from Accepting everything or Editing their own low
+    scores upward on their own submission, which would bias any future
+    DPO training data toward self-interested corrections rather than
+    genuine QA judgment. Deliberately accepted for now — flagged here for
+    whoever designs the eventual training pipeline to account for (e.g.
+    weighting or filtering self-reviewed EDITs differently, or building a
+    real reviewer role later).
 - `EDIT` requires both `score` and `justification` — a reviewer cannot
   submit a corrected number with the AI's stale justification still
   attached, since that would produce an internally inconsistent DPO pair
