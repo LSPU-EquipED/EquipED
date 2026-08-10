@@ -13,7 +13,13 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: fileConfig defaults to disabling every
+    # already-instantiated logger not named in alembic.ini. env.py can run
+    # in-process (e.g. tests invoking alembic.command.upgrade directly), so
+    # without this, any logger created before that point -- including ones
+    # in completely unrelated modules -- goes silently dead for the rest of
+    # the process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 settings = get_settings()
 if settings.database_url:
