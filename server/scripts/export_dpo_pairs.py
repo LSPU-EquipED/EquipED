@@ -86,6 +86,23 @@ def export_dpo_pairs(db: Any) -> Iterator[dict[str, str]]:
             )
             continue
 
+        edited_score = log.edited_json.get("score")
+        edited_justification = str(
+            log.edited_json.get("justification") or ""
+        ).strip()
+        original_justification = (original_score.justification or "").strip()
+        if (
+            edited_score == original_score.score
+            and edited_justification == original_justification
+        ):
+            logger.warning(
+                "Skipping preference log %s: EDIT action did not change "
+                "score or justification from the original (degenerate "
+                "chosen == rejected pair).",
+                log.log_id,
+            )
+            continue
+
         yield {
             "prompt": agent_result.prompt_text,
             "chosen": json.dumps(log.edited_json, ensure_ascii=False),

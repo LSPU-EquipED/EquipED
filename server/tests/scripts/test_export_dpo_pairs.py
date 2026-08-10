@@ -142,3 +142,23 @@ def test_export_skips_rows_missing_prompt_snapshot(db_session, admin_user, caplo
     pairs = list(export_dpo_pairs(db_session))
     assert pairs == []
     assert "no prompt_text snapshot" in caplog.text
+
+
+def test_export_skips_edit_identical_to_original(db_session, admin_user, caplog):
+    caplog.set_level(logging.WARNING, logger="server.scripts.export_dpo_pairs")
+    job = _seed_evaluation(db_session, user_id=admin_user.user_id)
+    create_criterion_feedback(
+        db_session,
+        evaluation_id=job.evaluation_id,
+        criterion_id="itso-03",
+        agent_name="itso",
+        action="EDIT",
+        user_id=admin_user.user_id,
+        user_role="admin",
+        score=3,
+        justification="Bibliography section found with 5 entries.",
+    )
+
+    pairs = list(export_dpo_pairs(db_session))
+    assert pairs == []
+    assert "did not change score or justification" in caplog.text

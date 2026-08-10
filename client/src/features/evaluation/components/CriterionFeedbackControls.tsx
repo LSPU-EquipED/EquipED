@@ -18,20 +18,32 @@ export function CriterionFeedbackControls({
   const [submittedAction, setSubmittedAction] = useState<
     'ACCEPT' | 'REJECT' | 'EDIT' | null
   >(null);
+  const [error, setError] = useState<string | null>(null);
   const mutation = useSubmitCriterionFeedback(evaluationId);
 
   function submit(
     action: 'ACCEPT' | 'REJECT' | 'EDIT',
     body: { score?: number; justification?: string } = {},
   ) {
+    setError(null);
     mutation.mutate(
       {
         criterionId: criterion.criterion_id,
         body: { agent_name: 'itso', action, ...body },
       },
-      { onSuccess: () => setSubmittedAction(action) },
+      {
+        onSuccess: () => {
+          setSubmittedAction(action);
+          if (action !== 'EDIT') setMode('idle');
+        },
+        onError: () => {
+          setError(
+            "Couldn't save your response. Please try again.",
+          );
+          if (action !== 'EDIT') setMode('idle');
+        },
+      },
     );
-    setMode('idle');
   }
 
   if (submittedAction) {
@@ -89,39 +101,47 @@ export function CriterionFeedbackControls({
             Cancel
           </button>
         </div>
+        {error && (
+          <p className="text-[10px] font-semibold text-[#b91c1c]">{error}</p>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="flex gap-1.5">
-      <button
-        type="button"
-        title="Accept"
-        className="inline-flex size-6 items-center justify-center rounded-sm border border-[#3b963e]/30 text-[#3b963e] hover:bg-[#3b963e]/10"
-        onClick={() => submit('ACCEPT')}
-        disabled={mutation.isPending}
-      >
-        <Check className="size-3.5" />
-      </button>
-      <button
-        type="button"
-        title="Reject"
-        className="inline-flex size-6 items-center justify-center rounded-sm border border-[#b91c1c]/30 text-[#b91c1c] hover:bg-[#b91c1c]/10"
-        onClick={() => submit('REJECT')}
-        disabled={mutation.isPending}
-      >
-        <X className="size-3.5" />
-      </button>
-      <button
-        type="button"
-        title="Edit"
-        className="inline-flex size-6 items-center justify-center rounded-sm border border-slate-300 text-slate-500 hover:bg-slate-50"
-        onClick={() => setMode('editing')}
-        disabled={mutation.isPending}
-      >
-        <Pencil className="size-3.5" />
-      </button>
+    <div className="grid gap-1">
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          title="Accept"
+          className="inline-flex size-6 items-center justify-center rounded-sm border border-[#3b963e]/30 text-[#3b963e] hover:bg-[#3b963e]/10"
+          onClick={() => submit('ACCEPT')}
+          disabled={mutation.isPending}
+        >
+          <Check className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          title="Reject"
+          className="inline-flex size-6 items-center justify-center rounded-sm border border-[#b91c1c]/30 text-[#b91c1c] hover:bg-[#b91c1c]/10"
+          onClick={() => submit('REJECT')}
+          disabled={mutation.isPending}
+        >
+          <X className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          title="Edit"
+          className="inline-flex size-6 items-center justify-center rounded-sm border border-slate-300 text-slate-500 hover:bg-slate-50"
+          onClick={() => setMode('editing')}
+          disabled={mutation.isPending}
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </div>
+      {error && (
+        <p className="text-[10px] font-semibold text-[#b91c1c]">{error}</p>
+      )}
     </div>
   );
 }
