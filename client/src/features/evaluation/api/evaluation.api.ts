@@ -4,6 +4,8 @@ import type {
   EvaluationResultsResponse,
   EvaluationStatusResponse,
   EvaluationListResponse,
+  CriterionFeedbackRequest,
+  CriterionFeedbackResponse,
 } from '../types';
 
 export const evaluationApi = {
@@ -24,4 +26,17 @@ export const evaluationApi = {
     return requestJson<EvaluationResultsResponse>(`/evaluations/${id}/results`);
   },
 
+  submitCriterionFeedback: async (
+    evaluationId: string,
+    criterionId: string,
+    body: CriterionFeedbackRequest,
+  ): Promise<CriterionFeedbackResponse> => {
+    return requestJson<CriterionFeedbackResponse>(
+      `/feedback/${evaluationId}/criteria/${encodeURIComponent(criterionId)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
+  },
 };
