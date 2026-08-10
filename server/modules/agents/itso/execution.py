@@ -186,6 +186,7 @@ def execute(
         token_count=sum(len(text.split()) for text in texts),
         success=True,
         raw_response=None,
+        prompt_text=prompt,
         provenance=safe,
         metadata={
             "prompt_chars": prompt_chars,

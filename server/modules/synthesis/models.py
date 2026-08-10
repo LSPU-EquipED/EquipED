@@ -47,6 +47,7 @@ class AgentResult(Base):
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     advisory_outputs: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

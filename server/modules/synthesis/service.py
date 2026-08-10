@@ -81,6 +81,7 @@ def persist_agent_outputs(
                 success=False,
                 error_message=agent_result.error_message,
                 raw_response=agent_result.raw_response,
+                prompt_text=agent_result.prompt_text,
                 provenance=sanitize_provenance(agent_result.provenance),
                 advisory_outputs=agent_result.advisory_outputs,
             )
@@ -102,6 +103,7 @@ def persist_agent_outputs(
             success=agent_result.success,
             error_message=agent_result.error_message,
             raw_response=agent_result.raw_response,
+            prompt_text=agent_result.prompt_text,
             provenance=sanitize_provenance(agent_result.provenance),
             advisory_outputs=agent_result.advisory_outputs,
         )
