@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Library,
   ListChecks,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
@@ -39,6 +40,7 @@ const workspaceNavItems: readonly NavItem[] = [
   { to: '/dashboard', label: 'Documents', icon: FolderOpen, exact: true },
   { to: '/upload', label: 'Upload', icon: FilePlus2, exact: true },
   { to: '/evaluations', label: 'Evaluations', icon: ClipboardList, exact: true },
+  { to: '/evaluation-map', label: 'Evaluation Map', icon: Network, exact: true },
   { to: '/alignment', label: 'Curriculum Alignment', icon: BookOpenCheck, exact: true },
   { to: '/syllabus-alignment', label: 'Syllabus Alignment', icon: ListChecks, exact: true },
 ] as const;
@@ -49,6 +51,7 @@ const adminNavItems: readonly NavItem[] = [
   { to: '/admin/ingest', label: 'Ingest', icon: FileUp, exact: true },
   { to: '/admin/references', label: 'References', icon: Library, exact: true },
   { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
+  { to: '/evaluation-map', label: 'Evaluation Map', icon: Network, exact: true },
   { to: '/admin/model-validation', label: 'Model Validation', icon: ScanSearch, exact: true },
   { to: '/admin/prompts', label: 'Prompts', icon: Settings, exact: false },
   { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },

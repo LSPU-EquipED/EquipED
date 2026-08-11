@@ -13,6 +13,7 @@ function getRouteTitle(routeId?: string): string {
   if (routeId.includes('/evaluations/$id/report')) return 'Evaluation Report';
   if (routeId.includes('/evaluations/$id')) return 'Scorecard';
   if (routeId.includes('/evaluations')) return 'Evaluations';
+  if (routeId.includes('/evaluation-map')) return 'Evaluation Map';
   if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
     return 'Evaluation Interface';
   if (routeId.includes('/matrix')) return 'Monitoring Matrix';
