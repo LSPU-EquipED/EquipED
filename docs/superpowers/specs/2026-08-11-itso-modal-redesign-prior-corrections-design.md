@@ -84,16 +84,20 @@ score/justification baseline (REJECT never carries a replacement value,
 per the prior phase's design) — but it does mean the criterion opens with
 "Flag as incorrect" already active.
 
-- The header's "N of 5 edited" count and the live subtotal preview are
-  computed from baselines (not always from the AI original) — so a
-  criterion with a prior correction counts as "edited" even before the
-  reviewer touches anything in this session.
-- The "did this criterion change" check (used for Submit and for the
-  "edited" badge) compares the current draft against *that criterion's
-  baseline*, not always the raw AI original. This is load-bearing: without
-  it, reopening a previously-corrected criterion and clicking Save changes
-  without touching it would look like a "change" (baseline ≠ AI original)
-  and silently create a duplicate no-op EDIT every time.
+- Two distinct comparisons exist, and they must not be conflated:
+  - **Submit check** ("does this need a new request?"): compares the
+    current draft against *that criterion's baseline* (prior correction if
+    one exists, else the raw AI original). This is load-bearing: without
+    it, reopening a previously-corrected criterion and clicking Save
+    changes without touching it would look like a "change" (baseline ≠ AI
+    original) and silently create a duplicate no-op EDIT every time.
+  - **Visual "edited" check** (badge, button color, header/footer counts,
+    live subtotal preview): always compares against the true AI original,
+    never the baseline. A criterion with a prior correction has, by
+    definition, already diverged from what the AI originally said, so it
+    must show as "edited" the moment the modal opens — comparing it
+    against its own baseline instead would make this check vacuously false
+    for every untouched, previously-corrected criterion.
 - **Revert** always resets to the true AI original — regardless of whether
   a prior correction existed — and collapses the criterion back to its
   compact, read-only display. The "AI scored X — {original justification}"

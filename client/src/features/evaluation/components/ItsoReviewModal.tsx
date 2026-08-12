@@ -235,6 +235,12 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
             const isJustificationEmpty = emptyJustificationIds.includes(
               criterion.criterion_id,
             );
+            // A criterion already persisted as REJECT has no backend path to
+            // retract it -- toggling the flag off here would only change
+            // local draft state, never reach the server, and reappear as
+            // flagged the next time the modal opens. Lock the toggle instead
+            // of offering an affordance that silently does nothing.
+            const alreadyRejected = criterion.reviewer_correction?.action === 'REJECT';
 
             return (
               <div
@@ -269,10 +275,15 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
                     ))}
                     <button
                       type="button"
-                      title="Flag as incorrect"
+                      title={
+                        alreadyRejected
+                          ? 'Already flagged as incorrect — cannot be retracted here'
+                          : 'Flag as incorrect'
+                      }
+                      disabled={alreadyRejected}
                       onClick={() => toggleRejected(criterion)}
                       className={cn(
-                        'inline-flex size-6 shrink-0 items-center justify-center rounded-sm border',
+                        'inline-flex size-6 shrink-0 items-center justify-center rounded-sm border disabled:cursor-not-allowed',
                         draft.rejected
                           ? 'border-[#b91c1c] bg-[#b91c1c]/10 text-[#b91c1c]'
                           : 'border-slate-200 text-slate-400 hover:bg-slate-50',
