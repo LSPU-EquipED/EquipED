@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -71,7 +70,7 @@ class Settings:
     chroma_ssl: bool = False
 
     llm_provider: str = "local"
-    llm_model_name: str = "google/gemma-2-2b-it"
+    llm_model_name: str = "equiped-gemma3-4b-qat-q4"
     llm_api_base: str | None = None
     llm_api_key: str | None = None
     llm_temperature: float = 0.2
@@ -81,25 +80,20 @@ class Settings:
     # Fits comfortably within typical 8K-context local models (e.g. Gemma-2-2B)
     # alongside the bounded prompt payload.
     llm_max_new_tokens: int = 4096
-    llm_agent_delay_seconds: int = 0
     llm_request_timeout_seconds: int = 120
-    # Per-agent model overrides. When set, the agent uses the specified model
-    # instead of llm_model_name, giving each agent its own TPM pool.
+    llm_readiness_timeout_seconds: float = 2.0
+    evaluation_heartbeat_stale_seconds: int = 300
+    llm_response_mode: str = "json_object"
+    llm_inflight_limit: int = 4
+    llm_rpm_limit: int = 0
+    llm_tpm_limit: int = 0
+    llm_local_quota_enabled: bool = False
+    # Per-agent model overrides.
     llm_model_sme: str | None = None
     llm_model_coord: str | None = None
     llm_model_gad: str | None = None
     llm_model_itso: str | None = None
     agent_debug_rubric_context: bool = False
-
-    # Seconds to wait between the SME scoring engine's LLM calls (grouped
-    # basket calls and any per-criterion fallback calls), to respect the
-    # provider token/min limit. 0 = no wait. See
-    # openspec/specs/sme-engine-scoring/spec.md.
-    sme_scoring_call_delay_seconds: int = 0
-
-    # Per-agent delay overrides (JSON dict, e.g. {"itso": 20, "gad": 5}).
-    # Falls back to llm_agent_delay_seconds for any agent not listed.
-    llm_agent_delay_per_agent: dict[str, int] = field(default_factory=dict)
 
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -135,13 +129,9 @@ class Settings:
     # including rubric_context, reference_context, and instructions — from
     # exceeding remote provider request limits.
     #
-    # Note: Groq's free tier enforces a 6,000 tokens-per-minute (TPM) cap
-    # for ``llama-3.1-8b-instant``. With ``llm_max_new_tokens=4096``
-    # reserved for output, the input must stay under ~1,900 tokens
-    # (~7,600 chars) to avoid HTTP 413 (TPM-exceeded) failures. The 8,000
-    # default (~2,000 tokens) gives a safe margin; operators on paid tiers
-    # or local models can raise it via AGENT_TOTAL_PROMPT_BUDGET_CHARS.
+    # Keep the assembled request bounded for provider-neutral local operation.
     agent_total_prompt_budget_chars: int = 8000
+    sme_total_prompt_budget_chars: int = 15000
 
     # When enabled, ITSO prompt receives bounded policy clause evidence
     # from the local policy collection. MUST only be enabled when the LLM
@@ -264,34 +254,6 @@ def get_settings() -> Settings:
     if parsed_llm_request_timeout_seconds < 1:
         raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS must be at least 1")
 
-    llm_agent_delay_seconds = _env("LLM_AGENT_DELAY_SECONDS", "0")
-    try:
-        parsed_llm_agent_delay_seconds = int(llm_agent_delay_seconds or "0")
-    except ValueError as exc:
-        raise ConfigurationError(
-            "LLM_AGENT_DELAY_SECONDS must be a valid integer"
-        ) from exc
-
-    llm_agent_delay_per_agent_raw = _env("LLM_AGENT_DELAY_PER_AGENT", "{}")
-    try:
-        parsed_llm_agent_delay_per_agent = json.loads(
-            llm_agent_delay_per_agent_raw or "{}"
-        )
-        if not isinstance(parsed_llm_agent_delay_per_agent, dict):
-            raise ConfigurationError("LLM_AGENT_DELAY_PER_AGENT must be a JSON object")
-        # Validate all values are integers
-        for key, val in parsed_llm_agent_delay_per_agent.items():
-            if not isinstance(val, int):
-                raise ConfigurationError(
-                    f"LLM_AGENT_DELAY_PER_AGENT[{key}] must be an integer"
-                )
-    except (json.JSONDecodeError, ConfigurationError):
-        raise
-    except Exception as exc:
-        raise ConfigurationError(
-            "LLM_AGENT_DELAY_PER_AGENT must be valid JSON"
-        ) from exc
-
     agent_max_chunks = _env("AGENT_MAX_CHUNKS", "12")
     try:
         parsed_agent_max_chunks = int(agent_max_chunks or "12")
@@ -320,20 +282,6 @@ def get_settings() -> Settings:
     if parsed_agent_prompt_budget_chars < 200:
         raise ConfigurationError("AGENT_PROMPT_BUDGET_CHARS must be at least 200")
 
-    sme_scoring_call_delay_seconds_raw = _env("SME_SCORING_CALL_DELAY_SECONDS", "0")
-    try:
-        parsed_sme_scoring_call_delay_seconds = int(
-            sme_scoring_call_delay_seconds_raw or "0"
-        )
-    except ValueError as exc:
-        raise ConfigurationError(
-            "SME_SCORING_CALL_DELAY_SECONDS must be a valid integer"
-        ) from exc
-    if parsed_sme_scoring_call_delay_seconds < 0:
-        raise ConfigurationError(
-            "SME_SCORING_CALL_DELAY_SECONDS must be zero or positive"
-        )
-
     agent_small_doc_threshold = _env("AGENT_SMALL_DOC_THRESHOLD", "6")
     try:
         parsed_agent_small_doc_threshold = int(agent_small_doc_threshold or "6")
@@ -357,6 +305,17 @@ def get_settings() -> Settings:
         raise ConfigurationError(
             "AGENT_TOTAL_PROMPT_BUDGET_CHARS must be at least 1000"
         )
+    sme_total_prompt_budget_chars = _env("SME_TOTAL_PROMPT_BUDGET_CHARS", "15000")
+    try:
+        parsed_sme_total_prompt_budget_chars = int(
+            sme_total_prompt_budget_chars or "15000"
+        )
+    except ValueError as exc:
+        raise ConfigurationError(
+            "SME_TOTAL_PROMPT_BUDGET_CHARS must be a valid integer"
+        ) from exc
+    if parsed_sme_total_prompt_budget_chars < 15000:
+        raise ConfigurationError("SME_TOTAL_PROMPT_BUDGET_CHARS must be at least 15000")
 
     itso_policy_delivery_enabled = _bool_env("ITSO_POLICY_DELIVERY_ENABLED", False)
     toxicity_assessment_enabled = _bool_env("TOXICITY_ASSESSMENT_ENABLED", False)
@@ -375,9 +334,7 @@ def get_settings() -> Settings:
             "TOXICITY_REQUEST_TIMEOUT_SECONDS must be a valid integer"
         ) from exc
     if parsed_toxicity_request_timeout_seconds < 1:
-        raise ConfigurationError(
-            "TOXICITY_REQUEST_TIMEOUT_SECONDS must be at least 1"
-        )
+        raise ConfigurationError("TOXICITY_REQUEST_TIMEOUT_SECONDS must be at least 1")
 
     curriculum_alignment_max_concurrent_checks_raw = _env(
         "CURRICULUM_ALIGNMENT_MAX_CONCURRENT_CHECKS", "4"
@@ -508,27 +465,36 @@ def get_settings() -> Settings:
         chroma_port=parsed_chroma_port,
         chroma_ssl=_bool_env("CHROMA_SSL", False),
         llm_provider=_env("LLM_PROVIDER", "local") or "local",
-        llm_model_name=_env("LLM_MODEL_NAME", "google/gemma-2-2b-it")
-        or "google/gemma-2-2b-it",
+        llm_model_name=_env("LLM_MODEL_NAME", "equiped-gemma3-4b-qat-q4")
+        or "equiped-gemma3-4b-qat-q4",
         llm_api_base=_env("LLM_API_BASE"),
         llm_api_key=_env("LLM_API_KEY"),
         llm_temperature=parsed_llm_temperature,
         llm_temperature_itso=parsed_llm_temperature_itso,
         llm_max_new_tokens=parsed_llm_max_new_tokens,
-        llm_agent_delay_seconds=parsed_llm_agent_delay_seconds,
         llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,
-        llm_agent_delay_per_agent=parsed_llm_agent_delay_per_agent,
+        llm_readiness_timeout_seconds=float(
+            _env("LLM_READINESS_TIMEOUT_SECONDS", "2") or "2"
+        ),
+        evaluation_heartbeat_stale_seconds=int(
+            _env("EVALUATION_HEARTBEAT_STALE_SECONDS", "300") or "300"
+        ),
+        llm_response_mode=_env("LLM_RESPONSE_MODE", "json_object") or "json_object",
+        llm_inflight_limit=int(_env("LLM_INFLIGHT_LIMIT", "4") or "4"),
+        llm_rpm_limit=int(_env("LLM_RPM_LIMIT", "0") or "0"),
+        llm_tpm_limit=int(_env("LLM_TPM_LIMIT", "0") or "0"),
+        llm_local_quota_enabled=_bool_env("LLM_LOCAL_QUOTA_ENABLED", False),
         llm_model_sme=_env("LLM_MODEL_SME"),
         llm_model_coord=_env("LLM_MODEL_COORD"),
         llm_model_gad=_env("LLM_MODEL_GAD"),
         llm_model_itso=_env("LLM_MODEL_ITSO"),
         agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
-        sme_scoring_call_delay_seconds=parsed_sme_scoring_call_delay_seconds,
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,
         agent_small_doc_threshold=parsed_agent_small_doc_threshold,
         agent_total_prompt_budget_chars=parsed_agent_total_prompt_budget_chars,
+        sme_total_prompt_budget_chars=parsed_sme_total_prompt_budget_chars,
         itso_policy_delivery_enabled=itso_policy_delivery_enabled,
         toxicity_assessment_enabled=toxicity_assessment_enabled,
         toxicity_api_base=toxicity_api_base,
@@ -559,6 +525,15 @@ def get_settings() -> Settings:
         ocr_concurrency=parsed_ocr_concurrency,
         ocr_semaphore_timeout_seconds=parsed_ocr_semaphore_timeout_seconds,
     )
+
+    if settings.llm_response_mode not in {"json_object", "json_schema"}:
+        raise ConfigurationError("LLM_RESPONSE_MODE must be json_object or json_schema")
+    if settings.llm_inflight_limit < 1:
+        raise ConfigurationError("LLM_INFLIGHT_LIMIT must be at least 1")
+    if settings.llm_rpm_limit < 0 or settings.llm_tpm_limit < 0:
+        raise ConfigurationError(
+            "LLM_RPM_LIMIT and LLM_TPM_LIMIT must be zero or positive"
+        )
 
     if settings.cors_allow_credentials and "*" in settings.cors_origins:
         raise ConfigurationError(

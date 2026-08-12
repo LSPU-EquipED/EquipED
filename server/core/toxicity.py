@@ -12,34 +12,10 @@ query / fragment are rejected.  DNS errors fail closed.
 
 from __future__ import annotations
 
-import ipaddress
-import logging
-import socket
 from typing import Any
-from urllib.parse import urlparse
 
+from server.core.endpoint_security import is_private_endpoint
 from server.core.exceptions import ConfigurationError
-
-logger = logging.getLogger(__name__)
-
-# Known safe hostnames that resolve to loopback or private addresses
-# on every development / Docker host.  These bypass DNS resolution.
-_SAFE_LOCAL_NAMES: frozenset[str] = frozenset({
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "[::1]",
-    "0.0.0.0",
-    "localhost.localdomain",
-    "localhost6",
-    "localhost6.localdomain6",
-    "host.docker.internal",
-    "docker.host.internal",
-    "gateway.docker.internal",
-})
-
-# Maximum seconds to wait for DNS resolution.
-_DNS_TIMEOUT_SECONDS = 5.0
 
 
 def validate_toxicity_endpoint(url: str) -> tuple[bool, str]:
@@ -52,83 +28,10 @@ def validate_toxicity_endpoint(url: str) -> tuple[bool, str]:
        private/loopback/link-local/ULA.
     4. DNS errors (including ambiguous / no-address results) fail closed.
     """
-    parsed = urlparse(url)
-
-    # --- Scheme --------------------------------------------------------
-    if parsed.scheme not in ("http", "https"):
-        return False, f"Scheme '{parsed.scheme}' is not http or https"
-
-    # --- Credentials / query / fragment --------------------------------
-    if parsed.username or parsed.password:
-        return False, "URL must not contain embedded credentials"
-    if parsed.query:
-        return False, "URL must not contain a query string"
-    if parsed.fragment:
-        return False, "URL must not contain a fragment"
-
-    hostname = parsed.hostname
-    if not hostname:
-        return False, "URL has no hostname"
-
-    # --- Known safe names (bypass DNS) ---------------------------------
-    if hostname.lower() in _SAFE_LOCAL_NAMES:
-        return True, ""
-
-    # --- DNS resolution guard ------------------------------------------
-    old_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(_DNS_TIMEOUT_SECONDS)
-    try:
-        try:
-            addrs = socket.getaddrinfo(hostname, None)
-        except OSError as exc:
-            return (
-                False,
-                f"Hostname '{hostname}' DNS resolution failed ({exc.args[1]})",
-            )
-
-        if not addrs:
-            return False, f"Hostname '{hostname}' resolved to no addresses"
-
-        ips: list[str] = []
-        for family, _type, _proto, _canon, sockaddr in addrs:
-            ip = sockaddr[0]
-            # Deduplicate and strip IPv6 zone IDs
-            clean = ip.split("%")[0]
-            if clean not in ips:
-                ips.append(clean)
-
-        for ip in ips:
-            if not _is_private_ip(ip):
-                return (
-                    False,
-                    f"Hostname '{hostname}' resolved to public IP {ip}",
-                )
-
-        return True, ""
-    finally:
-        socket.setdefaulttimeout(old_timeout)
-
-
-def _is_private_ip(ip_str: str) -> bool:
-    """Return True when *ip_str* is loopback, private, link-local, or ULA."""
-    try:
-        addr = ipaddress.ip_address(ip_str)
-    except ValueError:
-        return False
-
-    if addr.is_loopback:
-        return True
-    if addr.is_private:
-        return True
-    if addr.is_link_local:
-        return True
-    # Unique Local Address (IPv6 ULA, fc00::/7)
-    if isinstance(addr, ipaddress.IPv6Address):
-        # fc00::/7 — first byte masked with 0xfe equals 0xfc
-        packed = addr.packed
-        if packed[0] & 0xFE == 0xFC:  # noqa: PLR2004
-            return True
-    return False
+    allowed, reason = is_private_endpoint(url)
+    if not allowed:
+        return False, reason
+    return True, ""
 
 
 def get_toxicity_client() -> Any:
@@ -148,9 +51,7 @@ def get_toxicity_client() -> Any:
     settings = get_settings()
 
     if not settings.toxicity_assessment_enabled:
-        raise ConfigurationError(
-            "Toxicity assessment is not enabled."
-        )
+        raise ConfigurationError("Toxicity assessment is not enabled.")
 
     api_base = settings.toxicity_api_base
     model = settings.toxicity_model_name
