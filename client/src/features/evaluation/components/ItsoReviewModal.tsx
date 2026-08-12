@@ -50,6 +50,24 @@ function initialDrafts(
   );
 }
 
+// Whether the draft currently differs from the true AI original -- used for
+// the "edited" indicator (badge, blue button, header/footer counts). This is
+// intentionally distinct from baselineFor(): a criterion with an existing
+// prior correction has, by definition, already diverged from what the AI
+// originally said, and should show as "edited" the moment the modal opens,
+// independent of whether the reviewer touches anything further this
+// session. baselineFor() answers a different question -- "should a new EDIT
+// be submitted?" -- and must stay compared against the prior correction (or
+// AI original if none) so reopening an already-corrected, untouched
+// criterion sends zero requests on Save.
+function isDifferentFromOriginal(criterion: CriterionScoreItem, draft: CriterionDraft): boolean {
+  if (draft.rejected) return false;
+  return (
+    draft.score !== criterion.score ||
+    draft.justification.trim() !== criterion.justification.trim()
+  );
+}
+
 function scoreButtonClasses(value: number, selected: boolean, isEdited: boolean): string {
   if (!selected) {
     return 'border-slate-200 text-slate-400 hover:bg-slate-50';
@@ -109,15 +127,9 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
     .map((criterion) => criterion.criterion_id);
   const hasEmptyJustification = emptyJustificationIds.length > 0;
 
-  const editedCount = criteria.filter((criterion) => {
-    const draft = drafts[criterion.criterion_id];
-    if (draft.rejected) return false;
-    const baseline = baselineFor(criterion);
-    return (
-      draft.score !== baseline.score ||
-      draft.justification.trim() !== baseline.justification.trim()
-    );
-  }).length;
+  const editedCount = criteria.filter((criterion) =>
+    isDifferentFromOriginal(criterion, drafts[criterion.criterion_id]),
+  ).length;
   const flaggedCount = criteria.filter(
     (criterion) => drafts[criterion.criterion_id].rejected,
   ).length;
@@ -219,11 +231,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
         <div className="grid gap-3 px-5 py-4">
           {criteria.map((criterion) => {
             const draft = drafts[criterion.criterion_id];
-            const baseline = baselineFor(criterion);
-            const isEdited =
-              !draft.rejected &&
-              (draft.score !== baseline.score ||
-                draft.justification.trim() !== baseline.justification.trim());
+            const isEdited = isDifferentFromOriginal(criterion, draft);
             const isJustificationEmpty = emptyJustificationIds.includes(
               criterion.criterion_id,
             );
