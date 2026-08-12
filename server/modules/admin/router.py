@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
+from server.core.llm import probe_local_model_readiness
 from server.modules.admin.model_validation_service import (
     create_model_validation,
     get_admin_evaluation,
@@ -50,7 +51,8 @@ from server.modules.auth.dependencies import require_admin
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
-from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.evaluations.orchestrator import drain_evaluation_queue
+from server.modules.evaluations.service import admission_schema_ready
 from server.modules.feedback.service import list_preference_logs
 from sqlalchemy.exc import IntegrityError
 
@@ -384,6 +386,18 @@ def submit_model_validation(
     db=Depends(get_db_session),
 ):
     try:
+        probe_local_model_readiness()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Local model is unavailable.",
+        ) from exc
+    if not admission_schema_ready(db):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Evaluation admission is unavailable.",
+        )
+    try:
         response = create_model_validation(
             body,
             created_by=current_user.id,
@@ -398,7 +412,7 @@ def submit_model_validation(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
-    background_tasks.add_task(run_evaluation_job, response.evaluation_id)
+    background_tasks.add_task(drain_evaluation_queue)
     return response
 
 

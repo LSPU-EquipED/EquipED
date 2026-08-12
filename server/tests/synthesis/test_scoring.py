@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from server.modules.synthesis.matrix import AGENT_WEIGHTS, compute_synthesized_score
 from server.modules.synthesis.schemas import score_to_adjectival
 from server.tests.synthesis.conftest import make_agent_result, make_scored_agent
@@ -138,7 +137,9 @@ def test_force_partial_without_failed_agents_sets_is_partial() -> None:
     result = compute_synthesized_score(
         agent_results,
         force_partial=True,
-        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+        partial_reason=(
+            "No curriculum reference was available; Coordinator review was skipped."
+        ),
     )
 
     assert result["is_partial"] is True

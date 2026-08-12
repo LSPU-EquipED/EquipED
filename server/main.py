@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import threading
 from collections.abc import Iterable
 from contextlib import asynccontextmanager
 from importlib import import_module
@@ -16,14 +18,19 @@ from sqlalchemy.orm import Session
 from server.core.chroma import get_chroma_client
 from server.core.config import get_settings
 from server.core.database import get_engine, get_session_factory
-from server.core.exceptions import CoreError, InfrastructureUnavailableError
-from server.core.llm import get_llm_client
+from server.core.exceptions import (
+    ConfigurationError,
+    CoreError,
+    InfrastructureUnavailableError,
+)
+from server.core.llm import probe_local_model_readiness
 from server.db.metadata import import_model_modules
 from server.modules.auth.service import bootstrap_admin_if_configured
 
 logger = logging.getLogger(__name__)
 
 _LOG_CAT_ALIGNMENT_RATE_LIMIT_SCOPE = "curriculum_alignment_limiter.process_scope"
+_EVALUATION_SHUTDOWN_TIMEOUT_SECONDS = 0.25
 
 MODULE_ROUTER_PATHS = (
     "server.modules.documents.router",
@@ -79,18 +86,17 @@ def _bootstrap_admin_if_needed() -> None:
         session.close()
 
 
-def _recover_interrupted_evaluations() -> None:
-    """Run startup recovery for any non-terminal evaluation jobs.
+def _recover_interrupted_evaluations() -> bool:
+    """Requeue stale or tokenless non-terminal evaluation jobs.
 
-    Any job that is still mid-flight from a previous process (e.g. after
-    a crash) holds an execution_token. This helper clears those tokens
-    and re-runs the jobs sequentially through the normal orchestrator.
-    Recovery failures are logged but do not crash app startup.
+    Recovery clears stale execution tokens so the queue drain can process the
+    jobs later. It never executes evaluation jobs synchronously. Recovery
+    failures are logged but do not crash app startup.
     """
 
     settings = get_settings()
     if not settings.database_configured:
-        return
+        return False
 
     try:
         from server.modules.evaluations.orchestrator import (
@@ -98,15 +104,31 @@ def _recover_interrupted_evaluations() -> None:
         )
 
         session_factory = get_session_factory()
+        from server.modules.evaluations.service import admission_schema_ready
+
+        session = session_factory()
+        try:
+            if not admission_schema_ready(session):
+                logger.warning(
+                    "Evaluation startup recovery skipped: category=admission_schema "
+                    "reference=unavailable"
+                )
+                return False
+        finally:
+            session.close()
         recovered = recover_interrupted_evaluation_jobs(session_factory)
         if recovered:
             logger.info(
                 "Evaluation startup recovery re-queued %d job(s).",
                 recovered,
             )
-    except Exception:
-        # Never let recovery failure crash app startup.
-        logger.exception("Evaluation startup recovery failed.")
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Evaluation startup recovery skipped: category=%s reference=unavailable",
+            type(exc).__name__[:64],
+        )
+        return False
 
 
 def _fail_interrupted_syllabus_alignments() -> None:
@@ -189,6 +211,14 @@ def _warn_if_alignment_limits_are_multi_process() -> None:
 
 
 def create_app() -> FastAPI:
+    for key in ("WEB_CONCURRENCY", "UVICORN_WORKERS"):
+        value = os.getenv(key)
+        if value and value.isdigit() and int(value) > 1:
+            raise ConfigurationError("Evaluation service requires one worker.")
+    gunicorn_args = os.getenv("GUNICORN_CMD_ARGS", "")
+    if re.search(r"(?:^|\s)(?:--workers(?:\s+|=)|-w\s+)([2-9]\d*)\b", gunicorn_args):
+        raise ConfigurationError("Evaluation service requires one worker.")
+
     settings = get_settings()
     import_model_modules()
 
@@ -197,7 +227,35 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         _bootstrap_admin_if_needed()
-        _recover_interrupted_evaluations()
+        schema_ready = _recover_interrupted_evaluations()
+        # Recovery only requeues; evaluation execution is drained after startup.
+        drain_thread: threading.Thread | None = None
+        drain_stop = threading.Event()
+        try:
+            from server.modules.evaluations.orchestrator import drain_evaluation_queue
+
+            if schema_ready:
+
+                def run_drain() -> None:
+                    try:
+                        drain_evaluation_queue(stop_event=drain_stop)
+                    except BaseException:
+                        logger.warning(
+                            "Evaluation queue failed: "
+                            "category=evaluation_queue reference=unavailable"
+                        )
+
+                drain_thread = threading.Thread(
+                    target=run_drain, name="evaluation-drain", daemon=True
+                )
+                app.state.evaluation_drain_thread = drain_thread
+                app.state.evaluation_drain_stop_event = drain_stop
+                drain_thread.start()
+        except Exception:
+            logger.warning(
+                "Evaluation queue startup trigger skipped: category=startup "
+                "reference=unavailable"
+            )
         _fail_interrupted_syllabus_alignments()
         _recover_cleanup_pending_documents()
         _recover_no_database_uploads()
@@ -208,6 +266,16 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logger.warning(f"OCR validation failed at startup: {exc}")
         yield
+        if drain_thread is not None:
+            drain_stop.set()
+            drain_thread.join(timeout=_EVALUATION_SHUTDOWN_TIMEOUT_SECONDS)
+            if drain_thread.is_alive():
+                # A daemon may be terminated with the process; durable lease
+                # and heartbeat startup recovery handle the unfinished job.
+                logger.warning(
+                    "Evaluation queue shutdown timed out: "
+                    "category=shutdown reference=unavailable"
+                )
 
     app = FastAPI(
         title=settings.app_name,
@@ -215,6 +283,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.evaluation_drain_thread = None
+    app.state.evaluation_drain_stop_event = None
 
     if settings.cors_origins:
         app.add_middleware(
@@ -272,13 +342,30 @@ def create_app() -> FastAPI:
         if settings.database_configured:
             ok, detail = _probe_runtime_dependency("database", get_engine)
             checks["database"] = {"configured": True, "ready": ok, "detail": detail}
+            try:
+                from server.modules.evaluations.orchestrator import (
+                    is_evaluation_admission_schema_ready,
+                )
+
+                schema_ok = is_evaluation_admission_schema_ready(get_session_factory)
+            except Exception:
+                schema_ok = False
+            checks["evaluation_admission"] = {
+                "configured": True,
+                "ready": schema_ok,
+                "detail": "ok" if schema_ok else "admission schema unavailable",
+            }
 
         if settings.chroma_configured:
             ok, detail = _probe_runtime_dependency("chroma", get_chroma_client)
             checks["chroma"] = {"configured": True, "ready": ok, "detail": detail}
 
         if settings.llm_configured:
-            ok, detail = _probe_runtime_dependency("llm", get_llm_client)
+
+            def _readiness() -> None:
+                probe_local_model_readiness()
+
+            ok, detail = _probe_runtime_dependency("llm", _readiness)
             checks["llm"] = {"configured": True, "ready": ok, "detail": detail}
 
         try:

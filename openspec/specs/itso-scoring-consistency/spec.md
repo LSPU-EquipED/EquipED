@@ -18,19 +18,12 @@ The system SHALL invoke the ITSO evaluator with an ITSO-specific temperature def
 - **THEN** the result provenance SHALL record both the requested model and the actual served model
 - **AND** the system SHALL NOT represent the fallback result as having been served by the requested model alone
 
-### Requirement: ITSO evidence is frozen and provenance is bounded
-The system SHALL build one bounded ITSO evidence/provenance snapshot before agent dispatch and SHALL persist it with the ITSO result without storing raw SLM or prompt text.
+### Requirement: ITSO consistency is regression-tested
+ITSO SHALL validate an exact versioned criterion schema with no coercion, duplicates, unknown, empty, or incomplete criteria. It SHALL permit at most one whole-task regeneration from identical frozen context using bounded validator categories/paths.
 
-#### Scenario: ITSO evidence is prepared
-- **WHEN** supervisor precomputation prepares ITSO evaluation context
-- **THEN** it SHALL preserve deterministic ordered chunk identifiers, prompt/rubric identifiers or hashes, precheck version, and prompt-budget flags in an immutable snapshot
-- **AND** the ITSO execution SHALL use that snapshot rather than rebuilding its evidence independently
-
-#### Scenario: ITSO result is persisted
-- **WHEN** an ITSO result is persisted
-- **THEN** its provenance SHALL record actual model, fallback/repair indicators, context or prompt trim indicators, and bounded evidence identifiers or hashes
-- **AND** it SHALL NOT persist raw prompt text, raw SLM text, full chunk text, credentials, or external request payloads
-
+#### Scenario: Invalid judgment
+- **WHEN** output fails the exact schema
+- **THEN** one safe regeneration occurs at most, then the result fails honestly without raw-output persistence
 ### Requirement: Local citation and reference prechecks are deterministic and advisory
 The system SHALL derive stable local citation/reference precheck signals from already-authorized SLM evidence before ITSO prompt assembly. These signals SHALL inform review but SHALL NOT make plagiarism, legal, or source-validity determinations.
 
@@ -56,3 +49,11 @@ The system SHALL provide fixture-driven tests and an offline benchmark harness f
 - **THEN** the benchmark SHALL report criterion/subtotal variation together with actual-model, fallback, repair, and trimming provenance
 - **AND** it SHALL not modify production evaluation scores or job status
 
+
+
+### Requirement: ITSO evidence is frozen and provenance is bounded
+ITSO SHALL prepare one frozen task containing exact active criteria, packed evidence IDs/hashes, precheck and policy mode. Remote requests SHALL receive status-only policy evidence; policy content SHALL be local-only and never fall back externally. Only normalized output and bounded typed metadata SHALL persist; raw responses SHALL NOT persist.
+
+#### Scenario: Policy locality
+- **WHEN** policy evidence is disabled or a remote provider is selected
+- **THEN** no policy clauses are delivered and local-only mode cannot fall back externally

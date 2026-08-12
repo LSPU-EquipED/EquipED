@@ -48,3 +48,11 @@ The system SHALL require every `policy` document to have exactly one recognized 
 #### Scenario: Policy area validation rejects invalid combinations
 - **WHEN** a policy upload has no recognized policy area or a non-policy upload supplies a policy area
 - **THEN** the system SHALL reject the upload before file persistence
+
+
+### Requirement: ITSO policy clause delivery is locality- and approval-gated
+Policy clause delivery SHALL require both explicit approval and a technically local endpoint. A local-only sensitive request SHALL never fall back remotely. When blocked, the provider SHALL receive status-only evidence.
+
+#### Scenario: Blocked policy delivery
+- **WHEN** approval is absent or endpoint locality fails
+- **THEN** no policy clauses are delivered and the request remains status-only

@@ -10,7 +10,8 @@
 - Modules should communicate through explicit service interfaces or shared contracts, not by reaching into another module's internals.
 - Keep the module split intact: `documents`, `embeddings`, `evaluations`, `agents`, `synthesis`, `feedback`, `admin`.
 - Preserve the evaluation contract boundary: Layer 3 multi-agent evaluation runs, Layer 4 is the honest stop per `openspec/specs/evaluations/spec.md`.
-- Phase 1 uses FastAPI `BackgroundTasks` with parallel agent execution via `ThreadPoolExecutor` for I/O-bound LLM calls. Each agent uses a distinct model to avoid rate-limit contention. Celery/Redis remain deferred.
+- Phase 1 uses FastAPI `BackgroundTasks` with parallel agent execution via `ThreadPoolExecutor` for I/O-bound LLM calls. Agent aliases may share the local Gemma endpoint and shared gate; one worker remains required. Celery/Redis remain deferred.
+- Run one FastAPI worker in deployment; the database admission lease protects against accidental extra workers.
 - Document ownership is per-user for all roles.
 - The embeddings module handles reference, rubric, and policy document vectorization; SLMs skip embedding entirely. Policy documents live in a dedicated admin-only Chroma collection.
 - Human roles are `admin` and `faculty`; evaluator domains/agents are `sme`, `coordinator`, `gad`, and `itso`.

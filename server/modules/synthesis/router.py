@@ -24,6 +24,7 @@ from server.modules.synthesis.service import (
 
 router = APIRouter(prefix="/evaluations", tags=["synthesis"])
 
+
 @router.get("/{evaluation_id}/results", response_model=EvaluationResultsResponse)
 def get_evaluation_results(
     evaluation_id: uuid.UUID,
@@ -31,9 +32,7 @@ def get_evaluation_results(
     db=Depends(get_db_session),
 ):
     try:
-        return service_get_evaluation_results(
-            evaluation_id, current_user.id, db=db
-        )
+        return service_get_evaluation_results(evaluation_id, current_user.id, db=db)
     except EvaluationResultsNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
