@@ -42,44 +42,12 @@ The system SHALL persist Layer 3 outputs for the evaluation job after all parall
 - **WHEN** evaluation outputs are saved
 - **THEN** the system SHALL associate them with the owning evaluation job and document owner
 
-### Requirement: Layer 4 synthesis and monitoring matrix updates
-The system SHALL run Layer 4 synthesis after persisting Layer 3 outputs, including weighted score aggregation, monitoring matrix updates, and COMPLETED/FAILED job transitions.
+### Requirement: Evaluation lifecycle status sequence
+Evaluation jobs SHALL use CAS/token transitions and heartbeat-aware recovery; each logical LLM request SHALL use the transport's absolute monotonic request deadline, and `EMBEDDING` SHALL NOT be used.
 
-**Domain weights for synthesized scoring:**
-- SME (Subject Matter Expert): 35%
-- Coordinator (Program Coordinator): 30%
-- GAD (Gender & Development): 20%
-- ITSO (IT Security Officer): 15%
-
-**Normalization:** If an agent fails, is skipped, or is missing, the weights of successful agents SHALL be normalized to sum to 100%. If all agents fail, the synthesized score SHALL be 0.0 and the result SHALL be marked as partial. No-curriculum partial evaluations SHALL be marked partial because Coordinator curriculum-grounded review is unavailable, but SHALL complete successfully because the partial mode was explicitly selected.
-
-#### Scenario: Synthesis runs after Layer 3
-- **WHEN** Layer 3 persistence succeeds
-- **THEN** the system SHALL transition to `SYNTHESIZING`, compute weighted domain scores, and write a `monitoring_matrix` row
-
-#### Scenario: Successful weighted synthesis
-- **GIVEN** an evaluation with SME 90, Coordinator 80, GAD 100, ITSO 70
-- **WHEN** synthesis runs
-- **THEN** the synthesized score SHALL be approximately 86.0 (90×0.35 + 80×0.30 + 100×0.20 + 70×0.15)
-
-#### Scenario: Synthesis with a failed agent
-- **GIVEN** an evaluation where GAD failed but SME, Coordinator, and ITSO succeeded
-- **WHEN** synthesis runs
-- **THEN** the weights for SME (35%), Coordinator (30%), and ITSO (15%) SHALL be normalized to sum to 100%
-- **AND** a synthesized score SHALL still be produced based on available data with `is_partial=True`
-
-#### Scenario: Synthesis with no-curriculum partial evaluation
-- **GIVEN** a no-curriculum partial evaluation where SME, GAD, and ITSO succeeded and Coordinator was skipped or marked limited
-- **WHEN** synthesis runs
-- **THEN** the weights for SME (35%), GAD (20%), and ITSO (15%) SHALL be normalized to sum to 100%
-- **AND** the synthesized output SHALL be marked partial with a missing-curriculum explanation
-- **AND** the evaluation job SHALL transition to `COMPLETED` rather than `FAILED`
-
-#### Scenario: Synthesis completes and job finishes
-- **WHEN** synthesis and matrix updates succeed
-- **THEN** the system SHALL transition the job to `COMPLETED` for complete results or deliberate no-curriculum partial results
-- **AND** the system SHALL transition to `FAILED` for accidental partial results caused by agent execution failures
-
+#### Scenario: Stale worker recovery
+- **WHEN** a non-terminal heartbeat is stale
+- **THEN** recovery claims or fails the job only through an ownership-safe CAS transition and drains the next FIFO job
 ### Requirement: Evaluation polling is limited to the owning user
 The system SHALL only expose evaluation status for jobs owned by the authenticated user who is polling them.
 
@@ -191,3 +159,11 @@ When curriculum retirement is active, the system SHALL reject a new evaluation u
 #### Scenario: Direct API caller bypasses setup
 - **WHEN** a caller submits a new evaluation without confirmed program context or explicit partial intent
 - **THEN** the system SHALL reject the request
+
+
+### Requirement: Layer 4 synthesis and monitoring matrix updates
+The system SHALL run deterministic Layer 4 synthesis as the terminal automated output. Explicit no-curriculum partial jobs SHALL complete honestly as `COMPLETED` with `COMPLETED_PARTIAL`; requested full jobs with missing curriculum or Coordinator failure SHALL terminate `FAILED` after available outputs are synthesized.
+
+#### Scenario: Terminal synthesis
+- **WHEN** Layer 3 persistence finishes
+- **THEN** deterministic synthesis writes the matrix and no further automated layer runs

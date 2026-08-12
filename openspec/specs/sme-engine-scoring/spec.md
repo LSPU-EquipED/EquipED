@@ -18,28 +18,12 @@ The registered criteria SHALL be `OP-01` through `OP-05` and `A-01` through `A-0
 - **WHEN** the SME engine completes successfully
 - **THEN** it SHALL return the same structured agent-result contract used by the other evaluation agents
 
-### Requirement: SME fact extraction is deterministic and basketed
-The SME engine SHALL request factual extraction at temperature `0.0` before code-owned scoring. It SHALL use the following six independently executable baskets:
+### Requirement: Engine extraction uses bounded, representative document slices
+SME SHALL consume canonical clean source text prepared before dispatch and SHALL NOT reopen PDFs or duplicate full source persistence.
 
-| Basket | Criteria | Purpose |
-| --- | --- | --- |
-| A1 | `A-02`, `A-05` | objectives and assessment evidence |
-| A2 | `A-01`, `OP-02`, `OP-03` | task evidence |
-| A3 | `A-03` | progress-monitoring evidence |
-| A4 | `OP-05` | enhancement-activity evidence |
-| B1 | `OP-01`, `A-04` | topic coherence and feedback evidence |
-| B2 | `OP-04` | section-consistency evidence |
-
-`A-03`, `OP-05`, and `OP-04` SHALL remain single-purpose baskets unless a new validation establishes that grouped extraction preserves their evidence. They previously returned empty facts when treated as secondary categories in larger prompts.
-
-#### Scenario: A basket fails independently
-- **WHEN** one basket fails to return usable facts
-- **THEN** the system SHALL preserve facts returned by other baskets and attempt the missing basket's criteria through the bounded per-criterion fallback path
-
-#### Scenario: All extraction for a criterion fails
-- **WHEN** both the grouped basket and per-criterion fallback fail for a registered criterion
-- **THEN** the SME execution SHALL fail honestly rather than emit an invented score for that criterion
-
+#### Scenario: Canonical source dispatch
+- **WHEN** SME evaluates a document
+- **THEN** it scores from the shared canonical text and records bounded telemetry only
 ### Requirement: Coverage criteria use defined ratio bands
 The engine SHALL score `OP-01`, `OP-03`, `OP-04`, `A-01`, and `A-05` using a coverage ratio. Standard moderate ratio bands SHALL be score `4` at 80 percent or greater, score `3` at 50 percent or greater, score `2` at 20 percent or greater, and score `1` below 20 percent. An empty denominator SHALL score `1`, because the absence of units to measure is a deficiency, except for the documented `OP-01` short-document rule.
 
@@ -169,3 +153,19 @@ The scoring contract SHALL preserve the following known limitations without trea
 #### Scenario: Known scoring limitation is revisited
 - **WHEN** future work changes a bounded A-01/A-04 correction or the A-05 objective hierarchy
 - **THEN** it SHALL establish and document the institutional counting rule with representative evidence before changing the current behavior
+
+
+### Requirement: SME completion and fixed budgets are honest
+An SME basket with provider `finish_reason=length` SHALL be invalid. Contractually fixed source slices and completion caps SHALL NOT be silently trimmed. Valid empty arrays SHALL remain valid findings.
+
+#### Scenario: Truncated basket
+- **WHEN** the provider finishes a basket with reason `length`
+- **THEN** that basket fails and follows the bounded fallback path without scoring truncated output
+
+
+### Requirement: SME fact extraction is deterministic and basketed
+SME SHALL use strict non-coercing agent-local schemas for grouped and per-criterion responses. Missing, wrong, duplicate, unknown, or invalid-reference fields SHALL invalidate an atomic basket; valid empty arrays remain valid findings. Existing bounded per-criterion fallback SHALL be used without an SME repair call, and failed criteria SHALL fail honestly rather than receive invented scores.
+
+#### Scenario: Empty object is rejected
+- **WHEN** a basket returns `{}`
+- **THEN** it is schema-invalid and uses the existing bounded fallback rather than becoming a low score

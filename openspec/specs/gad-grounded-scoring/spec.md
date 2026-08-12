@@ -28,21 +28,12 @@ The system SHALL validate all combined extraction sections before scoring any cr
 - **WHEN** the registry receives identical validated facts and the same registry version
 - **THEN** it SHALL produce identical final scores for all GAD criteria
 
-### Requirement: GAD evidence is grounded in frozen evaluation context
-The system SHALL validate GAD-01/03/04/05 candidate excerpts and references against the ordered chunk identifiers in the frozen GAD context before scoring. Unknown identifiers, malformed references, duplicate normalized excerpts, and excerpts absent from their cited chunk SHALL NOT be accepted as grounded evidence. GAD-02 remains count-based in this change.
+### Requirement: Combined extraction failures are bounded and honest
+GAD prompt budgets SHALL be derived from serialized prompt contents. Repair SHALL be one whole-envelope attempt over frozen context with bounded validator category/path and no rejected-output echo; no criterion-level fallback is allowed.
 
-#### Scenario: Unknown evidence reference is rejected
-- **WHEN** a combined extraction cites a chunk identifier outside the frozen GAD context
-- **THEN** the system SHALL reject that reference and SHALL NOT use it as scoring evidence
-
-#### Scenario: No evidence is not treated as automatic noncompliance
-- **WHEN** a criterion has no accepted grounded evidence
-- **THEN** the system SHALL apply the existing criterion-specific missing-evidence rule without asserting noncompliance solely from absence
-
-#### Scenario: All candidate evidence is rejected
-- **WHEN** no GAD-01/03/04/05 candidate excerpt survives grounding validation
-- **THEN** the system SHALL retain the existing zero-accepted-instance scoring behavior and record bounded grounding-degradation provenance
-
+#### Scenario: Oversized envelope
+- **WHEN** the serialized prompt exceeds the configured budget
+- **THEN** packing and repair remain bounded and the agent does not issue extra criterion calls
 ### Requirement: Combined extraction failures are bounded and honest
 The system SHALL use at most one GAD-specific whole-envelope repair attempt for malformed, duplicate, missing, or field-invalid combined output. The repair SHALL use the same frozen context and SHALL request the complete fact-only envelope without numeric scores. If required criterion sections remain invalid after bounded repair, the system SHALL record one GAD failure with known runtime metadata when available and SHALL use normal partial-evaluation synthesis behavior without issuing criterion-level fallback calls.
 
@@ -71,3 +62,19 @@ The system SHALL support controlled comparison of current and single-pass GAD be
 #### Scenario: Benchmark captures acceptance evidence
 - **WHEN** maintainers run the GAD comparison benchmark
 - **THEN** the system SHALL report runtime and criterion-level result data sufficient for human review before replacing the current extraction topology
+
+
+### Requirement: GAD frozen context and schema versions are stable
+Duplicate frozen chunk IDs SHALL fail closed. Changes to the extraction envelope SHALL bump the extraction-schema version without changing deterministic registry thresholds.
+
+#### Scenario: Duplicate context IDs
+- **WHEN** frozen GAD context contains duplicate chunk identifiers
+- **THEN** extraction fails closed before evidence grounding or scoring
+
+
+### Requirement: GAD evidence is grounded in frozen evaluation context
+GAD SHALL match cited source text and chunk IDs exactly; normalization is permitted only for duplicate detection. Every supplied instance SHALL be validated before applying the cap of ten.
+
+#### Scenario: Near-match citation
+- **WHEN** an excerpt differs by case or whitespace from its cited chunk
+- **THEN** it is rejected as ungrounded

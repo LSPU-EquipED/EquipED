@@ -39,7 +39,32 @@ def persist_agent_outputs(
     evaluation_id: uuid.UUID,
     document_id: uuid.UUID,
     agent_results: list[AgentEvaluationResult],
+    *,
+    verify_ownership=None,
+    commit: bool = True,
 ) -> None:
+    if verify_ownership is not None:
+        verify_ownership(db)
+    parsed_chunk_ids: set[uuid.UUID] = set()
+    for agent_result in agent_results:
+        for score in agent_result.criterion_scores:
+            for chunk_id in score.chunk_ids:
+                try:
+                    parsed_chunk_ids.add(uuid.UUID(str(chunk_id)))
+                except (TypeError, ValueError, AttributeError):
+                    continue
+    owned_chunks = {
+        chunk.chunk_id
+        for chunk in (
+            db.query(DocumentChunk)
+            .filter(
+                DocumentChunk.document_id == document_id,
+                DocumentChunk.chunk_id.in_(parsed_chunk_ids),
+            )
+            .all()
+        )
+    }
+
     for agent_result in agent_results:
         if not agent_result.success:
             result_row = AgentResult(
@@ -84,7 +109,7 @@ def persist_agent_outputs(
         db.flush()
 
         for score in agent_result.criterion_scores:
-            valid_chunk_ids = _validated_chunk_ids(db, score.chunk_ids)
+            valid_chunk_ids = _validated_chunk_ids(score.chunk_ids, owned_chunks)
             score_row = CriterionScore(
                 agent_result_id=result_row.agent_result_id,
                 evaluation_id=evaluation_id,
@@ -117,7 +142,10 @@ def persist_agent_outputs(
                     )
                     db.add(flag_row)
 
-    db.commit()
+    if verify_ownership is not None:
+        verify_ownership(db)
+    if commit:
+        db.commit()
 
 
 def persist_evaluation_results(
@@ -307,16 +335,16 @@ def get_monitoring_matrix(
     return MatrixListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
-def _validated_chunk_ids(db: Any, chunk_ids: tuple[str, ...]) -> list[uuid.UUID]:
+def _validated_chunk_ids(
+    chunk_ids: tuple[str, ...], owned_chunks: set[uuid.UUID]
+) -> list[uuid.UUID]:
     valid_chunk_ids: list[uuid.UUID] = []
     for chunk_id in chunk_ids:
         try:
             parsed_chunk_id = uuid.UUID(str(chunk_id))
         except (TypeError, ValueError, AttributeError):
             continue
-        if db.get(DocumentChunk, parsed_chunk_id) is None:
-            continue
-        if parsed_chunk_id not in valid_chunk_ids:
+        if parsed_chunk_id in owned_chunks and parsed_chunk_id not in valid_chunk_ids:
             valid_chunk_ids.append(parsed_chunk_id)
     return valid_chunk_ids
 

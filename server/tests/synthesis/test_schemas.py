@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from server.modules.synthesis.schemas import (
     CriterionScoreItem,
@@ -92,7 +92,11 @@ def test_criterion_score_item_evidence_and_chunk_ids_are_optional() -> None:
 
 def test_domain_score_block_accepts_adjectival_rating() -> None:
     block = DomainScoreBlock(
-        criteria=[], subtotal=3.5, max_score=4, status="OK", adjectival_rating="Very Satisfactory"
+        criteria=[],
+        subtotal=3.5,
+        max_score=4,
+        status="OK",
+        adjectival_rating="Very Satisfactory",
     )
     assert block.adjectival_rating == "Very Satisfactory"
 

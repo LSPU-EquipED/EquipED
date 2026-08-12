@@ -5,18 +5,14 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
-
+from server.modules.documents.models import Document
 from server.modules.synthesis.models import (
     AgentResult,
-    CriterionScore,
-    EvaluationFlag,
     MonitoringMatrix,
 )
 from server.modules.synthesis.schemas import score_to_adjectival
-from server.modules.documents.models import Document
-
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 AGENT_WEIGHTS: dict[str, float] = {
     "sme": 0.35,
@@ -46,15 +42,15 @@ def compute_synthesized_score(
         }
 
     if active:
-        active_weight_sum = sum(
-            AGENT_WEIGHTS.get(a.agent_name, 0.0) for a in active
-        )
+        active_weight_sum = sum(AGENT_WEIGHTS.get(a.agent_name, 0.0) for a in active)
         normalized = {
             a.agent_name: AGENT_WEIGHTS.get(a.agent_name, 0.0) / active_weight_sum
             for a in active
         }
 
-        synthesized = sum(normalized[a.agent_name] * _domain_pct(a.subtotal) for a in active)
+        synthesized = sum(
+            normalized[a.agent_name] * _domain_pct(a.subtotal) for a in active
+        )
         synthesized_score = round(synthesized, 2)
 
         overall = sum(normalized[a.agent_name] * float(a.subtotal) for a in active)
@@ -77,7 +73,9 @@ def compute_synthesized_score(
     return {
         "synthesized_score": synthesized_score,
         "overall_score": overall_score,
-        "adjectival_rating": score_to_adjectival(overall_score) if overall_score is not None else None,
+        "adjectival_rating": score_to_adjectival(overall_score)
+        if overall_score is not None
+        else None,
         "domain_scores": domain_scores,
         "active_agents": [a.agent_name for a in active],
         "failed_agents": [a.agent_name for a in failed],

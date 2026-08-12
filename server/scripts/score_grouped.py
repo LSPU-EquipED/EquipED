@@ -33,8 +33,16 @@ from server.modules.agents.sme import registry  # noqa: E402
 UPLOADS = ROOT / "uploads"
 
 CRITERION_ORDER = (
-    "A-01", "A-02", "A-03", "A-04", "A-05",
-    "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
+    "A-01",
+    "A-02",
+    "A-03",
+    "A-04",
+    "A-05",
+    "OP-01",
+    "OP-02",
+    "OP-03",
+    "OP-04",
+    "OP-05",
 )
 
 
@@ -63,13 +71,6 @@ def main() -> int:
     parser.add_argument(
         "--doc", required=True, help="PDF filename in uploads/ or a path"
     )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=15.0,
-        help="Seconds to wait between the 6 basket calls (rate-limit pacing, "
-        "mirrors SME_SCORING_CALL_DELAY_SECONDS). Default 15.",
-    )
     args = parser.parse_args()
 
     path = resolve_doc(args.doc)
@@ -77,13 +78,15 @@ def main() -> int:
     print(f"SLM: {path.name} ({len(text)} chars)  |  mode: GROUPED (6 basket calls)")
 
     client = get_llm_client()
-    results = registry.run_grouped(client, text, delay=args.delay)
+    results = registry.run_grouped(client, text)
 
     print()
     for code in CRITERION_ORDER:
         if code not in results:
-            print(f"[{code}] MISSING -- basket failed or compute() raised for "
-                  f"this criterion; per-criterion fallback would apply here.")
+            print(
+                f"[{code}] MISSING -- basket failed or compute() raised for "
+                f"this criterion; per-criterion fallback would apply here."
+            )
             continue
         score, justification, evidence = results[code]
         print(f"[{code}] SCORE {score}")
@@ -94,8 +97,10 @@ def main() -> int:
 
     missing = [c for c in CRITERION_ORDER if c not in results]
     if missing:
-        print(f"({len(missing)} criteria missing from grouped result: "
-              f"{', '.join(missing)})")
+        print(
+            f"({len(missing)} criteria missing from grouped result: "
+            f"{', '.join(missing)})"
+        )
     return 0
 
 

@@ -50,3 +50,15 @@ The system SHALL retry an agent's LLM call with the global fallback model (`LLM_
 #### Scenario: Model deprecation (HTTP 404)
 - **WHEN** an agent's assigned model returns HTTP 404 (model not found / deprecated)
 - **THEN** the system SHALL retry with the fallback model without consuming retry attempts on the deprecated model
+
+
+### Requirement: Per-agent model configuration preserves truthful routing
+Agent aliases MAY resolve to the same model and SHALL NOT imply independent quota pools. Clients sharing provider, endpoint, and model SHALL share one provider gate. Implicit global and same-target fallback SHALL be removed; only explicitly configured distinct endpoint/model/privacy-compatible fallback is allowed. Configuration examples SHALL be provider-generic and not assume stale Llama models.
+
+#### Scenario: Shared alias quota
+- **WHEN** two agents resolve to the same provider, endpoint, and model
+- **THEN** both requests use the same gate and quota accounting
+
+#### Scenario: Fallback boundary
+- **WHEN** a request fails without an explicit distinct compatible fallback
+- **THEN** it fails without silently selecting another target
