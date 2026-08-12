@@ -1,0 +1,182 @@
+"""Tests for get_evaluation_results' reviewer_correction surfacing."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from server.modules.documents.models import Document
+from server.modules.evaluations.models import EvaluationJob
+from server.modules.feedback.models import PreferenceLog
+from server.modules.synthesis.models import AgentResult, CriterionScore
+from server.modules.synthesis.service import get_evaluation_results
+
+
+def _seed(db_session, *, user_id):
+    document_id = uuid4()
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title="doc",
+            program="BSCS",
+            source_type="slm",
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=user_id,
+            uploaded_at=datetime.now(UTC),
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status="PROCESSED",
+        )
+    )
+    db_session.flush()
+    job = EvaluationJob(
+        evaluation_id=uuid4(), document_id=document_id, submitted_by=user_id
+    )
+    db_session.add(job)
+    db_session.flush()
+
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name="itso",
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="ok",
+        success=True,
+        prompt_text='{"agent": "itso"}',
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
+    for criterion_id, score, justification in [
+        ("itso-01", 4, "No plagiarism detected."),
+        ("itso-02", 1, "No reference section found."),
+        ("itso-03", 2, "No ownership statement present."),
+    ]:
+        db_session.add(
+            CriterionScore(
+                agent_result_id=agent_result.agent_result_id,
+                evaluation_id=job.evaluation_id,
+                document_id=document_id,
+                criterion_id=criterion_id,
+                criterion_title=criterion_id,
+                score=score,
+                justification=justification,
+            )
+        )
+    db_session.commit()
+    return job
+
+
+def test_untouched_criterion_has_no_reviewer_correction(db_session, seeded_user):
+    job = _seed(db_session, user_id=seeded_user.user_id)
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
+    assert by_id["itso-01"].reviewer_correction is None
+
+
+def test_edited_criterion_surfaces_latest_correction(db_session, seeded_user):
+    job = _seed(db_session, user_id=seeded_user.user_id)
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="itso",
+            criterion_id="itso-02",
+            action="EDIT",
+            edited_json={"score": 3, "justification": "Reference section is included"},
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
+    correction = by_id["itso-02"].reviewer_correction
+    assert correction is not None
+    assert correction.action == "EDIT"
+    assert correction.score == 3
+    assert correction.justification == "Reference section is included"
+
+
+def test_rejected_criterion_has_no_score_or_justification(db_session, seeded_user):
+    job = _seed(db_session, user_id=seeded_user.user_id)
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="itso",
+            criterion_id="itso-03",
+            action="REJECT",
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
+    correction = by_id["itso-03"].reviewer_correction
+    assert correction is not None
+    assert correction.action == "REJECT"
+    assert correction.score is None
+    assert correction.justification is None
+
+
+def test_only_latest_edit_wins(db_session, seeded_user):
+    job = _seed(db_session, user_id=seeded_user.user_id)
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="itso",
+            criterion_id="itso-02",
+            action="EDIT",
+            edited_json={"score": 2, "justification": "first correction"},
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+    )
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="itso",
+            criterion_id="itso-02",
+            action="EDIT",
+            edited_json={
+                "score": 3,
+                "justification": "second, more recent correction",
+            },
+            created_at=datetime(2026, 1, 2, tzinfo=UTC),
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
+    correction = by_id["itso-02"].reviewer_correction
+    assert correction.score == 3
+    assert correction.justification == "second, more recent correction"
+
+
+def test_accept_action_does_not_surface_as_reviewer_correction(db_session, seeded_user):
+    job = _seed(db_session, user_id=seeded_user.user_id)
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="itso",
+            criterion_id="itso-01",
+            action="ACCEPT",
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
+    assert by_id["itso-01"].reviewer_correction is None

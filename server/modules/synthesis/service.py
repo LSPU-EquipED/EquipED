@@ -12,6 +12,7 @@ from server.modules.agents.provenance import sanitize_provenance
 from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
+from server.modules.feedback.models import PreferenceLog
 from server.modules.synthesis.exceptions import (
     EvaluationResultsNotFoundError,
     UnsupportedProgramFilterError,
@@ -32,6 +33,17 @@ from server.modules.synthesis.schemas import (
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
+
+
+def _reviewer_correction_payload(log: PreferenceLog | None) -> dict[str, Any] | None:
+    if log is None:
+        return None
+    edited = log.edited_json or {}
+    return {
+        "action": log.action,
+        "score": edited.get("score"),
+        "justification": edited.get("justification"),
+    }
 
 
 def persist_agent_outputs(
@@ -184,6 +196,22 @@ def get_evaluation_results(
     )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
+    # Latest ITSO reviewer correction per criterion (latest wins, same rule
+    # export_dpo_pairs.py already uses). ACCEPT is excluded -- it carries
+    # no score/justification and nothing in the UI sends it anymore.
+    itso_corrections: dict[str, PreferenceLog] = {}
+    for log in (
+        db.query(PreferenceLog)
+        .filter(
+            PreferenceLog.evaluation_id == evaluation_id,
+            PreferenceLog.agent_name == "itso",
+            PreferenceLog.action.in_(["EDIT", "REJECT"]),
+        )
+        .order_by(PreferenceLog.created_at.desc())
+        .all()
+    ):
+        itso_corrections.setdefault(log.criterion_id, log)
+
     synthesis_result = compute_synthesized_score(
         agent_results,
         force_partial=job.partial_without_curriculum,
@@ -209,6 +237,13 @@ def get_evaluation_results(
                     "justification": score.justification,
                     "evidence": score.evidence,
                     "chunk_ids": score.chunk_ids,
+                    "reviewer_correction": (
+                        _reviewer_correction_payload(
+                            itso_corrections.get(score.criterion_id)
+                        )
+                        if result.agent_name == "itso"
+                        else None
+                    ),
                 }
                 for score in criteria_by_result.get(result.agent_result_id, [])
             ],
