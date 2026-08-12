@@ -22,6 +22,8 @@ CRITERIA = {
 def _settings(enabled=False):
     return SimpleNamespace(
         itso_policy_delivery_enabled=enabled,
+        llm_provider="local",
+        llm_api_base="http://127.0.0.1:8000/v1",
         agent_max_chunks=10,
         agent_max_excerpt_chars=1000,
         agent_prompt_budget_chars=10000,
@@ -95,10 +97,7 @@ def test_blocked_policy_does_no_embedding_or_retrieval(monkeypatch, settings):
     )
     assert set(policy_provenance) == set(CRITERIA)
     safe_provenance = {key: dict(value) for key, value in policy_provenance.items()}
-    assert all(
-        secret not in str(safe_provenance)
-        for secret in ("clause", "text", "x")
-    )
+    assert all(secret not in str(safe_provenance) for secret in ("clause", "text", "x"))
 
 
 def test_enabled_delivery_without_db_is_blocked_from_retrieval(monkeypatch):
@@ -126,8 +125,13 @@ def test_enabled_delivery_groups_concrete_clauses(monkeypatch):
     def retrieve(criterion_id, embedding, db, *, max_chunks):
         area = CRITERIA[criterion_id]
         chunk = PolicyEvidenceChunk(
-            criterion_id + "-chunk", "doc", "approved " + criterion_id,
-            area, 1, 2, 0.1,
+            criterion_id + "-chunk",
+            "doc",
+            "approved " + criterion_id,
+            area,
+            1,
+            2,
+            0.1,
         )
         return PolicyRetrievalResult(area, "available", (chunk,), "b" * 64)
 

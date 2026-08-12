@@ -18,28 +18,48 @@ logger = logging.getLogger(__name__)
 # Registry version lives in registry.REGISTRY_VERSION — DO NOT duplicate
 # ---------------------------------------------------------------------------
 
-EXTRACTION_SCHEMA_VERSION = "1.0.0"
+EXTRACTION_SCHEMA_VERSION = "2.0.0"
 """Version of the combined extraction envelope schema."""
+
+
+def extraction_schema() -> dict[str, Any]:
+    """Return the task-local transport schema; parser remains authoritative."""
+    # Transport schema is intentionally structural; the authoritative parser
+    # enforces the closed per-section contract and exact types.
+    sections = {
+        key: {"type": "object", "additionalProperties": True}
+        for key in ("gad-01", "gad-02", "gad-03", "gad-04", "gad-05")
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(sections),
+        "properties": sections,
+    }
 
 
 # ---------------------------------------------------------------------------
 # Canonical section keys — the ONLY accepted top-level envelope keys.
 # ---------------------------------------------------------------------------
 
-CANONICAL_SECTION_KEYS: frozenset[str] = frozenset({
-    "gad-01",
-    "gad-02",
-    "gad-03",
-    "gad-04",
-    "gad-05",
-})
+CANONICAL_SECTION_KEYS: frozenset[str] = frozenset(
+    {
+        "gad-01",
+        "gad-02",
+        "gad-03",
+        "gad-04",
+        "gad-05",
+    }
+)
 
-_INSTANCE_SECTION_KEYS: frozenset[str] = frozenset({
-    "gad-01",
-    "gad-03",
-    "gad-04",
-    "gad-05",
-})
+_INSTANCE_SECTION_KEYS: frozenset[str] = frozenset(
+    {
+        "gad-01",
+        "gad-03",
+        "gad-04",
+        "gad-05",
+    }
+)
 
 _BALANCE_SECTION_KEYS: frozenset[str] = frozenset({"gad-02"})
 
@@ -47,22 +67,24 @@ _BALANCE_SECTION_KEYS: frozenset[str] = frozenset({"gad-02"})
 # Numeric-score blocklist — every known alias that assigns scores.
 # ---------------------------------------------------------------------------
 
-_SCORE_BLOCKLIST: frozenset[str] = frozenset({
-    "score",
-    "criterion_score",
-    "numeric_score",
-    "band",
-    "score_band",
-    "final_score",
-    "subtotal",
-    "rating",
-    "grade",
-    "mark",
-    "points",
-    "value",
-    "result",
-    "level",
-})
+_SCORE_BLOCKLIST: frozenset[str] = frozenset(
+    {
+        "score",
+        "criterion_score",
+        "numeric_score",
+        "band",
+        "score_band",
+        "final_score",
+        "subtotal",
+        "rating",
+        "grade",
+        "mark",
+        "points",
+        "value",
+        "result",
+        "level",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # 1.2 — Strict combined response parsing with object_pairs_hook
@@ -121,9 +143,7 @@ def parse_combined_response(raw_response: str) -> dict[str, Any]:
     except (json.JSONDecodeError, ValueError) as exc:
         msg = str(exc)
         if "duplicate key" in msg.lower():
-            raise AgentExecutionError(
-                f"GAD combined response has {msg}"
-            ) from exc
+            raise AgentExecutionError(f"GAD combined response has {msg}") from exc
         raise AgentExecutionError(
             f"GAD combined response is invalid JSON: {exc}"
         ) from exc
@@ -141,8 +161,7 @@ def parse_combined_response(raw_response: str) -> dict[str, Any]:
     unknown = set(normalised) - CANONICAL_SECTION_KEYS
     if unknown:
         raise AgentExecutionError(
-            f"GAD combined response contains unknown section(s): "
-            f"{sorted(unknown)}"
+            f"GAD combined response contains unknown section(s): {sorted(unknown)}"
         )
 
     # --- Reject missing required sections ---
@@ -196,25 +215,31 @@ def _reject_score_fields(obj: Any, path: str = "") -> None:
 # Per-section strict schema validation
 # ---------------------------------------------------------------------------
 
-_ALLOWED_BALANCE_FIELDS: frozenset[str] = frozenset({
-    "criterion",
-    "female_count",
-    "male_count",
-    "summary",
-})
+_ALLOWED_BALANCE_FIELDS: frozenset[str] = frozenset(
+    {
+        "criterion",
+        "female_count",
+        "male_count",
+        "summary",
+    }
+)
 
-_ALLOWED_INSTANCE_FIELDS: frozenset[str] = frozenset({
-    "criterion",
-    "instance_count",
-    "instances",
-    "summary",
-})
+_ALLOWED_INSTANCE_FIELDS: frozenset[str] = frozenset(
+    {
+        "criterion",
+        "instance_count",
+        "instances",
+        "summary",
+    }
+)
 
-_ALLOWED_INSTANCE_ITEM_FIELDS: frozenset[str] = frozenset({
-    "excerpt",
-    "chunk_id",
-    "explanation",
-})
+_ALLOWED_INSTANCE_ITEM_FIELDS: frozenset[str] = frozenset(
+    {
+        "excerpt",
+        "chunk_id",
+        "explanation",
+    }
+)
 
 
 def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
@@ -226,8 +251,7 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
         extra = set(section_val) - _ALLOWED_BALANCE_FIELDS
         if extra:
             raise AgentExecutionError(
-                f"GAD section '{section_key}' has unapproved field(s): "
-                f"{sorted(extra)}"
+                f"GAD section '{section_key}' has unapproved field(s): {sorted(extra)}"
             )
         for field in ("female_count", "male_count"):
             val = section_val.get(field)
@@ -254,13 +278,14 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
         extra = set(section_val) - _ALLOWED_INSTANCE_FIELDS
         if extra:
             raise AgentExecutionError(
-                f"GAD section '{section_key}' has unapproved field(s): "
-                f"{sorted(extra)}"
+                f"GAD section '{section_key}' has unapproved field(s): {sorted(extra)}"
             )
         instance_count = section_val.get("instance_count")
-        if not isinstance(instance_count, int) or isinstance(
-            instance_count, bool
-        ) or instance_count < 0:
+        if (
+            not isinstance(instance_count, int)
+            or isinstance(instance_count, bool)
+            or instance_count < 0
+        ):
             raise AgentExecutionError(
                 f"GAD section '{section_key}' field 'instance_count' must be "
                 f"a non-negative integer"
@@ -276,14 +301,9 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
                 f"GAD section '{section_key}' requires a non-empty summary"
             )
         max_instances = MAX_INSTANCES_PER_CRITERION
-        if len(raw_instances) > max_instances:
-            logger.info(
-                "GAD section '%s' returned %d instances, capping at %d",
-                section_key,
-                len(raw_instances),
-                max_instances,
-            )
-        for idx, inst in enumerate(raw_instances[:max_instances]):
+        # Validate EVERY supplied item before applying the cap.  Otherwise an
+        # invalid item beyond the cap would be silently accepted.
+        for idx, inst in enumerate(raw_instances):
             if not isinstance(inst, dict):
                 raise AgentExecutionError(
                     f"GAD section '{section_key}' instance[{idx}] must be a JSON object"
@@ -307,4 +327,11 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
                     f"a non-empty 'chunk_id'"
                 )
 
-
+        if len(raw_instances) > max_instances:
+            logger.info(
+                "GAD section '%s' returned %d instances; applying max %d",
+                section_key,
+                len(raw_instances),
+                max_instances,
+            )
+            section_val["instances"] = raw_instances[:max_instances]

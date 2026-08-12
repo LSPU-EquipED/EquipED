@@ -14,13 +14,13 @@ import uuid
 from typing import Any
 
 from server.core.config import get_settings
-from server.core.llm import get_llm_model_name
+from server.core.llm import ResponseContract, get_llm_model_name
 
 from ..contracts import AgentEvaluationResult
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
-from ..runtime.llm import call_llm, error_reference
-from ..runtime.prompt_budget import enforce_total_prompt_budget, pack_chunks
+from ..runtime.llm import RunLLMClient, call_llm, error_reference
+from ..runtime.prompt_budget import pack_chunks
 from . import envelope, prompt, registry
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,54 @@ logger = logging.getLogger(__name__)
 # the same frozen chunks + this overhead) never exceeds the configured total.
 # The initial prompt is constrained to (total_budget - _REPAIR_OVERHEAD_RESERVE)
 # which guarantees the repair prompt fits total_budget without any slicing.
-_REPAIR_OVERHEAD_RESERVE = 5500
+_REPAIR_OVERHEAD_RESERVE = 1200
+
+
+def _fit_gad_chunks(
+    chunks: list[dict[str, Any]],
+    *,
+    budget: int,
+    prompt_version: str | None,
+    managed_prompt: str | None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Fit the complete serialized GAD envelope without changing evidence IDs."""
+    candidate = [dict(chunk) for chunk in chunks]
+    trimmed = False
+
+    def rendered(items: list[dict[str, Any]]) -> str:
+        return prompt.build_combined_prompt(
+            packed_chunks=items,
+            prompt_version=prompt_version,
+            gad_managed_prompt=managed_prompt,
+        )
+
+    while candidate and len(rendered(candidate)) > budget:
+        if len(candidate) > 1:
+            candidate.pop()
+            trimmed = True
+            continue
+        text = str(candidate[0].get("text", ""))
+        if not text:
+            candidate.pop()
+            break
+        lo, hi = 0, len(text)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            candidate[0]["text"] = text[:mid]
+            if len(rendered(candidate)) <= budget:
+                lo = mid
+            else:
+                hi = mid - 1
+        if lo == 0:
+            candidate.pop()
+            break
+        candidate[0]["text"] = text[:lo]
+        trimmed = True
+    if not candidate or len(rendered(candidate)) > budget:
+        raise AgentExecutionError(
+            "GAD fixed prompt overhead or required exact evidence exceeds budget"
+        )
+    return candidate, trimmed
 
 
 class GADScoredAgent:
@@ -56,7 +103,6 @@ class GADScoredAgent:
 
     def __init__(self, *, llm_client: Any | None = None) -> None:
         self._default_llm_client = llm_client
-
 
     def _run_gad_scoring(
         self,
@@ -84,6 +130,18 @@ class GADScoredAgent:
         # repair prompt never exceeds total_budget.  See module doc on
         # _REPAIR_OVERHEAD_RESERVE for the overhead breakdown.
         total_budget = settings.agent_total_prompt_budget_chars
+        # Duplicate IDs make the evidence namespace ambiguous.  Reject before
+        # packing or any model interaction (closed failure).
+        seen_chunk_ids: set[str] = set()
+        for chunk in chunk_infos:
+            chunk_id = chunk.get("chunk_id")
+            if not isinstance(chunk_id, str) or not chunk_id:
+                raise AgentExecutionError("GAD document chunk has malformed chunk_id")
+            if chunk_id in seen_chunk_ids:
+                raise AgentExecutionError(
+                    "GAD document chunks contain duplicate chunk_id"
+                )
+            seen_chunk_ids.add(chunk_id)
         repair_reserve = _REPAIR_OVERHEAD_RESERVE
         if repair_reserve >= total_budget:
             raise AgentExecutionError(
@@ -106,14 +164,33 @@ class GADScoredAgent:
             small_doc_threshold=settings.agent_small_doc_threshold,
             domain_keywords=getattr(self, "domain_keywords", ()),
         )
-        if not packed_chunks:
-            raise AgentExecutionError(
-                "no document chunks fit the GAD prompt budget "
-                f"(repair-safe budget={repair_safe_budget})"
-            )
-
         start = time.perf_counter()
-        prompt_trimmed = chunks_dropped or text_excerpted
+        gad_managed_prompt = prompt_version
+        try:
+            packed_chunks, gad_budget_trimmed = _fit_gad_chunks(
+                packed_chunks,
+                budget=repair_safe_budget,
+                prompt_version=str(prompt_version_id) if prompt_version_id else None,
+                managed_prompt=gad_managed_prompt,
+            )
+        except AgentExecutionError as exc:
+            return _failed_result(
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                prompt_version_id=prompt_version_id,
+                prompt_version=prompt_version,
+                model_name=getattr(primary_client, "model", get_llm_model_name()),
+                requested_model=getattr(primary_client, "model", get_llm_model_name()),
+                requested_temperature=0.0,
+                prompt_trimmed=False,
+                had_fallback=False,
+                had_repair=False,
+                error_message=str(exc),
+                processing_seconds=0.0,
+                provenance=provenance,
+                llm_call_count=0,
+            )
+        prompt_trimmed = chunks_dropped or text_excerpted or gad_budget_trimmed
         requested_model = getattr(primary_client, "model", get_llm_model_name())
         had_fallback = False
         had_repair = False
@@ -128,28 +205,14 @@ class GADScoredAgent:
         # ------------------------------------------------------------------
         # 2.1 — Build one combined extraction prompt
         # ------------------------------------------------------------------
-        gad_managed_prompt = prompt_version  # supervisor passes prompt text
-
         combined_prompt = prompt.build_combined_prompt(
             packed_chunks=packed_chunks,
             prompt_version=str(prompt_version_id) if prompt_version_id else None,
             gad_managed_prompt=gad_managed_prompt,
         )
 
-        # ---- Budget enforcement (repair-safe) ----
-        # Constrain the initial prompt to repair_safe_budget so that adding
-        # the repair envelope overhead later fits within total_budget.
-        # GAD's prompt has no reference_context or rubric_context, so
-        # _enforce_total_prompt_budget is a length check + warning pass.
-        # The real packing cap comes from the prompt_budget_chars passed to
-        # _pack_chunks above.
-        initial_budget = enforce_total_prompt_budget(
-            combined_prompt,
-            budget_chars=repair_safe_budget,
-            agent_name=self.agent_name,
-        )
-        combined_prompt = initial_budget.prompt
-        prompt_trimmed = prompt_trimmed or initial_budget.trimmed
+        if len(combined_prompt) > repair_safe_budget:
+            raise AgentExecutionError("GAD fixed prompt overhead exceeds budget")
 
         # The packed chunks within combined_prompt are the FROZEN set — same
         # for initial, repair, and grounding.
@@ -167,13 +230,32 @@ class GADScoredAgent:
         t0 = time.perf_counter()
         raw_response: str | None = None
         actual_model: str = requested_model
+        response_mode = settings.llm_response_mode
+        if response_mode == "json_schema":
+            response_contract = ResponseContract.json_schema(
+                envelope.extraction_schema(), name="gad_combined_extraction"
+            )
+        elif response_mode == "json_object":
+            response_contract = ResponseContract.json_object()
+        else:
+            raise AgentExecutionError(
+                f"Unsupported LLM response mode for GAD: {response_mode!r}"
+            )
+        run_client = RunLLMClient(
+            primary_client,
+            self.agent_name,
+            requested_model=requested_model,
+            default_response_contract=response_contract,
+        )
         try:
-            raw_response, actual_model = call_llm(
+            completion = call_llm(
                 combined_prompt,
                 temperature=0.0,
-                primary_client=primary_client,
+                primary_client=run_client,
                 agent_name=self.agent_name,
+                response_contract=response_contract,
             )
+            raw_response, actual_model = completion.content, completion.served_model
         except AgentExecutionError:
             # Transport failure — return failed result immediately
             elapsed = time.perf_counter() - start
@@ -232,7 +314,9 @@ class GADScoredAgent:
             repair_prompt = prompt.build_combined_repair_prompt(
                 full_prompt_context=combined_prompt,
                 partial_response=raw_response or "",
-                error_detail=str(exc),
+                error_detail=(
+                    f"category={type(exc).__name__}; path={error_reference(exc)}"
+                ),
             )
             # ---- Repair prompt budget invariant assertion ----
             # The initial prompt was constrained to repair_safe_budget and
@@ -263,11 +347,16 @@ class GADScoredAgent:
             # so even transport failure reflects the attempt.
             had_repair = True
             try:
-                repair_response, repair_model = call_llm(
+                repair_completion = call_llm(
                     repair_prompt,
                     temperature=0.0,
-                    primary_client=primary_client,
+                    primary_client=run_client,
                     agent_name=self.agent_name,
+                    response_contract=response_contract,
+                )
+                repair_response, repair_model = (
+                    repair_completion.content,
+                    repair_completion.served_model,
                 )
                 if repair_model != actual_model:
                     actual_model = repair_model
@@ -387,10 +476,8 @@ class GADScoredAgent:
             "requested_temperature": requested_temperature,
             "fallback_occurred": had_fallback,
             "repair_occurred": had_repair,
-            "prompt_trimmed": (
-                initial_budget.trimmed or chunks_dropped or text_excerpted
-            ),
-            "reference_context_dropped": initial_budget.reference_context_dropped,
+            "prompt_trimmed": (prompt_trimmed),
+            "reference_context_dropped": max(len(chunk_infos) - len(frozen_chunks), 0),
             "extraction_schema_version": envelope.EXTRACTION_SCHEMA_VERSION,
             "registry_version": registry.REGISTRY_VERSION,
             "evidence_candidates": ev_candidates,
@@ -473,6 +560,7 @@ def _failed_result(
     error_message: str,
     processing_seconds: float,
     provenance: dict[str, Any] | None,
+    llm_call_count: int | None = None,
 ) -> AgentEvaluationResult:
     """Return a failed GAD result with real timing and known metadata.
 
@@ -520,7 +608,11 @@ def _failed_result(
         provenance=merged_provenance if merged_provenance else None,
         metadata={
             "scoring_mode": "single_pass_failed",
-            "llm_call_count": 1 if not had_repair else 2,
+            "llm_call_count": (
+                llm_call_count
+                if llm_call_count is not None
+                else (1 if not had_repair else 2)
+            ),
             "prompt_version": str(prompt_version_id) if prompt_version_id else None,
         },
     )

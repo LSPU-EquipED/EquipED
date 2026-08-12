@@ -59,6 +59,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ....core.config import get_settings
+from ....core.llm import ResponseContract
 from .slicing import GAP_MARKER, downsample
 
 # Same bottom-section anchors used by learner_transformation / varied_assessment
@@ -492,6 +494,392 @@ def slice_for_basket_b2(text: str, *, budget: int = 9000, windows: int = 6) -> s
 
 
 _CURRICULUM_TEXT_CHAR_CAP = 3000
+_SLICE_CAPS = {"A1": 4000, "A2": 9000, "A3": 9000, "A4": 9000, "B1": 9000, "B2": 9000}
+
+# These are deliberately closed schemas.  Validation below additionally checks
+# cross-reference identity, which JSON Schema cannot express portably.
+_SCHEMAS: dict[str, dict[str, Any]] = {
+    "A1": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["objectives", "assessments", "alignment"],
+        "properties": {
+            "objectives": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "text"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                    },
+                },
+            },
+            "assessments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "text", "assessment_type", "evidence"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "assessment_type": {
+                            "type": "string",
+                            "enum": [
+                                "objective_test",
+                                "written",
+                                "reflection",
+                                "performance_task",
+                                "project",
+                                "oral",
+                                "self_assessment",
+                            ],
+                        },
+                        "evidence": {"type": "string"},
+                    },
+                },
+            },
+            "alignment": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "objective_id",
+                        "is_measured",
+                        "assessment_ids",
+                        "evidence",
+                    ],
+                    "properties": {
+                        "objective_id": {"type": "integer"},
+                        "is_measured": {"type": "boolean"},
+                        "assessment_ids": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                        },
+                        "evidence": {"type": "string"},
+                    },
+                },
+            },
+        },
+    },
+    "A2": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["tasks"],
+        "properties": {
+            "tasks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": [
+                        "id",
+                        "text",
+                        "bloom_level",
+                        "directions",
+                        "has_clear_directions",
+                        "evidence",
+                    ],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "bloom_level": {
+                            "type": "string",
+                            "enum": [
+                                "remember",
+                                "understand",
+                                "apply",
+                                "analyze",
+                                "evaluate",
+                                "create",
+                            ],
+                        },
+                        "directions": {"type": "string"},
+                        "has_clear_directions": {"type": "boolean"},
+                        "evidence": {"type": "string"},
+                    },
+                },
+            }
+        },
+    },
+    "A3": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["monitoring_mechanisms"],
+        "properties": {
+            "monitoring_mechanisms": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "text", "monitoring_type", "evidence"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "monitoring_type": {
+                            "type": "string",
+                            "enum": [
+                                "checkpoint",
+                                "self_assessment",
+                                "reflection",
+                                "cumulative",
+                            ],
+                        },
+                        "evidence": {"type": "string"},
+                    },
+                },
+            }
+        },
+    },
+    "A4": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["enhancement_activities"],
+        "properties": {
+            "enhancement_activities": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "text", "evidence"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "evidence": {"type": "string"},
+                    },
+                },
+            }
+        },
+    },
+    "B1": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["topics", "transitions", "feedback_mechanisms"],
+        "properties": {
+            "topics": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "title"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                    },
+                },
+            },
+            "transitions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["from_id", "to_id", "is_coherent", "reason"],
+                    "properties": {
+                        "from_id": {"type": "integer"},
+                        "to_id": {"type": "integer"},
+                        "is_coherent": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                    },
+                },
+            },
+            "feedback_mechanisms": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "text", "feedback_type", "evidence"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "text": {"type": "string"},
+                        "feedback_type": {
+                            "type": "string",
+                            "enum": [
+                                "answer_key",
+                                "rubric",
+                                "remediation_referral",
+                                "positive_reinforcement",
+                            ],
+                        },
+                        "evidence": {"type": "string"},
+                    },
+                },
+            },
+        },
+    },
+    "B2": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["sections"],
+        "properties": {
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "title", "is_clean", "issue"],
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "title": {"type": "string"},
+                        "is_clean": {"type": "boolean"},
+                        "issue": {"type": "string"},
+                    },
+                },
+            }
+        },
+    },
+}
+
+
+def basket_schema(name: str) -> dict[str, Any]:
+    return _SCHEMAS[name]
+
+
+def _contract(client: Any, name: str) -> ResponseContract:
+    del client
+    if get_settings().llm_response_mode == "json_schema":
+        return ResponseContract.json_schema(_SCHEMAS[name], name=f"sme_{name.lower()}")
+    return ResponseContract.json_object()
+
+
+def _validate(name: str, data: Any) -> dict[str, Any]:
+    allowed = set(_SCHEMAS[name]["required"])
+    if (
+        not isinstance(data, dict)
+        or not data
+        or not set(data) <= allowed
+        or not set(_SCHEMAS[name]["required"]) <= set(data)
+    ):
+        raise ValueError(f"invalid {name} basket keys")
+    for value in data.values():
+        if not isinstance(value, list):
+            raise ValueError(f"invalid {name} basket payload")
+    # Exact criterion payloads and integer/reference invariants.
+    expected = {
+        "A1": {
+            "objectives": {"id", "text"},
+            "assessments": {"id", "text", "assessment_type", "evidence"},
+            "alignment": {"objective_id", "is_measured", "assessment_ids", "evidence"},
+        },
+        "A2": {
+            "tasks": {
+                "id",
+                "text",
+                "bloom_level",
+                "directions",
+                "has_clear_directions",
+                "evidence",
+            }
+        },
+        "A3": {"monitoring_mechanisms": {"id", "text", "monitoring_type", "evidence"}},
+        "A4": {"enhancement_activities": {"id", "text", "evidence"}},
+        "B1": {
+            "topics": {"id", "title"},
+            "transitions": {"from_id", "to_id", "is_coherent", "reason"},
+            "feedback_mechanisms": {"id", "text", "feedback_type", "evidence"},
+        },
+        "B2": {"sections": {"id", "title", "is_clean", "issue"}},
+    }[name]
+    for key, items in data.items():
+        seen: set[int] = set()
+        for item in items:
+            if not isinstance(item, dict) or set(item) != expected[key]:
+                raise ValueError(f"invalid {name}.{key} item")
+            if "id" in item:
+                if item["id"] in seen:
+                    raise ValueError(f"duplicate {name}.{key} id")
+                seen.add(item["id"])
+            for field in ("text", "title", "evidence", "directions", "reason", "issue"):
+                if field in item and (
+                    not isinstance(item[field], str) or len(item[field]) > 20000
+                ):
+                    raise ValueError(f"invalid textual field {name}.{key}.{field}")
+            for field in (
+                "is_measured",
+                "has_clear_directions",
+                "is_coherent",
+                "is_clean",
+            ):
+                if field in item and not isinstance(item[field], bool):
+                    raise ValueError(f"invalid boolean field {name}.{key}.{field}")
+            for field in ("id", "objective_id", "assessment_ids", "from_id", "to_id"):
+                if field in item:
+                    vals = item[field] if field == "assessment_ids" else [item[field]]
+                    if any(
+                        isinstance(v, bool) or not isinstance(v, int) or v < 1
+                        for v in vals
+                    ):
+                        raise ValueError("invalid integer reference")
+            if "assessment_type" in item and item["assessment_type"] not in {
+                "objective_test",
+                "written",
+                "reflection",
+                "performance_task",
+                "project",
+                "oral",
+                "self_assessment",
+            }:
+                raise ValueError("invalid assessment type")
+            if "bloom_level" in item and item["bloom_level"] not in {
+                "remember",
+                "understand",
+                "apply",
+                "analyze",
+                "evaluate",
+                "create",
+            }:
+                raise ValueError("invalid bloom level")
+            if "monitoring_type" in item and item["monitoring_type"] not in {
+                "checkpoint",
+                "self_assessment",
+                "reflection",
+                "cumulative",
+            }:
+                raise ValueError("invalid monitoring type")
+            if "feedback_type" in item and item["feedback_type"] not in {
+                "answer_key",
+                "rubric",
+                "remediation_referral",
+                "positive_reinforcement",
+            }:
+                raise ValueError("invalid feedback type")
+    if name == "A1":
+        objective_ids = {item["id"] for item in data["objectives"]}
+        assessment_ids = {item["id"] for item in data["assessments"]}
+        alignment = data["alignment"]
+        if len(alignment) != len(data["objectives"]):
+            raise ValueError("alignment must cover every objective exactly once")
+        row_objective_ids = [item["objective_id"] for item in alignment]
+        if set(row_objective_ids) != objective_ids or len(row_objective_ids) != len(
+            set(row_objective_ids)
+        ):
+            raise ValueError("alignment objective coverage mismatch")
+        for item in alignment:
+            refs = item["assessment_ids"]
+            if len(refs) != len(set(refs)) or any(
+                ref not in assessment_ids for ref in refs
+            ):
+                raise ValueError("invalid alignment assessment references")
+            if item["is_measured"] and (not refs or not item["evidence"].strip()):
+                raise ValueError("measured alignment requires assessments and evidence")
+    for item in data.get("alignment", []):
+        if item["objective_id"] not in {i["id"] for i in data["objectives"]} or any(
+            v not in {i["id"] for i in data["assessments"]}
+            for v in item["assessment_ids"]
+        ):
+            raise ValueError("unknown alignment reference")
+    for item in data.get("transitions", []):
+        if item["from_id"] not in {i["id"] for i in data["topics"]} or item[
+            "to_id"
+        ] not in {i["id"] for i in data["topics"]}:
+            raise ValueError("unknown transition reference")
+    if name == "B1" and len(
+        {(i["from_id"], i["to_id"]) for i in data["transitions"]}
+    ) != len(data["transitions"]):
+        raise ValueError("duplicate transition row")
+    return data
 
 
 def extract_basket_a1(
@@ -500,6 +888,7 @@ def extract_basket_a1(
     *,
     curriculum_text: str | None = None,
     roadmap_context: str | None = None,
+    prompt_preamble: str | None = None,
 ) -> dict[str, Any]:
     """One LLM call -> raw facts dict for A-02/A-05.
 
@@ -527,78 +916,98 @@ def extract_basket_a1(
         prompt = BASKET_A1_PROMPT.format(content=content)
         max_tokens = 1800
     if roadmap_context and roadmap_context.strip():
-        prompt = (
-            prompt
-            + "\n\nPROGRAM ROADMAP CONTEXT:\n"
-            + roadmap_context.strip()
-        )
+        prompt = prompt + "\n\nPROGRAM ROADMAP CONTEXT:\n" + roadmap_context.strip()
+    if prompt_preamble:
+        prompt = prompt_preamble.rstrip() + "\n\n" + prompt
     raw = client.generate(
         prompt,
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=max_tokens,
+        response_contract=_contract(client, "A1"),
     )
-    data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("A1", json.loads(raw))
 
 
-def extract_basket_a2(client: Any, text: str) -> dict[str, Any]:
+def extract_basket_a2(
+    client: Any, text: str, *, prompt_preamble: str | None = None
+) -> dict[str, Any]:
     """One LLM call -> raw facts dict for A-01/OP-02/OP-03."""
     content = slice_for_basket_a2(text)
+    prompt = (
+        prompt_preamble.rstrip() + "\n\n" if prompt_preamble else ""
+    ) + BASKET_A2_PROMPT.format(content=content)
     raw = client.generate(
-        BASKET_A2_PROMPT.format(content=content),
+        prompt,
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1800,
+        response_contract=_contract(client, "A2"),
     )
     data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("A2", data)
 
 
-def extract_basket_a3(client: Any, text: str) -> dict[str, Any]:
+def extract_basket_a3(
+    client: Any, text: str, *, prompt_preamble: str | None = None
+) -> dict[str, Any]:
     """One LLM call -> raw facts dict for A-03 (single-purpose)."""
     content = slice_for_basket_a3(text)
     raw = client.generate(
-        BASKET_A3_PROMPT.format(content=content),
+        ((prompt_preamble.rstrip() + "\n\n") if prompt_preamble else "")
+        + BASKET_A3_PROMPT.format(content=content),
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1500,
+        response_contract=_contract(client, "A3"),
     )
     data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("A3", data)
 
 
-def extract_basket_a4(client: Any, text: str) -> dict[str, Any]:
+def extract_basket_a4(
+    client: Any, text: str, *, prompt_preamble: str | None = None
+) -> dict[str, Any]:
     """One LLM call -> raw facts dict for OP-05 (single-purpose)."""
     content = slice_for_basket_a4(text)
     raw = client.generate(
-        BASKET_A4_PROMPT.format(content=content),
+        ((prompt_preamble.rstrip() + "\n\n") if prompt_preamble else "")
+        + BASKET_A4_PROMPT.format(content=content),
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1200,
+        response_contract=_contract(client, "A4"),
     )
     data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("A4", data)
 
 
-def extract_basket_b1(client: Any, text: str) -> dict[str, Any]:
+def extract_basket_b1(
+    client: Any, text: str, *, prompt_preamble: str | None = None
+) -> dict[str, Any]:
     """One LLM call -> raw facts dict for OP-01/A-04."""
     content = slice_for_basket_b1(text)
     raw = client.generate(
-        BASKET_B1_PROMPT.format(content=content),
+        ((prompt_preamble.rstrip() + "\n\n") if prompt_preamble else "")
+        + BASKET_B1_PROMPT.format(content=content),
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=2000,
+        response_contract=_contract(client, "B1"),
     )
     data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("B1", data)
 
 
-def extract_basket_b2(client: Any, text: str) -> dict[str, Any]:
+def extract_basket_b2(
+    client: Any, text: str, *, prompt_preamble: str | None = None
+) -> dict[str, Any]:
     """One LLM call -> raw facts dict for OP-04 (single-purpose)."""
     content = slice_for_basket_b2(text)
     raw = client.generate(
-        BASKET_B2_PROMPT.format(content=content),
+        ((prompt_preamble.rstrip() + "\n\n") if prompt_preamble else "")
+        + BASKET_B2_PROMPT.format(content=content),
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1800,
+        response_contract=_contract(client, "B2"),
     )
     data: dict[str, Any] = json.loads(raw)
-    return data
+    return _validate("B2", data)
 
 
 __all__ = [
@@ -621,4 +1030,5 @@ __all__ = [
     "extract_basket_a4",
     "extract_basket_b1",
     "extract_basket_b2",
+    "basket_schema",
 ]

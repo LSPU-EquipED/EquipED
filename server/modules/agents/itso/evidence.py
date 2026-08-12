@@ -9,6 +9,7 @@ from types import MappingProxyType
 from typing import Any
 
 from server.core.config import get_settings
+from server.core.endpoint_security import is_private_endpoint
 from server.modules.embeddings.policy_retrieval import (
     ITSO_POLICY_MAP,
     retrieve_policy_context,
@@ -109,9 +110,7 @@ class ITSOEvidenceBuilder:
         policy_evidence = policy_snapshot.get("evidence")
         provenance["policy_delivery_state"] = policy_snapshot["delivery_state"]
         provenance["policy_evidence"] = policy_snapshot["provenance"]
-        provenance["policy_retrieval_version"] = policy_snapshot[
-            "retrieval_version"
-        ]
+        provenance["policy_retrieval_version"] = policy_snapshot["retrieval_version"]
         provenance["policy_trimmed"] = False
 
         return ITSOEvidenceSnapshot(
@@ -142,7 +141,13 @@ class ITSOEvidenceBuilder:
             else "blocked"
         )
 
-        if delivery_state != "enabled":
+        endpoint = getattr(settings, "llm_api_base", None)
+        endpoint_ok = isinstance(endpoint, str) and bool(endpoint)
+        if endpoint_ok:
+            endpoint_ok, _ = is_private_endpoint(endpoint)
+        # Approval is the explicit feature flag; locality is an independent,
+        # fail-closed technical gate. Never retrieve clauses without both.
+        if delivery_state != "enabled" or not endpoint_ok:
             return self._empty_policy_snapshot("unavailable", "blocked")
 
         if self.db is None:

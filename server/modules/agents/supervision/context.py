@@ -10,6 +10,9 @@ from types import MappingProxyType
 from typing import Any
 
 from server.modules.admin.prompt_service import get_active_prompt
+from server.modules.documents.ingestion.pipeline import prepare_canonical_source
+from server.modules.documents.models import Document, DocumentChunk
+from server.modules.documents.paths import resolve_document_pdf_path
 from server.modules.rubrics.service import (
     get_active_rubric_context,
     resolve_rubric_agent_id,
@@ -34,6 +37,8 @@ class PreparedEvaluationContext:
     prompt_versions: MappingProxyType
     reference_document_ids: MappingProxyType
     precomputed_context: MappingProxyType
+    canonical_source_text: str
+    authoritative_curriculum_text: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,7 +302,10 @@ class EvaluationContextBuilder:
         return out
 
     def _load_active_prompt_versions(self) -> MappingProxyType:
-        if self.db is None:
+        if self.db is None and any(
+            getattr(agent, "agent_name", agent.__class__.__name__) != "coordinator"
+            for agent in self.agents
+        ):
             raise SupervisorExecutionError(
                 "database session is required for evaluation"
             )
@@ -305,11 +313,34 @@ class EvaluationContextBuilder:
         prompt_versions: dict[str, PromptSnapshot] = {}
         for agent in self.agents:
             agent_name = getattr(agent, "agent_name", agent.__class__.__name__)
+            if agent_name == "coordinator":
+                prompt_versions[agent_name] = PromptSnapshot(None, "")
+                continue
             prompt = get_active_prompt(agent_name, self.db)
             prompt_versions[agent_name] = PromptSnapshot(
                 prompt.version_id, prompt.prompt_text
             )
         return _freeze(prompt_versions)
+
+    def _load_authoritative_curriculum(self, refs: dict[str, Any]) -> str | None:
+        curriculum_id = refs.get("curriculum")
+        if self.db is None or curriculum_id is None:
+            return None
+        document = self.db.get(Document, curriculum_id)
+        if document is None or document.source_type != "curriculum":
+            return None
+        chunks = (
+            self.db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == curriculum_id)
+            .order_by(DocumentChunk.chunk_index.asc(), DocumentChunk.page_number.asc())
+            .all()
+        )
+        if not chunks or any(chunk.source_type != "curriculum" for chunk in chunks):
+            return None
+        text = "\n".join(
+            chunk.text.strip() for chunk in chunks if chunk.text and chunk.text.strip()
+        )
+        return text or None
 
     def build(
         self, *, chunks: list[Any], query_text: str | None, context: dict[str, Any]
@@ -331,6 +362,19 @@ class EvaluationContextBuilder:
         refs = refs or {}
         # Preserve legacy values and additional keys; retrieval consumes known keys.
         text = query_text or "\n".join(info["text"] for info in infos)
+        document_id = context.get("document_id")
+        document = self.db.get(Document, document_id) if self.db is not None else None
+        file_path = getattr(document, "file_path", None) if document else None
+        if not file_path:
+            raise SupervisorExecutionError("owned document has no stored path")
+        try:
+            canonical_source_text = prepare_canonical_source(
+                resolve_document_pdf_path(file_path)
+            )
+        except Exception as exc:
+            raise SupervisorExecutionError(
+                "canonical source preparation failed"
+            ) from exc
         prompts = self._load_active_prompt_versions()
         precompute_started = time.perf_counter()
         precomputed_context = self._build_precomputed_context(
@@ -347,4 +391,6 @@ class EvaluationContextBuilder:
             prompt_versions=prompts,
             reference_document_ids=_freeze(refs),
             precomputed_context=_freeze(precomputed_context),
+            canonical_source_text=canonical_source_text,
+            authoritative_curriculum_text=self._load_authoritative_curriculum(refs),
         )

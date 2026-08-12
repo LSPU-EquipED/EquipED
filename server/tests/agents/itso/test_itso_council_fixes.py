@@ -2,19 +2,28 @@
 
 from uuid import uuid4
 
+from server.core.llm import CompletionResult
 from server.modules.agents.itso import execution
 from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.runtime import llm as runtime_llm
+from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
 
 
 def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
     class Client:
         model = "primary"
 
-    responses = iter(
-        [("{bad", "primary"), ('{"summary":"ok","criterion_scores":[]}', "fallback")]
-    )
-    monkeypatch.setattr(runtime_llm, "call_llm", lambda *a, **k: next(responses))
+        def __init__(self):
+            self.prompts = []
+            self.responses = iter(["{bad", _response("ok")])
+
+        def generate_result(
+            self, prompt, *, temperature, max_new_tokens, deadline, response_contract
+        ):
+            self.prompts.append(prompt)
+            return CompletionResult(
+                next(self.responses), "primary", 2, 3, 5, "stop", attempts=1
+            )
+
     monkeypatch.setattr(
         execution,
         "get_settings",
@@ -32,11 +41,35 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
             },
         )(),
     )
-    result = ITSO(llm_client=Client()).run(
+    client = Client()
+    result = ITSO(llm_client=client).run(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunk_infos=[{"chunk_id": "c", "text": "x"}],
     )
     assert result.provenance["repair_occurred"] is True
-    assert result.provenance["fallback_occurred"] is True
+    assert result.provenance["fallback_occurred"] is False
+    assert result.provenance["actual_model"] == "primary"
+    assert len(client.prompts) == 2
     assert "{bad" not in (result.raw_response or "")
+
+
+def _response(summary):
+    import json
+
+    return json.dumps(
+        {
+            "summary": summary,
+            "criterion_scores": [
+                {
+                    "criterion_id": f"ITSO-0{i}",
+                    "criterion_title": ITSO_CRITERIA_TITLES[f"ITSO-0{i}"],
+                    "score": 3,
+                    "justification": "justification",
+                    "chunk_ids": [],
+                    "evidence": [],
+                }
+                for i in range(1, 6)
+            ],
+        }
+    )

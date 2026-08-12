@@ -53,19 +53,18 @@ def test_select_reference_query_texts_max_anchors_zero_returns_empty() -> None:
 def test_select_reference_query_texts_single_non_empty_chunk() -> None:
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["only chunk"])
-    assert (
-        builder._select_reference_query_texts(chunks, max_anchors=3)
-        == ["only chunk"]
-    )
+    assert builder._select_reference_query_texts(chunks, max_anchors=3) == [
+        "only chunk"
+    ]
 
 
 def test_select_reference_query_texts_two_non_empty_chunks_returns_both() -> None:
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["early", "late"])
-    assert (
-        builder._select_reference_query_texts(chunks, max_anchors=3)
-        == ["early", "late"]
-    )
+    assert builder._select_reference_query_texts(chunks, max_anchors=3) == [
+        "early",
+        "late",
+    ]
 
 
 def test_select_reference_query_texts_filters_whitespace_chunks() -> None:
@@ -73,10 +72,11 @@ def test_select_reference_query_texts_filters_whitespace_chunks() -> None:
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["alpha", "", "   ", "\n\t", "beta", "gamma"])
     # 3 non-empty after filtering; below or equal to max_anchors=3, so all kept.
-    assert (
-        builder._select_reference_query_texts(chunks, max_anchors=3)
-        == ["alpha", "beta", "gamma"]
-    )
+    assert builder._select_reference_query_texts(chunks, max_anchors=3) == [
+        "alpha",
+        "beta",
+        "gamma",
+    ]
 
 
 def test_select_reference_query_texts_uses_early_middle_late_for_long_docs() -> None:
@@ -114,9 +114,7 @@ def test_select_reference_query_texts_dedupes_overlapping_indices() -> None:
 def test_select_reference_query_texts_all_empty_returns_empty() -> None:
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks(["", "   ", "\n"])
-    assert (
-        builder._select_reference_query_texts(chunks, max_anchors=3) == []
-    )
+    assert builder._select_reference_query_texts(chunks, max_anchors=3) == []
 
 
 # ------------------------------------------------------------------
@@ -218,9 +216,7 @@ def test_retrieve_reference_context_for_queries_caps_total_results(
     """Final result list must not exceed max_total_results."""
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context",
-        lambda *a, **k: [
-            _RetrievedChunk(f"{a[0]}-hit-{i}") for i in range(3)
-        ],
+        lambda *a, **k: [_RetrievedChunk(f"{a[0]}-hit-{i}") for i in range(3)],
     )
 
     builder = EvaluationContextBuilder(db=None, agents=[])
@@ -270,6 +266,7 @@ def test_retrieve_reference_context_for_queries_continues_on_per_anchor_failure(
     monkeypatch,
 ) -> None:
     """A failed anchor must not block subsequent anchors."""
+
     def flaky_retrieve(query_text, collection, n_results=5, document_id_filter=None):
         if query_text == "bad":
             raise RuntimeError("chroma temporarily unavailable")
@@ -462,10 +459,7 @@ def test_build_precomputed_context_multi_anchor_respects_caps(
     def fake_retrieve(query_text, collection, n_results=5, document_id_filter=None):
         captured.append(n_results)
         # Return distinct hits per anchor to exercise the cap cleanly.
-        return [
-            _RetrievedChunk(f"{query_text}-hit-{i}")
-            for i in range(n_results)
-        ]
+        return [_RetrievedChunk(f"{query_text}-hit-{i}") for i in range(n_results)]
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context",
@@ -488,7 +482,9 @@ def test_build_precomputed_context_multi_anchor_respects_caps(
     )
 
     # 3 anchors * n_results_per_query=2 = 6 raw, capped at 5.
-    assert all(n == EvaluationContextBuilder._REFERENCE_N_RESULTS_PER_ANCHOR for n in captured)  # noqa: E501
+    assert all(
+        n == EvaluationContextBuilder._REFERENCE_N_RESULTS_PER_ANCHOR for n in captured
+    )  # noqa: E501
     assert len(result["syllabus"]) == EvaluationContextBuilder._REFERENCE_MAX_TOTAL
 
 
@@ -559,8 +555,12 @@ def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> N
 
     # Shape: every rubric_ + both reference keys.
     expected_keys = {
-        "rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso",
-        "syllabus", "curriculum",
+        "rubric_sme",
+        "rubric_coord",
+        "rubric_gad",
+        "rubric_itso",
+        "syllabus",
+        "curriculum",
     }
     assert expected_keys.issubset(set(result.keys()))
 
@@ -631,6 +631,7 @@ def test_build_precomputed_context_falls_back_to_empty_on_retrieval_failure(
     monkeypatch,
 ) -> None:
     """A reference retrieval exception must collapse to [] (Phase 1 contract)."""
+
     def boom(*a, **k):
         raise RuntimeError("chroma unavailable")
 
@@ -670,6 +671,7 @@ def test_build_precomputed_context_multi_anchor_continues_on_partial_failure(
     monkeypatch,
 ) -> None:
     """Multi-anchor path: per-anchor failures should not lose the other anchors."""
+
     def selective_boom(query_text, *a, **k):
         if query_text == "chunk-2":
             raise RuntimeError("intermittent chroma error")
@@ -742,6 +744,7 @@ def test_build_precomputed_context_uses_real_retrieved_chunk_dataclass(
     monkeypatch,
 ) -> None:
     """Merge real retrieval dataclasses in anchor and result order."""
+
     def retrieve(query_text, collection_name, *, n_results, document_id_filter):
         assert query_text in {"a0", "a1"}
         assert collection_name == "col_reference_all"
@@ -769,6 +772,7 @@ def test_build_precomputed_context_uses_real_retrieved_chunk_dataclass(
 def test_uuid_smoke_for_reference_doc_ids() -> None:
     """Sanity: precompute still accepts UUID-shaped reference doc ids."""
     from uuid import UUID
+
     assert isinstance(uuid4(), UUID)
 
 
@@ -798,6 +802,7 @@ def test_retrieve_reference_context_for_queries_all_anchors_fail(
     monkeypatch,
 ) -> None:
     """When every anchor raises, the result is an empty list (not an exception)."""
+
     def always_boom(query_text, collection, n_results=5, document_id_filter=None):
         raise RuntimeError("chroma completely down")
 

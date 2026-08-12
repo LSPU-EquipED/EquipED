@@ -14,11 +14,9 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from pathlib import Path
 from typing import Any
 
-from server.core.config import get_settings
-from server.core.llm import get_llm_client, get_llm_model_name
+from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.service import (
     get_active_rubric_criteria,
     resolve_rubric_agent_id,
@@ -26,7 +24,7 @@ from server.modules.rubrics.service import (
 
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..exceptions import AgentExecutionError
-from ..runtime.llm import FallbackAwareClient, error_reference
+from ..runtime.llm import RunLLMClient, error_reference
 from . import registry
 
 logger = logging.getLogger(__name__)
@@ -41,52 +39,12 @@ class EngineScoredAgent:
     def __init__(self, *, llm_client: Any | None = None) -> None:
         self._default_llm_client = llm_client
 
-    def _load_document_text(self, document_id: uuid.UUID) -> str | None:
-        """Extract the SLM's text straight from its stored PDF via PyMuPDF.
-
-        Matches the CLI's extraction so the engine sees identical input in
-        both the app and the manual tool. Returns ``None`` on any failure
-        (missing file, no DB, etc.) so the caller can fall back to
-        ``context_text``/joined chunk text.
-        """
-        try:
-            import fitz  # PyMuPDF
-            from server.core.database import get_session_factory
-            from server.modules.documents.models import Document
-
-            session = get_session_factory()()
-            try:
-                document = session.get(Document, document_id)
-                file_path = getattr(document, "file_path", None) if document else None
-            finally:
-                session.close()
-
-            if not file_path:
-                return None
-            path = Path(str(file_path))
-            if not path.is_file():
-                logger.warning("Engine scoring: PDF not found at %s", path)
-                return None
-
-            parts: list[str] = []
-            with fitz.open(path) as pdf:
-                for page in pdf:
-                    parts.append(page.get_text() or "")
-            return "\n".join(parts)
-        except Exception as exc:
-            logger.warning(
-                "Engine scoring: clean PDF extraction failed, using fallback text: "
-                "category=%s | reference=%s",
-                type(exc).__name__,
-                error_reference(exc),
-            )
-            return None
-
     def _resolve_full_text(
         self,
         document_id: uuid.UUID,
         context_text: str | None,
         chunk_infos: list[dict[str, Any]],
+        canonical_source_text: str | None = None,
     ) -> str:
         """The SLM's clean text, or the best available fallback.
 
@@ -94,11 +52,9 @@ class EngineScoredAgent:
         both need identical full-text resolution, so this is pulled out to
         avoid duplicating the fallback chain.
         """
-        return (
-            self._load_document_text(document_id)
-            or context_text
-            or "\n".join(str(c.get("text", "")) for c in chunk_infos)
-        )
+        if not canonical_source_text or not canonical_source_text.strip():
+            raise AgentExecutionError("canonical source text is required")
+        return canonical_source_text
 
     def _rubric_titles(self, db: Any | None) -> dict[str, str]:
         """This agent's own rubric criterion titles, keyed by code."""
@@ -110,9 +66,10 @@ class EngineScoredAgent:
         self,
         client: Any,
         full_text: str,
-        delay: float,
         raw_baskets_out: dict[str, dict[str, Any]] | None = None,
         basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
+        prompt_preamble: str | None = None,
+        canonical_source_text: str | None = None,
     ) -> tuple[dict[str, tuple[int, str, tuple[str, ...]]], int]:
         """Score every registered criterion: grouped pass, then per-criterion
         fallback for anything the grouped pass didn't cover.
@@ -125,18 +82,24 @@ class EngineScoredAgent:
         synthesis weighting).
 
         ``raw_baskets_out`` and ``basket_extract_kwargs``, if given, are
-        forwarded to ``registry.run_grouped`` (see its docstring). Additive
-        only -- SME's call site passes neither.
+        forwarded to ``registry.run_grouped``. Additive only -- SME's call
+        site passes neither.
         """
+        telemetry = getattr(client, "telemetry", None)
         try:
             t0 = time.perf_counter()
             grouped = registry.run_grouped(
                 client,
                 full_text,
-                delay=delay,
                 raw_baskets_out=raw_baskets_out,
                 basket_extract_kwargs=basket_extract_kwargs,
+                prompt_preamble=prompt_preamble,
             )
+            # ``run_grouped`` performs six physical basket transports.  Keep
+            # this accounting at the transport boundary rather than counting
+            # the single pipeline lane invocation.
+            if isinstance(telemetry, dict):
+                telemetry["grouped_calls"] = telemetry.get("grouped_calls", 0) + 6
             grouped_seconds = time.perf_counter() - t0
             logger.info(
                 "[ENGINE_TIMING] agent=%s | phase=grouped | seconds=%.3f | criteria=%d",
@@ -161,12 +124,14 @@ class EngineScoredAgent:
                 scores[code] = grouped[code]
                 continue
 
-            if fallback_calls > 0 and delay > 0:
-                time.sleep(delay)
             fallback_calls += 1
+            if isinstance(telemetry, dict):
+                telemetry["fallback_calls"] = telemetry.get("fallback_calls", 0) + 1
             t0 = time.perf_counter()
             try:
-                scores[code] = registry.run_criterion(code, client, full_text)
+                scores[code] = registry.run_criterion(
+                    code, client, full_text, prompt_preamble=prompt_preamble
+                )
             except Exception as exc:
                 raise AgentExecutionError(
                     f"{self.agent_name} criterion {code} failed in both the "
@@ -191,9 +156,11 @@ class EngineScoredAgent:
         context_text: str | None,
         prompt_version_id: uuid.UUID | None,
         db: Any | None,
+        canonical_source_text: str | None = None,
         llm_client: Any | None = None,
         raw_baskets_out: dict[str, dict[str, Any]] | None = None,
         basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
+        prompt_preamble: str | None = None,
     ) -> AgentEvaluationResult:
         """Full engine pass: load text, score every criterion, build a
         result. Used by SME and Coordinator.
@@ -202,7 +169,15 @@ class EngineScoredAgent:
         forwarded to ``_score_via_engine`` (see its docstring) -- additive,
         SME's call site passes neither.
         """
-        full_text = self._resolve_full_text(document_id, context_text, chunk_infos)
+        client = None
+        try:
+            full_text = self._resolve_full_text(
+                document_id, context_text, chunk_infos, canonical_source_text
+            )
+        except Exception:
+            if self.agent_name == "sme":
+                raise AgentExecutionError("SME preflight failed")
+            raise
         if not full_text.strip():
             raise AgentExecutionError("no document text available for evaluation")
 
@@ -223,25 +198,27 @@ class EngineScoredAgent:
         # fallback-aware on both grouped and per-criterion calls.
         client = (
             primary_client
-            if isinstance(primary_client, FallbackAwareClient)
-            else FallbackAwareClient(
+            if isinstance(primary_client, RunLLMClient)
+            else RunLLMClient(
                 primary_client,
                 self.agent_name,
                 requested_model=(
                     getattr(primary_client, "model", None) or get_llm_model_name()
                 ),
+                default_response_contract=ResponseContract.json_object(),
             )
         )
-        settings = get_settings()
-        delay = int(getattr(settings, "sme_scoring_call_delay_seconds", 0) or 0)
-
-        scores, fallback_calls = self._score_via_engine(
-            client,
-            full_text,
-            delay,
-            raw_baskets_out=raw_baskets_out,
-            basket_extract_kwargs=basket_extract_kwargs,
-        )
+        try:
+            scores, fallback_calls = self._score_via_engine(
+                client,
+                full_text,
+                raw_baskets_out=raw_baskets_out,
+                basket_extract_kwargs=basket_extract_kwargs,
+                prompt_preamble=prompt_preamble,
+            )
+        except Exception as exc:
+            setattr(exc, "telemetry", dict(client.telemetry))
+            raise
         titles = self._rubric_titles(db)
 
         criterion_scores = tuple(
@@ -291,6 +268,19 @@ class EngineScoredAgent:
                 "requested_model": client.requested_model,
                 "actual_model": actual_model,
                 "fallback_occurred": client.fallback_occurred,
+                "logical_calls": client.telemetry["call_count"],
+                "physical_attempts": client.telemetry["attempt_count"],
+                "input_tokens": client.telemetry["prompt_tokens"],
+                "output_tokens": client.telemetry["completion_tokens"],
+                "truncation_count": client.telemetry["cap_hit_count"],
+                "cap_hit_count": client.telemetry["cap_hit_count"],
+                "criterion_fallback_calls": fallback_calls,
+                "grouped_calls": client.telemetry["grouped_calls"],
+                "fallback_calls": client.telemetry["fallback_calls"],
+                "provider_seconds_ms": round(
+                    client.telemetry["provider_seconds"] * 1000
+                ),
+                "trim_count": client.telemetry["cap_hit_count"],
             },
         )
 

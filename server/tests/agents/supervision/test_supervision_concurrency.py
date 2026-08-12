@@ -29,6 +29,8 @@ def _context() -> PreparedEvaluationContext:
         prompt_versions=MappingProxyType({"a": PromptSnapshot(1, "prompt")}),
         reference_document_ids=MappingProxyType({"syllabus": "ref-1"}),
         precomputed_context=MappingProxyType({"syllabus": ("reference",)}),
+        canonical_source_text="canonical source",
+        authoritative_curriculum_text=None,
     )
 
 
@@ -111,6 +113,8 @@ def test_supervisor_builds_context_and_evidence_before_dispatch(monkeypatch) -> 
         prompt_versions=MappingProxyType({"itso": PromptSnapshot(1, "prompt")}),
         reference_document_ids=MappingProxyType({}),
         precomputed_context=MappingProxyType({}),
+        canonical_source_text="canonical source",
+        authoritative_curriculum_text=None,
     )
     evidence = ITSOEvidenceSnapshot(
         MappingProxyType({"p": 1}), MappingProxyType({"e": 2})

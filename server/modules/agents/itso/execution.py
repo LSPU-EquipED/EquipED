@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import time
 from typing import Any
 
 from server.core.config import get_settings
-from server.core.llm import get_llm_client, get_llm_model_name
+from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.embeddings.collections import resolve_collection_name
 from server.modules.embeddings.retrieval import retrieve_context
 from server.modules.rubrics.service import (
@@ -21,11 +20,16 @@ from ..contracts import AgentEvaluationResult
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
 from ..runtime.context import ITSOExecutionContext, thaw
-from ..runtime.llm import FallbackAwareClient
+from ..runtime.llm import RunLLMClient
 from ..runtime.prompt_budget import enforce_total_prompt_budget
 from ..runtime.timing import PhaseTimer
 from .prompt import build_prompt
-from .response import criterion_scores, parse_response
+from .response import (
+    ITSO_RESPONSE_SCHEMA_VERSION,
+    build_response_schema,
+    criterion_scores,
+    parse_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,11 @@ def execute(
         for chunk in context.chunk_infos
         if dict(chunk).get("text")
     ]
+    known_chunk_ids = [
+        str(dict(chunk)["chunk_id"])
+        for chunk in context.chunk_infos
+        if dict(chunk).get("chunk_id")
+    ]
     query = "\n".join(texts)
     with timer.measure("retrieval"):
         rubric = _rubric(query, context)
@@ -56,10 +65,21 @@ def execute(
             context, rubric_context=rubric, reference_context=references
         )
     settings = get_settings()
+    # Reserve a bounded, sanitized repair suffix before packing the first request.
+    repair_suffix = (
+        "\n\nVALIDATOR_FAILURE category=ITSO_INVALID path=criterion_scores. "
+        "Regenerate ONLY the complete JSON response; do not include commentary."
+    )
+    total_budget = settings.agent_total_prompt_budget_chars
+    initial_budget = total_budget - len(repair_suffix)
+    if initial_budget < 0:
+        raise AgentExecutionError("ITSO prompt budget cannot reserve repair suffix")
     budget = enforce_total_prompt_budget(
-        prompt, budget_chars=settings.agent_total_prompt_budget_chars, agent_name="itso"
+        prompt, budget_chars=initial_budget, agent_name="itso"
     )
     prompt = budget.prompt
+    if len(prompt) + len(repair_suffix) > total_budget:
+        raise AgentExecutionError("ITSO prompt exceeds total budget before transport")
     prompt_chars = len(prompt)
     logger.info(
         "[EVAL_PROMPT_SIZE] agent=itso | prompt_chars=%d | trimmed=%s | "
@@ -78,39 +98,62 @@ def execute(
         else settings.get_agent_temperature("itso")
     )
     client = llm_client or context.llm_client or get_llm_client()
-    adapter = FallbackAwareClient(client, "itso")
+    if getattr(settings, "llm_response_mode", "json_object") == "json_schema":
+        response_contract = ResponseContract.json_schema(
+            build_response_schema(known_chunk_ids), name="itso_response_v1"
+        )
+    else:
+        response_contract = ResponseContract.json_object()
+    deadline = time.monotonic() + float(
+        getattr(settings, "llm_request_timeout_seconds", 120)
+    )
+    repair_occurred = False
+    adapter = RunLLMClient(client, "itso", default_response_contract=response_contract)
     requested = adapter.requested_model or get_llm_model_name()
     with timer.measure("llm_call"):
-        raw = adapter.generate(
-            prompt, temperature=temperature, max_new_tokens=settings.llm_max_new_tokens
-        )
-    repair_occurred = False
+        try:
+            completion = adapter.generate_result(
+                prompt,
+                temperature=temperature,
+                max_new_tokens=settings.llm_max_new_tokens,
+                deadline=deadline,
+                response_contract=response_contract,
+            )
+            raw = completion.content
+        except Exception as exc:
+            if "truncated" not in str(exc).lower():
+                raise
+            raw = ""
+            repair_occurred = True
     with timer.measure("parse"):
         try:
-            parsed = parse_response(raw)
+            parsed = parse_response(raw, known_chunk_ids=known_chunk_ids)
         except AgentExecutionError as exc:
-            if not isinstance(exc.__cause__, json.JSONDecodeError):
-                raise
-            repair_prompt = (
-                "Your previous JSON response was truncated or invalid. "
-                "Return ONLY a complete valid JSON object with the same fields. "
-                "Prior partial output:\n\n" + raw[:4000]
+            category = str(exc).split(" (reference:", 1)[0][:160]
+            # Reduce category to a fixed safe token; raw output is never echoed.
+            # Keep the reserved suffix length invariant; never let validator
+            # details consume task-prompt budget or echo model output.
+            safe_category = category if category.startswith("ITSO") else "ITSO_INVALID"
+            repair_prompt = prompt + repair_suffix.replace(
+                "ITSO_INVALID", safe_category[: len("ITSO_INVALID")]
             )
+            if len(repair_prompt) > total_budget:
+                raise AgentExecutionError("ITSO repair prompt exceeds total budget")
             with timer.measure("llm_repair"):
-                repaired = adapter.generate(
+                repaired_result = adapter.generate_result(
                     repair_prompt,
                     temperature=temperature,
                     max_new_tokens=settings.llm_max_new_tokens,
+                    deadline=deadline,
+                    response_contract=response_contract,
                 )
-            parsed = parse_response(repaired)
-            raw = repaired
+                repaired = repaired_result.content
+            parsed = parse_response(repaired, known_chunk_ids=known_chunk_ids)
             repair_occurred = True
-        scores = criterion_scores(parsed)
+        scores = criterion_scores(parsed, known_chunk_ids=known_chunk_ids)
     provenance = thaw(context.provenance)
     policy_evidence = thaw(context.policy_evidence)
-    policy_trimmed = bool(policy_evidence) and (
-        "=== POLICY EVIDENCE ===" not in prompt
-    )
+    policy_trimmed = bool(policy_evidence) and ("=== POLICY EVIDENCE ===" not in prompt)
     runtime = {
         "requested_model": requested,
         "actual_model": adapter.actual_model,
@@ -142,7 +185,7 @@ def execute(
         processing_seconds=time.perf_counter() - start,
         token_count=sum(len(text.split()) for text in texts),
         success=True,
-        raw_response=raw,
+        raw_response=None,
         provenance=safe,
         metadata={
             "prompt_chars": prompt_chars,
@@ -163,6 +206,7 @@ def execute(
                 if context.prompt_version is not None
                 else None
             ),
+            "response_schema_version": ITSO_RESPONSE_SCHEMA_VERSION,
         },
     )
 
@@ -181,9 +225,7 @@ def _references(query: str, context: ITSOExecutionContext) -> list[str]:
     result: list[str] = []
     cached = dict(context.precomputed_context)
     if "syllabus" in cached or "curriculum" in cached:
-        return list(cached.get("syllabus", ())) + list(
-            cached.get("curriculum", ())
-        )  # type: ignore[arg-type]
+        return list(cached.get("syllabus", ())) + list(cached.get("curriculum", ()))  # type: ignore[arg-type]
     for source in ("syllabus", "curriculum"):
         try:
             document_ids = dict(context.reference_document_ids)

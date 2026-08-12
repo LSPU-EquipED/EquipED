@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.runtime import llm as runtime_llm
 from server.modules.agents.runtime.prompt_budget import select_chunks
 from server.modules.agents.sme.agent import SME
 from server.tests.agents.helpers import (
@@ -20,6 +19,7 @@ from server.tests.agents.helpers import (
     _RetrievedChunk,
     patch_settings,
 )
+from server.tests.agents.runtime.response_helpers import itso_response
 
 
 def test_per_agent_selection_differs_by_domain(monkeypatch) -> None:
@@ -131,14 +131,7 @@ def test_chunk_ids_and_page_numbers_preserved(monkeypatch) -> None:
 
     chunks = _make_chunk_infos(5)
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -172,14 +165,7 @@ def test_small_docs_not_over_truncated(monkeypatch) -> None:
     # 4 chunks — below threshold of 6.
     chunks = _make_chunk_infos(4)
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -219,14 +205,7 @@ def test_excerpt_truncates_long_chunks(monkeypatch) -> None:
     long_text = "A" * 200
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": long_text}]
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -262,14 +241,7 @@ def test_budget_guard_trims_when_exceeded(monkeypatch) -> None:
 
     chunks = _make_chunk_infos(8, keyword="security data encryption")
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -310,14 +282,7 @@ def test_budget_guard_enforces_after_serialization(monkeypatch) -> None:
         {"chunk_id": f"c{i}", "page_number": i + 1, "text": "X" * 500} for i in range(5)
     ]
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -354,14 +319,7 @@ def test_single_oversized_chunk_shrinks_to_fit(monkeypatch) -> None:
     # Single chunk with very long text.
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": "A" * 2000}]
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -404,14 +362,7 @@ def test_small_doc_long_chunk_passes_through_unchanged(monkeypatch) -> None:
         {"chunk_id": f"c{i}", "page_number": i + 1, "text": "B" * 200} for i in range(3)
     ]
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
     agent.run(
         evaluation_id=uuid4(),
@@ -449,24 +400,17 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
 
     chunks = _make_chunk_infos(5, keyword="security data")
     agent = ITSO(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
 
     captured_prompt = []
-    original_call = runtime_llm.call_llm
+    original_generate = _FakeLLM.generate
 
-    def capture_llm(prompt, *args, **kwargs):
+    def capture_generate(client, prompt, **kwargs):
         captured_prompt.append(prompt)
-        return original_call(prompt, *args, **kwargs)
+        return original_generate(client, prompt, **kwargs)
 
-    monkeypatch.setattr(runtime_llm, "call_llm", capture_llm)
+    monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
         evaluation_id=uuid4(),
@@ -501,24 +445,17 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
 
     chunks = _make_chunk_infos(3, keyword="security data")
     agent = ITSO(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
 
     captured_prompt = []
-    original_call = runtime_llm.call_llm
+    original_generate = _FakeLLM.generate
 
-    def capture_llm(prompt, *args, **kwargs):
+    def capture_generate(client, prompt, **kwargs):
         captured_prompt.append(prompt)
-        return original_call(prompt, *args, **kwargs)
+        return original_generate(client, prompt, **kwargs)
 
-    monkeypatch.setattr(runtime_llm, "call_llm", capture_llm)
+    monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
         evaluation_id=uuid4(),
@@ -550,24 +487,17 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
 
     chunks = _make_chunk_infos(3)  # Below threshold of 6, short text.
     agent = ITSO(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
 
     captured_prompt = []
-    original_call = runtime_llm.call_llm
+    original_generate = _FakeLLM.generate
 
-    def capture_llm(prompt, *args, **kwargs):
+    def capture_generate(client, prompt, **kwargs):
         captured_prompt.append(prompt)
-        return original_call(prompt, *args, **kwargs)
+        return original_generate(client, prompt, **kwargs)
 
-    monkeypatch.setattr(runtime_llm, "call_llm", capture_llm)
+    monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
         evaluation_id=uuid4(),
@@ -612,14 +542,7 @@ def test_hard_trim_emits_warning_when_excerpt_becomes_tiny(monkeypatch, caplog) 
 
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": "A" * 2000}]
     agent = _PackingCaptureAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
     agent.run(
         evaluation_id=uuid4(),

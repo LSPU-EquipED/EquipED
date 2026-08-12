@@ -34,10 +34,6 @@ def ground_instances(
     def _normalized(text: str) -> str:
         return " ".join(text.casefold().split())
 
-    normalized_chunks = {
-        cid: _normalized(text) for cid, text in chunk_map.items()
-    }
-
     seen_excerpts: set[str] = set()
     accepted_excerpts: list[str] = []
     accepted_chunk_ids: list[str] = []
@@ -47,9 +43,12 @@ def ground_instances(
         if not isinstance(inst, dict):
             rejected += 1
             continue
-        excerpt = str(inst.get("excerpt", "")).strip()
-        chunk_id = str(inst.get("chunk_id", "")).strip()
+        excerpt = inst.get("excerpt", "")
+        chunk_id = inst.get("chunk_id", "")
 
+        if not isinstance(excerpt, str) or not isinstance(chunk_id, str):
+            rejected += 1
+            continue
         if not excerpt or not chunk_id:
             rejected += 1
             continue
@@ -60,13 +59,13 @@ def ground_instances(
             rejected += 1
             continue
 
-        # Chunk ID must be known
-        if chunk_id not in normalized_chunks:
+        # Chunk ID must be known.  Acceptance is deliberately exact: the
+        # normalized form is used only to detect duplicate claims.
+        if chunk_id not in chunk_map:
             rejected += 1
             continue
 
-        # Excerpt must be present in the cited chunk's normalised text
-        if norm_excerpt not in normalized_chunks[chunk_id]:
+        if excerpt not in chunk_map[chunk_id]:
             rejected += 1
             continue
 
@@ -77,5 +76,3 @@ def ground_instances(
             accepted_chunk_ids.append(chunk_id)
 
     return accepted_excerpts, accepted_chunk_ids, rejected
-
-

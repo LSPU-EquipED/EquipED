@@ -4,6 +4,7 @@ import json
 from threading import Barrier, Thread
 from uuid import uuid4
 
+from server.core.llm import CompletionResult
 from server.modules.agents.itso.agent import ITSO
 
 
@@ -17,7 +18,47 @@ class BarrierClient:
     def generate(self, prompt, *, temperature, max_new_tokens):
         self.prompts[self.model] = prompt
         self.barrier.wait(timeout=3)
-        return json.dumps({"summary": self.summary, "criterion_scores": []})
+        return _response(self.summary)
+
+    def generate_result(
+        self,
+        prompt,
+        *,
+        temperature,
+        max_new_tokens,
+        deadline=None,
+        response_contract=None,
+    ):
+        assert response_contract is not None
+        assert response_contract.mode == "json_schema"
+        return CompletionResult(
+            content=self.generate(
+                prompt, temperature=temperature, max_new_tokens=max_new_tokens
+            ),
+            served_model=self.model,
+        )
+
+
+def _response(summary):
+    return json.dumps(
+        {
+            "summary": summary,
+            "criterion_scores": [
+                {
+                    "criterion_id": f"ITSO-0{i}",
+                    "criterion_title": __import__(
+                        "server.modules.agents.itso.response",
+                        fromlist=["ITSO_CRITERIA_TITLES"],
+                    ).ITSO_CRITERIA_TITLES[f"ITSO-0{i}"],
+                    "score": 3,
+                    "justification": "justification",
+                    "chunk_ids": [],
+                    "evidence": [],
+                }
+                for i in range(1, 6)
+            ],
+        }
+    )
 
 
 def test_shared_instance_real_runs_are_isolated(monkeypatch):
@@ -32,6 +73,7 @@ def test_shared_instance_real_runs_are_isolated(monkeypatch):
             "agent_total_prompt_budget_chars": 10000,
             "agent_temperature": 0.0,
             "llm_max_new_tokens": 2048,
+            "llm_response_mode": "json_schema",
             "get_agent_temperature": lambda self, name: 0.0,
         },
     )()

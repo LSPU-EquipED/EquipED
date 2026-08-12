@@ -61,14 +61,15 @@ STRICT rule:
 - If unsure, set has_clear_directions = false.
 
 For each task put a short label in "text", the exact instruction text in
-"directions", and the true/false judgment in "has_clear_directions". If a task has
-no quotable directions, still list it with empty "directions" and false.
+"directions", the exact supporting quote in "evidence", and the true/false judgment
+in "has_clear_directions". If a task has no quotable directions, still list it with
+empty "directions", empty "evidence", and false.
 
 Return ONLY valid JSON in exactly this shape:
 {{
   "tasks": [
     {{"id": 1, "text": "short label", "directions": "exact instruction quote",
-      "has_clear_directions": true}}
+      "has_clear_directions": true, "evidence": "exact task quote"}}
   ]
 }}
 

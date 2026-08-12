@@ -31,6 +31,7 @@ import json
 import logging
 from uuid import uuid4
 
+from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.runtime.prompt_budget import enforce_total_prompt_budget
 from server.tests.agents.helpers import (
     _DummyAgent,
@@ -38,6 +39,7 @@ from server.tests.agents.helpers import (
     _RetrievedChunk,
     patch_settings,
 )
+from server.tests.agents.runtime.response_helpers import itso_response
 
 # ------------------------------------------------------------------
 # Direct method tests (deterministic, no LLM)
@@ -329,14 +331,7 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     )
 
     agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
 
     agent.run(
@@ -375,14 +370,7 @@ def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) ->
     )
 
     agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
 
     agent.run(
@@ -430,13 +418,24 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
     class _CapturingLLM:
         def generate(self, prompt, *, temperature, max_new_tokens):
             captured_prompts.append(prompt)
-            return json.dumps(
-                {
-                    "summary": "ok",
-                    "criterion_scores": [
-                        {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                    ],
-                }
+            return json.dumps(itso_response())
+
+        def generate_result(
+            self,
+            prompt,
+            *,
+            temperature,
+            max_new_tokens,
+            deadline=None,
+            response_contract,
+        ):
+            assert response_contract == ResponseContract.json_object()
+            return CompletionResult(
+                self.generate(
+                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
+                ),
+                "fake-model",
+                finish_reason="stop",
             )
 
     agent = _DummyAgent(llm_client=_CapturingLLM())
@@ -493,14 +492,7 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     )
 
     agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
 
     result = agent.run(
@@ -537,14 +529,7 @@ def test_run_metadata_records_no_trim_when_under_budget(
     )
 
     agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
 
     result = agent.run(
@@ -594,14 +579,7 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
     )
 
     agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        ),
+        llm_client=_FakeLLM(itso_response()),
     )
 
     result = agent.run(

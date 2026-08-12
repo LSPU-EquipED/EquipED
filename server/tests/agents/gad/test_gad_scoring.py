@@ -6,6 +6,7 @@ import json
 from uuid import uuid4
 
 import pytest
+from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.gad.envelope import (
@@ -58,6 +59,50 @@ class _SequenceLLM:
         if not self.responses:
             raise AssertionError("GAD made more LLM calls than expected")
         return json.dumps(self.responses.pop(0))
+
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        del deadline
+        assert response_contract.mode == "json_object"
+        return CompletionResult(
+            content=self.generate(
+                prompt,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+            ),
+            served_model=self.model,
+            finish_reason="stop",
+        )
+
+
+class _TypedResultMixin:
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        del deadline
+        assert response_contract.mode == "json_object"
+        return CompletionResult(
+            content=self.generate(
+                prompt,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+            ),
+            served_model=self.model,
+            finish_reason="stop",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +455,7 @@ def test_repair_recovers_malformed_response() -> None:
         gad_05_summary="Repaired GAD-05.",
     )
 
-    class _RepairLLM:
+    class _RepairLLM(_TypedResultMixin):
         model = "gad-test-model"
 
         def __init__(self) -> None:
@@ -447,7 +492,7 @@ def test_repair_recovers_malformed_response() -> None:
 def test_unrecoverable_response_returns_failure() -> None:
     """When repair also fails, GAD returns failed result with metadata."""
 
-    class _FailLLM:
+    class _FailLLM(_TypedResultMixin):
         model = "gad-fail-model"
 
         def __init__(self) -> None:
@@ -552,7 +597,7 @@ def test_repair_prompt_never_exceeds_budget() -> None:
     settings = pytest.importorskip("server.core.config").get_settings()
     budget = settings.agent_total_prompt_budget_chars
 
-    class _BigRepairLLM:
+    class _BigRepairLLM(_TypedResultMixin):
         model = "test"
 
         def generate(self, prompt: str, **kw) -> str:
@@ -590,7 +635,7 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
     max_inst = MAX_INSTANCES_PER_CRITERION
     many = [{"excerpt": f"Instance {i}.", "chunk_id": "c1"} for i in range(20)]
 
-    class _ManyInstLLM:
+    class _ManyInstLLM(_TypedResultMixin):
         model = "test"
 
         def generate(self, prompt: str, **kw) -> str:
@@ -633,7 +678,7 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
     """Blocker 3: repair_occurred set True and llm_call_count=2 even
     when repair transport fails (not just after successful response)."""
 
-    class _FailOnRepairLLM:
+    class _FailOnRepairLLM(_TypedResultMixin):
         model = "test"
         call_count = 0
 
@@ -668,7 +713,7 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     provenance — no extra LLM call for recovery."""
     import server.modules.agents.gad.registry as _sp
 
-    class _ScoreFailLLM:
+    class _ScoreFailLLM(_TypedResultMixin):
         model = "test-model"
 
         def generate(self, prompt: str, **kw) -> str:
@@ -727,7 +772,7 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
         lambda: tiny_settings,
     )
 
-    class _NoopLLM:
+    class _NoopLLM(_TypedResultMixin):
         model = "test"
         called = False
 
@@ -750,7 +795,7 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
     """The same frozen packed chunks from the budget-enforced initial
     prompt are reused for repair and grounding — never repacked."""
 
-    class _ChunkCheckLLM:
+    class _ChunkCheckLLM(_TypedResultMixin):
         model = "test"
         prompts: list[str] = []
 

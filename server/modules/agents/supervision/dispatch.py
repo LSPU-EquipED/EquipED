@@ -7,7 +7,7 @@ import hashlib
 import logging
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 
 from server.core.config import get_settings
@@ -30,6 +30,8 @@ def _thaw(value):
 
 
 class AgentDispatcher:
+    HEARTBEAT_INTERVAL_SECONDS = 5.0
+
     def __init__(self, agents):
         self.agents = agents
 
@@ -42,6 +44,7 @@ class AgentDispatcher:
         prompt_id,
         started,
         client=None,
+        error_telemetry=None,
         provenance=None,
         exc=None,
     ):
@@ -58,6 +61,28 @@ class AgentDispatcher:
             category,
             reference,
         )
+        telemetry = (
+            error_telemetry
+            if error_telemetry is not None
+            else (getattr(client, "telemetry", {}) if client is not None else {})
+        )
+        calls = min(int(telemetry.get("call_count", 0)), 10_000_000)
+        safe_provenance = sanitize_provenance(
+            {
+                "logical_calls": calls,
+                "physical_attempts": int(telemetry.get("attempt_count", 0)),
+                "input_tokens": int(telemetry.get("prompt_tokens", 0)),
+                "output_tokens": int(telemetry.get("completion_tokens", 0)),
+                "provider_seconds_ms": round(
+                    float(telemetry.get("provider_seconds", 0)) * 1000
+                ),
+                "truncation_count": int(telemetry.get("cap_hit_count", 0)),
+                "cap_hit_count": int(telemetry.get("cap_hit_count", 0)),
+                "grouped_calls": int(telemetry.get("grouped_calls", 0)),
+                "fallback_calls": int(telemetry.get("fallback_calls", 0)),
+                "trim_count": int(telemetry.get("cap_hit_count", 0)),
+            }
+        )
         return AgentEvaluationResult(
             agent_name=agent_name,
             evaluation_id=evaluation_id,
@@ -68,10 +93,14 @@ class AgentDispatcher:
             model_name=getattr(client, "model", "unknown"),
             processing_seconds=elapsed,
             token_count=0,
-            prompt_version_id=prompt_id,
+            prompt_version_id=prompt_id if calls else None,
             success=False,
             error_message=f"{category} (reference: {reference})",
-            provenance=_thaw(provenance) if agent_name == "itso" else None,
+            provenance=(
+                safe_provenance
+                if agent_name == "sme"
+                else (_thaw(provenance) if agent_name == "itso" else None)
+            ),
         )
 
     @staticmethod
@@ -129,6 +158,8 @@ class AgentDispatcher:
         provenance=None,
         policy_evidence=None,
         roadmap_context=None,
+        canonical_source_text=None,
+        authoritative_curriculum_text=None,
     ):
         started = time.perf_counter()
         client = None
@@ -139,6 +170,9 @@ class AgentDispatcher:
                 "document_id": document_id,
                 "chunk_infos": _thaw(chunk_infos),
                 "context_text": context_text,
+                # PromptSnapshot is captured before workers start. Pass both
+                # identity fields so the agent cannot re-resolve a prompt in
+                # its worker-owned execution path.
                 "prompt_version": prompt_row.prompt_text,
                 "prompt_version_id": prompt_row.version_id,
                 "reference_document_ids": _thaw(reference_document_ids),
@@ -152,7 +186,13 @@ class AgentDispatcher:
                     policy_evidence=_thaw(policy_evidence),
                 )
             elif agent_name == "coordinator":
-                kwargs["roadmap_context"] = _thaw(roadmap_context)
+                kwargs.update(
+                    curriculum_id=reference_document_ids.get("curriculum"),
+                    curriculum_context=authoritative_curriculum_text,
+                    roadmap_context=_thaw(roadmap_context),
+                )
+            if agent_name in {"sme", "coordinator"}:
+                kwargs["canonical_source_text"] = canonical_source_text
             result = agent.run(**kwargs)
             if not isinstance(result, AgentEvaluationResult):
                 raise TypeError("agent returned an invalid result contract")
@@ -160,7 +200,9 @@ class AgentDispatcher:
                 result.agent_name != agent_name
                 or result.evaluation_id != evaluation_id
                 or result.document_id != document_id
-                or result.prompt_version_id != prompt_row.version_id
+                or (
+                    result.success and result.prompt_version_id != prompt_row.version_id
+                )
             ):
                 raise ValueError("agent returned an invalid result identity")
             if not result.success:
@@ -188,6 +230,7 @@ class AgentDispatcher:
                 prompt_id=prompt_row.version_id,
                 started=started,
                 client=client,
+                error_telemetry=getattr(exc, "telemetry", None),
                 provenance=provenance,
                 exc=exc,
             )
@@ -205,6 +248,9 @@ class AgentDispatcher:
         provenance,
         policy_evidence,
         roadmap_context,
+        canonical_source_text=None,
+        authoritative_curriculum_text=None,
+        heartbeat_callback: Callable[[], None] | None = None,
     ):
         results, failures, pending = [], {}, {}
         snapshots = {
@@ -221,7 +267,7 @@ class AgentDispatcher:
             for agent in self.agents:
                 name = getattr(agent, "agent_name", agent.__class__.__name__)
                 prompt = prompt_versions.get(name)
-                if prompt is None:
+                if prompt is None and name != "coordinator":
                     raise SupervisorExecutionError(
                         f"No active prompt found for agent {name}"
                     )
@@ -244,33 +290,67 @@ class AgentDispatcher:
                     roadmap_context=(
                         snapshots["roadmap_context"] if name == "coordinator" else None
                     ),
+                    canonical_source_text=canonical_source_text,
+                    authoritative_curriculum_text=authoritative_curriculum_text,
                 )
                 pending[future] = (name, prompt, started)
-            for future in concurrent.futures.as_completed(pending):
-                name, prompt, started = pending[future]
+            if heartbeat_callback:
                 try:
-                    result = future.result()
+                    heartbeat_callback()
                 except Exception as exc:
-                    result = self._failed_result(
-                        agent_name=name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        prompt_id=prompt.version_id,
-                        started=started,
-                        provenance=snapshots["provenance"] if name == "itso" else None,
-                        exc=exc,
-                    )
-                if not isinstance(result, AgentEvaluationResult):
-                    result = self._failed_result(
-                        agent_name=name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        prompt_id=prompt.version_id,
-                        started=started,
-                        provenance=snapshots["provenance"] if name == "itso" else None,
-                        exc=TypeError("agent returned an invalid result contract"),
-                    )
-                results.append(result)
-                if not result.success:
-                    failures[name] = result.error_message or "agent failed"
+                    for future in pending:
+                        future.cancel()
+                    raise SupervisorExecutionError(
+                        "evaluation heartbeat failed"
+                    ) from exc
+            remaining = set(pending)
+            while remaining:
+                done, remaining = concurrent.futures.wait(
+                    remaining, timeout=self.HEARTBEAT_INTERVAL_SECONDS
+                )
+                if heartbeat_callback and remaining:
+                    try:
+                        heartbeat_callback()
+                    except Exception as exc:
+                        for future in remaining:
+                            future.cancel()
+                        raise SupervisorExecutionError(
+                            "evaluation heartbeat failed"
+                        ) from exc
+                for future in done:
+                    name, prompt, started = pending[future]
+                    try:
+                        result = future.result()
+                    except Exception as exc:
+                        result = self._failed_result(
+                            agent_name=name,
+                            evaluation_id=evaluation_id,
+                            document_id=document_id,
+                            prompt_id=prompt.version_id,
+                            started=started,
+                            provenance=(
+                                snapshots["provenance"] if name == "itso" else None
+                            ),
+                            exc=exc,
+                        )
+                    if not isinstance(result, AgentEvaluationResult):
+                        result = self._failed_result(
+                            agent_name=name,
+                            evaluation_id=evaluation_id,
+                            document_id=document_id,
+                            prompt_id=prompt.version_id,
+                            started=started,
+                            provenance=(
+                                snapshots["provenance"] if name == "itso" else None
+                            ),
+                            exc=TypeError("agent returned an invalid result contract"),
+                        )
+                    results.append(result)
+                    if not result.success:
+                        failures[name] = result.error_message or "agent failed"
+        agent_order = [
+            getattr(agent, "agent_name", agent.__class__.__name__)
+            for agent in self.agents
+        ]
+        results.sort(key=lambda result: agent_order.index(result.agent_name))
         return results, failures

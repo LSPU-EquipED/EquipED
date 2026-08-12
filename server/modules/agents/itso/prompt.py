@@ -9,6 +9,7 @@ from server.core.config import get_settings
 
 from ..runtime.context import ITSOExecutionContext
 from ..runtime.prompt_budget import pack_chunks
+from .response import ITSO_CRITERIA_TITLES
 
 
 def build_prompt(
@@ -28,7 +29,10 @@ def build_prompt(
         agent_name="itso",
     )
     instructions = [
-        "Return JSON with summary and criterion_scores.",
+        "Return JSON with summary and criterion_scores only.",
+        "Return exactly one criterion for each criterion, in this exact order "
+        "and with these exact titles: "
+        + "; ".join(f"{key} = {value}" for key, value in ITSO_CRITERIA_TITLES.items()),
         "Each criterion score must be between 1 and 4.",
         "Cite only the chunk_id values provided in document_chunks.",
         "Ground all claims in the provided context.",
@@ -48,10 +52,7 @@ def build_prompt(
                 if isinstance(value, bool)
                 else value
             )
-            evidence_lines.append(
-                f"  - {label}: "
-                f"{display_value}"
-            )
+            evidence_lines.append(f"  - {label}: {display_value}")
     if evidence_lines:
         instructions += [
             "Local evidence precheck summary (deterministic, advisory only):",

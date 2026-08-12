@@ -6,13 +6,12 @@ from uuid import uuid4
 
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
+from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.itso.agent import ITSO
 from server.tests.agents.helpers import _mock_settings
+from server.tests.agents.itso.test_itso_execution import _response
 
-_OK_RESPONSE = (
-    '{"summary":"ok","criterion_scores":['
-    '{"criterion_id":"c1","score":3,"justification":"ok"}]}'
-)
+_OK_RESPONSE = _response()
 
 
 def _clear_settings_cache(monkeypatch) -> None:
@@ -23,48 +22,6 @@ def _clear_settings_cache(monkeypatch) -> None:
     monkeypatch.setenv("LLM_TEMPERATURE_ITSO", "")
     monkeypatch.setenv("LLM_TEMPERATURE", "")
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
-
-
-def test_per_agent_delay_config_parses_json(monkeypatch) -> None:
-    _clear_settings_cache(monkeypatch)
-    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": 20, "gad": 5}')
-    try:
-        assert get_settings().llm_agent_delay_per_agent == {"itso": 20, "gad": 5}
-    finally:
-        get_settings.cache_clear()
-
-
-def test_per_agent_delay_config_defaults_empty(monkeypatch) -> None:
-    _clear_settings_cache(monkeypatch)
-    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", "")
-    try:
-        assert get_settings().llm_agent_delay_per_agent == {}
-    finally:
-        get_settings.cache_clear()
-
-
-def test_per_agent_delay_config_rejects_non_dict(monkeypatch) -> None:
-    _clear_settings_cache(monkeypatch)
-    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", "[20, 5]")
-    try:
-        get_settings()
-        raise AssertionError("expected ConfigurationError")
-    except ConfigurationError as exc:
-        assert "must be a JSON object" in str(exc)
-    finally:
-        get_settings.cache_clear()
-
-
-def test_per_agent_delay_config_rejects_non_int_values(monkeypatch) -> None:
-    _clear_settings_cache(monkeypatch)
-    monkeypatch.setenv("LLM_AGENT_DELAY_PER_AGENT", '{"itso": "fast"}')
-    try:
-        get_settings()
-        raise AssertionError("expected ConfigurationError")
-    except ConfigurationError as exc:
-        assert "must be an integer" in str(exc)
-    finally:
-        get_settings.cache_clear()
 
 
 def test_itso_temperature_default(monkeypatch) -> None:
@@ -152,6 +109,23 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
             captured_temps.append(temperature)
             return _OK_RESPONSE
 
+        def generate_result(
+            self,
+            prompt,
+            *,
+            temperature,
+            max_new_tokens,
+            deadline=None,
+            response_contract=None,
+        ):
+            assert response_contract == ResponseContract.json_object()
+            return CompletionResult(
+                content=self.generate(
+                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
+                ),
+                served_model=self.model,
+            )
+
     monkeypatch.setattr(
         "server.modules.agents.itso.execution.get_settings",
         lambda: _mock_settings(llm_temperature=0.5, llm_temperature_itso=0.0),
@@ -187,6 +161,23 @@ def test_itso_agent_records_requested_vs_actual_model() -> None:
 
         def generate(self, prompt, *, temperature, max_new_tokens):
             return _OK_RESPONSE
+
+        def generate_result(
+            self,
+            prompt,
+            *,
+            temperature,
+            max_new_tokens,
+            deadline=None,
+            response_contract=None,
+        ):
+            assert response_contract == ResponseContract.json_object()
+            return CompletionResult(
+                content=self.generate(
+                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
+                ),
+                served_model=self.model,
+            )
 
     agent = ITSO(llm_client=_ModelTrackingLLM())
     result = agent.run(

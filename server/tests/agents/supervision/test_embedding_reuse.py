@@ -14,11 +14,13 @@ def test_builder_compute_embedding_returns_none_for_empty() -> None:
 
 def test_builder_compute_embedding_returns_list_for_text(monkeypatch) -> None:
     """_compute_query_embedding should return a list of floats for valid text."""
+
     class FakeModel:
         def encode(self, texts, show_progress_bar=False):
             class Result:
                 def tolist(self):
                     return [[0.1, 0.2, 0.3]]
+
             return Result()
 
     monkeypatch.setattr(
@@ -33,6 +35,7 @@ def test_builder_compute_embedding_returns_list_for_text(monkeypatch) -> None:
 
 def test_builder_compute_embedding_returns_none_on_error(monkeypatch) -> None:
     """_compute_query_embedding should return None when model fails."""
+
     def broken_model():
         raise RuntimeError("model broken")
 
@@ -50,15 +53,41 @@ def test_precompute_uses_embedding_when_available(monkeypatch) -> None:
     """_build_precomputed_context should use embedding path when provided."""
     call_counts = {"with_embedding": 0, "with_text": 0}
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
+    def fake_retrieve_with_embedding(
+        embedding, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         call_counts["with_embedding"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
-    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):  # noqa: E501
+        return [
+            RetrievedChunk(
+                text=f"emb:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
+
+    def fake_retrieve_context(
+        query_text, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         call_counts["with_text"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
+
+        return [
+            RetrievedChunk(
+                text=f"text:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -93,15 +122,41 @@ def test_precompute_falls_back_to_text_when_no_embedding(monkeypatch) -> None:
     """_build_precomputed_context should fall back to text path when embedding is None."""  # noqa: E501
     call_counts = {"with_embedding": 0, "with_text": 0}
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
+    def fake_retrieve_with_embedding(
+        embedding, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         call_counts["with_embedding"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
 
-    def fake_retrieve_context(query_text, collection, n_results=5, document_id_filter=None):  # noqa: E501
+        return [
+            RetrievedChunk(
+                text=f"emb:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
+
+    def fake_retrieve_context(
+        query_text, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         call_counts["with_text"] += 1
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"text:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
+
+        return [
+            RetrievedChunk(
+                text=f"text:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -156,11 +211,23 @@ def test_precompute_computes_embedding_once_for_multiple_sources(monkeypatch) ->
 
     retrieve_calls = []
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
+    def fake_retrieve_with_embedding(
+        embedding, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         retrieve_calls.append(("embedding", collection))
         from server.modules.embeddings.retrieval import RetrievedChunk
 
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
+        return [
+            RetrievedChunk(
+                text=f"emb:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -201,9 +268,22 @@ def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
         broken_model,
     )
 
-    def fake_retrieve_with_embedding(embedding, collection, n_results=5, document_id_filter=None):  # noqa: E501
+    def fake_retrieve_with_embedding(
+        embedding, collection, n_results=5, document_id_filter=None
+    ):  # noqa: E501
         from server.modules.embeddings.retrieval import RetrievedChunk
-        return [RetrievedChunk(text=f"emb:{collection}", distance=0.1, document_id=None, source_type=None, page_number=None, is_ocr=None, token_count=None)]  # noqa: E501
+
+        return [
+            RetrievedChunk(
+                text=f"emb:{collection}",
+                distance=0.1,
+                document_id=None,
+                source_type=None,
+                page_number=None,
+                is_ocr=None,
+                token_count=None,
+            )
+        ]  # noqa: E501
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context_with_embedding",
@@ -223,5 +303,7 @@ def test_precompute_reuses_explicit_embedding_parameter(monkeypatch) -> None:
         },
     )
 
-    assert encode_calls == [], "_compute_query_embedding should not be called when embedding is provided"  # noqa: E501
+    assert encode_calls == [], (
+        "_compute_query_embedding should not be called when embedding is provided"
+    )  # noqa: E501
     assert result["syllabus"] == ["emb:syllabus"]

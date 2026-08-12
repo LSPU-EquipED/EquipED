@@ -53,6 +53,27 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
         "gad_extraction_seconds",
         "gad_validation_seconds",
         "gad_scoring_seconds",
+        "llm_attempts",
+        "llm_prompt_tokens",
+        "llm_completion_tokens",
+        "llm_total_tokens",
+        "llm_wall_seconds",
+        "llm_call_count",
+        "llm_cap_hit_count",
+        "llm_usage_available",
+        "llm_served_model",
+        # SME bounded transport telemetry (flat scalar fields only)
+        "logical_calls",
+        "physical_attempts",
+        "input_tokens",
+        "output_tokens",
+        "truncation_count",
+        "cap_hit_count",
+        "criterion_fallback_calls",
+        "grouped_calls",
+        "fallback_calls",
+        "provider_seconds_ms",
+        "trim_count",
     }
 )
 
@@ -91,6 +112,26 @@ _PROVENANCE_TYPES: dict[str, type | tuple[type, type]] = {
     "gad_extraction_seconds": (int, float),
     "gad_validation_seconds": (int, float),
     "gad_scoring_seconds": (int, float),
+    "llm_attempts": int,
+    "llm_prompt_tokens": int,
+    "llm_completion_tokens": int,
+    "llm_total_tokens": int,
+    "llm_wall_seconds": (int, float),
+    "llm_call_count": int,
+    "llm_cap_hit_count": int,
+    "llm_usage_available": bool,
+    "llm_served_model": str,
+    "logical_calls": int,
+    "physical_attempts": int,
+    "input_tokens": int,
+    "output_tokens": int,
+    "truncation_count": int,
+    "cap_hit_count": int,
+    "criterion_fallback_calls": int,
+    "grouped_calls": int,
+    "fallback_calls": int,
+    "provider_seconds_ms": int,
+    "trim_count": int,
 }
 
 # Bounded string/list value caps per key.
@@ -102,11 +143,38 @@ _PROVENANCE_MAX_LEN: dict[str, int] = {
     "actual_model": 200,
     "summary_requested_model": 200,
     "summary_actual_model": 200,
+    "llm_served_model": 200,
     "chunk_ids_ordered": 64,
     "policy_delivery_state": 20,
     "policy_retrieval_version": 10,
     "extraction_schema_version": 10,
 }
+_BOUNDED_INTEGER_KEYS = frozenset(
+    {
+        "reference_context_dropped",
+        "registry_version",
+        "evidence_candidates",
+        "evidence_accepted",
+        "evidence_rejected",
+        "llm_attempts",
+        "llm_prompt_tokens",
+        "llm_completion_tokens",
+        "llm_total_tokens",
+        "llm_call_count",
+        "llm_cap_hit_count",
+        "logical_calls",
+        "physical_attempts",
+        "input_tokens",
+        "output_tokens",
+        "truncation_count",
+        "cap_hit_count",
+        "criterion_fallback_calls",
+        "grouped_calls",
+        "fallback_calls",
+        "provider_seconds_ms",
+        "trim_count",
+    }
+)
 
 _SENSITIVE_SUBSTRINGS: tuple[str, ...] = (
     "api_key",
@@ -147,8 +215,27 @@ def sanitize_provenance(raw: dict[str, Any] | None) -> dict[str, Any] | None:
         # Type check: skip values that don't match expected type.
         expected_type = _PROVENANCE_TYPES.get(key)
         if expected_type is not None:
-            if not isinstance(value, expected_type):
+            if (
+                not isinstance(value, expected_type)
+                or key
+                in {
+                    "logical_calls",
+                    "physical_attempts",
+                    "input_tokens",
+                    "output_tokens",
+                    "truncation_count",
+                    "cap_hit_count",
+                    "criterion_fallback_calls",
+                }
+                and isinstance(value, bool)
+            ):
                 continue
+        if key in _BOUNDED_INTEGER_KEYS and (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 0 <= value <= 10_000_000
+        ):
+            continue
 
         if key == "chunk_ids_ordered":
             if not all(

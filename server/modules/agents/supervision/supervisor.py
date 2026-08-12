@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from types import MappingProxyType
 from typing import Any
 
@@ -46,9 +47,11 @@ class Supervisor:
         chunks: list[DocumentChunk],
         query_text: str | None = None,
         context: dict[str, Any] | None = None,
+        heartbeat_callback: Callable[[], None] | None = None,
     ) -> SupervisorResult:
         started = time.perf_counter()
         context = context or {}
+        context = {**context, "document_id": document_id}
         prepared = EvaluationContextBuilder(self.db, self.agents).build(
             chunks=chunks, query_text=query_text, context=context
         )
@@ -69,6 +72,9 @@ class Supervisor:
             provenance=evidence.provenance,
             policy_evidence=evidence.policy_evidence,
             roadmap_context=context.get("roadmap"),
+            canonical_source_text=prepared.canonical_source_text,
+            authoritative_curriculum_text=prepared.authoritative_curriculum_text,
+            heartbeat_callback=heartbeat_callback,
         )
         logger.info(
             "[EVAL_TIMING] phase=evaluation_total | seconds=%.3f | "

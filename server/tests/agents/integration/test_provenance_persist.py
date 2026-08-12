@@ -275,8 +275,14 @@ def test_provenance_excludes_raw_text(db_session) -> None:
     assert "precheck_version" in prov
     assert prov["precheck_version"] == "1"
     # Ensure no raw text fields snuck in
-    for sensitive_key in ["prompt_text", "slm_text", "chunk_text",
-                           "raw_prompt", "credentials", "api_key"]:
+    for sensitive_key in [
+        "prompt_text",
+        "slm_text",
+        "chunk_text",
+        "raw_prompt",
+        "credentials",
+        "api_key",
+    ]:
         assert sensitive_key not in prov_str
 
 

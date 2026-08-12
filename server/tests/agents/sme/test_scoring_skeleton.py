@@ -19,7 +19,71 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
+from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.sme import extraction, registry
+
+
+class TestStrictBasketFixtures:
+    @staticmethod
+    def _valid_a2() -> dict[str, Any]:
+        return {"tasks": []}
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"tasks": None},
+            {"tasks": [], "unknown": []},
+            {"tasks": [{}]},
+            {
+                "tasks": [
+                    {
+                        "id": True,
+                        "text": "x",
+                        "bloom_level": "apply",
+                        "directions": "x",
+                        "has_clear_directions": True,
+                        "evidence": "x",
+                    }
+                ]
+            },
+            {
+                "tasks": [
+                    {
+                        "id": "1",
+                        "text": "x",
+                        "bloom_level": "apply",
+                        "directions": "x",
+                        "has_clear_directions": True,
+                        "evidence": "x",
+                    }
+                ]
+            },
+        ],
+    )
+    def test_invalid_atomic_payloads_rejected(self, payload: dict[str, Any]) -> None:
+        with pytest.raises(ValueError):
+            extraction._validate("A2", payload)
+
+    def test_valid_empty_arrays_remain_valid(self) -> None:
+        assert extraction._validate("A2", self._valid_a2()) == {"tasks": []}
+
+    def test_unknown_reference_rejected(self) -> None:
+        payload = {
+            "objectives": [{"id": 1, "text": "x"}],
+            "assessments": [],
+            "alignment": [
+                {
+                    "objective_id": 2,
+                    "is_measured": True,
+                    "assessment_ids": [],
+                    "evidence": "x",
+                }
+            ],
+        }
+        with pytest.raises(ValueError, match="alignment objective coverage"):
+            extraction._validate("A1", payload)
 
 
 # ---------------------------------------------------------------------------
@@ -28,13 +92,31 @@ from server.modules.agents.sme import extraction, registry
 class TestComputeBasketA1:
     def _basket(self) -> dict[str, Any]:
         return {
-            "objectives": [{"id": 1}, {"id": 2}],
+            "objectives": [
+                {"id": 1, "text": "Objective 1"},
+                {"id": 2, "text": "Objective 2"},
+            ],
             "assessments": [
-                {"id": 1, "assessment_type": "objective_test", "evidence": "Q1-10"},
-                {"id": 2, "assessment_type": "written", "evidence": "essay prompt"},
+                {
+                    "id": 1,
+                    "text": "Quiz",
+                    "assessment_type": "objective_test",
+                    "evidence": "Q1-10",
+                },
+                {
+                    "id": 2,
+                    "text": "Essay",
+                    "assessment_type": "written",
+                    "evidence": "essay prompt",
+                },
             ],
             "alignment": [
-                {"objective_id": 1, "is_measured": True, "evidence": "Q1-10"},
+                {
+                    "objective_id": 1,
+                    "is_measured": True,
+                    "assessment_ids": [1],
+                    "evidence": "Q1-10",
+                },
             ],
         }
 
@@ -66,6 +148,7 @@ class TestComputeBasketA2:
         return {
             "tasks": [
                 {
+                    "id": 1,
                     "text": "Task 1",
                     "bloom_level": "apply",
                     "directions": "Solve for x in the equation.",
@@ -73,6 +156,7 @@ class TestComputeBasketA2:
                     "evidence": "Solve for x in the equation.",
                 },
                 {
+                    "id": 2,
                     "text": "Task 2",
                     "bloom_level": "remember",
                     "directions": "",
@@ -119,6 +203,7 @@ class TestComputeBasketA3:
         basket = {
             "monitoring_mechanisms": [
                 {
+                    "id": 1,
                     "text": "Checkpoint 1",
                     "monitoring_type": "checkpoint",
                     "evidence": "short quiz after lesson 1",
@@ -145,7 +230,11 @@ class TestComputeBasketA4:
     def test_op05_enhancement_activities(self) -> None:
         basket = {
             "enhancement_activities": [
-                {"text": "Extra reading", "evidence": "Research a related topic."},
+                {
+                    "id": 1,
+                    "text": "Extra reading",
+                    "evidence": "Research a related topic.",
+                },
             ],
         }
         result = registry._compute_basket_a4("OP-05", basket)
@@ -304,14 +393,51 @@ class TestExtractBaskets:
             self.calls.append(prompt)
             return json.dumps(self.payload)
 
+        def generate_result(
+            self,
+            prompt: str,
+            *,
+            temperature: float,
+            max_new_tokens: int,
+            deadline: float | None = None,
+            response_contract: ResponseContract,
+        ) -> CompletionResult:
+            if (
+                response_contract is not None
+                and response_contract.mode != "json_object"
+            ):
+                raise AssertionError(
+                    "SME fake requires the json_object response contract"
+                )
+            return CompletionResult(
+                content=self.generate(
+                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
+                ),
+                served_model=None,
+                finish_reason="stop",
+            )
+
     def test_extract_basket_a1_parses_json(self) -> None:
-        client = self.FakeClient({"objectives": [{"id": 1}], "assessments": []})
+        client = self.FakeClient(
+            {
+                "objectives": [{"id": 1, "text": "Objective 1"}],
+                "assessments": [],
+                "alignment": [
+                    {
+                        "objective_id": 1,
+                        "is_measured": False,
+                        "assessment_ids": [],
+                        "evidence": "",
+                    }
+                ],
+            }
+        )
         data = extraction.extract_basket_a1(client, "some slm text")
-        assert data["objectives"] == [{"id": 1}]
+        assert data["objectives"] == [{"id": 1, "text": "Objective 1"}]
         assert len(client.calls) == 1
 
     def test_extract_basket_a1_without_curriculum_uses_base_prompt(self) -> None:
-        client = self.FakeClient({"objectives": [], "assessments": []})
+        client = self.FakeClient({"objectives": [], "assessments": [], "alignment": []})
         extraction.extract_basket_a1(client, "some slm text")
         assert "CURRICULUM CONTENT" not in client.calls[0]
         assert "curriculum_alignment" not in client.calls[0]
@@ -323,9 +449,13 @@ class TestExtractBaskets:
             {
                 "objectives": [{"id": 1, "text": "obj"}],
                 "assessments": [],
-                "alignment": [],
-                "curriculum_alignment": [
-                    {"objective_id": 1, "is_addressed": True, "evidence": "quote"}
+                "alignment": [
+                    {
+                        "objective_id": 1,
+                        "is_measured": False,
+                        "assessment_ids": [],
+                        "evidence": "",
+                    }
                 ],
             }
         )
@@ -335,12 +465,10 @@ class TestExtractBaskets:
         assert len(client.calls) == 1  # one call, not two -- this is the whole point
         assert "CURRICULUM CONTENT" in client.calls[0]
         assert "Course: Foo" in client.calls[0]
-        assert data["curriculum_alignment"] == [
-            {"objective_id": 1, "is_addressed": True, "evidence": "quote"}
-        ]
+        assert set(data) == {"objectives", "assessments", "alignment"}
 
     def test_extract_basket_a1_empty_curriculum_text_uses_base_prompt(self) -> None:
-        client = self.FakeClient({"objectives": [], "assessments": []})
+        client = self.FakeClient({"objectives": [], "assessments": [], "alignment": []})
         extraction.extract_basket_a1(client, "some slm text", curriculum_text="   ")
         assert "CURRICULUM CONTENT" not in client.calls[0]
 
@@ -360,9 +488,11 @@ class TestExtractBaskets:
         assert data == {"enhancement_activities": []}
 
     def test_extract_basket_b1_parses_json(self) -> None:
-        client = self.FakeClient({"topics": [], "feedback_mechanisms": []})
+        client = self.FakeClient(
+            {"topics": [], "transitions": [], "feedback_mechanisms": []}
+        )
         data = extraction.extract_basket_b1(client, "some slm text")
-        assert data == {"topics": [], "feedback_mechanisms": []}
+        assert data == {"topics": [], "transitions": [], "feedback_mechanisms": []}
 
     def test_extract_basket_b2_parses_json(self) -> None:
         client = self.FakeClient({"sections": []})
@@ -403,22 +533,52 @@ class RoutingFakeClient:
             raise RuntimeError(f"basket {key} configured to fail")
         return json.dumps(payload)
 
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None = None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        if response_contract is not None and response_contract.mode != "json_object":
+            raise AssertionError("SME fake requires the json_object response contract")
+        return CompletionResult(
+            content=self.generate(
+                prompt, temperature=temperature, max_new_tokens=max_new_tokens
+            ),
+            served_model=None,
+            finish_reason="stop",
+        )
+
 
 class TestRunGrouped:
     def _all_baskets(self) -> dict[str, dict[str, Any]]:
         return {
             "a1": {
-                "objectives": [{"id": 1}],
+                "objectives": [{"id": 1, "text": "Objective 1"}],
                 "assessments": [
-                    {"id": 1, "assessment_type": "objective_test", "evidence": "Q1"}
+                    {
+                        "id": 1,
+                        "text": "Quiz",
+                        "assessment_type": "objective_test",
+                        "evidence": "Q1",
+                    }
                 ],
                 "alignment": [
-                    {"objective_id": 1, "is_measured": True, "evidence": "Q1"}
+                    {
+                        "objective_id": 1,
+                        "is_measured": True,
+                        "assessment_ids": [1],
+                        "evidence": "Q1",
+                    }
                 ],
             },
             "a2": {
                 "tasks": [
                     {
+                        "id": 1,
                         "text": "Task 1",
                         "bloom_level": "apply",
                         "directions": "Do X.",
@@ -430,6 +590,7 @@ class TestRunGrouped:
             "a3": {
                 "monitoring_mechanisms": [
                     {
+                        "id": 1,
                         "text": "Check 1",
                         "monitoring_type": "checkpoint",
                         "evidence": "quiz",
@@ -438,7 +599,7 @@ class TestRunGrouped:
             },
             "a4": {
                 "enhancement_activities": [
-                    {"text": "Extra", "evidence": "Research more."}
+                    {"id": 1, "text": "Extra", "evidence": "Research more."}
                 ],
             },
             "b1": {
@@ -447,7 +608,12 @@ class TestRunGrouped:
                     {"from_id": 1, "to_id": 2, "is_coherent": True, "reason": "ok"}
                 ],
                 "feedback_mechanisms": [
-                    {"text": "Key", "feedback_type": "answer_key", "evidence": "p.1"}
+                    {
+                        "id": 1,
+                        "text": "Key",
+                        "feedback_type": "answer_key",
+                        "evidence": "p.1",
+                    }
                 ],
             },
             "b2": {
@@ -460,8 +626,16 @@ class TestRunGrouped:
         results = registry.run_grouped(client, "full slm text")
 
         expected_codes = {
-            "A-01", "A-02", "A-03", "A-05", "OP-02", "OP-03", "OP-05",
-            "OP-01", "OP-04", "A-04",
+            "A-01",
+            "A-02",
+            "A-03",
+            "A-05",
+            "OP-02",
+            "OP-03",
+            "OP-05",
+            "OP-01",
+            "OP-04",
+            "A-04",
         }
         assert set(results) == expected_codes
         for code, (score, justification, evidence) in results.items():
@@ -472,16 +646,16 @@ class TestRunGrouped:
         client = RoutingFakeClient(**self._all_baskets())
         raw_baskets: dict[str, dict] = {}
         registry.run_grouped(client, "full slm text", raw_baskets_out=raw_baskets)
-        assert raw_baskets["A1"]["objectives"] == [{"id": 1}]
+        assert raw_baskets["A1"]["objectives"] == [{"id": 1, "text": "Objective 1"}]
         assert "B1" in raw_baskets
 
     def test_basket_extract_kwargs_reaches_only_the_named_basket(self) -> None:
         # Confirms Coordinator's curriculum_text only ever threads into A1's
         # extract call, not the other 5 baskets (which don't accept it).
         baskets = self._all_baskets()
-        baskets["a1"] = dict(baskets["a1"], curriculum_alignment=[
-            {"objective_id": 1, "is_addressed": True, "evidence": "curric quote"}
-        ])
+        baskets["a1"] = dict(
+            baskets["a1"],
+        )
         client = RoutingFakeClient(**baskets)
         raw_baskets: dict[str, dict] = {}
 
@@ -492,9 +666,7 @@ class TestRunGrouped:
             basket_extract_kwargs={"A1": {"curriculum_text": "Course: Foo\n\nBar"}},
         )
 
-        assert raw_baskets["A1"]["curriculum_alignment"] == [
-            {"objective_id": 1, "is_addressed": True, "evidence": "curric quote"}
-        ]
+        assert set(raw_baskets["A1"]) == {"objectives", "assessments", "alignment"}
         # Still exactly the normal 10-code result -- no extra calls, no
         # extra codes introduced by the curriculum kwarg.
         assert "A-05" in results
@@ -506,8 +678,17 @@ class TestRunGrouped:
         results = registry.run_grouped(client, "full slm text")
 
         assert "A-03" not in results
-        for code in ("A-01", "A-02", "A-05", "OP-01", "OP-02", "OP-03", "OP-04",
-                     "OP-05", "A-04"):
+        for code in (
+            "A-01",
+            "A-02",
+            "A-05",
+            "OP-01",
+            "OP-02",
+            "OP-03",
+            "OP-04",
+            "OP-05",
+            "A-04",
+        ):
             assert code in results
 
     def test_a4_failure_only_drops_op05(self) -> None:
@@ -530,8 +711,6 @@ class TestRunGrouped:
         assert "A-04" in results
 
     def test_all_baskets_fail_returns_empty(self) -> None:
-        client = RoutingFakeClient(
-            a1=None, a2=None, a3=None, a4=None, b1=None, b2=None
-        )
+        client = RoutingFakeClient(a1=None, a2=None, a3=None, a4=None, b1=None, b2=None)
         results = registry.run_grouped(client, "full slm text")
         assert results == {}

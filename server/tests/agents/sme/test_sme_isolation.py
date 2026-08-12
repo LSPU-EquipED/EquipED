@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import inspect
 import threading
 import uuid
 
@@ -22,13 +23,10 @@ class _Client:
 class _BarrierSME(SME):
     barrier = threading.Barrier(2)
 
-    def _load_document_text(self, document_id):
-        return None
-
     def _rubric_titles(self, db):
         return {code: code for code in registry.REGISTERED_CODES}
 
-    def _score_via_engine(self, client, full_text, delay, **kwargs):
+    def _score_via_engine(self, client, full_text, **kwargs):
         self.barrier.wait(timeout=5)
         return {
             code: (4, f"result from {client.model}", ())
@@ -47,6 +45,7 @@ def test_same_sme_instance_keeps_injected_clients_isolated() -> None:
             document_id=uuid.uuid4(),
             chunk_infos=[{"text": "text"}],
             context_text="text",
+            canonical_source_text="canonical source",
             llm_client=client,
         )
 
@@ -105,8 +104,35 @@ def test_grouped_and_criterion_failures_log_safe_references(
         lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
     )
     with pytest.raises(AgentExecutionError) as raised:
-        engine._score_via_engine(_Client("model"), "text", 0)
+        engine._score_via_engine(_Client("model"), "text")
     message = str(raised.value)
     assert secret not in message
     assert "category=RuntimeError" in message
     assert error_reference(RuntimeError(secret)) in message
+
+
+def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
+    source = inspect.getsource(SME)
+    assert "fitz" not in source.lower()
+    assert "pymupdf" not in source.lower()
+    assert "_load_document_text" not in source
+
+    captured: list[str] = []
+    monkeypatch.setattr(
+        registry,
+        "run_grouped",
+        lambda client, text, **kwargs: (
+            captured.append(text)
+            or {code: (4, "ok", ()) for code in registry.REGISTERED_CODES}
+        ),
+    )
+    agent = SME(llm_client=_Client("model"))
+    result = agent.run(
+        evaluation_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        chunk_infos=[{"text": "chunk fallback must not be used"}],
+        context_text="context fallback must not be used",
+        canonical_source_text="EXACT CANONICAL SOURCE",
+    )
+    assert result.success is True
+    assert captured == ["EXACT CANONICAL SOURCE"]

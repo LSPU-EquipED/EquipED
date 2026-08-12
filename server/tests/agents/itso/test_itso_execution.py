@@ -6,11 +6,15 @@ import json
 from uuid import uuid4
 
 import pytest
+from server.core.llm import CompletionResult
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.itso import execution
-from server.modules.agents.itso.response import criterion_scores, parse_response
-from server.modules.agents.runtime import llm as runtime_llm
+from server.modules.agents.itso.response import (
+    ITSO_CRITERIA_TITLES,
+    criterion_scores,
+    parse_response,
+)
 from server.modules.agents.runtime.context import ITSOExecutionContext
 from server.modules.agents.supervision.dispatch import AgentDispatcher
 
@@ -20,9 +24,15 @@ class _LLM:
 
     def __init__(self, responses):
         self.responses = iter(responses)
+        self.prompts = []
 
-    def generate(self, prompt, *, temperature, max_new_tokens):
-        return next(self.responses)
+    def generate_result(
+        self, prompt, *, temperature, max_new_tokens, deadline, response_contract
+    ):
+        self.prompts.append(prompt)
+        return CompletionResult(
+            next(self.responses), "primary", 10, 20, 30, "stop", attempts=1
+        )
 
 
 def _context(client, **kwargs):
@@ -50,9 +60,8 @@ def test_itso_executes_and_preserves_provenance(monkeypatch):
     assert result.provenance["actual_model"] == "primary"
 
 
-def test_parse_response_supports_fenced_and_prefixed_json():
+def test_parse_response_supports_fenced_json():
     payload = _response("parsed")
-    assert parse_response(f"prefix {payload}")["summary"] == "parsed"
     assert parse_response(f"```json\n{payload}\n```")["summary"] == "parsed"
 
 
@@ -66,109 +75,73 @@ def test_malformed_response_is_safe_and_does_not_expose_raw_text():
     assert "reference:" in message
 
 
-@pytest.mark.parametrize("score", [3, 3.0, "3", "3.0"])
-def test_criterion_scores_accepts_integral_score_forms(score):
-    result = criterion_scores(
-        {"criterion_scores": [{"criterion_id": "c1", "score": score}]}
-    )
+def _response(summary="ok", *, score=3, **overrides):
+    entries = []
+    for criterion_id in ("ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05"):
+        entries.append(
+            {
+                "criterion_id": criterion_id,
+                "criterion_title": ITSO_CRITERIA_TITLES[criterion_id],
+                "score": score,
+                "justification": "justification",
+                "chunk_ids": [],
+                "evidence": ["evidence"],
+                **overrides,
+            }
+        )
+    return json.dumps({"summary": summary, "criterion_scores": entries})
+
+
+def test_criterion_scores_accepts_plain_integer_score():
+    result = criterion_scores(parse_response(_response(), known_chunk_ids=("c1",)))
     assert result[0].score == 3
 
 
 @pytest.mark.parametrize(
-    "score", [3.5, "3.5", float("nan"), float("inf"), True, False, 0, 5, "not-a-score"]
+    "score", [3.0, "3", "3.5", float("nan"), float("inf"), True, False, 0, 5]
 )
 def test_criterion_scores_rejects_invalid_scores_safely(score):
     with pytest.raises((AgentExecutionError, ValueError)) as exc:
-        criterion_scores({"criterion_scores": [{"criterion_id": "c1", "score": score}]})
+        parse_response(_response(score=score), known_chunk_ids=("c1",))
     message = str(exc.value)
     if isinstance(exc.value, AgentExecutionError):
         assert "ITSOInvalidScore" in message
         assert "reference:" in message
-    assert str(score) not in message
-
-
-def test_criterion_scores_normalizes_evidence_and_chunk_ids_to_tuples():
-    result = criterion_scores(
-        {
-            "criterion_scores": [
-                {
-                    "criterion_id": "c1",
-                    "score": 3,
-                    "chunk_ids": "chunk-1",
-                    "evidence": "proof",
-                },
-                {
-                    "criterion_id": "c2",
-                    "score": 3,
-                    "chunk_ids": [1, "chunk-2"],
-                    "evidence": ("proof-2", 2),
-                },
-            ]
-        }
-    )
-    assert result[0].chunk_ids == ("chunk-1",)
-    assert result[0].evidence == ("proof",)
-    assert result[1].chunk_ids == ("1", "chunk-2")
-    assert result[1].evidence == ("proof-2", "2")
-
-
-@pytest.mark.parametrize("title", [3, {"name": "title"}, None])
-def test_criterion_scores_falls_back_for_non_string_titles(title):
-    result = criterion_scores(
-        {
-            "criterion_scores": [
-                {"criterion_id": "c1", "criterion_title": title, "score": 3}
-            ]
-        }
-    )
-    assert result[0].criterion_title == "c1"
-
-
-def test_criterion_scores_preserves_string_title():
-    result = criterion_scores(
-        {
-            "criterion_scores": [
-                {"criterion_id": "c1", "criterion_title": "Title", "score": 3}
-            ]
-        }
-    )
-    assert result[0].criterion_title == "Title"
-
-
-def test_repair_records_actual_model_and_fallback(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    client = _LLM(["{broken", _response("repaired")])
-    calls = iter(
-        (
-            ("{broken", "initial-model"),
-            (_response("repaired"), "repair-model"),
-        )
-    )
-    monkeypatch.setattr(runtime_llm, "call_llm", lambda *args, **kwargs: next(calls))
-    result = execution.execute(_context(client))
-    assert result.model_name == "repair-model"
-    assert result.provenance["repair_occurred"] is True
-    assert result.provenance["fallback_occurred"] is True
 
 
 @pytest.mark.parametrize(
-    ("models", "expected"),
-    [(("fallback", "assigned"), "assigned"), (("assigned", "fallback"), "fallback")],
+    "field,value", [("evidence", "proof"), ("chunk_ids", "chunk-1")]
 )
-def test_repair_keeps_final_model_and_accumulates_fallback(
-    monkeypatch, models, expected
-):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    responses = iter([("{broken", models[0]), (_response("repaired"), models[1])])
-    monkeypatch.setattr(runtime_llm, "call_llm", lambda *a, **k: next(responses))
-    result = execution.execute(_context(_LLM(["unused"])))
-    assert result.model_name == expected
-    assert result.provenance["fallback_occurred"] is True
+def test_criterion_scores_rejects_scalar_evidence_and_chunk_ids(field, value):
+    with pytest.raises(AgentExecutionError) as exc:
+        parse_response(_response(**{field: value}), known_chunk_ids=("c1",))
+    assert "ITSOInvalidEvidence" in str(exc.value)
 
 
-def test_semantic_failure_does_not_repair(monkeypatch):
+@pytest.mark.parametrize("title", [3, {"name": "title"}, None])
+def test_criterion_scores_rejects_non_string_titles(title):
+    with pytest.raises(AgentExecutionError) as exc:
+        parse_response(_response(**{"criterion_title": title}), known_chunk_ids=("c1",))
+    assert "ITSOInvalidCriterion" in str(exc.value)
+
+
+def test_criterion_scores_preserves_string_title():
+    result = criterion_scores(parse_response(_response(), known_chunk_ids=("c1",)))
+    assert result[0].criterion_title == ITSO_CRITERIA_TITLES["ITSO-01"]
+
+
+def test_repair_records_actual_model_without_fallback(monkeypatch):
     monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    calls = []
+    client = _LLM(["{broken", _response("repaired")])
+    result = execution.execute(_context(client))
+    assert result.model_name == "primary"
+    assert result.provenance["repair_occurred"] is True
+    assert result.provenance["fallback_occurred"] is False
+    assert len(client.prompts) == 2
+
+
+def test_semantic_failure_repairs_once(monkeypatch):
+    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
     client = _LLM(
         [
             json.dumps(
@@ -176,29 +149,20 @@ def test_semantic_failure_does_not_repair(monkeypatch):
                     "summary": "ok",
                     "criterion_scores": [{"criterion_id": "c1", "score": 0}],
                 }
-            )
+            ),
+            _response("repaired"),
         ]
     )
-    original = runtime_llm.call_llm
-    monkeypatch.setattr(
-        runtime_llm, "call_llm", lambda *a, **k: calls.append(1) or original(*a, **k)
-    )
-    with pytest.raises((AgentExecutionError, ValueError)):
-        execution.execute(_context(client))
-    assert len(calls) == 1
+    execution.execute(_context(client))
+    assert len(client.prompts) == 2
 
 
 def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(monkeypatch):
     monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    calls = []
-    monkeypatch.setattr(
-        runtime_llm,
-        "call_llm",
-        lambda *a, **k: calls.append(1) or ("secret raw", "primary"),
-    )
+    client = _LLM(["{bad", "secret raw"])
     with pytest.raises(AgentExecutionError) as exc:
-        execution.execute(_context(_LLM(["unused"])))
-    assert len(calls) == 2
+        execution.execute(_context(client))
+    assert len(client.prompts) == 2
     assert "secret raw" not in str(exc.value)
     failure = AgentDispatcher._sanitize_returned_failure(
         AgentEvaluationResult(
@@ -223,26 +187,12 @@ def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(monkeypatch)
 
 def test_repair_prompt_caps_partial_output_at_4000(monkeypatch):
     monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    prompts = []
-    monkeypatch.setattr(
-        runtime_llm,
-        "call_llm",
-        lambda prompt, **k: prompts.append(prompt) or ("x" * 4001, "primary"),
-    )
+    client = _LLM(["x" * 4001, "still invalid"])
     with pytest.raises(AgentExecutionError):
-        execution.execute(_context(_LLM(["unused"])))
-    assert len(prompts[1].split("Prior partial output:\n\n", 1)[1]) == 4000
-
-
-def _response(summary):
-    return json.dumps(
-        {
-            "summary": summary,
-            "criterion_scores": [
-                {"criterion_id": "c1", "score": 3, "justification": "ok"}
-            ],
-        }
-    )
+        execution.execute(_context(client))
+    assert len(client.prompts) == 2
+    assert "Prior partial output" not in client.prompts[1]
+    assert "x" * 4001 not in client.prompts[1]
 
 
 def _settings():
