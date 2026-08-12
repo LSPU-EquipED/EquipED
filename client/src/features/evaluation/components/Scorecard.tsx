@@ -341,7 +341,18 @@ export function Scorecard() {
                         {/* Domain Group Header Row */}
                         <tr className="bg-slate-50/60 select-none">
                           <td className="py-3 px-4 text-[10px] font-extrabold text-slate-800 uppercase tracking-widest border-t border-slate-200">
-                            {agentLabels[domain]}
+                            <div className="flex items-center gap-3">
+                              <span>{agentLabels[domain]}</span>
+                              {domain === 'itso' && (
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-2 py-1 text-[9px] font-bold normal-case tracking-wide text-[#1b3b87] hover:bg-[#1b3b87]/10"
+                                  onClick={() => setIsItsoReviewOpen(true)}
+                                >
+                                  Review Scores
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-right w-[6rem] border-t border-slate-200">
                             <span className="text-xs font-bold text-slate-500">
@@ -349,25 +360,14 @@ export function Scorecard() {
                             </span>
                           </td>
                           <td className="py-3 px-4 w-[10rem] border-t border-slate-200">
-                            <div className="flex items-center justify-between gap-2">
-                              {domainData.adjectival_rating && (
-                                <span className={cn(
-                                  'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                                  getAdjectivalRatingClasses(domainData.adjectival_rating)
-                                )}>
-                                  {domainData.adjectival_rating}
-                                </span>
-                              )}
-                              {domain === 'itso' && (
-                                <button
-                                  type="button"
-                                  className="shrink-0 rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#1b3b87] hover:bg-[#1b3b87]/10"
-                                  onClick={() => setIsItsoReviewOpen(true)}
-                                >
-                                  Review Scores
-                                </button>
-                              )}
-                            </div>
+                            {domainData.adjectival_rating && (
+                              <span className={cn(
+                                'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                getAdjectivalRatingClasses(domainData.adjectival_rating)
+                              )}>
+                                {domainData.adjectival_rating}
+                              </span>
+                            )}
                           </td>
                         </tr>
 
