@@ -60,6 +60,12 @@ class EvaluationJob(Base):
     __table_args__ = (
         Index("idx_jobs_document_id", "document_id"),
         Index("idx_jobs_status", "status"),
+        Index("idx_jobs_admission_fifo", "status", "submitted_at", "evaluation_id"),
+        sa.CheckConstraint(
+            "admission_slot IS NULL OR admission_slot = 1",
+            name="ck_evaluation_admission_slot",
+        ),
+        sa.UniqueConstraint("admission_slot", name="uq_evaluation_admission_slot"),
     )
 
     evaluation_id: Mapped[uuid.UUID] = mapped_column(
@@ -106,6 +112,7 @@ class EvaluationJob(Base):
     execution_heartbeat_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    admission_slot: Mapped[int | None] = mapped_column(sa.SmallInteger, nullable=True)
     partial_without_curriculum: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, default=False
     )

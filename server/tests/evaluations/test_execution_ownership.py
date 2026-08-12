@@ -29,14 +29,16 @@ from server.modules.evaluations.exceptions import (
 )
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import (
+    _execute_claimed_evaluation,
     recover_interrupted_evaluation_jobs,
-    run_evaluation_job,
 )
 from server.modules.evaluations.service import (
     acquire_evaluation_execution,
+    acquire_next_evaluation_execution,
     heartbeat_evaluation_execution,
-    release_evaluation_execution,
+    recover_stale_evaluation_execution,
     transition_evaluation_status,
+    verify_layer3_ownership,
 )
 from server.modules.synthesis.models import AgentResult
 from sqlalchemy import create_engine, update
@@ -143,7 +145,9 @@ def test_only_one_runner_can_claim_a_job() -> None:
         token_a = uuid4()
         token_b = uuid4()
         assert acquire_evaluation_execution(session, job.evaluation_id, token_a) is True
-        assert acquire_evaluation_execution(session, job.evaluation_id, token_b) is False  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, job.evaluation_id, token_b) is False
+        )  # noqa: E501
 
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
@@ -172,9 +176,7 @@ def test_terminal_jobs_cannot_be_claimed() -> None:
         assert (
             session.get(EvaluationJob, completed.evaluation_id).execution_token is None
         )
-        assert (
-            session.get(EvaluationJob, failed.evaluation_id).execution_token is None
-        )
+        assert session.get(EvaluationJob, failed.evaluation_id).execution_token is None
     finally:
         session.close()
 
@@ -209,7 +211,10 @@ def test_transition_with_wrong_token_raises_controlled_error() -> None:
         owner_token = uuid4()
         other_token = uuid4()
 
-        assert acquire_evaluation_execution(session, job.evaluation_id, owner_token) is True  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, job.evaluation_id, owner_token)
+            is True
+        )  # noqa: E501
 
         with pytest.raises(EvaluationExecutionOwnershipError):
             transition_evaluation_status(
@@ -222,7 +227,7 @@ def test_transition_with_wrong_token_raises_controlled_error() -> None:
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
         # Status is unchanged; the row is still owned by the original token.
-        assert refreshed.status == EvaluationStatus.SUBMITTED.value
+        assert refreshed.status == EvaluationStatus.PREPROCESSING.value
         assert refreshed.execution_token == owner_token
     finally:
         session.close()
@@ -261,13 +266,22 @@ def test_terminal_transition_clears_execution_token_fields() -> None:
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
         # Progress through PREPROCESSING and EVALUATING to reach SYNTHESIZING
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,  # noqa: E501
+            job.evaluation_id,
+            EvaluationStatus.PREPROCESSING,
+            session,
+            execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,  # noqa: E501
+            job.evaluation_id,
+            EvaluationStatus.EVALUATING,
+            session,
+            execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.SYNTHESIZING, session, execution_token=token,  # noqa: E501
+            job.evaluation_id,
+            EvaluationStatus.SYNTHESIZING,
+            session,
+            execution_token=token,  # noqa: E501
         )
 
         transition_evaluation_status(
@@ -296,10 +310,16 @@ def test_terminal_transition_to_failed_clears_execution_token_fields() -> None:
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
         # Progress to EVALUATING before failing
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.PREPROCESSING, session, execution_token=token,  # noqa: E501
+            job.evaluation_id,
+            EvaluationStatus.PREPROCESSING,
+            session,
+            execution_token=token,  # noqa: E501
         )
         transition_evaluation_status(
-            job.evaluation_id, EvaluationStatus.EVALUATING, session, execution_token=token,  # noqa: E501
+            job.evaluation_id,
+            EvaluationStatus.EVALUATING,
+            session,
+            execution_token=token,  # noqa: E501
         )
 
         transition_evaluation_status(
@@ -328,38 +348,10 @@ def test_heartbeat_only_succeeds_for_matching_token() -> None:
         token = uuid4()
         assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
 
+        assert heartbeat_evaluation_execution(session, job.evaluation_id, token) is True
         assert (
-            heartbeat_evaluation_execution(session, job.evaluation_id, token) is True
+            heartbeat_evaluation_execution(session, job.evaluation_id, uuid4()) is False
         )
-        assert (
-            heartbeat_evaluation_execution(session, job.evaluation_id, uuid4())
-            is False
-        )
-    finally:
-        session.close()
-
-
-def test_release_only_clears_for_matching_token() -> None:
-    SessionLocal = _make_session_factory()
-    session = SessionLocal()
-    try:
-        job = _make_job(session)
-        token = uuid4()
-        assert acquire_evaluation_execution(session, job.evaluation_id, token) is True
-
-        # Wrong token does not clear fields.
-        assert (
-            release_evaluation_execution(session, job.evaluation_id, uuid4()) is False
-        )
-        session.expire_all()
-        assert session.get(EvaluationJob, job.evaluation_id).execution_token == token
-
-        assert release_evaluation_execution(session, job.evaluation_id, token) is True
-        session.expire_all()
-        refreshed = session.get(EvaluationJob, job.evaluation_id)
-        assert refreshed.execution_token is None
-        assert refreshed.execution_started_at is None
-        assert refreshed.execution_heartbeat_at is None
     finally:
         session.close()
 
@@ -393,8 +385,16 @@ def test_orchestrator_failure_clears_execution_token(monkeypatch) -> None:
 
         monkeypatch.setattr(orch.Supervisor, "run_evaluation", boom_run_evaluation)
 
+        token = uuid4()
+        assert acquire_evaluation_execution(session, job.evaluation_id, token)
+        session.commit()
+
         with pytest.raises(EvaluationPipelineFailure) as exc_info:
-            run_evaluation_job(job.evaluation_id)
+            _execute_claimed_evaluation(
+                job.evaluation_id,
+                execution_token=token,
+                db_session_factory=SessionLocal,
+            )
         assert "supervisor exploded" not in str(exc_info.value)
         assert exc_info.value.__cause__ is None
         assert exc_info.value.__suppress_context__ is True
@@ -416,7 +416,7 @@ def test_orchestrator_failure_clears_execution_token(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_recovery_clears_and_requeues_non_terminal_jobs(monkeypatch) -> None:
+def test_recovery_requeues_non_terminal_jobs_without_running_them(monkeypatch) -> None:
     SessionLocal = _make_session_factory()
     session = SessionLocal()
     try:
@@ -436,8 +436,8 @@ def test_recovery_clears_and_requeues_non_terminal_jobs(monkeypatch) -> None:
             submitted_at=datetime.now(UTC),
             completed_at=None,
             execution_token=stale_token,
-            execution_started_at=datetime.now(UTC),
-            execution_heartbeat_at=datetime.now(UTC),
+            execution_started_at=datetime(2020, 1, 1, tzinfo=UTC),
+            execution_heartbeat_at=datetime(2020, 1, 1, tzinfo=UTC),
         )
         session.add(job)
 
@@ -455,49 +455,24 @@ def test_recovery_clears_and_requeues_non_terminal_jobs(monkeypatch) -> None:
 
         from server.modules.evaluations import orchestrator as orch
 
-        seen: list = []
-
-        def fake_run(self, **kwargs):
-            seen.append(kwargs.get("evaluation_id"))
-            return SupervisorResult(
-                evaluation_id=kwargs["evaluation_id"],
-                document_id=kwargs["document_id"],
-                agent_results=[
-                    AgentEvaluationResult(
-                        agent_name="sme",
-                        evaluation_id=kwargs["evaluation_id"],
-                        document_id=kwargs["document_id"],
-                        subtotal=1,
-                        criterion_scores=(
-                            CriterionScore(
-                                criterion_id="c1",
-                                criterion_title="Criterion 1",
-                                score=1,
-                                justification="ok",
-                            ),
-                        ),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                ],
-            )
-
-        monkeypatch.setattr(orch.Supervisor, "run_evaluation", fake_run)
+        supervisor_calls: list = []
+        monkeypatch.setattr(
+            orch.Supervisor,
+            "run_evaluation",
+            lambda *a, **k: supervisor_calls.append(k),
+        )
 
         recovered = recover_interrupted_evaluation_jobs(SessionLocal)
         assert recovered == 1
-        assert seen == [job.evaluation_id]
+        assert supervisor_calls == []
 
         session.expire_all()
-        # The job ran to terminal; ownership was cleared by the terminal
-        # transition, then no stale token remains.
+        # Recovery only requeues; an explicit drain/run resumes execution.
         refreshed = session.get(EvaluationJob, job.evaluation_id)
-        assert refreshed.status == EvaluationStatus.COMPLETED.value
+        assert refreshed.status == EvaluationStatus.SUBMITTED.value
         assert refreshed.execution_token is None
+        assert refreshed.execution_started_at is None
+        assert refreshed.execution_heartbeat_at is None
 
         # Terminal job is untouched.
         terminal_row = session.get(EvaluationJob, completed.evaluation_id)
@@ -530,8 +505,8 @@ def test_recovery_does_not_duplicate_existing_agent_results(monkeypatch) -> None
             submitted_at=datetime.now(UTC),
             completed_at=None,
             execution_token=stale_token,
-            execution_started_at=datetime.now(UTC),
-            execution_heartbeat_at=datetime.now(UTC),
+            execution_started_at=datetime(2020, 1, 1, tzinfo=UTC),
+            execution_heartbeat_at=datetime(2020, 1, 1, tzinfo=UTC),
         )
         session.add(job)
 
@@ -574,13 +549,12 @@ def test_recovery_does_not_duplicate_existing_agent_results(monkeypatch) -> None
         session.expire_all()
         # No duplicate AgentResult rows.
         assert (
-            session.query(AgentResult)
-            .filter_by(evaluation_id=evaluation_id)
-            .count()
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
             == 1
         )
         refreshed = session.get(EvaluationJob, evaluation_id)
-        assert refreshed.status == EvaluationStatus.COMPLETED.value
+        assert refreshed.status == EvaluationStatus.SUBMITTED.value
+        assert refreshed.admission_slot is None
     finally:
         session.close()
 
@@ -627,6 +601,80 @@ def test_same_state_preprocessing_with_matching_token_is_noop() -> None:
         session.close()
 
 
+def test_fifo_admission_and_global_slot() -> None:
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        first = _make_job(session)
+        second = _make_job(session)
+        first.submitted_at = second.submitted_at = datetime(2020, 1, 1, tzinfo=UTC)
+        session.commit()
+        # UUID is the deterministic tie-break when timestamps match.
+        expected = min(first, second, key=lambda job: job.evaluation_id)
+        token = uuid4()
+        assert (
+            acquire_next_evaluation_execution(session, token) == expected.evaluation_id
+        )
+        assert acquire_next_evaluation_execution(session, uuid4()) is None
+        session.expire_all()
+        assert session.get(EvaluationJob, expected.evaluation_id).admission_slot == 1
+        assert (
+            session.get(EvaluationJob, expected.evaluation_id).status
+            == EvaluationStatus.PREPROCESSING.value
+        )
+    finally:
+        session.close()
+
+
+def test_stale_recovery_respects_fresh_heartbeat_and_requeues_stale() -> None:
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        stale = _make_job(session)
+        fresh = _make_job(session)
+        stale_token, fresh_token = uuid4(), uuid4()
+        for job, token, heartbeat in (
+            (stale, stale_token, datetime(2020, 1, 1, tzinfo=UTC)),
+            (fresh, fresh_token, datetime.now(UTC)),
+        ):
+            job.status = EvaluationStatus.PREPROCESSING.value
+            job.admission_slot = 1 if job is stale else None
+            job.execution_token = token
+            job.execution_heartbeat_at = heartbeat
+        session.commit()
+        recovered_ids, recovered_count = recover_stale_evaluation_execution(
+            session, datetime(2021, 1, 1, tzinfo=UTC)
+        )
+        assert recovered_count == 1
+        assert recovered_ids == (stale.evaluation_id,)
+        session.expire_all()
+        assert (
+            session.get(EvaluationJob, stale.evaluation_id).status
+            == EvaluationStatus.SUBMITTED.value
+        )
+        assert session.get(EvaluationJob, stale.evaluation_id).execution_token is None
+        assert (
+            session.get(EvaluationJob, fresh.evaluation_id).execution_token
+            == fresh_token
+        )
+    finally:
+        session.close()
+
+
+def test_layer3_verification_is_owned_only() -> None:
+    SessionLocal = _make_session_factory()
+    session = SessionLocal()
+    try:
+        job = _make_job(session, status=EvaluationStatus.EVALUATING)
+        token = uuid4()
+        job.admission_slot, job.execution_token = 1, token
+        session.commit()
+        assert verify_layer3_ownership(session, job.evaluation_id, token) is True
+        assert verify_layer3_ownership(session, job.evaluation_id, uuid4()) is False
+    finally:
+        session.close()
+
+
 def test_same_state_with_wrong_token_still_rejected() -> None:
     """Same-state no-op path must still reject a mismatched token."""
     SessionLocal = _make_session_factory()
@@ -660,12 +708,8 @@ def test_same_state_with_wrong_token_still_rejected() -> None:
         session.close()
 
 
-def test_pre_claim_failure_does_not_transition(monkeypatch) -> None:
-    """When an error occurs before the orchestrator acquires ownership,
-    the exception handler must NOT call transition_evaluation_status —
-    doing so without a matching token could clear another runner's token
-    or steal ownership. The job stays in its current non-terminal state
-    so the owner/retry logic can resolve it."""
+def test_unowned_token_does_not_transition(monkeypatch) -> None:
+    """A claimed executor with an unowned token safely no-ops."""
     SessionLocal = _make_session_factory()
     session = SessionLocal()
     try:
@@ -678,24 +722,9 @@ def test_pre_claim_failure_does_not_transition(monkeypatch) -> None:
             document_id=document_id,
         )
 
-        from server.core import database as core_database
-
-        monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
-
-        from server.modules.evaluations import orchestrator as orch_module
-
-        def raise_before_acquire(db, evaluation_id, execution_token):
-            raise RuntimeError("pre-claim failure")
-
-        monkeypatch.setattr(
-            orch_module, "acquire_evaluation_execution", raise_before_acquire
+        _execute_claimed_evaluation(
+            job.evaluation_id, execution_token=uuid4(), db_session_factory=SessionLocal
         )
-
-        with pytest.raises(EvaluationPipelineFailure) as exc_info:
-            run_evaluation_job(job.evaluation_id)
-        assert "pre-claim failure" not in str(exc_info.value)
-        assert exc_info.value.__cause__ is None
-        assert exc_info.value.__suppress_context__ is True
 
         session.expire_all()
         refreshed = session.get(EvaluationJob, job.evaluation_id)
@@ -745,12 +774,29 @@ def test_acquire_only_allows_submitted() -> None:
         completed = _make_job(session, status=EvaluationStatus.COMPLETED)
         failed = _make_job(session, status=EvaluationStatus.FAILED)
 
-        assert acquire_evaluation_execution(session, submitted.evaluation_id, uuid4()) is True  # noqa: E501
-        assert acquire_evaluation_execution(session, pre.evaluation_id, uuid4()) is False  # noqa: E501
-        assert acquire_evaluation_execution(session, evaluating.evaluation_id, uuid4()) is False  # noqa: E501
-        assert acquire_evaluation_execution(session, synthesizing.evaluation_id, uuid4()) is False  # noqa: E501
-        assert acquire_evaluation_execution(session, completed.evaluation_id, uuid4()) is False  # noqa: E501
-        assert acquire_evaluation_execution(session, failed.evaluation_id, uuid4()) is False  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, submitted.evaluation_id, uuid4())
+            is True
+        )  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, pre.evaluation_id, uuid4()) is False
+        )  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, evaluating.evaluation_id, uuid4())
+            is False
+        )  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, synthesizing.evaluation_id, uuid4())
+            is False
+        )  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, completed.evaluation_id, uuid4())
+            is False
+        )  # noqa: E501
+        assert (
+            acquire_evaluation_execution(session, failed.evaluation_id, uuid4())
+            is False
+        )  # noqa: E501
     finally:
         session.close()
 
@@ -797,7 +843,7 @@ def test_recovery_finds_tokenless_evaluating(monkeypatch) -> None:
             completed_at=None,
             execution_token=stale_token,
             execution_started_at=datetime.now(UTC),
-            execution_heartbeat_at=datetime.now(UTC),
+            execution_heartbeat_at=datetime(2020, 1, 1, tzinfo=UTC),
         )
         session.add(token_stuck)
 
@@ -873,21 +919,20 @@ def test_recovery_finds_tokenless_evaluating(monkeypatch) -> None:
         recovered = recover_interrupted_evaluation_jobs(SessionLocal)
         # Both tokenless and token-bearing stuck jobs should be recovered.
         assert recovered == 2
-        assert tokenless_stuck.evaluation_id in seen
-        assert token_stuck.evaluation_id in seen
+        assert seen == []
 
         session.expire_all()
 
         # Tokenless stuck: reset to clean SUBMITTED, then ran to terminal.
         refreshed_tokenless = session.get(EvaluationJob, tokenless_stuck.evaluation_id)
-        assert refreshed_tokenless.status == EvaluationStatus.COMPLETED.value
+        assert refreshed_tokenless.status == EvaluationStatus.SUBMITTED.value
         assert refreshed_tokenless.execution_token is None
         # Prior transient error must be cleared.
         assert refreshed_tokenless.error_message is None
 
         # Token-bearing stuck: same.
         refreshed_token = session.get(EvaluationJob, token_stuck.evaluation_id)
-        assert refreshed_token.status == EvaluationStatus.COMPLETED.value
+        assert refreshed_token.status == EvaluationStatus.SUBMITTED.value
         assert refreshed_token.execution_token is None
 
         # Clean SUBMITTED: untouched.
@@ -966,13 +1011,11 @@ def test_recovery_preserves_agent_results_on_tokenless_recovery(monkeypatch) -> 
         session.expire_all()
         # No duplicate AgentResult rows.
         assert (
-            session.query(AgentResult)
-            .filter_by(evaluation_id=evaluation_id)
-            .count()
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
             == 1
         )
         refreshed = session.get(EvaluationJob, evaluation_id)
-        assert refreshed.status == EvaluationStatus.COMPLETED.value
+        assert refreshed.status == EvaluationStatus.SUBMITTED.value
         assert refreshed.error_message is None
     finally:
         session.close()

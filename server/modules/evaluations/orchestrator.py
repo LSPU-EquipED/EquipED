@@ -12,15 +12,15 @@ re-running the supervisor and resumes from synthesis/finalization.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from server.core.llm import get_llm_client_for_agent
 from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.coordinator.reconciliation import merge_with_sme
-from server.modules.agents.runtime.llm import FallbackAwareClient, error_reference
+from server.modules.agents.runtime.llm import error_reference
 from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.exceptions import DocumentNotFoundError
@@ -33,8 +33,10 @@ from server.modules.evaluations.exceptions import (
 )
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.service import (
-    acquire_evaluation_execution,
+    acquire_next_evaluation_execution,
     heartbeat_evaluation_execution,
+    recover_stale_evaluation_execution,
+    seconds_until_stale_evaluation_execution,
     transition_evaluation_status,
 )
 from server.modules.synthesis.matrix import (
@@ -43,9 +45,9 @@ from server.modules.synthesis.matrix import (
 )
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.service import persist_agent_outputs
-from sqlalchemy import update
 
 logger = logging.getLogger(__name__)
+_DRAIN_LOCK = threading.Lock()
 
 
 def _safe_failure(exc: BaseException) -> tuple[str, str]:
@@ -53,8 +55,45 @@ def _safe_failure(exc: BaseException) -> tuple[str, str]:
     return type(exc).__name__[:64], error_reference(exc)
 
 
-def run_evaluation_job(
+def _persist_layer3_and_transition(
+    session: Any,
     evaluation_id: uuid.UUID,
+    document_id: uuid.UUID,
+    results: list[AgentEvaluationResult],
+    execution_token: uuid.UUID,
+) -> None:
+    """Atomically persist Layer 3 outputs and enter synthesis."""
+    try:
+        _verify_token_ownership(
+            session, evaluation_id, execution_token, for_update=True
+        )
+        persist_agent_outputs(
+            session,
+            evaluation_id,
+            document_id,
+            results,
+            verify_ownership=lambda db: _verify_token_ownership(
+                db, evaluation_id, execution_token
+            ),
+            commit=False,
+        )
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.SYNTHESIZING,
+            session,
+            execution_token=execution_token,
+            expected_status=EvaluationStatus.EVALUATING,
+            commit=False,
+        )
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _execute_claimed_evaluation(
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
     db_session_factory=None,
 ) -> None:
     """Run the lifecycle through honest Phase 3 transitions.
@@ -70,7 +109,6 @@ def run_evaluation_job(
 
         db_session_factory = get_session_factory()
 
-    execution_token = uuid.uuid4()
     execution_acquired = False
     session = db_session_factory()
     try:
@@ -78,8 +116,13 @@ def run_evaluation_job(
         if job is None:
             raise EvaluationPipelineUnavailableError("Evaluation job not found.")
 
-        # 1) Atomic claim — no-op if missing, terminal, or already owned.
-        acquired = acquire_evaluation_execution(session, evaluation_id, execution_token)
+        # The drainer is the only production claimant. This seam may execute
+        # only a lease that was already issued by the admission service.
+        acquired = bool(
+            job.execution_token == execution_token
+            and job.admission_slot == 1
+            and job.status == EvaluationStatus.PREPROCESSING.value
+        )
         if not acquired:
             logger.info(
                 "Skipping evaluation %s: not claimable (terminal or already owned).",
@@ -104,9 +147,11 @@ def run_evaluation_job(
             if syllabus is None:
                 raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
 
+        curriculum_available = job.curriculum_id is not None
         if job.curriculum_id is not None:
             curriculum = session.get(Document, job.curriculum_id)
             if curriculum is None:
+                curriculum_available = False
                 logger.warning(
                     "Curriculum document %s for historical job %s not found "
                     "(cleared or purged); proceeding.",
@@ -114,12 +159,6 @@ def run_evaluation_job(
                     evaluation_id,
                 )
 
-        transition_evaluation_status(
-            evaluation_id,
-            EvaluationStatus.PREPROCESSING,
-            session,
-            execution_token=execution_token,
-        )
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
         slm_chunks = get_document_chunks(job.document_id, db=session)
@@ -149,19 +188,16 @@ def run_evaluation_job(
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-            if job.partial_without_curriculum or job.curriculum_id is None:
-                # No-curriculum partial or new curriculum-retired run: construct
-                # Supervisor without Coordinator so coordinator review
-                # is skipped entirely.
+            if job.partial_without_curriculum:
                 from server.modules.agents.gad.agent import GAD
                 from server.modules.agents.itso.agent import ITSO
                 from server.modules.agents.sme.agent import SME
 
-                supervisor = Supervisor(
-                    agents=[SME(), GAD(), ITSO()],
-                    db=session,
-                )
+                supervisor = Supervisor(agents=[SME(), GAD(), ITSO()], db=session)
             else:
+                # A full-intent run must attempt Coordinator even when its
+                # curriculum is unavailable; its absence is a terminal
+                # lifecycle failure, not an implicit partial evaluation.
                 supervisor = Supervisor(db=session)
             # Resolve program-roadmap context once, before the supervisor
             # context is built. Advisory-only: any failure yields None and
@@ -175,6 +211,13 @@ def run_evaluation_job(
                 )
             except Exception:
                 roadmap_ctx = None
+
+            def owner_heartbeat() -> None:
+                if not heartbeat_evaluation_execution(
+                    session, evaluation_id, execution_token
+                ):
+                    raise EvaluationExecutionOwnershipError("Lost evaluation ownership")
+
             supervisor_result = supervisor.run_evaluation(
                 evaluation_id=evaluation_id,
                 document_id=job.document_id,
@@ -191,6 +234,7 @@ def run_evaluation_job(
                     },
                     **({"roadmap": roadmap_ctx} if roadmap_ctx else {}),
                 },
+                heartbeat_callback=owner_heartbeat,
             )
             if not supervisor_result.agent_results:
                 raise EvaluationPipelineUnavailableError(
@@ -202,21 +246,17 @@ def run_evaluation_job(
             # Coordinator's full independent pass if SME failed. See
             # coordinator.py's module docstring for why.
             supervisor_result.agent_results = _reconcile_coordinator_result(
-                supervisor_result.agent_results,
-                job=job,
-                slm_chunks=slm_chunks,
-                slm_text=slm_text,
-                session=session,
-                roadmap_context=roadmap_ctx,
+                supervisor_result.agent_results
             )
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat after all agent futures complete.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-            persist_agent_outputs(
+            _persist_layer3_and_transition(
                 session,
                 evaluation_id,
                 job.document_id,
                 supervisor_result.agent_results,
+                execution_token,
             )
         else:
             logger.info(
@@ -226,17 +266,24 @@ def run_evaluation_job(
                 existing_results,
             )
 
-        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
         _verify_token_ownership(session, evaluation_id, execution_token)
-        transition_evaluation_status(
-            evaluation_id,
-            EvaluationStatus.SYNTHESIZING,
-            session,
-            execution_token=execution_token,
-        )
+        if existing_results:
+            transition_evaluation_status(
+                evaluation_id,
+                EvaluationStatus.SYNTHESIZING,
+                session,
+                execution_token=execution_token,
+                expected_status=EvaluationStatus.EVALUATING,
+                commit=True,
+            )
 
         agent_results = (
             session.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
+        )
+        validation_error = _validate_required_agent_results(
+            agent_results,
+            partial_without_curriculum=job.partial_without_curriculum,
+            curriculum_available=curriculum_available,
         )
         synthesis_result = compute_synthesized_score(
             agent_results,
@@ -247,7 +294,6 @@ def run_evaluation_job(
             session.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).count()
         )
 
-        heartbeat_evaluation_execution(session, evaluation_id, execution_token)
         upsert_monitoring_matrix(
             db=session,
             document_id=job.document_id,
@@ -266,21 +312,9 @@ def run_evaluation_job(
         # runs) always complete successfully (the user chose or system enforced
         # the degraded path). Accidental
         # partials caused by agent failures still end as FAILED.
-        if job.partial_without_curriculum or job.curriculum_id is None:
-            final_status = EvaluationStatus.COMPLETED
-            partial_error = None
-        elif synthesis_result["is_partial"]:
+        if validation_error is not None:
             final_status = EvaluationStatus.FAILED
-            failed_errors = [
-                f"{r.agent_name}: {r.error_message}"
-                for r in agent_results
-                if not r.success and r.error_message
-            ]
-            partial_error = (
-                "; ".join(failed_errors)
-                if failed_errors
-                else "Partial: some agents failed"
-            )
+            partial_error = validation_error
         else:
             final_status = EvaluationStatus.COMPLETED
             partial_error = None
@@ -357,10 +391,35 @@ def run_evaluation_job(
         session.close()
 
 
+def _validate_required_agent_results(
+    agent_results: list[AgentResult],
+    *,
+    partial_without_curriculum: bool,
+    curriculum_available: bool,
+) -> str | None:
+    """Validate the execution contract before accepting synthesized output."""
+    required = {"sme", "gad", "itso"}
+    if not partial_without_curriculum:
+        required.add("coordinator")
+        if not curriculum_available:
+            return "Full evaluation requires an authoritative curriculum."
+
+    by_name = {result.agent_name: result for result in agent_results}
+    missing = sorted(required - by_name.keys())
+    if missing:
+        return f"Required agent result missing: {', '.join(missing)}."
+    failed = sorted(name for name in required if not by_name[name].success)
+    if failed:
+        return f"Required agent failed: {', '.join(failed)}."
+    return None
+
+
 def _verify_token_ownership(
     session: object,
     evaluation_id: uuid.UUID,
     execution_token: uuid.UUID,
+    *,
+    for_update: bool = False,
 ) -> None:
     """Raise if the runner no longer owns the evaluation job.
 
@@ -368,7 +427,12 @@ def _verify_token_ownership(
     doing expensive or persistent work on a job that has been re-claimed.
     """
 
-    row = session.get(EvaluationJob, evaluation_id)  # type: ignore[attr-defined]
+    from sqlalchemy import select
+
+    query = select(EvaluationJob).where(EvaluationJob.evaluation_id == evaluation_id)
+    if for_update and session.get_bind().dialect.name == "postgresql":
+        query = query.with_for_update()
+    row = session.execute(query).scalar_one_or_none()
     if row is None or row.execution_token != execution_token:
         raise EvaluationExecutionOwnershipError(
             f"Lost ownership of evaluation {evaluation_id}"
@@ -377,23 +441,8 @@ def _verify_token_ownership(
 
 def _reconcile_coordinator_result(
     agent_results: list[AgentEvaluationResult],
-    *,
-    job: EvaluationJob,
-    slm_chunks: list[Any],
-    slm_text: str,
-    session: Any,
-    roadmap_context: dict[str, Any] | None = None,
 ) -> list[AgentEvaluationResult]:
-    """Complete Coordinator's result using SME's, or fall back to
-    Coordinator's own full independent scoring.
-
-    Coordinator's ``run()`` (dispatched in parallel with SME via Supervisor,
-    unchanged) only computes A-05 -- this splices in SME's other 9 scores
-    now that both have finished, avoiding 5 redundant LLM calls per
-    evaluation. If SME failed (or Coordinator's own call failed, or the
-    merge itself raises), falls back to ``Coordinator.run_full_independent``
-    so a stuck SME never takes Coordinator down with it.
-    """
+    """Reconcile Coordinator's A-05 result with SME's complete scores."""
     sme_result = next((r for r in agent_results if r.agent_name == "sme"), None)
     coordinator_result = next(
         (r for r in agent_results if r.agent_name == "coordinator"), None
@@ -408,88 +457,60 @@ def _reconcile_coordinator_result(
             merged = merge_with_sme(
                 coordinator_result,
                 sme_result,
-                llm_client=get_llm_client_for_agent("coordinator"),
             )
             return [merged if r is coordinator_result else r for r in agent_results]
         except Exception as exc:
             category, reference = _safe_failure(exc)
-            logger.warning(
-                "Coordinator/SME merge failed for evaluation %s, falling back "
-                "to independent scoring: category=%s reference=%s",
-                job.evaluation_id,
-                category,
-                reference,
+            failed = AgentEvaluationResult(
+                agent_name="coordinator",
+                evaluation_id=coordinator_result.evaluation_id,
+                document_id=coordinator_result.document_id,
+                subtotal=0.0,
+                criterion_scores=(),
+                summary="",
+                model_name=coordinator_result.model_name,
+                processing_seconds=coordinator_result.processing_seconds,
+                token_count=0,
+                success=False,
+                error_message=f"{category} (reference: {reference})",
+                prompt_version_id=None,
+                raw_response=None,
+                metadata={},
+                provenance=None,
+                advisory_outputs=None,
             )
-
-    chunk_infos = [
-        {
-            "chunk_id": str(chunk.chunk_id),
-            "page_number": chunk.page_number,
-            "text": chunk.text,
-        }
-        for chunk in slm_chunks
-        if getattr(chunk, "text", None)
-    ]
-    reference_document_ids = {
-        **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
-        **({"curriculum": job.curriculum_id} if job.curriculum_id else {}),
-    }
-    primary_client = get_llm_client_for_agent("coordinator")
-    fallback_client = FallbackAwareClient(primary_client, "coordinator")
-    fallback_started = time.perf_counter()
-    try:
-        fallback_result = Coordinator().run_full_independent(
-            evaluation_id=job.evaluation_id,
-            document_id=job.document_id,
-            chunk_infos=chunk_infos,
-            context_text=slm_text,
-            prompt_version_id=None,
-            db=session,
-            llm_client=fallback_client,
-            reference_document_ids=reference_document_ids,
-            roadmap_context=roadmap_context,
-        )
-    except Exception as exc:
-        category, reference = _safe_failure(exc)
-        logger.warning(
-            "Coordinator independent fallback also failed for evaluation "
-            "%s: category=%s reference=%s",
-            job.evaluation_id,
-            category,
-            reference,
-        )
-        fallback_result = AgentEvaluationResult(
-            agent_name="coordinator",
-            evaluation_id=job.evaluation_id,
-            document_id=job.document_id,
-            subtotal=0.0,
-            criterion_scores=(),
-            summary="",
-            model_name=fallback_client.actual_model,
-            processing_seconds=time.perf_counter() - fallback_started,
-            token_count=0,
-            success=False,
-            error_message=(
-                "CoordinatorFallbackFailure "
-                f"(category={category}, reference={reference})"
-            ),
-            prompt_version_id=None,
-            raw_response=None,
-            metadata={},
-            provenance={
-                "requested_model": fallback_client.requested_model,
-                "actual_model": fallback_client.actual_model,
-                "fallback_occurred": fallback_client.fallback_occurred,
-                "repair": "independent_fallback",
-            },
-            advisory_outputs=None,
-        )
-
-    return [fallback_result if r is coordinator_result else r for r in agent_results]
+            return [failed if r is coordinator_result else r for r in agent_results]
+    reason = "CoordinatorFailure"
+    if sme_result is None:
+        reason = "SMEResultMissing"
+    elif not sme_result.success:
+        reason = "SMEFailure"
+    elif not coordinator_result.success:
+        reason = "CoordinatorFailure"
+    reference = error_reference(RuntimeError(reason))
+    failed = AgentEvaluationResult(
+        agent_name="coordinator",
+        evaluation_id=coordinator_result.evaluation_id,
+        document_id=coordinator_result.document_id,
+        subtotal=0.0,
+        criterion_scores=(),
+        summary="",
+        model_name=coordinator_result.model_name[:128],
+        processing_seconds=coordinator_result.processing_seconds,
+        token_count=0,
+        success=False,
+        error_message=f"{reason} (reference: {reference})",
+        prompt_version_id=None,
+        raw_response=None,
+        metadata={},
+        provenance=None,
+        advisory_outputs=None,
+    )
+    return [failed if r is coordinator_result else r for r in agent_results]
 
 
 def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
-    """Recover evaluation jobs stuck in non-terminal, non-SUBMITTED statuses.
+    """Requeue stale or tokenless nonterminal evaluation jobs.
 
     At startup, any job in PREPROCESSING, EVALUATING, or SYNTHESIZING is
     considered stuck — whether it holds a stale execution_token (classic
@@ -501,7 +522,7 @@ def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
          execution_token).
       2. Atomically resets them to clean SUBMITTED, clearing the execution
          token, timestamps, and any prior transient error_message.
-      3. Sequentially re-runs each one through :func:`run_evaluation_job`,
+      3. Sequentially re-runs each one through the claimed executor,
          which is idempotent: if AgentResult rows already exist for the
          evaluation, the supervisor is skipped and the orchestrator
          resumes from synthesis/finalization.
@@ -517,64 +538,123 @@ def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:
 
     session = db_session_factory()
     try:
-        stuck_statuses = (
-            EvaluationStatus.PREPROCESSING.value,
-            EvaluationStatus.EVALUATING.value,
-            EvaluationStatus.SYNTHESIZING.value,
-        )
-        candidate_ids = [
-            row[0]
-            for row in session.query(EvaluationJob.evaluation_id)
-            .filter(EvaluationJob.status.in_(stuck_statuses))
-            .all()
-        ]
-        if not candidate_ids:
-            return 0
+        from server.core.config import get_settings
 
-        # Unconditionally reset interrupted jobs back to a fresh,
-        # queueable state and clear the stale ownership fields in a
-        # single UPDATE so the next run can re-claim the job. This is
-        # safe at startup because no other runner is alive yet. The
-        # orchestrator's idempotency check (existing AgentResult rows)
-        # prevents duplicate supervisor work if the previous attempt
-        # had already persisted Layer 3 outputs.
-        session.execute(
-            update(EvaluationJob)
-            .where(EvaluationJob.evaluation_id.in_(candidate_ids))
-            .values(
-                status=EvaluationStatus.SUBMITTED.value,
-                execution_token=None,
-                execution_started_at=None,
-                execution_heartbeat_at=None,
-                error_message=None,
-            )
+        cutoff = datetime.now(UTC) - timedelta(
+            seconds=get_settings().evaluation_heartbeat_stale_seconds
         )
-        session.commit()
+        candidate_ids, recovered_count = recover_stale_evaluation_execution(
+            session, cutoff
+        )
     finally:
         session.close()
 
     logger.info(
         "Recovering %d interrupted evaluation job(s): %s",
-        len(candidate_ids),
+        recovered_count,
         candidate_ids,
     )
 
-    for evaluation_id in candidate_ids:
-        try:
-            run_evaluation_job(
-                evaluation_id,
-                db_session_factory=db_session_factory,
-            )
-        except Exception as exc:
-            category, reference = _safe_failure(exc)
-            logger.warning(
-                "Recovery run failed for evaluation %s: category=%s reference=%s",
-                evaluation_id,
-                category,
-                reference,
-            )
-
-    return len(candidate_ids)
+    return recovered_count
 
 
-__all__ = ["run_evaluation_job", "recover_interrupted_evaluation_jobs"]
+__all__ = [
+    "_execute_claimed_evaluation",
+    "recover_interrupted_evaluation_jobs",
+    "drain_evaluation_queue",
+]
+
+
+def drain_evaluation_queue(
+    db_session_factory=None, *, stop_event: threading.Event | None = None
+) -> None:
+    """Drain the single local admission slot; DB ownership is authoritative."""
+    if not _DRAIN_LOCK.acquire(blocking=False):
+        return
+    try:
+        if db_session_factory is None:
+            from server.core.database import get_session_factory
+
+            db_session_factory = get_session_factory()
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return
+            token = uuid.uuid4()
+            session = db_session_factory()
+            try:
+                evaluation_id = acquire_next_evaluation_execution(session, token)
+            except Exception as exc:
+                session.rollback()
+                category, reference = _safe_failure(exc)
+                logger.warning(
+                    "Evaluation queue claim failed: category=%s reference=%s",
+                    category,
+                    reference,
+                )
+                return
+            finally:
+                session.close()
+            if evaluation_id is None:
+                from server.core.config import get_settings
+
+                lease_session = db_session_factory()
+                try:
+                    try:
+                        wait_seconds = seconds_until_stale_evaluation_execution(
+                            lease_session,
+                            get_settings().evaluation_heartbeat_stale_seconds,
+                        )
+                    except Exception as exc:
+                        category, reference = _safe_failure(exc)
+                        logger.warning(
+                            "Evaluation lease inspection failed: category=%s "
+                            "reference=%s",
+                            category,
+                            reference,
+                        )
+                        return
+                finally:
+                    lease_session.close()
+                if wait_seconds is None:
+                    return
+                if stop_event is not None:
+                    if stop_event.wait(timeout=min(wait_seconds, 1.0)):
+                        return
+                elif wait_seconds > 0:
+                    time.sleep(min(wait_seconds, 1.0))
+                recovery_session = db_session_factory()
+                try:
+                    cutoff = datetime.now(UTC) - timedelta(
+                        seconds=get_settings().evaluation_heartbeat_stale_seconds
+                    )
+                    recover_stale_evaluation_execution(recovery_session, cutoff)
+                finally:
+                    recovery_session.close()
+                continue
+            try:
+                _execute_claimed_evaluation(
+                    evaluation_id,
+                    db_session_factory=db_session_factory,
+                    execution_token=token,
+                )
+            except Exception as exc:
+                category, reference = _safe_failure(exc)
+                logger.warning(
+                    "Evaluation drain failed: category=%s reference=%s",
+                    category,
+                    reference,
+                )
+            if stop_event is not None and stop_event.is_set():
+                return
+    finally:
+        _DRAIN_LOCK.release()
+
+
+def is_evaluation_admission_schema_ready(session_factory) -> bool:
+    from server.modules.evaluations.service import admission_schema_ready
+
+    session = session_factory()
+    try:
+        return admission_schema_ready(session)
+    finally:
+        session.close()

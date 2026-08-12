@@ -69,7 +69,7 @@ BRANCH_B = "20260801_0001"
 #: repair (20260808_0000) and roadmap tables (20260808_0001) onto the
 #: syllabus-alignment branch and merged it with the hardening branch, then
 #: added the roadmap-course uniqueness revision (20260808_0002).
-CHAIN_HEAD_REV = "20260808_0002"
+CHAIN_HEAD_REV = "20260811_0002"
 
 #: Common ancestor of both feature branches; the former-curriculum head shape.
 FORMER_CURRICULUM_ANCESTOR = "20260716_0001"

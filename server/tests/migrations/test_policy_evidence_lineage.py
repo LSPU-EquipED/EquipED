@@ -110,14 +110,12 @@ class TestPolicyEvidenceLineage:
                 stack.extend(down or ())
 
         # Must include the new policy_area revision
-        assert any(
-            "0005" in r for r in seen
-        ), "Chain must include 20260713_0005 (add document_chunks.policy_area)"
+        assert any("0005" in r for r in seen), (
+            "Chain must include 20260713_0005 (add document_chunks.policy_area)"
+        )
 
         # Must start at baseline
-        assert "20260507_0001" in seen, (
-            f"Chain root must be 20260507_0001, got {seen}"
-        )
+        assert "20260507_0001" in seen, f"Chain root must be 20260507_0001, got {seen}"
 
         # No duplicate revisions
         assert len(seen) == len(set(seen)), "Duplicate revision in chain"
@@ -139,9 +137,7 @@ class TestPolicyEvidenceLineage:
         with engine.connect() as conn:
             ctx = MigrationContext.configure(conn)
             cur = ctx.get_current_revision()
-            assert cur == "20260713_0004", (
-                f"Expected current=20260713_0004, got {cur}"
-            )
+            assert cur == "20260713_0004", f"Expected current=20260713_0004, got {cur}"
         engine.dispose()
 
     # ------------------------------------------------------------------
@@ -154,9 +150,7 @@ class TestPolicyEvidenceLineage:
 
         # The only table mutation should be the alembic_version UPDATE.
         # No ALTER TABLE, CREATE TABLE, or DROP statements.
-        ddl_statements = re.findall(
-            r"^(ALTER|CREATE|DROP) ", sql, re.MULTILINE
-        )
+        ddl_statements = re.findall(r"^(ALTER|CREATE|DROP) ", sql, re.MULTILINE)
         assert len(ddl_statements) == 0, (
             f"0004 should be a no-op, but found DDL: {ddl_statements}"
         )
@@ -171,8 +165,7 @@ class TestPolicyEvidenceLineage:
 
         # Core DDL assertion
         assert (
-            "ALTER TABLE document_chunks ADD COLUMN policy_area VARCHAR(100)"
-            in sql
+            "ALTER TABLE document_chunks ADD COLUMN policy_area VARCHAR(100)" in sql
         ), "0005 must ALTER TABLE document_chunks ADD COLUMN policy_area"
 
         # Backfill UPDATE for existing rows

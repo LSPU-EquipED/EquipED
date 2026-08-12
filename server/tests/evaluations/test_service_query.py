@@ -115,7 +115,7 @@ def test_list_evaluations_is_scoped_per_user_for_all_roles(db_session, role) -> 
 
 
 def test_list_evaluations_includes_document_title(db_session) -> None:
-    """Evaluation list items should include document_title for human-readable display."""
+    """Evaluation list items include document_title for human-readable display."""
     owner = create_user(
         db_session,
         name="Owner",
@@ -143,7 +143,9 @@ def test_list_evaluations_includes_document_title(db_session) -> None:
     db_session.add(job)
     db_session.commit()
 
-    response = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    response = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session
+    )
     assert response.total == 1
     item = response.items[0]
     assert isinstance(item, EvaluationListItem)
@@ -176,7 +178,9 @@ def test_list_evaluations_document_title_none_for_missing_document(db_session) -
     db_session.add(job)
     db_session.commit()
 
-    response = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    response = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session
+    )
     assert response.total == 1
     assert response.items[0].document_title is None
 
@@ -195,34 +199,38 @@ def test_list_evaluations_filters_by_document_id(db_session) -> None:
     doc_a = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
     doc_b = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
 
-    db_session.add_all([
-        EvaluationJob(
-            evaluation_id=uuid4(),
-            document_id=doc_a,
-            syllabus_id=None,
-            curriculum_id=None,
-            status=EvaluationStatus.SUBMITTED.value,
-            error_message=None,
-            submitted_by=owner.user_id,
-            submitted_at=datetime.now(UTC),
-            completed_at=None,
-        ),
-        EvaluationJob(
-            evaluation_id=uuid4(),
-            document_id=doc_b,
-            syllabus_id=None,
-            curriculum_id=None,
-            status=EvaluationStatus.SUBMITTED.value,
-            error_message=None,
-            submitted_by=owner.user_id,
-            submitted_at=datetime.now(UTC),
-            completed_at=None,
-        ),
-    ])
+    db_session.add_all(
+        [
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                syllabus_id=None,
+                curriculum_id=None,
+                status=EvaluationStatus.SUBMITTED.value,
+                error_message=None,
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+                completed_at=None,
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_b,
+                syllabus_id=None,
+                curriculum_id=None,
+                status=EvaluationStatus.SUBMITTED.value,
+                error_message=None,
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+                completed_at=None,
+            ),
+        ]
+    )
     db_session.commit()
 
     # Without filter: both evaluations
-    all_resp = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    all_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session
+    )
     assert all_resp.total == 2
 
     # With filter for doc_a: only one
@@ -351,7 +359,9 @@ def test_get_evaluation_status_includes_partial_fields(db_session) -> None:
         submitted_at=datetime.now(UTC),
         completed_at=None,
         partial_without_curriculum=True,
-        partial_reason="No curriculum reference was available; Coordinator review was skipped.",
+        partial_reason=(
+            "No curriculum reference was available; Coordinator review was skipped."
+        ),
     )
     db_session.add(job)
     db_session.commit()

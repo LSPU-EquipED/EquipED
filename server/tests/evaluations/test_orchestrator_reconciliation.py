@@ -1,310 +1,114 @@
-"""Tests for orchestrator._reconcile_coordinator_result.
-
-Coordinator's own run() (dispatched in parallel with SME by Supervisor,
-unchanged) only computes A-05 -- this reconciliation step, run after both
-agents finish, either splices in SME's other 9 scores or falls back to
-Coordinator's full independent scoring if SME failed. Supervisor itself is
-never touched by this design -- these tests exercise the reconciliation
-function in isolation, with no real DB/LLM required.
-"""
+"""Tests for the no-fallback Coordinator reconciliation contract."""
 
 from __future__ import annotations
 
 import re
 import uuid
-from types import SimpleNamespace
+from dataclasses import replace
 
+import pytest
 import server.modules.evaluations.orchestrator as orchestrator
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.sme import registry
 from server.modules.evaluations.orchestrator import _reconcile_coordinator_result
 
 
-def _fake_job(*, syllabus_id=None, curriculum_id=None) -> SimpleNamespace:
-    return SimpleNamespace(
-        evaluation_id=uuid.uuid4(),
-        document_id=uuid.uuid4(),
-        syllabus_id=syllabus_id,
-        curriculum_id=curriculum_id,
-    )
-
-
-def _fake_chunk(text: str, page_number: int = 1):
-    return SimpleNamespace(chunk_id=uuid.uuid4(), page_number=page_number, text=text)
-
-
-def _sme_result(*, success=True) -> AgentEvaluationResult:
+def _result(agent: str, *, success: bool = True) -> AgentEvaluationResult:
     scores = tuple(
-        CriterionScore(
-            criterion_id=code,
-            criterion_title=f"{code} SME Title",
-            score=3,
-            justification=f"{code} sme justification",
-            evidence=(),
-        )
+        CriterionScore(code, f"{code} title", 3, f"{code} justification", ())
         for code in sorted(registry.REGISTERED_CODES)
     )
+    if agent == "coordinator":
+        scores = (
+            CriterionScore("A-05", "A-05 title", 4, "curriculum evidence", ("quote",)),
+        )
     return AgentEvaluationResult(
-        agent_name="sme",
+        agent_name=agent,
         evaluation_id=uuid.uuid4(),
         document_id=uuid.uuid4(),
-        subtotal=3.0,
+        subtotal=3.0 if success else 0.0,
         criterion_scores=scores if success else (),
         summary="",
-        model_name="sme-model",
+        model_name=f"{agent}-model",
         processing_seconds=1.0,
-        token_count=100,
+        token_count=10,
         success=success,
-        error_message=None if success else "sme failed",
+        error_message=None if success else f"{agent} failed",
     )
 
 
-def _coordinator_result(*, success=True) -> AgentEvaluationResult:
-    a05 = CriterionScore(
-        criterion_id="A-05",
-        criterion_title="A-05 Coordinator Title",
-        score=4,
-        justification="Curriculum-grounded: 1/1 objective(s) addressed.",
-        evidence=("curriculum quote",),
+def test_success_merges_canonical_ten_criteria() -> None:
+    results = [_result("sme"), _result("coordinator"), _result("gad"), _result("itso")]
+    reconciled = _reconcile_coordinator_result(results)
+    coordinator = next(r for r in reconciled if r.agent_name == "coordinator")
+    assert tuple(r.criterion_id for r in coordinator.criterion_scores) == tuple(
+        sorted(registry.REGISTERED_CODES)
     )
-    return AgentEvaluationResult(
-        agent_name="coordinator",
-        evaluation_id=uuid.uuid4(),
-        document_id=uuid.uuid4(),
-        subtotal=4.0,
-        criterion_scores=(a05,) if success else (),
-        summary="",
-        model_name="coord-model",
-        processing_seconds=0.2,
-        token_count=20,
-        success=success,
-        error_message=None if success else "coordinator failed",
-    )
+    assert next(r for r in reconciled if r.agent_name == "sme") is results[0]
 
 
-def _gad_itso_results() -> list[AgentEvaluationResult]:
-    return [
-        AgentEvaluationResult(
-            agent_name=name,
-            evaluation_id=uuid.uuid4(),
-            document_id=uuid.uuid4(),
-            subtotal=3.0,
-            criterion_scores=(),
-            summary="",
-            model_name="m",
-            processing_seconds=0.1,
-            token_count=10,
-            success=True,
-        )
-        for name in ("gad", "itso")
+def test_missing_coordinator_returns_explicit_partial_unchanged() -> None:
+    results = [_result("sme"), _result("gad"), _result("itso")]
+    assert _reconcile_coordinator_result(results) is results
+
+
+@pytest.mark.parametrize("failed_agent", ["sme", "coordinator"])
+def test_agent_failure_produces_sanitized_failed_coordinator_without_fallback(
+    failed_agent: str, monkeypatch, caplog
+) -> None:
+    def forbidden(*args, **kwargs):
+        raise AssertionError("independent/global LLM fallback must not run")
+
+    monkeypatch.setattr(
+        orchestrator, "get_llm_client_for_agent", forbidden, raising=False
+    )
+    secret = "provider-secret-should-not-leak"
+    results = [
+        _result("sme", success=failed_agent != "sme"),
+        _result("coordinator", success=failed_agent != "coordinator"),
     ]
+    results[0] = replace(results[0], error_message=secret)
+    reconciled = _reconcile_coordinator_result(results)
+    coordinator = next(r for r in reconciled if r.agent_name == "coordinator")
+    assert not coordinator.success
+    assert coordinator.criterion_scores == ()
+    assert coordinator.model_name == "coordinator-model"
+    assert len(coordinator.error_message or "") < 256
+    assert secret not in (coordinator.error_message or "")
+    assert secret not in caplog.text
 
 
-class TestReconcileHappyPath:
-    def test_merges_when_both_sme_and_coordinator_succeed(self) -> None:
-        sme_result = _sme_result()
-        coordinator_result = _coordinator_result()
-        agent_results = [sme_result, coordinator_result, *_gad_itso_results()]
+def test_merge_exception_is_sanitized_failed_coordinator_without_fallback(
+    monkeypatch,
+) -> None:
+    secret = "merge-provider-secret"
 
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=_fake_job(curriculum_id=uuid.uuid4()),
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session=None,
+    def broken_merge(*args):
+        raise RuntimeError(secret)
+
+    monkeypatch.setattr(orchestrator, "merge_with_sme", broken_merge)
+    results = [_result("sme"), _result("coordinator")]
+    reconciled = _reconcile_coordinator_result(results)
+    coordinator = next(r for r in reconciled if r.agent_name == "coordinator")
+    assert not coordinator.success
+    assert secret not in (coordinator.error_message or "")
+    assert re.search(r"reference: [0-9a-f]{16}", coordinator.error_message or "")
+    assert coordinator.raw_response is None
+    assert coordinator.metadata == {}
+    assert coordinator.provenance is None
+    assert coordinator.model_name == "coordinator-model"
+
+
+def test_failure_is_bounded_and_remains_required_job_failure() -> None:
+    result = next(
+        r
+        for r in _reconcile_coordinator_result(
+            [_result("sme", success=False), _result("coordinator")]
         )
-
-        merged_coordinator = next(
-            r for r in reconciled if r.agent_name == "coordinator"
-        )
-        assert len(merged_coordinator.criterion_scores) == 10
-        assert merged_coordinator is not coordinator_result
-        # SME's own entry and the other agents pass through untouched.
-        assert next(r for r in reconciled if r.agent_name == "sme") is sme_result
-        assert len(reconciled) == 4
-
-
-class TestReconcileNoCoordinator:
-    def test_returns_unchanged_when_no_coordinator_present(self) -> None:
-        # e.g. partial_without_curriculum -- Supervisor never included Coordinator.
-        agent_results = [_sme_result(), *_gad_itso_results()]
-
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=_fake_job(),
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session=None,
-        )
-
-        assert reconciled is agent_results
-
-
-class TestReconcileFallback:
-    def test_sme_failure_triggers_independent_fallback(self, monkeypatch) -> None:
-        sme_result = _sme_result(success=False)
-        coordinator_result = _coordinator_result()
-        agent_results = [sme_result, coordinator_result, *_gad_itso_results()]
-
-        fallback_result = AgentEvaluationResult(
-            agent_name="coordinator",
-            evaluation_id=uuid.uuid4(),
-            document_id=uuid.uuid4(),
-            subtotal=3.0,
-            criterion_scores=tuple(
-                CriterionScore(
-                    criterion_id=code,
-                    criterion_title=code,
-                    score=3,
-                    justification="independent",
-                    evidence=(),
-                )
-                for code in sorted(registry.REGISTERED_CODES)
-            ),
-            summary="",
-            model_name="coord-model",
-            processing_seconds=5.0,
-            token_count=500,
-            success=True,
-        )
-
-        captured_kwargs = {}
-
-        def fake_run_full_independent(self, **kwargs):
-            captured_kwargs.update(kwargs)
-            return fallback_result
-
-        monkeypatch.setattr(
-            Coordinator, "run_full_independent", fake_run_full_independent
-        )
-        monkeypatch.setattr(
-            "server.modules.evaluations.orchestrator.get_llm_client_for_agent",
-            lambda agent_name: "fake-client",
-        )
-
-        job = _fake_job(curriculum_id=uuid.uuid4())
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=job,
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session="fake-session",
-        )
-
-        result = next(r for r in reconciled if r.agent_name == "coordinator")
-        assert result is fallback_result
-        assert len(result.criterion_scores) == 10
-        assert captured_kwargs["evaluation_id"] == job.evaluation_id
-        assert captured_kwargs["document_id"] == job.document_id
-        assert captured_kwargs["db"] == "fake-session"
-        assert captured_kwargs["reference_document_ids"] == {
-            "curriculum": job.curriculum_id
-        }
-
-    def test_coordinators_own_call_failure_triggers_independent_fallback(
-        self, monkeypatch
-    ) -> None:
-        sme_result = _sme_result(success=True)
-        coordinator_result = _coordinator_result(success=False)
-        agent_results = [sme_result, coordinator_result]
-
-        fallback_result = _coordinator_result(success=True)
-        monkeypatch.setattr(
-            Coordinator,
-            "run_full_independent",
-            lambda self, **kwargs: fallback_result,
-        )
-        monkeypatch.setattr(
-            "server.modules.evaluations.orchestrator.get_llm_client_for_agent",
-            lambda agent_name: "fake-client",
-        )
-
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=_fake_job(),
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session=None,
-        )
-
-        result = next(r for r in reconciled if r.agent_name == "coordinator")
-        assert result is fallback_result
-
-    def test_fallback_itself_failing_marks_coordinator_failed_not_crash(
-        self, monkeypatch, caplog
-    ) -> None:
-        sme_result = _sme_result(success=False)
-        coordinator_result = _coordinator_result()
-        agent_results = [sme_result, coordinator_result]
-
-        secret = "provider secret llm unavailable"
-
-        def raise_error(self, **kwargs):
-            raise RuntimeError(secret)
-
-        monkeypatch.setattr(Coordinator, "run_full_independent", raise_error)
-        monkeypatch.setattr(
-            "server.modules.evaluations.orchestrator.get_llm_client_for_agent",
-            lambda agent_name: "fake-client",
-        )
-
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=_fake_job(),
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session=None,
-        )
-
-        result = next(r for r in reconciled if r.agent_name == "coordinator")
-        assert result.success is False
-        assert "CoordinatorFallbackFailure" in result.error_message
-        assert secret not in result.error_message
-        match = re.search(r"reference=([0-9a-f]{16})", result.error_message)
-        assert match
-        assert secret not in caplog.text
-        assert result.summary == ""
-        assert result.raw_response is None
-        assert result.metadata == {}
-        assert result.advisory_outputs is None
-        assert result.provenance is not None
-        assert secret not in repr(result.provenance)
-        assert result.criterion_scores == ()
-        assert result.subtotal == 0.0
-        assert result.token_count == 0
-        assert result.processing_seconds >= 0
-        assert result.model_name == "unknown"
-
-    def test_merge_raising_also_triggers_fallback(self, monkeypatch) -> None:
-        # Both agents report success, but merge_with_sme itself misbehaves --
-        # reconciliation must not propagate that, it should fall back too.
-        sme_result = _sme_result(success=True)
-        coordinator_result = _coordinator_result(success=True)
-        agent_results = [sme_result, coordinator_result]
-
-        def raise_merge_error(coordinator_result, sme_result):
-            raise ValueError("merge exploded")
-
-        fallback_result = _coordinator_result(success=True)
-        monkeypatch.setattr(orchestrator, "merge_with_sme", raise_merge_error)
-        monkeypatch.setattr(
-            Coordinator,
-            "run_full_independent",
-            lambda self, **kwargs: fallback_result,
-        )
-        monkeypatch.setattr(
-            "server.modules.evaluations.orchestrator.get_llm_client_for_agent",
-            lambda agent_name: "fake-client",
-        )
-
-        reconciled = _reconcile_coordinator_result(
-            agent_results,
-            job=_fake_job(),
-            slm_chunks=[_fake_chunk("one")],
-            slm_text="one",
-            session=None,
-        )
-
-        result = next(r for r in reconciled if r.agent_name == "coordinator")
-        assert result is fallback_result
+        if r.agent_name == "coordinator"
+    )
+    assert result.success is False
+    assert result.agent_name == "coordinator"
+    assert result.model_name == "coordinator-model"
+    assert result.token_count == 0
+    assert result.subtotal == 0.0
