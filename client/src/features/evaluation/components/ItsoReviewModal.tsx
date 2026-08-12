@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { Flag, X } from 'lucide-react';
+import { cn } from '@/shared/components/utils';
 import { useSubmitCriterionFeedback } from '../hooks/useSubmitFeedback';
+import { formatScore } from '../utils/scoreHelpers';
 import type { CriterionScoreItem } from '../types';
 
 type CriterionDraft = {
   score: number;
   justification: string;
   rejected: boolean;
+  expanded: boolean;
 };
 
 type ItsoReviewModalProps = {
@@ -15,15 +18,48 @@ type ItsoReviewModalProps = {
   readonly onClose: () => void;
 };
 
+function baselineFor(
+  criterion: CriterionScoreItem,
+): { score: number; justification: string } {
+  if (criterion.reviewer_correction?.action === 'EDIT') {
+    return {
+      score: criterion.reviewer_correction.score ?? criterion.score,
+      justification: criterion.reviewer_correction.justification ?? criterion.justification,
+    };
+  }
+  return { score: criterion.score, justification: criterion.justification };
+}
+
 function initialDrafts(
   criteria: readonly CriterionScoreItem[],
 ): Record<string, CriterionDraft> {
   return Object.fromEntries(
-    criteria.map((c) => [
-      c.criterion_id,
-      { score: c.score, justification: c.justification, rejected: false },
-    ]),
+    criteria.map((c) => {
+      const baseline = baselineFor(c);
+      const isEditBaseline = c.reviewer_correction?.action === 'EDIT';
+      return [
+        c.criterion_id,
+        {
+          score: baseline.score,
+          justification: baseline.justification,
+          rejected: c.reviewer_correction?.action === 'REJECT',
+          expanded: isEditBaseline,
+        },
+      ];
+    }),
   );
+}
+
+function scoreButtonClasses(value: number, selected: boolean, isEdited: boolean): string {
+  if (!selected) {
+    return 'border-slate-200 text-slate-400 hover:bg-slate-50';
+  }
+  if (isEdited) {
+    return 'border-[#1b3b87] bg-[#1b3b87] text-white';
+  }
+  return value < 2
+    ? 'border-[#b91c1c] bg-[#b91c1c] text-white'
+    : 'border-[#3b963e] bg-[#3b963e] text-white';
 }
 
 export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewModalProps) {
@@ -36,6 +72,28 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
 
   function updateDraft(criterionId: string, patch: Partial<CriterionDraft>) {
     setDrafts((prev) => ({ ...prev, [criterionId]: { ...prev[criterionId], ...patch } }));
+  }
+
+  function selectScore(criterion: CriterionScoreItem, value: number) {
+    updateDraft(criterion.criterion_id, { score: value, expanded: true });
+  }
+
+  function toggleRejected(criterion: CriterionScoreItem) {
+    const draft = drafts[criterion.criterion_id];
+    const nextRejected = !draft.rejected;
+    updateDraft(criterion.criterion_id, {
+      rejected: nextRejected,
+      expanded: nextRejected ? false : draft.expanded,
+    });
+  }
+
+  function revertCriterion(criterion: CriterionScoreItem) {
+    updateDraft(criterion.criterion_id, {
+      score: criterion.score,
+      justification: criterion.justification,
+      rejected: false,
+      expanded: false,
+    });
   }
 
   // A criterion that isn't flagged as incorrect must keep a non-empty
@@ -51,6 +109,23 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
     .map((criterion) => criterion.criterion_id);
   const hasEmptyJustification = emptyJustificationIds.length > 0;
 
+  const editedCount = criteria.filter((criterion) => {
+    const draft = drafts[criterion.criterion_id];
+    if (draft.rejected) return false;
+    const baseline = baselineFor(criterion);
+    return (
+      draft.score !== baseline.score ||
+      draft.justification.trim() !== baseline.justification.trim()
+    );
+  }).length;
+  const flaggedCount = criteria.filter(
+    (criterion) => drafts[criterion.criterion_id].rejected,
+  ).length;
+  const draftSubtotal = criteria.length
+    ? criteria.reduce((sum, criterion) => sum + drafts[criterion.criterion_id].score, 0) /
+      criteria.length
+    : 0;
+
   async function handleSubmit() {
     setSubmitError(null);
 
@@ -62,16 +137,24 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
     const actions = criteria
       .map((criterion) => {
         const draft = drafts[criterion.criterion_id];
+        const wasRejected = criterion.reviewer_correction?.action === 'REJECT';
+
         if (draft.rejected) {
+          // Only send REJECT if this is a new rejection this session --
+          // reopening an already-rejected, untouched criterion and
+          // resubmitting must send zero requests, same as any other
+          // unchanged criterion.
+          if (wasRejected) return null;
           return {
             criterionId: criterion.criterion_id,
             body: { agent_name: 'itso' as const, action: 'REJECT' as const },
           };
         }
+
+        const baseline = baselineFor(criterion);
         const trimmedJustification = draft.justification.trim();
-        const scoreChanged = draft.score !== criterion.score;
-        const justificationChanged =
-          trimmedJustification !== criterion.justification.trim();
+        const scoreChanged = draft.score !== baseline.score;
+        const justificationChanged = trimmedJustification !== baseline.justification.trim();
         if (scoreChanged || justificationChanged) {
           return {
             criterionId: criterion.criterion_id,
@@ -113,9 +196,15 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-sm border border-slate-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-            Review ITSO Scores
-          </h2>
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+              Review ITSO Scores
+            </h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              {editedCount} of {criteria.length} edited · subtotal{' '}
+              {formatScore(draftSubtotal)}/4
+            </p>
+          </div>
           <button
             type="button"
             title="Close"
@@ -127,87 +216,122 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
           </button>
         </div>
 
-        <div className="grid gap-4 px-5 py-4">
+        <div className="grid gap-3 px-5 py-4">
           {criteria.map((criterion) => {
             const draft = drafts[criterion.criterion_id];
+            const baseline = baselineFor(criterion);
+            const isEdited =
+              !draft.rejected &&
+              (draft.score !== baseline.score ||
+                draft.justification.trim() !== baseline.justification.trim());
             const isJustificationEmpty = emptyJustificationIds.includes(
               criterion.criterion_id,
             );
+
             return (
               <div
                 key={criterion.criterion_id}
                 className="grid gap-2 rounded-sm border border-slate-200 p-3"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-sm font-semibold text-slate-800">
-                    {criterion.criterion_text}
-                  </div>
-                  <label className="flex shrink-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#b91c1c]">
-                    <input
-                      type="checkbox"
-                      checked={draft.rejected}
-                      onChange={(event) =>
-                        updateDraft(criterion.criterion_id, { rejected: event.target.checked })
-                      }
-                    />
-                    Flag as incorrect
-                  </label>
-                </div>
-                <p className="text-xs leading-relaxed text-slate-500">
-                  AI justification: {criterion.justification}
-                </p>
-                <div className="grid grid-cols-[5rem_1fr] gap-2">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Score
-                    <select
-                      className="mt-1 block w-full rounded-sm border border-slate-200 px-2 py-1 text-xs disabled:bg-slate-50 disabled:text-slate-400"
-                      value={draft.score}
-                      disabled={draft.rejected}
-                      onChange={(event) =>
-                        updateDraft(criterion.criterion_id, { score: Number(event.target.value) })
-                      }
-                    >
-                      {[1, 2, 3, 4].map((value) => (
-                        <option key={value} value={value}>
-                          {value}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Justification
-                    <textarea
-                      className={`mt-1 block w-full rounded-sm border px-2 py-1 text-xs disabled:bg-slate-50 disabled:text-slate-400 ${
-                        isJustificationEmpty
-                          ? 'border-[#b91c1c] focus:outline-[#b91c1c]'
-                          : 'border-slate-200'
-                      }`}
-                      rows={2}
-                      maxLength={4000}
-                      value={draft.justification}
-                      disabled={draft.rejected}
-                      onChange={(event) =>
-                        updateDraft(criterion.criterion_id, { justification: event.target.value })
-                      }
-                    />
-                    {isJustificationEmpty ? (
-                      <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-[#b91c1c]">
-                        Justification cannot be empty.
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-800">
+                      {criterion.criterion_text}
+                    </span>
+                    {isEdited && (
+                      <span className="rounded-full bg-[#1b3b87]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#1b3b87]">
+                        Edited
                       </span>
-                    ) : null}
-                  </label>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {[1, 2, 3, 4].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={draft.rejected}
+                        onClick={() => selectScore(criterion, value)}
+                        className={cn(
+                          'inline-flex size-6 items-center justify-center rounded-sm border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40',
+                          scoreButtonClasses(value, draft.score === value, isEdited),
+                        )}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      title="Flag as incorrect"
+                      onClick={() => toggleRejected(criterion)}
+                      className={cn(
+                        'inline-flex size-6 shrink-0 items-center justify-center rounded-sm border',
+                        draft.rejected
+                          ? 'border-[#b91c1c] bg-[#b91c1c]/10 text-[#b91c1c]'
+                          : 'border-slate-200 text-slate-400 hover:bg-slate-50',
+                      )}
+                    >
+                      <Flag className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
+
+                {!draft.expanded && (
+                  <p className="text-xs leading-relaxed text-slate-500">
+                    {criterion.justification}
+                  </p>
+                )}
+
+                {draft.expanded && !draft.rejected && (
+                  <div className="grid gap-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Justification
+                      <textarea
+                        className={cn(
+                          'mt-1 block w-full rounded-sm border px-2 py-1 text-xs',
+                          isJustificationEmpty
+                            ? 'border-[#b91c1c] focus:outline-[#b91c1c]'
+                            : 'border-slate-200',
+                        )}
+                        rows={2}
+                        maxLength={4000}
+                        value={draft.justification}
+                        onChange={(event) =>
+                          updateDraft(criterion.criterion_id, {
+                            justification: event.target.value,
+                          })
+                        }
+                      />
+                      {isJustificationEmpty && (
+                        <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-[#b91c1c]">
+                          Justification cannot be empty.
+                        </span>
+                      )}
+                    </label>
+                    <p className="text-[11px] text-slate-400">
+                      AI scored {formatScore(criterion.score)}/4 — {criterion.justification}.{' '}
+                      <button
+                        type="button"
+                        className="font-semibold text-[#1b3b87] hover:underline"
+                        onClick={() => revertCriterion(criterion)}
+                      >
+                        Revert
+                      </button>
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
-          {submitError ? (
-            <p className="text-[10px] font-semibold text-[#b91c1c]">{submitError}</p>
-          ) : (
-            <span />
-          )}
+          <p className="text-[11px] text-slate-500">
+            {submitError ? (
+              <span className="font-semibold text-[#b91c1c]">{submitError}</span>
+            ) : (
+              `${flaggedCount} flagged · ${editedCount} edited`
+            )}
+          </p>
           <div className="flex gap-2">
             <button
               type="button"
@@ -223,7 +347,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
               onClick={handleSubmit}
               disabled={isSubmitting || hasEmptyJustification}
             >
-              {isSubmitting ? 'Submitting…' : 'Submit'}
+              {isSubmitting ? 'Saving…' : 'Save changes'}
             </button>
           </div>
         </div>

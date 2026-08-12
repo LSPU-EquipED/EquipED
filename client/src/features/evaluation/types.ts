@@ -6,6 +6,12 @@ export type EvaluationStatus =
   | 'COMPLETED'
   | 'FAILED';
 
+export type CriterionReviewerCorrection = {
+  action: 'EDIT' | 'REJECT';
+  score: number | null;
+  justification: string | null;
+};
+
 export interface CriterionScoreItem {
   criterion_id: string;
   criterion_text: string;
@@ -13,6 +19,7 @@ export interface CriterionScoreItem {
   justification: string;
   evidence?: string | null;
   chunk_ids?: string | null;
+  reviewer_correction?: CriterionReviewerCorrection | null;
 }
 
 export interface DomainScoreBlock {
