@@ -23,6 +23,7 @@ import { AlignmentCheckPage } from '../features/alignment/curriculum/pages/Align
 import { SyllabusAlignmentPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentPage';
 import { SyllabusAlignmentWorkspacePage } from '../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage';
 import { SyllabusAlignmentReportPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentReportPage';
+import { EvaluationMapPage } from '../features/evaluation-map/pages/EvaluationMapPage';
 
 // Admin Pages
 import {
@@ -106,6 +107,12 @@ const evaluationsRoute = createRoute({
       <HistoryPage />
     </div>
   ),
+});
+
+const evaluationMapRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'evaluation-map',
+  component: EvaluationMapPage,
 });
 
 const documentEvaluationRoute = createRoute({
@@ -237,6 +244,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     uploadRoute,
     evaluationsRoute,
+    evaluationMapRoute,
     documentEvaluationRoute,
     evaluationDetailRoute,
     syllabusAlignmentRoute,
