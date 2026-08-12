@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 from server.modules.admin.model_validation_service import (
     assess_model_validation_toxicity,
@@ -17,6 +18,16 @@ from server.modules.evaluations.models import EvaluationJob
 from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import _auth
+
+
+@pytest.fixture(autouse=True)
+def _model_validation_readiness(monkeypatch):
+    monkeypatch.setattr(
+        "server.modules.admin.router.probe_local_model_readiness", lambda: None
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.router.admission_schema_ready", lambda db: True
+    )
 
 
 class _ContextualToxicityClient:
@@ -138,6 +149,53 @@ def test_metrics_schema_tolerates_missing_agent_breakdown() -> None:
     assert response.agent_confusion_matrices == {}
 
 
+def test_model_validation_readiness_failure_creates_nothing(
+    client, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    drained = []
+    monkeypatch.setattr(
+        "server.modules.admin.router.probe_local_model_readiness",
+        lambda: (_ for _ in ()).throw(RuntimeError("unavailable")),
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.router.drain_evaluation_queue",
+        lambda: drained.append(True),
+    )
+    _auth(client, auth_cookies_admin)
+    response = client.post(
+        "/api/v1/admin/model-validations",
+        json={"document_id": str(slm.document_id), "expected_scores": expected_scores},
+    )
+    assert response.status_code == 503
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert drained == []
+
+
+def test_model_validation_admission_failure_creates_nothing(
+    client, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    drained = []
+    monkeypatch.setattr(
+        "server.modules.admin.router.admission_schema_ready", lambda db: False
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.router.drain_evaluation_queue",
+        lambda: drained.append(True),
+    )
+    _auth(client, auth_cookies_admin)
+    response = client.post(
+        "/api/v1/admin/model-validations",
+        json={"document_id": str(slm.document_id), "expected_scores": expected_scores},
+    )
+    assert response.status_code == 503
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert drained == []
+
+
 def _setup_validation(
     db_session, admin_user, expected_scores=None, program: str = "BSCS"
 ):
@@ -164,6 +222,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     expected_scores, slm = _setup_validation(db_session, admin_user)
     original_flush = db_session.flush
     flush_states: list[tuple[bool, bool]] = []
+    drained = []
 
     def tracked_flush(*args, **kwargs):
         flush_states.append(
@@ -176,7 +235,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     monkeypatch.setattr(db_session, "flush", tracked_flush)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue",
+        lambda: drained.append(True),
     )
     _auth(client, auth_cookies_admin)
 
@@ -204,6 +264,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     )
 
     assert response.status_code == 202
+    assert drained == [True]
     assert (True, False) in flush_states
     payload = response.json()
     assert payload["partial_without_curriculum"] is True
@@ -338,7 +399,7 @@ def test_admin_can_detail_validation_record(
     """Admin can retrieve a single validation record by ID; faculty cannot."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
     create_resp = client.post(
@@ -353,17 +414,13 @@ def test_admin_can_detail_validation_record(
     validation_id = create_resp.json()["validation_id"]
 
     # Admin can detail
-    detail_resp = client.get(
-        f"/api/v1/admin/model-validations/{validation_id}"
-    )
+    detail_resp = client.get(f"/api/v1/admin/model-validations/{validation_id}")
     assert detail_resp.status_code == 200
     assert detail_resp.json()["validation_id"] == validation_id
 
     # Faculty blocked
     _auth(client, auth_cookies_faculty)
-    faculty_resp = client.get(
-        f"/api/v1/admin/model-validations/{validation_id}"
-    )
+    faculty_resp = client.get(f"/api/v1/admin/model-validations/{validation_id}")
     assert faculty_resp.status_code == 403
 
 
@@ -378,7 +435,7 @@ def test_admin_can_view_linked_evaluation(
     """Admin can open the linked evaluation through the admin-authorized path."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
     create_resp = client.post(
@@ -438,7 +495,7 @@ def test_validation_always_runs_partial_without_curriculum(
     """
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
 
@@ -470,7 +527,7 @@ def test_validation_explicit_partial_without_curriculum(
     """Explicit partial_without_curriculum=True is accepted."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
 
@@ -502,7 +559,7 @@ def test_validation_rejects_coordinator_expected_scores(
 
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
 
@@ -541,7 +598,7 @@ def test_toxicity_disabled_stores_none_with_message(
     """When toxicity_assessment_enabled is False, toxicity fields stay null."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
     create_resp = client.post(
@@ -583,7 +640,7 @@ def test_validation_atomic_creation_rolls_back_on_failure(
     """If validation creation fails, no orphan evaluation job remains."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
 
@@ -633,7 +690,7 @@ def test_cross_admin_access(
 
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
 
     # First admin creates the validation
@@ -664,9 +721,7 @@ def test_cross_admin_access(
 
     # Second admin can view the linked evaluation detail
     validation_id = create_resp.json()["validation_id"]
-    detail_resp = client.get(
-        f"/api/v1/admin/model-validations/{validation_id}"
-    )
+    detail_resp = client.get(f"/api/v1/admin/model-validations/{validation_id}")
     assert detail_resp.status_code == 200
     assert detail_resp.json()["evaluation_id"] == created_eval_id
 
@@ -694,7 +749,7 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
     use only matched pairs.
     """
     monkeypatch.setattr(
-        "server.modules.admin.router.run_evaluation_job", lambda _evaluation_id: None
+        "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
 

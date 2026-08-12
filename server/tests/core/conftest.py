@@ -11,9 +11,20 @@ validation never fires mid-test.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
+from server.core import llm
 
 
 @pytest.fixture(autouse=True)
 def _pin_prompt_budgets(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_provider_gates() -> Iterator[None]:
+    """Prevent quota/cooldown state from leaking between transport tests."""
+    llm._GATES.clear()
+    yield
+    llm._GATES.clear()

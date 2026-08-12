@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from server.core.config import Settings, _REPO_ROOT, _resolve_chroma_path, get_settings
+from server.core.config import _REPO_ROOT, Settings, _resolve_chroma_path, get_settings
 
 
 def _clear_settings_cache_and_pin_budgets(monkeypatch) -> None:
@@ -14,6 +12,7 @@ def _clear_settings_cache_and_pin_budgets(monkeypatch) -> None:
     8,000-char total budget default, an unpinned 5,000-char chunk
     budget would trip the validation."""
     from server.core import config as _config_mod
+
     _config_mod.get_settings.cache_clear()
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "")

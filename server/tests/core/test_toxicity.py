@@ -14,7 +14,6 @@ from unittest.mock import patch
 import pytest
 from server.core.exceptions import ConfigurationError
 from server.core.toxicity import (
-    _is_private_ip,
     get_toxicity_client,
     validate_toxicity_endpoint,
 )
@@ -69,9 +68,7 @@ class TestValidateEndpoint:
         assert "query" in reason.lower()
 
     def test_rejects_fragment(self):
-        allowed, reason = validate_toxicity_endpoint(
-            "http://localhost:11434/v1#frag"
-        )
+        allowed, reason = validate_toxicity_endpoint("http://localhost:11434/v1#frag")
         assert not allowed
         assert "fragment" in reason.lower()
 
@@ -102,38 +99,35 @@ class TestValidateEndpoint:
 
     def test_rejects_public_hostname(self):
         """A public DNS name that resolves to a public IP is rejected."""
-        allowed, reason = validate_toxicity_endpoint(
-            "http://example.com:11434/v1"
-        )
+        allowed, reason = validate_toxicity_endpoint("http://example.com:11434/v1")
         assert not allowed
 
-    # --- RFC1918 -------------------------------------------------------
-
+    # --- Private, link-local, and ULA addresses ------------------------
     @pytest.mark.parametrize(
-        "ip_str",
+        "url",
         [
-            "10.0.0.1",
-            "172.16.0.1",
-            "172.31.255.255",
-            "192.168.1.1",
-            "169.254.1.1",
-            "fc00::",
-            "fd00::1",
+            "http://10.0.0.1:11434/v1",
+            "http://172.16.0.1:11434/v1",
+            "http://192.168.1.1:11434/v1",
+            "http://169.254.1.1:11434/v1",
+            "http://[fc00::1]:11434/v1",
         ],
     )
-    def test_private_ip_check(self, ip_str):
-        assert _is_private_ip(ip_str), f"{ip_str} should be private"
+    def test_accepts_private_ip_endpoint(self, url):
+        allowed, reason = validate_toxicity_endpoint(url)
+        assert allowed, reason
 
-    @pytest.mark.parametrize(
-        "ip_str",
-        [
-            "8.8.8.8",
-            "1.1.1.1",
-            "2001:4860:4860::8888",
-        ],
-    )
-    def test_public_ip_check(self, ip_str):
-        assert not _is_private_ip(ip_str), f"{ip_str} should be public"
+    def test_rejects_mixed_dns_resolution(self, monkeypatch):
+        monkeypatch.setattr(
+            "server.core.endpoint_security.socket.getaddrinfo",
+            lambda *_args, **_kwargs: [
+                (2, 1, 6, "", ("10.0.0.1", 11434)),
+                (2, 1, 6, "", ("8.8.8.8", 11434)),
+            ],
+        )
+        allowed, reason = validate_toxicity_endpoint("http://mixed.test/v1")
+        assert not allowed
+        assert reason == "public address"
 
     # --- DNS failure ---------------------------------------------------
 
@@ -199,9 +193,7 @@ class TestGetToxicityClient:
                 toxicity_model_name="test-model",
             ),
         ):
-            with pytest.raises(
-                ConfigurationError, match="locality guard"
-            ):
+            with pytest.raises(ConfigurationError, match="locality guard"):
                 get_toxicity_client()
 
     def test_loopback_endpoint_accepted(self):
@@ -227,9 +219,7 @@ class TestGetToxicityClient:
 class TestToxicityNoGlobalLlm:
     """Toxicity must never use the global evaluation LLM client."""
 
-    def test_no_client_falls_back_to_dedicated_not_global(
-        self, monkeypatch
-    ):
+    def test_no_client_falls_back_to_dedicated_not_global(self, monkeypatch):
         """When no explicit client is given, the dedicated client is used.
 
         If the dedicated client raises (e.g. disabled), the function

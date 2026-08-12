@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import socket
 from urllib import error
 
 import pytest
@@ -53,9 +52,7 @@ class _FakeURLOpener:
         raise RuntimeError("No more mock responses")
 
 
-def _make_http_error(
-    code: int, retry_after: str | None = None
-) -> error.HTTPError:
+def _make_http_error(code: int, retry_after: str | None = None) -> error.HTTPError:
     """Create a mock HTTPError with optional Retry-After header."""
     headers = {}
     if retry_after is not None:
@@ -85,9 +82,9 @@ def _make_client(**overrides) -> LocalLLMClient:
     return LocalLLMClient(**defaults)
 
 
-_SUCCESS_BODY = json.dumps({
-    "choices": [{"message": {"content": '{"summary":"ok","criterion_scores":[]}'}}]
-})
+_SUCCESS_BODY = json.dumps(
+    {"choices": [{"message": {"content": '{"summary":"ok","criterion_scores":[]}'}}]}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +145,14 @@ def test_429_retry_respects_capped_backoff(monkeypatch) -> None:
 def test_429_retry_exhausts_after_max_retries(monkeypatch) -> None:
     """After 3 consecutive 429s, client raises InfrastructureUnavailableError."""
     sleep_calls: list[float] = []
-    monkeypatch.setattr("server.core.llm.time.sleep", sleep_calls.append)
+    current_time = [0.0]
+
+    def advance_clock(delay: float) -> None:
+        sleep_calls.append(delay)
+        current_time[0] += delay
+
+    monkeypatch.setattr("server.core.llm.time.monotonic", lambda: current_time[0])
+    monkeypatch.setattr("server.core.llm.time.sleep", advance_clock)
 
     client = _make_client()
     err_429 = _make_http_error(429, retry_after="5")
@@ -214,9 +218,7 @@ def test_503_exhausts_after_configured_attempts(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("status", [401, 422])
-def test_non_retryable_status_makes_single_call(
-    status: int, monkeypatch
-) -> None:
+def test_non_retryable_status_makes_single_call(status: int, monkeypatch) -> None:
     """401/422 should NOT be retried — exactly one call, immediate raise."""
     sleep_calls: list[float] = []
     monkeypatch.setattr("server.core.llm.time.sleep", sleep_calls.append)
@@ -281,7 +283,7 @@ def test_timeout_error_retries_then_succeeds(monkeypatch) -> None:
     monkeypatch.setattr("server.core.llm.time.sleep", sleep_calls.append)
 
     client = _make_client()
-    timeout_err = socket.timeout("timed out")
+    timeout_err = TimeoutError("timed out")
     opener = _FakeURLOpener([timeout_err, _FakeHTTPResponse(200, _SUCCESS_BODY)])
     monkeypatch.setattr("server.core.llm.request.urlopen", opener)
 
@@ -321,7 +323,8 @@ def test_request_timeout_passed_to_urlopen(monkeypatch) -> None:
 
     client.generate("test prompt")
 
-    assert opener.timeout_args == [42.0]
+    assert opener.timeout_args[0] is not None
+    assert 0 < opener.timeout_args[0] <= 42.0
 
 
 def test_request_timeout_default_from_settings(monkeypatch) -> None:
@@ -330,9 +333,7 @@ def test_request_timeout_default_from_settings(monkeypatch) -> None:
     class _FakeSettings:
         llm_request_timeout_seconds = 99
 
-    monkeypatch.setattr(
-        "server.core.llm.get_settings", lambda: _FakeSettings()
-    )
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _FakeSettings())
     monkeypatch.setattr("server.core.llm.time.sleep", lambda _: None)
 
     client = _make_client(request_timeout=None)
@@ -341,7 +342,7 @@ def test_request_timeout_default_from_settings(monkeypatch) -> None:
 
     client.generate("test prompt")
 
-    assert opener.timeout_args == [99.0]
+    assert 0 < opener.timeout_args[0] <= 99.0
 
 
 # ---------------------------------------------------------------------------
