@@ -130,9 +130,7 @@ def normalize_result(result: dict[str, Any]) -> GADResultData:
         evidence_accepted=int(prov.get("evidence_accepted", 0)),
         evidence_rejected=int(prov.get("evidence_rejected", 0)),
         registry_version=int(prov.get("registry_version", 0)),
-        extraction_schema_version=str(
-            prov.get("extraction_schema_version", "")
-        ),
+        extraction_schema_version=str(prov.get("extraction_schema_version", "")),
         scoring_mode=str(meta.get("scoring_mode", "")),
         llm_call_count=int(meta.get("llm_call_count", 0)),
         success=bool(result.get("success", True)),
@@ -148,9 +146,7 @@ class GADComparisonHarness:
 
     SCORE_TOLERANCE = 1e-9
     SUBTOTAL_TOLERANCE = 0.01
-    VALID_CRITERION_IDS = frozenset(
-        {"GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"}
-    )
+    VALID_CRITERION_IDS = frozenset({"GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"})
 
     def __init__(self) -> None:
         self._timings: dict[str, float] = {}
@@ -236,9 +232,7 @@ class GADComparisonHarness:
             score_ok = abs(cc.score - sc.score) <= self.SCORE_TOLERANCE
             if not score_ok:
                 scores_match = False
-                discrepancies.append(
-                    f"{cid}: score mismatch {cc.score} vs {sc.score}"
-                )
+                discrepancies.append(f"{cid}: score mismatch {cc.score} vs {sc.score}")
 
             ev_ok = len(cc.evidence) == len(sc.evidence)
             if not ev_ok:
@@ -263,9 +257,7 @@ class GADComparisonHarness:
             }
 
         # Subtotal comparison
-        subtotal_match = (
-            abs(cur.subtotal - sp.subtotal) <= self.SUBTOTAL_TOLERANCE
-        )
+        subtotal_match = abs(cur.subtotal - sp.subtotal) <= self.SUBTOTAL_TOLERANCE
         if not subtotal_match:
             discrepancies.append(
                 f"subtotal mismatch: {cur.subtotal:.4f} vs {sp.subtotal:.4f}"
@@ -283,12 +275,8 @@ class GADComparisonHarness:
             registry_versions={
                 "current_registry_version": cur.registry_version,
                 "single_pass_registry_version": sp.registry_version,
-                "current_extraction_schema_version": (
-                    cur.extraction_schema_version
-                ),
-                "single_pass_extraction_schema_version": (
-                    sp.extraction_schema_version
-                ),
+                "current_extraction_schema_version": (cur.extraction_schema_version),
+                "single_pass_extraction_schema_version": (sp.extraction_schema_version),
             },
             discrepancies=discrepancies,
         )
@@ -416,9 +404,7 @@ class GADComparisonHarness:
         lines.append("")
         rv = report.registry_versions
         lines.append(f"- Current registry: v{rv.get('current_registry_version')}")
-        lines.append(
-            f"- Current schema: {rv.get('current_extraction_schema_version')}"
-        )
+        lines.append(f"- Current schema: {rv.get('current_extraction_schema_version')}")
         lines.append(
             f"- Single-pass registry: v{rv.get('single_pass_registry_version')}"
         )
@@ -429,9 +415,7 @@ class GADComparisonHarness:
         lines.append("")
         lines.append("## Timing")
         lines.append("")
-        lines.append(
-            f"- Comparison: {report.timing.get('comparison_seconds', 0):.4f}s"
-        )
+        lines.append(f"- Comparison: {report.timing.get('comparison_seconds', 0):.4f}s")
 
         return "\n".join(lines)
 
@@ -439,9 +423,7 @@ class GADComparisonHarness:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _ensure_normalized(
-        self, data: dict[str, Any] | GADResultData
-    ) -> GADResultData:
+    def _ensure_normalized(self, data: dict[str, Any] | GADResultData) -> GADResultData:
         """Normalize input to GADResultData."""
         if isinstance(data, GADResultData):
             return data

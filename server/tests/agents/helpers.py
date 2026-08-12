@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import Any
 
+from server.core.llm import CompletionResult, ResponseContract, get_llm_model_name
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.itso.agent import ITSO
@@ -32,38 +33,85 @@ class SequencedFakeClient:
             raise RuntimeError("configured to fail")
         return json.dumps(payload)
 
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None = None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        if response_contract is not None and response_contract.mode != "json_object":
+            raise AssertionError("SME fake requires the json_object response contract")
+        return CompletionResult(
+            content=self.generate(
+                prompt, temperature=temperature, max_new_tokens=max_new_tokens
+            ),
+            served_model=getattr(self, "model", get_llm_model_name()),
+            finish_reason="stop",
+        )
+
 
 _BASKET_A1 = {
-    "objectives": [{"id": 1}],
-    "assessments": [{"id": 1, "assessment_type": "objective_test", "evidence": "Q1"}],
-    "alignment": [{"objective_id": 1, "is_measured": True, "evidence": "Q1"}],
+    "objectives": [{"id": 1, "text": "Objective"}],
+    "assessments": [
+        {"id": 1, "text": "Quiz", "assessment_type": "objective_test", "evidence": "Q1"}
+    ],
+    "alignment": [
+        {
+            "objective_id": 1,
+            "is_measured": True,
+            "assessment_ids": [1],
+            "evidence": "Q1",
+        }
+    ],
 }
 _BASKET_A2 = {
-    "tasks": [{
-        "text": "Task 1", "bloom_level": "apply", "directions": "Do X.",
-        "has_clear_directions": True, "evidence": "Do X.",
-    }]
+    "tasks": [
+        {
+            "id": 1,
+            "text": "Task 1",
+            "bloom_level": "apply",
+            "directions": "Do X.",
+            "has_clear_directions": True,
+            "evidence": "Do X.",
+        }
+    ]
 }
 _BASKET_A3 = {
-    "monitoring_mechanisms": [{
-        "text": "Check 1", "monitoring_type": "checkpoint", "evidence": "quiz",
-    }]
+    "monitoring_mechanisms": [
+        {
+            "id": 1,
+            "text": "Check 1",
+            "monitoring_type": "checkpoint",
+            "evidence": "quiz",
+        }
+    ]
 }
 _BASKET_A4 = {
-    "enhancement_activities": [{"text": "Extra", "evidence": "Research more."}]
+    "enhancement_activities": [{"id": 1, "text": "Extra", "evidence": "Research more."}]
 }
 _BASKET_B1 = {
     "topics": [{"id": 1, "title": "T1"}, {"id": 2, "title": "T2"}],
     "transitions": [{"from_id": 1, "to_id": 2, "is_coherent": True, "reason": "ok"}],
-    "feedback_mechanisms": [{
-        "text": "Key", "feedback_type": "answer_key", "evidence": "p.1",
-    }],
+    "feedback_mechanisms": [
+        {
+            "id": 1,
+            "text": "Key",
+            "feedback_type": "answer_key",
+            "evidence": "p.1",
+        }
+    ],
 }
-_BASKET_B2 = {
-    "sections": [{"id": 1, "title": "S1", "is_clean": True, "issue": ""}]
-}
+_BASKET_B2 = {"sections": [{"id": 1, "title": "S1", "is_clean": True, "issue": ""}]}
 _ALL_BASKETS_IN_ORDER = [
-    _BASKET_A1, _BASKET_A2, _BASKET_A3, _BASKET_A4, _BASKET_B1, _BASKET_B2,
+    _BASKET_A1,
+    _BASKET_A2,
+    _BASKET_A3,
+    _BASKET_A4,
+    _BASKET_B1,
+    _BASKET_B2,
 ]
 
 
@@ -75,9 +123,31 @@ class _RetrievedChunk:
 class _FakeLLM:
     def __init__(self, response: dict[str, object]) -> None:
         self.response = response
+        self.prompts: list[str] = []
 
     def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+        self.prompts.append(prompt)
         return json.dumps(self.response)
+
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None = None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        if not isinstance(response_contract, ResponseContract):
+            raise AssertionError("response contract is required")
+        content = self.generate(
+            prompt, temperature=temperature, max_new_tokens=max_new_tokens
+        )
+        return CompletionResult(
+            content=content,
+            served_model="fake-model",
+            finish_reason="stop",
+        )
 
 
 class _RawLLM:
@@ -344,4 +414,3 @@ def patch_settings(monkeypatch, **overrides) -> None:
         "server.core.database.get_settings",
         lambda: mock,
     )
-

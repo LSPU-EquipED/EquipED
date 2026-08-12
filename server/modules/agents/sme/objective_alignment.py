@@ -53,7 +53,8 @@ Your ONLY job is to extract facts. Do NOT assign any score.
 Return ONLY valid JSON in exactly this shape:
 {{
   "objectives": [{{"id": 1, "text": "..."}}],
-  "assessments": [{{"id": 1, "text": "..."}}],
+  "assessments": [{{"id": 1, "text": "short label", "assessment_type": "objective_test",
+    "evidence": "exact assessment text"}}],
   "alignment": [
     {{
       "objective_id": 1, "is_measured": true,
@@ -61,6 +62,11 @@ Return ONLY valid JSON in exactly this shape:
     }}
   ]
 }}
+
+Return exactly one alignment row for every objective, with no duplicate objective
+rows. Assessment IDs must be unique and refer to listed assessments. For a measured
+row, assessment_ids must be nonempty and evidence must be a nonempty exact quote.
+For an unmeasured row, use an empty assessment_ids list and empty evidence.
 
 SLM CONTENT:
 {content}
@@ -106,11 +112,11 @@ def compute(
 ) -> AlignmentResult:
     """Pure measurement -> band. No LLM, no IO -- fully unit-testable.
 
-    This is the half that stays per-criterion. The facts it needs (objectives,
-    assessments, per-objective alignment judgments) can be produced by this
-    criterion's own call OR merged from a shared skeleton/group call later;
-    either way the scoring math is identical. See
-openspec/specs/sme-engine-scoring/spec.md.
+        This is the half that stays per-criterion. The facts it needs (objectives,
+        assessments, per-objective alignment judgments) can be produced by this
+        criterion's own call OR merged from a shared skeleton/group call later;
+        either way the scoring math is identical. See
+    openspec/specs/sme-engine-scoring/spec.md.
     """
     # Count DISTINCT measured objectives, not alignment rows: the LLM may emit
     # several rows per objective (one per matching assessment), which would

@@ -9,6 +9,7 @@ from uuid import uuid4
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.runtime.timing import PhaseTimer
 from server.tests.agents.helpers import _DummyAgent, _FakeLLM, _RetrievedChunk
+from server.tests.agents.runtime.response_helpers import itso_response
 
 
 def test_phase_timer_accumulates_and_logs(monkeypatch, caplog) -> None:
@@ -76,16 +77,7 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
         lambda source_type: source_type,
     )
 
-    agent = _DummyAgent(
-        llm_client=_FakeLLM(
-            {
-                "summary": "ok",
-                "criterion_scores": [
-                    {"criterion_id": "c1", "score": 3, "justification": "ok"},
-                ],
-            }
-        )
-    )
+    agent = _DummyAgent(llm_client=_FakeLLM(itso_response()))
 
     agent.run(
         evaluation_id=uuid4(),
@@ -121,6 +113,19 @@ def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
         caplog.set_level(logging.INFO, logger=logger_name)
 
     _seed_active_prompts(db_session)
+    monkeypatch.setattr(
+        db_session,
+        "get",
+        lambda _model, _id: type("Document", (), {"file_path": "source.pdf"})(),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.prepare_canonical_source",
+        lambda _path: "canonical source",
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.resolve_document_pdf_path",
+        lambda _path: _path,
+    )
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
     monkeypatch.setattr(

@@ -6,6 +6,8 @@ import dataclasses
 import uuid
 from typing import Any
 
+from server.modules.admin.prompt_service import get_active_prompt
+
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..exceptions import AgentExecutionError
 from .pipeline import EngineScoredAgent
@@ -81,8 +83,16 @@ class SME(EngineScoredAgent):
     agent_name = "sme"
     rubric_source_type = "rubric_sme"
     domain_keywords = (
-        "accuracy", "content", "knowledge", "concepts", "theory",
-        "definitions", "principles", "facts", "understanding", "correct",
+        "accuracy",
+        "content",
+        "knowledge",
+        "concepts",
+        "theory",
+        "definitions",
+        "principles",
+        "facts",
+        "understanding",
+        "correct",
     )
 
     def run(
@@ -93,6 +103,7 @@ class SME(EngineScoredAgent):
         chunk_infos: list[dict[str, Any]],
         context_text: str | None = None,
         prompt_version_id: uuid.UUID | None = None,
+        prompt_version: str | None = None,
         db: Any | None = None,
         llm_client: Any | None = None,
         **kwargs: Any,
@@ -111,18 +122,32 @@ class SME(EngineScoredAgent):
         if not chunk_infos:
             raise AgentExecutionError("document chunks are required for evaluation")
 
+        prompt_text = prompt_version
+        consumed_prompt_id = prompt_version_id
+        # Compatibility for direct callers; dispatch always supplies the immutable
+        # snapshot and therefore never shares a DB session with the worker.
+        if prompt_text is None and db is not None:
+            try:
+                managed = get_active_prompt("sme", db)
+                prompt_text = managed.prompt_text
+                consumed_prompt_id = managed.version_id
+            except ValueError:
+                pass
         result = self._run_full_engine_scoring(
             evaluation_id=evaluation_id,
             document_id=document_id,
             chunk_infos=chunk_infos,
             context_text=context_text,
-            prompt_version_id=prompt_version_id,
+            prompt_version_id=consumed_prompt_id,
             db=db,
             llm_client=llm_client,
+            canonical_source_text=kwargs.get("canonical_source_text"),
+            prompt_preamble=prompt_text,
         )
         return dataclasses.replace(
             result,
             summary=_build_improvement_summary(result.criterion_scores),
+            prompt_version_id=consumed_prompt_id,
         )
 
 

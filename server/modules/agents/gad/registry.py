@@ -115,7 +115,6 @@ REGISTERED_CODES: frozenset[str] = frozenset(
 )
 
 
-
 # Score adapter — translates combined sections into registry scores
 # ---------------------------------------------------------------------------
 
@@ -214,6 +213,7 @@ def score_from_combined(
             )
 
     return scores, evidence_candidates, evidence_accepted, evidence_rejected
+
 
 __all__ = [
     "CRITERIA",

@@ -174,8 +174,13 @@ def test_returns_typed_dict() -> None:
     result = run_itso_precheck("Some text (Author, 2020).")
     assert isinstance(result, dict)
     assert set(result.keys()) == {
-        "version", "bibliography_found", "reference_count",
-        "intext_citation_count", "doi_count", "coverage_ratio", "result_hash",
+        "version",
+        "bibliography_found",
+        "reference_count",
+        "intext_citation_count",
+        "doi_count",
+        "coverage_ratio",
+        "result_hash",
     }
     assert isinstance(result["version"], str)
     assert isinstance(result["bibliography_found"], bool)

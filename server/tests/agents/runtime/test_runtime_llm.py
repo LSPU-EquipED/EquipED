@@ -1,60 +1,67 @@
+import pytest
+from server.modules.agents.exceptions import AgentLLMError
 from server.modules.agents.runtime import llm
 
 
 class Client:
     model = "primary"
 
-    def generate(self, prompt, *, temperature, max_new_tokens):
+    def generate_result(
+        self,
+        prompt,
+        *,
+        temperature,
+        max_new_tokens,
+        deadline,
+        response_contract,
+    ):
         raise RuntimeError("HTTP 503")
 
 
-class Fallback:
-    model = "fallback"
+def test_adapter_primary_failure_is_safe_and_does_not_use_global_fallback():
+    primary = Client()
+    adapter = llm.RunLLMClient(primary, "itso")
 
-    def __init__(self):
-        self.calls = []
+    with pytest.raises(AgentLLMError) as exc_info:
+        adapter.generate("p", temperature=0.7, max_new_tokens=123)
 
-    def generate(self, prompt, *, temperature, max_new_tokens):
-        self.calls.append((prompt, temperature, max_new_tokens))
-        return "ok"
-
-
-def test_adapter_fallback_forwards_tokens_and_tracks_state(monkeypatch):
-    fallback = Fallback()
-    monkeypatch.setattr(llm, "get_llm_client", lambda: fallback)
-    settings = type("S", (), {"llm_temperature": 0.2, "llm_max_new_tokens": 99})()
-    monkeypatch.setattr(llm, "get_settings", lambda: settings)
-    adapter = llm.FallbackAwareClient(Client(), "itso")
-    assert adapter.generate("p", temperature=.7, max_new_tokens=123) == "ok"
-    assert fallback.calls == [("p", .7, 123)]
+    assert str(exc_info.value).startswith("LLM call failed for itso")
     assert adapter.requested_model == "primary"
-    assert adapter.actual_model == "fallback"
-    assert adapter.fallback_occurred is True
-
-
-def test_adapter_fallback_state_accumulates(monkeypatch):
-    calls = iter([("one", "fallback"), ("two", "primary")])
-    monkeypatch.setattr(llm, "call_llm", lambda *a, **k: next(calls))
-    adapter = llm.FallbackAwareClient(Client(), "itso")
-    adapter.generate("p", temperature=0, max_new_tokens=1)
-    adapter.generate("p", temperature=0, max_new_tokens=1)
     assert adapter.actual_model == "primary"
-    assert adapter.fallback_occurred is True
+    assert adapter.fallback_occurred is False
 
 
-def test_adapter_explicit_requested_model_without_primary_model(monkeypatch):
+def test_adapter_typed_served_model_and_multi_call_telemetry():
+    from server.core.llm import CompletionResult
+
+    class Typed:
+        model = "requested"
+
+        def generate_result(self, *args, **kwargs):
+            return CompletionResult("{}", "served", 2, 3, 5, "length", 0.1, attempts=2)
+
+    adapter = llm.RunLLMClient(Typed(), "itso")
+    with pytest.raises(AgentLLMError):
+        adapter.generate("p", temperature=0, max_new_tokens=1)
+    with pytest.raises(AgentLLMError):
+        adapter.generate("p", temperature=0, max_new_tokens=1)
+    assert adapter.actual_model == "served"
+    assert adapter.fallback_occurred is False
+    assert adapter.telemetry["call_count"] == 2
+    assert adapter.telemetry["cap_hit_count"] == 2
+
+
+def test_adapter_legacy_string_client_has_unavailable_usage():
     class ModelLessClient:
         def generate(self, prompt, *, temperature, max_new_tokens):
             return "unused"
 
-    monkeypatch.setattr(llm, "call_llm", lambda *a, **k: ("ok", "fallback"))
-    adapter = llm.FallbackAwareClient(
-        ModelLessClient(), "itso", requested_model="requested"
-    )
+    adapter = llm.RunLLMClient(ModelLessClient(), "itso", requested_model="requested")
     assert adapter.requested_model == "requested"
     assert adapter.actual_model == "requested"
     assert adapter.model == "requested"
     adapter.generate("p", temperature=0, max_new_tokens=1)
-    assert adapter.actual_model == "fallback"
-    assert adapter.model == "fallback"
-    assert adapter.fallback_occurred is True
+    assert adapter.actual_model == "requested"
+    assert adapter.model == "requested"
+    assert adapter.fallback_occurred is False
+    assert adapter.telemetry["usage_available"] is False

@@ -81,6 +81,8 @@ def _dispatch(
         provenance=provenance,
         policy_evidence=policy,
         roadmap_context=roadmap,
+        canonical_source_text="canonical source",
+        authoritative_curriculum_text=None,
     )
     return result, clients, evaluation_id, document_id
 
@@ -120,6 +122,8 @@ def test_supervisor_builds_itso_evidence_once_only_when_included(
         ),
         reference_document_ids=MappingProxyType({}),
         precomputed_context=MappingProxyType({}),
+        canonical_source_text="canonical source",
+        authoritative_curriculum_text=None,
     )
     monkeypatch.setattr(
         "server.modules.agents.supervision.supervisor.EvaluationContextBuilder.build",
@@ -184,6 +188,8 @@ def test_dispatch_passes_exact_role_specific_keys(monkeypatch):
         "provenance": {"phase": "one"},
         "policy_evidence": {"policy": "only"},
     }
+    assert seen["coordinator"]["curriculum_id"] is None
+    assert seen["coordinator"]["curriculum_context"] is None
     assert seen["coordinator"]["roadmap_context"] == {"roadmap": "only"}
 
 

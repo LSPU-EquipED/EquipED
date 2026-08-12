@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
+from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.gad.envelope import (
@@ -55,6 +56,30 @@ pytestmark = [
 # ===========================================================================
 # HELPERS
 # ===========================================================================
+
+
+class _TypedResultMixin:
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None,
+        response_contract: ResponseContract,
+    ) -> CompletionResult:
+        del deadline
+        assert response_contract.mode == "json_object"
+        return CompletionResult(
+            content=self.generate(
+                prompt,
+                temperature=temperature,
+                max_new_tokens=max_new_tokens,
+            ),
+            served_model=self.model,
+            finish_reason="stop",
+        )
+
 
 _SAMPLE_CHUNKS = [
     {"chunk_id": "c1", "page_number": 1, "text": "Women cannot lead teams."},
@@ -99,8 +124,7 @@ def _full_response(
         },
         "gad-03": {
             "criterion": (
-                "The material shows females and males with equal respect"
-                " and potential"
+                "The material shows females and males with equal respect and potential"
             ),
             "instance_count": gad_03_count,
             "instances": gad_03_instances or [],
@@ -293,15 +317,15 @@ class TestParseCombinedResponseEdgeCases:
         with pytest.raises(AgentExecutionError, match="duplicate key"):
             parse_combined_response(json.dumps(resp))
 
-    def test_max_instances_capped_does_not_raise(self) -> None:
-        """Instances exceeding MAX_INSTANCES_PER_CRITERION should log and cap."""
+    def test_max_instances_validated_then_capped(self) -> None:
+        """Valid instances are capped only after every item is validated."""
         many = [{"excerpt": f"Instance {i}.", "chunk_id": "c1"} for i in range(15)]
         resp = _full_response(gad_01_count=15, gad_01_instances=many)
         parsed = parse_combined_response(json.dumps(resp))
-        # Should parse successfully — capping is applied later in score_from_combined
+        # The cap is applied after complete validation.
         assert "gad-01" in parsed
         instances = parsed["gad-01"].get("instances", [])
-        assert len(instances) == 15  # parse doesn't cap, score_from_combined does
+        assert len(instances) == MAX_INSTANCES_PER_CRITERION
 
     def test_section_is_not_a_dict_raises(self) -> None:
         resp = _full_response()
@@ -318,9 +342,7 @@ class TestParseCombinedResponseEdgeCases:
 
     def test_score_blocklist_inside_instance_evidence(self) -> None:
         resp = _full_response()
-        resp["gad-01"]["instances"] = [
-            {"excerpt": "test", "chunk_id": "c1", "band": 4}
-        ]
+        resp["gad-01"]["instances"] = [{"excerpt": "test", "chunk_id": "c1", "band": 4}]
         with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
             parse_combined_response(json.dumps(resp))
 
@@ -337,9 +359,7 @@ class TestParseCombinedResponseEdgeCases:
         ):
             resp = _full_response()
             resp["gad-01"][blocked] = 4
-            with pytest.raises(
-                AgentExecutionError, match="prohibited numeric-score"
-            ):
+            with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
                 parse_combined_response(json.dumps(resp))
 
 
@@ -356,11 +376,10 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
             {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert excerpts == [
-            "Women cannot lead teams.", "Only boys should repair computers."
+            "Women cannot lead teams.",
+            "Only boys should repair computers.",
         ]
         assert "c1" in ids
         assert "c2" in ids
@@ -386,9 +405,7 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "Text B.", "chunk_id": "unknown2"},
             {"excerpt": "Text C.", "chunk_id": "unknown3"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert excerpts == []
         assert ids == []
         assert rejected == 3
@@ -398,9 +415,7 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "This does not appear anywhere.", "chunk_id": "c1"},
             {"excerpt": "Still not present.", "chunk_id": "c2"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert excerpts == []
         assert rejected == 2
 
@@ -412,9 +427,7 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "", "chunk_id": "c3"},  # malformed
             {"excerpt": "Slash text.", "chunk_id": "unknown"},  # unknown chunk
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert len(excerpts) == 2
         assert rejected == 3
 
@@ -434,9 +447,7 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "women cannot lead teams.", "chunk_id": "c1"},
             {"excerpt": "WOMEN CANNOT LEAD TEAMS.", "chunk_id": "c1"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert len(excerpts) == 1
         assert rejected == 2
 
@@ -446,17 +457,18 @@ class TestGroundInstancesEdgeCases:
             {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
             {"excerpt": "Women cannot lead teams.", "chunk_id": "c2"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert len(excerpts) == 1
         assert rejected == 1
 
     def test_excerpt_partial_match_accepted(self) -> None:
         """Excerpt that is a substring of the chunk text should match."""
         chunks = [
-            {"chunk_id": "c1", "page_number": 1,
-             "text": "Women cannot lead teams. This is extra context."},
+            {
+                "chunk_id": "c1",
+                "page_number": 1,
+                "text": "Women cannot lead teams. This is extra context.",
+            },
         ]
         instances = [
             {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
@@ -469,37 +481,37 @@ class TestGroundInstancesEdgeCases:
         instances = [
             {"excerpt": "   ", "chunk_id": "c1"},
         ]
-        excerpts, ids, rejected = ground_instances(
-            "gad-01", instances, _SAMPLE_CHUNKS
-        )
+        excerpts, ids, rejected = ground_instances("gad-01", instances, _SAMPLE_CHUNKS)
         assert len(excerpts) == 0
         assert rejected == 1
 
-    def test_case_folded_chunk_matching(self) -> None:
-        """Case difference between excerpt and chunk should still match."""
+    def test_case_folded_chunk_matching_rejected(self) -> None:
+        """Case differences are not exact substring evidence."""
         chunks = [
-            {"chunk_id": "c1", "page_number": 1,
-             "text": "WOMEN CANNOT LEAD TEAMS."},
+            {"chunk_id": "c1", "page_number": 1, "text": "WOMEN CANNOT LEAD TEAMS."},
         ]
         instances = [
             {"excerpt": "women cannot lead teams.", "chunk_id": "c1"},
         ]
         excerpts, ids, rejected = ground_instances("gad-01", instances, chunks)
-        assert len(excerpts) == 1
-        assert rejected == 0
+        assert excerpts == []
+        assert rejected == 1
 
-    def test_chunk_with_extra_whitespace(self) -> None:
-        """Spacing differences should normalize."""
+    def test_chunk_with_extra_whitespace_rejected(self) -> None:
+        """Whitespace differences are not exact substring evidence."""
         chunks = [
-            {"chunk_id": "c1", "page_number": 1,
-             "text": "Women   cannot  lead   teams."},
+            {
+                "chunk_id": "c1",
+                "page_number": 1,
+                "text": "Women   cannot  lead   teams.",
+            },
         ]
         instances = [
             {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
         ]
         excerpts, ids, rejected = ground_instances("gad-01", instances, chunks)
-        assert len(excerpts) == 1
-        assert rejected == 0
+        assert excerpts == []
+        assert rejected == 1
 
     def test_chunk_map_missing_chunk_id_field(self) -> None:
         """Chunks without a chunk_id should be skipped gracefully."""
@@ -529,10 +541,7 @@ class TestGroundInstancesEdgeCases:
         # Use a chunk with repetitive text that matches many excerpt patterns
         text = ". ".join(f"Instance {i}" for i in range(20))
         chunks = [{"chunk_id": "c10", "page_number": 1, "text": text}]
-        many = [
-            {"excerpt": f"Instance {i}.", "chunk_id": "c10"}
-            for i in range(20)
-        ]
+        many = [{"excerpt": f"Instance {i}.", "chunk_id": "c10"} for i in range(20)]
         excerpts, ids, rejected = ground_instances(
             "gad-01", many[:MAX_INSTANCES_PER_CRITERION], chunks
         )
@@ -734,8 +743,13 @@ class TestScoreFromCombined:
         scores, *_ = score_from_combined(
             payload,
             [
-                {"chunk_id": "c1", "page_number": 1,
-                 "text": "Women cannot lead teams. Only boys should repair computers."},
+                {
+                    "chunk_id": "c1",
+                    "page_number": 1,
+                    "text": (
+                        "Women cannot lead teams. Only boys should repair computers."
+                    ),
+                },
             ],
         )
         g01 = next(s for s in scores if s.criterion_id == "GAD-01")
@@ -745,7 +759,8 @@ class TestScoreFromCombined:
     def test_subtotal_is_mean_of_five_criteria(self) -> None:
         payload = _full_response(
             gad_01_count=0,
-            gad_02_female=5, gad_02_male=5,
+            gad_02_female=5,
+            gad_02_male=5,
             gad_03_count=0,
             gad_04_count=0,
             gad_05_count=0,
@@ -814,9 +829,7 @@ class TestScoreFromCombined:
                 {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
             ],
         )
-        _, candidates, accepted, rejected = score_from_combined(
-            payload, _SAMPLE_CHUNKS
-        )
+        _, candidates, accepted, rejected = score_from_combined(payload, _SAMPLE_CHUNKS)
         assert candidates == 2
         assert accepted == 2
         assert rejected == 0
@@ -841,17 +854,17 @@ class TestBuildCombinedRepairPrompt:
         assert "gad-02" in prompt
         assert "Extract facts" in prompt
 
-    def test_includes_partial_response(self) -> None:
+    def test_does_not_include_partial_response(self) -> None:
         partial = '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}'
         prompt = build_combined_repair_prompt(
             full_prompt_context=_REPAIR_CONTEXT,
             partial_response=partial,
             error_detail="Malformed JSON",
         )
-        assert 'gad-01' in prompt
-        assert '"summary": "ok."' in prompt
+        assert "gad-01" in prompt
+        assert '"summary": "ok."' not in prompt
 
-    def test_truncates_long_partial(self) -> None:
+    def test_omits_long_partial(self) -> None:
         partial = "x" * 5000
         prompt = build_combined_repair_prompt(
             full_prompt_context=_REPAIR_CONTEXT,
@@ -859,7 +872,7 @@ class TestBuildCombinedRepairPrompt:
             error_detail="Error detail",
         )
         assert len(prompt) < 5500  # truncated + template overhead
-        assert "..." in prompt
+        assert "x" * 100 not in prompt
 
     def test_truncates_long_error(self) -> None:
         error = "x" * 1000
@@ -904,7 +917,7 @@ class TestBuildCombinedRepairPrompt:
 # ===========================================================================
 
 
-class _TrackingLLM:
+class _TrackingLLM(_TypedResultMixin):
     """LLM fake that records call details and returns canned responses."""
 
     model = "gad-test-model"
@@ -936,10 +949,12 @@ class TestRepairPaths:
     def test_repair_recovers_missing_section_error(self) -> None:
         """First call missing gad-04, repair call provides it."""
         valid = json.dumps(_full_response())
-        llm = _TrackingLLM([
-            '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}',
-            valid,
-        ])
+        llm = _TrackingLLM(
+            [
+                '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}',
+                valid,
+            ]
+        )
         result = GAD(llm_client=llm).run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
@@ -1023,10 +1038,12 @@ class TestRepairPaths:
 
     def test_repair_also_malformed_returns_failure(self) -> None:
         """When repair call also returns invalid JSON, result is failure."""
-        llm = _TrackingLLM([
-            "not valid json",
-            "still not valid json",
-        ])
+        llm = _TrackingLLM(
+            [
+                "not valid json",
+                "still not valid json",
+            ]
+        )
         result = GAD(llm_client=llm).run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
@@ -1066,7 +1083,7 @@ class TestRepairPaths:
     def test_same_instance_runs_are_isolated_across_clients(self) -> None:
         barrier = threading.Barrier(2)
 
-        class _ConcurrentLLM:
+        class _ConcurrentLLM(_TypedResultMixin):
             def __init__(self, model: str) -> None:
                 self.model = model
                 self.calls = 0
@@ -1095,13 +1112,13 @@ class TestRepairPaths:
         assert all(result.success for result in results)
         assert {result.model_name for result in results} == {"model-one", "model-two"}
         summaries = {
-            result.raw_response
-            and json.loads(result.raw_response)["gad-02"]["summary"]
+            result.raw_response and json.loads(result.raw_response)["gad-02"]["summary"]
             for result in results
         }
         assert summaries == {"model-one", "model-two"}
         assert {result.provenance["actual_model"] for result in results} == {
-            "model-one", "model-two"
+            "model-one",
+            "model-two",
         }
         assert first.calls == second.calls == 1
         assert agent._default_llm_client is first
@@ -1128,7 +1145,7 @@ class TestRepairPaths:
 
 class TestProvenanceCompleteness:
     def test_providence_has_all_required_keys(self) -> None:
-        class _ProvenanceLLM:
+        class _ProvenanceLLM(_TypedResultMixin):
             model = "test-model"
 
             def generate(self, prompt: str, **kw) -> str:
@@ -1161,7 +1178,7 @@ class TestProvenanceCompleteness:
         )
 
     def test_providence_contains_schema_version_constants(self) -> None:
-        class _ProvLLM:
+        class _ProvLLM(_TypedResultMixin):
             model = "test-model"
 
             def generate(self, prompt: str, **kw) -> str:
@@ -1179,24 +1196,29 @@ class TestProvenanceCompleteness:
         assert prov["registry_version"] == REGISTRY_VERSION
 
     def test_evidence_counts_non_negative(self) -> None:
-        class _CountLLM:
+        class _CountLLM(_TypedResultMixin):
             model = "test-model"
 
             def generate(self, prompt: str, **kw) -> str:
-                return json.dumps(_full_response(
-                    gad_01_count=2,
-                    gad_01_instances=[
-                        {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
-                        {"excerpt": "Fake.", "chunk_id": "unknown"},
-                    ],
-                ))
+                return json.dumps(
+                    _full_response(
+                        gad_01_count=2,
+                        gad_01_instances=[
+                            {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
+                            {"excerpt": "Fake.", "chunk_id": "unknown"},
+                        ],
+                    )
+                )
 
         result = GAD(llm_client=_CountLLM()).run(
             evaluation_id=uuid4(),
             document_id=uuid4(),
             chunk_infos=[
-                {"chunk_id": "c1", "page_number": 1,
-                 "text": "Women cannot lead teams."},
+                {
+                    "chunk_id": "c1",
+                    "page_number": 1,
+                    "text": "Women cannot lead teams.",
+                },
             ],
         )
         prov = result.provenance or {}
@@ -1218,12 +1240,15 @@ class TestRepeatability:
     """Same inputs + same registry version must produce identical scores."""
 
     SAMPLE_CHUNKS = [
-        {"chunk_id": "c1", "page_number": 1, "text": "Women cannot lead teams. "
-         "Only boys should repair computers."},
         {
-            "chunk_id": "c2", "page_number": 2,
-            "text": "Everyone can participate equally. "
-            "Girls should only take notes.",
+            "chunk_id": "c1",
+            "page_number": 1,
+            "text": "Women cannot lead teams. Only boys should repair computers.",
+        },
+        {
+            "chunk_id": "c2",
+            "page_number": 2,
+            "text": "Everyone can participate equally. Girls should only take notes.",
         },
     ]
 
@@ -1283,31 +1308,37 @@ class TestRepeatability:
 
     def test_parse_then_score_produces_consistent_results(self) -> None:
         """Through GAD.run with a fixed LLM, same input = same result."""
-        response = json.dumps(_full_response(
-            gad_01_count=0,
-            gad_02_female=3,
-            gad_02_male=3,
-            gad_03_count=0,
-            gad_04_count=0,
-            gad_05_count=0,
-        ))
+        response = json.dumps(
+            _full_response(
+                gad_01_count=0,
+                gad_02_female=3,
+                gad_02_male=3,
+                gad_03_count=0,
+                gad_04_count=0,
+                gad_05_count=0,
+            )
+        )
 
         class _ConstLLM:
             model = "const-model"
+
             def generate(self, prompt: str, **kw) -> str:
                 return response
 
         r1 = GAD(llm_client=_ConstLLM()).run(
-            evaluation_id=uuid4(), document_id=uuid4(),
+            evaluation_id=uuid4(),
+            document_id=uuid4(),
             chunk_infos=self.SAMPLE_CHUNKS,
         )
         r2 = GAD(llm_client=_ConstLLM()).run(
-            evaluation_id=uuid4(), document_id=uuid4(),
+            evaluation_id=uuid4(),
+            document_id=uuid4(),
             chunk_infos=self.SAMPLE_CHUNKS,
         )
         assert r1.subtotal == pytest.approx(r2.subtotal)
-        assert [s.score for s in r1.criterion_scores] == \
-               [s.score for s in r2.criterion_scores]
+        assert [s.score for s in r1.criterion_scores] == [
+            s.score for s in r2.criterion_scores
+        ]
 
 
 # ===========================================================================
@@ -1442,8 +1473,7 @@ class TestComparisonHarness:
         # Remove GAD-03 from the single-pass data
         single_pass = self._make_result_dict()
         single_pass["criterion_scores"] = [
-            c for c in single_pass["criterion_scores"]
-            if c["criterion_id"] != "GAD-03"
+            c for c in single_pass["criterion_scores"] if c["criterion_id"] != "GAD-03"
         ]
         report = harness.compare(current, single_pass)
         assert report.scores_match is False

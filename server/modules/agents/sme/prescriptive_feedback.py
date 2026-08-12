@@ -222,9 +222,9 @@ def compute(mechanisms: list[dict[str, Any]]) -> FeedbackResult:
         if not kind:  # unrecognized type -> dropped, not guessed
             continue
         if kind == "positive_reinforcement":
-            if _is_high_confidence_boilerplate(
+            if _is_high_confidence_boilerplate(evidence) and not _has_explicit_praise(
                 evidence
-            ) and not _has_explicit_praise(evidence):
+            ):
                 continue
         genuine.append(mechanism)
         types.add(kind)

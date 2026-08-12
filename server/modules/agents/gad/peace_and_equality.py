@@ -38,7 +38,7 @@ GAD_ROW_5_PROMPT = (
     "Return only valid JSON\n"
     "{\n"
     '  "criterion": "The material promotes peace and equality regardless of '
-    'gender, race, class, disability, religion, sexual orientation, or ethnic '
+    "gender, race, class, disability, religion, sexual orientation, or ethnic "
     'background",\n'
     '  "instance_count": 0,\n'
     '  "instances": [\n'

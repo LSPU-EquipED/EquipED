@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
 
@@ -232,5 +233,34 @@ def test_config_accepts_chunk_budget_strictly_less_than_total(
         settings = get_settings()
         assert settings.agent_prompt_budget_chars == 2000
         assert settings.agent_total_prompt_budget_chars == 5000
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_default_sme_total_prompt_budget_is_15000(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("SME_TOTAL_PROMPT_BUDGET_CHARS", "")
+    try:
+        assert get_settings().sme_total_prompt_budget_chars == 15000
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "14999"])
+def test_config_rejects_invalid_sme_total_prompt_budget(monkeypatch, value) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("SME_TOTAL_PROMPT_BUDGET_CHARS", value)
+    try:
+        with pytest.raises(ConfigurationError, match="SME_TOTAL_PROMPT_BUDGET_CHARS"):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_accepts_minimum_sme_total_prompt_budget(monkeypatch) -> None:
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("SME_TOTAL_PROMPT_BUDGET_CHARS", "15000")
+    try:
+        assert get_settings().sme_total_prompt_budget_chars == 15000
     finally:
         get_settings.cache_clear()

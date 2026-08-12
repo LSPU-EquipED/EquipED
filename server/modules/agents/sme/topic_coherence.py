@@ -110,8 +110,13 @@ def compute(
     """
     if not topics:
         return CoherenceResult(
-            score=1, pct=None, coherent=0, total=0, mode="issue-count",
-            topics=[], transitions=[],
+            score=1,
+            pct=None,
+            coherent=0,
+            total=0,
+            mode="issue-count",
+            topics=[],
+            transitions=[],
         )
 
     # Dedupe by (from_id, to_id) so a repeated transition entry cannot inflate
@@ -138,14 +143,24 @@ def compute(
                 score = band
                 break
         return CoherenceResult(
-            score=score, pct=None, coherent=coherent, total=total,
-            mode="issue-count", topics=topics, transitions=transitions,
+            score=score,
+            pct=None,
+            coherent=coherent,
+            total=total,
+            mode="issue-count",
+            topics=topics,
+            transitions=transitions,
         )
 
     band = ratio_band(coherent, total, scale="moderate")
     return CoherenceResult(
-        score=band.band, pct=band.pct, coherent=coherent, total=total,
-        mode="ratio", topics=topics, transitions=transitions,
+        score=band.band,
+        pct=band.pct,
+        coherent=coherent,
+        total=total,
+        mode="ratio",
+        topics=topics,
+        transitions=transitions,
     )
 
 

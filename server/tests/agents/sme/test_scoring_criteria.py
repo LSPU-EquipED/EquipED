@@ -96,9 +96,7 @@ class TestInteractivityCompute:
         assert result.count == 1
 
     def test_four_or_more_scores_four(self) -> None:
-        elements = [
-            {"text": f"Task {i}", "evidence": f"do task {i}"} for i in range(4)
-        ]
+        elements = [{"text": f"Task {i}", "evidence": f"do task {i}"} for i in range(4)]
         result = interactivity.compute(elements)
         assert result.count == 4
         assert result.score == 4
@@ -112,10 +110,16 @@ class TestInteractivityCompute:
 class TestClearDirectionsCompute:
     def test_all_tasks_clear(self) -> None:
         tasks = [
-            {"text": "Activity 1", "directions": "Write a 200-word essay on...",
-             "has_clear_directions": True},
-            {"text": "Quiz", "directions": "Answer items 1-10 in your notebook.",
-             "has_clear_directions": True},
+            {
+                "text": "Activity 1",
+                "directions": "Write a 200-word essay on...",
+                "has_clear_directions": True,
+            },
+            {
+                "text": "Quiz",
+                "directions": "Answer items 1-10 in your notebook.",
+                "has_clear_directions": True,
+            },
         ]
         result = clear_directions.compute(tasks)
         assert result.clear == 2
@@ -141,8 +145,11 @@ class TestClearDirectionsCompute:
         # task in the denominator.
         tasks = [
             {"text": "Activity 1", "directions": "", "has_clear_directions": True},
-            {"text": "Activity 2", "directions": "Solve all items.",
-             "has_clear_directions": True},
+            {
+                "text": "Activity 2",
+                "directions": "Solve all items.",
+                "has_clear_directions": True,
+            },
         ]
         result = clear_directions.compute(tasks)
         assert result.clear == 1
@@ -151,10 +158,16 @@ class TestClearDirectionsCompute:
 
     def test_duplicate_tasks_deduped(self) -> None:
         tasks = [
-            {"text": "Activity 1", "directions": "Do it.",
-             "has_clear_directions": True},
-            {"text": "activity 1", "directions": "Do it again.",
-             "has_clear_directions": True},  # same label
+            {
+                "text": "Activity 1",
+                "directions": "Do it.",
+                "has_clear_directions": True,
+            },
+            {
+                "text": "activity 1",
+                "directions": "Do it again.",
+                "has_clear_directions": True,
+            },  # same label
         ]
         result = clear_directions.compute(tasks)
         assert result.total == 1
@@ -238,8 +251,11 @@ class TestLearnerTransformationCompute:
         # the numerator (real-content rule), but still counts as a task.
         tasks = [
             {"text": "Activity 1", "bloom_level": "apply", "evidence": ""},
-            {"text": "Activity 2", "bloom_level": "create",
-             "evidence": "Build a working prototype."},
+            {
+                "text": "Activity 2",
+                "bloom_level": "create",
+                "evidence": "Build a working prototype.",
+            },
         ]
         result = learner_transformation.compute(tasks)
         assert result.higher_order == 1
@@ -249,8 +265,11 @@ class TestLearnerTransformationCompute:
     def test_duplicate_tasks_deduped(self) -> None:
         tasks = [
             {"text": "Activity 1", "bloom_level": "apply", "evidence": "Do it."},
-            {"text": "activity 1", "bloom_level": "apply",
-             "evidence": "Do it again."},  # same label
+            {
+                "text": "activity 1",
+                "bloom_level": "apply",
+                "evidence": "Do it again.",
+            },  # same label
         ]
         result = learner_transformation.compute(tasks)
         assert result.total == 1
@@ -274,16 +293,31 @@ class TestLearnerTransformationCompute:
 class TestVariedAssessmentCompute:
     def test_full_variety_scores_four(self) -> None:
         assessments = [
-            {"text": "Quiz 1", "assessment_type": "objective_test",
-             "evidence": "Choose the correct answer for items 1-10."},
-            {"text": "Essay", "assessment_type": "written",
-             "evidence": "Write a 200-word essay on..."},
-            {"text": "Journal", "assessment_type": "reflection",
-             "evidence": "Write about what you learned this week."},
-            {"text": "Demo", "assessment_type": "performance_task",
-             "evidence": "Demonstrate the procedure to the class."},
-            {"text": "Portfolio", "assessment_type": "project",
-             "evidence": "Compile your outputs into a portfolio."},
+            {
+                "text": "Quiz 1",
+                "assessment_type": "objective_test",
+                "evidence": "Choose the correct answer for items 1-10.",
+            },
+            {
+                "text": "Essay",
+                "assessment_type": "written",
+                "evidence": "Write a 200-word essay on...",
+            },
+            {
+                "text": "Journal",
+                "assessment_type": "reflection",
+                "evidence": "Write about what you learned this week.",
+            },
+            {
+                "text": "Demo",
+                "assessment_type": "performance_task",
+                "evidence": "Demonstrate the procedure to the class.",
+            },
+            {
+                "text": "Portfolio",
+                "assessment_type": "project",
+                "evidence": "Compile your outputs into a portfolio.",
+            },
         ]
         result = varied_assessment.compute(assessments)
         assert result.count == 5
@@ -291,10 +325,16 @@ class TestVariedAssessmentCompute:
 
     def test_two_types_scores_two(self) -> None:
         assessments = [
-            {"text": "Quiz", "assessment_type": "objective_test",
-             "evidence": "Answer items 1-10."},
-            {"text": "Essay", "assessment_type": "written",
-             "evidence": "Write about the topic."},
+            {
+                "text": "Quiz",
+                "assessment_type": "objective_test",
+                "evidence": "Answer items 1-10.",
+            },
+            {
+                "text": "Essay",
+                "assessment_type": "written",
+                "evidence": "Write about the topic.",
+            },
         ]
         result = varied_assessment.compute(assessments)
         assert result.count == 2
@@ -304,8 +344,11 @@ class TestVariedAssessmentCompute:
         # Five multiple-choice quizzes are one type, not five -- the whole
         # point of A-02 is counting distinct types, not instances.
         assessments = [
-            {"text": f"Quiz {i}", "assessment_type": "objective_test",
-             "evidence": f"Answer items for quiz {i}."}
+            {
+                "text": f"Quiz {i}",
+                "assessment_type": "objective_test",
+                "evidence": f"Answer items for quiz {i}.",
+            }
             for i in range(5)
         ]
         result = varied_assessment.compute(assessments)
@@ -314,20 +357,32 @@ class TestVariedAssessmentCompute:
 
     def test_type_without_evidence_does_not_count(self) -> None:
         assessments = [
-            {"text": "Final Exam", "assessment_type": "objective_test",
-             "evidence": ""},  # bare title -> does not count
-            {"text": "Essay", "assessment_type": "written",
-             "evidence": "Write a reflection on..."},
+            {
+                "text": "Final Exam",
+                "assessment_type": "objective_test",
+                "evidence": "",
+            },  # bare title -> does not count
+            {
+                "text": "Essay",
+                "assessment_type": "written",
+                "evidence": "Write a reflection on...",
+            },
         ]
         result = varied_assessment.compute(assessments)
         assert result.count == 1
 
     def test_unknown_type_dropped(self) -> None:
         assessments = [
-            {"text": "Mystery Task", "assessment_type": "gamified_challenge",
-             "evidence": "Complete the escape room."},
-            {"text": "Essay", "assessment_type": "written",
-             "evidence": "Write about the topic."},
+            {
+                "text": "Mystery Task",
+                "assessment_type": "gamified_challenge",
+                "evidence": "Complete the escape room.",
+            },
+            {
+                "text": "Essay",
+                "assessment_type": "written",
+                "evidence": "Write about the topic.",
+            },
         ]
         result = varied_assessment.compute(assessments)
         assert result.count == 1  # unknown type dropped, not guessed
@@ -344,14 +399,26 @@ class TestProgressMonitoringCompute:
         # opposite of A-02 -- because "on-going record" implies repetition
         # over time is the signal.
         mechanisms = [
-            {"text": "Mid-unit check", "monitoring_type": "checkpoint",
-             "evidence": "Answer this short check before moving on."},
-            {"text": "Self-check", "monitoring_type": "self_assessment",
-             "evidence": "Rate your confidence on each skill."},
-            {"text": "Reflection", "monitoring_type": "reflection",
-             "evidence": "What did you learn this week?"},
-            {"text": "Final project", "monitoring_type": "cumulative",
-             "evidence": "Combine skills from all lessons into one output."},
+            {
+                "text": "Mid-unit check",
+                "monitoring_type": "checkpoint",
+                "evidence": "Answer this short check before moving on.",
+            },
+            {
+                "text": "Self-check",
+                "monitoring_type": "self_assessment",
+                "evidence": "Rate your confidence on each skill.",
+            },
+            {
+                "text": "Reflection",
+                "monitoring_type": "reflection",
+                "evidence": "What did you learn this week?",
+            },
+            {
+                "text": "Final project",
+                "monitoring_type": "cumulative",
+                "evidence": "Combine skills from all lessons into one output.",
+            },
         ]
         result = progress_monitoring.compute(mechanisms)
         assert result.count == 4
@@ -360,10 +427,16 @@ class TestProgressMonitoringCompute:
 
     def test_two_instances_scores_three(self) -> None:
         mechanisms = [
-            {"text": "Reflection", "monitoring_type": "reflection",
-             "evidence": "What did you learn?"},
-            {"text": "Self-check", "monitoring_type": "self_assessment",
-             "evidence": "Rate your understanding."},
+            {
+                "text": "Reflection",
+                "monitoring_type": "reflection",
+                "evidence": "What did you learn?",
+            },
+            {
+                "text": "Self-check",
+                "monitoring_type": "self_assessment",
+                "evidence": "Rate your understanding.",
+            },
         ]
         result = progress_monitoring.compute(mechanisms)
         assert result.count == 2
@@ -375,8 +448,11 @@ class TestProgressMonitoringCompute:
         # monitoring, not one -- frequency is exactly what this criterion
         # rewards.
         mechanisms = [
-            {"text": f"Checkpoint {i}", "monitoring_type": "checkpoint",
-             "evidence": f"Check your understanding after topic {i}."}
+            {
+                "text": f"Checkpoint {i}",
+                "monitoring_type": "checkpoint",
+                "evidence": f"Check your understanding after topic {i}.",
+            }
             for i in range(3)
         ]
         result = progress_monitoring.compute(mechanisms)
@@ -389,30 +465,48 @@ class TestProgressMonitoringCompute:
         # twice (same label) must still collapse to one -- guards against the
         # LLM emitting the same finding twice inflating the count.
         mechanisms = [
-            {"text": "Mid-unit check", "monitoring_type": "checkpoint",
-             "evidence": "Answer this short check."},
-            {"text": "mid-unit check", "monitoring_type": "checkpoint",
-             "evidence": "Answer this short check again."},  # same label
+            {
+                "text": "Mid-unit check",
+                "monitoring_type": "checkpoint",
+                "evidence": "Answer this short check.",
+            },
+            {
+                "text": "mid-unit check",
+                "monitoring_type": "checkpoint",
+                "evidence": "Answer this short check again.",
+            },  # same label
         ]
         result = progress_monitoring.compute(mechanisms)
         assert result.count == 1
 
     def test_type_without_evidence_does_not_count(self) -> None:
         mechanisms = [
-            {"text": "Reflection", "monitoring_type": "reflection",
-             "evidence": ""},  # bare heading -> does not count
-            {"text": "Self-check", "monitoring_type": "self_assessment",
-             "evidence": "Rate your confidence."},
+            {
+                "text": "Reflection",
+                "monitoring_type": "reflection",
+                "evidence": "",
+            },  # bare heading -> does not count
+            {
+                "text": "Self-check",
+                "monitoring_type": "self_assessment",
+                "evidence": "Rate your confidence.",
+            },
         ]
         result = progress_monitoring.compute(mechanisms)
         assert result.count == 1
 
     def test_unknown_type_dropped(self) -> None:
         mechanisms = [
-            {"text": "Mystery", "monitoring_type": "gamification_badge",
-             "evidence": "Earn a badge for completing the unit."},
-            {"text": "Reflection", "monitoring_type": "reflection",
-             "evidence": "What did you learn?"},
+            {
+                "text": "Mystery",
+                "monitoring_type": "gamification_badge",
+                "evidence": "Earn a badge for completing the unit.",
+            },
+            {
+                "text": "Reflection",
+                "monitoring_type": "reflection",
+                "evidence": "What did you learn?",
+            },
         ]
         result = progress_monitoring.compute(mechanisms)
         assert result.count == 1  # unknown type dropped, not guessed
@@ -426,12 +520,21 @@ class TestProgressMonitoringCompute:
 class TestPrescriptiveFeedbackCompute:
     def test_full_variety_scores_four(self) -> None:
         mechanisms = [
-            {"text": "Answer Key", "feedback_type": "answer_key",
-             "evidence": "1-B, 2-A, 3-C."},
-            {"text": "Rubric", "feedback_type": "rubric",
-             "evidence": "Content (40%), clarity (30%), organization (30%)."},
-            {"text": "Referral", "feedback_type": "remediation_referral",
-             "evidence": "If you missed items 1-3, review Lesson 2."},
+            {
+                "text": "Answer Key",
+                "feedback_type": "answer_key",
+                "evidence": "1-B, 2-A, 3-C.",
+            },
+            {
+                "text": "Rubric",
+                "feedback_type": "rubric",
+                "evidence": "Content (40%), clarity (30%), organization (30%).",
+            },
+            {
+                "text": "Referral",
+                "feedback_type": "remediation_referral",
+                "evidence": "If you missed items 1-3, review Lesson 2.",
+            },
         ]
         result = prescriptive_feedback.compute(mechanisms)
         assert result.count == 3
@@ -439,10 +542,16 @@ class TestPrescriptiveFeedbackCompute:
 
     def test_two_types_scores_three(self) -> None:
         mechanisms = [
-            {"text": "Answer Key", "feedback_type": "answer_key",
-             "evidence": "1-B, 2-A."},
-            {"text": "Encouragement", "feedback_type": "positive_reinforcement",
-             "evidence": "Great job completing this module!"},
+            {
+                "text": "Answer Key",
+                "feedback_type": "answer_key",
+                "evidence": "1-B, 2-A.",
+            },
+            {
+                "text": "Encouragement",
+                "feedback_type": "positive_reinforcement",
+                "evidence": "Great job completing this module!",
+            },
         ]
         result = prescriptive_feedback.compute(mechanisms)
         assert result.count == 2
@@ -453,8 +562,11 @@ class TestPrescriptiveFeedbackCompute:
         # one mechanism type, not three -- breadth of feedback APPROACH is
         # what this criterion measures, not repetition.
         mechanisms = [
-            {"text": f"Answer Key {i}", "feedback_type": "answer_key",
-             "evidence": f"Answers for quiz {i}."}
+            {
+                "text": f"Answer Key {i}",
+                "feedback_type": "answer_key",
+                "evidence": f"Answers for quiz {i}.",
+            }
             for i in range(3)
         ]
         result = prescriptive_feedback.compute(mechanisms)
@@ -464,18 +576,27 @@ class TestPrescriptiveFeedbackCompute:
     def test_type_without_evidence_does_not_count(self) -> None:
         mechanisms = [
             {"text": "Feedback", "feedback_type": "rubric", "evidence": ""},
-            {"text": "Answer Key", "feedback_type": "answer_key",
-             "evidence": "Model answer: ..."},
+            {
+                "text": "Answer Key",
+                "feedback_type": "answer_key",
+                "evidence": "Model answer: ...",
+            },
         ]
         result = prescriptive_feedback.compute(mechanisms)
         assert result.count == 1
 
     def test_unknown_type_dropped(self) -> None:
         mechanisms = [
-            {"text": "Mystery", "feedback_type": "gamified_badge",
-             "evidence": "Earn a badge for finishing."},
-            {"text": "Answer Key", "feedback_type": "answer_key",
-             "evidence": "Model answer: ..."},
+            {
+                "text": "Mystery",
+                "feedback_type": "gamified_badge",
+                "evidence": "Earn a badge for finishing.",
+            },
+            {
+                "text": "Answer Key",
+                "feedback_type": "answer_key",
+                "evidence": "Model answer: ...",
+            },
         ]
         result = prescriptive_feedback.compute(mechanisms)
         assert result.count == 1  # unknown type dropped, not guessed

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
@@ -15,10 +16,31 @@ from server.tests.agents.helpers import (
 )
 
 
+def assert_path(path: Path) -> None:
+    assert path == Path("/owned/uploads/source.pdf")
+
+
 def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     monkeypatch, db_session
 ) -> None:
     _seed_active_prompts(db_session)
+    monkeypatch.setattr(
+        db_session,
+        "get",
+        lambda model, _id: (
+            type("Document", (), {"file_path": "source.pdf", "source_type": "slm"})()
+            if model.__name__ == "Document"
+            else None
+        ),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.resolve_document_pdf_path",
+        lambda _path: Path("/owned/uploads/source.pdf"),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.prepare_canonical_source",
+        lambda path: (assert_path(path), "canonical source")[1],
+    )
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
     agent = _BatchAgent()
     supervisor = Supervisor(agents=[agent], db=db_session)
@@ -82,6 +104,23 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
 
 def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -> None:
     _seed_active_prompts(db_session)
+    monkeypatch.setattr(
+        db_session,
+        "get",
+        lambda model, _id: (
+            type("Document", (), {"file_path": "source.pdf", "source_type": "slm"})()
+            if model.__name__ == "Document"
+            else None
+        ),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.resolve_document_pdf_path",
+        lambda _path: Path("/owned/uploads/source.pdf"),
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.context.prepare_canonical_source",
+        lambda path: (assert_path(path), "canonical source")[1],
+    )
     failing_agent = _FailingAgent()
     success_agent = _BatchAgent()
     supervisor = Supervisor(agents=[failing_agent, success_agent], db=db_session)
@@ -164,7 +203,8 @@ def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> Non
     }
 
     context = ITSOExecutionContext(
-        evaluation_id=uuid4(), document_id=uuid4(),
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "doc text"},),
         reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,
@@ -179,6 +219,7 @@ def test_precomputed_context_falls_back_when_source_type_missing(
     """Fall back to live retrieval when source type is not precomputed."""
     from server.modules.agents.itso import execution
     from server.modules.agents.runtime.context import ITSOExecutionContext
+
     monkeypatch.setattr(
         execution,
         "retrieve_context",
@@ -198,7 +239,8 @@ def test_precomputed_context_falls_back_when_source_type_missing(
         execution, "get_active_rubric_context", lambda _: ["live-rubric"]
     )
     context = ITSOExecutionContext(
-        evaluation_id=uuid4(), document_id=uuid4(),
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "doc text"},),
         reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,

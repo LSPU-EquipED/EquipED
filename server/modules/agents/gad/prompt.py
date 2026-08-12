@@ -128,7 +128,6 @@ _REPAIR_COMBINED_TEMPLATE = (
     "Do NOT change factual content beyond what is needed to fix the error. "
     "Do NOT add numeric score fields.\n\n"
     "Error: {error}\n\n"
-    "Prior response:\n{partial}\n\n"
     "Return ONLY the complete corrected JSON object."
 )
 
@@ -142,16 +141,11 @@ def build_combined_repair_prompt(
     """Build a whole-envelope repair prompt that includes the SAME frozen context.
 
     The repair receives the identical packed chunks and fact-only instructions
-    as the initial call, plus the parse error and the prior (partial) response.
+    as the initial call, plus only a bounded error category/path. Rejected
+    output is never echoed back to the model.
     The model never sees a reduced or altered context.
     """
-    max_partial_chars = 4000
-    partial = partial_response or ""
-    if len(partial) > max_partial_chars:
-        partial = partial[: max_partial_chars - 3].rstrip() + "..."
-
     return _REPAIR_COMBINED_TEMPLATE.format(
         full_context=full_prompt_context,
         error=error_detail[:500],
-        partial=partial,
     )

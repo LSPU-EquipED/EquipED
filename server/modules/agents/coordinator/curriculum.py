@@ -18,34 +18,39 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import logging
 from dataclasses import dataclass
 from typing import Any
 
-from server.modules.embeddings.collections import COL_REFERENCE_ALL
-from server.modules.embeddings.retrieval import retrieve_context
-
 from ..contracts import AgentEvaluationResult, CriterionScore
-from ..runtime.llm import error_reference
 from ..sme.bands import ratio_band
 
-logger = logging.getLogger(__name__)
-_CURRICULUM_N_RESULTS = 3
 
 def format_roadmap_note(roadmap_context: dict[str, Any] | None) -> str:
-    if not isinstance(roadmap_context, dict) or not roadmap_context:
+    """Render only the bounded, canonical roadmap fields for Coordinator."""
+    if not isinstance(roadmap_context, dict):
         return ""
-    year = roadmap_context.get("year")
-    semester = roadmap_context.get("semester")
-    stage = roadmap_context.get("competency_stage")
-    tech = roadmap_context.get("tech_stack")
-    position = f"Year {year}" if year is not None else ""
-    if semester is not None and position:
-        position += f" Semester {semester}"
-    body = f"{position}{f' with {stage} competency' if stage else ''}"
-    if tech:
-        body += f"; prescribed tech stack: {tech}"
-    return f"Program roadmap places this course at {body}." if body else ""
+    fields = (
+        ("course_code", "Course code"),
+        ("course_title", "Title"),
+        ("year", "Year"),
+        ("semester", "Semester"),
+        ("tech_stack", "Tech stack"),
+        ("competency_stage", "Competency stage"),
+        ("course_status", "Course status"),
+    )
+    values: list[str] = []
+    for key, label in fields:
+        value = roadmap_context.get(key)
+        if value is None or value == "" or isinstance(value, (dict, list, tuple, set)):
+            continue
+        text = str(value).strip()
+        if text:
+            values.append(f"{label}: {text}")
+    if not values:
+        return ""
+    # Keep this advisory insertion compact and bounded independently of source text.
+    return "Program roadmap context (advisory): " + "; ".join(values)[:1000]
+
 
 PROMPT = """You are checking a Self-Paced Learning Module (SLM) against an
 official curriculum's course description / learning outcomes.
@@ -103,10 +108,27 @@ def compute(
     (Coordinator).
     """
     valid_ids = {o.get("id") for o in objectives}
+    if len(valid_ids) != len(objectives):
+        raise ValueError("curriculum objectives must have unique ids")
+    allowed = {"objective_id", "is_addressed", "evidence"}
+    if len(curriculum_alignment) > 100 or any(
+        set(row) != allowed or not isinstance(row, dict) for row in curriculum_alignment
+    ):
+        raise ValueError("invalid curriculum alignment row schema")
+    if len({row["objective_id"] for row in curriculum_alignment}) != len(
+        curriculum_alignment
+    ):
+        raise ValueError("duplicate curriculum alignment objective")
     addressed_ids = {
         a.get("objective_id")
         for a in curriculum_alignment
-        if a.get("is_addressed") and a.get("objective_id") in valid_ids
+        if type(a.get("objective_id")) is int
+        and type(a.get("is_addressed")) is bool
+        and a.get("is_addressed")
+        and a.get("objective_id") in valid_ids
+        and type(a.get("evidence")) is str
+        and a.get("evidence", "").strip()
+        and a["evidence"].strip() in curriculum_text
     }
     aligned = len(addressed_ids)
 
@@ -135,7 +157,7 @@ def evaluate_against_curriculum(
     result.
     """
     if not objectives or not curriculum_text.strip():
-        return None
+        raise ValueError("curriculum alignment inputs are required")
 
     try:
         raw = client.generate(
@@ -149,44 +171,13 @@ def evaluate_against_curriculum(
         data = json.loads(raw)
         alignment = list(data.get("alignment", []))
     except Exception as exc:
-        logger.warning(
-            "Curriculum alignment check failed, falling back to SLM-only "
-            "A-05 (category=%s, reference=%s)",
-            type(exc).__name__, error_reference(exc),
-        )
-        return None
+        raise ValueError("invalid curriculum alignment response") from exc
 
     return compute(
         objectives=objectives,
         curriculum_alignment=alignment,
         curriculum_text=curriculum_text,
     )
-
-
-def slm_query_text(agent: Any, document_id: Any, db: Any | None) -> str:
-    if db is None:
-        return ""
-    from server.modules.documents.models import Document
-    doc = db.get(Document, document_id)
-    if doc is None:
-        return ""
-    parts = [doc.course_code, doc.course_title or doc.title]
-    return " ".join(p for p in parts if p).strip()
-
-
-def retrieve_curriculum_text(query_text: str, curriculum_id: Any) -> str:
-    chunks = retrieve_context(
-        query_text, COL_REFERENCE_ALL, n_results=_CURRICULUM_N_RESULTS,
-        document_id_filter=str(curriculum_id),
-    )
-    return "\n\n".join(c.text for c in chunks)
-
-
-def prepare_curriculum_text(
-    agent: Any, document_id: Any, curriculum_id: Any, db: Any | None
-) -> str:
-    query_text = slm_query_text(agent, document_id, db)
-    return retrieve_curriculum_text(query_text, curriculum_id) if query_text else ""
 
 
 def apply_curriculum_alignment(
@@ -209,10 +200,14 @@ def apply_curriculum_alignment(
         "A-05",
     )
     new_score = CriterionScore(
-        criterion_id="A-05", criterion_title=original_title, score=aligned.score,
-        justification=(f"Curriculum-grounded (coordinator-only): {aligned.aligned}/"
-                       f"{aligned.total_objectives} objective(s) addressed by this "
-                       f"course's curriculum content. Score {aligned.score}."),
+        criterion_id="A-05",
+        criterion_title=original_title,
+        score=aligned.score,
+        justification=(
+            f"Curriculum-grounded (coordinator-only): {aligned.aligned}/"
+            f"{aligned.total_objectives} objective(s) addressed by this "
+            f"course's curriculum content. Score {aligned.score}."
+        ),
         chunk_ids=(),
         evidence=tuple(
             str(a.get("evidence", ""))
@@ -221,8 +216,7 @@ def apply_curriculum_alignment(
         ),
     )
     updated_scores = tuple(
-        new_score if c.criterion_id == "A-05" else c
-        for c in result.criterion_scores
+        new_score if c.criterion_id == "A-05" else c for c in result.criterion_scores
     )
     return dataclasses.replace(
         result,

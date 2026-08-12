@@ -19,9 +19,10 @@ Scoped to SME only. The other agents (Coordinator/GAD/ITSO) are untouched.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 
+from ....core.config import get_settings
+from ....core.llm import ResponseContract
 from ..runtime.llm import error_reference
 from . import (
     accurate_sections,
@@ -36,6 +37,7 @@ from . import (
     topic_coherence,
     varied_assessment,
 )
+from .criterion_contracts import RESPONSE_SCHEMAS, validate
 
 logger = logging.getLogger(__name__)
 
@@ -220,13 +222,14 @@ def _render(criterion_code: str, result: Any) -> tuple[int, str, tuple[str, ...]
 
 
 def run_criterion(
-    criterion_code: str, client: Any, text: str
+    criterion_code: str, client: Any, text: str, *, prompt_preamble: str | None = None
 ) -> tuple[int, str, tuple[str, ...]]:
     """Run one registered criterion against the full SLM text (its own call).
 
     Returns ``(score, justification, evidence)``. Raises ``KeyError`` for an
     unregistered code so callers must check ``is_registered`` first.
     """
+    client = _CriterionClient(client, prompt_preamble or "", criterion_code)
     if criterion_code == "A-05":
         result = objective_alignment.evaluate(client, text)
     elif criterion_code == "OP-02":
@@ -251,6 +254,36 @@ def run_criterion(
         raise KeyError(f"criterion {criterion_code!r} is not registered")
 
     return _render(criterion_code, result)
+
+
+class _CriterionClient:
+    def __init__(self, client: Any, preamble: str, code: str) -> None:
+        self._client, self._preamble, self._code = client, preamble, code
+
+    def generate(self, prompt: str, **kwargs: Any) -> str:
+        if (
+            len(self._preamble.rstrip() + "\n\n" + prompt)
+            > get_settings().sme_total_prompt_budget_chars
+        ):
+            raise ValueError("criterion prompt exceeds total prompt budget")
+        schema = RESPONSE_SCHEMAS[self._code]
+        original_generate = self._client.generate
+        contract = (
+            ResponseContract.json_schema(
+                schema, name=f"sme_{self._code.lower().replace('-', '_')}"
+            )
+            if get_settings().llm_response_mode == "json_schema"
+            else ResponseContract.json_object()
+        )
+        raw = original_generate(
+            self._preamble.rstrip() + "\n\n" + prompt,
+            response_contract=contract,
+            **kwargs,
+        )
+        import json
+
+        validate(self._code, json.loads(raw))
+        return raw
 
 
 def _compute_basket_a1(criterion_code: str, basket: dict[str, Any]) -> Any:
@@ -324,9 +357,7 @@ def _compute_basket_b2(criterion_code: str, basket: dict[str, Any]) -> Any:
     raise KeyError(f"{criterion_code!r} is not a Basket-B2 criterion")
 
 
-_BASKETS: tuple[
-    tuple[str, frozenset[str], Any, Any], ...
-] = (
+_BASKETS: tuple[tuple[str, frozenset[str], Any, Any], ...] = (
     ("A1", _BASKET_A1_CODES, extraction.extract_basket_a1, _compute_basket_a1),
     ("A2", _BASKET_A2_CODES, extraction.extract_basket_a2, _compute_basket_a2),
     ("A3", _BASKET_A3_CODES, extraction.extract_basket_a3, _compute_basket_a3),
@@ -340,9 +371,9 @@ def run_grouped(
     client: Any,
     text: str,
     *,
-    delay: float = 0.0,
     raw_baskets_out: dict[str, dict[str, Any]] | None = None,
     basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
+    prompt_preamble: str | None = None,
 ) -> dict[str, tuple[int, str, tuple[str, ...]]]:
     """Score every registered criterion from 6 shared basket calls instead of
     one call per criterion (see skeleton.py).
@@ -371,12 +402,6 @@ def run_grouped(
     three now get their own dedicated call each. Still 6 calls total instead
     of today's ~10.
 
-    ``delay`` paces the 6 basket calls the same way ``_overlay_engine_scores``
-    paces per-criterion calls (waits before each call except the first) --
-    firing 6 calls back-to-back with no pacing tripped the provider's rate
-    limiter (HTTP 429) in real testing, even though each individual call fit
-    the per-request size limit.
-
     Returns a dict keyed by criterion code -- the SAME ``(score,
     justification, evidence)`` shape ``run_criterion`` returns for that code.
     A code is simply ABSENT from the result if its basket failed to extract or
@@ -386,12 +411,35 @@ def run_grouped(
     take down criteria that didn't need that basket.
     """
     results: dict[str, tuple[int, str, tuple[str, ...]]] = {}
+    budget = get_settings().sme_total_prompt_budget_chars
 
-    for i, (name, codes, extract, compute_fn) in enumerate(_BASKETS):
-        if i > 0 and delay > 0:
-            time.sleep(delay)
+    for name, codes, extract, compute_fn in _BASKETS:
+        extra_kwargs = dict((basket_extract_kwargs or {}).get(name, {}))
+        if prompt_preamble or len(text) > get_settings().sme_total_prompt_budget_chars:
+            extra_kwargs["prompt_preamble"] = prompt_preamble
 
-        extra_kwargs = (basket_extract_kwargs or {}).get(name, {})
+        # Preflight the complete managed prompt before transport.  This is
+        # intentionally a basket-local gate: other canonical windows must not
+        # be shortened merely because one call cannot fit.
+        if prompt_preamble:
+            content = {
+                "A1": extraction.slice_for_basket_a1,
+                "A2": extraction.slice_for_basket_a2,
+                "A3": extraction.slice_for_basket_a3,
+                "A4": extraction.slice_for_basket_a4,
+                "B1": extraction.slice_for_basket_b1,
+                "B2": extraction.slice_for_basket_b2,
+            }[name](text)
+            template = getattr(extraction, f"BASKET_{name}_PROMPT")
+            complete_prompt = (
+                (prompt_preamble.rstrip() + "\n\n") if prompt_preamble else ""
+            ) + template.format(content=content)
+            if len(complete_prompt) > budget:
+                logger.warning(
+                    "[SME_GROUPED] basket=%s skipped: complete prompt exceeds budget",
+                    name,
+                )
+                continue
 
         basket: dict[str, Any] | None
         try:

@@ -15,7 +15,6 @@ from typing import Any
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.runtime import llm as runtime_llm
 from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
 from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER, SequencedFakeClient
@@ -24,7 +23,12 @@ from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER, SequencedFakeClie
 # reads "mechanisms", not the basket's "monitoring_mechanisms").
 _A03_FALLBACK = {
     "mechanisms": [
-        {"text": "Check 1", "monitoring_type": "checkpoint", "evidence": "quiz"}
+        {
+            "id": 1,
+            "text": "Check 1",
+            "monitoring_type": "checkpoint",
+            "evidence": "quiz",
+        }
     ]
 }
 
@@ -35,8 +39,6 @@ _CHUNK_INFOS = [{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}]
 
 def _make_agent(monkeypatch, client: Any) -> SME:
     agent = SME(llm_client=client)
-    # Force the context_text fallback path instead of hitting a real DB/PDF.
-    monkeypatch.setattr(SME, "_load_document_text", lambda self, document_id: None)
     monkeypatch.setattr(
         "server.modules.agents.sme.pipeline.get_active_rubric_criteria",
         lambda agent_id, db=None: _TITLES,
@@ -53,6 +55,7 @@ def test_full_success_scores_all_ten_from_grouped_pass(monkeypatch) -> None:
         document_id=uuid.uuid4(),
         chunk_infos=_CHUNK_INFOS,
         context_text="full slm text",
+        canonical_source_text="canonical SLM text",
     )
 
     assert result.success is True
@@ -85,6 +88,7 @@ def test_missing_basket_falls_back_to_per_criterion(monkeypatch) -> None:
         document_id=uuid.uuid4(),
         chunk_infos=_CHUNK_INFOS,
         context_text="full slm text",
+        canonical_source_text="canonical SLM text",
     )
 
     assert result.success is True
@@ -108,6 +112,7 @@ def test_code_failing_both_paths_raises(monkeypatch) -> None:
             document_id=uuid.uuid4(),
             chunk_infos=_CHUNK_INFOS,
             context_text="full slm text",
+            canonical_source_text="canonical SLM text",
         )
 
 
@@ -121,6 +126,7 @@ def test_model_name_falls_back_to_default(monkeypatch) -> None:
         document_id=uuid.uuid4(),
         chunk_infos=_CHUNK_INFOS,
         context_text="full slm text",
+        canonical_source_text="canonical SLM text",
     )
     assert result.model_name == get_llm_model_name()
 
@@ -134,44 +140,40 @@ def test_model_name_uses_client_model(monkeypatch) -> None:
         document_id=uuid.uuid4(),
         chunk_infos=_CHUNK_INFOS,
         context_text="full slm text",
+        canonical_source_text="canonical SLM text",
     )
     assert result.model_name == "sme-custom-test-model"
 
 
-def test_persistent_primary_uses_global_fallback_for_grouped_run(monkeypatch) -> None:
+def test_persistent_primary_does_not_use_global_fallback(monkeypatch) -> None:
     class FailingPrimary:
         model = "primary-sme-model"
 
         def generate(self, prompt: str, **_: object) -> str:
             raise RuntimeError("HTTP 429 assigned provider unavailable")
 
-    class HealthyFallback(SequencedFakeClient):
-        model: str = "healthy-fallback-model"
+    global_calls = 0
 
-    fallback = HealthyFallback(list(_ALL_BASKETS_IN_ORDER))
-    monkeypatch.setattr(runtime_llm, "get_llm_client", lambda: fallback)
+    def fail_if_called():
+        nonlocal global_calls
+        global_calls += 1
+        raise AssertionError("global client must not be called")
+
+    monkeypatch.setattr(
+        "server.modules.agents.runtime.llm.get_llm_client", fail_if_called
+    )
     agent = _make_agent(monkeypatch, FailingPrimary())
 
-    result = agent.run(
-        evaluation_id=uuid.uuid4(),
-        document_id=uuid.uuid4(),
-        chunk_infos=_CHUNK_INFOS,
-        context_text="full slm text",
-    )
-
-    assert result.success is True
-    assert result.model_name == "healthy-fallback-model"
-    assert result.provenance == {
-        "requested_model": "primary-sme-model",
-        "actual_model": "healthy-fallback-model",
-        "fallback_occurred": True,
-    }
-    assert {
-        score.criterion_id for score in result.criterion_scores
-    } == registry.REGISTERED_CODES
-    assert result.error_message is None
-    assert "HTTP 429" not in (result.raw_response or "")
-    assert fallback.calls == 6
+    with pytest.raises(AgentExecutionError) as raised:
+        agent.run(
+            evaluation_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            chunk_infos=_CHUNK_INFOS,
+            context_text="full slm text",
+            canonical_source_text="canonical SLM text",
+        )
+    assert global_calls == 0
+    assert "HTTP 429" not in str(raised.value)
 
 
 def test_raises_when_no_chunk_infos(monkeypatch) -> None:
@@ -183,6 +185,7 @@ def test_raises_when_no_chunk_infos(monkeypatch) -> None:
             document_id=uuid.uuid4(),
             chunk_infos=[],
             context_text="full slm text",
+            canonical_source_text="canonical SLM text",
         )
 
 
@@ -193,6 +196,9 @@ def test_raises_when_no_text_available(monkeypatch) -> None:
         agent.run(
             evaluation_id=uuid.uuid4(),
             document_id=uuid.uuid4(),
-            chunk_infos=[{"chunk_id": "chunk-1", "page_number": 1, "text": ""}],
-            context_text="   ",
+            chunk_infos=[
+                {"chunk_id": "chunk-1", "page_number": 1, "text": "chunk fallback"}
+            ],
+            context_text="context fallback",
+            canonical_source_text=None,
         )
