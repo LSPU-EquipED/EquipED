@@ -1,7 +1,7 @@
 """Orchestrator-side program-roadmap resolution tests.
 
 Unit-tests the ``resolve_roadmap_course_context`` contract the orchestrator
-relies on, then exercises ``run_evaluation_job``'s context construction
+relies on, then exercises the claimed executor's context construction
 path with a stubbed Supervisor (no real LLM agents) to prove that a
 resolved roadmap surfaces as a top-level ``"roadmap"`` key on the
 supervisor context, and is absent when resolution fails.
@@ -21,7 +21,8 @@ from server.modules.curriculum.models import (
 )
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
+from server.modules.evaluations.service import acquire_evaluation_execution
 
 from .conftest import _add_document, _seed_active_prompts
 
@@ -96,9 +97,7 @@ def test_resolve_returns_context_for_seeded_roadmap(db_session) -> None:
 def test_resolve_returns_none_for_proposed_course(db_session) -> None:
     roadmap = _seed_roadmap(db_session)
     year = (
-        db_session.query(RoadmapYear)
-        .filter_by(roadmap_id=roadmap.roadmap_id)
-        .first()
+        db_session.query(RoadmapYear).filter_by(roadmap_id=roadmap.roadmap_id).first()
     )
     db_session.add(
         RoadmapCourse(
@@ -180,8 +179,17 @@ def _run_orchestrator_capture(
     captured: dict = {}
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         captured.update(context or {})
         return SupervisorResult(
             evaluation_id=evaluation_id,
@@ -193,7 +201,14 @@ def _run_orchestrator_capture(
         evaluation_orchestrator.Supervisor, "run_evaluation", fake_run_evaluation
     )
 
-    run_evaluation_job(job.evaluation_id)
+    token = uuid4()
+    assert acquire_evaluation_execution(db_session, job.evaluation_id, token)
+    db_session.commit()
+    _execute_claimed_evaluation(
+        job.evaluation_id,
+        execution_token=token,
+        db_session_factory=session_factory,
+    )
     return captured
 
 

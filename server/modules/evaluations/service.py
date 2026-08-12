@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from server.modules.documents import persistence
@@ -34,7 +34,8 @@ from server.modules.evaluations.schemas import (
     EvaluationStatusResponse,
     EvaluationSubmitRequest,
 )
-from sqlalchemy import update
+from sqlalchemy import inspect, or_, select, update
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -322,11 +323,13 @@ def transition_evaluation_status(
     *,
     error_message: str | None = None,
     execution_token: uuid.UUID | None = None,
+    expected_status: EvaluationStatus | None = None,
+    commit: bool = True,
 ) -> EvaluationStatusResponse:
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
-    if row.status in [EvaluationStatus.COMPLETED, EvaluationStatus.FAILED]:
+    if row.status in _TERMINAL_STATUSES:
         # No transitions out of terminal state
         return EvaluationStatusResponse(
             evaluation_id=row.evaluation_id,
@@ -362,17 +365,31 @@ def transition_evaluation_status(
         raise EvaluationExecutionOwnershipError(
             f"Execution token mismatch for evaluation {evaluation_id}"
         )
-    row.status = new_status.value
-    if error_message:
-        row.error_message = error_message
+    values: dict[str, Any] = {"status": new_status.value}
+    if error_message is not None:
+        values["error_message"] = error_message
     if new_status in [EvaluationStatus.COMPLETED, EvaluationStatus.FAILED]:
-        row.completed_at = datetime.now(UTC)
-        # Terminal transitions always clear execution ownership so the
-        # job can be re-claimed if the row is later reset by recovery.
-        row.execution_token = None
-        row.execution_started_at = None
-        row.execution_heartbeat_at = None
-    db.commit()
+        values.update(
+            completed_at=datetime.now(UTC),
+            admission_slot=None,
+            execution_token=None,
+            execution_started_at=None,
+            execution_heartbeat_at=None,
+        )
+    predicate = [
+        EvaluationJob.evaluation_id == evaluation_id,
+        EvaluationJob.status
+        == (expected_status.value if expected_status else row.status),
+    ]
+    if execution_token is not None:
+        predicate.append(EvaluationJob.execution_token == execution_token)
+    result = db.execute(update(EvaluationJob).where(*predicate).values(**values))
+    if result.rowcount != 1:
+        db.rollback()
+        raise EvaluationExecutionOwnershipError("Evaluation status ownership changed")
+    if commit:
+        db.commit()
+        db.refresh(row)
     return EvaluationStatusResponse(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
@@ -404,9 +421,12 @@ def acquire_evaluation_execution(
         .where(
             EvaluationJob.evaluation_id == evaluation_id,
             EvaluationJob.execution_token.is_(None),
+            EvaluationJob.admission_slot.is_(None),
             EvaluationJob.status == EvaluationStatus.SUBMITTED.value,
         )
         .values(
+            status=EvaluationStatus.PREPROCESSING.value,
+            admission_slot=1,
             execution_token=execution_token,
             execution_started_at=now,
             execution_heartbeat_at=now,
@@ -414,6 +434,40 @@ def acquire_evaluation_execution(
     )
     db.commit()
     return result.rowcount == 1
+
+
+def acquire_next_evaluation_execution(
+    db: Any, execution_token: uuid.UUID
+) -> uuid.UUID | None:
+    """Claim the oldest submitted job for the sole admission slot."""
+    query = (
+        select(EvaluationJob.evaluation_id)
+        .where(
+            EvaluationJob.status == EvaluationStatus.SUBMITTED.value,
+            EvaluationJob.execution_token.is_(None),
+            EvaluationJob.admission_slot.is_(None),
+        )
+        .order_by(EvaluationJob.submitted_at, EvaluationJob.evaluation_id)
+        .limit(1)
+    )
+    if db.get_bind().dialect.name == "postgresql":
+        # Deliberately wait on the oldest row.  SKIP LOCKED would violate FIFO
+        # by allowing a newer request to leapfrog a claimant holding the slot.
+        query = query.with_for_update()
+    candidate = db.execute(query).scalar_one_or_none()
+    if candidate is None:
+        return None
+    try:
+        return (
+            candidate
+            if acquire_evaluation_execution(db, candidate, execution_token)
+            else None
+        )
+    except IntegrityError:
+        # SQLite lacks PostgreSQL's row-lock/skip-locked semantics; a concurrent
+        # loser may surface the slot unique constraint instead of rowcount=0.
+        db.rollback()
+        return None
 
 
 def heartbeat_evaluation_execution(
@@ -433,6 +487,7 @@ def heartbeat_evaluation_execution(
         .where(
             EvaluationJob.evaluation_id == evaluation_id,
             EvaluationJob.execution_token == execution_token,
+            EvaluationJob.admission_slot == 1,
         )
         .values(execution_heartbeat_at=now)
     )
@@ -440,31 +495,129 @@ def heartbeat_evaluation_execution(
     return result.rowcount == 1
 
 
-def release_evaluation_execution(
-    db: Any,
-    evaluation_id: uuid.UUID,
-    execution_token: uuid.UUID,
-) -> bool:
-    """Clear execution ownership fields for an owned evaluation job.
-
-    Returns True if the fields were cleared, False if the token no longer
-    matches (the caller has lost ownership).
-    """
-
+def recover_stale_evaluation_execution(
+    db: Any, stale_before: datetime
+) -> tuple[tuple[uuid.UUID, ...], int]:
+    """Atomically requeue stale, nonterminal jobs and return their IDs/count."""
     result = db.execute(
         update(EvaluationJob)
         .where(
-            EvaluationJob.evaluation_id == evaluation_id,
-            EvaluationJob.execution_token == execution_token,
+            EvaluationJob.status.in_(
+                (
+                    EvaluationStatus.PREPROCESSING.value,
+                    EvaluationStatus.EVALUATING.value,
+                    EvaluationStatus.SYNTHESIZING.value,
+                )
+            ),
+            or_(
+                EvaluationJob.execution_token.is_(None),
+                EvaluationJob.execution_heartbeat_at.is_(None),
+                EvaluationJob.execution_heartbeat_at < stale_before,
+            ),
         )
         .values(
+            admission_slot=None,
             execution_token=None,
             execution_started_at=None,
             execution_heartbeat_at=None,
+            status=EvaluationStatus.SUBMITTED.value,
+            completed_at=None,
+            error_message=None,
         )
+        .returning(EvaluationJob.evaluation_id)
     )
+    recovered_ids = tuple(result.scalars().all())
     db.commit()
-    return result.rowcount == 1
+    return recovered_ids, len(recovered_ids)
+
+
+def seconds_until_stale_evaluation_execution(
+    db: Any, stale_seconds: float
+) -> float | None:
+    """Return seconds until the earliest active lease becomes recoverable."""
+    heartbeats = (
+        db.execute(
+            select(EvaluationJob.execution_heartbeat_at).where(
+                EvaluationJob.admission_slot == 1,
+                EvaluationJob.status.in_(
+                    (
+                        EvaluationStatus.PREPROCESSING.value,
+                        EvaluationStatus.EVALUATING.value,
+                        EvaluationStatus.SYNTHESIZING.value,
+                    )
+                ),
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not heartbeats:
+        return None
+    now = datetime.now(UTC)
+
+    def _as_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    return max(
+        0.0,
+        min(
+            (
+                _as_utc(heartbeat) + timedelta(seconds=stale_seconds) - now
+            ).total_seconds()
+            if heartbeat is not None
+            else 0.0
+            for heartbeat in heartbeats
+        ),
+    )
+
+
+def verify_layer3_ownership(
+    db: Any, evaluation_id: uuid.UUID, execution_token: uuid.UUID
+) -> bool:
+    return (
+        db.execute(
+            select(EvaluationJob.evaluation_id).where(
+                EvaluationJob.evaluation_id == evaluation_id,
+                EvaluationJob.status == EvaluationStatus.EVALUATING.value,
+                EvaluationJob.admission_slot == 1,
+                EvaluationJob.execution_token == execution_token,
+            )
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def admission_schema_ready(db: Any) -> bool:
+    """Verify the complete admission lease contract without mutating schema."""
+    try:
+        bind = db.get_bind()
+        inspector = inspect(bind)
+        columns = {c["name"] for c in inspector.get_columns("evaluation_jobs")}
+        required_columns = {
+            "admission_slot",
+            "execution_token",
+            "execution_started_at",
+            "execution_heartbeat_at",
+        }
+        if not required_columns.issubset(columns):
+            return False
+        checks = {
+            c.get("name") for c in inspector.get_check_constraints("evaluation_jobs")
+        }
+        uniques = {
+            c.get("name") for c in inspector.get_unique_constraints("evaluation_jobs")
+        }
+        indexes = {i.get("name") for i in inspector.get_indexes("evaluation_jobs")}
+        return (
+            "ck_evaluation_admission_slot" in checks
+            and "uq_evaluation_admission_slot" in uniques
+            and "idx_jobs_admission_fifo" in indexes
+        )
+    except Exception:
+        db.rollback()
+        return False
 
 
 __all__ = [
@@ -474,7 +627,11 @@ __all__ = [
     "get_evaluation_status",
     "transition_evaluation_status",
     "acquire_evaluation_execution",
+    "acquire_next_evaluation_execution",
     "heartbeat_evaluation_execution",
-    "release_evaluation_execution",
+    "recover_stale_evaluation_execution",
+    "seconds_until_stale_evaluation_execution",
+    "verify_layer3_ownership",
+    "admission_schema_ready",
     "_validate_evaluation_target",
 ]

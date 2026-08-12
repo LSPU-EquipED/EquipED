@@ -1,4 +1,4 @@
-"""Orchestrator tests for run_evaluation_job, Layer 3 honesty, and failure paths."""
+"""Orchestrator tests for claimed execution, Layer 3 honesty, and failure paths."""
 
 from __future__ import annotations
 
@@ -8,13 +8,24 @@ from uuid import uuid4
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-from server.modules.evaluations.orchestrator import run_evaluation_job
+from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
+from server.modules.evaluations.service import acquire_evaluation_execution
 from server.modules.synthesis.models import MonitoringMatrix
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from .conftest import _add_document, _seed_active_prompts
+
+
+def _run_claimed(evaluation_id, session_factory):
+    token = uuid4()
+    with session_factory() as session:
+        assert acquire_evaluation_execution(session, evaluation_id, token)
+        session.commit()
+    return _execute_claimed_evaluation(
+        evaluation_id, execution_token=token, db_session_factory=session_factory
+    )
 
 
 def test_orchestrator_layer3_honesty(monkeypatch) -> None:
@@ -67,6 +78,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
     from server.modules.agents.supervision.result import SupervisorResult
+
     monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
 
     seen_statuses: list[EvaluationStatus] = []
@@ -83,6 +95,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         error_message=None,
         execution_token=None,
         session=None,
+        expected_status=None,
+        commit=True,
     ):
         db = db or session
         if isinstance(new_status, str):
@@ -94,6 +108,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
             db,
             error_message=error_message,
             execution_token=execution_token,
+            expected_status=expected_status,
+            commit=commit,
         )
 
     monkeypatch.setattr(
@@ -103,8 +119,17 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     )
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         captured_context.update(context or {})
         assert context == {
             "reference_document_ids": {
@@ -134,7 +159,23 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
                     processing_seconds=0.1,
                     token_count=4,
                     prompt_version_id=None,
-                )
+                ),
+                *[
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        subtotal=3,
+                        criterion_scores=(),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                    for agent_name in ("gad", "itso", "coordinator")
+                ],
             ],
         )
 
@@ -143,21 +184,27 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         "run_evaluation",
         fake_run_evaluation,
     )
+    monkeypatch.setattr(
+        evaluation_orchestrator,
+        "_reconcile_coordinator_result",
+        lambda results, **kwargs: results,
+    )
 
-    run_evaluation_job(job.evaluation_id)
+    _run_claimed(job.evaluation_id, SessionLocal)
 
     with SessionLocal() as readback:
         refreshed = readback.get(EvaluationJob, job.evaluation_id)
         assert refreshed is not None
         assert refreshed.status == EvaluationStatus.COMPLETED.value
         assert seen_statuses == [
-            EvaluationStatus.PREPROCESSING,
             EvaluationStatus.EVALUATING,
             EvaluationStatus.SYNTHESIZING,
             EvaluationStatus.COMPLETED,
         ]
         assert refreshed.error_message is None
-        assert readback.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1  # noqa: E501
+        assert (
+            readback.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
+        )  # noqa: E501
     assert captured_context == {
         "reference_document_ids": {
             "syllabus": syllabus_id,
@@ -213,7 +260,14 @@ def test_orchestrator_partial_without_curriculum_completes(
     real_transition = evaluation_orchestrator.transition_evaluation_status
 
     def recording_transition(
-        evaluation_id, new_status, db, *, error_message=None, execution_token=None
+        evaluation_id,
+        new_status,
+        db,
+        *,
+        error_message=None,
+        execution_token=None,
+        expected_status=None,
+        commit=True,
     ):
         seen_statuses.append(new_status)
         return real_transition(
@@ -222,6 +276,8 @@ def test_orchestrator_partial_without_curriculum_completes(
             db,
             error_message=error_message,
             execution_token=execution_token,
+            expected_status=expected_status,
+            commit=commit,
         )
 
     monkeypatch.setattr(
@@ -233,10 +289,21 @@ def test_orchestrator_partial_without_curriculum_completes(
     captured_agents: list[str] = []
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         nonlocal captured_agents
-        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]  # noqa: E501
+        captured_agents = [
+            getattr(a, "agent_name", type(a).__name__) for a in self.agents
+        ]  # noqa: E501
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -295,8 +362,13 @@ def test_orchestrator_partial_without_curriculum_completes(
         "run_evaluation",
         fake_run_evaluation,
     )
+    monkeypatch.setattr(
+        evaluation_orchestrator,
+        "_reconcile_coordinator_result",
+        lambda results, **kwargs: results,
+    )
 
-    run_evaluation_job(job.evaluation_id)
+    _run_claimed(job.evaluation_id, session_factory)
 
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
@@ -306,14 +378,13 @@ def test_orchestrator_partial_without_curriculum_completes(
     assert len(captured_agents) == 3
     assert refreshed.error_message is None
     assert seen_statuses == [
-        EvaluationStatus.PREPROCESSING,
         EvaluationStatus.EVALUATING,
         EvaluationStatus.SYNTHESIZING,
         EvaluationStatus.COMPLETED,
     ]
-    matrix_row = db_session.query(MonitoringMatrix).filter_by(
-        document_id=slm_id
-    ).first()
+    matrix_row = (
+        db_session.query(MonitoringMatrix).filter_by(document_id=slm_id).first()
+    )
     assert matrix_row is not None
     assert matrix_row.evaluation_status == "COMPLETED_PARTIAL"
 
@@ -361,8 +432,17 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -379,7 +459,23 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
                     token_count=4,
                     success=True,
                     prompt_version_id=None,
-                )
+                ),
+                *[
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        subtotal=3,
+                        criterion_scores=(),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                    for agent_name in ("gad", "itso")
+                ],
             ],
         )
 
@@ -398,7 +494,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
     )
 
     with caplog.at_level("WARNING"):
-        run_evaluation_job(job.evaluation_id)
+        _run_claimed(job.evaluation_id, session_factory)
 
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
@@ -467,8 +563,17 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     )
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -485,7 +590,23 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
                     token_count=4,
                     success=True,
                     prompt_version_id=None,
-                )
+                ),
+                *[
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        subtotal=3,
+                        criterion_scores=(),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                    for agent_name in ("gad", "itso")
+                ],
             ],
         )
 
@@ -493,7 +614,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
         evaluation_orchestrator.Supervisor, "run_evaluation", fake_run_evaluation
     )
 
-    run_evaluation_job(job.evaluation_id)
+    _run_claimed(job.evaluation_id, session_factory)
 
     assert calls == [slm_id]  # exactly one chunk load
     db_session.expire_all()
@@ -507,6 +628,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
 ) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
+    from server.modules.agents.sme import registry
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -549,8 +671,17 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -559,14 +690,15 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
                     agent_name="sme",
                     evaluation_id=evaluation_id,
                     document_id=document_id,
-                    subtotal=4,
-                    criterion_scores=(
+                    subtotal=30,
+                    criterion_scores=tuple(
                         CriterionScore(
-                            criterion_id="c1",
-                            criterion_title="Criterion 1",
-                            score=4,
+                            criterion_id=criterion_code,
+                            criterion_title=f"{criterion_code} title",
+                            score=3,
                             justification="great",
-                        ),
+                        )
+                        for criterion_code in sorted(registry.REGISTERED_CODES)
                     ),
                     summary="great",
                     model_name="local-model",
@@ -574,7 +706,44 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
                     token_count=4,
                     success=True,
                     prompt_version_id=None,
-                )
+                ),
+                *[
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        subtotal=3,
+                        criterion_scores=(),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                    for agent_name in ("gad", "itso")
+                ],
+                AgentEvaluationResult(
+                    agent_name="coordinator",
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    subtotal=4,
+                    criterion_scores=(
+                        CriterionScore(
+                            criterion_id="A-05",
+                            criterion_title="A-05 title",
+                            score=4,
+                            justification="curriculum evidence",
+                            evidence=("quote",),
+                        ),
+                    ),
+                    summary="ok",
+                    model_name="local-model",
+                    processing_seconds=0.1,
+                    token_count=4,
+                    success=True,
+                    prompt_version_id=None,
+                ),
             ],
         )
 
@@ -584,7 +753,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         fake_run_evaluation,
     )
 
-    run_evaluation_job(job.evaluation_id)
+    _run_claimed(job.evaluation_id, session_factory)
 
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
@@ -641,8 +810,17 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
     def fake_run_evaluation_with_failure(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
+        if callable(heartbeat_callback):
+            heartbeat_callback()
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
@@ -660,6 +838,22 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
                     success=True,
                     prompt_version_id=None,
                 ),
+                *[
+                    AgentEvaluationResult(
+                        agent_name=agent_name,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        subtotal=3,
+                        criterion_scores=(),
+                        summary="ok",
+                        model_name="local-model",
+                        processing_seconds=0.1,
+                        token_count=4,
+                        success=True,
+                        prompt_version_id=None,
+                    )
+                    for agent_name in ("gad", "itso")
+                ],
                 AgentEvaluationResult(
                     agent_name="coordinator",
                     evaluation_id=evaluation_id,
@@ -683,30 +877,13 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         fake_run_evaluation_with_failure,
     )
 
-    # A failed Coordinator result triggers orchestrator._reconcile_coordinator_result's
-    # independent-scoring fallback (see coordinator.py's module docstring) --
-    # mock that fallback to also fail, so this stays a pure unit test (no real
-    # LLM call) while preserving the scenario: Coordinator never recovers, so
-    # the evaluation still ends FAILED.
-    from server.modules.agents.coordinator.agent import Coordinator
-
-    def fake_run_full_independent_failure(self, **kwargs):
-        raise RuntimeError("provider-secret-should-not-escape")
-
-    monkeypatch.setattr(
-        Coordinator, "run_full_independent", fake_run_full_independent_failure
-    )
-    monkeypatch.setattr(
-        evaluation_orchestrator, "get_llm_client_for_agent", lambda agent_name: None
-    )
-
-    run_evaluation_job(job.evaluation_id)
+    _run_claimed(job.evaluation_id, session_factory)
 
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
     assert refreshed is not None
     assert refreshed.status == EvaluationStatus.FAILED.value
     assert refreshed.error_message is not None
-    assert "Coordinator" in refreshed.error_message
+    assert "coordinator" in refreshed.error_message.lower()
     assert "provider-secret" not in refreshed.error_message
     assert "provider-secret" not in caplog.text

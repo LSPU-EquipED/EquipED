@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from server.modules.auth.models import UserRole
@@ -39,6 +39,7 @@ def test_upload_rbac_and_retired_source_types(
 ) -> None:
     """Faculty SLM only; Admin syllabus/policy; curriculum/rubric PDFs rejected."""
     import server.modules.documents.service as doc_service
+
     monkeypatch.setattr(doc_service, "ingest_document", lambda *args, **kwargs: [])
 
     _login(client, db_session, UserRole.FACULTY)
@@ -84,6 +85,7 @@ def test_admin_slm_upload_retained_for_model_validation(
 ) -> None:
     """Admin SLM upload remains available for Model Validation."""
     import server.modules.documents.service as doc_service
+
     monkeypatch.setattr(doc_service, "ingest_document", lambda *args, **kwargs: [])
 
     _login(client, db_session, UserRole.ADMIN)
@@ -106,7 +108,10 @@ def test_submit_evaluation_requires_partial_and_confirmed_program(
 ) -> None:
     """Direct submission without partial_without_curriculum=True or confirmed_program rejected."""  # noqa: E501
     from server.modules.evaluations import router as evaluations_router
-    monkeypatch.setattr(evaluations_router, "run_evaluation_job", lambda *args, **kwargs: None)  # noqa: E501
+
+    monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
+    monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
+    monkeypatch.setattr(evaluations_router, "drain_evaluation_queue", lambda: None)
 
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
@@ -260,6 +265,7 @@ def test_supervisor_excludes_coordinator_and_synthesizes_partial(
     db_session.commit()
 
     from server.modules.synthesis.matrix import compute_synthesized_score
+
     synthesis = compute_synthesized_score(
         [res_sme, res_gad, res_itso],
         force_partial=job.partial_without_curriculum,
@@ -307,14 +313,8 @@ def test_historical_evaluations_preserved_with_cleared_curriculum_fk(
 
 def test_recovery_requeues_interrupted_curriculum_retired_job(
     db_session,
-    monkeypatch,
 ) -> None:
-    """Recovery resets an interrupted curriculum-retired job to SUBMITTED and
-    re-runs it, ending COMPLETED with no Coordinator output."""
-    from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervision.result import SupervisorResult
-    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    """Recovery requeues stale curriculum-retired jobs without executing them."""
     from server.modules.evaluations.orchestrator import (
         recover_interrupted_evaluation_jobs,
     )
@@ -346,7 +346,7 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
         partial_reason="Curriculum evaluation flow retired",
         execution_token=uuid.uuid4(),
         execution_started_at=datetime.now(UTC),
-        execution_heartbeat_at=datetime.now(UTC),
+        execution_heartbeat_at=datetime.now(UTC) - timedelta(seconds=301),
     )
     db_session.add(job)
     db_session.commit()
@@ -354,58 +354,22 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
     )
-    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
-
-    captured_agents: list[str] = []
-
-    def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
-    ):
-        nonlocal captured_agents
-        captured_agents = [getattr(a, "agent_name", type(a).__name__) for a in self.agents]  # noqa: E501
-        return SupervisorResult(
-            evaluation_id=evaluation_id,
-            document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name=agent_name,
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(
-                        CriterionScore(
-                            criterion_id="c1",
-                            criterion_title="Criterion 1",
-                            score=3,
-                            justification="ok",
-                        ),
-                    )
-                    if agent_name == "sme"
-                    else (),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                )
-                for agent_name in ("sme", "gad", "itso")
-            ],
-        )
-
-    monkeypatch.setattr(
-        evaluation_orchestrator.Supervisor,
-        "run_evaluation",
-        fake_run_evaluation,
-    )
-
     recovered = recover_interrupted_evaluation_jobs(session_factory)
     assert recovered == 1
 
     db_session.expire_all()
     refreshed = db_session.get(EvaluationJob, job.evaluation_id)
     assert refreshed is not None
-    assert refreshed.status == EvaluationStatus.COMPLETED.value
+    assert refreshed.status == EvaluationStatus.SUBMITTED.value
     assert refreshed.error_message is None
-    assert "coordinator" not in captured_agents
-    assert len(captured_agents) == 3
+    assert refreshed.execution_token is None
+    assert refreshed.admission_slot is None
+    assert refreshed.execution_started_at is None
+    assert refreshed.execution_heartbeat_at is None
+    assert refreshed.partial_without_curriculum is True
+    assert refreshed.partial_reason == "Curriculum evaluation flow retired"
+    assert refreshed.curriculum_id is None
+    assert (
+        db_session.query(AgentResult).filter_by(evaluation_id=job.evaluation_id).count()
+        == 0
+    )

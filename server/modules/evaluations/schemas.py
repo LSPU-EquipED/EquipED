@@ -29,6 +29,7 @@ class EvaluationSubmitRequest(BaseModel):
         ..., min_length=1, max_length=50, description="Confirmed academic program code."
     )
 
+
 class EvaluationResponse(BaseModel):
     evaluation_id: UUID
     document_id: UUID
@@ -44,6 +45,7 @@ class EvaluationResponse(BaseModel):
     completed_at: datetime | None = None
     duration_seconds: float | None = None
 
+
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
     document_id: UUID
@@ -58,11 +60,13 @@ class EvaluationListItem(BaseModel):
     completed_at: datetime | None = None
     duration_seconds: float | None = None
 
+
 class EvaluationListResponse(BaseModel):
     items: list[EvaluationListItem]
     total: int
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=200)
+
 
 class EvaluationStatusResponse(BaseModel):
     evaluation_id: UUID
@@ -72,6 +76,7 @@ class EvaluationStatusResponse(BaseModel):
     partial_reason: str | None = None
     completed_at: datetime | None = None
     duration_seconds: float | None = None
+
 
 __all__ = [
     "EvaluationSubmitRequest",

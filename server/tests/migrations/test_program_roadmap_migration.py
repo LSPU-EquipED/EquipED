@@ -195,8 +195,7 @@ def test_chain_applies_cleanly_and_creates_roadmap_tables(tmp_path) -> None:
     assert rc_cols == ROADMAP_COURSES_COLS
 
     pr_uniq = {
-        uc["name"]
-        for uc in inspector.get_unique_constraints("program_roadmaps")
+        uc["name"] for uc in inspector.get_unique_constraints("program_roadmaps")
     }
     assert "uq_program_roadmaps_program_specialization_version" in pr_uniq
     pr_checks = {
@@ -208,8 +207,7 @@ def test_chain_applies_cleanly_and_creates_roadmap_tables(tmp_path) -> None:
     assert "uq_roadmap_years_position" in ry_uniq
 
     rc_checks = {
-        cc["name"]
-        for cc in inspector.get_check_constraints("roadmap_courses")
+        cc["name"] for cc in inspector.get_check_constraints("roadmap_courses")
     }
     assert "ck_roadmap_courses_course_status" in rc_checks
 

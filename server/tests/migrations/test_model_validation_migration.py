@@ -105,12 +105,10 @@ def _create_legacy_tables(engine) -> None:
     with engine.begin() as conn:
         conn.execute(sql_text("CREATE TABLE users (user_id TEXT PRIMARY KEY)"))
         conn.execute(
-            sql_text(
-                "CREATE TABLE evaluation_jobs "
-                "(evaluation_id TEXT PRIMARY KEY)"
-            )
+            sql_text("CREATE TABLE evaluation_jobs (evaluation_id TEXT PRIMARY KEY)")
         )
-        conn.execute(sql_text("""
+        conn.execute(
+            sql_text("""
             CREATE TABLE model_validations (
                 validation_id TEXT PRIMARY KEY,
                 evaluation_id TEXT NOT NULL UNIQUE,
@@ -123,8 +121,10 @@ def _create_legacy_tables(engine) -> None:
                 created_by TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """))
-        conn.execute(sql_text("""
+        """)
+        )
+        conn.execute(
+            sql_text("""
             CREATE TABLE model_validation_criterion_scores (
                 expected_score_id TEXT PRIMARY KEY,
                 validation_id TEXT NOT NULL,
@@ -137,7 +137,8 @@ def _create_legacy_tables(engine) -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-        """))
+        """)
+        )
 
 
 def _create_legacy_tables_with_forbidden_column(engine) -> None:
@@ -147,12 +148,10 @@ def _create_legacy_tables_with_forbidden_column(engine) -> None:
     with engine.begin() as conn:
         conn.execute(sql_text("CREATE TABLE users (user_id TEXT PRIMARY KEY)"))
         conn.execute(
-            sql_text(
-                "CREATE TABLE evaluation_jobs "
-                "(evaluation_id TEXT PRIMARY KEY)"
-            )
+            sql_text("CREATE TABLE evaluation_jobs (evaluation_id TEXT PRIMARY KEY)")
         )
-        conn.execute(sql_text("""
+        conn.execute(
+            sql_text("""
             CREATE TABLE model_validations (
                 validation_id TEXT PRIMARY KEY,
                 evaluation_id TEXT NOT NULL UNIQUE,
@@ -166,7 +165,8 @@ def _create_legacy_tables_with_forbidden_column(engine) -> None:
                 created_by TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
-        """))
+        """)
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -231,9 +231,7 @@ class TestOfflineSQL:
     """Generated DDL is correct for both paths."""
 
     def test_fresh_offline_creates_both_tables(self):
-        sql = _run_offline(
-            _cfg("sqlite://"), f"{BASE_REV}:{REVISION}"
-        )
+        sql = _run_offline(_cfg("sqlite://"), f"{BASE_REV}:{REVISION}")
         assert "CREATE TABLE model_validations" in sql
         assert "CREATE TABLE model_validation_criterion_scores" in sql
         assert "idx_model_validations_created_by" in sql
@@ -466,16 +464,14 @@ class TestLegacyUpgrade:
         from sqlalchemy import text as sql_text
 
         with engine.begin() as conn:
-            conn.execute(
-                sql_text("CREATE TABLE users (user_id TEXT PRIMARY KEY)")
-            )
+            conn.execute(sql_text("CREATE TABLE users (user_id TEXT PRIMARY KEY)"))
             conn.execute(
                 sql_text(
-                    "CREATE TABLE evaluation_jobs "
-                    "(evaluation_id TEXT PRIMARY KEY)"
+                    "CREATE TABLE evaluation_jobs (evaluation_id TEXT PRIMARY KEY)"
                 )
             )
-            conn.execute(sql_text("""
+            conn.execute(
+                sql_text("""
                 CREATE TABLE model_validations (
                     validation_id TEXT PRIMARY KEY,
                     evaluation_id TEXT NOT NULL UNIQUE,
@@ -488,7 +484,8 @@ class TestLegacyUpgrade:
                     created_by TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
-            """))
+            """)
+            )
         _stamp(engine, BASE_REV)
         engine.dispose()
 

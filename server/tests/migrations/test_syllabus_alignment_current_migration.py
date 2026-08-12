@@ -76,9 +76,7 @@ def test_online_migration_deduplicates_and_adds_unique_index():
         connection.execute(
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
-        connection.execute(
-            text("INSERT INTO alembic_version VALUES ('20260803_0001')")
-        )
+        connection.execute(text("INSERT INTO alembic_version VALUES ('20260803_0001')"))
 
     config = Config(str(REPO_ROOT / "server" / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", database_url)
@@ -97,12 +95,16 @@ def test_online_migration_deduplicates_and_adds_unique_index():
         get_settings.cache_clear()
 
     with engine.connect() as connection:
-        retained = connection.execute(
-            text(
-                "SELECT alignment_id FROM syllabus_alignment_runs "
-                "ORDER BY alignment_id"
+        retained = (
+            connection.execute(
+                text(
+                    "SELECT alignment_id FROM syllabus_alignment_runs "
+                    "ORDER BY alignment_id"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert retained == [
         "11111111111111111111111111111111",
         "33333333333333333333333333333333",

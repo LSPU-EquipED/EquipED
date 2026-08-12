@@ -101,6 +101,23 @@ def ingest_document(
     return chunks
 
 
+def prepare_canonical_source(file_path: str) -> str:
+    """Return the cleaned, immutable source text for one evaluation.
+
+    This deliberately uses the same page extraction path as ingestion.  It is
+    an in-memory preparation step only: no chunks, document state, or
+    embeddings are created as a side effect.
+
+    ``file_path`` is supplied by the owning document/evaluation service; that
+    caller remains responsible for ownership and upload-root/path validation.
+    """
+    pages = _extract_pages(file_path)
+    source = "\n\n".join(page.text.strip() for page in pages if page.text.strip())
+    if not source:
+        raise ExtractionFailedError("No extractable text was found in the PDF")
+    return source
+
+
 def _ingest_syllabus_course_contents(
     file_path: str,
     pages: list[ExtractedPage],
@@ -207,4 +224,4 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
     return pages
 
 
-__all__ = ["ingest_document", "resolve_agent_domain"]
+__all__ = ["ingest_document", "prepare_canonical_source", "resolve_agent_domain"]

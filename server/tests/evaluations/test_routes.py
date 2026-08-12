@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-from server.modules.synthesis.models import MonitoringMatrix
 
 from .conftest import _add_document, _seed_active_prompts
 
@@ -34,10 +33,13 @@ def test_no_api_path_can_fake_completed(
     )
     _seed_active_prompts(db_session)
 
+    monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
+    monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
+    drain_calls: list[object] = []
     monkeypatch.setattr(
         evaluations_router,
-        "run_evaluation_job",
-        lambda *args, **kwargs: None,
+        "drain_evaluation_queue",
+        lambda: drain_calls.append(True),
     )
 
     login = client.post(
@@ -60,6 +62,7 @@ def test_no_api_path_can_fake_completed(
     assert response.json()["status"] == "SUBMITTED"
     job = db_session.query(EvaluationJob).one()
     assert job.status == EvaluationStatus.SUBMITTED.value
+    assert len(drain_calls) == 1
 
 
 def test_submit_evaluation_runs_honest_lifecycle_to_failed(
@@ -149,15 +152,16 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
         fake_run_evaluation,
     )
 
-    real_run_evaluation_job = evaluation_orchestrator.run_evaluation_job
+    monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
+    monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
+    real_drain = evaluation_orchestrator.drain_evaluation_queue
+    drain_calls: list[object] = []
 
-    def run_and_suppress(*args, **kwargs):
-        try:
-            real_run_evaluation_job(*args, **kwargs)
-        except Exception:
-            pass
+    def run_queue():
+        drain_calls.append(True)
+        real_drain(session_factory)
 
-    monkeypatch.setattr(evaluations_router, "run_evaluation_job", run_and_suppress)
+    monkeypatch.setattr(evaluations_router, "drain_evaluation_queue", run_queue)
 
     login = client.post(
         "/api/v1/auth/login",
@@ -179,16 +183,11 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     assert response.json()["status"] == "SUBMITTED"
 
     job = db_session.query(EvaluationJob).one()
-    assert job.status == EvaluationStatus.COMPLETED.value
-    assert seen_statuses == [
-        EvaluationStatus.PREPROCESSING,
-        EvaluationStatus.EVALUATING,
-        EvaluationStatus.SYNTHESIZING,
-        EvaluationStatus.COMPLETED,
-    ]
-    assert job.error_message is None
+    assert job.status == EvaluationStatus.FAILED.value
+    assert seen_statuses[-1] == EvaluationStatus.FAILED
+    assert job.error_message is not None
     assert job.completed_at is not None
-    assert db_session.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
+    assert len(drain_calls) == 1
 
 
 def test_router_masks_foreign_access_for_all_roles(
@@ -294,9 +293,7 @@ def test_results_partial_without_curriculum_returns_partial_reason(
     )
     assert login.status_code == 200
 
-    response = client.get(
-        f"/api/v1/evaluations/{job.evaluation_id}/results"
-    )
+    response = client.get(f"/api/v1/evaluations/{job.evaluation_id}/results")
     assert response.status_code == 200
     data = response.json()
 
