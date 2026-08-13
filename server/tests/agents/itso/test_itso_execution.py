@@ -60,7 +60,17 @@ def test_itso_executes_and_preserves_provenance(monkeypatch):
     assert result.provenance["actual_model"] == "primary"
 
 
-def test_parse_response_supports_fenced_json():
+def test_itso_executes_and_snapshots_prompt_text(monkeypatch):
+    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    result = execution.execute(
+        _context(_LLM([_response("ok")]))
+    )
+    assert result.prompt_text is not None
+    assert '"agent": "itso"' in result.prompt_text
+    assert '"criterion_scores"' not in result.prompt_text
+
+
+def test_parse_response_supports_fenced_and_prefixed_json():
     payload = _response("parsed")
     assert parse_response(f"```json\n{payload}\n```")["summary"] == "parsed"
 

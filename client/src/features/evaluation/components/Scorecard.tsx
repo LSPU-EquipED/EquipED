@@ -1,4 +1,4 @@
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Loader2, CheckCircle, Flag, FileText, Clock } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import { formatScore, cleanJustification, overallScoreDisplay } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
+import { ItsoReviewModal } from './ItsoReviewModal';
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
@@ -35,6 +36,7 @@ export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
 
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
+  const [isItsoReviewOpen, setIsItsoReviewOpen] = useState(false);
 
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
@@ -339,7 +341,18 @@ export function Scorecard() {
                         {/* Domain Group Header Row */}
                         <tr className="bg-slate-50/60 select-none">
                           <td className="py-3 px-4 text-[10px] font-extrabold text-slate-800 uppercase tracking-widest border-t border-slate-200">
-                            {agentLabels[domain]}
+                            <div className="flex items-center gap-3">
+                              <span>{agentLabels[domain]}</span>
+                              {domain === 'itso' && (
+                                <button
+                                  type="button"
+                                  className="shrink-0 rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-2 py-1 text-[9px] font-bold normal-case tracking-wide text-[#1b3b87] hover:bg-[#1b3b87]/10"
+                                  onClick={() => setIsItsoReviewOpen(true)}
+                                >
+                                  Review Scores
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 text-right w-[6rem] border-t border-slate-200">
                             <span className="text-xs font-bold text-slate-500">
@@ -406,6 +419,14 @@ export function Scorecard() {
                 </tbody>
               </table>
             </div>
+
+            {isItsoReviewOpen && results.domain_scores.itso && (
+              <ItsoReviewModal
+                evaluationId={evaluation.evaluation_id}
+                criteria={results.domain_scores.itso.criteria}
+                onClose={() => setIsItsoReviewOpen(false)}
+              />
+            )}
           </div>
         )}
       </main>

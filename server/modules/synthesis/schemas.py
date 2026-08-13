@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+
+class ReviewerCorrection(BaseModel):
+    action: Literal["EDIT", "REJECT"]
+    score: int | None = None
+    justification: str | None = None
 
 
 class CriterionScoreItem(BaseModel):
@@ -15,6 +22,7 @@ class CriterionScoreItem(BaseModel):
     justification: str
     evidence: str | None = None
     chunk_ids: str | None = None
+    reviewer_correction: ReviewerCorrection | None = None
 
 
 def score_to_adjectival(score: float) -> str:
@@ -103,6 +111,7 @@ class MatrixListResponse(BaseModel):
 
 __all__ = [
     "CriterionScoreItem",
+    "ReviewerCorrection",
     "DomainScoreBlock",
     "EvaluationResultsResponse",
     "EvaluationFlagItem",

@@ -1,17 +1,20 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { requestJson } from '@/shared/api/http';
+import { evaluationApi } from '../api/evaluation.api';
+import type { CriterionFeedbackRequest } from '../types';
 
-export function useSubmitFeedback(evaluationId: string) {
+export function useSubmitCriterionFeedback(evaluationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { action: string; notes?: string; edited_json?: Record<string, unknown> }) =>
-      requestJson(`/feedback/${evaluationId}`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    mutationFn: ({
+      criterionId,
+      body,
+    }: {
+      criterionId: string;
+      body: CriterionFeedbackRequest;
+    }) => evaluationApi.submitCriterionFeedback(evaluationId, criterionId, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evaluationResults', evaluationId] });
+      queryClient.invalidateQueries({ queryKey: ['evaluation-results', evaluationId] });
     },
   });
 }

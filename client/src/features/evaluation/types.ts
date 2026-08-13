@@ -6,6 +6,12 @@ export type EvaluationStatus =
   | 'COMPLETED'
   | 'FAILED';
 
+export type CriterionReviewerCorrection = {
+  action: 'EDIT' | 'REJECT';
+  score: number | null;
+  justification: string | null;
+};
+
 export interface CriterionScoreItem {
   criterion_id: string;
   criterion_text: string;
@@ -13,6 +19,7 @@ export interface CriterionScoreItem {
   justification: string;
   evidence?: string | null;
   chunk_ids?: string | null;
+  reviewer_correction?: CriterionReviewerCorrection | null;
 }
 
 export interface DomainScoreBlock {
@@ -100,4 +107,26 @@ export interface EvaluationResultsResponse {
   submitted_at?: string | null;
   completed_at?: string;
   duration_seconds?: number | null;
+}
+
+export type CriterionFeedbackAction = 'ACCEPT' | 'REJECT' | 'EDIT';
+
+export interface CriterionFeedbackRequest {
+  agent_name: 'itso';
+  action: CriterionFeedbackAction;
+  score?: number;
+  justification?: string;
+  notes?: string;
+}
+
+export interface CriterionFeedbackResponse {
+  log_id: string;
+  evaluation_id: string;
+  user_id: string;
+  agent_name: string | null;
+  criterion_id: string | null;
+  action: CriterionFeedbackAction;
+  edited_json: { score: number; justification: string } | null;
+  notes: string | null;
+  created_at: string;
 }

@@ -48,6 +48,8 @@ class PreferenceLogResponse(BaseModel):
     log_id: uuid.UUID
     evaluation_id: uuid.UUID
     user_id: uuid.UUID
+    agent_name: str | None = None
+    criterion_id: str | None = None
     action: Literal["ACCEPT", "REJECT", "EDIT"]
     edited_json: dict | None = None
     notes: str | None = None

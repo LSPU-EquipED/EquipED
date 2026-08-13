@@ -36,6 +36,8 @@ class PreferenceLog(Base):
         ForeignKey("users.user_id", ondelete="RESTRICT"),
         nullable=False,
     )
+    agent_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    criterion_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     edited_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
