@@ -67,7 +67,7 @@ server/tests/scripts/
 **Interfaces:**
 - Produces: `GROUP_CODES: dict[str, tuple[str, ...]]` (group name -> criterion codes, fixed order), `CODE_TO_GROUP: dict[str, str]` (reverse map), `slice_for_group(group: str, text: str) -> str`, `GROUP_NAMES: tuple[str, ...]` (`("assessment_alignment", "task_execution", "document_wide")`).
 
-The three groups are chosen by **existing, already-validated text-slicing scope**, not a fresh guess: `assessment_alignment` reuses the exact head+Performance-Tasks-body slice basket A1 already uses (`extraction.slice_for_basket_a1`); `task_execution` reuses the bottom-section-only slice baskets A2 and A4 already use identically (`extraction.slice_for_basket_a2`); `document_wide` reuses the whole-document downsample baskets B1 and B2 already use identically (`extraction.slice_for_basket_b1`). No new slicing logic is invented — this task only regroups criteria that already share a validated slice function.
+The three groups are chosen by **existing, already-validated text-slicing scope**, not a fresh guess: `assessment_alignment` reuses the exact head+Performance-Tasks-body slice basket A1 already uses (`extraction.slice_for_basket_a1`); `task_execution` reuses the bottom-section-only slice baskets A2, A3, and A4 already use identically (`extraction.slice_for_basket_a2` — A3's own `slice_for_basket_a3` calls the same underlying `_slice_bottom_section(body=9000)` helper, so reusing A2's public function for A-03 too changes no behavior); `document_wide` reuses the whole-document downsample baskets B1 and B2 already use identically (`extraction.slice_for_basket_b1`). All 10 registered codes are covered across the three groups (2 + 5 + 3 = 10). No new slicing logic is invented — this task only regroups criteria that already share a validated slice function.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -102,7 +102,7 @@ def test_assessment_alignment_group_codes():
 
 
 def test_task_execution_group_codes():
-    assert groups.GROUP_CODES["task_execution"] == ("A-01", "OP-02", "OP-03", "OP-05")
+    assert groups.GROUP_CODES["task_execution"] == ("A-01", "A-03", "OP-02", "OP-03", "OP-05")
 
 
 def test_document_wide_group_codes():
@@ -154,7 +154,7 @@ from . import extraction
 
 GROUP_CODES: dict[str, tuple[str, ...]] = {
     "assessment_alignment": ("A-02", "A-05"),
-    "task_execution": ("A-01", "OP-02", "OP-03", "OP-05"),
+    "task_execution": ("A-01", "A-03", "OP-02", "OP-03", "OP-05"),
     "document_wide": ("OP-01", "OP-04", "A-04"),
 }
 
