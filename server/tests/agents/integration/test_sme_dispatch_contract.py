@@ -11,28 +11,20 @@ from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
 from server.modules.agents.supervision.context import PromptSnapshot
 from server.modules.agents.supervision.dispatch import AgentDispatcher
-from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER
+from server.tests.agents.helpers import (
+    SME_CRITERION_FALLBACKS,
+    GroupScoringFakeClient,
+    sme_group_payloads,
+)
 
 _MANAGED_PROMPT = "MANAGED SME PROMPT -- immutable dispatch contract"
-_A03_FALLBACK = {
-    "mechanisms": [
-        {
-            "id": 1,
-            "text": "Check 1",
-            "monitoring_type": "checkpoint",
-            "evidence": "quiz",
-        }
-    ]
-}
+_TITLES = {code: f"{code} title" for code in registry.REGISTERED_CODES}
 
 
-class StrictSMEClient:
+class StrictSMEClient(GroupScoringFakeClient):
+    """Grouped-scoring fake that also asserts the transport call shape."""
+
     model = "strict-sme-model"
-
-    def __init__(self, responses: list[dict[str, Any]]) -> None:
-        self.responses = iter(responses)
-        self.prompts: list[str] = []
-        self.calls = 0
 
     def generate_result(
         self,
@@ -40,29 +32,33 @@ class StrictSMEClient:
         *,
         temperature: float,
         max_new_tokens: int,
-        deadline: float | None,
-        response_contract: ResponseContract,
+        deadline: float | None = None,
+        response_contract: ResponseContract | None = None,
     ) -> CompletionResult:
         assert isinstance(temperature, float)
         assert isinstance(max_new_tokens, int)
         assert deadline is None or isinstance(deadline, float)
+        assert response_contract is not None
         assert response_contract.mode == "json_object"
-        self.prompts.append(prompt)
-        self.calls += 1
-        return CompletionResult(
-            content=json.dumps(next(self.responses)),
-            served_model=self.model,
-            prompt_tokens=10,
-            completion_tokens=20,
-            finish_reason="stop",
+        return super().generate_result(
+            prompt,
+            temperature=temperature,
+            max_new_tokens=max_new_tokens,
+            deadline=deadline,
+            response_contract=response_contract,
         )
 
 
 def test_dispatch_passes_immutable_prompt_to_grouped_and_fallback_lanes(monkeypatch):
-    responses = list(_ALL_BASKETS_IN_ORDER)
-    responses[2] = {"monitoring_mechanisms": None}  # Invalid A3 basket.
-    responses.append(_A03_FALLBACK)
-    client = StrictSMEClient(responses)
+    # ``assessment_alignment`` fails outright, so A-02 and A-05 take the
+    # retained per-criterion engine lane -- both lanes must carry the managed
+    # prompt.
+    payloads = sme_group_payloads(3, titles=_TITLES)
+    payloads["assessment_alignment"] = "{not valid json"
+    client = StrictSMEClient(
+        payloads,
+        [SME_CRITERION_FALLBACKS["A-02"], SME_CRITERION_FALLBACKS["A-05"]],
+    )
     factory_calls: list[str] = []
     dispatched_kwargs: list[dict[str, Any]] = []
 
@@ -78,9 +74,7 @@ def test_dispatch_passes_immutable_prompt_to_grouped_and_fallback_lanes(monkeypa
 
     monkeypatch.setattr(
         "server.modules.agents.sme.pipeline.get_active_rubric_criteria",
-        lambda agent_id, db=None: {
-            code: f"{code} title" for code in registry.REGISTERED_CODES
-        },
+        lambda agent_id, db=None: _TITLES,
     )
     monkeypatch.setattr(
         "server.modules.agents.supervision.dispatch.get_llm_client_for_agent", factory
@@ -107,10 +101,13 @@ def test_dispatch_passes_immutable_prompt_to_grouped_and_fallback_lanes(monkeypa
     assert factory_calls == ["sme"]
     assert len(result) == 1 and result[0].success
     assert result[0].prompt_version_id == snapshot.version_id
-    assert client.calls == 7
+    # 3 grouped calls (one of them retried once by the repair lane) + 2
+    # per-criterion fallbacks for the failed group's codes.
+    assert client.group_calls == 4
+    assert client.fallback_calls == 2
     assert all(prompt.startswith(_MANAGED_PROMPT) for prompt in client.prompts)
     assert len(dispatched_kwargs) == 1
     assert "db" not in dispatched_kwargs[0]
     assert "session" not in dispatched_kwargs[0]
     assert _MANAGED_PROMPT not in json.dumps(result[0].provenance)
-    assert result[0].provenance["criterion_fallback_calls"] == 1
+    assert result[0].provenance["criterion_fallback_calls"] == 2

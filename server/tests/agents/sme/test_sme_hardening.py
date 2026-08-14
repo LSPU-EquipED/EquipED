@@ -79,7 +79,7 @@ def test_managed_prompt_id_is_causal_and_absent_without_text(monkeypatch):
             0,
         )
 
-    monkeypatch.setattr(SME, "_run_full_engine_scoring", fake_run)
+    monkeypatch.setattr(SME, "_run_full_llm_scoring", fake_run)
     result = SME().run(
         evaluation_id=uuid.uuid4(),
         document_id=uuid.uuid4(),
