@@ -18,6 +18,14 @@ from ..exceptions import AgentExecutionError
 
 SME_TEXT_MAX = 2000
 
+_CRITERION_ITEM_KEYS = {
+    "criterion_id",
+    "criterion_title",
+    "score",
+    "justification",
+    "evidence",
+}
+
 
 def _failure(category: str, value: Any) -> AgentExecutionError:
     reference = hashlib.sha256(str(value).encode()).hexdigest()[:16]
@@ -115,7 +123,7 @@ def group_criterion_scores(
             not isinstance(item, dict)
             or item.get("criterion_id") != expected_code
             or expected_code in seen
-            or set(item) != {"criterion_id", "criterion_title", "score", "justification", "evidence"}
+            or set(item) != _CRITERION_ITEM_KEYS
         ):
             raise _failure("SMEGroupInvalidCriterion", index)
         if item.get("criterion_title") != titles.get(expected_code):

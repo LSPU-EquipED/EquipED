@@ -33,9 +33,8 @@ def _payload(score=3, **overrides):
 def test_build_schema_has_one_entry_per_code():
     schema = build_group_response_schema(CODES, TITLES)
     prefix_items = schema["properties"]["criterion_scores"]["prefixItems"]
-    assert [item["properties"]["criterion_id"]["const"] for item in prefix_items] == list(
-        CODES
-    )
+    ids = [item["properties"]["criterion_id"]["const"] for item in prefix_items]
+    assert ids == list(CODES)
     for item in prefix_items:
         assert "chunk_ids" not in item["properties"]
 
