@@ -613,9 +613,13 @@ _SCORING_RULES: dict[str, str] = {
         "content. Score: 3+ activities -> 4, 2 -> 3, 1 -> 2, 0 -> 1."
     ),
     "OP-01": (
-        "Score the percentage of topic-to-topic transitions that are "
-        "coherent (each topic logically follows the last) on the moderate "
-        "scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1."
+        "If there are fewer than 4 topic-to-topic transitions total, score "
+        "by issue count instead (a short module with 0 issues is coherent, "
+        "not deficient): 0 issues -> 4, 1 -> 3, 2 -> 2, 3+ issues -> 1. "
+        "Otherwise (4+ transitions), score the percentage of transitions "
+        "that are coherent (each topic logically follows the last) on the "
+        "moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No "
+        "topics at all -> 1."
     ),
     "OP-04": (
         "Score the percentage of sections that are clear and internally "
