@@ -45,3 +45,13 @@ def test_build_group_prompt_slices_long_text():
     )
     payload = json.loads(prompt)
     assert len(payload["document_text"]) < len(long_text)
+
+
+def test_op01_scoring_rule_includes_both_branches():
+    prompt = build_group_prompt(
+        "document_wide", ("OP-01",), {"OP-01": "Topic Coherence"}, "text"
+    )
+    payload = json.loads(prompt)
+    rule = payload["criteria"]["OP-01"]["scoring_rule"]
+    assert "issue" in rule.lower()
+    assert "moderate scale" in rule.lower()
