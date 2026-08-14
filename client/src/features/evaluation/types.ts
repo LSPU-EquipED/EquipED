@@ -112,7 +112,7 @@ export interface EvaluationResultsResponse {
 export type CriterionFeedbackAction = 'ACCEPT' | 'REJECT' | 'EDIT';
 
 export interface CriterionFeedbackRequest {
-  agent_name: 'itso';
+  agent_name: 'itso' | 'sme';
   action: CriterionFeedbackAction;
   score?: number;
   justification?: string;
