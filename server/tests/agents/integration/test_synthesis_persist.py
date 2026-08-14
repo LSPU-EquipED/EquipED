@@ -181,3 +181,68 @@ def test_persist_agent_outputs_ignores_invalid_and_missing_chunk_ids(
     assert db_session.query(EvaluationFlag).count() == 1
     flag = db_session.query(EvaluationFlag).one()
     assert flag.chunk_id == valid_chunk_id
+
+
+def test_persist_agent_outputs_stores_group_prompts(db_session) -> None:
+    owner_id = uuid4()
+    document_id = uuid4()
+    evaluation_id = uuid4()
+
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title="SLM",
+            program="BSCS",
+            source_type="slm",
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=owner_id,
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status="PROCESSED",
+        )
+    )
+    db_session.add(
+        EvaluationJob(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            syllabus_id=uuid4(),
+            curriculum_id=uuid4(),
+            status=EvaluationStatus.EVALUATING.value,
+            submitted_by=owner_id,
+        )
+    )
+    db_session.commit()
+
+    persist_agent_outputs(
+        db_session,
+        evaluation_id,
+        document_id,
+        [
+            AgentEvaluationResult(
+                agent_name="sme",
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                subtotal=3.0,
+                criterion_scores=(
+                    CriterionScore(
+                        criterion_id="A-01",
+                        criterion_title="Learner Transformation",
+                        score=3,
+                        justification="j",
+                    ),
+                ),
+                summary="",
+                model_name="test-model",
+                processing_seconds=1.0,
+                token_count=10,
+                metadata={"group_prompts": {"task_execution": "prompt text"}},
+            )
+        ],
+    )
+
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="sme")
+        .one()
+    )
+    assert result_row.group_prompts == {"task_execution": "prompt text"}
