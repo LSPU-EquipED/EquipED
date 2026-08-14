@@ -8,9 +8,10 @@ import threading
 import uuid
 
 import pytest
+from server.modules.agents.contracts import CriterionScore
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import error_reference
-from server.modules.agents.sme import registry
+from server.modules.agents.sme import pipeline, registry
 from server.modules.agents.sme.agent import SME
 from server.modules.agents.sme.pipeline import EngineScoredAgent
 
@@ -26,15 +27,27 @@ class _BarrierSME(SME):
     def _rubric_titles(self, db):
         return {code: code for code in registry.REGISTERED_CODES}
 
-    def _score_via_engine(self, client, full_text, **kwargs):
-        self.barrier.wait(timeout=5)
-        return {
-            code: (4, f"result from {client.model}", ())
-            for code in registry.REGISTERED_CODES
-        }, 0
+
+def _barrier_execute_group(group, codes, titles, client, full_text, **kwargs):
+    """Stand-in for ``grouped_execution.execute_group`` that blocks both
+    threads inside the scoring lane before either can return."""
+    _BarrierSME.barrier.wait(timeout=5)
+    return (
+        tuple(
+            CriterionScore(
+                criterion_id=code,
+                criterion_title=titles[code],
+                score=4,
+                justification=f"result from {client.model}",
+            )
+            for code in codes
+        ),
+        f"prompt for {group}",
+    )
 
 
-def test_same_sme_instance_keeps_injected_clients_isolated() -> None:
+def test_same_sme_instance_keeps_injected_clients_isolated(monkeypatch) -> None:
+    monkeypatch.setattr(pipeline, "execute_group", _barrier_execute_group)
     default = _Client("default")
     clients = [_Client("model-a"), _Client("model-b")]
     agent = _BarrierSME(llm_client=default)
@@ -118,13 +131,27 @@ def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
     assert "_load_document_text" not in source
 
     captured: list[str] = []
+
+    def capture_execute_group(group, codes, titles, client, full_text, **kwargs):
+        captured.append(full_text)
+        return (
+            tuple(
+                CriterionScore(
+                    criterion_id=code,
+                    criterion_title=titles[code],
+                    score=4,
+                    justification="ok",
+                )
+                for code in codes
+            ),
+            "prompt",
+        )
+
+    monkeypatch.setattr(pipeline, "execute_group", capture_execute_group)
     monkeypatch.setattr(
-        registry,
-        "run_grouped",
-        lambda client, text, **kwargs: (
-            captured.append(text)
-            or {code: (4, "ok", ()) for code in registry.REGISTERED_CODES}
-        ),
+        pipeline.EngineScoredAgent,
+        "_rubric_titles",
+        lambda self, db: {code: code for code in registry.REGISTERED_CODES},
     )
     agent = SME(llm_client=_Client("model"))
     result = agent.run(
@@ -135,4 +162,6 @@ def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
         canonical_source_text="EXACT CANONICAL SOURCE",
     )
     assert result.success is True
-    assert captured == ["EXACT CANONICAL SOURCE"]
+    # One entry per group, every one the canonical text (never the PDF/chunks).
+    assert set(captured) == {"EXACT CANONICAL SOURCE"}
+    assert len(captured) == 3

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -113,6 +114,196 @@ _ALL_BASKETS_IN_ORDER = [
     _BASKET_B1,
     _BASKET_B2,
 ]
+
+
+# --- SME grouped LLM-scoring fakes -------------------------------------------
+# ``SME.run()`` scores via 3 grouped direct-LLM calls (see
+# ``sme/grouped_execution.execute_group``) and only falls back to the
+# per-criterion engine lane (``registry.run_criterion``) for a group whose call
+# fails. A fake therefore has to answer BOTH prompt shapes: the grouped JSON
+# prompt, and the plain-text per-criterion extraction prompt.
+
+SME_GROUP_TITLES: dict[str, str] = {
+    "A-01": "Learner Transformation",
+    "A-02": "Varied Assessment Tools",
+    "A-03": "Progress Monitoring",
+    "A-04": "Prescriptive Feedback",
+    "A-05": "Objective Gauging",
+    "OP-01": "Topic Coherence",
+    "OP-02": "Interactivity",
+    "OP-03": "Clear Directions",
+    "OP-04": "Accurate Sections",
+    "OP-05": "Enhancement Activities",
+}
+
+# The grouped prompt is a JSON object, but the repair retry appends a plain
+# suffix to it, so it is no longer parseable as JSON -- match the group name
+# textually instead of json.loads()-ing the whole prompt.
+_SME_GROUP_RE = re.compile(r'"group":\s*"([a-z_]+)"')
+
+# Per-criterion fallback payloads, keyed by criterion code. Each one satisfies
+# that code's closed contract in ``sme/criterion_contracts.py``.
+SME_CRITERION_FALLBACKS: dict[str, dict[str, Any]] = {
+    "A-01": {
+        "tasks": [
+            {"id": 1, "text": "Task 1", "bloom_level": "apply", "evidence": "Do X."}
+        ]
+    },
+    "A-02": {
+        "assessments": [
+            {
+                "id": 1,
+                "text": "Quiz",
+                "assessment_type": "objective_test",
+                "evidence": "Q1",
+            }
+        ]
+    },
+    "A-03": {
+        "mechanisms": [
+            {
+                "id": 1,
+                "text": "Check 1",
+                "monitoring_type": "checkpoint",
+                "evidence": "quiz",
+            }
+        ]
+    },
+    "A-04": {
+        "mechanisms": [
+            {
+                "id": 1,
+                "text": "Key",
+                "feedback_type": "answer_key",
+                "evidence": "p.1",
+            }
+        ]
+    },
+    "A-05": _BASKET_A1,
+    "OP-01": {
+        "topics": [{"id": 1, "title": "T1"}, {"id": 2, "title": "T2"}],
+        "transitions": [
+            {"from_id": 1, "to_id": 2, "is_coherent": True, "reason": "ok"}
+        ],
+    },
+    "OP-02": {
+        "interactive_elements": [{"id": 1, "text": "Try it", "evidence": "Try it now"}]
+    },
+    "OP-03": {
+        "tasks": [
+            {
+                "id": 1,
+                "text": "Task 1",
+                "directions": "Do X.",
+                "has_clear_directions": True,
+                "evidence": "Do X.",
+            }
+        ]
+    },
+    "OP-04": {"sections": [{"id": 1, "title": "S1", "is_clean": True, "issue": ""}]},
+    "OP-05": {
+        "enhancement_activities": [
+            {"id": 1, "text": "Extra", "evidence": "Research more."}
+        ]
+    },
+}
+
+
+def sme_group_payloads(
+    score: int = 3, *, titles: dict[str, str] | None = None
+) -> dict[str, str]:
+    """One valid grouped-scoring JSON response per group, all criteria scored
+    ``score``."""
+    from server.modules.agents.sme import groups
+
+    titles = titles or SME_GROUP_TITLES
+    return {
+        group_name: json.dumps(
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {
+                        "criterion_id": code,
+                        "criterion_title": titles[code],
+                        "score": score,
+                        "justification": "justification",
+                        "evidence": ["evidence"],
+                    }
+                    for code in codes
+                ],
+            }
+        )
+        for group_name, codes in groups.GROUP_CODES.items()
+    }
+
+
+class GroupScoringFakeClient:
+    """Answers SME's grouped-scoring calls and its per-criterion fallbacks.
+
+    ``group_payloads`` maps a group name to the raw response body to return
+    (``None`` raises a transport error instead). ``fallback_payloads`` is an
+    ordered list consumed one entry per per-criterion fallback call (a ``None``
+    entry raises); a ``dict`` keyed by criterion code is also accepted when the
+    order is not what the test is asserting.
+    """
+
+    def __init__(
+        self,
+        group_payloads: dict[str, str | None],
+        fallback_payloads: list[dict[str, Any] | None] | None = None,
+        *,
+        model: str | None = None,
+    ) -> None:
+        self.group_payloads = dict(group_payloads)
+        self.fallback_payloads = list(fallback_payloads or [])
+        if model is not None:
+            self.model = model
+        self.prompts: list[str] = []
+        self.group_calls = 0
+        self.fallback_calls = 0
+
+    @property
+    def calls(self) -> int:
+        return self.group_calls + self.fallback_calls
+
+    def _result(self, content: str) -> CompletionResult:
+        return CompletionResult(
+            content,
+            getattr(self, "model", None) or get_llm_model_name(),
+            10,
+            20,
+            30,
+            "stop",
+            attempts=1,
+        )
+
+    def generate_result(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_new_tokens: int,
+        deadline: float | None = None,
+        response_contract: ResponseContract | None = None,
+    ) -> CompletionResult:
+        self.prompts.append(prompt)
+        match = _SME_GROUP_RE.search(prompt)
+        if match is not None:
+            self.group_calls += 1
+            content = self.group_payloads[match.group(1)]
+            if content is None:
+                raise RuntimeError("configured group transport failure")
+            return self._result(content)
+
+        self.fallback_calls += 1
+        if not self.fallback_payloads:
+            raise AssertionError(
+                f"unexpected per-criterion fallback call #{self.fallback_calls}"
+            )
+        payload = self.fallback_payloads.pop(0)
+        if payload is None:
+            raise RuntimeError("configured per-criterion fallback failure")
+        return self._result(json.dumps(payload))
 
 
 @dataclass
