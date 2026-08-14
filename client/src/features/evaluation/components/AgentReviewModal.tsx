@@ -12,7 +12,8 @@ type CriterionDraft = {
   expanded: boolean;
 };
 
-type ItsoReviewModalProps = {
+type AgentReviewModalProps = {
+  readonly agentName: 'itso' | 'sme';
   readonly evaluationId: string;
   readonly criteria: readonly CriterionScoreItem[];
   readonly onClose: () => void;
@@ -80,13 +81,19 @@ function scoreButtonClasses(value: number, selected: boolean, isEdited: boolean)
     : 'border-[#3b963e] bg-[#3b963e] text-white';
 }
 
-export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewModalProps) {
+export function AgentReviewModal({
+  agentName,
+  evaluationId,
+  criteria,
+  onClose,
+}: AgentReviewModalProps) {
   const [drafts, setDrafts] = useState<Record<string, CriterionDraft>>(() =>
     initialDrafts(criteria),
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const mutation = useSubmitCriterionFeedback(evaluationId);
+  const agentLabel = agentName === 'itso' ? 'ITSO' : 'SME';
 
   function updateDraft(criterionId: string, patch: Partial<CriterionDraft>) {
     setDrafts((prev) => ({ ...prev, [criterionId]: { ...prev[criterionId], ...patch } }));
@@ -159,7 +166,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
           if (wasRejected) return null;
           return {
             criterionId: criterion.criterion_id,
-            body: { agent_name: 'itso' as const, action: 'REJECT' as const },
+            body: { agent_name: agentName, action: 'REJECT' as const },
           };
         }
 
@@ -171,7 +178,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
           return {
             criterionId: criterion.criterion_id,
             body: {
-              agent_name: 'itso' as const,
+              agent_name: agentName,
               action: 'EDIT' as const,
               score: draft.score,
               justification: trimmedJustification,
@@ -210,7 +217,7 @@ export function ItsoReviewModal({ evaluationId, criteria, onClose }: ItsoReviewM
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-              Review ITSO Scores
+              Review {agentLabel} Scores
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
               {editedCount} of {criteria.length} edited · subtotal{' '}
