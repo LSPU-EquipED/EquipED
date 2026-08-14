@@ -12,13 +12,17 @@ from pydantic import BaseModel, Field, model_validator
 class CriterionFeedbackCreate(BaseModel):
     """Request body for POST /feedback/{evaluation_id}/criteria/{criterion_id}.
 
-    Phase 1 scope: agent_name is restricted to "itso" — the only agent
-    whose score+justification come from a single LLM generation and can
-    therefore produce a coherent DPO pair. See
-    docs/superpowers/specs/2026-08-10-dpo-itso-scoring-design.md.
+    ``agent_name`` is restricted to agents whose score+justification come
+    from a single LLM generation and can therefore produce a coherent DPO
+    pair: "itso" (one call scores all 5 criteria) and "sme" (3 grouped
+    calls score all 10 criteria -- see
+    docs/superpowers/specs/2026-08-13-sme-dpo-scoring-design.md).
+    Coordinator and GAD are not included: Coordinator's non-A-05 scores
+    are copied from SME (corrections against those belong to "sme"), and
+    GAD's score is still code-computed from extracted facts.
     """
 
-    agent_name: Literal["itso"]
+    agent_name: Literal["itso", "sme"]
     action: Literal["ACCEPT", "REJECT", "EDIT"]
     score: int | None = Field(default=None, ge=1, le=4)
     justification: str | None = Field(default=None, min_length=1, max_length=4000)
