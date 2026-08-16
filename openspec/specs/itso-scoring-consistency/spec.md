@@ -19,11 +19,18 @@ The system SHALL invoke the ITSO evaluator with an ITSO-specific temperature def
 - **AND** the system SHALL NOT represent the fallback result as having been served by the requested model alone
 
 ### Requirement: ITSO consistency is regression-tested
-ITSO SHALL validate an exact versioned criterion schema with no coercion, duplicates, unknown, empty, or incomplete criteria. It SHALL permit at most one whole-task regeneration from identical frozen context using bounded validator categories/paths.
+ITSO SHALL validate a versioned criterion schema with no coercion, duplicates, unknown envelope keys, or missing criterion ids. It SHALL permit at most one whole-task regeneration from identical frozen context using bounded validator categories/paths.
+
+Shape tolerance for small models: `criterion_scores` MAY be accepted as a dict keyed by criterion id in addition to the canonical array form; criterion titles SHALL be derived from the canonical map rather than trusted from the model; missing justification/evidence/chunk_ids SHALL default to empty. A criterion scored without justification, evidence, or chunk grounding SHALL be recorded as ungrounded advisory output and surfaced as a review flag — it SHALL NOT be indistinguishable from a grounded score.
 
 #### Scenario: Invalid judgment
-- **WHEN** output fails the exact schema
+- **WHEN** output fails the schema on an unrecoverable violation (unknown envelope key, unknown/duplicate/missing criterion id, non-integer or out-of-range score, or oversized text)
 - **THEN** one safe regeneration occurs at most, then the result fails honestly without raw-output persistence
+
+#### Scenario: Model emits shorthand or ungrounded scores
+- **WHEN** output provides `criterion_scores` as a dict, alters a criterion title, or omits justification/evidence/chunk_ids
+- **THEN** the harness SHALL normalize to the canonical ordered shape with derived titles and defaulted empty fields
+- **AND** SHALL emit per-criterion ungrounded advisory flags so the score is marked for human review rather than presented as grounded
 ### Requirement: Local citation and reference prechecks are deterministic and advisory
 The system SHALL derive stable local citation/reference precheck signals from already-authorized SLM evidence before ITSO prompt assembly. These signals SHALL inform review but SHALL NOT make plagiarism, legal, or source-validity determinations.
 

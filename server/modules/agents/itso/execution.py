@@ -27,6 +27,7 @@ from .prompt import build_prompt
 from .response import (
     ITSO_RESPONSE_SCHEMA_VERSION,
     build_response_schema,
+    collect_advisory_outputs,
     criterion_scores,
     parse_response,
 )
@@ -151,6 +152,7 @@ def execute(
             parsed = parse_response(repaired, known_chunk_ids=known_chunk_ids)
             repair_occurred = True
         scores = criterion_scores(parsed, known_chunk_ids=known_chunk_ids)
+        advisory_outputs = collect_advisory_outputs(parsed)
     provenance = thaw(context.provenance)
     policy_evidence = thaw(context.policy_evidence)
     policy_trimmed = bool(policy_evidence) and ("=== POLICY EVIDENCE ===" not in prompt)
@@ -163,6 +165,9 @@ def execute(
         "prompt_trimmed": budget.trimmed,
         "reference_context_dropped": budget.reference_context_dropped,
         "policy_trimmed": policy_trimmed,
+        "response_format_downgraded": adapter.telemetry.get(
+            "response_format_downgraded", False
+        ),
     }
     provenance.update(
         {
@@ -185,9 +190,11 @@ def execute(
         processing_seconds=time.perf_counter() - start,
         token_count=sum(len(text.split()) for text in texts),
         success=True,
+        error_message=None,
         raw_response=None,
         prompt_text=prompt,
         provenance=safe,
+        advisory_outputs=advisory_outputs,
         metadata={
             "prompt_chars": prompt_chars,
             "rubric_context_size": len(rubric),

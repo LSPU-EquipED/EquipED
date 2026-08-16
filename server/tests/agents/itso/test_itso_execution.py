@@ -11,7 +11,9 @@ from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.itso import execution
 from server.modules.agents.itso.response import (
+    ITSO_CRITERIA,
     ITSO_CRITERIA_TITLES,
+    collect_advisory_outputs,
     criterion_scores,
     parse_response,
 )
@@ -62,9 +64,7 @@ def test_itso_executes_and_preserves_provenance(monkeypatch):
 
 def test_itso_executes_and_snapshots_prompt_text(monkeypatch):
     monkeypatch.setattr(execution, "get_settings", lambda: _settings())
-    result = execution.execute(
-        _context(_LLM([_response("ok")]))
-    )
+    result = execution.execute(_context(_LLM([_response("ok")])))
     assert result.prompt_text is not None
     assert '"agent": "itso"' in result.prompt_text
     assert '"criterion_scores"' not in result.prompt_text
@@ -128,16 +128,187 @@ def test_criterion_scores_rejects_scalar_evidence_and_chunk_ids(field, value):
     assert "ITSOInvalidEvidence" in str(exc.value)
 
 
-@pytest.mark.parametrize("title", [3, {"name": "title"}, None])
-def test_criterion_scores_rejects_non_string_titles(title):
-    with pytest.raises(AgentExecutionError) as exc:
-        parse_response(_response(**{"criterion_title": title}), known_chunk_ids=("c1",))
-    assert "ITSOInvalidCriterion" in str(exc.value)
+@pytest.mark.parametrize("title", [3, {"name": "title"}, None, "Wrong Title"])
+def test_criterion_scores_derives_canonical_title_even_if_altered_or_non_string(title):
+    parsed = parse_response(
+        _response(**{"criterion_title": title}), known_chunk_ids=("c1",)
+    )
+    result = criterion_scores(parsed, known_chunk_ids=("c1",))
+    assert result[0].criterion_title == ITSO_CRITERIA_TITLES["ITSO-01"]
 
 
 def test_criterion_scores_preserves_string_title():
     result = criterion_scores(parse_response(_response(), known_chunk_ids=("c1",)))
     assert result[0].criterion_title == ITSO_CRITERIA_TITLES["ITSO-01"]
+
+
+def test_dict_format_shorthand_scores_parses_cleanly():
+    dict_payload = {
+        "summary": "ITSO evaluated",
+        "criterion_scores": {
+            "ITSO-01": 4,
+            "ITSO-02": 3,
+            "ITSO-03": 4,
+            "ITSO-04": 4,
+            "ITSO-05": 4,
+        },
+    }
+    parsed = parse_response(json.dumps(dict_payload))
+    scores = criterion_scores(parsed)
+    assert len(scores) == 5
+    assert [s.criterion_id for s in scores] == list(ITSO_CRITERIA)
+    for s in scores:
+        assert s.criterion_title == ITSO_CRITERIA_TITLES[s.criterion_id]
+        assert s.justification == ""
+        assert s.chunk_ids == ()
+        assert s.evidence == ()
+    assert [s.score for s in scores] == [4, 3, 4, 4, 4]
+
+
+def test_missing_justification_and_evidence_emits_advisory_output():
+    dict_payload = {
+        "summary": "ITSO evaluated",
+        "criterion_scores": {
+            "ITSO-01": 4,
+            "ITSO-02": 3,
+            "ITSO-03": 4,
+            "ITSO-04": 4,
+            "ITSO-05": 4,
+        },
+    }
+    parsed = parse_response(json.dumps(dict_payload))
+    advisory = collect_advisory_outputs(parsed)
+    assert advisory is not None
+    assert "ungrounded_criteria" in advisory
+    assert len(advisory["ungrounded_criteria"]) == 5
+    expected_reason = "model score provided without justification or evidence grounding"
+    for item in advisory["ungrounded_criteria"]:
+        assert item["reason"] == expected_reason
+        assert item["advisory_only"] is True
+
+
+def test_dict_format_with_grounding_does_not_emit_advisory():
+    dict_payload = {
+        "summary": "ITSO evaluated",
+        "criterion_scores": {
+            cid: {
+                "score": 3,
+                "justification": f"Grounded justification for {cid}",
+                "chunk_ids": ["c1"],
+                "evidence": [f"Evidence for {cid}"],
+            }
+            for cid in ITSO_CRITERIA
+        },
+    }
+    parsed = parse_response(json.dumps(dict_payload), known_chunk_ids=("c1",))
+    advisory = collect_advisory_outputs(parsed)
+    assert advisory is None
+
+
+def test_dict_format_rejects_invalid_score():
+    for invalid_score in (5, "four", True, False, 0):
+        dict_payload = {
+            "summary": "ITSO evaluated",
+            "criterion_scores": {
+                "ITSO-01": invalid_score,
+                "ITSO-02": 3,
+                "ITSO-03": 4,
+                "ITSO-04": 4,
+                "ITSO-05": 4,
+            },
+        }
+        with pytest.raises(AgentExecutionError):
+            parse_response(json.dumps(dict_payload))
+
+
+def test_dict_format_rejects_unknown_chunk_id():
+    dict_payload = {
+        "summary": "ITSO evaluated",
+        "criterion_scores": {
+            "ITSO-01": {
+                "score": 4,
+                "justification": "ok",
+                "chunk_ids": ["unknown_chunk"],
+            },
+            "ITSO-02": {"score": 3},
+            "ITSO-03": {"score": 4},
+            "ITSO-04": {"score": 4},
+            "ITSO-05": {"score": 4},
+        },
+    }
+    with pytest.raises(AgentExecutionError) as exc:
+        parse_response(json.dumps(dict_payload), known_chunk_ids=("c1",))
+    assert "ITSOUnknownChunk" in str(exc.value)
+
+
+def test_justification_without_evidence_or_chunks_is_flagged_ungrounded():
+    # A score with a justification but no source grounding (empty evidence and
+    # chunk_ids) must still be flagged for review, not treated as grounded.
+    raw = _response(evidence=[])
+    parsed = parse_response(raw, known_chunk_ids=("c1",))
+    advisory = collect_advisory_outputs(parsed)
+    assert advisory is not None
+    assert len(advisory["ungrounded_criteria"]) == 5
+
+
+def test_criterion_extra_field_rejected():
+    raw = _response(unexpected="value")
+    with pytest.raises(AgentExecutionError) as exc:
+        parse_response(raw, known_chunk_ids=("c1",))
+    assert "ITSOInvalidCriterion" in str(exc.value)
+
+
+class _DowngradeLLM:
+    model = "primary"
+
+    def __init__(self, responses):
+        self.responses = iter(responses)
+        self.prompts = []
+
+    def generate_result(
+        self, prompt, *, temperature, max_new_tokens, deadline, response_contract
+    ):
+        self.prompts.append(prompt)
+        return CompletionResult(
+            next(self.responses),
+            "primary",
+            10,
+            20,
+            30,
+            "stop",
+            attempts=1,
+            response_format_downgraded=True,
+        )
+
+
+def test_execution_propagates_response_format_downgraded(monkeypatch):
+    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    result = execution.execute(_context(_DowngradeLLM([_response("ok")])))
+    assert result.provenance["response_format_downgraded"] is True
+
+
+def test_execution_succeeds_on_attempt_0_for_shorthand_dict(monkeypatch):
+    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    dict_response = json.dumps(
+        {
+            "summary": "shorthand response",
+            "criterion_scores": {
+                "ITSO-01": 4,
+                "ITSO-02": 3,
+                "ITSO-03": 4,
+                "ITSO-04": 4,
+                "ITSO-05": 4,
+            },
+        }
+    )
+    client = _LLM([dict_response])
+    result = execution.execute(_context(client))
+    assert result.success is True
+    assert result.provenance["repair_occurred"] is False
+    assert len(client.prompts) == 1
+    assert result.advisory_outputs is not None
+    assert len(result.advisory_outputs["ungrounded_criteria"]) == 5
+    assert len(result.criterion_scores) == 5
 
 
 def test_repair_records_actual_model_without_fallback(monkeypatch):
