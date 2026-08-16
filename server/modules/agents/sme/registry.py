@@ -18,12 +18,13 @@ Scoped to SME only. The other agents (Coordinator/GAD/ITSO) are untouched.
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 from typing import Any
 
 from ....core.config import get_settings
 from ....core.llm import ResponseContract
-from ..runtime.llm import error_reference
+from ..runtime.llm import error_reference, parse_json_payload
 from . import (
     accurate_sections,
     clear_directions,
@@ -280,9 +281,7 @@ class _CriterionClient:
             response_contract=contract,
             **kwargs,
         )
-        import json
-
-        validate(self._code, json.loads(raw))
+        validate(self._code, parse_json_payload(raw))
         return raw
 
 
@@ -366,6 +365,21 @@ _BASKETS: tuple[tuple[str, frozenset[str], Any, Any], ...] = (
     ("B2", _BASKET_B2_CODES, extraction.extract_basket_b2, _compute_basket_b2),
 )
 
+_CODE_TO_BASKET: dict[str, tuple[str, Any]] = {
+    code: (name, compute_fn)
+    for name, codes, _, compute_fn in _BASKETS
+    for code in codes
+}
+
+_BASKET_SLICES: dict[str, Any] = {
+    "A1": extraction.slice_for_basket_a1,
+    "A2": extraction.slice_for_basket_a2,
+    "A3": extraction.slice_for_basket_a3,
+    "A4": extraction.slice_for_basket_a4,
+    "B1": extraction.slice_for_basket_b1,
+    "B2": extraction.slice_for_basket_b2,
+}
+
 
 def run_grouped(
     client: Any,
@@ -410,26 +424,18 @@ def run_grouped(
     ``sme.py._overlay_engine_scores``) -- a basket-level failure must never
     take down criteria that didn't need that basket.
     """
-    results: dict[str, tuple[int, str, tuple[str, ...]]] = {}
     budget = get_settings().sme_total_prompt_budget_chars
 
-    for name, codes, extract, compute_fn in _BASKETS:
+    def _extract_one(name: str, extract_fn: Any) -> tuple[str, dict[str, Any] | None]:
         extra_kwargs = dict((basket_extract_kwargs or {}).get(name, {}))
-        if prompt_preamble or len(text) > get_settings().sme_total_prompt_budget_chars:
+        if prompt_preamble or len(text) > budget:
             extra_kwargs["prompt_preamble"] = prompt_preamble
 
-        # Preflight the complete managed prompt before transport.  This is
+        # Preflight the complete managed prompt before transport. This is
         # intentionally a basket-local gate: other canonical windows must not
         # be shortened merely because one call cannot fit.
         if prompt_preamble:
-            content = {
-                "A1": extraction.slice_for_basket_a1,
-                "A2": extraction.slice_for_basket_a2,
-                "A3": extraction.slice_for_basket_a3,
-                "A4": extraction.slice_for_basket_a4,
-                "B1": extraction.slice_for_basket_b1,
-                "B2": extraction.slice_for_basket_b2,
-            }[name](text)
+            content = _BASKET_SLICES[name](text)
             template = getattr(extraction, f"BASKET_{name}_PROMPT")
             complete_prompt = (
                 (prompt_preamble.rstrip() + "\n\n") if prompt_preamble else ""
@@ -439,11 +445,12 @@ def run_grouped(
                     "[SME_GROUPED] basket=%s skipped: complete prompt exceeds budget",
                     name,
                 )
-                continue
+                return name, None
 
         basket: dict[str, Any] | None
         try:
-            basket = extract(client, text, **extra_kwargs)
+            basket = extract_fn(client, text, **extra_kwargs)
+            return name, basket
         except Exception as exc:
             logger.warning(
                 "[SME_GROUPED] basket=%s extraction failed: category=%s | reference=%s",
@@ -451,27 +458,40 @@ def run_grouped(
                 type(exc).__name__,
                 error_reference(exc),
             )
-            basket = None
+            return name, None
 
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [
+            executor.submit(_extract_one, name, extract)
+            for name, _, extract, _ in _BASKETS
+        ]
+        extracted_baskets = [f.result() for f in futures]
+
+    baskets: dict[str, dict[str, Any]] = {}
+    for name, basket in extracted_baskets:
+        if basket is not None:
+            baskets[name] = basket
+            if raw_baskets_out is not None:
+                raw_baskets_out[name] = basket
+
+    results: dict[str, tuple[int, str, tuple[str, ...]]] = {}
+    for code in sorted(REGISTERED_CODES):
+        name, compute_fn = _CODE_TO_BASKET[code]
+        basket = baskets.get(name)
         if basket is None:
             continue
-
-        if raw_baskets_out is not None:
-            raw_baskets_out[name] = basket
-
-        for code in codes:
-            try:
-                result = compute_fn(code, basket)
-                results[code] = _render(code, result)
-            except Exception as exc:
-                logger.warning(
-                    "[SME_GROUPED] criterion=%s failed from basket %s: category=%s | "
-                    "reference=%s",
-                    code,
-                    name,
-                    type(exc).__name__,
-                    error_reference(exc),
-                )
+        try:
+            result = compute_fn(code, basket)
+            results[code] = _render(code, result)
+        except Exception as exc:
+            logger.warning(
+                "[SME_GROUPED] criterion=%s failed from basket %s: category=%s | "
+                "reference=%s",
+                code,
+                name,
+                type(exc).__name__,
+                error_reference(exc),
+            )
 
     return results
 

@@ -69,7 +69,10 @@ class TestStrictBasketFixtures:
     def test_valid_empty_arrays_remain_valid(self) -> None:
         assert extraction._validate("A2", self._valid_a2()) == {"tasks": []}
 
-    def test_unknown_reference_rejected(self) -> None:
+    def test_unknown_objective_normalized_to_unmeasured(self) -> None:
+        # A small local model can emit rows for unknown objectives or omit
+        # objectives entirely. Validation normalizes: unknown rows are dropped
+        # and every objective gets exactly one row (missing -> unmeasured).
         payload = {
             "objectives": [{"id": 1, "text": "x"}],
             "assessments": [],
@@ -82,8 +85,15 @@ class TestStrictBasketFixtures:
                 }
             ],
         }
-        with pytest.raises(ValueError, match="alignment objective coverage"):
-            extraction._validate("A1", payload)
+        result = extraction._validate("A1", payload)
+        assert result["alignment"] == [
+            {
+                "objective_id": 1,
+                "is_measured": False,
+                "assessment_ids": [],
+                "evidence": "",
+            }
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -714,3 +724,46 @@ class TestRunGrouped:
         client = RoutingFakeClient(a1=None, a2=None, a3=None, a4=None, b1=None, b2=None)
         results = registry.run_grouped(client, "full slm text")
         assert results == {}
+
+    def test_parallel_extraction_and_deterministic_scores(self) -> None:
+        import threading
+        import time
+
+        active_threads: set[int] = set()
+        max_concurrent = 0
+        lock = threading.Lock()
+
+        class ConcurrencyTrackingClient(RoutingFakeClient):
+            def generate(self, prompt: str, **kwargs: object) -> str:
+                nonlocal max_concurrent
+                ident = threading.get_ident()
+                with lock:
+                    active_threads.add(ident)
+                    max_concurrent = max(max_concurrent, len(active_threads))
+                time.sleep(0.02)
+                try:
+                    return super().generate(prompt, **kwargs)
+                finally:
+                    with lock:
+                        active_threads.remove(ident)
+
+        baskets = self._all_baskets()
+        client = ConcurrencyTrackingClient(**baskets)
+        raw_baskets1: dict[str, dict] = {}
+        results1 = registry.run_grouped(
+            client, "full slm text", raw_baskets_out=raw_baskets1
+        )
+
+        assert max_concurrent >= 2
+        assert len(results1) == 10
+
+        client2 = RoutingFakeClient(**baskets)
+        raw_baskets2: dict[str, dict] = {}
+        results2 = registry.run_grouped(
+            client2, "full slm text", raw_baskets_out=raw_baskets2
+        )
+
+        assert results1 == results2
+        assert list(results1.keys()) == sorted(registry.REGISTERED_CODES)
+        assert list(results2.keys()) == sorted(registry.REGISTERED_CODES)
+        assert raw_baskets1 == raw_baskets2

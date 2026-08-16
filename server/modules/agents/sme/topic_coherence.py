@@ -31,10 +31,10 @@ thin ``evaluate`` wrapper the CLI uses to run it standalone.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import ratio_band
 from .slicing import GAP_MARKER, downsample
 
@@ -176,7 +176,7 @@ def evaluate(client: Any, text: str) -> CoherenceResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1800,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(
         topics=list(data.get("topics", [])),
         transitions=list(data.get("transitions", [])),

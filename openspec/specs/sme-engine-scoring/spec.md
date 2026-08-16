@@ -166,6 +166,14 @@ An SME basket with provider `finish_reason=length` SHALL be invalid. Contractual
 ### Requirement: SME fact extraction is deterministic and basketed
 SME SHALL use strict non-coercing agent-local schemas for grouped and per-criterion responses. Missing, wrong, duplicate, unknown, or invalid-reference fields SHALL invalidate an atomic basket; valid empty arrays remain valid findings. Existing bounded per-criterion fallback SHALL be used without an SME repair call, and failed criteria SHALL fail honestly rather than receive invented scores.
 
+Prompt-sanctioned empty string fields (`evidence`, `directions`, `reason`, `issue`) MAY be defaulted to `""` when a model omits them; A1 alignment MAY be normalized (dedupe rows by objective, drop unknown objective references, fill missing objectives as unmeasured, and demote measured rows lacking a valid assessment or evidence). Unknown fields, type coercion, duplicate ids, and invalid cross-references SHALL remain invalid.
+
+#### Scenario: Small model omits emptyable fields or emits inconsistent alignment
+- **WHEN** a basket omits a prompt-sanctioned empty string field or emits A1 alignment rows that duplicate, reference unknown objectives, or claim measurement without evidence
+- **THEN** the harness SHALL normalize the output to the canonical shape (default empty fields, dedupe/fill/demote alignment) rather than invalidate the atomic basket
+- **AND** unknown fields, non-coercible types, and duplicate ids SHALL still invalidate the basket
+- **AND** a missing alignment row SHALL be scored as `is_measured=false`, a penalty charged to the objective's coverage, documented as the intentional semantic for unmeasured objectives
+
 #### Scenario: Empty object is rejected
 - **WHEN** a basket returns `{}`
 - **THEN** it is schema-invalid and uses the existing bounded fallback rather than becoming a low score
