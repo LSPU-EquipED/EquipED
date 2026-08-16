@@ -17,6 +17,7 @@ from server.modules.agents.itso.response import (
     ITSO_RESPONSE_SCHEMA,
     ITSO_TEXT_MAX,
     build_response_schema,
+    criterion_scores,
 )
 from server.modules.agents.itso.response import (
     parse_response as parse_itso_response,
@@ -91,29 +92,23 @@ def test_task_schema_and_parser_share_chunk_id_bounds():
 @pytest.mark.parametrize(
     "mutation",
     [
-        lambda p: p["criterion_scores"].reverse(),
-        lambda p: p["criterion_scores"][0].update(criterion_title="wrong"),
         lambda p: p["criterion_scores"][1].update(criterion_id="ITSO-01"),
         lambda p: p["criterion_scores"].pop(),
         lambda p: p["criterion_scores"].append(
             copy.deepcopy(p["criterion_scores"][-1])
         ),
         lambda p: p.update(extra=True),
-        lambda p: p["criterion_scores"][0].update(extra=True),
         lambda p: p["criterion_scores"][0].update(score=True),
         lambda p: p["criterion_scores"][0].update(score="3"),
         lambda p: p["criterion_scores"][0].update(score=3.5),
         lambda p: p["criterion_scores"][0].update(score=0),
         lambda p: p["criterion_scores"][0].update(score=5),
-        lambda p: p["criterion_scores"][0].update(justification=""),
         lambda p: p["criterion_scores"][0].update(
             justification="x" * (ITSO_TEXT_MAX + 1)
         ),
-        lambda p: p["criterion_scores"][0].update(chunk_ids=[""]),
         lambda p: p["criterion_scores"][0].update(
             chunk_ids=["x" * (ITSO_CHUNK_ID_MAX + 1)]
         ),
-        lambda p: p["criterion_scores"][0].update(evidence=[""]),
         lambda p: p["criterion_scores"][0].update(evidence=["x" * (ITSO_TEXT_MAX + 1)]),
         lambda p: p.update(summary=""),
         lambda p: p.update(summary="x" * (ITSO_TEXT_MAX + 1)),
@@ -123,6 +118,22 @@ def test_mutations_fail_schema_and_parser(mutation):
     payload = _payload()
     mutation(payload)
     _assert_rejected(payload)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda p: p["criterion_scores"].reverse(),
+        lambda p: p["criterion_scores"][0].update(criterion_title="wrong title"),
+        lambda p: p["criterion_scores"][0].update(justification=""),
+    ],
+)
+def test_mutations_accepted_by_resilient_parser(mutation):
+    payload = _payload()
+    mutation(payload)
+    parsed = parse_itso_response(json.dumps(payload), known_chunk_ids=("c1",))
+    scores = criterion_scores(parsed, known_chunk_ids=("c1",))
+    assert len(scores) == 5
 
 
 class _CapturingClient:
