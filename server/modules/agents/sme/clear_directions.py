@@ -22,10 +22,10 @@ Shape mirrors interactivity.py / objective_alignment.py: a pure ``compute`` (fac
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import ratio_band
 
 # The SLM template's fixed section headers where tasks/activities (and thus their
@@ -157,7 +157,7 @@ def evaluate(client: Any, text: str) -> DirectionsResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1500,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(list(data.get("tasks", [])))
 
 

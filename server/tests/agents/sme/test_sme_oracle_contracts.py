@@ -10,7 +10,10 @@ import pytest
 from server.core.config import get_settings
 from server.core.llm import ResponseContract
 from server.modules.agents.sme import extraction, registry
-from server.modules.agents.sme.criterion_contracts import RESPONSE_SCHEMAS
+from server.modules.agents.sme.criterion_contracts import (
+    RESPONSE_SCHEMAS,
+    validate,
+)
 from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER
 
 SME_EXTRACTION_PROMPT = import_module(
@@ -281,3 +284,104 @@ def test_per_criterion_contract_rejects_mutations(code, mutation):
     with pytest.raises((ValueError, TypeError)):
         registry.run_criterion(code, client, "canonical text")
     assert len(client.calls) == 1
+
+
+def test_validate_a05_normalizes_alignment_rows_without_raising() -> None:
+    payload = {
+        "objectives": [
+            {"id": 1, "text": "Obj 1"},
+            {"id": 2, "text": "Obj 2"},
+            {"id": 3, "text": "Obj 3"},
+        ],
+        "assessments": [
+            {
+                "id": 10,
+                "text": "Quiz",
+                "assessment_type": "objective_test",
+                "evidence": "Evidence",
+            }
+        ],
+        "alignment": [
+            # duplicate for obj 1 (first wins)
+            {
+                "objective_id": 1,
+                "is_measured": True,
+                "assessment_ids": [10, 10, 999],
+                "evidence": "Ev 1",
+            },
+            {
+                "objective_id": 1,
+                "is_measured": False,
+                "assessment_ids": [],
+                "evidence": "",
+            },
+            # obj 2 is missing from alignment list -> should be filled as unmeasured
+            # unknown obj 99 -> should be dropped
+            {
+                "objective_id": 99,
+                "is_measured": True,
+                "assessment_ids": [10],
+                "evidence": "Ev 99",
+            },
+            # obj 3 claims measured but empty assessment_ids/evidence ->
+            # demoted to unmeasured
+            {
+                "objective_id": 3,
+                "is_measured": True,
+                "assessment_ids": [999],
+                "evidence": "",
+            },
+        ],
+    }
+    validated = validate("A-05", payload)
+    assert len(validated["alignment"]) == 3
+    assert [row["objective_id"] for row in validated["alignment"]] == [1, 2, 3]
+
+    # Obj 1: kept first row, deduplicated and filtered valid assessments
+    assert validated["alignment"][0] == {
+        "objective_id": 1,
+        "is_measured": True,
+        "assessment_ids": [10],
+        "evidence": "Ev 1",
+    }
+    # Obj 2: filled missing
+    assert validated["alignment"][1] == {
+        "objective_id": 2,
+        "is_measured": False,
+        "assessment_ids": [],
+        "evidence": "",
+    }
+    # Obj 3: demoted because invalid assessment id / empty evidence
+    assert validated["alignment"][2] == {
+        "objective_id": 3,
+        "is_measured": False,
+        "assessment_ids": [],
+        "evidence": "",
+    }
+
+
+def test_validate_defaults_emptyable_fields() -> None:
+    # A-01 without evidence
+    a01 = {"tasks": [{"id": 1, "text": "Task", "bloom_level": "apply"}]}
+    val_a01 = validate("A-01", a01)
+    assert val_a01["tasks"][0]["evidence"] == ""
+
+    # OP-03 without directions / evidence
+    op03 = {"tasks": [{"id": 1, "text": "Task", "has_clear_directions": True}]}
+    val_op03 = validate("OP-03", op03)
+    assert val_op03["tasks"][0]["directions"] == ""
+    assert val_op03["tasks"][0]["evidence"] == ""
+
+    # OP-01 without reason
+    op01 = {
+        "topics": [{"id": 1, "title": "Topic"}],
+        "transitions": [{"from_id": 1, "to_id": 1, "is_coherent": True}],
+    }
+    val_op01 = validate("OP-01", op01)
+    assert val_op01["transitions"][0]["reason"] == ""
+
+    # OP-04 without issue
+    op04 = {"sections": [{"id": 1, "title": "Sec", "is_clean": True}]}
+    val_op04 = validate("OP-04", op04)
+    assert val_op04["sections"][0]["issue"] == ""
+

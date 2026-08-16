@@ -44,10 +44,10 @@ thin ``evaluate`` wrapper the CLI uses to run it standalone.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import ratio_band
 
 # Bloom's cognitive levels that count as "transformation" -- the student must
@@ -232,7 +232,7 @@ def evaluate(client: Any, text: str) -> TransformationResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1500,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(list(data.get("tasks", [])))
 
 
