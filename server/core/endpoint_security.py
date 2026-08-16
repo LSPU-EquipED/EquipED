@@ -7,7 +7,10 @@ import socket
 from urllib.parse import urlparse
 
 
-def is_private_endpoint(url: str) -> tuple[bool, str]:
+def is_private_endpoint(
+    url: str,
+    allowed_hosts: tuple[str, ...] | set[str] | frozenset[str] | None = None,
+) -> tuple[bool, str]:
     try:
         p = urlparse(url)
         if p.scheme not in {"http", "https"}:
@@ -21,6 +24,8 @@ def is_private_endpoint(url: str) -> tuple[bool, str]:
         host = p.hostname
         if not host:
             return False, "missing hostname"
+        if allowed_hosts and host.lower() in {h.lower() for h in allowed_hosts}:
+            return True, ""
         if host.lower() in {
             "localhost",
             "localhost.localdomain",

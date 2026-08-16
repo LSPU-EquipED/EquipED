@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import threading
 from typing import Any
 
 from server.core.config import get_settings
-from server.core.llm import CompletionResult, ResponseContract, get_llm_client
+from server.core.llm import (
+    CompletionResult,
+    ResponseContract,
+    get_llm_client,
+    parse_json_payload,
+)
 
 from ..exceptions import AgentLLMError
 
@@ -73,6 +79,7 @@ class RunLLMClient:
         self.actual_model = self.requested_model
         self.fallback_occurred = False
         self.default_response_contract = default_response_contract
+        self._lock = threading.Lock()
         self.telemetry = {
             "call_count": 0,
             "attempt_count": 0,
@@ -87,6 +94,7 @@ class RunLLMClient:
             "finish_reason_counts": {},
             "grouped_calls": 0,
             "fallback_calls": 0,
+            "response_format_downgraded": False,
         }
 
     @property
@@ -94,29 +102,34 @@ class RunLLMClient:
         return self.actual_model
 
     def _record_result(self, result: CompletionResult) -> CompletionResult:
-        self.actual_model = str(result.served_model)[:128]
-        self.telemetry["attempt_count"] += min(max(result.attempts, 0), 32)
-        self.telemetry["wall_seconds"] += min(
-            max(result.wall_seconds or 0.0, 0.0), 3600.0
-        )
-        self.telemetry["provider_seconds"] += min(
-            max(result.provider_seconds or 0.0, 0.0), 3600.0
-        )
-        self.telemetry["requested_max_tokens"] += min(
-            max(result.requested_max_tokens or 0, 0), 10_000_000
-        )
-        if result.finish_reason:
-            counts = self.telemetry["finish_reason_counts"]
-            key = str(result.finish_reason)[:32]
-            counts[key] = min(counts.get(key, 0) + 1, 1000)
-        if result.total_tokens is not None:
-            self.telemetry["usage_available"] = True
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-                value = getattr(result, key)
-                if value is not None:
-                    self.telemetry[key] += min(max(value, 0), 10_000_000)
-        if result.finish_reason == "length" or result.output_cap_hit:
-            self.telemetry["cap_hit_count"] += 1
+        with self._lock:
+            self.actual_model = str(result.served_model)[:128]
+            self.telemetry["attempt_count"] += min(max(result.attempts, 0), 32)
+            self.telemetry["wall_seconds"] += min(
+                max(result.wall_seconds or 0.0, 0.0), 3600.0
+            )
+            self.telemetry["provider_seconds"] += min(
+                max(result.provider_seconds or 0.0, 0.0), 3600.0
+            )
+            self.telemetry["requested_max_tokens"] += min(
+                max(result.requested_max_tokens or 0, 0), 10_000_000
+            )
+            if result.finish_reason:
+                counts = self.telemetry["finish_reason_counts"]
+                key = str(result.finish_reason)[:32]
+                counts[key] = min(counts.get(key, 0) + 1, 1000)
+            if result.total_tokens is not None:
+                self.telemetry["usage_available"] = True
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                    value = getattr(result, key)
+                    if value is not None:
+                        self.telemetry[key] += min(max(value, 0), 10_000_000)
+            if result.response_format_downgraded:
+                self.telemetry["response_format_downgraded"] = True
+            truncated = result.finish_reason == "length" or result.output_cap_hit
+            if truncated:
+                self.telemetry["cap_hit_count"] += 1
+        if truncated:
             raise AgentLLMError("LLM output was truncated")
         return result
 
@@ -129,7 +142,8 @@ class RunLLMClient:
         deadline: float | None = None,
         response_contract: ResponseContract | None = None,
     ) -> CompletionResult:
-        self.telemetry["call_count"] += 1
+        with self._lock:
+            self.telemetry["call_count"] += 1
         response_contract = response_contract or self.default_response_contract
         try:
             if hasattr(self.primary_client, "generate_result"):
@@ -185,3 +199,6 @@ class RunLLMClient:
             deadline=deadline,
             response_contract=response_contract,
         ).content
+
+
+__all__ = ["call_llm", "RunLLMClient", "error_reference", "parse_json_payload"]
