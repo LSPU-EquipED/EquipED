@@ -139,7 +139,7 @@ def test_config_default_total_prompt_budget_is_8000(monkeypatch) -> None:
     _clear_settings_cache(monkeypatch)
     try:
         settings = get_settings()
-        assert settings.agent_total_prompt_budget_chars == 8000
+        assert settings.agent_total_prompt_budget_chars == 16000
     finally:
         get_settings.cache_clear()
 

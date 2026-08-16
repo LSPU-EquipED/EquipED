@@ -347,7 +347,7 @@ def create_app() -> FastAPI:
                     is_evaluation_admission_schema_ready,
                 )
 
-                schema_ok = is_evaluation_admission_schema_ready(get_session_factory)
+                schema_ok = is_evaluation_admission_schema_ready(get_session_factory())
             except Exception:
                 schema_ok = False
             checks["evaluation_admission"] = {
