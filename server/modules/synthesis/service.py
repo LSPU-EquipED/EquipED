@@ -122,6 +122,7 @@ def persist_agent_outputs(
         db.add(result_row)
         db.flush()
 
+        criterion_score_map: dict[str, CriterionScore] = {}
         for score in agent_result.criterion_scores:
             valid_chunk_ids = _validated_chunk_ids(score.chunk_ids, owned_chunks)
             score_row = CriterionScore(
@@ -141,6 +142,7 @@ def persist_agent_outputs(
             )
             db.add(score_row)
             db.flush()
+            criterion_score_map[score.criterion_id] = score_row
 
             if score.score <= 2:
                 for chunk_id in valid_chunk_ids:
@@ -155,6 +157,64 @@ def persist_agent_outputs(
                         reason=score.justification,
                     )
                     db.add(flag_row)
+
+        advisory = agent_result.advisory_outputs or {}
+        ungrounded = (
+            advisory.get("ungrounded_criteria")
+            if isinstance(advisory, dict)
+            else None
+        )
+        if isinstance(ungrounded, list):
+            for item in ungrounded:
+                if isinstance(item, dict):
+                    crit_id = item.get("criterion_id")
+                    item_score = item.get("score")
+                elif isinstance(item, str):
+                    crit_id = item
+                    item_score = None
+                else:
+                    continue
+                if not crit_id:
+                    continue
+
+                score_row = criterion_score_map.get(crit_id)
+                if score_row is not None:
+                    crit_score_id = score_row.criterion_score_id
+                    score_val = (
+                        item_score
+                        if isinstance(item_score, int)
+                        else score_row.score
+                    )
+                else:
+                    score_val = item_score if isinstance(item_score, int) else 0
+                    score_row = CriterionScore(
+                        agent_result_id=result_row.agent_result_id,
+                        evaluation_id=evaluation_id,
+                        document_id=document_id,
+                        criterion_id=str(crit_id),
+                        criterion_title=str(crit_id),
+                        score=score_val,
+                        justification="Ungrounded score advisory",
+                    )
+                    db.add(score_row)
+                    db.flush()
+                    crit_score_id = score_row.criterion_score_id
+                    criterion_score_map[crit_id] = score_row
+
+                flag_row = EvaluationFlag(
+                    evaluation_id=evaluation_id,
+                    document_id=document_id,
+                    agent_result_id=result_row.agent_result_id,
+                    criterion_score_id=crit_score_id,
+                    chunk_id=None,
+                    criterion_id=str(crit_id),
+                    score=score_val,
+                    reason=(
+                        f"Model score for {crit_id} provided without grounded "
+                        "evidence — human review required"
+                    ),
+                )
+                db.add(flag_row)
 
     if verify_ownership is not None:
         verify_ownership(db)

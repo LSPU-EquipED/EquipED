@@ -180,3 +180,92 @@ def test_accept_action_does_not_surface_as_reviewer_correction(db_session, seede
 
     by_id = {c.criterion_id: c for c in result.domain_scores["itso"].criteria}
     assert by_id["itso-01"].reviewer_correction is None
+
+
+def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
+    db_session, seeded_user
+):
+    from server.modules.agents.contracts import AgentEvaluationResult
+    from server.modules.agents.contracts import CriterionScore as AgentCriterionScore
+    from server.modules.synthesis.models import EvaluationFlag
+    from server.modules.synthesis.service import persist_agent_outputs
+
+    document_id = uuid4()
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title="test_doc",
+            program="BSCS",
+            source_type="slm",
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=datetime.now(UTC),
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status="PROCESSED",
+        )
+    )
+    db_session.flush()
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=document_id,
+        submitted_by=seeded_user.user_id,
+        status="EVALUATING",
+    )
+    db_session.add(job)
+    db_session.flush()
+
+    agent_result = AgentEvaluationResult(
+        agent_name="sme",
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        subtotal=3.0,
+        criterion_scores=(
+            AgentCriterionScore("SME-01", "Alignment", 3, "Partially aligned", ()),
+            AgentCriterionScore("SME-02", "Depth", 4, "Deeply covered", ()),
+        ),
+        summary="Evaluation complete",
+        model_name="test-model",
+        processing_seconds=1.2,
+        token_count=100,
+        advisory_outputs={
+            "ungrounded_criteria": [
+                {"criterion_id": "SME-01", "score": 3},
+            ]
+        },
+    )
+
+    persist_agent_outputs(
+        db_session,
+        job.evaluation_id,
+        document_id,
+        [agent_result],
+    )
+
+    flags = (
+        db_session.query(EvaluationFlag)
+        .filter(EvaluationFlag.evaluation_id == job.evaluation_id)
+        .all()
+    )
+    assert len(flags) == 1
+    flag = flags[0]
+    assert flag.criterion_id == "SME-01"
+    assert flag.score == 3
+    assert flag.reason == (
+        "Model score for SME-01 provided without grounded evidence — human "
+        "review required"
+    )
+    assert flag.chunk_id is None
+    assert flag.document_id == document_id
+
+    # Test via get_evaluation_results as well
+    job.status = "COMPLETED"
+    db_session.commit()
+    results = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+    assert len(results.flags) == 1
+    assert results.flags[0].criterion_id == "SME-01"
+    assert results.flags[0].justification == (
+        "Model score for SME-01 provided without grounded evidence — human "
+        "review required"
+    )
+
