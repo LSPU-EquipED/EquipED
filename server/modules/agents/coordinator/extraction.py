@@ -9,7 +9,7 @@ from typing import Any
 from server.core.config import get_settings
 from server.core.llm import ResponseContract
 
-from ..runtime.llm import RunLLMClient
+from ..runtime.llm import RunLLMClient, parse_json_payload
 
 _SCHEMA = {
     "type": "object",
@@ -89,8 +89,8 @@ serve as an alignment target, or be quoted as curriculum evidence.
         response_contract=contract,
     )
     try:
-        data = json.loads(result.content)
-    except (TypeError, json.JSONDecodeError) as exc:
+        data = parse_json_payload(result.content)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
         raise ValueError("invalid Coordinator extraction JSON") from exc
     if not isinstance(data, dict) or set(data) != {
         "objectives",

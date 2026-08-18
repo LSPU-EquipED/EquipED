@@ -73,6 +73,11 @@ class Settings:
     llm_model_name: str = "equiped-gemma3-4b-qat-q4"
     llm_api_base: str | None = None
     llm_api_key: str | None = None
+    # Dev-only hostname allowlist for the LLM endpoint locality guard. When a
+    # hostname matches, the private-network check is bypassed — for self-hosted
+    # models reached through a tunnel (e.g. Cloudflare) during local testing.
+    # MUST remain empty in production (data residency).
+    llm_allowed_endpoints: tuple[str, ...] = ()
     llm_temperature: float = 0.2
     llm_temperature_itso: float = 0.0
     # Default raised from 2048 to 4096 to give larger SLM evaluation outputs
@@ -130,7 +135,7 @@ class Settings:
     # exceeding remote provider request limits.
     #
     # Keep the assembled request bounded for provider-neutral local operation.
-    agent_total_prompt_budget_chars: int = 8000
+    agent_total_prompt_budget_chars: int = 16000
     sme_total_prompt_budget_chars: int = 15000
 
     # When enabled, ITSO prompt receives bounded policy clause evidence
@@ -292,10 +297,10 @@ def get_settings() -> Settings:
     if parsed_agent_small_doc_threshold < 1:
         raise ConfigurationError("AGENT_SMALL_DOC_THRESHOLD must be at least 1")
 
-    agent_total_prompt_budget_chars = _env("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "8000")
+    agent_total_prompt_budget_chars = _env("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "16000")
     try:
         parsed_agent_total_prompt_budget_chars = int(
-            agent_total_prompt_budget_chars or "8000"
+            agent_total_prompt_budget_chars or "16000"
         )
     except ValueError as exc:
         raise ConfigurationError(
@@ -469,6 +474,7 @@ def get_settings() -> Settings:
         or "equiped-gemma3-4b-qat-q4",
         llm_api_base=_env("LLM_API_BASE"),
         llm_api_key=_env("LLM_API_KEY"),
+        llm_allowed_endpoints=_csv_env("LLM_ALLOWED_ENDPOINTS"),
         llm_temperature=parsed_llm_temperature,
         llm_temperature_itso=parsed_llm_temperature_itso,
         llm_max_new_tokens=parsed_llm_max_new_tokens,

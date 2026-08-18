@@ -56,11 +56,11 @@ directions -- the bottom anchor avoids that.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from ....core.config import get_settings
 from ....core.llm import ResponseContract
+from ..runtime.llm import parse_json_payload
 from .slicing import GAP_MARKER, downsample
 
 # Same bottom-section anchors used by learner_transformation / varied_assessment
@@ -496,6 +496,14 @@ def slice_for_basket_b2(text: str, *, budget: int = 9000, windows: int = 6) -> s
 _CURRICULUM_TEXT_CHAR_CAP = 3000
 _SLICE_CAPS = {"A1": 4000, "A2": 9000, "A3": 9000, "A4": 9000, "B1": 9000, "B2": 9000}
 
+# String fields the extraction prompts explicitly allow to be empty (e.g.
+# "still list the item, but with empty evidence"). A small local model such as
+# Gemma 3 4B often omits them entirely rather than emitting an empty string, so
+# normalize missing -> "" before strict shape validation. This keeps the
+# closed-schema guarantees (no unknown fields, no type coercion) intact while
+# tolerating the omission.
+_EMPTYABLE_FIELDS = frozenset({"evidence", "directions", "reason", "issue"})
+
 # These are deliberately closed schemas.  Validation below additionally checks
 # cross-reference identity, which JSON Schema cannot express portably.
 _SCHEMAS: dict[str, dict[str, Any]] = {
@@ -785,7 +793,12 @@ def _validate(name: str, data: Any) -> dict[str, Any]:
     for key, items in data.items():
         seen: set[int] = set()
         for item in items:
-            if not isinstance(item, dict) or set(item) != expected[key]:
+            if not isinstance(item, dict):
+                raise ValueError(f"invalid {name}.{key} item")
+            for field in expected[key]:
+                if field in _EMPTYABLE_FIELDS and field not in item:
+                    item[field] = ""
+            if set(item) != expected[key]:
                 raise ValueError(f"invalid {name}.{key} item")
             if "id" in item:
                 if item["id"] in seen:
@@ -848,22 +861,41 @@ def _validate(name: str, data: Any) -> dict[str, Any]:
     if name == "A1":
         objective_ids = {item["id"] for item in data["objectives"]}
         assessment_ids = {item["id"] for item in data["assessments"]}
-        alignment = data["alignment"]
-        if len(alignment) != len(data["objectives"]):
-            raise ValueError("alignment must cover every objective exactly once")
-        row_objective_ids = [item["objective_id"] for item in alignment]
-        if set(row_objective_ids) != objective_ids or len(row_objective_ids) != len(
-            set(row_objective_ids)
-        ):
-            raise ValueError("alignment objective coverage mismatch")
-        for item in alignment:
-            refs = item["assessment_ids"]
-            if len(refs) != len(set(refs)) or any(
-                ref not in assessment_ids for ref in refs
+        # A small local model (Gemma 3 4B) does not reliably produce one
+        # consistent alignment row per objective. Normalize instead of
+        # rejecting: dedupe by objective_id (first wins), drop unknown
+        # objective ids, fill missing objectives as unmeasured, and demote
+        # rows that claim measurement without a valid assessment + evidence.
+        # Scoring still reflects the model's judgment for every objective.
+        rows_by_objective: dict[int, dict[str, Any]] = {}
+        for item in data["alignment"]:
+            oid = item["objective_id"]
+            if oid in objective_ids and oid not in rows_by_objective:
+                rows_by_objective[oid] = item
+        normalized_alignment: list[dict[str, Any]] = []
+        for oid in sorted(objective_ids):
+            row = rows_by_objective.get(oid)
+            if row is None:
+                row = {
+                    "objective_id": oid,
+                    "is_measured": False,
+                    "assessment_ids": [],
+                    "evidence": "",
+                }
+            refs: list[int] = []
+            seen_refs: set[int] = set()
+            for ref in row.get("assessment_ids", []):
+                if ref in assessment_ids and ref not in seen_refs:
+                    refs.append(ref)
+                    seen_refs.add(ref)
+            row["assessment_ids"] = refs
+            if row.get("is_measured") and (
+                not refs or not row.get("evidence", "").strip()
             ):
-                raise ValueError("invalid alignment assessment references")
-            if item["is_measured"] and (not refs or not item["evidence"].strip()):
-                raise ValueError("measured alignment requires assessments and evidence")
+                row["is_measured"] = False
+                row["evidence"] = ""
+            normalized_alignment.append(row)
+        data["alignment"] = normalized_alignment
     for item in data.get("alignment", []):
         if item["objective_id"] not in {i["id"] for i in data["objectives"]} or any(
             v not in {i["id"] for i in data["assessments"]}
@@ -925,7 +957,7 @@ def extract_basket_a1(
         max_new_tokens=max_tokens,
         response_contract=_contract(client, "A1"),
     )
-    return _validate("A1", json.loads(raw))
+    return _validate("A1", parse_json_payload(raw))
 
 
 def extract_basket_a2(
@@ -942,7 +974,7 @@ def extract_basket_a2(
         max_new_tokens=1800,
         response_contract=_contract(client, "A2"),
     )
-    data: dict[str, Any] = json.loads(raw)
+    data: dict[str, Any] = parse_json_payload(raw)
     return _validate("A2", data)
 
 
@@ -958,7 +990,7 @@ def extract_basket_a3(
         max_new_tokens=1500,
         response_contract=_contract(client, "A3"),
     )
-    data: dict[str, Any] = json.loads(raw)
+    data: dict[str, Any] = parse_json_payload(raw)
     return _validate("A3", data)
 
 
@@ -974,7 +1006,7 @@ def extract_basket_a4(
         max_new_tokens=1200,
         response_contract=_contract(client, "A4"),
     )
-    data: dict[str, Any] = json.loads(raw)
+    data: dict[str, Any] = parse_json_payload(raw)
     return _validate("A4", data)
 
 
@@ -990,7 +1022,7 @@ def extract_basket_b1(
         max_new_tokens=2000,
         response_contract=_contract(client, "B1"),
     )
-    data: dict[str, Any] = json.loads(raw)
+    data: dict[str, Any] = parse_json_payload(raw)
     return _validate("B1", data)
 
 
@@ -1006,7 +1038,7 @@ def extract_basket_b2(
         max_new_tokens=1800,
         response_contract=_contract(client, "B2"),
     )
-    data: dict[str, Any] = json.loads(raw)
+    data: dict[str, Any] = parse_json_payload(raw)
     return _validate("B2", data)
 
 

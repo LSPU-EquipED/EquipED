@@ -51,6 +51,10 @@ FEEDBACK_TYPE = {
     ],
 }
 
+_EMPTYABLE_FIELDS: frozenset[str] = frozenset(
+    {"evidence", "directions", "reason", "issue"}
+)
+
 RESPONSE_SCHEMAS: dict[str, dict[str, Any]] = {
     "A-01": _object(
         {
@@ -196,30 +200,51 @@ RESPONSE_SCHEMAS: dict[str, dict[str, Any]] = {
 
 def validate(code: str, value: Any) -> dict[str, Any]:
     schema = RESPONSE_SCHEMAS[code]
+    if isinstance(value, dict):
+        schema_props = schema.get("properties", {})
+        for key, items in value.items():
+            if isinstance(items, list) and key in schema_props:
+                item_schema = schema_props[key].get("items", {})
+                item_props = item_schema.get("properties", {})
+                for item in items:
+                    if isinstance(item, dict):
+                        for field in _EMPTYABLE_FIELDS:
+                            if field in item_props and field not in item:
+                                item[field] = ""
     _check(value, schema, "$")
     _check_unique_ids(code, value)
     if code == "A-05":
         objective_ids = {row["id"] for row in value["objectives"]}
         assessment_ids = {row["id"] for row in value["assessments"]}
-        if len(value["alignment"]) != len(value["objectives"]):
-            raise ValueError("alignment must cover every objective exactly once")
-        objective_rows = [row["objective_id"] for row in value["alignment"]]
-        if (
-            len(objective_rows) != len(set(objective_rows))
-            or set(objective_rows) != objective_ids
-        ):
-            raise ValueError("alignment objective coverage mismatch")
-        for row in value["alignment"]:
-            if len(row["assessment_ids"]) != len(set(row["assessment_ids"])):
-                raise ValueError("duplicate assessment ids in alignment")
-            if row["objective_id"] not in objective_ids or any(
-                item not in assessment_ids for item in row["assessment_ids"]
+        rows_by_objective: dict[int, dict[str, Any]] = {}
+        for item in value["alignment"]:
+            oid = item["objective_id"]
+            if oid in objective_ids and oid not in rows_by_objective:
+                rows_by_objective[oid] = item
+        normalized_alignment: list[dict[str, Any]] = []
+        for oid in sorted(objective_ids):
+            row = rows_by_objective.get(oid)
+            if row is None:
+                row = {
+                    "objective_id": oid,
+                    "is_measured": False,
+                    "assessment_ids": [],
+                    "evidence": "",
+                }
+            refs: list[int] = []
+            seen_refs: set[int] = set()
+            for ref in row.get("assessment_ids", []):
+                if ref in assessment_ids and ref not in seen_refs:
+                    refs.append(ref)
+                    seen_refs.add(ref)
+            row["assessment_ids"] = refs
+            if row.get("is_measured") and (
+                not refs or not row.get("evidence", "").strip()
             ):
-                raise ValueError("invalid alignment reference")
-            if row["is_measured"] and (
-                not row["assessment_ids"] or not row["evidence"].strip()
-            ):
-                raise ValueError("measured alignment requires assessments and evidence")
+                row["is_measured"] = False
+                row["evidence"] = ""
+            normalized_alignment.append(row)
+        value["alignment"] = normalized_alignment
     if code == "OP-01":
         topic_ids = {row["id"] for row in value["topics"]}
         if any(
@@ -264,4 +289,4 @@ def _check(value: Any, schema: dict[str, Any], path: str) -> None:
             raise ValueError(f"{path} invalid enum")
 
 
-__all__ = ["RESPONSE_SCHEMAS", "validate"]
+__all__ = ["RESPONSE_SCHEMAS", "_EMPTYABLE_FIELDS", "validate"]

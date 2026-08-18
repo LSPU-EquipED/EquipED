@@ -25,10 +25,10 @@ plus a thin ``evaluate`` wrapper the CLI uses to run it standalone.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import count_band
 
 # >=5 distinct types -> 4, 3-4 -> 3, 2 -> 2, <=1 -> 1.
@@ -196,7 +196,7 @@ def evaluate(client: Any, text: str) -> VarietyResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1500,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(list(data.get("assessments", [])))
 
 

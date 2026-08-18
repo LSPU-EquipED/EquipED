@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..contracts import AgentEvaluationResult, CriterionScore
+from ..runtime.llm import parse_json_payload
 from ..sme.bands import ratio_band
 
 
@@ -168,7 +169,7 @@ def evaluate_against_curriculum(
             temperature=0.0,
             max_new_tokens=1200,
         )
-        data = json.loads(raw)
+        data = parse_json_payload(raw)
         alignment = list(data.get("alignment", []))
     except Exception as exc:
         raise ValueError("invalid curriculum alignment response") from exc

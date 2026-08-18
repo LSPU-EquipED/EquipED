@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import threading
 import time
 from collections import deque
@@ -11,6 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from types import MappingProxyType
+from typing import Any
 from urllib import error, request
 from urllib.parse import urlsplit
 
@@ -121,6 +123,7 @@ class CompletionResult:
     requested_max_tokens: int | None = None
     rate_fields: MappingProxyType | None = None
     output_cap_hit: bool = False
+    response_format_downgraded: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,7 +325,12 @@ class LocalLLMClient:
     ):
         settings = get_settings()
         base = self.api_base or "http://localhost:11434/v1"
-        allowed, _ = is_private_endpoint(base)
+        allowed_hosts = getattr(settings, "llm_allowed_endpoints", ())
+        allowed, _ = (
+            is_private_endpoint(base, allowed_hosts=allowed_hosts)
+            if allowed_hosts
+            else is_private_endpoint(base)
+        )
         if not allowed:
             raise InfrastructureUnavailableError("Local model is unavailable")
         contract = response_contract
@@ -359,6 +367,7 @@ class LocalLLMClient:
         started = time.monotonic()
         estimate = max_new_tokens + max(1, len(prompt) // 4)
         attempt = 0
+        response_format_downgraded = False
         for attempt in range(1, self.max_attempts + 1):
             quota = getattr(settings, "llm_local_quota_enabled", False)
             ticket = gate.acquire(
@@ -374,7 +383,10 @@ class LocalLLMClient:
                     raise InfrastructureUnavailableError(
                         "LLM request deadline exceeded"
                     )
-                headers = {"Content-Type": "application/json"}
+                headers = {
+                    "Content-Type": "application/json",
+                    "User-Agent": "EquipED/0.1.0",
+                }
                 if self.api_key:
                     headers["Authorization"] = f"Bearer {self.api_key}"
                 req = request.Request(
@@ -432,11 +444,18 @@ class LocalLLMClient:
                     requested_max_tokens=max_new_tokens,
                     rate_fields=rates,
                     output_cap_hit=choice.get("finish_reason") == "length",
+                    response_format_downgraded=response_format_downgraded,
                 )
             except error.HTTPError as exc:
                 last = exc
                 status = exc.code
-                if status == 429:
+                is_schema_fallback = status == 400 and contract.mode == "json_schema"
+                if is_schema_fallback:
+                    response_format_downgraded = True
+                    payload["response_format"] = {"type": "json_object"}
+                    if attempt < self.max_attempts:
+                        retry_delay = 0.0
+                elif status == 429:
                     retry_delay = self._parse_retry_after(exc)
                     if retry_delay is None:
                         retry_delay = self._compute_backoff(
@@ -445,9 +464,11 @@ class LocalLLMClient:
                     gate.release_and_block(ticket, retry_delay)
                     ticket = None
                     released = True
-                if status not in _RETRYABLE or attempt == self.max_attempts:
+                if (
+                    status not in _RETRYABLE and not is_schema_fallback
+                ) or attempt == self.max_attempts:
                     break
-                if status != 429:
+                if not is_schema_fallback and status != 429:
                     retry_delay = self._compute_backoff(
                         attempt, self.initial_backoff, self.max_backoff
                     )
@@ -490,6 +511,27 @@ class LocalLLMClient:
         return self.generate_result(prompt, **kwargs).content
 
 
+def parse_json_payload(raw: str) -> dict[str, Any]:
+    """Parse JSON from LLM responses, stripping code fences or preambles."""
+    if not isinstance(raw, str):
+        raise ValueError("raw response must be a string")
+    payload = raw.strip()
+    match = re.match(
+        r"^```(?:json)?\s*(.*?)\s*```$", payload, flags=re.IGNORECASE | re.DOTALL
+    )
+    if match:
+        payload = match.group(1).strip()
+    elif not payload.startswith("{") and not payload.startswith("["):
+        start = payload.find("{")
+        end = payload.rfind("}")
+        if start >= 0 and end > start:
+            payload = payload[start : end + 1]
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"expected JSON object, got {type(parsed).__name__}")
+    return parsed
+
+
 def probe_local_model_readiness(*, probe=None, canary=None, required_contract=None):
     """Perform a bounded, locality-first readiness check for the configured model."""
     try:
@@ -497,16 +539,22 @@ def probe_local_model_readiness(*, probe=None, canary=None, required_contract=No
         if settings.llm_provider not in {"local", "openai_compatible", "open-source"}:
             raise ValueError
         base = settings.llm_api_base or "http://localhost:11434/v1"
-        allowed, _ = is_private_endpoint(base)
+        allowed_hosts = getattr(settings, "llm_allowed_endpoints", ())
+        allowed, _ = (
+            is_private_endpoint(base, allowed_hosts=allowed_hosts)
+            if allowed_hosts
+            else is_private_endpoint(base)
+        )
         if not allowed:
             raise ValueError
         timeout = min(float(settings.llm_readiness_timeout_seconds), 10.0)
         if probe is None:
+            probe_headers = {"User-Agent": "EquipED/0.1.0"}
+            if settings.llm_api_key:
+                probe_headers["Authorization"] = f"Bearer {settings.llm_api_key}"
             req = request.Request(
                 base.rstrip("/") + "/models",
-                headers={"Authorization": f"Bearer {settings.llm_api_key}"}
-                if settings.llm_api_key
-                else {},
+                headers=probe_headers,
             )
             with request.urlopen(req, timeout=timeout) as response:
                 models = json.loads(response.read(1_000_000)).get("data", [])
@@ -535,14 +583,14 @@ def probe_local_model_readiness(*, probe=None, canary=None, required_contract=No
                     settings.llm_api_key,
                     request_timeout=timeout,
                 ).generate_result(
-                    "{}",
+                    'Return JSON: {"ready": true}',
                     max_new_tokens=32,
                     deadline=time.monotonic() + timeout,
                     response_contract=contract,
                 )
             if not isinstance(result, CompletionResult) or result.output_cap_hit:
                 raise ValueError
-            parsed = json.loads(result.content)
+            parsed = parse_json_payload(result.content)
             if parsed != {"ready": True}:
                 raise ValueError
         return None

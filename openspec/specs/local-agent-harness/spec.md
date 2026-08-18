@@ -13,7 +13,7 @@ The harness SHALL target local model alias `equiped-gemma3-4b-qat-q4` by default
 - **THEN** identical requests produce identical completions and runtime metadata without network access
 
 ### Requirement: Explicit structured output capability
-The transport SHALL advertise JSON-object or JSON-Schema capability explicitly; schemas and semantic validation SHALL remain agent-local authoritative checks and the transport SHALL not silently downgrade.
+The transport SHALL advertise JSON-object or JSON-Schema capability explicitly; schemas and semantic validation SHALL remain agent-local authoritative checks and the transport SHALL not silently downgrade. When a provider rejects a JSON-Schema request (e.g. HTTP 400) and the transport retries on JSON-object mode, it SHALL record `response_format_downgraded: true` in the completion provenance.
 
 #### Scenario: Unsupported schema mode
 - **WHEN** a provider lacks the requested capability

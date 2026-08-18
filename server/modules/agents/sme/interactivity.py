@@ -19,10 +19,10 @@ thin ``evaluate`` wrapper the CLI uses to run it standalone.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import count_band
 
 # 4+ elements -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.
@@ -143,7 +143,7 @@ def evaluate(client: Any, text: str) -> InteractivityResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1200,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(list(data.get("interactive_elements", [])))
 
 

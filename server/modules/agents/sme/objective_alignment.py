@@ -9,10 +9,10 @@ low by design (see openspec/specs/sme-engine-scoring/spec.md).
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from ..runtime.llm import parse_json_payload
 from .bands import ratio_band
 
 # Keywords marking where the assessment section tends to begin in an SLM.
@@ -154,7 +154,7 @@ def evaluate(client: Any, text: str) -> AlignmentResult:
         temperature=0.0,  # determinism: see spike findings
         max_new_tokens=1800,
     )
-    data = json.loads(raw)
+    data = parse_json_payload(raw)
     return compute(
         objectives=list(data.get("objectives", [])),
         assessments=list(data.get("assessments", [])),

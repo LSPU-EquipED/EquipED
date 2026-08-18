@@ -28,6 +28,9 @@ ITSO_CRITERIA_TITLES = {
 ITSO_CRITERIA = tuple(ITSO_CRITERIA_TITLES)
 ITSO_TEXT_MAX = 2000
 ITSO_CHUNK_ID_MAX = 2000
+ITSO_UNGROUNDED_REASON = (
+    "model score provided without justification or evidence grounding"
+)
 ITSO_RESPONSE_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -156,19 +159,28 @@ def parse_response(
     if match:
         payload = match.group(1).strip()
     elif not payload.startswith("{"):
-        raise _failure("ITSOInvalidJSON", raw)
+        start = payload.find("{")
+        end = payload.rfind("}")
+        if start >= 0 and end > start:
+            payload = payload[start : end + 1]
+        else:
+            raise _failure("ITSOInvalidJSON", raw)
     try:
         parsed = json.loads(payload)
     except json.JSONDecodeError as exc:
         raise _failure("ITSOInvalidJSON", raw) from exc
-    if (
-        not isinstance(parsed, dict)
-        or set(parsed) != {"summary", "criterion_scores"}
-        or not isinstance(parsed.get("summary"), str)
-        or not 1 <= len(parsed["summary"]) <= 2000
-    ):
+    if not isinstance(parsed, dict):
         raise _failure("ITSOInvalidResponse", type(parsed).__name__)
-    if not isinstance(parsed.get("criterion_scores"), (list, dict)):
+    unknown = set(parsed) - {"summary", "criterion_scores"}
+    if unknown:
+        keys_str = ",".join(sorted(unknown))
+        raise _failure("ITSOInvalidResponse", f"unknown_keys:{keys_str}")
+    summary = parsed.get("summary")
+    if not isinstance(summary, str) or not 1 <= len(summary) <= 2000:
+        raise _failure("ITSOInvalidResponse", type(summary).__name__)
+    if "criterion_scores" not in parsed or not isinstance(
+        parsed.get("criterion_scores"), (list, dict)
+    ):
         raise _failure(
             "ITSOInvalidCriterionScores", type(parsed.get("criterion_scores")).__name__
         )
@@ -184,61 +196,165 @@ def criterion_scores(
     known_chunk_ids: Iterable[str] = (),
 ) -> tuple[CriterionScore, ...]:
     raw = parsed["criterion_scores"]
-    entries = raw
     expected = tuple(expected_ids)
     known = set(known_chunk_ids)
-    if not isinstance(entries, list) or len(entries) != len(expected):
-        raise _failure("ITSOInvalidCriterionScores", "shape")
-    seen = set()
-    result = []
-    for index, item in enumerate(entries):
-        if (
-            not isinstance(item, dict)
-            or not isinstance(item.get("criterion_id"), str)
-            or item["criterion_id"] not in expected
-            or item["criterion_id"] in seen
-            or set(item)
-            != {
+
+    # Normalize dict format {"ITSO-01": 4, ...} or list of dicts to canonical entries
+    entries_by_id: dict[str, dict[str, Any]] = {}
+    if isinstance(raw, dict):
+        for cid, val in raw.items():
+            if not isinstance(cid, str) or cid not in expected:
+                raise _failure("ITSOInvalidCriterion", cid)
+            if isinstance(val, dict):
+                entry = dict(val)
+                entry["criterion_id"] = cid
+                if set(entry) - {
+                    "criterion_id",
+                    "criterion_title",
+                    "score",
+                    "justification",
+                    "chunk_ids",
+                    "evidence",
+                }:
+                    raise _failure("ITSOInvalidCriterion", "extra_fields")
+                entries_by_id[cid] = entry
+            elif isinstance(val, int) and not isinstance(val, bool):
+                entries_by_id[cid] = {"criterion_id": cid, "score": val}
+            else:
+                raise _failure("ITSOInvalidScore", cid)
+    elif isinstance(raw, list):
+        if len(raw) != len(expected):
+            raise _failure("ITSOInvalidCriterionScores", "shape")
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                raise _failure("ITSOInvalidCriterion", index)
+            cid = item.get("criterion_id")
+            if not isinstance(cid, str) or cid not in expected or cid in entries_by_id:
+                raise _failure("ITSOInvalidCriterion", cid or index)
+            if set(item) - {
                 "criterion_id",
                 "criterion_title",
                 "score",
                 "justification",
                 "chunk_ids",
                 "evidence",
-            }
-        ):
-            raise _failure("ITSOInvalidCriterion", index)
-        if index >= len(expected) or item["criterion_id"] != expected[index]:
-            raise _failure("ITSOInvalidCriterionOrder", index)
-        title = item["criterion_title"]
-        if title != ITSO_CRITERIA_TITLES[item["criterion_id"]]:
-            raise _failure("ITSOInvalidCriterionTitle", index)
-        seen.add(item["criterion_id"])
+            }:
+                raise _failure("ITSOInvalidCriterion", "extra_fields")
+            entries_by_id[cid] = dict(item)
+    else:
+        raise _failure("ITSOInvalidCriterionScores", type(raw).__name__)
+
+    if set(entries_by_id) != set(expected):
+        raise _failure("ITSOInvalidCriterion", "missing_or_extra_ids")
+
+    result = []
+    for cid in expected:
+        item = entries_by_id[cid]
+        # Canonical title derived to be resilient against alterations or omissions
+        title = ITSO_CRITERIA_TITLES[cid]
+
         score = item.get("score")
         if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 4:
-            raise _failure("ITSOInvalidScore", index)
-        justification = item["justification"]
-        if (
-            not isinstance(justification, str)
-            or not justification
-            or len(justification) > ITSO_TEXT_MAX
-        ):
-            raise _failure("ITSOInvalidJustification", index)
+            raise _failure("ITSOInvalidScore", cid)
+
+        justification = item.get("justification", "")
+        if not isinstance(justification, str):
+            justification = ""
+        if len(justification) > ITSO_TEXT_MAX:
+            raise _failure("ITSOInvalidJustification", cid)
+
+        raw_chunk_ids = item.get("chunk_ids")
+        if raw_chunk_ids is None:
+            norm_chunk_ids: tuple[str, ...] = ()
+        elif isinstance(raw_chunk_ids, (list, tuple)):
+            norm_chunk_ids = _normalize_text_tuple(
+                list(raw_chunk_ids), ITSO_CHUNK_ID_MAX, known
+            )
+        else:
+            raise _failure("ITSOInvalidEvidence", "shape")
+
+        raw_evidence = item.get("evidence")
+        if raw_evidence is None:
+            norm_evidence: tuple[str, ...] = ()
+        elif isinstance(raw_evidence, (list, tuple)):
+            norm_evidence = _normalize_text_tuple(list(raw_evidence), ITSO_TEXT_MAX)
+        else:
+            raise _failure("ITSOInvalidEvidence", "shape")
+
         result.append(
             CriterionScore(
-                criterion_id=item["criterion_id"],
-                criterion_title=item["criterion_title"],
+                criterion_id=cid,
+                criterion_title=title,
                 score=score,
-                justification=item["justification"],
-                chunk_ids=_normalize_text_tuple(
-                    item["chunk_ids"], ITSO_CHUNK_ID_MAX, known
-                ),
-                evidence=_normalize_text_tuple(item["evidence"], ITSO_TEXT_MAX),
+                justification=justification,
+                chunk_ids=norm_chunk_ids,
+                evidence=norm_evidence,
             )
         )
-    if seen != set(expected):
-        raise _failure("ITSOInvalidCriterion", "set")
+
     return tuple(result)
+
+
+def extract_ungrounded_criteria(
+    parsed: dict[str, Any],
+    expected_ids: Iterable[str] = ITSO_CRITERIA,
+) -> list[dict[str, Any]]:
+    """Extract advisory output items for criteria scored without grounded evidence."""
+    raw = parsed.get("criterion_scores")
+    expected = tuple(expected_ids)
+    ungrounded: list[dict[str, Any]] = []
+
+    if isinstance(raw, dict):
+        for cid in expected:
+            val = raw.get(cid)
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                ungrounded.append(
+                    {
+                        "criterion_id": cid,
+                        "reason": ITSO_UNGROUNDED_REASON,
+                        "advisory_only": True,
+                    }
+                )
+            elif isinstance(val, dict):
+                just = val.get("justification", "")
+                chunks = val.get("chunk_ids", ())
+                ev = val.get("evidence", ())
+                if (not just or not str(just).strip()) or not chunks or not ev:
+                    ungrounded.append(
+                        {
+                            "criterion_id": cid,
+                            "reason": ITSO_UNGROUNDED_REASON,
+                            "advisory_only": True,
+                        }
+                    )
+    elif isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, dict):
+                cid = item.get("criterion_id")
+                just = item.get("justification", "")
+                chunks = item.get("chunk_ids", ())
+                ev = item.get("evidence", ())
+                if (not just or not str(just).strip()) or not chunks or not ev:
+                    ungrounded.append(
+                        {
+                            "criterion_id": cid,
+                            "reason": ITSO_UNGROUNDED_REASON,
+                            "advisory_only": True,
+                        }
+                    )
+
+    return ungrounded
+
+
+def collect_advisory_outputs(
+    parsed: dict[str, Any],
+    expected_ids: Iterable[str] = ITSO_CRITERIA,
+) -> dict[str, Any] | None:
+    """Collect advisory output items such as ungrounded criteria."""
+    ungrounded = extract_ungrounded_criteria(parsed, expected_ids=expected_ids)
+    if ungrounded:
+        return {"ungrounded_criteria": ungrounded}
+    return None
 
 
 def _normalize_text_tuple(

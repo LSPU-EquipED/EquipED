@@ -344,3 +344,55 @@ def test_response_contract_freezes_nested_mutable_inputs_and_exposure():
 def test_response_contract_rejects_invalid_direct_construction(args):
     with pytest.raises(ConfigurationError):
         llm.ResponseContract(*args)
+
+
+def test_schema_downgrade_sets_response_format_downgraded(monkeypatch):
+    calls = []
+
+    def opener(req, **_):
+        calls.append(json.loads(req.data))
+        if len(calls) == 1:
+            raise error.HTTPError(
+                req.full_url, 400, "invalid response format", {}, None
+            )
+        return Response({"choices": [{"message": {"content": '{"score": 4}'}}]})
+
+    monkeypatch.setattr(llm.request, "urlopen", opener)
+    client = llm.LocalLLMClient(
+        provider="local",
+        api_base="http://localhost/v1",
+        api_key=None,
+        model="model",
+        max_attempts=2,
+    )
+    contract = llm.ResponseContract.json_schema(
+        {"type": "object", "properties": {"score": {"type": "integer"}}},
+        "test_schema",
+    )
+    result = client.generate_result("test prompt", response_contract=contract)
+    assert result.response_format_downgraded is True
+    assert result.attempts == 2
+    assert len(calls) == 2
+    assert calls[0]["response_format"]["type"] == "json_schema"
+    assert calls[1]["response_format"]["type"] == "json_object"
+
+
+def test_response_format_downgraded_provenance_allowlisted_and_preserved():
+    from server.modules.agents.provenance import (
+        PROVENANCE_ALLOWLIST,
+        sanitize_provenance,
+    )
+
+    assert "response_format_downgraded" in PROVENANCE_ALLOWLIST
+
+    sanitized = sanitize_provenance({"response_format_downgraded": True})
+    assert sanitized == {"response_format_downgraded": True}
+
+    sanitized_false = sanitize_provenance({"response_format_downgraded": False})
+    assert sanitized_false == {"response_format_downgraded": False}
+
+    sanitized_invalid = sanitize_provenance(
+        {"response_format_downgraded": "not_a_bool"}
+    )
+    assert sanitized_invalid is None
+

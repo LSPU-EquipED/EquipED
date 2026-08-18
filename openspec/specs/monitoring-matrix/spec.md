@@ -29,6 +29,12 @@ The system SHALL maintain a `monitoring_matrix` table as a materialized view of 
 - **WHEN** a job transitions from `SYNTHESIZING` to `COMPLETED` (or `FAILED`)
 - **THEN** the matrix row SHALL be updated with the final `synthesized_score`, `domain_scores_json`, `flag_count`, and `evaluation_status`
 
+#### Scenario: Ungrounded scores are flagged for review
+- **WHEN** an agent returns a criterion score without grounded justification, evidence, or chunk citation (recorded as ungrounded advisory output)
+- **THEN** synthesis SHALL persist an `evaluation_flags` row for that criterion with a reason identifying it as requiring human review
+- **AND** the matrix row's `flag_count` SHALL include that flag
+- **AND** the flagged criterion SHALL be surfaced for human review rather than presented as an authoritative grounded score
+
 ### Requirement: Admin dashboard API
 The system SHALL expose a `GET /evaluations/matrix` endpoint restricted to admin users.
 
