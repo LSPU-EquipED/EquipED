@@ -547,7 +547,7 @@ def probe_local_model_readiness(*, probe=None, canary=None, required_contract=No
         )
         if not allowed:
             raise ValueError
-        timeout = min(float(settings.llm_readiness_timeout_seconds), 10.0)
+        timeout = min(max(float(settings.llm_readiness_timeout_seconds), 1.0), 30.0)
         if probe is None:
             probe_headers = {"User-Agent": "EquipED/0.1.0"}
             if settings.llm_api_key:

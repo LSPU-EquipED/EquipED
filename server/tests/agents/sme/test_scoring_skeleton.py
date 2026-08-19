@@ -69,6 +69,25 @@ class TestStrictBasketFixtures:
     def test_valid_empty_arrays_remain_valid(self) -> None:
         assert extraction._validate("A2", self._valid_a2()) == {"tasks": []}
 
+    def test_string_items_in_objectives_normalized(self) -> None:
+        payload = {
+            "objectives": [
+                "1. Analyze the foundational concepts of computing.",
+                "2. Determine appropriate data structures.",
+                "Plain objective without number prefix",
+            ],
+            "assessments": [],
+            "alignment": [],
+        }
+        result = extraction._validate("A1", payload)
+        assert result["objectives"] == [
+            {"id": 1, "text": "Analyze the foundational concepts of computing."},
+            {"id": 2, "text": "Determine appropriate data structures."},
+            {"id": 3, "text": "Plain objective without number prefix"},
+        ]
+        assert len(result["alignment"]) == 3
+        assert [r["objective_id"] for r in result["alignment"]] == [1, 2, 3]
+
     def test_unknown_objective_normalized_to_unmeasured(self) -> None:
         # A small local model can emit rows for unknown objectives or omit
         # objectives entirely. Validation normalizes: unknown rows are dropped
