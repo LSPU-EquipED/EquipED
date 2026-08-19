@@ -14,8 +14,8 @@ import uuid
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
+from server.modules.agents.sme.oracle import registry
 from server.tests.agents.helpers import (
     SME_CRITERION_FALLBACKS,
     SME_GROUP_TITLES,

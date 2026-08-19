@@ -9,7 +9,7 @@ from dataclasses import replace
 import pytest
 import server.modules.evaluations.orchestrator as orchestrator
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme import registry
+from server.modules.agents.sme.oracle import registry
 from server.modules.evaluations.orchestrator import _reconcile_coordinator_result
 
 

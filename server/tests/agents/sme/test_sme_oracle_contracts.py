@@ -8,8 +8,8 @@ from copy import deepcopy
 import pytest
 from server.core.config import get_settings
 from server.core.llm import ResponseContract
-from server.modules.agents.sme import registry
-from server.modules.agents.sme.criterion_contracts import (
+from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.oracle.criterion_contracts import (
     RESPONSE_SCHEMAS,
     validate,
 )

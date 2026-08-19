@@ -12,7 +12,7 @@ from server.modules.agents.contracts import AgentEvaluationResult, CriterionScor
 from server.modules.agents.coordinator import curriculum, extraction, reconciliation
 from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme import registry
+from server.modules.agents.sme.oracle import registry
 
 _COORDINATOR_PAYLOAD = {
     "objectives": [{"id": 1, "text": "Objective"}],

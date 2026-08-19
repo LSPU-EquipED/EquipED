@@ -7,8 +7,8 @@ import uuid
 from typing import Any
 
 from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
+from server.modules.agents.sme.oracle import registry
 from server.modules.agents.supervision.context import PromptSnapshot
 from server.modules.agents.supervision.dispatch import AgentDispatcher
 from server.tests.agents.helpers import (

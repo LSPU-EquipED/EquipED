@@ -17,7 +17,7 @@ from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.coordinator.curriculum import (
     format_roadmap_note as _format_roadmap_note,
 )
-from server.modules.agents.sme import extraction, registry
+from server.modules.agents.sme.oracle import extraction, registry
 from server.tests.agents.helpers import _BASKET_A1, SequencedFakeClient
 
 _TITLES = {code: f"{code} Coordinator Title" for code in registry.REGISTERED_CODES}

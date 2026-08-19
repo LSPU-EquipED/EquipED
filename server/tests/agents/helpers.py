@@ -214,7 +214,7 @@ def sme_group_payloads(
 ) -> dict[str, str]:
     """One valid grouped-scoring JSON response per group, all criteria scored
     ``score``."""
-    from server.modules.agents.sme import groups
+    from server.modules.agents.sme.grouped import groups
 
     titles = titles or SME_GROUP_TITLES
     return {

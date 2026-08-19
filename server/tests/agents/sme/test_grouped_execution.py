@@ -6,7 +6,7 @@ import pytest
 from server.core.llm import CompletionResult
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.agents.sme.grouped_execution import execute_group
+from server.modules.agents.sme.grouped.grouped_execution import execute_group
 
 CODES = ("A-02", "A-05")
 TITLES = {"A-02": "Varied Assessment Tools", "A-05": "Objective Gauging"}

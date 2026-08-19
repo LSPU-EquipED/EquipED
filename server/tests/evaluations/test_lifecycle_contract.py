@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme import registry
+from server.modules.agents.sme.oracle import registry
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation

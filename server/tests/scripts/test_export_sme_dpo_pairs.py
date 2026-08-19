@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server.modules.agents.sme.groups import GROUP_CODES
+from server.modules.agents.sme.grouped.groups import GROUP_CODES
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.service import create_criterion_feedback

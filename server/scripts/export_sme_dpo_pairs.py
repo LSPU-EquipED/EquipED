@@ -20,7 +20,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
-from server.modules.agents.sme.groups import CODE_TO_GROUP, GROUP_CODES
+from server.modules.agents.sme.grouped.groups import CODE_TO_GROUP, GROUP_CODES
 from server.modules.feedback.models import PreferenceLog
 from server.modules.synthesis.models import AgentResult, CriterionScore
 

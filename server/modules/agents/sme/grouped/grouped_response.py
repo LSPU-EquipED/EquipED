@@ -13,8 +13,8 @@ import json
 import re
 from typing import Any
 
-from ..contracts import CriterionScore
-from ..exceptions import AgentExecutionError
+from ...contracts import CriterionScore
+from ...exceptions import AgentExecutionError
 
 SME_TEXT_MAX = 2000
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..runtime.llm import parse_json_payload
+from ...runtime.llm import parse_json_payload
 from .bands import count_band
 
 # 4+ elements -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.

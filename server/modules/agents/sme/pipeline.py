@@ -25,9 +25,10 @@ from server.modules.rubrics.service import (
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..exceptions import AgentExecutionError
 from ..runtime.llm import RunLLMClient, error_reference
-from . import groups, registry
-from .grouped_execution import execute_group
-from .grouped_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
+from .grouped import groups
+from .grouped.grouped_execution import execute_group
+from .grouped.grouped_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
+from .oracle import registry
 
 logger = logging.getLogger(__name__)
 

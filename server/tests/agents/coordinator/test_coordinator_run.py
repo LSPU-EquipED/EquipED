@@ -30,7 +30,7 @@ from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.coordinator.reconciliation import merge_with_sme
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.provenance import sanitize_provenance
-from server.modules.agents.sme import registry
+from server.modules.agents.sme.oracle import registry
 from server.tests.agents.helpers import (
     _ALL_BASKETS_IN_ORDER,
     _BASKET_A1,

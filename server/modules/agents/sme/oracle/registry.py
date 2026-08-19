@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from ....core.config import get_settings
-from ....core.llm import ResponseContract
-from ..runtime.llm import parse_json_payload
+from .....core.config import get_settings
+from .....core.llm import ResponseContract
+from ...runtime.llm import parse_json_payload
 from . import (
     accurate_sections,
     clear_directions,
