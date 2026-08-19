@@ -10,6 +10,10 @@ from server.modules.agents.sme.grouped_execution import execute_group
 
 CODES = ("A-02", "A-05")
 TITLES = {"A-02": "Varied Assessment Tools", "A-05": "Objective Gauging"}
+DESCRIPTIONS = {
+    "A-02": "Teachers can easily assess students' progress.",
+    "A-05": "Objectives are gauged effectively.",
+}
 
 
 class _LLM:
@@ -45,7 +49,7 @@ def _response(score=3):
 def test_execute_group_returns_scores_and_prompt_text():
     client = RunLLMClient(_LLM([_response(4)]), "sme")
     scores, prompt_text = execute_group(
-        "assessment_alignment", CODES, TITLES, client, "some SLM text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "some SLM text"
     )
     assert [s.criterion_id for s in scores] == list(CODES)
     assert all(s.score == 4 for s in scores)
@@ -55,7 +59,9 @@ def test_execute_group_returns_scores_and_prompt_text():
 def test_execute_group_repairs_once_on_bad_json():
     llm = _LLM(["{broken", _response(3)])
     client = RunLLMClient(llm, "sme")
-    scores, _ = execute_group("assessment_alignment", CODES, TITLES, client, "text")
+    scores, _ = execute_group(
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "text"
+    )
     assert len(llm.prompts) == 2
     assert all(s.score == 3 for s in scores)
 
@@ -64,5 +70,7 @@ def test_execute_group_raises_after_repair_also_fails():
     llm = _LLM(["{broken", "{still broken"])
     client = RunLLMClient(llm, "sme")
     with pytest.raises(AgentExecutionError):
-        execute_group("assessment_alignment", CODES, TITLES, client, "text")
+        execute_group(
+            "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "text"
+        )
     assert len(llm.prompts) == 2

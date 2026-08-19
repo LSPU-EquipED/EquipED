@@ -42,6 +42,10 @@ def _run(monkeypatch: pytest.MonkeyPatch, client: GroupScoringFakeClient):
             code: f"{code} title" for code in registry.REGISTERED_CODES
         },
     )
+    monkeypatch.setattr(
+        "server.modules.agents.sme.pipeline.get_active_rubric_descriptions",
+        lambda agent_id, db=None: {},
+    )
     return SME(llm_client=client).run(
         evaluation_id=uuid.uuid4(),
         document_id=uuid.uuid4(),

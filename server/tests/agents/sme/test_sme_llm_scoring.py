@@ -31,6 +31,11 @@ def _titles(monkeypatch):
         "_rubric_titles",
         lambda self, db: SME_GROUP_TITLES,
     )
+    monkeypatch.setattr(
+        pipeline.EngineScoredAgent,
+        "_rubric_descriptions",
+        lambda self, db: {},
+    )
 
 
 def _run(client: GroupScoringFakeClient):

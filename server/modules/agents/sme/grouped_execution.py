@@ -29,6 +29,7 @@ def execute_group(
     group: str,
     codes: tuple[str, ...],
     titles: dict[str, str],
+    descriptions: dict[str, str],
     client: RunLLMClient,
     full_text: str,
     *,
@@ -36,7 +37,7 @@ def execute_group(
 ) -> tuple[tuple[CriterionScore, ...], str]:
     settings = get_settings()
     prompt = build_group_prompt(
-        group, codes, titles, full_text, prompt_preamble=prompt_preamble
+        group, codes, titles, descriptions, full_text, prompt_preamble=prompt_preamble
     )
     if settings.llm_response_mode == "json_schema":
         contract = ResponseContract.json_schema(
