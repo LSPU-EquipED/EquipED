@@ -4,6 +4,11 @@ Each criterion's scoring rule text is copied verbatim from
 ``registry._render()``'s justification templates -- the single source of
 truth for the threshold each retired ``compute()`` function used -- so the
 LLM is anchored to the same numeric bands, not asked to invent its own scale.
+
+Criterion descriptions are fetched from the ``rubric_criteria`` DB table at
+call time (see ``pipeline.py``'s ``_rubric_descriptions``) so CID admins can
+edit rubric text without a redeploy. ``FALLBACK_DESCRIPTIONS`` below is used
+only if the DB has no active rubric set or is missing a code.
 """
 
 from __future__ import annotations
@@ -13,7 +18,7 @@ from typing import Any
 
 from .groups import slice_for_group
 
-_DESCRIPTIONS: dict[str, str] = {
+FALLBACK_DESCRIPTIONS: dict[str, str] = {
     "A-01": "Students are engaged in transforming what they learn.",
     "A-02": (
         "Teachers can easily assess students' progress by using varied "
@@ -102,6 +107,7 @@ def build_group_prompt(
     group: str,
     codes: tuple[str, ...],
     titles: dict[str, str],
+    descriptions: dict[str, str],
     full_text: str,
     *,
     prompt_preamble: str | None = None,
@@ -110,7 +116,7 @@ def build_group_prompt(
     criteria: dict[str, Any] = {
         code: {
             "title": titles[code],
-            "description": _DESCRIPTIONS[code],
+            "description": descriptions.get(code, FALLBACK_DESCRIPTIONS[code]),
             "scoring_rule": _SCORING_RULES[code],
         }
         for code in codes
@@ -140,4 +146,4 @@ def build_group_prompt(
     )
 
 
-__all__ = ["build_group_prompt"]
+__all__ = ["FALLBACK_DESCRIPTIONS", "build_group_prompt"]

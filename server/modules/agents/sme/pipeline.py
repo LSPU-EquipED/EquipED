@@ -19,6 +19,7 @@ from typing import Any
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.service import (
     get_active_rubric_criteria,
+    get_active_rubric_descriptions,
     resolve_rubric_agent_id,
 )
 
@@ -27,6 +28,7 @@ from ..exceptions import AgentExecutionError
 from ..runtime.llm import RunLLMClient, error_reference
 from . import groups, registry
 from .grouped_execution import execute_group
+from .grouped_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,12 @@ class EngineScoredAgent:
     def _rubric_titles(self, db: Any | None) -> dict[str, str]:
         """This agent's own rubric criterion titles, keyed by code."""
         return get_active_rubric_criteria(
+            resolve_rubric_agent_id(self.rubric_source_type), db=db
+        )
+
+    def _rubric_descriptions(self, db: Any | None) -> dict[str, str]:
+        """This agent's own rubric criterion descriptions, keyed by code."""
+        return get_active_rubric_descriptions(
             resolve_rubric_agent_id(self.rubric_source_type), db=db
         )
 
@@ -335,6 +343,7 @@ class EngineScoredAgent:
             )
         )
         titles = self._rubric_titles(db)
+        descriptions = self._rubric_descriptions(db)
 
         all_scores: dict[str, CriterionScore] = {}
         group_prompts: dict[str, str] = {}
@@ -343,11 +352,16 @@ class EngineScoredAgent:
         for group_name in groups.GROUP_NAMES:
             codes = groups.GROUP_CODES[group_name]
             group_titles = {code: titles.get(code, code) for code in codes}
+            group_descriptions = {
+                code: descriptions.get(code, _FALLBACK_DESCRIPTIONS[code])
+                for code in codes
+            }
             try:
                 scores, prompt_text = execute_group(
                     group_name,
                     codes,
                     group_titles,
+                    group_descriptions,
                     client,
                     full_text,
                     prompt_preamble=prompt_preamble,

@@ -120,8 +120,55 @@ def get_active_rubric_criteria(agent_id: str, db: Any | None = None) -> dict[str
             session.close()
 
 
+def get_active_rubric_descriptions(
+    agent_id: str, db: Any | None = None
+) -> dict[str, str]:
+    """Return ``{criterion_code: description}`` for the active rubric set.
+
+    Mirrors ``get_active_rubric_criteria`` but returns descriptions instead
+    of titles, for callers that build LLM prompts from rubric text (e.g. the
+    grouped-scoring prompt builders) rather than hardcoding it in Python.
+    Returns ``{}`` if no active rubric set exists.
+    """
+
+    session = db or get_session_factory()()
+    close_session = db is None
+    try:
+        rubric_set = (
+            session.query(RubricSet)
+            .filter_by(agent_id=agent_id, status="active")
+            .order_by(RubricSet.version_number.desc())
+            .first()
+        )
+        if rubric_set is None:
+            return {}
+
+        criteria = (
+            session.query(RubricCriterion)
+            .join(
+                RubricDomain,
+                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
+            )
+            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
+            .order_by(
+                RubricDomain.display_order.asc(),
+                RubricDomain.code.asc(),
+                RubricCriterion.display_order.asc(),
+                RubricCriterion.criterion_code.asc(),
+            )
+            .all()
+        )
+        return {
+            criterion.criterion_code: criterion.description for criterion in criteria
+        }
+    finally:
+        if close_session:
+            session.close()
+
+
 __all__ = [
     "get_active_rubric_context",
     "get_active_rubric_criteria",
+    "get_active_rubric_descriptions",
     "resolve_rubric_agent_id",
 ]
