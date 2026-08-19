@@ -56,6 +56,7 @@ directions -- the bottom anchor avoids that.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ....core.config import get_settings
@@ -791,9 +792,18 @@ def _validate(name: str, data: Any) -> dict[str, Any]:
         "B2": {"sections": {"id", "title", "is_clean", "issue"}},
     }[name]
     for key, items in data.items():
+        if not isinstance(items, list):
+            raise ValueError(f"invalid {name}.{key} format")
+        normalized_items: list[dict[str, Any]] = []
         seen: set[int] = set()
-        for item in items:
-            if not isinstance(item, dict):
+        for index, item in enumerate(items):
+            if isinstance(item, str):
+                match = re.match(r"^(\d+)\.\s*(.*)$", item.strip())
+                if match:
+                    item = {"id": int(match.group(1)), "text": match.group(2).strip()}
+                else:
+                    item = {"id": index + 1, "text": item.strip()}
+            elif not isinstance(item, dict):
                 raise ValueError(f"invalid {name}.{key} item")
             for field in expected[key]:
                 if field in _EMPTYABLE_FIELDS and field not in item:
@@ -858,6 +868,8 @@ def _validate(name: str, data: Any) -> dict[str, Any]:
                 "positive_reinforcement",
             }:
                 raise ValueError("invalid feedback type")
+            normalized_items.append(item)
+        data[key] = normalized_items
     if name == "A1":
         objective_ids = {item["id"] for item in data["objectives"]}
         assessment_ids = {item["id"] for item in data["assessments"]}

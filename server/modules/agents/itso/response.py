@@ -171,12 +171,20 @@ def parse_response(
         raise _failure("ITSOInvalidJSON", raw) from exc
     if not isinstance(parsed, dict):
         raise _failure("ITSOInvalidResponse", type(parsed).__name__)
+    expected_ids_tuple = tuple(expected_ids)
+    if "criterion_scores" not in parsed and any(
+        k in expected_ids_tuple for k in parsed
+    ):
+        summary = str(parsed.pop("summary", "") or "")
+        parsed = {"summary": summary, "criterion_scores": parsed}
+    if parsed.get("summary") is None:
+        parsed["summary"] = ""
     unknown = set(parsed) - {"summary", "criterion_scores"}
     if unknown:
         keys_str = ",".join(sorted(unknown))
         raise _failure("ITSOInvalidResponse", f"unknown_keys:{keys_str}")
     summary = parsed.get("summary")
-    if not isinstance(summary, str) or not 1 <= len(summary) <= 2000:
+    if not isinstance(summary, str) or not 0 <= len(summary) <= 2000:
         raise _failure("ITSOInvalidResponse", type(summary).__name__)
     if "criterion_scores" not in parsed or not isinstance(
         parsed.get("criterion_scores"), (list, dict)
@@ -184,7 +192,9 @@ def parse_response(
         raise _failure(
             "ITSOInvalidCriterionScores", type(parsed.get("criterion_scores")).__name__
         )
-    criterion_scores(parsed, expected_ids=expected_ids, known_chunk_ids=known_chunk_ids)
+    criterion_scores(
+        parsed, expected_ids=expected_ids_tuple, known_chunk_ids=known_chunk_ids
+    )
     return parsed
 
 
@@ -266,6 +276,12 @@ def criterion_scores(
         raw_chunk_ids = item.get("chunk_ids")
         if raw_chunk_ids is None:
             norm_chunk_ids: tuple[str, ...] = ()
+        elif isinstance(raw_chunk_ids, str):
+            norm_chunk_ids = _normalize_text_tuple(
+                [raw_chunk_ids] if raw_chunk_ids.strip() else [],
+                ITSO_CHUNK_ID_MAX,
+                known,
+            )
         elif isinstance(raw_chunk_ids, (list, tuple)):
             norm_chunk_ids = _normalize_text_tuple(
                 list(raw_chunk_ids), ITSO_CHUNK_ID_MAX, known
@@ -276,6 +292,10 @@ def criterion_scores(
         raw_evidence = item.get("evidence")
         if raw_evidence is None:
             norm_evidence: tuple[str, ...] = ()
+        elif isinstance(raw_evidence, str):
+            norm_evidence = _normalize_text_tuple(
+                [raw_evidence] if raw_evidence.strip() else [], ITSO_TEXT_MAX
+            )
         elif isinstance(raw_evidence, (list, tuple)):
             norm_evidence = _normalize_text_tuple(list(raw_evidence), ITSO_TEXT_MAX)
         else:

@@ -86,7 +86,7 @@ class Settings:
     # alongside the bounded prompt payload.
     llm_max_new_tokens: int = 4096
     llm_request_timeout_seconds: int = 120
-    llm_readiness_timeout_seconds: float = 2.0
+    llm_readiness_timeout_seconds: float = 15.0
     evaluation_heartbeat_stale_seconds: int = 300
     llm_response_mode: str = "json_object"
     llm_inflight_limit: int = 4
@@ -480,7 +480,7 @@ def get_settings() -> Settings:
         llm_max_new_tokens=parsed_llm_max_new_tokens,
         llm_request_timeout_seconds=parsed_llm_request_timeout_seconds,
         llm_readiness_timeout_seconds=float(
-            _env("LLM_READINESS_TIMEOUT_SECONDS", "2") or "2"
+            _env("LLM_READINESS_TIMEOUT_SECONDS", "15.0") or "15.0"
         ),
         evaluation_heartbeat_stale_seconds=int(
             _env("EVALUATION_HEARTBEAT_STALE_SECONDS", "300") or "300"

@@ -110,7 +110,6 @@ def test_task_schema_and_parser_share_chunk_id_bounds():
             chunk_ids=["x" * (ITSO_CHUNK_ID_MAX + 1)]
         ),
         lambda p: p["criterion_scores"][0].update(evidence=["x" * (ITSO_TEXT_MAX + 1)]),
-        lambda p: p.update(summary=""),
         lambda p: p.update(summary="x" * (ITSO_TEXT_MAX + 1)),
     ],
 )
@@ -123,6 +122,7 @@ def test_mutations_fail_schema_and_parser(mutation):
 @pytest.mark.parametrize(
     "mutation",
     [
+        lambda p: p.update(summary=""),
         lambda p: p["criterion_scores"].reverse(),
         lambda p: p["criterion_scores"][0].update(criterion_title="wrong title"),
         lambda p: p["criterion_scores"][0].update(justification=""),
