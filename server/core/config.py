@@ -541,6 +541,12 @@ def get_settings() -> Settings:
             "LLM_RPM_LIMIT and LLM_TPM_LIMIT must be zero or positive"
         )
 
+    if settings.llm_allowed_endpoints and settings.environment != "development":
+        raise ConfigurationError(
+            "LLM_ALLOWED_ENDPOINTS must remain empty outside development "
+            "(data residency)"
+        )
+
     if settings.cors_allow_credentials and "*" in settings.cors_origins:
         raise ConfigurationError(
             "CORS_ORIGINS cannot include '*' when credentials are enabled"

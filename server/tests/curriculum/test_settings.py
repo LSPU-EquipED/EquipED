@@ -45,3 +45,32 @@ def test_curriculum_alignment_cross_field_validation_rejects_bad_limits(
 
     with pytest.raises(ConfigurationError):
         get_settings()
+
+
+def test_llm_allowed_endpoints_rejected_outside_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_cached_settings()
+    monkeypatch.setenv("LLM_ALLOWED_ENDPOINTS", "example.com")
+    monkeypatch.setenv("APP_ENV", "production")
+    _clear_cached_settings()
+    with pytest.raises(ConfigurationError, match="LLM_ALLOWED_ENDPOINTS"):
+        get_settings()
+    # Clean up for subsequent tests
+    monkeypatch.delenv("LLM_ALLOWED_ENDPOINTS", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    _clear_cached_settings()
+
+
+def test_llm_allowed_endpoints_allowed_in_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_cached_settings()
+    monkeypatch.setenv("LLM_ALLOWED_ENDPOINTS", "example.com")
+    monkeypatch.setenv("APP_ENV", "development")
+    _clear_cached_settings()
+    settings = get_settings()
+    assert settings.llm_allowed_endpoints == ("example.com",)
+    monkeypatch.delenv("LLM_ALLOWED_ENDPOINTS", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    _clear_cached_settings()
