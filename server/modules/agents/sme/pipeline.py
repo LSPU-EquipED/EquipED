@@ -95,11 +95,21 @@ class EngineScoredAgent:
                 basket_extract_kwargs=basket_extract_kwargs,
                 prompt_preamble=prompt_preamble,
             )
-            # ``run_grouped`` performs six physical basket transports.  Keep
-            # this accounting at the transport boundary rather than counting
-            # the single pipeline lane invocation.
+            # Count only the actual dispatched baskets rather than a hardcoded
+            # constant; keeps telemetry honest when baskets are skipped.
             if isinstance(telemetry, dict):
-                telemetry["grouped_calls"] = telemetry.get("grouped_calls", 0) + 6
+                dispatched = (
+                    len({registry._CODE_TO_BASKET[code][0] for code in grouped})
+                    if grouped
+                    else len(registry._BASKETS)
+                )
+                # grouped empty can mean total failure (already outside this
+                # block) or no criteria scored; fall back to basket count.
+                if dispatched == 0:
+                    dispatched = len(registry._BASKETS)
+                telemetry["grouped_calls"] = (
+                    telemetry.get("grouped_calls", 0) + dispatched
+                )
             grouped_seconds = time.perf_counter() - t0
             logger.info(
                 "[ENGINE_TIMING] agent=%s | phase=grouped | seconds=%.3f | criteria=%d",
