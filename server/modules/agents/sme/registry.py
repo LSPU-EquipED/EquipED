@@ -7,29 +7,20 @@ criterion (its own per-criterion LLM call) and returns the pieces the agent
 needs to build a ``CriterionScore``: the 1-4 band, a human-readable
 justification, and the evidence quotes.
 
-``run_grouped`` is the skeleton-extraction alternative: it runs 6 shared
-basket calls (see skeleton.py) instead of one call per criterion, then routes
-each basket's facts into the SAME ``compute()`` functions ``run_criterion``
-uses -- only the fact *source* changes. Both paths share ``_render`` so the
-justification/evidence text is identical either way.
-
 Scoped to SME only. The other agents (Coordinator/GAD/ITSO) are untouched.
 """
 
 from __future__ import annotations
 
-import concurrent.futures
-import logging
 from typing import Any
 
 from ....core.config import get_settings
 from ....core.llm import ResponseContract
-from ..runtime.llm import error_reference, parse_json_payload
+from ..runtime.llm import parse_json_payload
 from . import (
     accurate_sections,
     clear_directions,
     enhancement_activities,
-    extraction,
     interactivity,
     learner_transformation,
     objective_alignment,
@@ -39,19 +30,6 @@ from . import (
     varied_assessment,
 )
 from .criterion_contracts import RESPONSE_SCHEMAS, validate
-
-logger = logging.getLogger(__name__)
-
-# Criteria fed from each basket in the grouped/skeleton path. See skeleton.py
-# for why monitoring (A3) / enhancement (A4) / sections (B2) each got their
-# own dedicated call: bundled with other categories, they came back empty on
-# a real-SLM parity test even though the oracle found real content.
-_BASKET_A1_CODES: frozenset[str] = frozenset({"A-02", "A-05"})
-_BASKET_A2_CODES: frozenset[str] = frozenset({"A-01", "OP-02", "OP-03"})
-_BASKET_A3_CODES: frozenset[str] = frozenset({"A-03"})
-_BASKET_A4_CODES: frozenset[str] = frozenset({"OP-05"})
-_BASKET_B1_CODES: frozenset[str] = frozenset({"OP-01", "A-04"})
-_BASKET_B2_CODES: frozenset[str] = frozenset({"OP-04"})
 
 # Criterion codes handled by the engine. Anything not listed keeps the old
 # LLM-picks-a-score path.
@@ -78,10 +56,6 @@ def is_registered(criterion_code: str) -> bool:
 def _render(criterion_code: str, result: Any) -> tuple[int, str, tuple[str, ...]]:
     """Turn a criterion's ``compute()``/``evaluate()`` result into the
     ``(score, justification, evidence)`` tuple the agent needs.
-
-    Shared by both ``run_criterion`` (per-criterion call) and ``run_grouped``
-    (shared basket call) -- the result objects are identical either way, so the
-    rendered text is identical too, regardless of where the facts came from.
     """
     if criterion_code == "A-05":
         pct = f"{result.pct:.0f}%" if result.pct is not None else "n/a"
@@ -285,220 +259,8 @@ class _CriterionClient:
         return raw
 
 
-def _compute_basket_a1(criterion_code: str, basket: dict[str, Any]) -> Any:
-    """Run one Basket-A1 (assessment-centric) criterion's ``compute()``.
-
-    The same ``assessments`` list feeds both A-02 (types) and A-05 (alignment
-    target list) -- each ``compute()`` only reads the keys it needs.
-    """
-    if criterion_code == "A-05":
-        return objective_alignment.compute(
-            objectives=list(basket.get("objectives", [])),
-            assessments=list(basket.get("assessments", [])),
-            alignment=list(basket.get("alignment", [])),
-        )
-    if criterion_code == "A-02":
-        return varied_assessment.compute(list(basket.get("assessments", [])))
-    raise KeyError(f"{criterion_code!r} is not a Basket-A1 criterion")
-
-
-def _compute_basket_a2(criterion_code: str, basket: dict[str, Any]) -> Any:
-    """Run one Basket-A2 (task-centric) criterion's ``compute()``.
-
-    The same ``tasks`` list feeds A-01 (bloom_level), OP-02 (evidence-based
-    interactive count), and OP-03 (directions) -- each ``compute()`` only reads
-    the keys it needs and ignores the rest, so one enumeration serves all
-    three. Monitoring/enhancement used to be bundled here too, but a real-SLM
-    parity test showed both coming back empty even when real content existed
-    -- they now get their own single-purpose baskets (A3, A4).
-    """
-    if criterion_code == "A-01":
-        return learner_transformation.compute(list(basket.get("tasks", [])))
-    if criterion_code == "OP-02":
-        return interactivity.compute(list(basket.get("tasks", [])))
-    if criterion_code == "OP-03":
-        return clear_directions.compute(list(basket.get("tasks", [])))
-    raise KeyError(f"{criterion_code!r} is not a Basket-A2 criterion")
-
-
-def _compute_basket_a3(criterion_code: str, basket: dict[str, Any]) -> Any:
-    if criterion_code == "A-03":
-        return progress_monitoring.compute(
-            list(basket.get("monitoring_mechanisms", []))
-        )
-    raise KeyError(f"{criterion_code!r} is not a Basket-A3 criterion")
-
-
-def _compute_basket_a4(criterion_code: str, basket: dict[str, Any]) -> Any:
-    if criterion_code == "OP-05":
-        return enhancement_activities.compute(
-            list(basket.get("enhancement_activities", []))
-        )
-    raise KeyError(f"{criterion_code!r} is not a Basket-A4 criterion")
-
-
-def _compute_basket_b1(criterion_code: str, basket: dict[str, Any]) -> Any:
-    if criterion_code == "OP-01":
-        return topic_coherence.compute(
-            topics=list(basket.get("topics", [])),
-            transitions=list(basket.get("transitions", [])),
-        )
-    if criterion_code == "A-04":
-        return prescriptive_feedback.compute(
-            list(basket.get("feedback_mechanisms", []))
-        )
-    raise KeyError(f"{criterion_code!r} is not a Basket-B1 criterion")
-
-
-def _compute_basket_b2(criterion_code: str, basket: dict[str, Any]) -> Any:
-    if criterion_code == "OP-04":
-        return accurate_sections.compute(list(basket.get("sections", [])))
-    raise KeyError(f"{criterion_code!r} is not a Basket-B2 criterion")
-
-
-_BASKETS: tuple[tuple[str, frozenset[str], Any, Any], ...] = (
-    ("A1", _BASKET_A1_CODES, extraction.extract_basket_a1, _compute_basket_a1),
-    ("A2", _BASKET_A2_CODES, extraction.extract_basket_a2, _compute_basket_a2),
-    ("A3", _BASKET_A3_CODES, extraction.extract_basket_a3, _compute_basket_a3),
-    ("A4", _BASKET_A4_CODES, extraction.extract_basket_a4, _compute_basket_a4),
-    ("B1", _BASKET_B1_CODES, extraction.extract_basket_b1, _compute_basket_b1),
-    ("B2", _BASKET_B2_CODES, extraction.extract_basket_b2, _compute_basket_b2),
-)
-
-_CODE_TO_BASKET: dict[str, tuple[str, Any]] = {
-    code: (name, compute_fn)
-    for name, codes, _, compute_fn in _BASKETS
-    for code in codes
-}
-
-_BASKET_SLICES: dict[str, Any] = {
-    "A1": extraction.slice_for_basket_a1,
-    "A2": extraction.slice_for_basket_a2,
-    "A3": extraction.slice_for_basket_a3,
-    "A4": extraction.slice_for_basket_a4,
-    "B1": extraction.slice_for_basket_b1,
-    "B2": extraction.slice_for_basket_b2,
-}
-
-
-def run_grouped(
-    client: Any,
-    text: str,
-    *,
-    raw_baskets_out: dict[str, dict[str, Any]] | None = None,
-    basket_extract_kwargs: dict[str, dict[str, Any]] | None = None,
-    prompt_preamble: str | None = None,
-) -> dict[str, tuple[int, str, tuple[str, ...]]]:
-    """Score every registered criterion from 6 shared basket calls instead of
-    one call per criterion (see skeleton.py).
-
-    ``raw_baskets_out``, if given, is populated as a side effect with each
-    successfully-extracted basket's raw dict, keyed by basket name (e.g.
-    ``"A1"`` -> ``{"objectives": [...], "assessments": [...], ...}``). This
-    lets a caller reuse already-extracted facts (Coordinator's curriculum
-    comparison reuses A1's ``objectives``) without a second LLM call. Purely
-    additive -- callers that don't pass it see no change in behavior.
-
-    ``basket_extract_kwargs``, if given, maps a basket name to extra keyword
-    arguments forwarded to that basket's ``extract`` function (e.g.
-    ``{"A1": {"curriculum_text": "..."}}`` so Coordinator's curriculum
-    comparison rides the same A1 call instead of a second LLM round-trip).
-    Baskets not named in the mapping get no extra kwargs -- purely additive,
-    SME never passes this.
-
-    Earlier, coarser groupings (2 baskets, then 3) were tried and rejected: a
-    single merged Basket A (7 criteria in one call) was rejected outright by
-    the provider (HTTP 413, request too large); a 3-basket split fit the token
-    budget but a real-SLM parity test against the validated per-criterion
-    oracle showed monitoring, enhancement, and sections -- all secondary
-    categories crammed alongside others in one prompt -- came back completely
-    empty despite the oracle finding real content in the same region. Those
-    three now get their own dedicated call each. Still 6 calls total instead
-    of today's ~10.
-
-    Returns a dict keyed by criterion code -- the SAME ``(score,
-    justification, evidence)`` shape ``run_criterion`` returns for that code.
-    A code is simply ABSENT from the result if its basket failed to extract or
-    its own ``compute()`` raised; callers must treat a missing code as "fall
-    back to the per-criterion path or the original LLM score" (see
-    ``sme.py._overlay_engine_scores``) -- a basket-level failure must never
-    take down criteria that didn't need that basket.
-    """
-    budget = get_settings().sme_total_prompt_budget_chars
-
-    def _extract_one(name: str, extract_fn: Any) -> tuple[str, dict[str, Any] | None]:
-        extra_kwargs = dict((basket_extract_kwargs or {}).get(name, {}))
-        if prompt_preamble or len(text) > budget:
-            extra_kwargs["prompt_preamble"] = prompt_preamble
-
-        # Preflight the complete managed prompt before transport. This is
-        # intentionally a basket-local gate: other canonical windows must not
-        # be shortened merely because one call cannot fit.
-        if prompt_preamble:
-            content = _BASKET_SLICES[name](text)
-            template = getattr(extraction, f"BASKET_{name}_PROMPT")
-            complete_prompt = (
-                (prompt_preamble.rstrip() + "\n\n") if prompt_preamble else ""
-            ) + template.format(content=content)
-            if len(complete_prompt) > budget:
-                logger.warning(
-                    "[SME_GROUPED] basket=%s skipped: complete prompt exceeds budget",
-                    name,
-                )
-                return name, None
-
-        basket: dict[str, Any] | None
-        try:
-            basket = extract_fn(client, text, **extra_kwargs)
-            return name, basket
-        except Exception as exc:
-            logger.warning(
-                "[SME_GROUPED] basket=%s extraction failed: category=%s | reference=%s",
-                name,
-                type(exc).__name__,
-                error_reference(exc),
-            )
-            return name, None
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [
-            executor.submit(_extract_one, name, extract)
-            for name, _, extract, _ in _BASKETS
-        ]
-        extracted_baskets = [f.result() for f in futures]
-
-    baskets: dict[str, dict[str, Any]] = {}
-    for name, basket in extracted_baskets:
-        if basket is not None:
-            baskets[name] = basket
-            if raw_baskets_out is not None:
-                raw_baskets_out[name] = basket
-
-    results: dict[str, tuple[int, str, tuple[str, ...]]] = {}
-    for code in sorted(REGISTERED_CODES):
-        name, compute_fn = _CODE_TO_BASKET[code]
-        basket = baskets.get(name)
-        if basket is None:
-            continue
-        try:
-            result = compute_fn(code, basket)
-            results[code] = _render(code, result)
-        except Exception as exc:
-            logger.warning(
-                "[SME_GROUPED] criterion=%s failed from basket %s: category=%s | "
-                "reference=%s",
-                code,
-                name,
-                type(exc).__name__,
-                error_reference(exc),
-            )
-
-    return results
-
-
 __all__ = [
     "REGISTERED_CODES",
     "is_registered",
     "run_criterion",
-    "run_grouped",
 ]

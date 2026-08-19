@@ -10,37 +10,13 @@ import json
 import uuid
 
 import pytest
-from server.core.llm import ResponseContract
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme import extraction, registry
+from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
-from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER, SequencedFakeClient
 
 PREAMBLE = "MANAGED SME PREAMBLE -- causal-test"
 PROMPT_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-
-
-class RecordingClient(SequencedFakeClient):
-    def __init__(self, responses):
-        super().__init__(responses)
-        self.prompts: list[str] = []
-        self.contracts: list[ResponseContract] = []
-
-    def generate(self, prompt: str, **kwargs):
-        self.prompts.append(prompt)
-        self.contracts.append(kwargs["response_contract"])
-        return super().generate(prompt, **kwargs)
-
-
-def test_managed_preamble_is_consumed_by_all_six_baskets(monkeypatch):
-    client = RecordingClient(list(_ALL_BASKETS_IN_ORDER))
-    for name, *_ in registry._BASKETS:
-        getattr(extraction, f"extract_basket_{name.lower()}")(
-            client, "canonical text", prompt_preamble=PREAMBLE
-        )
-    assert len(client.prompts) == 6
-    assert all(prompt.startswith(PREAMBLE + "\n\n") for prompt in client.prompts)
 
 
 def test_managed_preamble_is_consumed_by_criterion_fallback(monkeypatch):
@@ -104,70 +80,6 @@ def test_managed_prompt_id_is_causal_and_absent_without_text(monkeypatch):
     assert result.prompt_version_id is None
 
 
-@pytest.mark.parametrize("name", ["A1", "A2", "A3", "A4", "B1", "B2"])
-def test_fixed_slice_caps_are_not_trimmed(name):
-    cap = extraction._SLICE_CAPS[name]
-    assert (
-        len(
-            getattr(extraction, f"slice_for_basket_{name.lower()}")("x" * (cap + 100))[
-                :cap
-            ]
-        )
-        == cap
-    )
-
-
-def test_grouped_overflow_only_falls_back_for_missing_criteria(monkeypatch):
-    grouped = {"A-01": (2, "j", ())}
-    fallback = []
-    monkeypatch.setattr(registry, "run_grouped", lambda *a, **k: grouped)
-    monkeypatch.setattr(
-        registry,
-        "run_criterion",
-        lambda code, *a, **k: fallback.append(code) or (1, "j", ()),
-    )
-    scores, count = SME()._score_via_engine(object(), "canonical")
-    assert set(fallback) == registry.REGISTERED_CODES - {"A-01"}
-    assert count == 9 and set(scores) == registry.REGISTERED_CODES
-
-
-def test_fallback_overflow_is_honest(monkeypatch):
-    monkeypatch.setattr(registry, "run_grouped", lambda *a, **k: {})
-    monkeypatch.setattr(
-        registry,
-        "run_criterion",
-        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("overflow")),
-    )
-    with pytest.raises(AgentExecutionError, match="failed in both"):
-        SME()._score_via_engine(object(), "canonical")
-
-
 def test_sme_uses_canonical_text_only():
     with pytest.raises(AgentExecutionError, match="canonical source text"):
         SME()._resolve_full_text(uuid.uuid4(), "context", [{"text": "pdf/chunk"}], None)
-
-
-def test_configured_response_mode_selects_json_schema_and_identity(monkeypatch):
-    class Settings:
-        llm_response_mode = "json_schema"
-
-    monkeypatch.setattr(extraction, "get_settings", lambda: Settings())
-    client = object()
-    contract = extraction._contract(client, "A3")
-    assert contract.mode == "json_schema"
-    assert contract.schema_name == "sme_a3"
-    monkeypatch.setattr(
-        extraction,
-        "get_settings",
-        lambda: type("Settings", (), {"llm_response_mode": "json_object"})(),
-    )
-    assert extraction._contract(object(), "A3").mode == "json_object"
-
-
-def test_grouped_is_exactly_six_calls_and_missing_only(monkeypatch):
-    client = RecordingClient(
-        list(_ALL_BASKETS_IN_ORDER[:2]) + [None] + list(_ALL_BASKETS_IN_ORDER[3:])
-    )
-    result = registry.run_grouped(client, "canonical")
-    assert client.calls == 6
-    assert set(result) == registry.REGISTERED_CODES - {"A-03"}
