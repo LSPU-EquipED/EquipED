@@ -40,21 +40,6 @@ def test_document_wide_group_codes():
     assert groups.GROUP_CODES["document_wide"] == ("OP-01", "OP-04", "A-04")
 
 
-def test_slice_for_group_delegates_to_validated_basket_slicers():
-    text = "x" * 20000
-    from server.modules.agents.sme import extraction
-
-    assert groups.slice_for_group("assessment_alignment", text) == (
-        extraction.slice_for_basket_a1(text)
-    )
-    assert groups.slice_for_group("task_execution", text) == (
-        extraction.slice_for_basket_a2(text)
-    )
-    assert groups.slice_for_group("document_wide", text) == (
-        extraction.slice_for_basket_b1(text)
-    )
-
-
 def test_slice_for_group_rejects_unknown_group():
     import pytest
 

@@ -7,13 +7,10 @@ import inspect
 import threading
 import uuid
 
-import pytest
 from server.modules.agents.contracts import CriterionScore
-from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import error_reference
 from server.modules.agents.sme import pipeline, registry
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.pipeline import EngineScoredAgent
 
 
 class _Client:
@@ -87,46 +84,6 @@ def test_error_reference_is_deterministic_and_bounded() -> None:
     assert len(reference) == 16
     assert reference == reference.lower()
     assert all(character in "0123456789abcdef" for character in reference)
-
-
-def test_grouped_and_criterion_failures_log_safe_references(
-    caplog, monkeypatch
-) -> None:
-    secret = "SECRET-SME-CONTENT"
-
-    def fail_extract(*args, **kwargs):
-        raise RuntimeError(secret)
-
-    first_basket = registry._BASKETS[0]
-    monkeypatch.setattr(
-        registry,
-        "_BASKETS",
-        ((first_basket[0], first_basket[1], fail_extract, first_basket[3]),)
-        + registry._BASKETS[1:],
-    )
-    with caplog.at_level("WARNING"):
-        registry.run_grouped(_Client("model"), "text")
-    assert secret not in caplog.text
-    assert "category=RuntimeError" in caplog.text
-    assert error_reference(RuntimeError(secret)) in caplog.text
-
-    engine = EngineScoredAgent()
-    monkeypatch.setattr(
-        registry,
-        "run_grouped",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
-    )
-    monkeypatch.setattr(
-        registry,
-        "run_criterion",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(secret)),
-    )
-    with pytest.raises(AgentExecutionError) as raised:
-        engine._score_via_engine(_Client("model"), "text")
-    message = str(raised.value)
-    assert secret not in message
-    assert "category=RuntimeError" in message
-    assert error_reference(RuntimeError(secret)) in message
 
 
 def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:

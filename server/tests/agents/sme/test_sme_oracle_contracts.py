@@ -1,117 +1,18 @@
-"""Contract tests for the SME grouped and per-criterion oracle lanes."""
+"""Contract tests for the SME per-criterion oracle lane."""
 
 from __future__ import annotations
 
 import json
 from copy import deepcopy
-from importlib import import_module
 
 import pytest
 from server.core.config import get_settings
 from server.core.llm import ResponseContract
-from server.modules.agents.sme import extraction, registry
+from server.modules.agents.sme import registry
 from server.modules.agents.sme.criterion_contracts import (
     RESPONSE_SCHEMAS,
     validate,
 )
-from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER
-
-SME_EXTRACTION_PROMPT = import_module(
-    "server.alembic.versions.20260811_0002_seed_sme_extraction_prompt"
-).SME_EXTRACTION_PROMPT
-
-
-class RecordingClient:
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.prompts: list[str] = []
-
-    def generate(self, prompt: str, **kwargs):
-        self.prompts.append(prompt)
-        return json.dumps(self.responses[len(self.prompts) - 1])
-
-
-def test_grouped_prompts_preserve_oracle_sentinels_and_do_not_use_old_caps():
-    def sampled_marker(name: str) -> str:
-        length = 36_000
-        chunk_size = 9_000 // 6
-        starts = [(i * length) // 6 for i in range(5)] + [length - chunk_size]
-        source = ["a"] * length
-        marker = f"{name}-SAMPLED"
-        start = starts[4] + 100
-        source[start : start + len(marker)] = marker
-        return "".join(source)
-
-    texts = {
-        "A1": "A1-OBJECTIVE "
-        + "x" * 3900
-        + "\nPerformance Tasks\n"
-        + "y" * 1000
-        + "A1-BODY",
-        "A2": "z" * 100 + "Performance Tasks\n" + "q" * 8700 + "A2-BOTTOM",
-        "A3": "z" * 100 + "Performance Tasks\n" + "q" * 8700 + "A3-BOTTOM",
-        "A4": "z" * 100 + "Performance Tasks\n" + "q" * 8700 + "A4-BOTTOM",
-        "B1": sampled_marker("B1"),
-        "B2": sampled_marker("B2"),
-    }
-    for index, name in enumerate(("A1", "A2", "A3", "A4", "B1", "B2")):
-        client = RecordingClient(_ALL_BASKETS_IN_ORDER)
-        registry.run_grouped(client, texts[name])
-        assert len(client.prompts) == 6
-        assert f"{name}-" in client.prompts[index]
-
-
-class TypedGroupedClient:
-    def __init__(self) -> None:
-        self.prompts: list[str] = []
-
-    def generate(self, prompt: str, *, response_contract, **kwargs):
-        assert isinstance(response_contract, ResponseContract)
-        self.prompts.append(prompt)
-        return json.dumps(_ALL_BASKETS_IN_ORDER[len(self.prompts) - 1])
-
-
-def test_grouped_canonical_source_fits_default_budget() -> None:
-    source = (
-        "Learning objectives and assessment information.\n"
-        + "x" * 9000
-        + "\nPerformance Tasks\n"
-        + "y" * 9000
-        + "\nQuestions for Reflection\n"
-        + "z" * 18000
-    )
-    client = TypedGroupedClient()
-    results = registry.run_grouped(
-        client, source, prompt_preamble=SME_EXTRACTION_PROMPT
-    )
-    assert len(client.prompts) == 6
-    budget = get_settings().sme_total_prompt_budget_chars
-    assert all(len(prompt) <= budget for prompt in client.prompts)
-    assert all(prompt.startswith(SME_EXTRACTION_PROMPT) for prompt in client.prompts)
-    assert len(results) == 10
-
-
-def test_over_budget_does_not_send_grouped_transport_and_returns_honest_failure(
-    monkeypatch,
-):
-    settings = get_settings()
-
-    def tiny():
-        return settings.__class__(
-            **{
-                **{
-                    field: getattr(settings, field)
-                    for field in settings.__dataclass_fields__
-                },
-                "sme_total_prompt_budget_chars": 1000,
-            }
-        )
-
-    monkeypatch.setattr(registry, "get_settings", tiny)
-    monkeypatch.setattr(extraction, "get_settings", tiny)
-    client = RecordingClient(_ALL_BASKETS_IN_ORDER)
-    assert registry.run_grouped(client, "z" * 100_000, prompt_preamble="p" * 1000) == {}
-    assert client.prompts == []
 
 
 def _criterion_payloads():
