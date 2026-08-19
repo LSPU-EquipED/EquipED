@@ -6,8 +6,8 @@ import pytest
 from server.core.llm import CompletionResult
 from server.modules.agents.provenance import sanitize_provenance
 from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
+from server.modules.agents.sme.oracle import registry
 from server.tests.agents.helpers import GroupScoringFakeClient, sme_group_payloads
 
 _TELEMETRY_TITLES = {code: f"{code} title" for code in registry.REGISTERED_CODES}

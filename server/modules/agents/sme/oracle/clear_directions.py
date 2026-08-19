@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..runtime.llm import parse_json_payload
+from ...runtime.llm import parse_json_payload
 from .bands import ratio_band
 
 # The SLM template's fixed section headers where tasks/activities (and thus their

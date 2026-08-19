@@ -6,7 +6,7 @@ functions the agent will call once facts come from a shared/grouped call.
 
 from __future__ import annotations
 
-from server.modules.agents.sme import (
+from server.modules.agents.sme.oracle import (
     accurate_sections,
     clear_directions,
     enhancement_activities,

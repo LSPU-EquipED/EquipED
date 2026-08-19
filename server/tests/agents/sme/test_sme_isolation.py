@@ -9,8 +9,9 @@ import uuid
 
 from server.modules.agents.contracts import CriterionScore
 from server.modules.agents.runtime.llm import error_reference
-from server.modules.agents.sme import pipeline, registry
+from server.modules.agents.sme import pipeline
 from server.modules.agents.sme.agent import SME
+from server.modules.agents.sme.oracle import registry
 
 
 class _Client:

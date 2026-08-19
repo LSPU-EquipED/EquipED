@@ -8,7 +8,7 @@ See ``docs/superpowers/specs/2026-08-13-sme-dpo-scoring-design.md``.
 
 from __future__ import annotations
 
-from . import extraction
+from ..oracle import extraction
 
 GROUP_CODES: dict[str, tuple[str, ...]] = {
     "assessment_alignment": ("A-02", "A-05"),

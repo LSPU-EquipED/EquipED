@@ -4,7 +4,7 @@ import json
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme.grouped_response import (
+from server.modules.agents.sme.grouped.grouped_response import (
     build_group_response_schema,
     group_criterion_scores,
     parse_group_response,
