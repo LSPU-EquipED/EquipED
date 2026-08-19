@@ -119,13 +119,57 @@ def test_criterion_scores_rejects_invalid_scores_safely(score):
         assert "reference:" in message
 
 
-@pytest.mark.parametrize(
-    "field,value", [("evidence", "proof"), ("chunk_ids", "chunk-1")]
-)
-def test_criterion_scores_rejects_scalar_evidence_and_chunk_ids(field, value):
+@pytest.mark.parametrize("field,value", [("evidence", 123), ("chunk_ids", True)])
+def test_criterion_scores_rejects_non_string_scalar_evidence_and_chunk_ids(
+    field, value
+):
     with pytest.raises(AgentExecutionError) as exc:
         parse_response(_response(**{field: value}), known_chunk_ids=("c1",))
     assert "ITSOInvalidEvidence" in str(exc.value)
+
+
+def test_root_level_dict_format_parses_cleanly():
+    payload = {
+        cid: {
+            "score": 4,
+            "justification": f"Justification for {cid}",
+            "chunk_ids": ["c1"],
+            "evidence": ["evidence"],
+        }
+        for cid in ITSO_CRITERIA
+    }
+    parsed = parse_response(json.dumps(payload), known_chunk_ids=("c1",))
+    scores = criterion_scores(parsed, known_chunk_ids=("c1",))
+    assert len(scores) == 5
+    assert [s.criterion_id for s in scores] == list(ITSO_CRITERIA)
+    for s in scores:
+        assert s.score == 4
+        assert s.justification == f"Justification for {s.criterion_id}"
+        assert s.chunk_ids == ("c1",)
+        assert s.evidence == ("evidence",)
+
+
+def test_scalar_string_evidence_and_chunk_ids_normalize_cleanly():
+    payload = {
+        "summary": "ITSO evaluated",
+        "criterion_scores": [
+            {
+                "criterion_id": cid,
+                "criterion_title": ITSO_CRITERIA_TITLES[cid],
+                "score": 3,
+                "justification": "justification",
+                "chunk_ids": "c1",
+                "evidence": "evidence text",
+            }
+            for cid in ITSO_CRITERIA
+        ],
+    }
+    parsed = parse_response(json.dumps(payload), known_chunk_ids=("c1",))
+    scores = criterion_scores(parsed, known_chunk_ids=("c1",))
+    assert len(scores) == 5
+    for s in scores:
+        assert s.chunk_ids == ("c1",)
+        assert s.evidence == ("evidence text",)
 
 
 @pytest.mark.parametrize("title", [3, {"name": "title"}, None, "Wrong Title"])
