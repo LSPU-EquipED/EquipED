@@ -113,7 +113,8 @@ def compute(
         raise ValueError("curriculum objectives must have unique ids")
     allowed = {"objective_id", "is_addressed", "evidence"}
     if len(curriculum_alignment) > 100 or any(
-        set(row) != allowed or not isinstance(row, dict) for row in curriculum_alignment
+        not isinstance(row, dict) or set(row) != allowed
+        for row in curriculum_alignment
     ):
         raise ValueError("invalid curriculum alignment row schema")
     if len({row["objective_id"] for row in curriculum_alignment}) != len(
@@ -171,14 +172,13 @@ def evaluate_against_curriculum(
         )
         data = parse_json_payload(raw)
         alignment = list(data.get("alignment", []))
-    except Exception as exc:
-        raise ValueError("invalid curriculum alignment response") from exc
-
-    return compute(
-        objectives=objectives,
-        curriculum_alignment=alignment,
-        curriculum_text=curriculum_text,
-    )
+        return compute(
+            objectives=objectives,
+            curriculum_alignment=alignment,
+            curriculum_text=curriculum_text,
+        )
+    except Exception:
+        return None
 
 
 def apply_curriculum_alignment(
