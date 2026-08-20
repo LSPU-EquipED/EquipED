@@ -82,11 +82,26 @@ export type ClientDocument = {
   chunks: ClientDocumentChunk[];
 };
 
+export type RawDocumentStats = {
+  total: number;
+  ready: number;
+  processing: number;
+  failed: number;
+};
+
+export type DocumentStats = {
+  total: number;
+  ready: number;
+  processing: number;
+  failed: number;
+};
+
 export type RawDocumentListResponse = {
   items: RawDocumentResponse[];
   total: number;
   page: number;
   page_size: number;
+  stats?: RawDocumentStats;
 };
 
 export type DocumentListResponse = {
@@ -94,6 +109,7 @@ export type DocumentListResponse = {
   total: number;
   page: number;
   pageSize: number;
+  stats?: DocumentStats;
 };
 
 export type RawDocumentUploadResponse = {
@@ -189,6 +205,14 @@ export function mapDocumentListResponse(response: RawDocumentListResponse): Docu
     total: response.total,
     page: response.page,
     pageSize: response.page_size,
+    stats: response.stats
+      ? {
+          total: response.stats.total,
+          ready: response.stats.ready,
+          processing: response.stats.processing,
+          failed: response.stats.failed,
+        }
+      : undefined,
   };
 }
 
