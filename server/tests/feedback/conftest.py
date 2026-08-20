@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from uuid import uuid4
-
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 import pytest
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
+from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import (  # noqa: F401 — re-exported fixtures
     admin_user,
     auth_cookies_admin,
@@ -46,6 +41,60 @@ def _make_evaluation_job(db_session, *, owner_id):
         evaluation_id=uuid4(), document_id=document_id, submitted_by=owner_id
     )
     db_session.add(job)
+    db_session.flush()
+
+    itso_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name="itso",
+        subtotal=3.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="ITSO summary",
+        success=True,
+    )
+    db_session.add(itso_result)
+    db_session.flush()
+
+    db_session.add(
+        CriterionScore(
+            agent_result_id=itso_result.agent_result_id,
+            evaluation_id=job.evaluation_id,
+            document_id=document_id,
+            criterion_id="itso-03",
+            criterion_title="References / Bibliography",
+            score=3,
+            justification="Adequate references provided.",
+        )
+    )
+
+    sme_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name="sme",
+        subtotal=4.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="SME summary",
+        success=True,
+    )
+    db_session.add(sme_result)
+    db_session.flush()
+
+    db_session.add(
+        CriterionScore(
+            agent_result_id=sme_result.agent_result_id,
+            evaluation_id=job.evaluation_id,
+            document_id=document_id,
+            criterion_id="A-01",
+            criterion_title="Objective Alignment",
+            score=4,
+            justification="Strong alignment with syllabus objectives.",
+        )
+    )
+
     db_session.commit()
     return job
 

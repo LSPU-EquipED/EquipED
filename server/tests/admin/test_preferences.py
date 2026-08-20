@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.service import create_criterion_feedback
+from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import _auth
 from server.tests.evaluations.conftest import _add_document
 
@@ -18,12 +15,37 @@ from server.tests.evaluations.conftest import _add_document
 def test_admin_preferences_include_agent_and_criterion(
     client: TestClient, auth_cookies_admin, admin_user, db_session
 ):
-    from server.modules.evaluations.models import EvaluationJob
-    from uuid import uuid4
-
-    document_id = _add_document(db_session, owner_id=admin_user.user_id, source_type="slm")
+    document_id = _add_document(
+        db_session, owner_id=admin_user.user_id, source_type="slm"
+    )
     job = EvaluationJob(evaluation_id=uuid4(), document_id=document_id)
     db_session.add(job)
+    db_session.flush()
+
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name="itso",
+        subtotal=3.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="ITSO evaluation summary",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
+    score = CriterionScore(
+        agent_result_id=agent_result.agent_result_id,
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        criterion_id="itso-03",
+        criterion_title="References / Bibliography",
+        score=3,
+        justification="Adequate references provided.",
+    )
+    db_session.add(score)
     db_session.commit()
 
     create_criterion_feedback(

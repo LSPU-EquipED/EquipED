@@ -8,7 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
-from server.modules.feedback.exceptions import EvaluationNotFoundError
+from server.modules.feedback.exceptions import (
+    EvaluationNotFoundError,
+    InvalidFeedbackTargetError,
+)
 from server.modules.feedback.schemas import (
     CriterionFeedbackCreate,
     CriterionFeedbackResponse,
@@ -46,6 +49,10 @@ def submit_criterion_feedback(
     except EvaluationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+    except InvalidFeedbackTargetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
     return CriterionFeedbackResponse(
