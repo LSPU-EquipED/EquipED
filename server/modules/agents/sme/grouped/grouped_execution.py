@@ -17,11 +17,7 @@ from .grouped_response import (
     build_group_response_schema,
     group_criterion_scores,
     parse_group_response,
-)
-
-_REPAIR_SUFFIX = (
-    "\n\nVALIDATOR_FAILURE category=SME_GROUP_INVALID path=criterion_scores. "
-    "Regenerate ONLY the complete JSON response; do not include commentary."
+    repair_hint,
 )
 
 
@@ -59,9 +55,14 @@ def execute_group(
     )
     try:
         parsed = parse_group_response(completion.content, codes, titles)
-    except AgentExecutionError:
+    except AgentExecutionError as exc:
+        repair_prompt = (
+            f"{prompt}\n\nVALIDATOR_FAILURE category=SME_GROUP_INVALID: "
+            f"{repair_hint(exc)} Regenerate ONLY the complete JSON response; "
+            "do not include commentary."
+        )
         repaired = client.generate_result(
-            prompt + _REPAIR_SUFFIX,
+            repair_prompt,
             temperature=temperature,
             max_new_tokens=settings.llm_max_new_tokens,
             deadline=deadline,

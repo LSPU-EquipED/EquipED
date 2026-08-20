@@ -32,6 +32,50 @@ def _failure(category: str, value: Any) -> AgentExecutionError:
     return AgentExecutionError(f"{category} (reference: {reference})")
 
 
+_CATEGORY_HINTS: dict[str, str] = {
+    "SMEGroupResponseTypeError": (
+        "Your response must be plain text containing JSON, not another type."
+    ),
+    "SMEGroupInvalidJSON": (
+        "Your response was not valid JSON. Return a single JSON object with "
+        "no commentary before or after it."
+    ),
+    "SMEGroupInvalidResponse": (
+        'The top-level JSON object must have exactly two keys: "summary" '
+        '(a string) and "criterion_scores" (an array).'
+    ),
+    "SMEGroupInvalidCriterionScores": (
+        '"criterion_scores" must be an array with exactly one entry per '
+        "criterion, in the exact order listed."
+    ),
+    "SMEGroupInvalidCriterion": (
+        "Each criterion_scores entry must be an object with exactly these "
+        "keys: criterion_id, criterion_title, score, justification, "
+        "evidence -- and criterion_id must match the expected code for its "
+        "position."
+    ),
+    "SMEGroupInvalidCriterionTitle": (
+        '"criterion_title" must exactly match the title given for that '
+        "criterion_id."
+    ),
+    "SMEGroupInvalidScore": (
+        '"score" must be an integer from 1 to 4 (not a string or boolean).'
+    ),
+    "SMEGroupInvalidJustification": '"justification" must be a non-empty string.',
+    "SMEGroupInvalidEvidence": (
+        '"evidence" must be an array of non-empty strings (max 8 items).'
+    ),
+}
+
+
+def repair_hint(exc: AgentExecutionError) -> str:
+    """Human-readable explanation of what was wrong, for the retry prompt."""
+    category = str(exc).split(" (reference:", 1)[0]
+    return _CATEGORY_HINTS.get(
+        category, "Your response did not match the required JSON shape."
+    )
+
+
 def build_group_response_schema(
     codes: tuple[str, ...], titles: dict[str, str]
 ) -> dict[str, Any]:
@@ -166,4 +210,5 @@ __all__ = [
     "build_group_response_schema",
     "parse_group_response",
     "group_criterion_scores",
+    "repair_hint",
 ]

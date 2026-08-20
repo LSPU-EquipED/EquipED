@@ -103,6 +103,33 @@ _SCORING_RULES: dict[str, str] = {
 }
 
 
+def _example_response(
+    codes: tuple[str, ...], titles: dict[str, str]
+) -> dict[str, Any]:
+    """A shape-correct example, filled with placeholder values, so a weak
+    model can copy the structure instead of inferring it from a description.
+    """
+    return {
+        "summary": "One sentence overview of this group's findings.",
+        "criterion_scores": [
+            {
+                "criterion_id": code,
+                "criterion_title": titles[code],
+                "score": 3,
+                "justification": (
+                    "State the exact count or percentage you found and why "
+                    "it maps to this score."
+                ),
+                "evidence": [
+                    "A short verbatim quote from document_text that "
+                    "supports the score."
+                ],
+            }
+            for code in codes
+        ],
+    }
+
+
 def build_group_prompt(
     group: str,
     codes: tuple[str, ...],
@@ -130,12 +157,18 @@ def build_group_prompt(
         "Follow each criterion's scoring_rule exactly -- state the count or "
         "percentage you found in the justification so the score is auditable.",
         "Ground all claims in the provided document_text.",
+        "Your response must match the exact shape of example_response below: "
+        "the same two top-level keys (summary, criterion_scores), and one "
+        "criterion_scores entry per criterion above in the same order -- "
+        "only replace the score, justification, and evidence values with "
+        "your own findings.",
     ]
     payload = {
         "agent": "sme",
         "group": group,
         "document_text": document_text,
         "criteria": criteria,
+        "example_response": _example_response(codes, titles),
         "instructions": instructions,
     }
     body = json.dumps(payload, ensure_ascii=False)
