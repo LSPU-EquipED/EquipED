@@ -12,7 +12,7 @@ from server.modules.agents.contracts import AgentEvaluationResult, CriterionScor
 from server.modules.agents.coordinator import curriculum, extraction, reconciliation
 from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 
 _COORDINATOR_PAYLOAD = {
     "objectives": [{"id": 1, "text": "Objective"}],
@@ -169,10 +169,10 @@ def _result(codes):
 def test_merge_requires_canonical_ten_and_replaces_only_a05():
     coord = _result(("A-05",))
     coord = replace(coord, agent_name="coordinator")
-    ordered = tuple(sorted(registry.REGISTERED_CODES))
+    ordered = tuple(sorted(REGISTERED_CODES))
     for codes in (
-        (set(registry.REGISTERED_CODES) - {"A-05"}),
-        tuple(registry.REGISTERED_CODES) + ("A-05",),
+        (set(REGISTERED_CODES) - {"A-05"}),
+        tuple(REGISTERED_CODES) + ("A-05",),
         ordered[:-1] + ("X",),
     ):
         with pytest.raises(AgentExecutionError):

@@ -23,7 +23,7 @@ from typing import Any
 
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..runtime.llm import parse_json_payload
-from ..sme.oracle.bands import ratio_band
+from ..sme.bands import ratio_band
 
 
 def format_roadmap_note(roadmap_context: dict[str, Any] | None) -> str:

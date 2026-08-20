@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from server.modules.agents.sme.grouped.grouped_prompt import (
+from server.modules.agents.sme.group_prompt import (
     FALLBACK_DESCRIPTIONS,
     build_group_prompt,
 )

@@ -64,6 +64,15 @@ def test_sme_run_scores_all_ten_criteria_via_llm():
         "task_execution",
         "document_wide",
     }
+    assert set(result.metadata["group_responses"]) == {
+        "assessment_alignment",
+        "task_execution",
+        "document_wide",
+    }
+    for group_name, resp in result.metadata["group_responses"].items():
+        assert resp["summary"] == "ok"
+        assert len(resp["criterion_scores"]) >= 2
+        assert all(c["score"] == 3 for c in resp["criterion_scores"])
     assert result.provenance["criterion_fallback_calls"] == 0
     assert result.provenance["logical_calls"] == 3
 
@@ -85,10 +94,13 @@ def test_sme_run_falls_back_to_per_criterion_when_one_group_fails():
     assert "code-computed" in by_id["A-02"].justification
     assert "code-computed" in by_id["A-05"].justification
     assert by_id["OP-02"].justification == "justification"
-    # The failed group has no single snapshot-able prompt.
+    # The failed group has no single snapshot-able prompt or response.
     assert "assessment_alignment" not in result.metadata["group_prompts"]
+    assert "assessment_alignment" not in result.metadata["group_responses"]
     assert "task_execution" in result.metadata["group_prompts"]
+    assert "task_execution" in result.metadata["group_responses"]
     assert "document_wide" in result.metadata["group_prompts"]
+    assert "document_wide" in result.metadata["group_responses"]
     assert client.fallback_calls == 2
     assert result.provenance["criterion_fallback_calls"] == 2
 

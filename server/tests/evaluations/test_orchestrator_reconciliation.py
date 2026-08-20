@@ -9,14 +9,14 @@ from dataclasses import replace
 import pytest
 import server.modules.evaluations.orchestrator as orchestrator
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.modules.evaluations.orchestrator import _reconcile_coordinator_result
 
 
 def _result(agent: str, *, success: bool = True) -> AgentEvaluationResult:
     scores = tuple(
         CriterionScore(code, f"{code} title", 3, f"{code} justification", ())
-        for code in sorted(registry.REGISTERED_CODES)
+        for code in sorted(REGISTERED_CODES)
     )
     if agent == "coordinator":
         scores = (
@@ -42,7 +42,7 @@ def test_success_merges_canonical_ten_criteria() -> None:
     reconciled = _reconcile_coordinator_result(results)
     coordinator = next(r for r in reconciled if r.agent_name == "coordinator")
     assert tuple(r.criterion_id for r in coordinator.criterion_scores) == tuple(
-        sorted(registry.REGISTERED_CODES)
+        sorted(REGISTERED_CODES)
     )
     assert next(r for r in reconciled if r.agent_name == "sme") is results[0]
 

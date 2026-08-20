@@ -15,7 +15,7 @@ import uuid
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.tests.agents.helpers import (
     SME_CRITERION_FALLBACKS,
     SME_GROUP_TITLES,
@@ -71,7 +71,7 @@ def test_full_success_scores_all_ten_from_grouped_calls(monkeypatch) -> None:
     assert "strongest area" in result.summary
     assert "consider" in result.summary
     scored_codes = {s.criterion_id for s in result.criterion_scores}
-    assert scored_codes == registry.REGISTERED_CODES
+    assert scored_codes == REGISTERED_CODES
     for score in result.criterion_scores:
         assert 1 <= score.score <= 4
         assert score.chunk_ids == ()
@@ -98,7 +98,7 @@ def test_failed_group_falls_back_to_per_criterion(monkeypatch) -> None:
 
     assert result.success is True
     by_id = {s.criterion_id: s for s in result.criterion_scores}
-    assert set(by_id) == registry.REGISTERED_CODES
+    assert set(by_id) == REGISTERED_CODES
     # A-02/A-05 still scored -- via the per-criterion engine lane, not the
     # grouped call, so their justification is the code-computed text.
     assert "code-computed" in by_id["A-02"].justification

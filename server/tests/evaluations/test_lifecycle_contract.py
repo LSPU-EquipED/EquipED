@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
@@ -82,7 +82,7 @@ def _result(agent, evaluation_id, document_id, success=True):
     scores = (
         tuple(
             CriterionScore(code, code, 1, "evidence", ())
-            for code in sorted(registry.REGISTERED_CODES)
+            for code in sorted(REGISTERED_CODES)
         )
         if success
         else ()

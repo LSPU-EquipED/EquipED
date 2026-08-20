@@ -6,7 +6,7 @@ import dataclasses
 
 from ...agents.contracts import AgentEvaluationResult
 from ...agents.exceptions import AgentExecutionError
-from ..sme.oracle.registry import REGISTERED_CODES
+from ..sme.rubric import REGISTERED_CODES
 from .summary import _build_alignment_summary
 
 
