@@ -6,6 +6,9 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import case, func, or_
+from sqlalchemy.orm import load_only
+
 from . import persistence
 from .exceptions import DocumentNotFoundError
 from .metadata import canonicalize_supported_program
@@ -14,9 +17,16 @@ from .schemas import (
     POLICY_SOURCE_TYPES,
     REFERENCE_SOURCE_TYPES,
     DocumentChunkResponse,
+    DocumentListItem,
     DocumentListResponse,
+    DocumentListStats,
     DocumentResponse,
 )
+
+
+def _escape_sql_like(term: str) -> str:
+    """Escape SQL LIKE special wildcard characters (%, _, \\)."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def is_reference_source_type(source_type: str) -> bool:
@@ -120,12 +130,12 @@ def list_documents(
     page_size: int,
     current_user_id: uuid.UUID,
     current_user_role: str,
+    status: str | None = None,
+    search: str | None = None,
     db: Any | None = None,
 ) -> DocumentListResponse:
-    items: list[DocumentResponse]
     if db is not None:
         query = db.query(Document)
-        from sqlalchemy import or_
 
         query = query.filter(
             or_(
@@ -148,23 +158,97 @@ def list_documents(
                     "are supported; "
                     "BSIT is accepted as an alias."
                 )
-            from sqlalchemy import func
-
             values = [canonical_program]
             if canonical_program == "BSInfoTech":
                 values.append("BSIT")
             query = query.filter(
                 func.lower(Document.program).in_([value.lower() for value in values])
             )
-        total = query.count()
+        if search:
+            search_term = search.strip()
+            if search_term:
+                escaped = _escape_sql_like(search_term)
+                pattern = f"%{escaped}%"
+                query = query.filter(
+                    or_(
+                        Document.title.ilike(pattern, escape="\\"),
+                        Document.course_title.ilike(pattern, escape="\\"),
+                        Document.course_code.ilike(pattern, escape="\\"),
+                        Document.lesson_title.ilike(pattern, escape="\\"),
+                        Document.program.ilike(pattern, escape="\\"),
+                    )
+                )
+
+        # Base query stats BEFORE status filtering
+        stats_query = query.with_entities(
+            func.count(Document.document_id),
+            func.count(case((Document.processing_status == "PROCESSED", 1))),
+            func.count(
+                case(
+                    (
+                        Document.processing_status.in_(
+                            ["PENDING", "PROCESSING", "CLEANUP_PENDING"]
+                        ),
+                        1,
+                    )
+                )
+            ),
+            func.count(case((Document.processing_status == "FAILED", 1))),
+        )
+        stats_row = stats_query.one()
+        stats = DocumentListStats(
+            total=int(stats_row[0] or 0),
+            ready=int(stats_row[1] or 0),
+            processing=int(stats_row[2] or 0),
+            failed=int(stats_row[3] or 0),
+        )
+
+        if status:
+            status_key = status.strip().lower()
+            if status_key == "ready":
+                query = query.filter(Document.processing_status == "PROCESSED")
+            elif status_key == "processing":
+                query = query.filter(
+                    Document.processing_status.in_(
+                        ["PENDING", "PROCESSING", "CLEANUP_PENDING"]
+                    )
+                )
+            elif status_key == "failed":
+                query = query.filter(Document.processing_status == "FAILED")
+            else:
+                raise ValueError(
+                    f"Invalid status filter: {status}. "
+                    "Allowed values: ready, processing, failed."
+                )
+
+        total = query.count() if status else stats.total
         rows = (
-            query.order_by(Document.uploaded_at.desc())
+            query.options(
+                load_only(
+                    Document.document_id,
+                    Document.title,
+                    Document.course_title,
+                    Document.lesson_title,
+                    Document.source_type,
+                    Document.policy_area,
+                    Document.program,
+                    Document.academic_year,
+                    Document.course_code,
+                    Document.page_count,
+                    Document.processing_status,
+                    Document.has_ocr_pages,
+                    Document.uploaded_at,
+                    Document.uploaded_by,
+                    Document.evaluation_readiness,
+                )
+            )
+            .order_by(Document.uploaded_at.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
             .all()
         )
         items = [
-            DocumentResponse(
+            DocumentListItem(
                 document_id=row.document_id,
                 title=row.title,
                 course_title=row.course_title,
@@ -179,11 +263,6 @@ def list_documents(
                 has_ocr_pages=row.has_ocr_pages,
                 uploaded_at=row.uploaded_at,
                 uploaded_by=row.uploaded_by,
-                structured_summary=row.structured_summary,
-                structured_outline=row.structured_outline,
-                section_summaries=row.section_summaries,
-                key_facts=row.key_facts,
-                processing_warnings=row.processing_warnings,
                 evaluation_readiness=row.evaluation_readiness,
             )
             for row in rows
@@ -193,6 +272,7 @@ def list_documents(
             total=total,
             page=page,
             page_size=page_size,
+            stats=stats,
         )
 
     mem_items = list(persistence._MEM_DOCUMENTS.values())
@@ -228,14 +308,95 @@ def list_documents(
         mem_items = [
             item for item in mem_items if (item.program or "").lower() in accepted
         ]
-    total = len(mem_items)
+    if search:
+        search_term = search.strip().lower()
+        if search_term:
+            mem_items = [
+                item
+                for item in mem_items
+                if (
+                    (item.title and search_term in item.title.lower())
+                    or (item.course_title and search_term in item.course_title.lower())
+                    or (item.course_code and search_term in item.course_code.lower())
+                    or (item.lesson_title and search_term in item.lesson_title.lower())
+                    or (item.program and search_term in item.program.lower())
+                )
+            ]
+
+    # Compute stats on base set before status filtering
+    total_count = len(mem_items)
+    ready_count = sum(
+        1 for item in mem_items if item.processing_status == "PROCESSED"
+    )
+    processing_count = sum(
+        1
+        for item in mem_items
+        if item.processing_status in ("PENDING", "PROCESSING", "CLEANUP_PENDING")
+    )
+    failed_count = sum(
+        1 for item in mem_items if item.processing_status == "FAILED"
+    )
+    stats = DocumentListStats(
+        total=total_count,
+        ready=ready_count,
+        processing=processing_count,
+        failed=failed_count,
+    )
+
+    if status:
+        status_key = status.strip().lower()
+        if status_key == "ready":
+            mem_items = [
+                item for item in mem_items if item.processing_status == "PROCESSED"
+            ]
+        elif status_key == "processing":
+            mem_items = [
+                item
+                for item in mem_items
+                if item.processing_status
+                in ("PENDING", "PROCESSING", "CLEANUP_PENDING")
+            ]
+        elif status_key == "failed":
+            mem_items = [
+                item for item in mem_items if item.processing_status == "FAILED"
+            ]
+        else:
+            raise ValueError(
+                f"Invalid status filter: {status}. "
+                "Allowed values: ready, processing, failed."
+            )
+
+    mem_items.sort(key=lambda item: item.uploaded_at, reverse=True)
+    filtered_total = len(mem_items)
     start = (page - 1) * page_size
     end = start + page_size
+    page_items = mem_items[start:end]
+    items = [
+        DocumentListItem(
+            document_id=item.document_id,
+            title=item.title,
+            course_title=item.course_title,
+            lesson_title=item.lesson_title,
+            source_type=item.source_type,
+            policy_area=item.policy_area,
+            program=item.program,
+            academic_year=item.academic_year,
+            course_code=item.course_code,
+            page_count=item.page_count,
+            processing_status=item.processing_status,
+            has_ocr_pages=item.has_ocr_pages,
+            uploaded_at=item.uploaded_at,
+            uploaded_by=item.uploaded_by,
+            evaluation_readiness=item.evaluation_readiness,
+        )
+        for item in page_items
+    ]
     return DocumentListResponse(
-        items=mem_items[start:end],
-        total=total,
+        items=items,
+        total=filtered_total,
         page=page,
         page_size=page_size,
+        stats=stats,
     )
 
 

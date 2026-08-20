@@ -166,11 +166,37 @@ class DocumentResponse(BaseModel):
     chunks: list[DocumentChunkResponse] = Field(default_factory=list)
 
 
+class DocumentListItem(BaseModel):
+    document_id: UUID
+    title: str
+    course_title: str | None = None
+    lesson_title: str | None = None
+    source_type: str
+    policy_area: str | None = None
+    program: str | None = None
+    academic_year: str | None = None
+    course_code: str | None = None
+    page_count: int | None = None
+    processing_status: str
+    has_ocr_pages: bool
+    uploaded_at: datetime
+    uploaded_by: UUID | None
+    evaluation_readiness: str | None = None
+
+
+class DocumentListStats(BaseModel):
+    total: int
+    ready: int
+    processing: int
+    failed: int
+
+
 class DocumentListResponse(BaseModel):
-    items: list[DocumentResponse]
+    items: list[DocumentListItem]
     total: int
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=200)
+    stats: DocumentListStats
 
 
 class TFIDFWeight(BaseModel):
@@ -256,6 +282,8 @@ __all__ = [
     "SyllabusReferenceOptionsResponse",
     "DocumentUploadResponse",
     "DocumentResponse",
+    "DocumentListItem",
+    "DocumentListStats",
     "DocumentListResponse",
     "TFIDFWeight",
     "ReferenceLibraryItem",
