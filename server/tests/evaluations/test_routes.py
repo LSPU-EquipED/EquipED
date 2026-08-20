@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -303,3 +303,218 @@ def test_results_partial_without_curriculum_returns_partial_reason(
     assert "coordinator" not in data["active_agents"]
     assert set(data["active_agents"]) == {"sme", "gad", "itso"}
     assert data["failed_agents"] == []
+
+
+def test_latest_evaluations_endpoint_returns_latest_and_dedupes(
+    client: TestClient, db_session
+) -> None:
+    faculty = create_user(
+        db_session,
+        name="Faculty Latest",
+        email="faculty-latest-route@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_1 = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+    doc_2 = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+
+    t0 = datetime.now(UTC) - timedelta(minutes=10)
+    t1 = datetime.now(UTC)
+
+    # doc 1: 2 jobs (old FAILED, new COMPLETED)
+    job_1_old = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_1,
+        status=EvaluationStatus.FAILED.value,
+        submitted_by=faculty.user_id,
+        submitted_at=t0,
+        completed_at=t0,
+        error_message="timeout",
+    )
+    job_1_new = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_1,
+        status=EvaluationStatus.COMPLETED.value,
+        submitted_by=faculty.user_id,
+        submitted_at=t1,
+        completed_at=t1,
+        error_message=None,
+    )
+    # doc 2: 1 job
+    job_2 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_2,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=faculty.user_id,
+        submitted_at=t1,
+        completed_at=None,
+    )
+    db_session.add_all([job_1_old, job_1_new, job_2])
+    db_session.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    # Pass doc_1 duplicated and doc_2
+    response = client.get(
+        f"/api/v1/evaluations/latest?document_id={doc_1}&document_id={doc_2}&document_id={doc_1}"
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "items" in data
+    assert len(data["items"]) == 2
+
+    by_doc = {item["document_id"]: item for item in data["items"]}
+    assert by_doc[str(doc_1)]["evaluation_id"] == str(job_1_new.evaluation_id)
+    assert by_doc[str(doc_1)]["status"] == "COMPLETED"
+    assert by_doc[str(doc_1)]["error_message"] is None
+    assert by_doc[str(doc_1)]["completed_at"] is not None
+
+    assert by_doc[str(doc_2)]["evaluation_id"] == str(job_2.evaluation_id)
+    assert by_doc[str(doc_2)]["status"] == "SUBMITTED"
+    assert by_doc[str(doc_2)]["completed_at"] is None
+
+
+def test_latest_evaluations_endpoint_empty_and_unknown(
+    client: TestClient, db_session
+) -> None:
+    faculty = create_user(
+        db_session,
+        name="Faculty Empty",
+        email="faculty-empty-latest@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    # No document_id query param
+    resp_empty = client.get("/api/v1/evaluations/latest")
+    assert resp_empty.status_code == 200
+    assert resp_empty.json() == {"items": []}
+
+    # Unknown document_id query param
+    resp_unknown = client.get(f"/api/v1/evaluations/latest?document_id={uuid4()}")
+    assert resp_unknown.status_code == 200
+    assert resp_unknown.json() == {"items": []}
+
+
+def test_latest_evaluations_endpoint_max_limit(
+    client: TestClient, db_session
+) -> None:
+    faculty = create_user(
+        db_session,
+        name="Faculty Max",
+        email="faculty-max-latest@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    # 101 distinct UUIDs -> 422
+    distinct_params = "&".join(f"document_id={uuid4()}" for _ in range(101))
+    resp_over = client.get(f"/api/v1/evaluations/latest?{distinct_params}")
+    assert resp_over.status_code == 422
+
+    # 105 duplicated UUIDs (only 2 distinct) -> 200
+    id1 = uuid4()
+    id2 = uuid4()
+    dup_params = "&".join(
+        f"document_id={id1 if i % 2 == 0 else id2}" for i in range(105)
+    )
+    resp_dup = client.get(f"/api/v1/evaluations/latest?{dup_params}")
+    assert resp_dup.status_code == 200
+    assert resp_dup.json() == {"items": []}
+
+
+def test_latest_evaluations_endpoint_ownership_isolation(
+    client: TestClient, db_session
+) -> None:
+    user1 = create_user(
+        db_session,
+        name="User One",
+        email="user1-latest@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    user2 = create_user(
+        db_session,
+        name="User Two",
+        email="user2-latest@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_u2 = _add_document(db_session, owner_id=user2.user_id, source_type="slm")
+    job_u2 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_u2,
+        status=EvaluationStatus.COMPLETED.value,
+        submitted_by=user2.user_id,
+        submitted_at=datetime.now(UTC),
+    )
+    db_session.add(job_u2)
+    db_session.commit()
+
+    # User 1 logs in and queries for User 2's document ID
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": user1.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    response = client.get(f"/api/v1/evaluations/latest?document_id={doc_u2}")
+    assert response.status_code == 200
+    assert response.json() == {"items": []}
+
+
+def test_dynamic_evaluation_route_unaffected(
+    client: TestClient, db_session
+) -> None:
+    faculty = create_user(
+        db_session,
+        name="Faculty Dynamic",
+        email="faculty-dynamic-check@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_id = _add_document(db_session, owner_id=faculty.user_id, source_type="slm")
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc_id,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=faculty.user_id,
+        submitted_at=datetime.now(UTC),
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": faculty.email, "password": "password123"},
+    )
+    assert login.status_code == 200
+
+    # Dynamic route /{evaluation_id} returns the job
+    resp = client.get(f"/api/v1/evaluations/{job.evaluation_id}")
+    assert resp.status_code == 200
+    assert resp.json()["evaluation_id"] == str(job.evaluation_id)
