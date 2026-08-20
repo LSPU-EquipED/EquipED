@@ -253,6 +253,16 @@ def get_document_course_contents(
 def list_documents_endpoint(
     source_type: str | None = Query(default=None),
     program: str | None = Query(default=None),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+        description="Filter by processing status: ready | processing | failed",
+    ),
+    search: str | None = Query(
+        default=None,
+        max_length=200,
+        description="Search title, course_title, course_code, lesson_title, program",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
@@ -266,6 +276,22 @@ def list_documents_endpoint(
                 "BSIT is accepted as an alias."
             ),
         )
+    if status_filter is not None:
+        norm_status = status_filter.strip().lower()
+        if norm_status not in ("ready", "processing", "failed"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Invalid status filter. Allowed values: ready, processing, failed."
+                ),
+            )
+        status_filter = norm_status
+
+    if search is not None:
+        search = search.strip()
+        if not search:
+            search = None
+
     return list_documents(
         source_type=source_type,
         program=program,
@@ -273,6 +299,8 @@ def list_documents_endpoint(
         page_size=page_size,
         current_user_id=_current_user.id,
         current_user_role=_current_user.role.value,
+        status=status_filter,
+        search=search,
         db=db,
     )
 

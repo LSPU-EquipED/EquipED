@@ -33,8 +33,10 @@ from server.modules.evaluations.schemas import (
     EvaluationResponse,
     EvaluationStatusResponse,
     EvaluationSubmitRequest,
+    LatestEvaluationItem,
+    LatestEvaluationsResponse,
 )
-from sqlalchemy import inspect, or_, select, update
+from sqlalchemy import func, inspect, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
@@ -589,6 +591,68 @@ def verify_layer3_ownership(
     )
 
 
+def get_latest_evaluations(
+    document_ids: list[uuid.UUID],
+    current_user_id: uuid.UUID,
+    db: Any = None,
+) -> LatestEvaluationsResponse:
+    if not document_ids or db is None:
+        return LatestEvaluationsResponse(items=[])
+
+    rn_col = (
+        func.row_number()
+        .over(
+            partition_by=EvaluationJob.document_id,
+            order_by=(
+                EvaluationJob.submitted_at.desc(),
+                EvaluationJob.evaluation_id.desc(),
+            ),
+        )
+        .label("rn")
+    )
+
+    subquery = (
+        select(
+            EvaluationJob.document_id,
+            EvaluationJob.evaluation_id,
+            EvaluationJob.status,
+            EvaluationJob.submitted_at,
+            EvaluationJob.completed_at,
+            EvaluationJob.error_message,
+            rn_col,
+        )
+        .where(
+            EvaluationJob.submitted_by == current_user_id,
+            EvaluationJob.document_id.in_(document_ids),
+        )
+        .subquery()
+    )
+
+    stmt = select(
+        subquery.c.document_id,
+        subquery.c.evaluation_id,
+        subquery.c.status,
+        subquery.c.submitted_at,
+        subquery.c.completed_at,
+        subquery.c.error_message,
+    ).where(subquery.c.rn == 1)
+
+    rows = db.execute(stmt).all()
+
+    items = [
+        LatestEvaluationItem(
+            document_id=row.document_id,
+            evaluation_id=row.evaluation_id,
+            status=EvaluationStatus(row.status),
+            submitted_at=row.submitted_at,
+            completed_at=row.completed_at,
+            error_message=row.error_message,
+        )
+        for row in rows
+    ]
+    return LatestEvaluationsResponse(items=items)
+
+
 def admission_schema_ready(db: Any) -> bool:
     """Verify the complete admission lease contract without mutating schema."""
     try:
@@ -624,6 +688,7 @@ __all__ = [
     "create_evaluation",
     "get_evaluation",
     "list_evaluations",
+    "get_latest_evaluations",
     "get_evaluation_status",
     "transition_evaluation_status",
     "acquire_evaluation_execution",

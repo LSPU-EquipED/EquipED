@@ -155,14 +155,70 @@ def test_in_memory_documents_respect_ownership_scoping() -> None:
     owner_view = list_documents(None, None, 1, 20, owner_id, "faculty", db=None)
     assert owner_view.total == 1
     assert owner_view.items[0].document_id == doc_id
+    assert owner_view.stats.total == 1
+    assert owner_view.stats.ready == 1
 
     other_view = list_documents(None, None, 1, 20, other_id, "admin", db=None)
     assert other_view.total == 0
     assert other_view.items == []
+    assert other_view.stats.total == 0
 
     assert get_document(doc_id, owner_id, "faculty", db=None).document_id == doc_id
     with pytest.raises(DocumentNotFoundError):
         get_document(doc_id, other_id, "faculty", db=None)
+
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+
+
+def test_in_memory_list_documents_filtering_and_stats() -> None:
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+    owner_id = uuid.uuid4()
+
+    statuses = ["PROCESSED", "PENDING", "PROCESSING", "CLEANUP_PENDING", "FAILED"]
+    for i, st in enumerate(statuses):
+        doc_id = uuid.uuid4()
+        persistence._MEM_DOCUMENTS[doc_id] = DocumentResponse(
+            document_id=doc_id,
+            title=f"Doc {i+1} Course",
+            course_code=f"CS10{i+1}",
+            course_title="CS Subject",
+            lesson_title="Lesson Topic",
+            program="BSCS",
+            source_type="slm",
+            processing_status=st,
+            has_ocr_pages=False,
+            uploaded_at=datetime.now(UTC),
+            uploaded_by=owner_id,
+        )
+        persistence._MEM_DOCUMENT_OWNERS[doc_id] = owner_id
+
+    # 1. Base list
+    res = list_documents(None, None, 1, 20, owner_id, "faculty", db=None)
+    assert res.total == 5
+    assert res.stats.total == 5
+    assert res.stats.ready == 1
+    assert res.stats.processing == 3
+    assert res.stats.failed == 1
+
+    # 2. Status filter: processing
+    proc_res = list_documents(
+        None, None, 1, 20, owner_id, "faculty", status="processing", db=None
+    )
+    assert proc_res.total == 3
+    assert len(proc_res.items) == 3
+    assert proc_res.stats.total == 5
+    assert proc_res.stats.ready == 1
+    assert proc_res.stats.processing == 3
+
+    # 3. Search filter
+    search_res = list_documents(
+        None, None, 1, 20, owner_id, "faculty", search="CS101", db=None
+    )
+    assert search_res.total == 1
+    assert search_res.stats.total == 1
+    assert search_res.stats.ready == 1
 
     persistence._MEM_DOCUMENTS.clear()
     persistence._MEM_DOCUMENT_OWNERS.clear()

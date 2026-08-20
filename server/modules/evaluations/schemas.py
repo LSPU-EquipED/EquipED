@@ -78,10 +78,25 @@ class EvaluationStatusResponse(BaseModel):
     duration_seconds: float | None = None
 
 
+class LatestEvaluationItem(BaseModel):
+    document_id: UUID
+    evaluation_id: UUID
+    status: EvaluationStatus
+    submitted_at: datetime
+    completed_at: datetime | None = None
+    error_message: str | None = None
+
+
+class LatestEvaluationsResponse(BaseModel):
+    items: list[LatestEvaluationItem]
+
+
 __all__ = [
     "EvaluationSubmitRequest",
     "EvaluationResponse",
     "EvaluationListItem",
     "EvaluationListResponse",
     "EvaluationStatusResponse",
+    "LatestEvaluationItem",
+    "LatestEvaluationsResponse",
 ]
