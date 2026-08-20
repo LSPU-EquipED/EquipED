@@ -3,39 +3,102 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from '@tanstack/react-router';
 import { AppShell } from './layout/AppShell';
 import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
-
-// Feature Pages
-import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
-import { LoginPage } from '../features/auth/pages/LoginPage';
 import { requireRole } from '../features/auth/guards/RoleGuard';
 import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
-import { UploadPage } from '../features/upload/pages/UploadPage';
-import { HistoryPage } from '../features/history/pages/HistoryPage';
-import { EvaluationInterfacePage } from '../features/evaluation/pages/EvaluationInterfacePage';
-import { ScorecardPage } from '../features/evaluation/pages/ScorecardPage';
-import { MonitoringPage } from '../features/matrix/pages/MonitoringPage';
-import { AlignmentCheckPage } from '../features/alignment/curriculum/pages/AlignmentCheckPage';
-import { SyllabusAlignmentPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentPage';
-import { SyllabusAlignmentWorkspacePage } from '../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage';
-import { SyllabusAlignmentReportPage } from '../features/alignment/syllabus/pages/SyllabusAlignmentReportPage';
-import { EvaluationMapPage } from '../features/evaluation-map/pages/EvaluationMapPage';
 
-// Admin Pages
-import {
-  AdminHomePage,
-  AdminUploadPage,
-  AgentPromptPage,
-  ModelValidationPage,
-  PreferenceLogPage,
-  ReferenceLibraryPage,
-  RubricEditorPage,
-  UserManagementPage,
-} from '../features/admin';
+// Lazy Feature Pages
+const FacultyHomePage = lazyRouteComponent(
+  () => import('../features/home/pages/FacultyHomePage'),
+  'FacultyHomePage'
+);
+const DocumentsPage = lazyRouteComponent(
+  () => import('../features/documents/pages/DocumentsPage'),
+  'DocumentsPage'
+);
+const LoginPage = lazyRouteComponent(
+  () => import('../features/auth/pages/LoginPage'),
+  'LoginPage'
+);
+const UploadPage = lazyRouteComponent(
+  () => import('../features/upload/pages/UploadPage'),
+  'UploadPage'
+);
+const HistoryPage = lazyRouteComponent(
+  () => import('../features/history/pages/HistoryPage'),
+  'HistoryPage'
+);
+const EvaluationInterfacePage = lazyRouteComponent(
+  () => import('../features/evaluation/pages/EvaluationInterfacePage'),
+  'EvaluationInterfacePage'
+);
+const ScorecardPage = lazyRouteComponent(
+  () => import('../features/evaluation/pages/ScorecardPage'),
+  'ScorecardPage'
+);
+const MonitoringPage = lazyRouteComponent(
+  () => import('../features/matrix/pages/MonitoringPage'),
+  'MonitoringPage'
+);
+const AlignmentCheckPage = lazyRouteComponent(
+  () => import('../features/alignment/curriculum/pages/AlignmentCheckPage'),
+  'AlignmentCheckPage'
+);
+const SyllabusAlignmentPage = lazyRouteComponent(
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentPage'),
+  'SyllabusAlignmentPage'
+);
+const SyllabusAlignmentWorkspacePage = lazyRouteComponent(
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage'),
+  'SyllabusAlignmentWorkspacePage'
+);
+const SyllabusAlignmentReportPage = lazyRouteComponent(
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentReportPage'),
+  'SyllabusAlignmentReportPage'
+);
+const EvaluationMapPage = lazyRouteComponent(
+  () => import('../features/evaluation-map/pages/EvaluationMapPage'),
+  'EvaluationMapPage'
+);
+
+// Lazy Admin Pages
+const AdminHomePage = lazyRouteComponent(
+  () => import('../features/admin/home/pages/AdminHomePage'),
+  'AdminHomePage'
+);
+const UserManagementPage = lazyRouteComponent(
+  () => import('../features/admin/user-management/pages/UserManagementPage'),
+  'UserManagementPage'
+);
+const AdminUploadPage = lazyRouteComponent(
+  () => import('../features/admin/reference-ingestion/pages/AdminUploadPage'),
+  'AdminUploadPage'
+);
+const ReferenceLibraryPage = lazyRouteComponent(
+  () => import('../features/admin/reference-library/pages/ReferenceLibraryPage'),
+  'ReferenceLibraryPage'
+);
+const AgentPromptPage = lazyRouteComponent(
+  () => import('../features/admin/agent-prompt/pages/AgentPromptPage'),
+  'AgentPromptPage'
+);
+const PreferenceLogPage = lazyRouteComponent(
+  () => import('../features/admin/preference-log/pages/PreferenceLogPage'),
+  'PreferenceLogPage'
+);
+const RubricEditorPage = lazyRouteComponent(
+  () => import('../features/admin/rubric-editor/pages/RubricEditorPage'),
+  'RubricEditorPage'
+);
+const ModelValidationPage = lazyRouteComponent(
+  () => import('../features/admin/model-validation/pages/ModelValidationPage'),
+  'ModelValidationPage'
+);
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -80,7 +143,15 @@ const shellRoute = createRoute({
 const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'dashboard',
-  component: DashboardPage,
+  beforeLoad: requireRole(['faculty']),
+  component: FacultyHomePage,
+});
+
+const documentsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'documents',
+  beforeLoad: requireRole(['faculty']),
+  component: DocumentsPage,
 });
 
 const uploadRoute = createRoute({
@@ -102,6 +173,7 @@ const uploadRoute = createRoute({
 const evaluationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations',
+  beforeLoad: requireRole(['faculty']),
   component: () => (
     <div className="px-6 py-7">
       <HistoryPage />
@@ -118,12 +190,14 @@ const evaluationMapRoute = createRoute({
 const documentEvaluationRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'documents/$documentId/evaluation',
+  beforeLoad: requireRole(['faculty']),
   component: EvaluationInterfacePage,
 });
 
 const evaluationDetailRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations/$id',
+  beforeLoad: requireRole(['faculty']),
   component: ScorecardPage,
 });
 
@@ -162,6 +236,7 @@ const matrixRoute = createRoute({
 const alignmentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'alignment',
+  beforeLoad: requireRole(['faculty']),
   component: AlignmentCheckPage,
 });
 
@@ -242,6 +317,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   shellRoute.addChildren([
     dashboardRoute,
+    documentsRoute,
     uploadRoute,
     evaluationsRoute,
     evaluationMapRoute,

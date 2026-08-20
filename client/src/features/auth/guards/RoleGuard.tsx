@@ -5,7 +5,7 @@ import type { UserRole } from '../types';
 export function requireRole(
   allowedRoles: readonly UserRole[],
   unauthenticatedRedirectTo = '/login',
-  unauthorizedRedirectTo = '/dashboard',
+  unauthorizedRedirectTo?: string,
 ) {
   return ({ context }: { context: AppRouterContext }) => {
     const user = context.auth.user;
@@ -15,7 +15,8 @@ export function requireRole(
     }
 
     if (!allowedRoles.includes(user.role)) {
-      throw redirect({ to: unauthorizedRedirectTo });
+      const fallback = user.role === 'admin' ? '/admin' : '/dashboard';
+      throw redirect({ to: unauthorizedRedirectTo ?? fallback });
     }
   };
 }
