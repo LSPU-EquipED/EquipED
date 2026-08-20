@@ -18,8 +18,15 @@ export function DocumentPagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/30 px-6 md:px-8 py-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Show</span>
+        <label
+          htmlFor="document-page-size"
+          className="text-xs text-slate-600 font-bold uppercase tracking-wider"
+        >
+          Show
+        </label>
         <select
+          id="document-page-size"
+          aria-label="Rows per page"
           value={pageSize}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
@@ -33,14 +40,18 @@ export function DocumentPagination({
         </select>
       </div>
 
-      <div className="text-xs font-bold text-slate-500 uppercase tracking-wider tabular-nums">
+      <div
+        className="text-xs font-bold text-slate-600 uppercase tracking-wider tabular-nums"
+        aria-live="polite"
+      >
         Page {page} of {totalPages}
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <nav aria-label="Pagination" className="flex items-center gap-1.5">
         <button
           type="button"
           disabled={page === 1}
+          aria-label="Previous page"
           onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
           className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
         >
@@ -56,7 +67,8 @@ export function DocumentPagination({
               return (
                 <span
                   key="dots-start"
-                  className="px-1 text-slate-400 text-xs font-bold select-none"
+                  aria-hidden="true"
+                  className="px-1 text-slate-500 text-xs font-bold select-none"
                 >
                   ...
                 </span>
@@ -64,7 +76,11 @@ export function DocumentPagination({
             }
             if (p === totalPages - 1 && page < totalPages - 2) {
               return (
-                <span key="dots-end" className="px-1 text-slate-400 text-xs font-bold select-none">
+                <span
+                  key="dots-end"
+                  aria-hidden="true"
+                  className="px-1 text-slate-500 text-xs font-bold select-none"
+                >
                   ...
                 </span>
               );
@@ -76,6 +92,8 @@ export function DocumentPagination({
             <button
               key={p}
               type="button"
+              aria-label={`Page ${p}`}
+              aria-current={isCurrent ? 'page' : undefined}
               onClick={() => setPage(p)}
               className={cn(
                 'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
@@ -92,12 +110,13 @@ export function DocumentPagination({
         <button
           type="button"
           disabled={page === totalPages}
+          aria-label="Next page"
           onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
           className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
         >
           Next
         </button>
-      </div>
+      </nav>
     </div>
   );
 }

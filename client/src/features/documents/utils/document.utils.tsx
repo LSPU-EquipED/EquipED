@@ -28,7 +28,7 @@ export const statusConfig: Record<
   },
   PROCESSED: {
     label: 'Ready',
-    badgeClass: 'bg-[#3b963e] text-white',
+    badgeClass: 'bg-[#166534] text-white',
   },
   FAILED: {
     label: 'Failed',

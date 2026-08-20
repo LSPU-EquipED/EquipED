@@ -1,11 +1,13 @@
 import { cn } from '@/shared/components/utils';
+import type { DocumentStats } from '@/shared/types/documents';
 import type { StatusFilter } from '../hooks/useDocumentDashboard';
 
 interface DocumentFilterBarProps {
   statusFilter: StatusFilter;
-  setStatusFilter: (filter: StatusFilter) => void;
-  stats: { total: number; ready: number; processing: number; failed: number };
+  setStatusFilter: (status: StatusFilter) => void;
+  stats: DocumentStats;
   documentsCount: number;
+  totalFiltered?: number;
   isTableReady: boolean;
 }
 
@@ -14,6 +16,7 @@ export function DocumentFilterBar({
   setStatusFilter,
   stats,
   documentsCount,
+  totalFiltered,
   isTableReady,
 }: DocumentFilterBarProps) {
   return (
@@ -32,7 +35,7 @@ export function DocumentFilterBar({
         <span
           className={cn(
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-            statusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500',
+            statusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
           )}
         >
           {stats.total}
@@ -49,13 +52,13 @@ export function DocumentFilterBar({
             : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
         )}
       >
-        Ready
+        Processed
         <span
           className={cn(
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
             statusFilter === 'PROCESSED'
               ? 'bg-white/20 text-white'
-              : 'bg-[#3b963e]/10 text-[#3b963e]',
+              : 'bg-[#166534]/10 text-[#166534]',
           )}
         >
           {stats.ready}
@@ -64,10 +67,10 @@ export function DocumentFilterBar({
 
       <button
         type="button"
-        onClick={() => setStatusFilter('PENDING')}
+        onClick={() => setStatusFilter('PROCESSING')}
         className={cn(
           'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
-          statusFilter === 'PENDING'
+          statusFilter === 'PROCESSING' || statusFilter === 'PENDING'
             ? 'bg-[#1b3b87] text-white'
             : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
         )}
@@ -76,7 +79,7 @@ export function DocumentFilterBar({
         <span
           className={cn(
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-            statusFilter === 'PENDING'
+            statusFilter === 'PROCESSING' || statusFilter === 'PENDING'
               ? 'bg-white/20 text-white'
               : 'bg-[#f2c811]/10 text-[#1e293b]',
           )}
@@ -95,7 +98,7 @@ export function DocumentFilterBar({
             : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
         )}
       >
-        Failed
+        Upload Failed
         <span
           className={cn(
             'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
@@ -106,8 +109,10 @@ export function DocumentFilterBar({
         </span>
       </button>
 
-      <p className="ml-auto text-xs font-semibold text-slate-400 tabular-nums whitespace-nowrap">
-        {isTableReady ? `${documentsCount} of ${stats.total} shown` : 'Loading…'}
+      <p className="ml-auto text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+        {isTableReady
+          ? `${documentsCount} of ${totalFiltered ?? stats.total} shown`
+          : 'Loading…'}
       </p>
     </div>
   );

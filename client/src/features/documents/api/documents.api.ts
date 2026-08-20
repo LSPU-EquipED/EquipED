@@ -1,5 +1,5 @@
 import { documentsApi } from '@/shared/api/documents.api';
 
-export const dashboardApi = {
+export const documentsFeatureApi = {
   listDocuments: documentsApi.listDocuments,
 };
