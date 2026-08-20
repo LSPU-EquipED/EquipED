@@ -12,11 +12,15 @@ import {
   type DocumentUploadResponse,
 } from '@/shared/types/documents';
 
+export type DocumentApiStatus = 'ready' | 'processing' | 'failed';
+
 type ListDocumentsParams = {
   sourceType?: string;
   program?: string;
   page?: number;
   pageSize?: number;
+  search?: string;
+  status?: DocumentApiStatus | string;
 };
 
 type UploadDocumentInput = {
@@ -37,12 +41,20 @@ function buildQuery(params: ListDocumentsParams) {
     searchParams.set('program', params.program);
   }
 
-  if (params.page) {
+  if (params.page !== undefined && params.page !== null) {
     searchParams.set('page', String(params.page));
   }
 
-  if (params.pageSize) {
+  if (params.pageSize !== undefined && params.pageSize !== null) {
     searchParams.set('page_size', String(params.pageSize));
+  }
+
+  if (params.search && params.search.trim()) {
+    searchParams.set('search', params.search.trim());
+  }
+
+  if (params.status && params.status.trim()) {
+    searchParams.set('status', params.status.trim());
   }
 
   const query = searchParams.toString();
