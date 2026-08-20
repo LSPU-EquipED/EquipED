@@ -13,7 +13,7 @@ import pytest
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.fallback import registry
 
 PREAMBLE = "MANAGED SME PREAMBLE -- causal-test"
 PROMPT_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")

@@ -25,10 +25,10 @@ from server.modules.rubrics.service import (
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..exceptions import AgentExecutionError
 from ..runtime.llm import RunLLMClient, error_reference
-from .grouped import groups
-from .grouped.grouped_execution import execute_group
-from .grouped.grouped_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
-from .oracle import registry
+from . import groups
+from .fallback import registry
+from .group_execution import execute_group
+from .group_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ class EngineScoredAgent:
 
         all_scores: dict[str, CriterionScore] = {}
         group_prompts: dict[str, str] = {}
+        group_responses: dict[str, dict[str, Any]] = {}
         fallback_calls = 0
 
         for group_name in groups.GROUP_NAMES:
@@ -124,7 +125,7 @@ class EngineScoredAgent:
                 for code in codes
             }
             try:
-                scores, prompt_text = execute_group(
+                scores, prompt_text, response_snapshot = execute_group(
                     group_name,
                     codes,
                     group_titles,
@@ -145,6 +146,7 @@ class EngineScoredAgent:
                 for score in scores:
                     all_scores[score.criterion_id] = score
                 group_prompts[group_name] = prompt_text
+                group_responses[group_name] = response_snapshot
                 continue
 
             for code in codes:
@@ -201,7 +203,10 @@ class EngineScoredAgent:
             token_count=len(full_text.split()),
             prompt_version_id=prompt_version_id,
             success=True,
-            metadata={"group_prompts": group_prompts},
+            metadata={
+                "group_prompts": group_prompts,
+                "group_responses": group_responses,
+            },
             provenance={
                 "requested_model": client.requested_model,
                 "actual_model": actual_model,

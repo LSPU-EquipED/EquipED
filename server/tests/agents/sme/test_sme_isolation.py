@@ -11,7 +11,7 @@ from server.modules.agents.contracts import CriterionScore
 from server.modules.agents.runtime.llm import error_reference
 from server.modules.agents.sme import pipeline
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 
 
 class _Client:
@@ -23,10 +23,10 @@ class _BarrierSME(SME):
     barrier = threading.Barrier(2)
 
     def _rubric_titles(self, db):
-        return {code: code for code in registry.REGISTERED_CODES}
+        return {code: code for code in REGISTERED_CODES}
 
     def _rubric_descriptions(self, db):
-        return {code: code for code in registry.REGISTERED_CODES}
+        return {code: code for code in REGISTERED_CODES}
 
 
 def _barrier_execute_group(
@@ -35,17 +35,31 @@ def _barrier_execute_group(
     """Stand-in for ``grouped_execution.execute_group`` that blocks both
     threads inside the scoring lane before either can return."""
     _BarrierSME.barrier.wait(timeout=5)
+    scores = tuple(
+        CriterionScore(
+            criterion_id=code,
+            criterion_title=titles[code],
+            score=4,
+            justification=f"result from {client.model}",
+        )
+        for code in codes
+    )
     return (
-        tuple(
-            CriterionScore(
-                criterion_id=code,
-                criterion_title=titles[code],
-                score=4,
-                justification=f"result from {client.model}",
-            )
-            for code in codes
-        ),
+        scores,
         f"prompt for {group}",
+        {
+            "summary": "ok",
+            "criterion_scores": [
+                {
+                    "criterion_id": s.criterion_id,
+                    "criterion_title": s.criterion_title,
+                    "score": s.score,
+                    "justification": s.justification,
+                    "evidence": [],
+                }
+                for s in scores
+            ],
+        },
     )
 
 
@@ -99,29 +113,43 @@ def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
         group, codes, titles, descriptions, client, full_text, **kwargs
     ):
         captured.append(full_text)
+        scores = tuple(
+            CriterionScore(
+                criterion_id=code,
+                criterion_title=titles[code],
+                score=4,
+                justification="ok",
+            )
+            for code in codes
+        )
         return (
-            tuple(
-                CriterionScore(
-                    criterion_id=code,
-                    criterion_title=titles[code],
-                    score=4,
-                    justification="ok",
-                )
-                for code in codes
-            ),
+            scores,
             "prompt",
+            {
+                "summary": "ok",
+                "criterion_scores": [
+                    {
+                        "criterion_id": s.criterion_id,
+                        "criterion_title": s.criterion_title,
+                        "score": s.score,
+                        "justification": s.justification,
+                        "evidence": [],
+                    }
+                    for s in scores
+                ],
+            },
         )
 
     monkeypatch.setattr(pipeline, "execute_group", capture_execute_group)
     monkeypatch.setattr(
         pipeline.EngineScoredAgent,
         "_rubric_titles",
-        lambda self, db: {code: code for code in registry.REGISTERED_CODES},
+        lambda self, db: {code: code for code in REGISTERED_CODES},
     )
     monkeypatch.setattr(
         pipeline.EngineScoredAgent,
         "_rubric_descriptions",
-        lambda self, db: {code: code for code in registry.REGISTERED_CODES},
+        lambda self, db: {code: code for code in REGISTERED_CODES},
     )
     agent = SME(llm_client=_Client("model"))
     result = agent.run(

@@ -4,8 +4,9 @@ import json
 
 import pytest
 from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme.grouped.grouped_response import (
+from server.modules.agents.sme.group_response import (
     build_group_response_schema,
+    canonical_group_response_snapshot,
     group_criterion_scores,
     parse_group_response,
 )
@@ -84,3 +85,24 @@ def test_group_criterion_scores_rejects_out_of_range_score():
     parsed["criterion_scores"][0]["score"] = 5
     with pytest.raises(AgentExecutionError):
         group_criterion_scores(parsed, CODES, TITLES)
+
+
+def test_canonical_group_response_snapshot_exact_shape_and_order():
+    parsed = parse_group_response(_payload(score=4), CODES, TITLES)
+    snapshot = canonical_group_response_snapshot(parsed, CODES, TITLES)
+    assert snapshot["summary"] == "ok"
+    assert len(snapshot["criterion_scores"]) == 2
+    assert [c["criterion_id"] for c in snapshot["criterion_scores"]] == list(CODES)
+    assert [c["criterion_title"] for c in snapshot["criterion_scores"]] == [
+        TITLES[code] for code in CODES
+    ]
+    assert all(c["score"] == 4 for c in snapshot["criterion_scores"])
+    assert all(
+        c["justification"] == "justification text"
+        for c in snapshot["criterion_scores"]
+    )
+    assert all(
+        c["evidence"] == ["evidence quote"] for c in snapshot["criterion_scores"]
+    )
+    # Verify json serializable directly
+    json.dumps(snapshot)

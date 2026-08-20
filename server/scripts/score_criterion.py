@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
 import fitz  # PyMuPDF  # noqa: E402
 
 from server.core.llm import get_llm_client  # noqa: E402
-from server.modules.agents.sme.oracle import (  # noqa: E402
+from server.modules.agents.sme.fallback import (  # noqa: E402
     accurate_sections,
     clear_directions,
     enhancement_activities,
@@ -35,34 +35,34 @@ from server.modules.agents.sme.oracle import (  # noqa: E402
     topic_coherence,
     varied_assessment,
 )
-from server.modules.agents.sme.oracle.accurate_sections import (  # noqa: E402
+from server.modules.agents.sme.fallback.accurate_sections import (  # noqa: E402
     AccuracyResult,
 )
-from server.modules.agents.sme.oracle.clear_directions import (  # noqa: E402
+from server.modules.agents.sme.fallback.clear_directions import (  # noqa: E402
     DirectionsResult,
 )
-from server.modules.agents.sme.oracle.enhancement_activities import (  # noqa: E402
+from server.modules.agents.sme.fallback.enhancement_activities import (  # noqa: E402
     EnhancementResult,
 )
-from server.modules.agents.sme.oracle.interactivity import (  # noqa: E402
+from server.modules.agents.sme.fallback.interactivity import (  # noqa: E402
     InteractivityResult,
 )
-from server.modules.agents.sme.oracle.learner_transformation import (  # noqa: E402
+from server.modules.agents.sme.fallback.learner_transformation import (  # noqa: E402
     TransformationResult,
 )
-from server.modules.agents.sme.oracle.objective_alignment import (  # noqa: E402
+from server.modules.agents.sme.fallback.objective_alignment import (  # noqa: E402
     AlignmentResult,
 )
-from server.modules.agents.sme.oracle.prescriptive_feedback import (  # noqa: E402
+from server.modules.agents.sme.fallback.prescriptive_feedback import (  # noqa: E402
     FeedbackResult,
 )
-from server.modules.agents.sme.oracle.progress_monitoring import (  # noqa: E402
+from server.modules.agents.sme.fallback.progress_monitoring import (  # noqa: E402
     MonitoringResult,
 )
-from server.modules.agents.sme.oracle.topic_coherence import (  # noqa: E402
+from server.modules.agents.sme.fallback.topic_coherence import (  # noqa: E402
     CoherenceResult,
 )
-from server.modules.agents.sme.oracle.varied_assessment import (  # noqa: E402
+from server.modules.agents.sme.fallback.varied_assessment import (  # noqa: E402
     VarietyResult,
 )
 

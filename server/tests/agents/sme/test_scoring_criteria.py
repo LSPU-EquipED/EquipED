@@ -6,7 +6,8 @@ functions the agent will call once facts come from a shared/grouped call.
 
 from __future__ import annotations
 
-from server.modules.agents.sme.oracle import (
+from server.modules.agents.sme import slicing
+from server.modules.agents.sme.fallback import (
     accurate_sections,
     clear_directions,
     enhancement_activities,
@@ -15,7 +16,6 @@ from server.modules.agents.sme.oracle import (
     objective_alignment,
     prescriptive_feedback,
     progress_monitoring,
-    slicing,
     topic_coherence,
     varied_assessment,
 )

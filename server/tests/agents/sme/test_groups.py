@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from server.modules.agents.sme.grouped import groups
-from server.modules.agents.sme.oracle.registry import REGISTERED_CODES
+from server.modules.agents.sme import groups
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 
 
 def test_group_codes_cover_every_registered_code_exactly_once():

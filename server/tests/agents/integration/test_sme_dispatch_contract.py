@@ -8,7 +8,7 @@ from typing import Any
 
 from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.oracle import registry
+from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.modules.agents.supervision.context import PromptSnapshot
 from server.modules.agents.supervision.dispatch import AgentDispatcher
 from server.tests.agents.helpers import (
@@ -18,7 +18,7 @@ from server.tests.agents.helpers import (
 )
 
 _MANAGED_PROMPT = "MANAGED SME PROMPT -- immutable dispatch contract"
-_TITLES = {code: f"{code} title" for code in registry.REGISTERED_CODES}
+_TITLES = {code: f"{code} title" for code in REGISTERED_CODES}
 
 
 class StrictSMEClient(GroupScoringFakeClient):
