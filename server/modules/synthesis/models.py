@@ -49,6 +49,7 @@ class AgentResult(Base):
     raw_response: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_prompts: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    group_responses: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     advisory_outputs: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
