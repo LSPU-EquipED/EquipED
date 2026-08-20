@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
@@ -26,12 +26,14 @@ from server.modules.evaluations.schemas import (
     EvaluationResponse,
     EvaluationStatusResponse,
     EvaluationSubmitRequest,
+    LatestEvaluationsResponse,
 )
 from server.modules.evaluations.service import (
     admission_schema_ready,
     create_evaluation,
     get_evaluation,
     get_evaluation_status,
+    get_latest_evaluations,
     list_evaluations,
 )
 
@@ -90,6 +92,25 @@ def list_evals(
         current_user.role.value,
         db=db,
         document_id=document_id,
+    )
+
+
+@router.get("/latest", response_model=LatestEvaluationsResponse)
+def get_latest_evals(
+    document_id: list[UUID] = Query(default=[]),
+    current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> LatestEvaluationsResponse:
+    deduped_ids = list(dict.fromkeys(document_id))
+    if len(deduped_ids) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Maximum of 100 document IDs allowed.",
+        )
+    return get_latest_evaluations(
+        deduped_ids,
+        current_user.id,
+        db=db,
     )
 
 
