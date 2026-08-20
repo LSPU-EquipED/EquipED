@@ -6,10 +6,9 @@ import uuid
 from datetime import datetime
 
 import sqlalchemy as sa
+from server.core.database import Base
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
-
-from server.core.database import Base
 
 
 class PreferenceLog(Base):

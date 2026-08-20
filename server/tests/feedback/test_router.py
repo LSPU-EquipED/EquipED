@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[3]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 from fastapi.testclient import TestClient
 from server.modules.feedback.models import PreferenceLog
+from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import _auth
 
 
@@ -120,3 +114,138 @@ def test_criterion_feedback_accepts_sme_agent_name(
     response = client.post(url, json={"agent_name": "sme", "action": "ACCEPT"})
     assert response.status_code == 201
     assert response.json()["agent_name"] == "sme"
+
+
+def test_criterion_feedback_valid_sme_and_itso(
+    client: TestClient, auth_cookies_admin, evaluation_job
+):
+    _auth(client, auth_cookies_admin)
+    # Valid ITSO
+    url_itso = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
+    res_itso = client.post(url_itso, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert res_itso.status_code == 201
+    assert res_itso.json()["agent_name"] == "itso"
+    assert res_itso.json()["criterion_id"] == "itso-03"
+
+    # Valid SME
+    url_sme = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/A-01"
+    res_sme = client.post(url_sme, json={"agent_name": "sme", "action": "ACCEPT"})
+    assert res_sme.status_code == 201
+    assert res_sme.json()["agent_name"] == "sme"
+    assert res_sme.json()["criterion_id"] == "A-01"
+
+
+def test_criterion_feedback_unknown_criterion_returns_422(
+    client: TestClient, auth_cookies_admin, evaluation_job
+):
+    _auth(client, auth_cookies_admin)
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/unknown-crit"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 422
+
+
+def test_criterion_feedback_wrong_agent_returns_422(
+    client: TestClient, auth_cookies_admin, evaluation_job
+):
+    _auth(client, auth_cookies_admin)
+    # A-01 belongs to SME, not ITSO
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/A-01"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 422
+
+
+def test_criterion_feedback_wrong_document_or_result_returns_422(
+    client: TestClient, auth_cookies_admin, evaluation_job, db_session
+):
+    _auth(client, auth_cookies_admin)
+    from uuid import uuid4
+
+    # CriterionScore with mismatched document_id
+    mismatched_doc_id = uuid4()
+    agent_result = (
+        db_session.query(AgentResult)
+        .filter(
+            AgentResult.evaluation_id == evaluation_job.evaluation_id,
+            AgentResult.agent_name == "itso",
+        )
+        .first()
+    )
+    score_mismatched = CriterionScore(
+        agent_result_id=agent_result.agent_result_id,
+        evaluation_id=evaluation_job.evaluation_id,
+        document_id=mismatched_doc_id,
+        criterion_id="itso-mismatched",
+        criterion_title="Mismatched Doc",
+        score=3,
+        justification="Mismatched document ID",
+    )
+    db_session.add(score_mismatched)
+    db_session.commit()
+
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-mismatched"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 422
+
+
+def test_criterion_feedback_ambiguous_target_returns_422(
+    client: TestClient, auth_cookies_admin, evaluation_job, db_session
+):
+    _auth(client, auth_cookies_admin)
+    agent_result = (
+        db_session.query(AgentResult)
+        .filter(
+            AgentResult.evaluation_id == evaluation_job.evaluation_id,
+            AgentResult.agent_name == "itso",
+        )
+        .first()
+    )
+    # Add duplicate CriterionScore for itso-03
+    duplicate_score = CriterionScore(
+        agent_result_id=agent_result.agent_result_id,
+        evaluation_id=evaluation_job.evaluation_id,
+        document_id=evaluation_job.document_id,
+        criterion_id="itso-03",
+        criterion_title="References / Bibliography Duplicate",
+        score=2,
+        justification="Duplicate entry",
+    )
+    db_session.add(duplicate_score)
+    db_session.commit()
+
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
+    response = client.post(url, json={"agent_name": "itso", "action": "ACCEPT"})
+    assert response.status_code == 422
+
+
+def test_criterion_feedback_justification_max_length_boundary(
+    client: TestClient, auth_cookies_admin, evaluation_job
+):
+    _auth(client, auth_cookies_admin)
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
+
+    # Exactly 2000 characters -> Accepted (201)
+    justification_2000 = "x" * 2000
+    res_2000 = client.post(
+        url,
+        json={
+            "agent_name": "itso",
+            "action": "EDIT",
+            "score": 3,
+            "justification": justification_2000,
+        },
+    )
+    assert res_2000.status_code == 201
+    assert res_2000.json()["edited_json"]["justification"] == justification_2000
+
+    # 2001 characters -> Rejected via Pydantic/FastAPI validation (422)
+    justification_2001 = "x" * 2001
+    res_2001 = client.post(
+        url,
+        json={
+            "agent_name": "itso",
+            "action": "EDIT",
+            "score": 3,
+            "justification": justification_2001,
+        },
+    )
+    assert res_2001.status_code == 422

@@ -25,7 +25,7 @@ class CriterionFeedbackCreate(BaseModel):
     agent_name: Literal["itso", "sme"]
     action: Literal["ACCEPT", "REJECT", "EDIT"]
     score: int | None = Field(default=None, ge=1, le=4)
-    justification: str | None = Field(default=None, min_length=1, max_length=4000)
+    justification: str | None = Field(default=None, min_length=1, max_length=2000)
     notes: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")

@@ -7,4 +7,10 @@ class EvaluationNotFoundError(Exception):
     """Raised when feedback targets an evaluation_id that doesn't exist."""
 
 
-__all__ = ["EvaluationNotFoundError"]
+class InvalidFeedbackTargetError(Exception):
+    """Raised when feedback targets an unknown, mismatched, missing,
+    or ambiguous criterion/agent.
+    """
+
+
+__all__ = ["EvaluationNotFoundError", "InvalidFeedbackTargetError"]

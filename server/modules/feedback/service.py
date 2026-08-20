@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 
 from server.modules.evaluations.models import EvaluationJob
+from server.modules.synthesis.models import AgentResult, CriterionScore
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from .exceptions import EvaluationNotFoundError
+from .exceptions import EvaluationNotFoundError, InvalidFeedbackTargetError
 from .models import PreferenceLog
 
 
@@ -67,6 +68,28 @@ def create_criterion_feedback(
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
     if user_role != "admin" and job.submitted_by != user_id:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
+
+    target_scores = (
+        db.query(CriterionScore)
+        .join(
+            AgentResult,
+            CriterionScore.agent_result_id == AgentResult.agent_result_id,
+        )
+        .filter(
+            CriterionScore.evaluation_id == evaluation_id,
+            CriterionScore.document_id == job.document_id,
+            CriterionScore.criterion_id == criterion_id,
+            AgentResult.evaluation_id == evaluation_id,
+            AgentResult.agent_name == agent_name,
+            AgentResult.document_id == job.document_id,
+        )
+        .all()
+    )
+    if len(target_scores) != 1:
+        raise InvalidFeedbackTargetError(
+            f"No unique criterion score found for evaluation {evaluation_id}, "
+            f"agent '{agent_name}', criterion '{criterion_id}'"
+        )
 
     edited_json = (
         {"score": score, "justification": justification}
