@@ -1,11 +1,17 @@
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, Loader2, XCircle } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
+import {
+  isFailedStatus,
+  isProcessingStatus,
+  isTerminalSuccessStatus,
+} from '../utils/uploadFlow';
 
 interface UploadSummaryLedgerProps {
   uploadResult: DocumentUploadResponse | null;
-  isSuccess: boolean;
-  isFailed: boolean;
+  isSuccess?: boolean;
+  isProcessing?: boolean;
+  isFailed?: boolean;
   file: File | null;
   sourceTypeLabels: Record<string, string>;
   sourceType: string;
@@ -13,12 +19,17 @@ interface UploadSummaryLedgerProps {
 
 export function UploadSummaryLedger({
   uploadResult,
-  isSuccess,
-  isFailed,
+  isSuccess: isSuccessProp,
+  isProcessing: isProcessingProp,
+  isFailed: isFailedProp,
   file,
   sourceTypeLabels,
   sourceType,
 }: UploadSummaryLedgerProps) {
+  const isSuccess = isSuccessProp ?? isTerminalSuccessStatus(uploadResult?.processingStatus);
+  const isProcessing = isProcessingProp ?? isProcessingStatus(uploadResult?.processingStatus);
+  const isFailed = isFailedProp ?? isFailedStatus(uploadResult?.processingStatus);
+
   if (uploadResult) {
     const metadataRows = buildMetadataRows(uploadResult);
 
@@ -27,7 +38,10 @@ export function UploadSummaryLedger({
         <div
           className={cn(
             'px-4 py-3 border-b border-slate-200 flex items-center justify-between',
-            isSuccess ? 'bg-[#3b963e]/10' : 'bg-[#b91c1c]/10',
+            isSuccess && 'bg-[#3b963e]/10',
+            isProcessing && 'bg-[#f2c811]/15',
+            isFailed && 'bg-[#b91c1c]/10',
+            !isSuccess && !isProcessing && !isFailed && 'bg-slate-50',
           )}
         >
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
@@ -35,11 +49,20 @@ export function UploadSummaryLedger({
           </span>
           <span
             className={cn(
-              'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm text-white',
-              isSuccess ? 'bg-[#3b963e]' : 'bg-[#b91c1c]',
+              'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-sm',
+              isSuccess && 'bg-[#3b963e] text-white',
+              isProcessing && 'bg-[#f2c811] text-[#1e293b]',
+              isFailed && 'bg-[#b91c1c] text-white',
+              !isSuccess && !isProcessing && !isFailed && 'bg-slate-200 text-slate-700',
             )}
           >
-            {isSuccess ? 'Processed' : 'Failed'}
+            {isSuccess
+              ? 'Processed'
+              : isProcessing
+                ? 'Processing'
+                : isFailed
+                  ? 'Failed'
+                  : uploadResult.processingStatus}
           </span>
         </div>
 
@@ -47,13 +70,15 @@ export function UploadSummaryLedger({
           <div className="flex items-start gap-3">
             {isSuccess ? (
               <CheckCircle className="size-5 text-[#3b963e] shrink-0 mt-0.5" aria-hidden="true" />
-            ) : (
+            ) : isProcessing ? (
+              <Loader2 className="size-5 text-[#854d0e] shrink-0 mt-0.5 animate-spin" aria-hidden="true" />
+            ) : isFailed ? (
               <XCircle className="size-5 text-[#b91c1c] shrink-0 mt-0.5" aria-hidden="true" />
-            )}
+            ) : null}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-slate-900 truncate">{uploadResult.title}</p>
               <p className="text-xs text-slate-500 font-semibold mt-1 uppercase tracking-wide">
-                {sourceTypeLabels[uploadResult.sourceType]}
+                {sourceTypeLabels[uploadResult.sourceType] ?? uploadResult.sourceType}
                 {uploadResult.evaluationReadiness && uploadResult.evaluationReadiness !== 'PENDING'
                   ? ` • ${uploadResult.evaluationReadiness}`
                   : null}
@@ -61,23 +86,29 @@ export function UploadSummaryLedger({
             </div>
           </div>
 
-          {isSuccess ? (
+          {isProcessing ? (
+            <div className="border border-slate-200 bg-slate-50/70 rounded-sm p-3 text-xs text-slate-700 font-medium">
+              Document intake is in progress. You do not need to upload again; you can track progress from My SLMs.
+            </div>
+          ) : null}
+
+          {isSuccess || isProcessing ? (
             <div className="border-t border-slate-100 pt-3 space-y-2">
               {metadataRows.length > 0 ? (
                 metadataRows.map((row) => (
                   <MetadataRow key={row.label} label={row.label} value={row.value} />
                 ))
-              ) : (
+              ) : isSuccess ? (
                 <p className="text-xs font-medium text-slate-500">
                   No additional metadata detected.
                 </p>
-              )}
+              ) : null}
             </div>
           ) : null}
 
-          {isFailed && uploadResult.errorMessage && (
+          {isFailed && (
             <div className="border border-[#b91c1c]/30 bg-[#b91c1c]/10 rounded-sm p-3 text-xs font-semibold text-[#b91c1c]">
-              {uploadResult.errorMessage}
+              {uploadResult.errorMessage || 'Document processing failed during upload intake. Please check the file and try again.'}
             </div>
           )}
         </div>
@@ -100,7 +131,7 @@ export function UploadSummaryLedger({
             Type
           </span>
           <span className="col-span-2 text-slate-900 font-medium">
-            {sourceTypeLabels[sourceType]}
+            {sourceTypeLabels[sourceType] ?? sourceType}
           </span>
         </div>
 

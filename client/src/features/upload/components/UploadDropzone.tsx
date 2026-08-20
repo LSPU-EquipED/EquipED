@@ -5,6 +5,7 @@ import { cn } from '@/shared/components/utils';
 interface UploadDropzoneProps {
   file: File | null;
   isDragging: boolean;
+  validationError?: string | null;
   handleDragOver: (e: DragEvent<HTMLLabelElement>) => void;
   handleDragLeave: () => void;
   handleDrop: (e: DragEvent<HTMLLabelElement>) => void;
@@ -16,6 +17,7 @@ interface UploadDropzoneProps {
 export function UploadDropzone({
   file,
   isDragging,
+  validationError,
   handleDragOver,
   handleDragLeave,
   handleDrop,
@@ -39,6 +41,7 @@ export function UploadDropzone({
           'hover:border-slate-400 hover:bg-slate-50/80',
           'focus-within:ring-2 focus-within:ring-[#1b3b87] focus-within:ring-offset-2 focus-within:outline-none',
           isDragging && 'border-[#1b3b87] bg-[#1b3b87]/10 ring-2 ring-[#1b3b87]/20',
+          validationError && !file && 'border-[#b91c1c]/50 bg-[#b91c1c]/5',
           file && 'border-solid border-[#1b3b87]/20 bg-white',
         )}
       >
@@ -49,7 +52,9 @@ export function UploadDropzone({
               'flex size-10 items-center justify-center rounded-sm border transition-colors shrink-0',
               file
                 ? 'bg-[#1b3b87]/5 border-[#1b3b87]/20 text-[#1b3b87]'
-                : 'bg-slate-100 border-slate-200 text-slate-400',
+                : validationError
+                  ? 'bg-[#b91c1c]/10 border-[#b91c1c]/30 text-[#b91c1c]'
+                  : 'bg-slate-100 border-slate-200 text-slate-400',
             )}
           >
             {file ? (
@@ -100,11 +105,24 @@ export function UploadDropzone({
           id="pdf-file"
           ref={fileInputRef}
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,.pdf"
           onChange={handleFileChange}
+          aria-invalid={Boolean(validationError)}
+          aria-describedby={validationError ? 'pdf-file-error' : undefined}
           className="sr-only"
         />
       </label>
+
+      {validationError ? (
+        <div
+          id="pdf-file-error"
+          role="alert"
+          aria-live="polite"
+          className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-3 py-2 text-xs font-semibold text-[#b91c1c]"
+        >
+          {validationError}
+        </div>
+      ) : null}
     </div>
   );
 }

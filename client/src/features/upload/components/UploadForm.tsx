@@ -5,7 +5,13 @@ import { ArrowRight, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
-import { shouldNavigateToEvaluation } from '@/features/upload/utils/uploadFlow';
+import {
+  isFailedStatus,
+  isPdfFile,
+  isProcessingStatus,
+  isTerminalSuccessStatus,
+  shouldNavigateToEvaluation,
+} from '@/features/upload/utils/uploadFlow';
 
 import { UploadHeader } from './UploadHeader';
 import { UploadIntakeFields } from './UploadIntakeFields';
@@ -31,6 +37,7 @@ export function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigationTriggeredRef = useRef(false);
 
@@ -62,27 +69,51 @@ export function UploadForm() {
     setIsDragging(false);
 
     const droppedFile = event.dataTransfer.files?.[0] ?? null;
-    if (
-      droppedFile &&
-      (droppedFile.type === 'application/pdf' || droppedFile.name.toLowerCase().endsWith('.pdf'))
-    ) {
-      applyFile(droppedFile);
+    if (!droppedFile) {
+      return;
     }
+
+    if (!isPdfFile(droppedFile)) {
+      setValidationError('Only PDF documents are supported for SLM upload. Please select a valid .pdf file.');
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    setValidationError(null);
+    applyFile(droppedFile);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const nextFile = event.target.files?.[0] ?? null;
-    applyFile(nextFile);
+    const selectedFile = event.target.files?.[0] ?? null;
+    if (!selectedFile) {
+      return;
+    }
+
+    if (!isPdfFile(selectedFile)) {
+      setValidationError('Only PDF documents are supported for SLM upload. Please select a valid .pdf file.');
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    setValidationError(null);
+    applyFile(selectedFile);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!file || !title.trim()) {
+    if (!file || !title.trim() || !isPdfFile(file)) {
       return;
     }
 
     setUploadResult(null);
+    setValidationError(null);
 
     try {
       const result = await uploadDocument({
@@ -92,8 +123,8 @@ export function UploadForm() {
       });
       setUploadResult(result);
 
-      // A processed SLM continues to its evaluation page exactly once. Failed
-      // or pending results stay on the upload experience with error handling.
+      // A processed SLM continues to its evaluation page exactly once.
+      // Non-terminal processing and failed results stay on the upload experience.
       if (shouldNavigateToEvaluation(result) && !navigationTriggeredRef.current) {
         navigationTriggeredRef.current = true;
         void queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -112,13 +143,16 @@ export function UploadForm() {
     resetUpload(null);
     setFile(null);
     setTitle('');
+    setValidationError(null);
+    navigationTriggeredRef.current = false;
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const isSuccess = uploadResult?.processingStatus === 'PROCESSED';
-  const isFailed = uploadResult?.processingStatus === 'FAILED';
+  const isSuccess = isTerminalSuccessStatus(uploadResult?.processingStatus);
+  const isProcessing = isProcessingStatus(uploadResult?.processingStatus);
+  const isFailed = isFailedStatus(uploadResult?.processingStatus);
 
   return (
     <form
@@ -143,6 +177,7 @@ export function UploadForm() {
           <UploadDropzone
             file={file}
             isDragging={isDragging}
+            validationError={validationError}
             handleDragOver={handleDragOver}
             handleDragLeave={handleDragLeave}
             handleDrop={handleDrop}
@@ -168,9 +203,11 @@ export function UploadForm() {
           <p className="mt-1 text-[10px] text-slate-500 font-medium uppercase tracking-wide leading-relaxed">
             {isSuccess
               ? 'Your document has been uploaded and processed successfully.'
-              : isFailed
-                ? 'Upload completed, but document processing failed.'
-                : 'Review the upload details, then upload the document to begin.'}
+              : isProcessing
+                ? 'Your document was uploaded and is currently processing in the background.'
+                : isFailed
+                  ? 'Upload completed, but document processing failed.'
+                  : 'Review the upload details, then upload the document to begin.'}
           </p>
         </div>
 
@@ -178,6 +215,7 @@ export function UploadForm() {
           <UploadSummaryLedger
             uploadResult={uploadResult}
             isSuccess={isSuccess}
+            isProcessing={isProcessing}
             isFailed={isFailed}
             file={file}
             sourceTypeLabels={sourceTypeLabels}
@@ -185,7 +223,10 @@ export function UploadForm() {
           />
 
           {errorMessage ? (
-            <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
+            <div
+              role="alert"
+              className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold"
+            >
               {errorMessage}
             </div>
           ) : null}
@@ -198,7 +239,7 @@ export function UploadForm() {
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
                   <span>Status</span>
                   <span className="text-slate-800 font-bold">
-                    {isSuccess ? 'Complete' : 'Failed'}
+                    {isSuccess ? 'Complete' : isProcessing ? 'Processing' : 'Failed'}
                   </span>
                 </div>
                 {isSuccess ? (
@@ -207,12 +248,26 @@ export function UploadForm() {
                     className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
                     onClick={() =>
                       navigate({
-                        to: '/dashboard',
+                        to: '/documents',
                         search: { highlight: uploadResult.documentId },
                       })
                     }
                   >
-                    Go to Dashboard
+                    Go to My SLMs
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </button>
+                ) : isProcessing ? (
+                  <button
+                    type="button"
+                    className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
+                    onClick={() =>
+                      navigate({
+                        to: '/documents',
+                        search: { highlight: uploadResult.documentId },
+                      })
+                    }
+                  >
+                    View in My SLMs
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </button>
                 ) : (
@@ -228,7 +283,9 @@ export function UploadForm() {
                 <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
                   {isSuccess
                     ? 'Continuing to the evaluation page…'
-                    : 'You can try uploading the file again or contact support if the issue persists.'}
+                    : isProcessing
+                      ? 'Processing continues in the background. Check My SLMs to start evaluation once ready.'
+                      : 'You can try uploading the file again or contact support if the issue persists.'}
                 </p>
               </>
             ) : (

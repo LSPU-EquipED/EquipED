@@ -1,4 +1,4 @@
-import type { DocumentUploadResponse } from '@/shared/types/documents';
+import type { DocumentProcessingStatus, DocumentUploadResponse } from '@/shared/types/documents';
 
 /**
  * Pure decision helpers for the faculty SLM upload flow. Kept free of
@@ -27,12 +27,49 @@ export function resolveUploadRouteAccess(
 
 /**
  * A successful SLM upload continues to the evaluation page only after the
- * document is fully processed. Failed or pending results stay on upload.
+ * document is fully processed. Non-terminal processing or failed results stay on upload.
  */
 export function shouldNavigateToEvaluation(
   result: Pick<DocumentUploadResponse, 'processingStatus'> | null | undefined,
 ): boolean {
   return result?.processingStatus === 'PROCESSED';
+}
+
+/**
+ * Check if the document processing status is a non-terminal in-progress state.
+ */
+export function isProcessingStatus(
+  status: DocumentProcessingStatus | string | null | undefined,
+): boolean {
+  return status === 'PENDING' || status === 'PROCESSING' || status === 'CLEANUP_PENDING';
+}
+
+/**
+ * Check if the document processing status is successfully processed.
+ */
+export function isTerminalSuccessStatus(
+  status: DocumentProcessingStatus | string | null | undefined,
+): boolean {
+  return status === 'PROCESSED';
+}
+
+/**
+ * Check if the document processing status is terminal failed.
+ */
+export function isFailedStatus(
+  status: DocumentProcessingStatus | string | null | undefined,
+): boolean {
+  return status === 'FAILED';
+}
+
+/**
+ * Validate that a file is a valid PDF by MIME type or file extension.
+ */
+export function isPdfFile(file: File | null | undefined): boolean {
+  if (!file) {
+    return false;
+  }
+  return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 }
 
 export function evaluationRouteForDocument(documentId: string): string {
