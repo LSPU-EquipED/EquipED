@@ -1,42 +1,27 @@
-import { Outlet, useMatches } from '@tanstack/react-router';
+import { Outlet, useLocation, useMatches } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { Sidebar } from './Sidebar';
-
-function getRouteTitle(routeId?: string): string {
-  if (!routeId) return 'EquipED';
-
-  if (routeId.includes('/dashboard')) return 'Documents';
-  if (routeId.includes('/upload')) return 'Upload Document';
-  if (routeId.includes('/evaluations/$id/report')) return 'Evaluation Report';
-  if (routeId.includes('/evaluations/$id')) return 'Scorecard';
-  if (routeId.includes('/evaluations')) return 'Evaluations';
-  if (routeId.includes('/evaluation-map')) return 'Knowledge Map';
-  if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
-    return 'Evaluation Interface';
-  if (routeId.includes('/matrix')) return 'Monitoring Matrix';
-  if (routeId.includes('/alignment')) return 'Curriculum Alignment';
-  if (routeId.includes('/admin/users')) return 'User Management';
-  if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
-  if (routeId.includes('/admin/references')) return 'Reference Library';
-  if (routeId.includes('/admin/prompts')) return 'Agent Prompts';
-  if (routeId.includes('/admin/preferences')) return 'Preference Logs';
-  if (routeId.includes('/admin/rubrics')) return 'Rubric Editor';
-  if (routeId.includes('/admin')) return 'Admin Dashboard';
-
-  return 'EquipED';
-}
+import { getRouteTitle, getSidebarLayoutClasses } from './navigation.utils';
 
 export function AppShell() {
   const matches = useMatches();
   const currentMatch = matches[matches.length - 1];
   const routeId = currentMatch?.routeId;
+  const pathname = useLocation({ select: (loc) => loc.pathname });
+  const isMobile = useIsMobile();
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+
   const { logout, user } = useAuth();
   const initials =
     user?.displayName
@@ -46,6 +31,19 @@ export function AppShell() {
       .join('')
       .slice(0, 2) || 'EA';
 
+  const closeMobileMenu = (restoreFocus = true) => {
+    setIsMobileMenuOpen(false);
+    if (restoreFocus) {
+      mobileMenuTriggerRef.current?.focus();
+    }
+  };
+
+  // Automatically close mobile menu upon route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Account menu outside-click and Escape key handler
   useEffect(() => {
     if (!isAccountMenuOpen) {
       return;
@@ -57,10 +55,20 @@ export function AppShell() {
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsAccountMenuOpen(false);
+        accountTriggerRef.current?.focus();
+      }
+    };
+
     document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAccountMenuOpen]);
 
@@ -69,25 +77,44 @@ export function AppShell() {
     await logout();
   };
 
+  const layoutClasses = getSidebarLayoutClasses(isSidebarCollapsed);
+
   return (
     <div className="min-h-screen bg-white text-slate-800">
       <header
         className={cn(
-          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white px-6 transition-[left] duration-200',
-          isSidebarCollapsed ? 'left-[5.75rem]' : 'left-72 max-md:left-[5.75rem]',
+          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white px-4 sm:px-6 transition-[left] duration-200',
+          layoutClasses.headerLeft,
         )}
       >
         <div className="flex flex-1 items-center gap-3">
-          <span className="text-base font-bold text-slate-900">{getRouteTitle(routeId)}</span>
+          {/* Mobile menu hamburger toggle */}
+          <button
+            type="button"
+            ref={mobileMenuTriggerRef}
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+            aria-label="Open navigation menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="app-sidebar"
+          >
+            <Menu className="size-5" aria-hidden="true" />
+          </button>
+
+          <span className="text-base font-bold text-slate-900">
+            {getRouteTitle(routeId, user?.role)}
+          </span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
           <div ref={accountMenuRef} className="relative">
             <button
               type="button"
+              ref={accountTriggerRef}
               className="flex size-8 items-center justify-center rounded-full bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#1b3b87] focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
+              aria-label={`User account menu for ${user?.displayName ?? user?.email ?? 'faculty'}`}
               onClick={() => setIsAccountMenuOpen((value) => !value)}
             >
               {initials}
@@ -123,15 +150,28 @@ export function AppShell() {
         </div>
       </header>
 
+      {/* Mobile Drawer Backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"
+          aria-hidden="true"
+          onClick={() => closeMobileMenu(true)}
+        />
+      )}
+
       <Sidebar
         collapsed={isSidebarCollapsed}
         onToggle={() => setIsSidebarCollapsed((value) => !value)}
+        mobileOpen={isMobileMenuOpen}
+        onMobileClose={() => closeMobileMenu(true)}
+        onNavigate={() => closeMobileMenu(true)}
+        isMobile={isMobile}
       />
 
       <div
         className={cn(
           'min-h-screen min-w-0 pt-16 transition-[padding] duration-200',
-          isSidebarCollapsed ? 'pl-[5.75rem]' : 'pl-72 max-md:pl-[5.75rem]',
+          layoutClasses.mainPadding,
         )}
       >
         <main className="min-w-0">
