@@ -6,11 +6,10 @@ functions the agent will call once facts come from a shared/grouped call.
 
 from __future__ import annotations
 
-from server.modules.agents.sme import (
+from server.modules.agents.sme.oracle import (
     accurate_sections,
     clear_directions,
     enhancement_activities,
-    extraction,
     interactivity,
     learner_transformation,
     objective_alignment,
@@ -932,26 +931,26 @@ class TestPrescriptiveFeedbackBoilerplateGuard:
 
 
 class TestPromptContent:
-    def test_standalone_and_grouped_a01_prompts_require_canonical_and_examples(
+    def test_a01_prompt_requires_canonical_and_examples(
         self,
     ) -> None:
-        for prompt in (learner_transformation.PROMPT, extraction.BASKET_A2_PROMPT):
-            assert "canonical category name" in prompt
-            assert "compare" in prompt
-            assert "analyze" in prompt
-            assert "explain" in prompt
-            assert "understand" in prompt
-            assert "justify" in prompt
-            assert "evaluate" in prompt
-            assert "list" in prompt
-            assert "remember" in prompt
-            assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
+        prompt = learner_transformation.PROMPT
+        assert "canonical category name" in prompt
+        assert "compare" in prompt
+        assert "analyze" in prompt
+        assert "explain" in prompt
+        assert "understand" in prompt
+        assert "justify" in prompt
+        assert "evaluate" in prompt
+        assert "list" in prompt
+        assert "remember" in prompt
+        assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
 
-    def test_standalone_and_grouped_a04_prompts_exclude_boilerplate_and_require_minimal_quote(  # noqa: E501
+    def test_a04_prompt_excludes_boilerplate_and_requires_minimal_quote(
         self,
     ) -> None:
-        for prompt in (prescriptive_feedback.PROMPT, extraction.BASKET_B1_PROMPT):
-            assert "legal disclaimers" in prompt or "legal disclaimers," in prompt
-            assert "copyright notices" in prompt
-            assert "fair-use" in prompt
-            assert "minimal evidence" in prompt or "minimal evidence quote" in prompt
+        prompt = prescriptive_feedback.PROMPT
+        assert "legal disclaimers" in prompt or "legal disclaimers," in prompt
+        assert "copyright notices" in prompt
+        assert "fair-use" in prompt
+        assert "minimal evidence" in prompt or "minimal evidence quote" in prompt

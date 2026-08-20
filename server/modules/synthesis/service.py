@@ -94,6 +94,7 @@ def persist_agent_outputs(
                 error_message=agent_result.error_message,
                 raw_response=agent_result.raw_response,
                 prompt_text=agent_result.prompt_text,
+                group_prompts=agent_result.metadata.get("group_prompts"),
                 provenance=sanitize_provenance(agent_result.provenance),
                 advisory_outputs=agent_result.advisory_outputs,
             )
@@ -116,6 +117,7 @@ def persist_agent_outputs(
             error_message=agent_result.error_message,
             raw_response=agent_result.raw_response,
             prompt_text=agent_result.prompt_text,
+            group_prompts=agent_result.metadata.get("group_prompts"),
             provenance=sanitize_provenance(agent_result.provenance),
             advisory_outputs=agent_result.advisory_outputs,
         )
@@ -256,21 +258,24 @@ def get_evaluation_results(
     )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
-    # Latest ITSO reviewer correction per criterion (latest wins, same rule
-    # export_dpo_pairs.py already uses). ACCEPT is excluded -- it carries
-    # no score/justification and nothing in the UI sends it anymore.
-    itso_corrections: dict[str, PreferenceLog] = {}
+    # Latest reviewer correction per (agent, criterion) for every agent
+    # whose score comes from a single/grouped LLM generation and can
+    # therefore produce a coherent DPO pair (itso, sme). ACCEPT is
+    # excluded -- it carries no score/justification and nothing in the UI
+    # sends it anymore.
+    reviewable_agents = ("itso", "sme")
+    corrections: dict[tuple[str, str], PreferenceLog] = {}
     for log in (
         db.query(PreferenceLog)
         .filter(
             PreferenceLog.evaluation_id == evaluation_id,
-            PreferenceLog.agent_name == "itso",
+            PreferenceLog.agent_name.in_(reviewable_agents),
             PreferenceLog.action.in_(["EDIT", "REJECT"]),
         )
         .order_by(PreferenceLog.created_at.desc())
         .all()
     ):
-        itso_corrections.setdefault(log.criterion_id, log)
+        corrections.setdefault((log.agent_name, log.criterion_id), log)
 
     synthesis_result = compute_synthesized_score(
         agent_results,
@@ -299,9 +304,9 @@ def get_evaluation_results(
                     "chunk_ids": score.chunk_ids,
                     "reviewer_correction": (
                         _reviewer_correction_payload(
-                            itso_corrections.get(score.criterion_id)
+                            corrections.get((result.agent_name, score.criterion_id))
                         )
-                        if result.agent_name == "itso"
+                        if result.agent_name in reviewable_agents
                         else None
                     ),
                 }

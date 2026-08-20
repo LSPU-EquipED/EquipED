@@ -58,4 +58,32 @@ describe('useSubmitCriterionFeedback', () => {
       { agent_name: 'itso', action: 'ACCEPT' },
     );
   });
+
+  it('accepts agent_name "sme" in the request body', async () => {
+    vi.mocked(evaluationApi.submitCriterionFeedback).mockResolvedValue({
+      log_id: '2',
+      evaluation_id: 'eval-1',
+      user_id: 'user-1',
+      agent_name: 'sme',
+      criterion_id: 'A-01',
+      action: 'ACCEPT',
+      edited_json: null,
+      notes: null,
+      created_at: '2026-08-10T00:00:00Z',
+    });
+
+    const { result } = renderHook(() => useSubmitCriterionFeedback('eval-1'), { wrapper });
+
+    result.current.mutate({
+      criterionId: 'A-01',
+      body: { agent_name: 'sme', action: 'ACCEPT' },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(evaluationApi.submitCriterionFeedback).toHaveBeenCalledWith(
+      'eval-1',
+      'A-01',
+      { agent_name: 'sme', action: 'ACCEPT' },
+    );
+  });
 });

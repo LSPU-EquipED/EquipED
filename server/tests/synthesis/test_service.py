@@ -12,7 +12,7 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.modules.synthesis.service import get_evaluation_results
 
 
-def _seed(db_session, *, user_id):
+def _seed(db_session, *, user_id, agent_name="itso"):
     document_id = uuid4()
     db_session.add(
         Document(
@@ -38,23 +38,32 @@ def _seed(db_session, *, user_id):
     agent_result = AgentResult(
         evaluation_id=job.evaluation_id,
         document_id=document_id,
-        agent_name="itso",
+        agent_name=agent_name,
         subtotal=2.0,
         processing_seconds=1.0,
         token_count=10,
         model_name="test-model",
         summary="ok",
         success=True,
-        prompt_text='{"agent": "itso"}',
+        prompt_text=f'{{"agent": "{agent_name}"}}',
     )
     db_session.add(agent_result)
     db_session.flush()
 
-    for criterion_id, score, justification in [
-        ("itso-01", 4, "No plagiarism detected."),
-        ("itso-02", 1, "No reference section found."),
-        ("itso-03", 2, "No ownership statement present."),
-    ]:
+    criteria = (
+        [
+            ("A-01", 4, "No plagiarism detected."),
+            ("A-02", 1, "No reference section found."),
+            ("A-03", 2, "No ownership statement present."),
+        ]
+        if agent_name == "sme"
+        else [
+            ("itso-01", 4, "No plagiarism detected."),
+            ("itso-02", 1, "No reference section found."),
+            ("itso-03", 2, "No ownership statement present."),
+        ]
+    )
+    for criterion_id, score, justification in criteria:
         db_session.add(
             CriterionScore(
                 agent_result_id=agent_result.agent_result_id,
@@ -182,6 +191,32 @@ def test_accept_action_does_not_surface_as_reviewer_correction(db_session, seede
     assert by_id["itso-01"].reviewer_correction is None
 
 
+def test_get_evaluation_results_surfaces_sme_reviewer_correction(
+    db_session, seeded_user
+):
+    job = _seed(db_session, user_id=seeded_user.user_id, agent_name="sme")
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="sme",
+            criterion_id="A-01",
+            action="EDIT",
+            edited_json={"score": 4, "justification": "corrected"},
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["sme"].criteria}
+    correction = by_id["A-01"].reviewer_correction
+    assert correction is not None
+    assert correction.action == "EDIT"
+    assert correction.score == 4
+    assert correction.justification == "corrected"
+
+
 def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
     db_session, seeded_user
 ):
@@ -268,4 +303,3 @@ def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
         "Model score for SME-01 provided without grounded evidence — human "
         "review required"
     )
-

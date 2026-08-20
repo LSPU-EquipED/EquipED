@@ -628,7 +628,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
 ) -> None:
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.sme import registry
+    from server.modules.agents.sme.oracle import registry
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker

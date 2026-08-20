@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..runtime.llm import parse_json_payload
+from ...runtime.llm import parse_json_payload
 from .bands import count_band
 
 # >=5 distinct types -> 4, 3-4 -> 3, 2 -> 2, <=1 -> 1.

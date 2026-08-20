@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 import pytest
-from server.core.llm import CompletionResult, ResponseContract
+from server.core.llm import CompletionResult
 from server.modules.agents.provenance import sanitize_provenance
 from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.agents.sme import registry
 from server.modules.agents.sme.agent import SME
-from server.tests.agents.helpers import _ALL_BASKETS_IN_ORDER
+from server.modules.agents.sme.oracle import registry
+from server.tests.agents.helpers import GroupScoringFakeClient, sme_group_payloads
+
+_TELEMETRY_TITLES = {code: f"{code} title" for code in registry.REGISTERED_CODES}
 
 
 class TypedSMEFake:
+    """Replays canned completions in order; used for the raw-adapter cases."""
+
     model = "telemetry-model"
 
     def __init__(self, results: list[CompletionResult]) -> None:
@@ -25,38 +28,23 @@ class TypedSMEFake:
         *,
         temperature: float,
         max_new_tokens: int,
-        deadline: float | None,
-        response_contract: ResponseContract,
+        deadline: float | None = None,
+        response_contract: object = None,
     ) -> CompletionResult:
         self.calls += 1
         return next(self.results)
 
 
-def _results(
-    payloads: list[dict[str, Any]], *, attempts: int = 1
-) -> list[CompletionResult]:
-    import json
-
-    return [
-        CompletionResult(
-            json.dumps(payload),
-            "telemetry-model",
-            10,
-            20,
-            30,
-            "stop",
-            attempts=attempts,
-        )
-        for payload in payloads
-    ]
-
-
-def _run(monkeypatch: pytest.MonkeyPatch, client: TypedSMEFake):
+def _run(monkeypatch: pytest.MonkeyPatch, client: GroupScoringFakeClient):
     monkeypatch.setattr(
         "server.modules.agents.sme.pipeline.get_active_rubric_criteria",
         lambda agent_id, db=None: {
             code: f"{code} title" for code in registry.REGISTERED_CODES
         },
+    )
+    monkeypatch.setattr(
+        "server.modules.agents.sme.pipeline.get_active_rubric_descriptions",
+        lambda agent_id, db=None: {},
     )
     return SME(llm_client=client).run(
         evaluation_id=uuid.uuid4(),
@@ -67,22 +55,24 @@ def _run(monkeypatch: pytest.MonkeyPatch, client: TypedSMEFake):
     )
 
 
-def test_healthy_grouped_run_has_six_logical_calls_and_exact_totals(monkeypatch):
-    client = TypedSMEFake(_results(_ALL_BASKETS_IN_ORDER))
+def test_healthy_grouped_run_has_three_logical_calls_and_exact_totals(monkeypatch):
+    client = GroupScoringFakeClient(
+        sme_group_payloads(3, titles=_TELEMETRY_TITLES), model="telemetry-model"
+    )
     result = _run(monkeypatch, client)
 
     assert result.provenance == {
         "requested_model": "telemetry-model",
         "actual_model": "telemetry-model",
         "fallback_occurred": False,
-        "logical_calls": 6,
-        "physical_attempts": 6,
-        "input_tokens": 60,
-        "output_tokens": 120,
+        "logical_calls": 3,
+        "physical_attempts": 3,
+        "input_tokens": 30,
+        "output_tokens": 60,
         "truncation_count": 0,
         "cap_hit_count": 0,
         "criterion_fallback_calls": 0,
-        "grouped_calls": 6,
+        "grouped_calls": 3,
         "fallback_calls": 0,
         "provider_seconds_ms": 0,
         "trim_count": 0,

@@ -110,3 +110,13 @@ def test_criterion_feedback_persists_row(
     assert rows[0].action == "REJECT"
     assert rows[0].notes == "wrong"
     assert rows[0].user_id == admin_user.user_id
+
+
+def test_criterion_feedback_accepts_sme_agent_name(
+    client: TestClient, auth_cookies_admin, evaluation_job
+):
+    _auth(client, auth_cookies_admin)
+    url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/A-01"
+    response = client.post(url, json={"agent_name": "sme", "action": "ACCEPT"})
+    assert response.status_code == 201
+    assert response.json()["agent_name"] == "sme"

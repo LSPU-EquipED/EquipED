@@ -71,8 +71,9 @@ BRANCH_B = "20260801_0001"
 #: added the roadmap-course uniqueness revision (20260808_0002), then the
 #: external-lineage bridge (20260810_0002), admission slot (20260811_0001),
 #: SME prompt seed (20260811_0002), preference-log attribution
-#: (20260811_0003), and agent-result prompt-text snapshotting (20260811_0004).
-CHAIN_HEAD_REV = "20260811_0004"
+#: (20260811_0003), agent-result prompt-text snapshotting (20260811_0004),
+#: and agent-result group_prompts snapshotting (20260814_0001).
+CHAIN_HEAD_REV = "20260820_0001"
 
 #: Common ancestor of both feature branches; the former-curriculum head shape.
 FORMER_CURRICULUM_ANCESTOR = "20260716_0001"

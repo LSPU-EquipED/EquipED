@@ -108,16 +108,18 @@ class SME(EngineScoredAgent):
         llm_client: Any | None = None,
         **kwargs: Any,
     ) -> AgentEvaluationResult:
-        """Score every SME criterion with the code-side engine directly.
+        """Score every SME criterion with 3 grouped direct-LLM calls.
 
         SME's rubric maps 1:1 onto ``registry.REGISTERED_CODES`` (all 10
-        criteria), so there is no LLM-guesses-everything base call worth
-        making first -- the engine's grouped pass is the sole primary
-        scorer, with a per-criterion fallback for anything it misses (see
-        ``EngineScoredAgent._score_via_engine``). A code that fails both
-        raises ``AgentExecutionError``, matching every other agent's
-        all-or-nothing failure contract (the Supervisor already handles a
-        raised agent by marking it failed and excluding it from synthesis).
+        criteria), grouped into three shared-slice calls (see
+        ``sme/groups.py``), so there is no LLM-guesses-everything base call
+        worth making first -- grouped LLM scoring is the sole primary scorer
+        (see ``EngineScoredAgent._run_full_llm_scoring``). A group whose call
+        fails outright falls back to the retained per-criterion engine lane
+        (``registry.run_criterion``); a code that fails both raises
+        ``AgentExecutionError``, matching every other agent's all-or-nothing
+        failure contract (the Supervisor already handles a raised agent by
+        marking it failed and excluding it from synthesis).
         """
         if not chunk_infos:
             raise AgentExecutionError("document chunks are required for evaluation")
@@ -133,7 +135,7 @@ class SME(EngineScoredAgent):
                 consumed_prompt_id = managed.version_id
             except ValueError:
                 pass
-        result = self._run_full_engine_scoring(
+        result = self._run_full_llm_scoring(
             evaluation_id=evaluation_id,
             document_id=document_id,
             chunk_infos=chunk_infos,
