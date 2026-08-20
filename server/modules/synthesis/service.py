@@ -12,7 +12,10 @@ from server.modules.agents.provenance import sanitize_provenance
 from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.feedback.models import PreferenceLog
+from server.modules.feedback.state import (
+    EffectiveCriterionCorrection,
+    get_effective_criterion_corrections,
+)
 from server.modules.synthesis.exceptions import (
     EvaluationResultsNotFoundError,
     UnsupportedProgramFilterError,
@@ -35,14 +38,15 @@ from sqlalchemy import func
 logger = logging.getLogger(__name__)
 
 
-def _reviewer_correction_payload(log: PreferenceLog | None) -> dict[str, Any] | None:
-    if log is None:
+def _reviewer_correction_payload(
+    correction: EffectiveCriterionCorrection | None,
+) -> dict[str, Any] | None:
+    if correction is None:
         return None
-    edited = log.edited_json or {}
     return {
-        "action": log.action,
-        "score": edited.get("score"),
-        "justification": edited.get("justification"),
+        "action": correction.action,
+        "score": correction.score,
+        "justification": correction.justification,
     }
 
 
@@ -95,6 +99,7 @@ def persist_agent_outputs(
                 raw_response=agent_result.raw_response,
                 prompt_text=agent_result.prompt_text,
                 group_prompts=agent_result.metadata.get("group_prompts"),
+                group_responses=agent_result.metadata.get("group_responses"),
                 provenance=sanitize_provenance(agent_result.provenance),
                 advisory_outputs=agent_result.advisory_outputs,
             )
@@ -118,6 +123,7 @@ def persist_agent_outputs(
             raw_response=agent_result.raw_response,
             prompt_text=agent_result.prompt_text,
             group_prompts=agent_result.metadata.get("group_prompts"),
+            group_responses=agent_result.metadata.get("group_responses"),
             provenance=sanitize_provenance(agent_result.provenance),
             advisory_outputs=agent_result.advisory_outputs,
         )
@@ -258,24 +264,14 @@ def get_evaluation_results(
     )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
-    # Latest reviewer correction per (agent, criterion) for every agent
-    # whose score comes from a single/grouped LLM generation and can
-    # therefore produce a coherent DPO pair (itso, sme). ACCEPT is
-    # excluded -- it carries no score/justification and nothing in the UI
-    # sends it anymore.
+    # Latest reviewer correction per (agent, criterion) for reviewable agents
+    # (itso, sme).
     reviewable_agents = ("itso", "sme")
-    corrections: dict[tuple[str, str], PreferenceLog] = {}
-    for log in (
-        db.query(PreferenceLog)
-        .filter(
-            PreferenceLog.evaluation_id == evaluation_id,
-            PreferenceLog.agent_name.in_(reviewable_agents),
-            PreferenceLog.action.in_(["EDIT", "REJECT"]),
-        )
-        .order_by(PreferenceLog.created_at.desc())
-        .all()
-    ):
-        corrections.setdefault((log.agent_name, log.criterion_id), log)
+    corrections = get_effective_criterion_corrections(
+        db,
+        evaluation_id,
+        agent_names=reviewable_agents,
+    )
 
     synthesis_result = compute_synthesized_score(
         agent_results,
