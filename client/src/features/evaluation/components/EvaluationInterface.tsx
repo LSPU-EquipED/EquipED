@@ -47,15 +47,11 @@ export function EvaluationInterface() {
     effectiveProgram,
     detectedProgram,
     setSelectedProgram,
-    submitConfirmedPartial,
+    submitEvaluationAction,
   } = useEvaluationPageState(documentId);
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const selectedFlags = results?.flags.filter((flag) => flag.agent_id === selectedAgentId) || [];
-
-  const handleStartConfirmedPartial = () => {
-    submitConfirmedPartial(effectiveProgram);
-  };
 
   const handleDividerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     const container = event.currentTarget.parentElement;
@@ -103,9 +99,10 @@ export function EvaluationInterface() {
           onSelectProgram={setSelectedProgram}
           isResolveError={isResolveError}
           resolveError={resolveError}
+          onRetryResolve={refetchResolve}
           isSubmitting={!!submitEvaluation.isPending}
           submitError={submitEvaluation.error}
-          onStart={handleStartConfirmedPartial}
+          onSubmit={submitEvaluationAction}
           onRetrySubmit={handleRetrySubmit}
         />
       ) : (
