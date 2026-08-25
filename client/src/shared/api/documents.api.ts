@@ -3,6 +3,7 @@ import {
   mapDocumentUploadResponse,
   mapDocumentListResponse,
   mapDocumentResponse,
+  mapCurriculumSuggestionResponse,
   type ClientDocument,
   type DocumentListResponse,
   type RawDocumentListResponse,
@@ -10,6 +11,8 @@ import {
   type RawDocumentUploadResponse,
   type DocumentSourceType,
   type DocumentUploadResponse,
+  type CurriculumSuggestionResponse,
+  type RawCurriculumSuggestionResponse,
 } from '@/shared/types/documents';
 
 export type DocumentApiStatus = 'ready' | 'processing' | 'failed';
@@ -87,10 +90,22 @@ async function uploadDocument(input: UploadDocumentInput): Promise<DocumentUploa
   return mapDocumentUploadResponse(response);
 }
 
+async function getCurriculumSuggestion(
+  documentId: string,
+  program: string,
+): Promise<CurriculumSuggestionResponse> {
+  const query = `program=${encodeURIComponent(program.trim())}`;
+  const response = await requestJson<RawCurriculumSuggestionResponse>(
+    `/documents/${documentId}/curriculum-suggestion?${query}`,
+  );
+  return mapCurriculumSuggestionResponse(response);
+}
+
 export const documentsApi = {
   getDocument,
   listDocuments,
   uploadDocument,
+  getCurriculumSuggestion,
 };
 
 export type { ListDocumentsParams, UploadDocumentInput };

@@ -134,7 +134,7 @@ export function ProgramSelector({
   }, [isOpen]);
 
   const handleSelect = (programCode: string) => {
-    onChange(programCode.toUpperCase());
+    onChange(programCode);
     closePicker();
   };
 
