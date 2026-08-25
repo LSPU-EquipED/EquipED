@@ -27,9 +27,7 @@ export function ReferenceRow({
   onRebuild,
   onDelete,
 }: ReferenceRowProps) {
-  const isRetiredCurriculum = item.sourceType === 'curriculum';
-  const canRebuild =
-    !isRetiredCurriculum && item.chunkCount > 0 && !item.chromaAvailable;
+  const canRebuild = item.chunkCount > 0 && !item.chromaAvailable;
 
   return (
     <tr className="hover:bg-slate-50/50">
@@ -50,6 +48,9 @@ export function ReferenceRow({
         <span className="text-sm font-medium text-slate-700">
           {referenceTypeLabels[item.sourceType] ?? item.sourceType}
         </span>
+      </td>
+      <td className="py-3 px-4 align-top">
+        <span className="text-sm font-medium text-slate-600">{item.program ?? '—'}</span>
       </td>
       <td className="py-3 px-4 align-top">
         <span className="text-sm font-medium text-slate-600">{item.courseCode ?? '—'}</span>
@@ -112,13 +113,11 @@ export function ReferenceRow({
           isDeleting={isDeleting}
           isRebuilding={isRebuilding}
           rebuildTooltip={
-            isRetiredCurriculum
-              ? 'Curriculum lifecycle actions are retired'
-              : item.chromaAvailable
-                ? 'Chroma vectors already present'
-                : item.chunkCount === 0
-                  ? 'No chunks available to rebuild'
-                  : 'Rebuild Chroma vectors from stored chunks'
+            item.chromaAvailable
+              ? 'Chroma vectors already present'
+              : item.chunkCount === 0
+                ? 'No chunks available to rebuild'
+                : 'Rebuild Chroma vectors from stored chunks'
           }
           onPreview={onPreview}
           onRebuild={onRebuild}
