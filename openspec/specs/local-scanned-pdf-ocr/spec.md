@@ -76,7 +76,7 @@ The supported production deployment SHALL provide the local OCR executable and E
 - **AND** SHALL reject scanned-PDF uploads with an actionable OCR-unavailable error
 
 ### Requirement: OCR resource usage is bounded
-The system SHALL bound local OCR resource use for uploaded PDFs to protect the single-process application from excessive rasterization or concurrent OCR work. The initial supported limits SHALL be 25 OCR-candidate pages per document, 200 DPI, 8 million pixels per page, 20 seconds per page, one concurrent OCR worker, and a 30-second worker-acquisition limit.
+The system SHALL bound local OCR resource use for uploaded PDFs to protect the single-process application from excessive rasterization or concurrent OCR work. The initial supported limits SHALL be 125 OCR-candidate pages per document, 200 DPI, 8 million pixels per page, 20 seconds per page, one concurrent OCR worker, and a 30-second worker-acquisition limit.
 
 #### Scenario: OCR candidate page is rasterized
 - **WHEN** the system rasterizes a page for local OCR

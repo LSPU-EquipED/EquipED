@@ -115,7 +115,7 @@ class Settings:
     # the shared installation.
     tessdata_prefix: str | None = None
 
-    ocr_max_pages: int = 25
+    ocr_max_pages: int = 125
     ocr_dpi: int = 200
     ocr_max_pixels: int = 8000000
     ocr_timeout_seconds: int = 20
@@ -135,7 +135,7 @@ class Settings:
     # exceeding remote provider request limits.
     #
     # Keep the assembled request bounded for provider-neutral local operation.
-    agent_total_prompt_budget_chars: int = 16000
+    agent_total_prompt_budget_chars: int = 32000
     sme_total_prompt_budget_chars: int = 15000
 
     # When enabled, ITSO prompt receives bounded policy clause evidence
@@ -297,10 +297,10 @@ def get_settings() -> Settings:
     if parsed_agent_small_doc_threshold < 1:
         raise ConfigurationError("AGENT_SMALL_DOC_THRESHOLD must be at least 1")
 
-    agent_total_prompt_budget_chars = _env("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "16000")
+    agent_total_prompt_budget_chars = _env("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "32000")
     try:
         parsed_agent_total_prompt_budget_chars = int(
-            agent_total_prompt_budget_chars or "16000"
+            agent_total_prompt_budget_chars or "32000"
         )
     except ValueError as exc:
         raise ConfigurationError(
@@ -408,11 +408,13 @@ def get_settings() -> Settings:
             "AGENT_TOTAL_PROMPT_BUDGET_CHARS"
         )
 
-    ocr_max_pages_raw = _env("OCR_MAX_PAGES", "25")
+    ocr_max_pages_raw = _env("OCR_MAX_PAGES", "125")
     try:
-        parsed_ocr_max_pages = int(ocr_max_pages_raw or "25")
+        parsed_ocr_max_pages = int(ocr_max_pages_raw or "125")
     except ValueError as exc:
         raise ConfigurationError("OCR_MAX_PAGES must be a valid integer") from exc
+    if parsed_ocr_max_pages < 1 or parsed_ocr_max_pages > 500:
+        raise ConfigurationError("OCR_MAX_PAGES must be between 1 and 500")
 
     ocr_dpi_raw = _env("OCR_DPI", "200")
     try:
