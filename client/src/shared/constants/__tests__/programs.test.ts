@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { LSPU_SCC_COLLEGE_PROGRAMS, isLspuSccProgram } from '../programs';
+import {
+  CANONICAL_PROGRAMS,
+  LSPU_SCC_COLLEGE_PROGRAMS,
+  isLspuSccProgram,
+  normalizeProgram,
+} from '../programs';
 
 describe('LSPU SCC programs', () => {
   it('exposes only the two CCS programs in canonical order', () => {
@@ -12,6 +17,22 @@ describe('LSPU SCC programs', () => {
       'BSInfoTech',
       'BSCS',
     ]);
+  });
+
+  it('exposes exact canonical programs list', () => {
+    expect(CANONICAL_PROGRAMS).toEqual(['BSCS', 'BSInfoTech']);
+  });
+
+  it('normalizes program read/display aliases to canonical constants', () => {
+    expect(normalizeProgram('BSCS')).toBe('BSCS');
+    expect(normalizeProgram('  bscs ')).toBe('BSCS');
+    expect(normalizeProgram('BSInfoTech')).toBe('BSInfoTech');
+    expect(normalizeProgram('BSINFOTECH')).toBe('BSInfoTech');
+    expect(normalizeProgram('bsinfotech')).toBe('BSInfoTech');
+    expect(normalizeProgram('BSIT')).toBe('BSInfoTech');
+    expect(normalizeProgram('  bsit  ')).toBe('BSInfoTech');
+    expect(normalizeProgram('  BSIS  ')).toBe('BSIS');
+    expect(normalizeProgram('')).toBe('');
   });
 
   it.each(['BSInfoTech', 'bsinfotech', 'BSCS', 'bscs', 'BSIT', 'bsit'])(

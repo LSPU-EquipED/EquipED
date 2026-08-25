@@ -114,3 +114,101 @@ describe('documentsApi.listDocuments', () => {
     expect(requestJson).toHaveBeenCalledWith('/documents?status=failed');
   });
 });
+
+describe('documentsApi.getCurriculumSuggestion', () => {
+  beforeEach(() => {
+    vi.mocked(requestJson).mockReset();
+  });
+
+  it('calls typed curriculum suggestion endpoint with properly encoded query and maps response', async () => {
+    const rawResponse = {
+      document_id: 'doc-123',
+      detected_program: 'BSCS',
+      selected_program: 'BSCS',
+      detected_course_code: 'CS101',
+      detected_academic_year: '2025-2026',
+      detected_lesson_title: 'Module 1',
+      preferred_suggestion: {
+        document_id: 'curr-1',
+        title: 'BSCS Curriculum 2025',
+        program: 'BSCS',
+        embedding_ready: true,
+        match_reason: 'selected_program',
+      },
+      curriculum_suggestions: [
+        {
+          document_id: 'curr-1',
+          title: 'BSCS Curriculum 2025',
+          program: 'BSCS',
+          embedding_ready: true,
+          match_reason: 'selected_program',
+        },
+      ],
+      unavailable_curricula: [
+        {
+          document_id: 'curr-2',
+          title: 'BSCS Legacy Curriculum',
+          program: 'BSCS',
+          embedding_ready: false,
+          match_reason: 'selected_program',
+        },
+      ],
+    };
+    vi.mocked(requestJson).mockResolvedValueOnce(rawResponse);
+
+    const result = await documentsApi.getCurriculumSuggestion('doc-123', 'BSCS');
+
+    expect(requestJson).toHaveBeenCalledWith(
+      '/documents/doc-123/curriculum-suggestion?program=BSCS',
+    );
+    expect(result).toEqual({
+      documentId: 'doc-123',
+      detectedProgram: 'BSCS',
+      selectedProgram: 'BSCS',
+      detectedCourseCode: 'CS101',
+      detectedAcademicYear: '2025-2026',
+      detectedLessonTitle: 'Module 1',
+      preferredSuggestion: {
+        documentId: 'curr-1',
+        title: 'BSCS Curriculum 2025',
+        program: 'BSCS',
+        embeddingReady: true,
+        matchReason: 'selected_program',
+      },
+      curriculumSuggestions: [
+        {
+          documentId: 'curr-1',
+          title: 'BSCS Curriculum 2025',
+          program: 'BSCS',
+          embeddingReady: true,
+          matchReason: 'selected_program',
+        },
+      ],
+      unavailableCurricula: [
+        {
+          documentId: 'curr-2',
+          title: 'BSCS Legacy Curriculum',
+          program: 'BSCS',
+          embeddingReady: false,
+          matchReason: 'selected_program',
+        },
+      ],
+    });
+  });
+
+  it('properly URL-encodes program parameters with special characters or whitespace', async () => {
+    const rawResponse = {
+      document_id: 'doc-456',
+      selected_program: 'BS Info Tech',
+      curriculum_suggestions: [],
+      unavailable_curricula: [],
+    };
+    vi.mocked(requestJson).mockResolvedValueOnce(rawResponse);
+
+    await documentsApi.getCurriculumSuggestion('doc-456', '  BS Info Tech  ');
+
+    expect(requestJson).toHaveBeenCalledWith(
+      '/documents/doc-456/curriculum-suggestion?program=BS%20Info%20Tech',
+    );
+  });
+});
