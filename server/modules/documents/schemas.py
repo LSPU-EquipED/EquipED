@@ -19,10 +19,7 @@ SOURCE_TYPES = (
 )
 
 # Source types that are institution-shared references (not SLMs or rubrics).
-# The ordinary active reference lifecycle is syllabus-only. Curriculum remains
-# in SOURCE_TYPES only for legacy/historical/maintenance purge recognition and
-# is intentionally NOT an active reference source.
-REFERENCE_SOURCE_TYPES = frozenset({"syllabus"})
+REFERENCE_SOURCE_TYPES = frozenset({"syllabus", "curriculum"})
 
 # Source types that are policy documents (distinct from shared references)
 POLICY_SOURCE_TYPES = frozenset({"policy"})
@@ -91,6 +88,7 @@ class SyllabusReferenceOptionsResponse(BaseModel):
 
 class PolicyLibraryItem(BaseModel):
     """Lightweight policy item with computed health for the admin policy library."""
+
     document_id: UUID
     title: str
     source_type: str
@@ -206,6 +204,7 @@ class TFIDFWeight(BaseModel):
 
 class ReferenceLibraryItem(BaseModel):
     """Lightweight reference item with computed health for the admin library."""
+
     document_id: UUID
     title: str
     source_type: str
@@ -245,6 +244,7 @@ class ReferenceRebuildResponse(BaseModel):
 
 class CurriculumSuggestionItem(BaseModel):
     """A single curriculum candidate for program-driven suggestion."""
+
     document_id: UUID
     title: str
     program: str | None = None
@@ -258,6 +258,7 @@ class CurriculumSuggestionResponse(BaseModel):
     Returns SLM metadata, the confirmed program, and matching curriculum
     references split into ready (selectable) and unavailable groupings.
     """
+
     document_id: UUID
     detected_program: str | None = None
     selected_program: str
