@@ -168,9 +168,7 @@ def persist_agent_outputs(
 
         advisory = agent_result.advisory_outputs or {}
         ungrounded = (
-            advisory.get("ungrounded_criteria")
-            if isinstance(advisory, dict)
-            else None
+            advisory.get("ungrounded_criteria") if isinstance(advisory, dict) else None
         )
         if isinstance(ungrounded, list):
             for item in ungrounded:
@@ -189,9 +187,7 @@ def persist_agent_outputs(
                 if score_row is not None:
                     crit_score_id = score_row.criterion_score_id
                     score_val = (
-                        item_score
-                        if isinstance(item_score, int)
-                        else score_row.score
+                        item_score if isinstance(item_score, int) else score_row.score
                     )
                 else:
                     score_val = item_score if isinstance(item_score, int) else 0
@@ -354,7 +350,11 @@ def get_evaluation_results(
         active_agents=list(synthesis_result["active_agents"]),
         failed_agents=list(synthesis_result["failed_agents"]),
         is_partial=bool(synthesis_result["is_partial"]),
-        partial_reason=synthesis_result.get("partial_reason") or job.partial_reason,
+        partial_reason=(
+            synthesis_result.get("partial_reason")
+            if bool(synthesis_result["is_partial"])
+            else None
+        ),
         evaluation_status=job.status,
         submitted_at=job.submitted_at,
         completed_at=job.completed_at,

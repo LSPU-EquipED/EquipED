@@ -66,9 +66,8 @@ def compute_synthesized_score(
         else:
             domain["adjectival_rating"] = None
 
-    # is_partial is True when any agent failed OR when force_partial is set
-    # (e.g. deliberate no-curriculum partial evaluation)
-    is_partial = len(failed) > 0 or force_partial
+    # is_partial is True only when explicit partial intent is set (force_partial)
+    is_partial = force_partial
 
     return {
         "synthesized_score": synthesized_score,

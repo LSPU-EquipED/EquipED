@@ -23,6 +23,7 @@ from server.modules.agents.coordinator.reconciliation import merge_with_sme
 from server.modules.agents.runtime.llm import error_reference
 from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
+from server.modules.documents.curriculum.service import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.persistence import get_document_chunks
@@ -147,17 +148,24 @@ def _execute_claimed_evaluation(
             if syllabus is None:
                 raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
 
-        curriculum_available = job.curriculum_id is not None
-        if job.curriculum_id is not None:
-            curriculum = session.get(Document, job.curriculum_id)
-            if curriculum is None:
-                curriculum_available = False
-                logger.warning(
-                    "Curriculum document %s for historical job %s not found "
-                    "(cleared or purged); proceeding.",
-                    job.curriculum_id,
-                    evaluation_id,
+        if not job.partial_without_curriculum:
+            if job.curriculum_id is None:
+                raise EvaluationPipelineUnavailableError(
+                    "Full evaluation requires an authoritative curriculum."
                 )
+            curriculum_readiness = check_curriculum_readiness(
+                job.curriculum_id,
+                job.confirmed_program,
+                session,
+            )
+            if not curriculum_readiness.is_ready:
+                raise EvaluationPipelineUnavailableError(
+                    "Curriculum is not ready for evaluation: "
+                    f"{curriculum_readiness.reason}"
+                )
+            curriculum_available = True
+        else:
+            curriculum_available = False
 
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
@@ -233,6 +241,7 @@ def _execute_claimed_evaluation(
                         ),
                     },
                     **({"roadmap": roadmap_ctx} if roadmap_ctx else {}),
+                    "confirmed_program": job.confirmed_program,
                 },
                 heartbeat_callback=owner_heartbeat,
             )
@@ -240,11 +249,9 @@ def _execute_claimed_evaluation(
                 raise EvaluationPipelineUnavailableError(
                     "Layer 3 produced no usable agent outputs."
                 )
-            # Coordinator's own run() (dispatched in parallel with SME by
-            # Supervisor, unchanged) only computes A-05 -- splice in SME's
-            # other 9 scores now that both have finished, or fall back to
-            # Coordinator's full independent pass if SME failed. See
-            # coordinator.py's module docstring for why.
+            # Coordinator's parallel run computes only A-05. Reconciliation
+            # purely merges that successful result with SME's other scores;
+            # it never performs a fallback or second agent pass.
             supervisor_result.agent_results = _reconcile_coordinator_result(
                 supervisor_result.agent_results
             )
@@ -280,6 +287,22 @@ def _execute_claimed_evaluation(
         agent_results = (
             session.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
         )
+        if not job.partial_without_curriculum:
+            final_readiness = (
+                check_curriculum_readiness(
+                    job.curriculum_id,
+                    job.confirmed_program,
+                    session,
+                )
+                if job.curriculum_id is not None
+                else None
+            )
+            curriculum_available = (
+                final_readiness.is_ready if final_readiness is not None else False
+            )
+        else:
+            curriculum_available = False
+
         validation_error = _validate_required_agent_results(
             agent_results,
             partial_without_curriculum=job.partial_without_curriculum,
@@ -294,30 +317,27 @@ def _execute_claimed_evaluation(
             session.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).count()
         )
 
+        if validation_error is not None:
+            final_status = EvaluationStatus.FAILED
+            matrix_status = "FAILED"
+            partial_error = validation_error
+        else:
+            final_status = EvaluationStatus.COMPLETED
+            matrix_status = (
+                "COMPLETED_PARTIAL" if job.partial_without_curriculum else "COMPLETED"
+            )
+            partial_error = None
+
         upsert_monitoring_matrix(
             db=session,
             document_id=job.document_id,
             evaluation_id=evaluation_id,
-            evaluation_status=(
-                "COMPLETED"
-                if not synthesis_result["is_partial"]
-                else "COMPLETED_PARTIAL"
-            ),
+            evaluation_status=matrix_status,
             synthesized_score=synthesis_result["synthesized_score"],
             domain_scores=synthesis_result["domain_scores"],
             flag_count=flag_count,
         )
 
-        # Deliberate no-curriculum partial evaluations (and curriculum-retired
-        # runs) always complete successfully (the user chose or system enforced
-        # the degraded path). Accidental
-        # partials caused by agent failures still end as FAILED.
-        if validation_error is not None:
-            final_status = EvaluationStatus.FAILED
-            partial_error = validation_error
-        else:
-            final_status = EvaluationStatus.COMPLETED
-            partial_error = None
         _verify_token_ownership(session, evaluation_id, execution_token)
 
         # Durable finalization: execute model-validation criterion-score
@@ -359,6 +379,14 @@ def _execute_claimed_evaluation(
         category, reference = _safe_failure(exc)
         if execution_acquired:
             try:
+                job_row = session.get(EvaluationJob, evaluation_id)
+                if job_row is not None:
+                    upsert_monitoring_matrix(
+                        db=session,
+                        document_id=job_row.document_id,
+                        evaluation_id=evaluation_id,
+                        evaluation_status="FAILED",
+                    )
                 transition_evaluation_status(
                     evaluation_id,
                     EvaluationStatus.FAILED,

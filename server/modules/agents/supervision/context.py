@@ -322,13 +322,21 @@ class EvaluationContextBuilder:
             )
         return _freeze(prompt_versions)
 
-    def _load_authoritative_curriculum(self, refs: dict[str, Any]) -> str | None:
+    def _load_authoritative_curriculum(
+        self, refs: dict[str, Any], *, program: str | None = None
+    ) -> str | None:
         curriculum_id = refs.get("curriculum")
         if self.db is None or curriculum_id is None:
             return None
-        document = self.db.get(Document, curriculum_id)
-        if document is None or document.source_type != "curriculum":
-            return None
+        from server.modules.documents.curriculum.service import (
+            check_curriculum_readiness,
+        )
+
+        readiness = check_curriculum_readiness(curriculum_id, program or "", self.db)
+        if not readiness.is_ready:
+            raise SupervisorExecutionError(
+                f"Authoritative curriculum is not ready: {readiness.reason}"
+            )
         chunks = (
             self.db.query(DocumentChunk)
             .filter(DocumentChunk.document_id == curriculum_id)
@@ -336,11 +344,17 @@ class EvaluationContextBuilder:
             .all()
         )
         if not chunks or any(chunk.source_type != "curriculum" for chunk in chunks):
-            return None
+            raise SupervisorExecutionError(
+                "Authoritative curriculum has invalid chunks"
+            )
         text = "\n".join(
             chunk.text.strip() for chunk in chunks if chunk.text and chunk.text.strip()
         )
-        return text or None
+        if not text:
+            raise SupervisorExecutionError(
+                "Authoritative curriculum contains no text content"
+            )
+        return text
 
     def build(
         self, *, chunks: list[Any], query_text: str | None, context: dict[str, Any]
@@ -385,6 +399,9 @@ class EvaluationContextBuilder:
             time.perf_counter() - precompute_started,
             len(precomputed_context),
         )
+        program = context.get("confirmed_program") or context.get("program")
+        if program is None and document is not None:
+            program = getattr(document, "program", None)
         return PreparedEvaluationContext(
             chunk_infos=_freeze(infos),
             query_text=text,
@@ -392,5 +409,7 @@ class EvaluationContextBuilder:
             reference_document_ids=_freeze(refs),
             precomputed_context=_freeze(precomputed_context),
             canonical_source_text=canonical_source_text,
-            authoritative_curriculum_text=self._load_authoritative_curriculum(refs),
+            authoritative_curriculum_text=self._load_authoritative_curriculum(
+                refs, program=program
+            ),
         )

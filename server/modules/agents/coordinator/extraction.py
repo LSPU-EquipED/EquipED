@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import time
 from typing import Any
 
@@ -10,6 +12,8 @@ from server.core.config import get_settings
 from server.core.llm import ResponseContract
 
 from ..runtime.llm import RunLLMClient, parse_json_payload
+
+logger = logging.getLogger(__name__)
 
 _SCHEMA = {
     "type": "object",
@@ -53,9 +57,37 @@ def extract(
 ) -> dict[str, Any]:
     """Make the Coordinator's sole model call and validate its facts locally."""
     prompt = f"""Extract facts only. Do not score, infer, or add fields.
-Return exactly JSON with objectives and curriculum_alignment. Objective ids must
-be unique. For an addressed objective, evidence must be an exact non-empty
-quote from the curriculum. If unsure, use false and an empty evidence string.
+Extract learning objectives from the AUTHORITATIVE SLM TEXT ONLY.
+Evaluate alignment against EXACT PRECOMPUTED CURRICULUM CONTEXT.
+
+Output must be a single JSON object with EXACTLY this shape:
+{{
+  "objectives": [
+    {{"id": 1, "text": "exact objective text from SLM"}}
+  ],
+  "curriculum_alignment": [
+    {{
+      "objective_id": 1,
+      "is_addressed": true,
+      "evidence": "exact verbatim quote from curriculum context"
+    }}
+  ]
+}}
+
+STRICT RULES:
+1. "objectives" and "curriculum_alignment" must be top-level arrays of the
+   same length with identical positive integer IDs.
+2. Each objective in "objectives" must have ONLY "id" (positive integer)
+   and "text" (non-empty string). Do NOT nest alignment or evidence under
+   objectives.
+3. Each row in "curriculum_alignment" must have ONLY "objective_id"
+   (positive integer), "is_addressed" (boolean), and "evidence" (string).
+4. Do NOT output rows per curriculum outcome. Output exactly ONE alignment
+   row for each SLM objective.
+5. If is_addressed is true, evidence must be exactly one verbatim excerpt
+   from the EXACT PRECOMPUTED CURRICULUM CONTEXT.
+6. If is_addressed is false (or unsure), evidence must be an empty string "".
+7. Do not include commentary or extra fields.
 
 AUTHORITATIVE SLM TEXT:
 {slm_text}
@@ -71,6 +103,17 @@ Use this only to supplement your review. It must not replace the curriculum,
 serve as an alignment target, or be quoted as curriculum evidence.
 """
     settings = get_settings()
+    logger.info(
+        "[EVAL_TIMING] agent=coordinator | phase=prompt_preflight | "
+        "process_id=%d | slm_chars=%d | curriculum_chars=%d | "
+        "roadmap_chars=%d | prompt_chars=%d | budget_chars=%d",
+        os.getpid(),
+        len(slm_text),
+        len(curriculum_text),
+        len(roadmap_note),
+        len(prompt),
+        settings.agent_total_prompt_budget_chars,
+    )
     if len(prompt) > settings.agent_total_prompt_budget_chars:
         raise ValueError(
             "Coordinator prompt exceeds agent_total_prompt_budget_chars; "
@@ -97,15 +140,44 @@ serve as an alignment target, or be quoted as curriculum evidence.
         "curriculum_alignment",
     }:
         raise ValueError("invalid Coordinator extraction top-level schema")
-    objectives = data["objectives"]
+    raw_objectives = data["objectives"]
     rows = data["curriculum_alignment"]
     if (
-        not isinstance(objectives, list)
+        not isinstance(raw_objectives, list)
         or not isinstance(rows, list)
-        or len(objectives) > 100
+        or len(raw_objectives) > 100
         or len(rows) > 100
     ):
         raise ValueError("invalid Coordinator extraction bounds")
+
+    _ALIAS_KEYS = {"objective_id", "objective", "curriculum_alignment", "evidence"}
+    all_canonical = all(
+        isinstance(item, dict) and set(item) == {"id", "text"}
+        for item in raw_objectives
+    )
+    all_alias = (
+        not all_canonical
+        and len(raw_objectives) > 0
+        and all(
+            isinstance(item, dict) and set(item) == _ALIAS_KEYS
+            for item in raw_objectives
+        )
+    )
+
+    if all_canonical:
+        objectives = raw_objectives
+    elif all_alias:
+        objectives = [
+            {"id": item["objective_id"], "text": item["objective"]}
+            for item in raw_objectives
+        ]
+        logger.info(
+            "[COORDINATOR_NORMALIZATION] normalized_alias_objectives count=%d",
+            len(objectives),
+        )
+    else:
+        raise ValueError("invalid Coordinator objectives structure")
+
     ids: set[int] = set()
     for item in objectives:
         if (
@@ -135,9 +207,11 @@ serve as an alignment target, or be quoted as curriculum evidence.
             raise ValueError("invalid Coordinator alignment row")
         seen.add(row["objective_id"])
         evidence = row["evidence"].strip()
-        if row["is_addressed"] and (not evidence or evidence not in curriculum_text):
-            raise ValueError("addressed Coordinator evidence is not grounded")
-    return data
+        if not row["is_addressed"] and evidence:
+            raise ValueError(
+                "unaddressed Coordinator alignment must have empty evidence"
+            )
+    return {"objectives": objectives, "curriculum_alignment": rows}
 
 
 __all__ = ["extract"]

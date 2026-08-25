@@ -21,8 +21,8 @@ class EvaluationSubmitRequest(BaseModel):
     partial_without_curriculum: bool = Field(
         ...,
         description=(
-            "Explicit intent to proceed without a curriculum reference. "
-            "Must be explicitly set to True."
+            "Explicit intent to proceed with or without a curriculum reference. "
+            "Must be explicitly set."
         ),
     )
     confirmed_program: str = Field(

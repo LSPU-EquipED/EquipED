@@ -1,4 +1,4 @@
-"""Coordinator reconciliation and independent fallback execution."""
+"""Coordinator reconciliation and deterministic SME score merge."""
 
 from __future__ import annotations
 
@@ -16,16 +16,11 @@ def merge_with_sme(
 ) -> AgentEvaluationResult:
     """Splice SME's 9 non-A-05 scores with Coordinator's own A-05 score.
 
-    No I/O beyond one optional LLM call: the summary is generated here
-    (not in Coordinator's own ``run()``) specifically because this is
-    the first point where the FULL 10-criterion context exists --
-    letting the summary's positive line cite any strong criterion, not
-    just A-05). Called from
-    ``evaluations/orchestrator.py`` after both agents have already
-    finished running. Coordinator's and SME's rubric text is
-    intentionally identical (see module docstring), so the 9 reused
-    scores' titles need no re-lookup. If ``llm_client`` is ``None`` or
-    the call fails, falls back to the deterministic A-05-only summary.
+    This function is pure with no I/O or LLM calls. Called from
+    ``evaluations/orchestrator.py`` after both agents have finished running.
+    Coordinator's and SME's rubric sets are identical, so the 9 reused
+    scores require no re-scoring. Merges the scores and computes a
+    deterministic summary from the combined 10-criterion result.
     """
     coordinator_a05 = next(
         (c for c in coordinator_result.criterion_scores if c.criterion_id == "A-05"),
