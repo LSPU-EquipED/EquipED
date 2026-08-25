@@ -8,14 +8,30 @@ from uuid import uuid4
 import pytest
 from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
 from server.modules.agents.sme.rubric import REGISTERED_CODES
+from server.modules.auth.models import UserRole
+from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
+from server.modules.evaluations.exceptions import EvaluationPipelineFailure
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.synthesis.models import MonitoringMatrix
 
 
 def _job(db_session, *, partial: bool, curriculum: bool = False):
-    owner = uuid4()
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email=f"admin-{uuid4()}@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    owner = create_user(
+        db_session,
+        name="Faculty",
+        email=f"faculty-{uuid4()}@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
     document = uuid4()
     token = uuid4()
     db_session.add(
@@ -25,7 +41,7 @@ def _job(db_session, *, partial: bool, curriculum: bool = False):
             program="BSCS",
             source_type="slm",
             file_path=f"uploads/{document}.pdf",
-            uploaded_by=owner,
+            uploaded_by=owner.user_id,
             processing_status="PROCESSED",
             page_count=1,
             has_ocr_pages=False,
@@ -54,10 +70,23 @@ def _job(db_session, *, partial: bool, curriculum: bool = False):
                 program="BSCS",
                 source_type="curriculum",
                 file_path=f"uploads/{curriculum_id}.pdf",
-                uploaded_by=owner,
+                uploaded_by=admin.user_id,
                 processing_status="PROCESSED",
                 page_count=1,
                 has_ocr_pages=False,
+            )
+        )
+        db_session.add(
+            DocumentChunk(
+                chunk_id=uuid4(),
+                document_id=curriculum_id,
+                source_type="curriculum",
+                agent_domain="all",
+                page_number=1,
+                text="curriculum evidence",
+                token_count=1,
+                is_ocr=False,
+                chroma_stored=True,
             )
         )
     evaluation = uuid4()
@@ -67,9 +96,10 @@ def _job(db_session, *, partial: bool, curriculum: bool = False):
             document_id=document,
             curriculum_id=curriculum_id,
             status=EvaluationStatus.PREPROCESSING.value,
-            submitted_by=owner,
+            submitted_by=owner.user_id,
             admission_slot=1,
             execution_token=token,
+            confirmed_program="BSCS",
             partial_without_curriculum=partial,
             partial_reason="test partial" if partial else None,
         )
@@ -103,6 +133,10 @@ def _result(agent, evaluation_id, document_id, success=True):
 
 
 def _run(db_session, monkeypatch, *, partial, agents, curriculum=False):
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda doc_id, source_type: True,
+    )
     evaluation, token = _job(db_session, partial=partial, curriculum=curriculum)
     job = db_session.get(EvaluationJob, evaluation)
     results = [
@@ -120,7 +154,10 @@ def _run(db_session, monkeypatch, *, partial, agents, curriculum=False):
     monkeypatch.setattr(
         "server.modules.evaluations.orchestrator.Supervisor", FakeSupervisor
     )
-    _execute_claimed_evaluation(evaluation, token, lambda: db_session)
+    try:
+        _execute_claimed_evaluation(evaluation, token, lambda: db_session)
+    except EvaluationPipelineFailure:
+        pass
     db_session.expire_all()
     return db_session.get(EvaluationJob, evaluation)
 
@@ -140,6 +177,7 @@ def test_resumed_full_persistence_missing_coordinator_fails(monkeypatch, db_sess
         db_session,
         monkeypatch,
         partial=False,
+        curriculum=True,
         agents=[("sme", True), ("gad", True), ("itso", True)],
     )
     assert job.status == EvaluationStatus.FAILED.value

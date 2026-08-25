@@ -61,7 +61,7 @@ def test_weighted_score_one_failed() -> None:
 
     result = compute_synthesized_score([sme, coord, gad, itso])
 
-    assert result["is_partial"] is True
+    assert result["is_partial"] is False
     assert result["failed_agents"] == ["itso"]
     assert result["domain_scores"]["itso"]["status"] == "ERROR"
     assert result["domain_scores"]["itso"]["subtotal"] == 0.0
@@ -82,7 +82,7 @@ def test_weighted_score_all_failed() -> None:
     assert result["synthesized_score"] == 0.0
     assert result["overall_score"] is None
     assert result["adjectival_rating"] is None
-    assert result["is_partial"] is True
+    assert result["is_partial"] is False
     assert result["active_agents"] == []
 
 

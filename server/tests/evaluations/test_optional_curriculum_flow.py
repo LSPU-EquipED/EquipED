@@ -1,4 +1,4 @@
-"""Backend regression tests for curriculum retirement flow."""
+"""Backend regression tests for curriculum evaluation flow and optional contracts."""
 
 from __future__ import annotations
 
@@ -32,12 +32,12 @@ def _login(client: TestClient, db_session, role: UserRole):
     return user
 
 
-def test_upload_rbac_and_retired_source_types(
+def test_upload_rbac_and_supported_source_types(
     client: TestClient,
     db_session,
     monkeypatch,
 ) -> None:
-    """Faculty SLM only; Admin syllabus/policy; curriculum/rubric PDFs rejected."""
+    """Faculty SLM only; Admin syllabus/policy/curriculum; rubric PDFs rejected."""
     import server.modules.documents.service as doc_service
 
     monkeypatch.setattr(doc_service, "ingest_document", lambda *args, **kwargs: [])
@@ -58,16 +58,16 @@ def test_upload_rbac_and_retired_source_types(
         data={"source_type": "curriculum", "title": "Curriculum", "program": "BSCS"},
         files={"file": ("curr.pdf", b"%PDF-1.4 test", "application/pdf")},
     )
-    assert resp.status_code in (403, 422)
+    assert resp.status_code == 403
 
-    # Admin trying direct curriculum -> unprocessable (422)
+    # Admin uploading curriculum -> 201 Created (re-enabled in Phase 1)
     _login(client, db_session, UserRole.ADMIN)
     resp = client.post(
         "/api/v1/documents/upload",
         data={"source_type": "curriculum", "title": "Curriculum", "program": "BSCS"},
         files={"file": ("curr.pdf", b"%PDF-1.4 test", "application/pdf")},
     )
-    assert resp.status_code == 422
+    assert resp.status_code == 201
 
     # Admin trying rubric PDF -> unprocessable (422)
     resp = client.post(
@@ -101,17 +101,45 @@ def test_admin_slm_upload_retained_for_model_validation(
     assert resp.status_code == 201
 
 
-def test_submit_evaluation_requires_partial_and_confirmed_program(
+def test_submit_evaluation_admission_contract(
     client: TestClient,
     db_session,
     monkeypatch,
 ) -> None:
-    """Direct submission without partial_without_curriculum=True or confirmed_program rejected."""  # noqa: E501
+    """Admission allows full (curriculum+false) and partial (no curr+true), rejecting invalid combinations."""  # noqa: E501
     from server.modules.evaluations import router as evaluations_router
 
     monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
     monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
     monkeypatch.setattr(evaluations_router, "drain_evaluation_queue", lambda: None)
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda doc_id, source_type: True,
+    )
+
+    admin_user = _login(client, db_session, UserRole.ADMIN)
+    curr_doc = Document(
+        document_id=uuid.uuid4(),
+        title="Curriculum Document",
+        program="BSCS",
+        source_type="curriculum",
+        file_path="uploads/curr.pdf",
+        uploaded_by=admin_user.user_id,
+        processing_status="PROCESSED",
+        evaluation_readiness="READY",
+    )
+    curr_chunk = DocumentChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=curr_doc.document_id,
+        source_type="curriculum",
+        agent_domain="all",
+        page_number=1,
+        text="Curriculum text content",
+        token_count=5,
+        chroma_stored=True,
+    )
+    db_session.add_all([curr_doc, curr_chunk])
+    db_session.commit()
 
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
@@ -135,26 +163,39 @@ def test_submit_evaluation_requires_partial_and_confirmed_program(
         token_count=5,
         chroma_stored=False,
     )
-    curr_doc = Document(
-        document_id=uuid.uuid4(),
-        title="Curriculum Document",
-        program="BSCS",
-        source_type="curriculum",
-        file_path="uploads/curr.pdf",
-        uploaded_by=faculty_user.user_id,
-        processing_status="PROCESSED",
-        evaluation_readiness="READY",
-    )
-    db_session.add_all([slm, chunk, curr_doc])
+    db_session.add_all([slm, chunk])
     db_session.commit()
 
-    # Missing partial_without_curriculum=True -> 422
+    # Missing curriculum when partial_without_curriculum=False -> 422
     resp = client.post(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
             "partial_without_curriculum": False,
             "confirmed_program": "BSCS",
+        },
+    )
+    assert resp.status_code == 422
+
+    # Conflicting curriculum_id + partial_without_curriculum=True -> 422
+    resp = client.post(
+        "/api/v1/evaluations/",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curr_doc.document_id),
+            "partial_without_curriculum": True,
+            "confirmed_program": "BSCS",
+        },
+    )
+    assert resp.status_code == 422
+
+    # BSIT write rejected -> 422
+    resp = client.post(
+        "/api/v1/evaluations/",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "confirmed_program": "BSIT",
         },
     )
     assert resp.status_code == 422
@@ -169,19 +210,7 @@ def test_submit_evaluation_requires_partial_and_confirmed_program(
     )
     assert resp.status_code == 422
 
-    # Attempting to supply curriculum_id -> 422
-    resp = client.post(
-        "/api/v1/evaluations/",
-        json={
-            "document_id": str(slm.document_id),
-            "curriculum_id": str(curr_doc.document_id),
-            "partial_without_curriculum": True,
-            "confirmed_program": "BSCS",
-        },
-    )
-    assert resp.status_code == 422
-
-    # Valid submission -> 202
+    # Valid partial submission -> 202
     resp = client.post(
         "/api/v1/evaluations/",
         json={
@@ -194,6 +223,102 @@ def test_submit_evaluation_requires_partial_and_confirmed_program(
     data = resp.json()
     assert data["partial_without_curriculum"] is True
     assert data["curriculum_id"] is None
+    assert data["confirmed_program"] == "BSCS"
+
+    # Valid full submission -> 202
+    resp = client.post(
+        "/api/v1/evaluations/",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curr_doc.document_id),
+            "partial_without_curriculum": False,
+            "confirmed_program": "BSCS",
+        },
+    )
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["partial_without_curriculum"] is False
+    assert data["curriculum_id"] == str(curr_doc.document_id)
+    assert data["confirmed_program"] == "BSCS"
+
+
+def test_full_evaluation_includes_coordinator_and_synthesizes_full(
+    client: TestClient,
+    db_session,
+) -> None:
+    """Full evaluation includes Coordinator and synthesis produces full matrix status."""  # noqa: E501
+    faculty_user = _login(client, db_session, UserRole.FACULTY)
+
+    slm = Document(
+        document_id=uuid.uuid4(),
+        title="SLM Document",
+        program="BSCS",
+        source_type="slm",
+        file_path="uploads/slm.pdf",
+        uploaded_by=faculty_user.user_id,
+        processing_status="PROCESSED",
+        evaluation_readiness="READY",
+    )
+    job = EvaluationJob(
+        evaluation_id=uuid.uuid4(),
+        document_id=slm.document_id,
+        status=EvaluationStatus.SUBMITTED.value,
+        curriculum_id=uuid.uuid4(),
+        partial_without_curriculum=False,
+        partial_reason=None,
+        submitted_by=faculty_user.user_id,
+    )
+    db_session.add_all([slm, job])
+    db_session.commit()
+
+    res_sme = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="sme",
+        model_name="mock-model",
+        success=True,
+        subtotal=3.5,
+    )
+    res_gad = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="gad",
+        model_name="mock-model",
+        success=True,
+        subtotal=4.0,
+    )
+    res_itso = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="itso",
+        model_name="mock-model",
+        success=True,
+        subtotal=3.8,
+    )
+    res_coord = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=job.evaluation_id,
+        document_id=slm.document_id,
+        agent_name="coordinator",
+        model_name="mock-model",
+        success=True,
+        subtotal=4.2,
+    )
+    db_session.add_all([res_sme, res_gad, res_itso, res_coord])
+    db_session.commit()
+
+    from server.modules.synthesis.matrix import compute_synthesized_score
+
+    synthesis = compute_synthesized_score(
+        [res_sme, res_gad, res_itso, res_coord],
+        force_partial=job.partial_without_curriculum,
+        partial_reason=job.partial_reason,
+    )
+    assert synthesis["is_partial"] is False
+    assert "coordinator" in synthesis["active_agents"]
 
 
 def test_supervisor_excludes_coordinator_and_synthesizes_partial(
@@ -228,7 +353,7 @@ def test_supervisor_excludes_coordinator_and_synthesizes_partial(
         document_id=slm.document_id,
         status=EvaluationStatus.SUBMITTED.value,
         partial_without_curriculum=True,
-        partial_reason="Curriculum evaluation flow retired",
+        partial_reason="Curriculum reference not provided; Coordinator review skipped.",
         submitted_by=faculty_user.user_id,
     )
     db_session.add_all([slm, chunk, job])
@@ -279,7 +404,7 @@ def test_historical_evaluations_preserved_with_cleared_curriculum_fk(
     client: TestClient,
     db_session,
 ) -> None:
-    """Historical evaluation job details remain accessible even if curriculum_id is None or purged."""  # noqa: E501
+    """Historical evaluation details remain accessible when curriculum_id is cleared."""
     faculty_user = _login(client, db_session, UserRole.FACULTY)
 
     slm = Document(
@@ -314,7 +439,7 @@ def test_historical_evaluations_preserved_with_cleared_curriculum_fk(
 def test_recovery_requeues_interrupted_curriculum_retired_job(
     db_session,
 ) -> None:
-    """Recovery requeues stale curriculum-retired jobs without executing them."""
+    """Recovery requeues stale jobs without executing them."""
     from server.modules.evaluations.orchestrator import (
         recover_interrupted_evaluation_jobs,
     )
@@ -343,7 +468,7 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
         submitted_at=datetime.now(UTC),
         completed_at=None,
         partial_without_curriculum=True,
-        partial_reason="Curriculum evaluation flow retired",
+        partial_reason="Curriculum reference not provided; Coordinator review skipped.",
         execution_token=uuid.uuid4(),
         execution_started_at=datetime.now(UTC),
         execution_heartbeat_at=datetime.now(UTC) - timedelta(seconds=301),
@@ -367,7 +492,10 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
     assert refreshed.execution_started_at is None
     assert refreshed.execution_heartbeat_at is None
     assert refreshed.partial_without_curriculum is True
-    assert refreshed.partial_reason == "Curriculum evaluation flow retired"
+    assert (
+        refreshed.partial_reason
+        == "Curriculum reference not provided; Coordinator review skipped."
+    )  # noqa: E501
     assert refreshed.curriculum_id is None
     assert (
         db_session.query(AgentResult).filter_by(evaluation_id=job.evaluation_id).count()

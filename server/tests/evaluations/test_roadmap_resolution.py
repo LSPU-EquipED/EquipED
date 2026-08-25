@@ -167,6 +167,7 @@ def _run_orchestrator_capture(
         submitted_at=datetime.now(UTC),
         completed_at=None,
         confirmed_program="BSInfoTech",
+        partial_without_curriculum=True,
     )
     db_session.add(job)
     db_session.commit()

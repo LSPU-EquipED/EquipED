@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
+from server.modules.evaluations.exceptions import EvaluationPipelineFailure
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.evaluations.service import acquire_evaluation_execution
@@ -23,9 +24,12 @@ def _run_claimed(evaluation_id, session_factory):
     with session_factory() as session:
         assert acquire_evaluation_execution(session, evaluation_id, token)
         session.commit()
-    return _execute_claimed_evaluation(
-        evaluation_id, execution_token=token, db_session_factory=session_factory
-    )
+    try:
+        return _execute_claimed_evaluation(
+            evaluation_id, execution_token=token, db_session_factory=session_factory
+        )
+    except EvaluationPipelineFailure:
+        return None
 
 
 def test_orchestrator_layer3_honesty(monkeypatch) -> None:
@@ -43,6 +47,13 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     Base.metadata.create_all(engine)
 
     session = SessionLocal()
+    admin = create_user(
+        session,
+        name="Admin",
+        email="admin-orchestrator@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
     owner = create_user(
         session,
         name="Owner",
@@ -55,7 +66,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     slm_id = _add_document(session, owner_id=owner.user_id, source_type="slm")
     syllabus_id = _add_document(session, owner_id=owner.user_id, source_type="syllabus")
     curriculum_id = _add_document(
-        session, owner_id=owner.user_id, source_type="curriculum"
+        session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(session)
 
@@ -71,9 +82,15 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         submitted_by=owner.user_id,
         submitted_at=datetime.now(UTC),
         completed_at=None,
+        confirmed_program="BSCS",
     )
     session.add(job)
     session.commit()
+
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda *args, **kwargs: True,
+    )
 
     from server.core import database as core_database
     from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
@@ -135,7 +152,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
             "reference_document_ids": {
                 "syllabus": syllabus_id,
                 "curriculum": curriculum_id,
-            }
+            },
+            "confirmed_program": "BSCS",
         }
         return SupervisorResult(
             evaluation_id=evaluation_id,
@@ -209,7 +227,8 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         "reference_document_ids": {
             "syllabus": syllabus_id,
             "curriculum": curriculum_id,
-        }
+        },
+        "confirmed_program": "BSCS",
     }
 
 
@@ -633,6 +652,13 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin-completes@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
     owner = create_user(
         db_session,
         name="Owner",
@@ -647,7 +673,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         db_session, owner_id=owner.user_id, source_type="syllabus"
     )
     curriculum_id = _add_document(
-        db_session, owner_id=owner.user_id, source_type="curriculum"
+        db_session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(db_session)
 
@@ -661,9 +687,15 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         submitted_by=owner.user_id,
         submitted_at=datetime.now(UTC),
         completed_at=None,
+        confirmed_program="BSCS",
     )
     db_session.add(job)
     db_session.commit()
+
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda *args, **kwargs: True,
+    )
 
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
@@ -772,6 +804,13 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
 
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin-accidental-fail@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
     owner = create_user(
         db_session,
         name="Owner",
@@ -786,7 +825,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         db_session, owner_id=owner.user_id, source_type="syllabus"
     )
     curriculum_id = _add_document(
-        db_session, owner_id=owner.user_id, source_type="curriculum"
+        db_session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(db_session)
 
@@ -800,9 +839,15 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         submitted_by=owner.user_id,
         submitted_at=datetime.now(UTC),
         completed_at=None,
+        confirmed_program="BSCS",
     )
     db_session.add(job)
     db_session.commit()
+
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda *args, **kwargs: True,
+    )
 
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
@@ -887,3 +932,401 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     assert "coordinator" in refreshed.error_message.lower()
     assert "provider-secret" not in refreshed.error_message
     assert "provider-secret" not in caplog.text
+    matrix_row = (
+        db_session.query(MonitoringMatrix).filter_by(document_id=slm_id).first()
+    )
+    assert matrix_row is not None
+    assert matrix_row.evaluation_status == "FAILED"
+
+
+def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
+    """Explicitly verify the four Phase 1B terminal truth cases:
+    1) Intentional partial + all SME/GAD/ITSO success ->
+       job COMPLETED, matrix COMPLETED_PARTIAL, partial intent.
+    2) Intentional partial + required agent missing/failed ->
+       job FAILED, matrix FAILED, partial intent.
+    3) Full + all SME/GAD/ITSO/Coordinator success ->
+       job COMPLETED, matrix COMPLETED, full intent.
+    4) Full + curriculum unavailable or Coordinator missing/failed ->
+       job FAILED, matrix FAILED, full intent.
+    """
+    from server.core import database as core_database
+    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
+    from server.modules.agents.supervision.result import SupervisorResult
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.synthesis.models import MonitoringMatrix
+    from server.modules.synthesis.service import get_evaluation_results
+    from sqlalchemy.orm import sessionmaker
+
+    owner = create_user(
+        db_session,
+        name="Owner Four Cases",
+        email="owner-four-cases@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+    monkeypatch.setattr(
+        evaluation_orchestrator,
+        "_reconcile_coordinator_result",
+        lambda results, **kwargs: results,
+    )
+
+    def _agent_result(name, eval_id, doc_id, success=True):
+        return AgentEvaluationResult(
+            agent_name=name,
+            evaluation_id=eval_id,
+            document_id=doc_id,
+            subtotal=3.5 if success else 0.0,
+            criterion_scores=(
+                CriterionScore(
+                    criterion_id=f"{name}-01",
+                    criterion_title=f"{name} 01",
+                    score=3,
+                    justification="ok",
+                ),
+            )
+            if success
+            else (),
+            summary="ok",
+            model_name="test-model",
+            processing_seconds=0.1,
+            token_count=10,
+            success=success,
+            error_message=None if success else f"{name} failed",
+            prompt_version_id=None,
+        )
+
+    # --- Case 1: intentional partial + all SME/GAD/ITSO success ---
+    slm_1 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    job_1 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_1,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        partial_without_curriculum=True,
+        partial_reason="No curriculum available",
+    )
+    db_session.add(job_1)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        lambda self, **kwargs: SupervisorResult(
+            evaluation_id=kwargs["evaluation_id"],
+            document_id=kwargs["document_id"],
+            agent_results=[
+                _agent_result(
+                    "sme", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "gad", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "itso", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+            ],
+        ),
+    )
+    _run_claimed(job_1.evaluation_id, session_factory)
+    db_session.expire_all()
+    j1 = db_session.get(EvaluationJob, job_1.evaluation_id)
+    assert j1.status == EvaluationStatus.COMPLETED.value
+    assert j1.partial_without_curriculum is True
+    m1 = db_session.query(MonitoringMatrix).filter_by(document_id=slm_1).one()
+    assert m1.evaluation_status == "COMPLETED_PARTIAL"
+    res1 = get_evaluation_results(job_1.evaluation_id, owner.user_id, db_session)
+    assert res1.is_partial is True
+    assert res1.partial_reason == "No curriculum available"
+    assert res1.evaluation_status == EvaluationStatus.COMPLETED.value
+
+    # --- Case 2: intentional partial + required agent failed ---
+    slm_2 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    job_2 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_2,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        partial_without_curriculum=True,
+        partial_reason="Deliberate partial",
+    )
+    db_session.add(job_2)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        lambda self, **kwargs: SupervisorResult(
+            evaluation_id=kwargs["evaluation_id"],
+            document_id=kwargs["document_id"],
+            agent_results=[
+                _agent_result(
+                    "sme", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "gad", kwargs["evaluation_id"], kwargs["document_id"], False
+                ),
+                _agent_result(
+                    "itso", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+            ],
+        ),
+    )
+    _run_claimed(job_2.evaluation_id, session_factory)
+    db_session.expire_all()
+    j2 = db_session.get(EvaluationJob, job_2.evaluation_id)
+    assert j2.status == EvaluationStatus.FAILED.value
+    assert j2.partial_without_curriculum is True
+    assert "gad" in j2.error_message.lower()
+    m2 = db_session.query(MonitoringMatrix).filter_by(document_id=slm_2).one()
+    assert m2.evaluation_status == "FAILED"
+    res2 = get_evaluation_results(job_2.evaluation_id, owner.user_id, db_session)
+    assert res2.is_partial is True
+    assert res2.partial_reason == "Deliberate partial"
+    assert res2.evaluation_status == EvaluationStatus.FAILED.value
+
+    # --- Case 3: full + all SME/GAD/ITSO/Coordinator success ---
+    admin = create_user(
+        db_session,
+        name="Admin3",
+        email=f"admin-case3-{uuid4()}@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda *args, **kwargs: True,
+    )
+    slm_3 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    syl_3 = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
+    cur_3 = _add_document(db_session, owner_id=admin.user_id, source_type="curriculum")
+    job_3 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_3,
+        syllabus_id=syl_3,
+        curriculum_id=cur_3,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        confirmed_program="BSCS",
+        partial_without_curriculum=False,
+    )
+    db_session.add(job_3)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        lambda self, **kwargs: SupervisorResult(
+            evaluation_id=kwargs["evaluation_id"],
+            document_id=kwargs["document_id"],
+            agent_results=[
+                _agent_result(
+                    "sme", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "coordinator", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "gad", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "itso", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+            ],
+        ),
+    )
+    _run_claimed(job_3.evaluation_id, session_factory)
+    db_session.expire_all()
+    j3 = db_session.get(EvaluationJob, job_3.evaluation_id)
+    assert j3.status == EvaluationStatus.COMPLETED.value
+    assert j3.partial_without_curriculum is False
+    m3 = db_session.query(MonitoringMatrix).filter_by(document_id=slm_3).one()
+    assert m3.evaluation_status == "COMPLETED"
+    res3 = get_evaluation_results(job_3.evaluation_id, owner.user_id, db_session)
+    assert res3.is_partial is False
+    assert res3.partial_reason is None
+    assert res3.evaluation_status == EvaluationStatus.COMPLETED.value
+
+    # --- Case 4: full + missing curriculum/coordinator -> never COMPLETED_PARTIAL
+    slm_4 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    job_4 = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_4,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        partial_without_curriculum=False,
+    )
+    db_session.add(job_4)
+    db_session.commit()
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor,
+        "run_evaluation",
+        lambda self, **kwargs: SupervisorResult(
+            evaluation_id=kwargs["evaluation_id"],
+            document_id=kwargs["document_id"],
+            agent_results=[
+                _agent_result(
+                    "sme", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "gad", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+                _agent_result(
+                    "itso", kwargs["evaluation_id"], kwargs["document_id"], True
+                ),
+            ],
+        ),
+    )
+    _run_claimed(job_4.evaluation_id, session_factory)
+    db_session.expire_all()
+    j4 = db_session.get(EvaluationJob, job_4.evaluation_id)
+    assert j4.status == EvaluationStatus.FAILED.value
+    assert j4.partial_without_curriculum is False
+    m4 = db_session.query(MonitoringMatrix).filter_by(document_id=slm_4).one()
+    assert m4.evaluation_status == "FAILED"
+    assert m4.evaluation_status != "COMPLETED_PARTIAL"
+    res4 = get_evaluation_results(job_4.evaluation_id, owner.user_id, db_session)
+    assert res4.is_partial is False
+    assert res4.partial_reason is None
+    assert res4.evaluation_status == EvaluationStatus.FAILED.value
+
+
+def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
+    """Resumed executions with existing AgentResult rows adhere to terminal truth:
+    - Resumed intentional partial with 3 agents completes as COMPLETED_PARTIAL.
+    - Resumed full run missing Coordinator fails as FAILED (never COMPLETED_PARTIAL).
+    """
+    from server.core import database as core_database
+    from server.modules.synthesis.models import AgentResult, MonitoringMatrix
+    from sqlalchemy.orm import sessionmaker
+
+    owner = create_user(
+        db_session,
+        name="Owner Resume",
+        email="owner-resume@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    # 1. Resumed intentional partial with 3 existing AgentResults
+    slm_partial = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    job_partial = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_partial,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        partial_without_curriculum=True,
+        partial_reason="Resumed partial test",
+    )
+    db_session.add(job_partial)
+    db_session.flush()
+
+    for agent_name in ("sme", "gad", "itso"):
+        db_session.add(
+            AgentResult(
+                agent_result_id=uuid4(),
+                evaluation_id=job_partial.evaluation_id,
+                document_id=slm_partial,
+                agent_name=agent_name,
+                subtotal=3.0,
+                processing_seconds=0.1,
+                token_count=10,
+                model_name="test-model",
+                summary="ok",
+                success=True,
+            )
+        )
+    db_session.commit()
+
+    _run_claimed(job_partial.evaluation_id, session_factory)
+    db_session.expire_all()
+    refreshed_partial = db_session.get(EvaluationJob, job_partial.evaluation_id)
+    assert refreshed_partial.status == EvaluationStatus.COMPLETED.value
+    matrix_partial = (
+        db_session.query(MonitoringMatrix).filter_by(document_id=slm_partial).one()
+    )
+    assert matrix_partial.evaluation_status == "COMPLETED_PARTIAL"
+
+    # 2. Resumed full intent with 3 existing AgentResults (missing Coordinator)
+    admin = create_user(
+        db_session,
+        name="AdminResume",
+        email=f"admin-resume-{uuid4()}@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda *args, **kwargs: True,
+    )
+    slm_full = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    cur_full = _add_document(
+        db_session, owner_id=admin.user_id, source_type="curriculum"
+    )
+    job_full = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_full,
+        syllabus_id=None,
+        curriculum_id=cur_full,
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        confirmed_program="BSCS",
+        partial_without_curriculum=False,
+    )
+    db_session.add(job_full)
+    db_session.flush()
+
+    for agent_name in ("sme", "gad", "itso"):
+        db_session.add(
+            AgentResult(
+                agent_result_id=uuid4(),
+                evaluation_id=job_full.evaluation_id,
+                document_id=slm_full,
+                agent_name=agent_name,
+                subtotal=3.0,
+                processing_seconds=0.1,
+                token_count=10,
+                model_name="test-model",
+                summary="ok",
+                success=True,
+            )
+        )
+    db_session.commit()
+
+    _run_claimed(job_full.evaluation_id, session_factory)
+    db_session.expire_all()
+    refreshed_full = db_session.get(EvaluationJob, job_full.evaluation_id)
+    assert refreshed_full.status == EvaluationStatus.FAILED.value
+    assert "coordinator" in refreshed_full.error_message.lower()
+    matrix_full = (
+        db_session.query(MonitoringMatrix).filter_by(document_id=slm_full).one()
+    )
+    assert matrix_full.evaluation_status == "FAILED"
+    assert matrix_full.evaluation_status != "COMPLETED_PARTIAL"
