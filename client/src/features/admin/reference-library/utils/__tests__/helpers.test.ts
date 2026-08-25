@@ -4,6 +4,7 @@ import {
   healthBadgeClass,
   isPolicyArea,
   processingStatusClass,
+  referenceTypeLabels,
 } from '../helpers';
 
 describe('isPolicyArea', () => {
@@ -37,5 +38,12 @@ describe('formatDate', () => {
 
   it('returns original input when date is invalid', () => {
     expect(formatDate('invalid')).toBe('invalid');
+  });
+});
+
+describe('referenceTypeLabels', () => {
+  it('maps curriculum and syllabus to proper labels', () => {
+    expect(referenceTypeLabels.curriculum).toBe('Curriculum');
+    expect(referenceTypeLabels.syllabus).toBe('Syllabus');
   });
 });
