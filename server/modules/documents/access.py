@@ -46,14 +46,11 @@ def _is_document_accessible(
 ) -> bool:
     """Check whether a user may read/access a document row.
 
-    Reference documents (syllabus) are shared to all
+    Reference documents (syllabus, curriculum) are shared to all
     authenticated users. Policy documents are admin-only — faculty
-    requests are denied without existence leakage. Legacy curriculum
-    rows are maintenance-only and never accessible here, even to their
-    original uploader. SLMs and other types remain owner-only.
+    requests are denied without existence leakage. SLMs and other
+    types remain owner-only.
     """
-    if document.source_type == "curriculum":
-        return False
     if is_reference_source_type(document.source_type):
         return True
     if is_policy_source_type(document.source_type):
@@ -103,8 +100,6 @@ def get_document(
     fallback = persistence._MEM_DOCUMENTS.get(document_id)
     if fallback is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
-    if fallback.source_type == "curriculum":
-        raise DocumentNotFoundError(f"Document {document_id} not found")
     if is_policy_source_type(fallback.source_type):
         if current_user_role != "admin":
             raise DocumentNotFoundError(f"Document {document_id} not found")
@@ -143,11 +138,10 @@ def list_documents(
                 Document.source_type.in_(REFERENCE_SOURCE_TYPES),
             )
         )
-        # Policy documents are admin-only — never exposed to faculty via list
+        # Policy and curriculum documents are never exposed to faculty via generic list
         if current_user_role != "admin":
             query = query.filter(Document.source_type.notin_(POLICY_SOURCE_TYPES))
-        # Legacy curriculum rows are maintenance-only — never exposed via list
-        query = query.filter(Document.source_type != "curriculum")
+            query = query.filter(Document.source_type != "curriculum")
         if source_type:
             query = query.filter(Document.source_type == source_type)
         if program:
@@ -280,7 +274,7 @@ def list_documents(
         item
         for item in mem_items
         if (
-            item.source_type != "curriculum"
+            (item.source_type != "curriculum" or current_user_role == "admin")
             and (
                 persistence._MEM_DOCUMENT_OWNERS.get(item.document_id)
                 == current_user_id
@@ -325,17 +319,13 @@ def list_documents(
 
     # Compute stats on base set before status filtering
     total_count = len(mem_items)
-    ready_count = sum(
-        1 for item in mem_items if item.processing_status == "PROCESSED"
-    )
+    ready_count = sum(1 for item in mem_items if item.processing_status == "PROCESSED")
     processing_count = sum(
         1
         for item in mem_items
         if item.processing_status in ("PENDING", "PROCESSING", "CLEANUP_PENDING")
     )
-    failed_count = sum(
-        1 for item in mem_items if item.processing_status == "FAILED"
-    )
+    failed_count = sum(1 for item in mem_items if item.processing_status == "FAILED")
     stats = DocumentListStats(
         total=total_count,
         ready=ready_count,
@@ -408,9 +398,8 @@ def stream_document_file(
 ) -> Path:
     """Return the local file path for a document, enforcing access rules.
 
-    Reference documents (syllabus) are shared to authenticated users.
-    Policy documents are admin-only. Legacy curriculum rows are
-    maintenance-only and never streamed here.
+    Reference documents (syllabus, curriculum) are shared to authenticated users.
+    Policy documents are admin-only.
     SLMs remain owner-only.
     Raises DocumentNotFoundError if the document is not found, not
     accessible, or the local file is missing.

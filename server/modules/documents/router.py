@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -20,8 +21,11 @@ from fastapi.responses import FileResponse
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.auth.service import AuthenticatedUser
+from sqlalchemy import func
 
+from . import persistence
 from .access import get_document, list_documents, stream_document_file
+from .curriculum.service import check_curriculum_readiness
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
@@ -29,16 +33,19 @@ from .exceptions import (
     PasswordProtectedPDFError,
     ReferenceDeleteConflictError,
     ReferenceDeleteInvalidTypeError,
+    ReferenceDeleteStorageError,
     ReferenceRebuildError,
     UnsupportedFileTypeError,
 )
 from .metadata import canonicalize_supported_program
+from .models import Document
 from .policy.service import (
     delete_policy_document,
     list_policy_documents,
     rebuild_policy_embeddings,
 )
 from .schemas import (
+    CurriculumSuggestionItem,
     CurriculumSuggestionResponse,
     DocumentListResponse,
     DocumentResponse,
@@ -64,6 +71,8 @@ from .syllabus.service import (
     list_reference_documents,
     rebuild_reference_embeddings,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -333,7 +342,6 @@ def get_document_file(
 
 @router.get(
     "/{document_id}/curriculum-suggestion",
-    deprecated=True,
     response_model=CurriculumSuggestionResponse,
 )
 def get_curriculum_suggestion(
@@ -346,12 +354,80 @@ def get_curriculum_suggestion(
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> CurriculumSuggestionResponse:
-    """Retired curriculum suggestion endpoint. Always returns empty suggestions."""
+    """Ownership-scoped curriculum suggestion read model."""
+    doc = None
+    if db is not None:
+        doc = db.get(Document, document_id)
+    else:
+        doc = persistence._MEM_DOCUMENTS.get(document_id)
+
+    if doc is None or doc.source_type != "slm" or doc.uploaded_by != _current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document {document_id} not found",
+        )
+
+    canonical_program = canonicalize_supported_program(program)
+    if canonical_program is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Unsupported program. Only BSCS and BSInfoTech are supported; "
+                "BSIT is accepted as an alias."
+            ),
+        )
+
+    program_values = [canonical_program]
+    if canonical_program == "BSInfoTech":
+        program_values.append("BSIT")
+
+    matching_rows = []
+    if db is not None:
+        matching_rows = (
+            db.query(Document)
+            .filter(
+                Document.source_type == "curriculum",
+                func.lower(Document.program).in_([p.lower() for p in program_values]),
+            )
+            .order_by(Document.uploaded_at.desc())
+            .all()
+        )
+    else:
+        for item in persistence._MEM_DOCUMENTS.values():
+            if item.source_type == "curriculum" and (item.program or "").casefold() in [
+                p.casefold() for p in program_values
+            ]:
+                matching_rows.append(item)
+
+    ready_items: list[CurriculumSuggestionItem] = []
+    unavailable_items: list[CurriculumSuggestionItem] = []
+
+    for cur_doc in matching_rows:
+        readiness = check_curriculum_readiness(cur_doc, canonical_program, db)
+        if not readiness.is_admin:
+            continue
+        item = CurriculumSuggestionItem(
+            document_id=cur_doc.document_id,
+            title=cur_doc.title,
+            program=cur_doc.program,
+            embedding_ready=readiness.is_ready,
+            match_reason="selected_program",
+        )
+        if readiness.is_ready:
+            ready_items.append(item)
+        else:
+            unavailable_items.append(item)
+
     return CurriculumSuggestionResponse(
-        document_id=document_id,
-        selected_program=program,
-        curriculum_suggestions=[],
-        unavailable_curricula=[],
+        document_id=doc.document_id,
+        detected_program=doc.program,
+        selected_program=canonical_program,
+        detected_course_code=doc.course_code,
+        detected_academic_year=doc.academic_year,
+        detected_lesson_title=doc.lesson_title,
+        preferred_suggestion=None,
+        curriculum_suggestions=ready_items,
+        unavailable_curricula=unavailable_items,
     )
 
 
@@ -381,6 +457,17 @@ def delete_document(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
+        ) from exc
+    except ReferenceDeleteStorageError as exc:
+        logger.error(
+            "Reference storage cleanup failed for document %s: %s",
+            document_id,
+            exc,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Reference storage cleanup is temporarily unavailable.",
         ) from exc
 
 

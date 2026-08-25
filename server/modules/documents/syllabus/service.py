@@ -17,7 +17,7 @@ from typing import Any
 from server.modules.auth.models import User, UserRole
 from server.modules.embeddings.service import (
     check_chroma_availability,
-    delete_chroma_vectors,
+    delete_chroma_vectors_strict,
     embed_and_store_chunks,
 )
 from server.modules.evaluations.document_references import count_document_references
@@ -28,6 +28,7 @@ from ..exceptions import (
     DocumentNotFoundError,
     ReferenceDeleteConflictError,
     ReferenceDeleteInvalidTypeError,
+    ReferenceDeleteStorageError,
     ReferenceRebuildError,
 )
 from ..models import Document, DocumentChunk
@@ -208,13 +209,13 @@ def delete_reference_document(
     document_id: uuid.UUID,
     db: Any | None = None,
 ) -> ReferenceDeleteResponse:
-    """Admin-only delete of a reference document with best-effort cleanup.
+    """Admin-only delete of a reference document with full asset cleanup.
 
     1. Check for referencing EvaluationJob rows → 409 Conflict
-    2. Delete Chroma vectors (tolerate missing)
-    3. Delete DocumentChunk rows
-    4. Delete the Document row
-    5. Delete the local PDF file (tolerate missing)
+    2. Delete Chroma vectors (fails and preserves SQL state if vector deletion fails)
+    3. Delete local PDF file and verify removal (fails and preserves SQL state)
+    4. Delete DocumentChunk rows
+    5. Delete the Document row and commit
     """
     if db is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
@@ -229,7 +230,7 @@ def delete_reference_document(
     if not is_reference_source_type(row.source_type):
         err_msg = (
             f"Document {document_id} has source_type='{row.source_type}'; "
-            "only syllabus documents can be deleted "
+            "only reference documents can be deleted "
             "through this endpoint."
         )
         raise ReferenceDeleteInvalidTypeError(err_msg)
@@ -242,38 +243,27 @@ def delete_reference_document(
             "and cannot be deleted."
         )
 
-    # Step 1: Delete Chroma vectors (tolerate missing)
+    # Step 2: Delete Chroma vectors (fail closed: preserve SQL on failure)
     try:
-        deleted_chroma = delete_chroma_vectors(str(document_id), row.source_type)
+        deleted_chroma = delete_chroma_vectors_strict(str(document_id), row.source_type)
         details["chroma_deleted"] = deleted_chroma
     except Exception as exc:
-        logger.warning(
+        logger.error(
             "Chroma deletion reported an issue during document cleanup",
             extra={"document_id": str(document_id), "error": str(exc)},
         )
-        details["chroma_warning"] = str(exc)
+        raise ReferenceDeleteStorageError(
+            f"Failed to delete Chroma vectors for document {document_id}: {exc}"
+        ) from exc
 
-    # Step 2: Delete DocumentChunk rows
-    chunk_count = (
-        db.query(DocumentChunk)
-        .filter(DocumentChunk.document_id == document_id)
-        .delete()
-    )
-    details["chunks_deleted"] = chunk_count
-
-    # Step 3: Delete the Document row
-    db.delete(row)
-    db.flush()
-
-    # Step 4: Delete the local PDF file (tolerate missing)
+    # Step 3: Delete local PDF file and verify removal (preserve SQL on failure)
     if row.file_path:
         pdf_path = Path(row.file_path)
         if pdf_path.exists():
             try:
                 pdf_path.unlink()
-                details["file_deleted"] = True
             except OSError as exc:
-                logger.warning(
+                logger.error(
                     "Failed to delete local PDF file during document cleanup",
                     extra={
                         "document_id": str(document_id),
@@ -281,12 +271,38 @@ def delete_reference_document(
                         "error": str(exc),
                     },
                 )
-                details["file_warning"] = str(exc)
+                raise ReferenceDeleteStorageError(
+                    f"Failed to delete local PDF file for document {document_id}: {exc}"
+                ) from exc
+
+            if pdf_path.exists():
+                logger.error(
+                    "Local PDF file still exists after deletion attempt during cleanup",
+                    extra={
+                        "document_id": str(document_id),
+                        "file_path": row.file_path,
+                    },
+                )
+                raise ReferenceDeleteStorageError(
+                    "Local PDF file still exists after deletion attempt "
+                    f"for document {document_id}"
+                )
+            details["file_deleted"] = True
         else:
             details["file_missing"] = True
     else:
         details["file_missing"] = True
 
+    # Step 4: Delete DocumentChunk rows
+    chunk_count = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .delete()
+    )
+    details["chunks_deleted"] = chunk_count
+
+    # Step 5: Delete the Document row
+    db.delete(row)
     db.commit()
 
     return ReferenceDeleteResponse(
@@ -301,7 +317,7 @@ def rebuild_reference_embeddings(
     db: Any | None = None,
 ) -> ReferenceRebuildResponse:
     """Admin-only rebuild of Chroma embeddings from stored chunks for a
-    syllabus document.
+    reference document (syllabus or curriculum).
     """
     if db is None:
         raise DocumentNotFoundError(f"Document {document_id} not found")
@@ -312,7 +328,7 @@ def rebuild_reference_embeddings(
 
     if not is_reference_source_type(row.source_type):
         raise ReferenceRebuildError(
-            f"Rebuild is only supported for syllabus documents, not {row.source_type}."
+            f"Rebuild is only supported for reference documents, not {row.source_type}."
         )
 
     if row.processing_status != "PROCESSED":
