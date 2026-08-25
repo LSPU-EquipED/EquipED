@@ -10,6 +10,7 @@ export const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
   rubric_gad: 'GAD Rubric',
   rubric_itso: 'ITSO Rubric',
   curriculum: 'Curriculum',
+  policy: 'Policy',
 };
 
 export const statusConfig: Record<

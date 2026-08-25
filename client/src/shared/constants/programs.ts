@@ -20,14 +20,30 @@ export const LSPU_SCC_COLLEGE_PROGRAMS: ProgramCollegeGroup[] = [
   },
 ];
 
-const LSPU_SCC_PROGRAM_ALIASES: Record<string, string> = {
+export const CANONICAL_PROGRAMS = ['BSCS', 'BSInfoTech'] as const;
+export type CanonicalProgram = (typeof CANONICAL_PROGRAMS)[number];
+
+const PROGRAM_NORMALIZATION_MAP: Record<string, string> = {
+  BSCS: 'BSCS',
+  BSINFOTECH: 'BSInfoTech',
   BSIT: 'BSInfoTech',
 };
 
+/**
+ * Normalizes client read/display program strings to their canonical form.
+ * E.g., 'BSIT', 'BSINFOTECH', 'bsit', 'bscs' -> 'BSInfoTech', 'BSCS'.
+ * Preserves unmapped trimmed strings for downstream handling.
+ */
+export function normalizeProgram(value: string): string {
+  const trimmed = value.trim();
+  const upper = trimmed.toUpperCase();
+  return PROGRAM_NORMALIZATION_MAP[upper] ?? trimmed;
+}
+
 export function isLspuSccProgram(value: string): boolean {
-  const normalized = value.trim().toUpperCase();
-  const canonical = LSPU_SCC_PROGRAM_ALIASES[normalized] ?? value.trim();
-  return ['BSInfoTech', 'BSCS'].some(
-    (program) => program.toUpperCase() === canonical.toUpperCase(),
+  if (!value || typeof value !== 'string') return false;
+  const normalized = normalizeProgram(value);
+  return CANONICAL_PROGRAMS.some(
+    (program) => program.toUpperCase() === normalized.toUpperCase(),
   );
 }

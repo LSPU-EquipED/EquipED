@@ -6,6 +6,7 @@ export const DOCUMENT_SOURCE_TYPES = [
   'rubric_gad',
   'rubric_itso',
   'curriculum',
+  'policy',
 ] as const;
 
 export type DocumentSourceType = (typeof DOCUMENT_SOURCE_TYPES)[number];
@@ -119,7 +120,6 @@ export type RawDocumentUploadResponse = {
   lesson_title: string | null;
   source_type: DocumentSourceType;
   processing_status: DocumentProcessingStatus;
-  program?: string | null;
   academic_year: string | null;
   course_code: string | null;
   structured_summary?: string | null;
@@ -226,12 +226,83 @@ export function mapDocumentUploadResponse(
     lessonTitle: response.lesson_title,
     sourceType: response.source_type,
     processingStatus: response.processing_status,
-    program: response.program,
     academicYear: response.academic_year,
     courseCode: response.course_code,
     structuredSummary: response.structured_summary,
     evaluationReadiness: response.evaluation_readiness,
     errorMessage: response.error_message,
+  };
+}
+
+// --- Curriculum suggestion types (program-driven curriculum references for SLM evaluation) ---
+
+export type RawCurriculumSuggestionItem = {
+  document_id: string;
+  title: string;
+  program: string | null;
+  embedding_ready: boolean;
+  match_reason: string;
+};
+
+export type CurriculumSuggestionItem = {
+  documentId: string;
+  title: string;
+  program: string | null;
+  embeddingReady: boolean;
+  matchReason: string;
+};
+
+export type RawCurriculumSuggestionResponse = {
+  document_id: string;
+  detected_program: string | null;
+  selected_program: string;
+  detected_course_code: string | null;
+  detected_academic_year: string | null;
+  detected_lesson_title: string | null;
+  preferred_suggestion?: RawCurriculumSuggestionItem | null;
+  curriculum_suggestions: RawCurriculumSuggestionItem[];
+  unavailable_curricula: RawCurriculumSuggestionItem[];
+};
+
+export type CurriculumSuggestionResponse = {
+  documentId: string;
+  detectedProgram: string | null;
+  selectedProgram: string;
+  detectedCourseCode: string | null;
+  detectedAcademicYear: string | null;
+  detectedLessonTitle: string | null;
+  preferredSuggestion: CurriculumSuggestionItem | null;
+  curriculumSuggestions: CurriculumSuggestionItem[];
+  unavailableCurricula: CurriculumSuggestionItem[];
+};
+
+export function mapCurriculumSuggestionItem(
+  item: RawCurriculumSuggestionItem,
+): CurriculumSuggestionItem {
+  return {
+    documentId: item.document_id,
+    title: item.title,
+    program: item.program,
+    embeddingReady: item.embedding_ready,
+    matchReason: item.match_reason,
+  };
+}
+
+export function mapCurriculumSuggestionResponse(
+  response: RawCurriculumSuggestionResponse,
+): CurriculumSuggestionResponse {
+  return {
+    documentId: response.document_id,
+    detectedProgram: response.detected_program,
+    selectedProgram: response.selected_program,
+    detectedCourseCode: response.detected_course_code,
+    detectedAcademicYear: response.detected_academic_year,
+    detectedLessonTitle: response.detected_lesson_title,
+    preferredSuggestion: response.preferred_suggestion
+      ? mapCurriculumSuggestionItem(response.preferred_suggestion)
+      : null,
+    curriculumSuggestions: (response.curriculum_suggestions ?? []).map(mapCurriculumSuggestionItem),
+    unavailableCurricula: (response.unavailable_curricula ?? []).map(mapCurriculumSuggestionItem),
   };
 }
 
