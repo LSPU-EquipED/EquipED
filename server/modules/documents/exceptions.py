@@ -65,8 +65,13 @@ class ReferenceRebuildError(DocumentsError):
 
 class ReferenceDeleteInvalidTypeError(DocumentsError):
     """Raised when attempting to delete a non-reference document type.
-    Only syllabus documents can be deleted through this endpoint.
+    Only reference documents (syllabus, curriculum) can be deleted
+    through this endpoint.
     """
+
+
+class ReferenceDeleteStorageError(DocumentsError):
+    """Raised when external storage cleanup fails during reference deletion."""
 
 
 __all__ = [
@@ -82,4 +87,5 @@ __all__ = [
     "ReferenceDeleteConflictError",
     "ReferenceRebuildError",
     "ReferenceDeleteInvalidTypeError",
+    "ReferenceDeleteStorageError",
 ]
