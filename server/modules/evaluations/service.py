@@ -12,8 +12,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from server.modules.documents import persistence
+from server.modules.documents.curriculum.service import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
-from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
@@ -72,9 +72,9 @@ def create_evaluation(
             "Evaluation pipeline is not available yet."
         )
 
-    # Validate SLM ownership FIRST to preserve security masking:
-    # a foreign SLM returns DocumentNotFoundError (404) before we
-    # reveal any curriculum_id requirements.
+    # Validate SLM target (existence + source_type==slm + ownership) FIRST to
+    # preserve security masking: missing, foreign SLM, or non-SLM returns
+    # DocumentNotFoundError (404) before we reveal program or curriculum requirements.
     document = _validate_evaluation_target(
         req.document_id,
         submitted_by,
@@ -83,28 +83,57 @@ def create_evaluation(
         user_role=submitted_by_role,
     )
 
-    if not req.partial_without_curriculum:
-        raise InvalidEvaluationTargetError(
-            "Every evaluation must explicitly set partial_without_curriculum=True."
-        )
-
-    if req.curriculum_id is not None:
-        raise InvalidEvaluationTargetError(
-            "curriculum_id submission is retired; new evaluations run without "
-            "curriculum."
-        )
-
     if not (req.confirmed_program and req.confirmed_program.strip()):
         raise InvalidEvaluationTargetError(
             "confirmed_program is required for evaluation submission."
         )
 
     confirmed_prog = req.confirmed_program.strip()
-    canonical_program = canonicalize_supported_program(confirmed_prog)
-    if canonical_program is None:
+    if confirmed_prog not in ("BSCS", "BSInfoTech"):
         raise InvalidEvaluationTargetError(
-            "Unsupported confirmed_program. Only BSCS and BSInfoTech are supported; "
-            "BSIT is accepted as an alias."
+            "Unsupported confirmed_program on write. Only BSCS and BSInfoTech "
+            "are supported; BSIT is not accepted on submission."
+        )
+
+    if req.curriculum_id is not None and req.partial_without_curriculum:
+        raise InvalidEvaluationTargetError(
+            "Cannot specify curriculum_id when partial_without_curriculum is True."
+        )
+
+    if req.curriculum_id is None and not req.partial_without_curriculum:
+        raise InvalidEvaluationTargetError(
+            "curriculum_id is required when partial_without_curriculum is False."
+        )
+
+    curriculum_id: uuid.UUID | None = None
+    partial_without_curriculum: bool
+    partial_reason: str | None = None
+
+    if req.curriculum_id is not None:
+        readiness = check_curriculum_readiness(
+            document=req.curriculum_id,
+            program=confirmed_prog,
+            db=db,
+        )
+        if not readiness.is_ready:
+            logger.warning(
+                "Curriculum readiness check failed during evaluation admission: "
+                "curriculum_id=%s, program=%s, reason=%s",
+                req.curriculum_id,
+                confirmed_prog,
+                readiness.reason,
+            )
+            raise InvalidEvaluationTargetError(
+                "Curriculum is not ready for evaluation."
+            )
+        curriculum_id = readiness.document_id
+        partial_without_curriculum = False
+        partial_reason = None
+    else:
+        curriculum_id = None
+        partial_without_curriculum = True
+        partial_reason = (
+            "Curriculum reference not provided; Coordinator review skipped."
         )
 
     syllabus = None
@@ -120,14 +149,12 @@ def create_evaluation(
         evaluation_id=uuid.uuid4(),
         document_id=document.document_id,
         syllabus_id=syllabus.document_id if syllabus is not None else None,
-        curriculum_id=None,
+        curriculum_id=curriculum_id,
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
-        partial_without_curriculum=True,
-        partial_reason=(
-            "Curriculum evaluation flow retired; Coordinator review skipped."
-        ),
-        confirmed_program=canonical_program,
+        partial_without_curriculum=partial_without_curriculum,
+        partial_reason=partial_reason,
+        confirmed_program=confirmed_prog,
         submitted_by=submitted_by,
         submitted_at=datetime.now(UTC),
         completed_at=None,
@@ -176,21 +203,27 @@ def _validate_evaluation_target(
     # Admins bypass the SLM ownership check so they can create
     # benchmark evaluations on faculty-uploaded SLM documents.
     is_admin = user_role == UserRole.ADMIN.value if user_role else False
-    if not is_admin:
-        # SLM documents require strict ownership. Reference documents
-        # (syllabus) are shared to all authenticated users.
-        if expected_source_type == "slm" and document.uploaded_by != current_user_id:
-            raise DocumentNotFoundError(f"Document {document_id} not found")
-        if expected_source_type in REFERENCE_SOURCE_TYPES:
-            # References are shared; skip ownership check
-            pass
-        elif document.uploaded_by != current_user_id:
-            raise DocumentNotFoundError(f"Document {document_id} not found")
 
-    if document.source_type != expected_source_type:
-        raise InvalidEvaluationTargetError(
-            f"Document must have source_type={expected_source_type}."
-        )
+    # For evaluation primary target (slm), combine existence, source_type == 'slm',
+    # and ownership into the same masked DocumentNotFoundError (404).
+    if expected_source_type == "slm":
+        if document.source_type != "slm":
+            raise DocumentNotFoundError(f"Document {document_id} not found")
+        if not is_admin and document.uploaded_by != current_user_id:
+            raise DocumentNotFoundError(f"Document {document_id} not found")
+    else:
+        # Non-SLM targets (e.g. syllabus)
+        if not is_admin:
+            if expected_source_type in REFERENCE_SOURCE_TYPES:
+                # References are shared; skip ownership check
+                pass
+            elif document.uploaded_by != current_user_id:
+                raise DocumentNotFoundError(f"Document {document_id} not found")
+
+        if document.source_type != expected_source_type:
+            raise InvalidEvaluationTargetError(
+                f"Document must have source_type={expected_source_type}."
+            )
 
     if document.processing_status != "PROCESSED":
         raise InvalidEvaluationTargetError(
