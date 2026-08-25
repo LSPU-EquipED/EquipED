@@ -7,20 +7,46 @@ from collections.abc import Iterator
 from importlib import import_module, reload
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pytest
-from fastapi.testclient import TestClient
-from server.core.config import Settings, get_settings
-from server.core.database import Base, get_db_session
-from server.db.metadata import import_model_modules
-from server.modules.auth.models import UserRole
-from server.modules.auth.service import create_user
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from server.core.chroma import get_chroma_client  # noqa: E402
+from server.core.config import Settings, get_settings  # noqa: E402
+from server.core.database import (  # noqa: E402
+    Base,
+    get_db_session,
+    get_engine,
+    get_session_factory,
+)
+from server.core.embedding import get_embedding_model  # noqa: E402
+from server.db.metadata import import_model_modules  # noqa: E402
+from server.modules.auth.models import UserRole  # noqa: E402
+from server.modules.auth.service import create_user  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolate_database_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("DATABASE_URL", "")
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+    get_chroma_client.cache_clear()
+    get_embedding_model.cache_clear()
+    try:
+        yield
+    finally:
+        get_settings.cache_clear()
+        get_engine.cache_clear()
+        get_session_factory.cache_clear()
+        get_chroma_client.cache_clear()
+        get_embedding_model.cache_clear()
 
 
 @pytest.fixture()
@@ -58,7 +84,7 @@ def client(
     settings: Settings,
     db_session: Session,
 ) -> Iterator[TestClient]:
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.delenv("BOOTSTRAP_ADMIN_EMAIL", raising=False)
     monkeypatch.delenv("BOOTSTRAP_ADMIN_NAME", raising=False)
     monkeypatch.delenv("BOOTSTRAP_ADMIN_PASSWORD", raising=False)
@@ -70,6 +96,10 @@ def client(
     # (e.g. CORS), and the unpinned defaults would raise.
     monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
     get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+    get_chroma_client.cache_clear()
+    get_embedding_model.cache_clear()
 
     server_main = reload(import_module("server.main"))
     app = server_main.create_app()
@@ -88,6 +118,10 @@ def client(
 
     app.dependency_overrides.clear()
     get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()
+    get_chroma_client.cache_clear()
+    get_embedding_model.cache_clear()
 
 
 @pytest.fixture()

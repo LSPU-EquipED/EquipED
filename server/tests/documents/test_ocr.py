@@ -5,16 +5,23 @@ from unittest.mock import patch
 
 import pytesseract
 import pytest
+from PIL import Image
 from server.core.config import Settings
 from server.modules.documents.exceptions import (
+    ExtractionFailedError,
+    OcrFailedError,
     OcrLimitExceededError,
 )
 from server.modules.documents.ingestion.ocr import (
+    _is_visually_blank_image,
     clear_ocr_validation_cache,
     perform_ocr_on_page,
     validate_ocr_installation,
 )
-from server.modules.documents.ingestion.pipeline import ingest_document
+from server.modules.documents.ingestion.pipeline import (
+    _extract_pages,
+    ingest_document,
+)
 
 
 class MockRect:
@@ -24,18 +31,41 @@ class MockRect:
 
 
 class MockPage:
-    def __init__(self, text: str, width: float = 612.0, height: float = 792.0):
+    def __init__(
+        self,
+        text: str,
+        width: float = 612.0,
+        height: float = 792.0,
+        image: Image.Image | None = None,
+    ):
         self.text = text
         self.rect = MockRect(width, height)
+        self.image = image
+        self.last_dpi: int | None = None
 
     def get_text(self) -> str:
         return self.text
 
     def get_pixmap(self, dpi: int = 200, colorspace: any = None, alpha: bool = False):
+        self.last_dpi = dpi
+        if self.image is not None:
+            rgb = self.image.convert("RGB")
+
+            class ImagePixmap:
+                def __init__(self, img: Image.Image):
+                    self.width = img.width
+                    self.height = img.height
+                    self.samples = img.tobytes()
+
+            return ImagePixmap(rgb)
+
+        page_width = self.rect.width
+        page_height = self.rect.height
+
         class MockPixmap:
             def __init__(self):
-                self.width = int(612.0 * dpi / 72)
-                self.height = int(792.0 * dpi / 72)
+                self.width = int(page_width * dpi / 72)
+                self.height = int(page_height * dpi / 72)
                 self.samples = b"\x00" * (self.width * self.height * 3)
 
         return MockPixmap()
@@ -99,7 +129,7 @@ def test_ocr_validation_executable_missing() -> None:
 
 def test_perform_ocr_on_page_success() -> None:
     settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
-    page = MockPage(text="")
+    page = MockPage(text="", image=Image.new("RGB", (100, 100), (30, 30, 30)))
     with (
         patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
         patch("pytesseract.get_languages", return_value=["eng"]),
@@ -110,16 +140,73 @@ def test_perform_ocr_on_page_success() -> None:
         assert outcome.text == "Extracted text content"
 
 
-def test_perform_ocr_on_page_blank() -> None:
+def test_perform_ocr_on_page_pure_white_blank() -> None:
     settings = Settings(tesseract_lang="eng")
-    page = MockPage(text="")
+    page = MockPage(text="", image=Image.new("RGB", (100, 100), (255, 255, 255)))
     with (
         patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
         patch("pytesseract.get_languages", return_value=["eng"]),
-        patch("pytesseract.image_to_string", return_value="   \n  "),
+        patch("pytesseract.image_to_string") as mock_tess,
     ):
         outcome = perform_ocr_on_page(page, settings)
         assert outcome.is_blank is True
+        assert outcome.text == ""
+        mock_tess.assert_not_called()
+
+
+def test_perform_ocr_on_page_off_white_blank() -> None:
+    settings = Settings(tesseract_lang="eng")
+    page = MockPage(text="", image=Image.new("RGB", (100, 100), (250, 250, 250)))
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string") as mock_tess,
+    ):
+        outcome = perform_ocr_on_page(page, settings)
+        assert outcome.is_blank is True
+        assert outcome.text == ""
+        mock_tess.assert_not_called()
+
+
+def test_visual_classifier_boundaries() -> None:
+    # Pure white & off-white conservative blanks
+    pure_white = Image.new("RGB", (100, 100), (255, 255, 255))
+    assert _is_visually_blank_image(pure_white) is True
+    off_white = Image.new("RGB", (100, 100), (250, 250, 250))
+    assert _is_visually_blank_image(off_white) is True
+
+    # Light photograph
+    photo = Image.new("RGB", (100, 100), (220, 220, 220))
+    assert _is_visually_blank_image(photo) is False
+
+    # Dark page
+    dark = Image.new("RGB", (100, 100), (30, 30, 30))
+    assert _is_visually_blank_image(dark) is False
+
+    # Single visible line on white page
+    line_img = Image.new("RGB", (100, 100), (255, 255, 255))
+    for y in range(100):
+        line_img.putpixel((50, y), (0, 0, 0))
+    assert _is_visually_blank_image(line_img) is False
+
+    # Edge shadow on white page
+    shadow_img = Image.new("RGB", (100, 100), (255, 255, 255))
+    for x in range(5):
+        for y in range(100):
+            shadow_img.putpixel((x, y), (180, 180, 180))
+    assert _is_visually_blank_image(shadow_img) is False
+
+
+def test_perform_ocr_on_page_nonblank_symbol_only_ocr() -> None:
+    settings = Settings(tesseract_lang="eng")
+    page = MockPage(text="", image=Image.new("RGB", (100, 100), (30, 30, 30)))
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string", return_value="--- \n ... !!! @#$"),
+    ):
+        outcome = perform_ocr_on_page(page, settings)
+        assert outcome.is_blank is False
         assert outcome.text == ""
 
 
@@ -139,16 +226,130 @@ def test_perform_ocr_on_page_timeout() -> None:
         assert "timed out" in str(exc_info.value)
 
 
-def test_perform_ocr_on_page_limit_exceeded() -> None:
-    settings = Settings(tesseract_lang="eng", ocr_max_pixels=1000)
-    page = MockPage(text="", width=1000.0, height=1000.0)  # estimated pixels > 1000
+def test_perform_ocr_on_page_standard_letter_preserves_dpi() -> None:
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
+    page = MockPage(text="", width=612.0, height=792.0)
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string", return_value="Letter page text"),
+    ):
+        outcome = perform_ocr_on_page(page, settings)
+        assert page.last_dpi == 200
+        assert outcome.is_blank is False
+        assert outcome.text == "Letter page text"
+
+
+def test_perform_ocr_on_page_adaptive_downscaling_oversized_page() -> None:
+    # 2400x3200 pt at 200 DPI estimates ~59.2M pixels (> 8M cap)
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
+    page = MockPage(text="", width=2400.0, height=3200.0)
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch(
+            "pytesseract.image_to_string",
+            return_value="Photographed oversized syllabus page",
+        ),
+    ):
+        outcome = perform_ocr_on_page(page, settings)
+        assert page.last_dpi is not None
+        assert page.last_dpi < 200
+        # Verify rendered dimensions stay strictly within 8M pixels
+        raster_width = int(page.rect.width * page.last_dpi / 72)
+        raster_height = int(page.rect.height * page.last_dpi / 72)
+        assert raster_width * raster_height <= settings.ocr_max_pixels
+        assert outcome.is_blank is False
+        assert outcome.text == "Photographed oversized syllabus page"
+
+
+def test_perform_ocr_on_page_pathological_actual_pixel_limit_exceeded() -> None:
+    # Even at effective_dpi=1, 10000x10000 pt renders 138x138 = 19044 pixels > 1000 cap
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=1000)
+    page = MockPage(text="", width=10000.0, height=10000.0)
     with (
         patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
         patch("pytesseract.get_languages", return_value=["eng"]),
     ):
         with pytest.raises(OcrLimitExceededError) as exc_info:
             perform_ocr_on_page(page, settings)
-        assert "pixel count" in str(exc_info.value)
+        assert "Actual page pixel count" in str(exc_info.value)
+
+
+def test_perform_ocr_on_page_nan_dimensions_fails_closed() -> None:
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
+    page = MockPage(text="", width=float("nan"), height=792.0)
+    with (
+        patch(
+            "pytesseract.get_tesseract_version", return_value="4.0.0"
+        ) as mock_version,
+        patch("pytesseract.get_languages", return_value=["eng"]) as mock_languages,
+        patch.object(page, "get_pixmap") as mock_pixmap,
+        patch("pytesseract.image_to_string") as mock_tess,
+    ):
+        with pytest.raises(OcrFailedError) as exc_info:
+            perform_ocr_on_page(page, settings)
+        assert "could not be read" in str(exc_info.value)
+        assert "nan" not in str(exc_info.value).lower()
+        mock_version.assert_not_called()
+        mock_languages.assert_not_called()
+        mock_pixmap.assert_not_called()
+        mock_tess.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("width", "height"),
+    [
+        (float("inf"), 792.0),
+        (612.0, float("inf")),
+        (float("-inf"), 792.0),
+        (0.0, 792.0),
+        (612.0, 0.0),
+        (-612.0, 792.0),
+    ],
+)
+def test_perform_ocr_on_page_infinite_or_zero_dimensions_fails_closed(
+    width: float, height: float
+) -> None:
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
+    page = MockPage(text="", width=width, height=height)
+    with (
+        patch(
+            "pytesseract.get_tesseract_version", return_value="4.0.0"
+        ) as mock_version,
+        patch("pytesseract.get_languages", return_value=["eng"]) as mock_languages,
+        patch.object(page, "get_pixmap") as mock_pixmap,
+        patch("pytesseract.image_to_string") as mock_tess,
+    ):
+        with pytest.raises(OcrFailedError) as exc_info:
+            perform_ocr_on_page(page, settings)
+        assert "could not be read" in str(exc_info.value)
+        assert "inf" not in str(exc_info.value).lower()
+        mock_version.assert_not_called()
+        mock_languages.assert_not_called()
+        mock_pixmap.assert_not_called()
+        mock_tess.assert_not_called()
+
+
+def test_perform_ocr_on_page_enormous_overflow_fails_closed() -> None:
+    settings = Settings(tesseract_lang="eng", ocr_dpi=200, ocr_max_pixels=8000000)
+    page = MockPage(text="", width=1e200, height=1e200)
+    with (
+        patch(
+            "pytesseract.get_tesseract_version", return_value="4.0.0"
+        ) as mock_version,
+        patch("pytesseract.get_languages", return_value=["eng"]) as mock_languages,
+        patch.object(page, "get_pixmap") as mock_pixmap,
+        patch("pytesseract.image_to_string") as mock_tess,
+    ):
+        with pytest.raises(OcrLimitExceededError) as exc_info:
+            perform_ocr_on_page(page, settings)
+        assert "processing limits" in str(exc_info.value)
+        assert "1e" not in str(exc_info.value).lower()
+        mock_version.assert_not_called()
+        mock_languages.assert_not_called()
+        mock_pixmap.assert_not_called()
+        mock_tess.assert_not_called()
 
 
 def test_ingest_document_scanned_success(monkeypatch) -> None:
@@ -216,9 +417,155 @@ def test_ingest_document_mixed_success(monkeypatch) -> None:
         assert chunk_ocr_flags[2] is True
 
 
+def test_ingest_document_blank_neighbor_and_readable_ocr(monkeypatch) -> None:
+    # Page 1 is visually blank (pure white), Page 2 is nonblank image needing OCR
+    page1 = MockPage(text="", image=Image.new("RGB", (100, 100), (255, 255, 255)))
+    page2 = MockPage(
+        text="Weak overlay",
+        image=Image.new("RGB", (100, 100), (30, 30, 30)),
+    )
+    mock_doc = MockDoc([page1, page2])
+
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch(
+            "pytesseract.image_to_string",
+            return_value="Actual readable OCR text content from page two",
+        ),
+    ):
+        chunks = ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
+        assert len(chunks) > 0
+        assert all(c.page_number == 2 for c in chunks)
+        assert chunks[0].is_ocr is True
+        assert "Actual readable OCR text" in chunks[0].text
+
+
+def test_ingest_document_readable_photograph_emits_is_ocr_chunk(monkeypatch) -> None:
+    # Photograph needing OCR
+    photo_img = Image.new("RGB", (100, 100), (220, 220, 220))
+    page1 = MockPage(text="", image=photo_img)
+    mock_doc = MockDoc([page1])
+
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch(
+            "pytesseract.image_to_string",
+            return_value="Photographed syllabus contents for course",
+        ),
+    ):
+        chunks = ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
+        assert len(chunks) > 0
+        assert chunks[0].page_number == 1
+        assert chunks[0].is_ocr is True
+        assert "Photographed syllabus contents" in chunks[0].text
+
+
+def test_ingest_document_nonblank_symbol_only_ocr_fails_closed(monkeypatch) -> None:
+    # Nonblank page where OCR returns only punctuation/symbols
+    page1 = MockPage(text="", image=Image.new("RGB", (100, 100), (30, 30, 30)))
+    mock_doc = MockDoc([page1])
+
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string", return_value="--- \n ... !!! @#$"),
+    ):
+        with pytest.raises(
+            ExtractionFailedError, match="OCR extraction produced no text for page 1"
+        ):
+            ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
+
+
+def test_ingest_document_all_blank_pages_returns_empty(monkeypatch) -> None:
+    # All pages visually blank
+    page1 = MockPage(text="", image=Image.new("RGB", (100, 100), (255, 255, 255)))
+    page2 = MockPage(text="", image=Image.new("RGB", (100, 100), (250, 250, 250)))
+    mock_doc = MockDoc([page1, page2])
+
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+    ):
+        chunks = ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
+        assert chunks == []
+
+
+def test_extract_pages_mixed_readable_blank_unreadable_fails_wholly(
+    monkeypatch,
+) -> None:
+    # Page 1: Selectable text
+    page1 = MockPage(
+        text=(
+            "This is page one text. It is selectable and definitely long "
+            "enough to pass our heuristic text check of 100 characters "
+            "and eight words."
+        )
+    )
+    # Page 2: Visually blank (skipped)
+    page2 = MockPage(text="", image=Image.new("RGB", (100, 100), (255, 255, 255)))
+    # Page 3: Nonblank, but OCR returns empty (unreadable)
+    page3 = MockPage(
+        text="Needs OCR",
+        image=Image.new("RGB", (100, 100), (30, 30, 30)),
+    )
+
+    mock_doc = MockDoc([page1, page2, page3])
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=3)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string", return_value="   "),
+    ):
+        with pytest.raises(
+            ExtractionFailedError, match="OCR extraction produced no text for page 3"
+        ):
+            _extract_pages("dummy.pdf")
+
+
 def test_ingest_document_blank_page(monkeypatch) -> None:
-    # Blank page contains no selectable text, and OCR returns blank
-    page1 = MockPage(text="")
+    # Nonblank page contains no selectable text, and OCR returns blank -> fails closed
+    page1 = MockPage(text="", image=Image.new("RGB", (100, 100), (30, 30, 30)))
     mock_doc = MockDoc([page1])
 
     monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
@@ -234,8 +581,45 @@ def test_ingest_document_blank_page(monkeypatch) -> None:
         patch("pytesseract.get_languages", return_value=["eng"]),
         patch("pytesseract.image_to_string", return_value="   "),
     ):
-        chunks = ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
-        assert len(chunks) == 0  # no chunks created for blank page
+        with pytest.raises(
+            ExtractionFailedError, match="OCR extraction produced no text for page 1"
+        ):
+            ingest_document("dummy.pdf", "slm", str(uuid.uuid4()))
+
+
+def test_extract_pages_mixed_ocr_empty_page_fails_closed(monkeypatch) -> None:
+    # Page 1 has meaningful selectable text,
+    # Page 2 is nonblank needing OCR and returns blank
+    page1 = MockPage(
+        text=(
+            "This is page one text. It is selectable and definitely long "
+            "enough to pass our heuristic text check of 100 characters "
+            "and eight words."
+        )
+    )
+    page2 = MockPage(
+        text="Gibberish",
+        image=Image.new("RGB", (100, 100), (30, 30, 30)),
+    )
+
+    mock_doc = MockDoc([page1, page2])
+    monkeypatch.setattr("fitz.open", lambda *args, **kwargs: mock_doc)
+    monkeypatch.setattr("pathlib.Path.exists", lambda *args: True)
+
+    settings = Settings(tesseract_lang="eng", ocr_max_pages=2)
+    monkeypatch.setattr(
+        "server.modules.documents.ingestion.pipeline.get_settings", lambda: settings
+    )
+
+    with (
+        patch("pytesseract.get_tesseract_version", return_value="4.0.0"),
+        patch("pytesseract.get_languages", return_value=["eng"]),
+        patch("pytesseract.image_to_string", return_value="   "),
+    ):
+        with pytest.raises(
+            ExtractionFailedError, match="OCR extraction produced no text for page 2"
+        ):
+            _extract_pages("dummy.pdf")
 
 
 def test_ingest_document_ocr_limit_exceeded(monkeypatch) -> None:
