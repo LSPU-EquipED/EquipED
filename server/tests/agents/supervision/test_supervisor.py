@@ -93,7 +93,6 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
         context={
             "reference_document_ids": {
                 "syllabus": uuid4(),
-                "curriculum": uuid4(),
             }
         },
     )
@@ -167,7 +166,6 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
         context={
             "reference_document_ids": {
                 "syllabus": uuid4(),
-                "curriculum": uuid4(),
             }
         },
     )
@@ -247,3 +245,138 @@ def test_precomputed_context_falls_back_when_source_type_missing(
     )
     assert execution._rubric("query", context) == ["live-rubric"]
     assert execution._references("query", context) == ["live-retrieved"]
+
+
+def test_prepared_context_loads_authoritative_curriculum_text(
+    db_session, monkeypatch
+) -> None:
+    """Full evaluation context builder loads curriculum chunk text in canonical order."""  # noqa: E501
+    from server.modules.agents.supervision.context import EvaluationContextBuilder
+    from server.modules.auth.models import UserRole
+    from server.modules.auth.service import create_user
+    from server.modules.documents.models import Document
+
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda doc_id, source_type: True,
+    )
+
+    admin = create_user(
+        db_session,
+        name="Admin",
+        email="admin-curr-text@example.com",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+
+    curr_doc = Document(
+        document_id=uuid4(),
+        title="Authoritative Curriculum",
+        program="BSCS",
+        source_type="curriculum",
+        file_path="uploads/curr.pdf",
+        uploaded_by=admin.user_id,
+        processing_status="PROCESSED",
+    )
+    chunk1 = DocumentChunk(
+        chunk_id=uuid4(),
+        document_id=curr_doc.document_id,
+        source_type="curriculum",
+        agent_domain="all",
+        page_number=1,
+        chunk_index=0,
+        text="Curriculum Section 1: Intro",
+        token_count=5,
+    )
+    chunk2 = DocumentChunk(
+        chunk_id=uuid4(),
+        document_id=curr_doc.document_id,
+        source_type="curriculum",
+        agent_domain="all",
+        page_number=2,
+        chunk_index=1,
+        text="Curriculum Section 2: Core",
+        token_count=5,
+    )
+    db_session.add_all([curr_doc, chunk1, chunk2])
+    db_session.commit()
+
+    builder = EvaluationContextBuilder(db=db_session, agents=[])
+    text = builder._load_authoritative_curriculum(
+        {"curriculum": curr_doc.document_id}, program="BSCS"
+    )
+    assert text == "Curriculum Section 1: Intro\nCurriculum Section 2: Core"
+
+    # Absent curriculum returns None
+    text_none = builder._load_authoritative_curriculum({})
+    assert text_none is None
+
+
+def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
+    db_session, monkeypatch
+) -> None:
+    """Unready curriculum (e.g. non-admin, missing chroma, not PROCESSED) raises SupervisorExecutionError."""  # noqa: E501
+    import pytest
+    from server.modules.agents.exceptions import SupervisorExecutionError
+    from server.modules.agents.supervision.context import EvaluationContextBuilder
+    from server.modules.auth.models import UserRole
+    from server.modules.auth.service import create_user
+    from server.modules.documents.models import Document
+
+    faculty = create_user(
+        db_session,
+        name="Faculty",
+        email="faculty-curr-unready@example.com",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    non_admin_curr = Document(
+        document_id=uuid4(),
+        title="Faculty Curriculum",
+        program="BSCS",
+        source_type="curriculum",
+        file_path="uploads/curr2.pdf",
+        uploaded_by=faculty.user_id,
+        processing_status="PROCESSED",
+    )
+    chunk = DocumentChunk(
+        chunk_id=uuid4(),
+        document_id=non_admin_curr.document_id,
+        source_type="curriculum",
+        agent_domain="all",
+        page_number=1,
+        chunk_index=0,
+        text="Curriculum Section 1",
+        token_count=5,
+    )
+    db_session.add_all([non_admin_curr, chunk])
+    db_session.commit()
+
+    builder = EvaluationContextBuilder(db=db_session, agents=[])
+    with pytest.raises(SupervisorExecutionError) as exc_info:
+        builder._load_authoritative_curriculum(
+            {"curriculum": non_admin_curr.document_id}, program="BSCS"
+        )
+    assert "not ready" in str(exc_info.value).lower()
+
+
+def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
+    """Default supervisor includes Coordinator for full; explicit partial agent list excludes Coordinator."""  # noqa: E501
+    from server.modules.agents.gad.agent import GAD
+    from server.modules.agents.itso.agent import ITSO
+    from server.modules.agents.sme.agent import SME
+
+    # Full intent (default agents)
+    full_supervisor = Supervisor(db=db_session)
+    full_agent_names = [a.agent_name for a in full_supervisor.agents]
+    assert "coordinator" in full_agent_names
+    assert set(full_agent_names) == {"sme", "coordinator", "gad", "itso"}
+
+    # Partial intent
+    partial_supervisor = Supervisor(agents=[SME(), GAD(), ITSO()], db=db_session)
+    partial_agent_names = [a.agent_name for a in partial_supervisor.agents]
+    assert "coordinator" not in partial_agent_names
+    assert set(partial_agent_names) == {"sme", "gad", "itso"}
