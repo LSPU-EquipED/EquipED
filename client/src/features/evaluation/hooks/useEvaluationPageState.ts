@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import { useFetch } from '@/shared/hooks/useFetch';
-import { isLspuSccProgram } from '@/shared/constants/programs';
+import { isLspuSccProgram, normalizeProgram } from '@/shared/constants/programs';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import { evaluationApi } from '@/features/evaluation/api/evaluation.api';
-import { useSubmitEvaluation } from '@/features/upload/hooks/useSubmitEvaluation';
-import { resolveExistingEvaluation } from '@/features/evaluation/utils/setupState';
+import { useSubmitEvaluation } from './useSubmitEvaluation';
+import {
+  buildEvaluationSubmitPayload,
+  resolveExistingEvaluation,
+  type EvaluationMode,
+} from '@/features/evaluation/utils/setupState';
 import type { EvaluationStatusResponse } from '@/features/evaluation/types';
 
 const EVAL_STORAGE_PREFIX = 'equiped_eval_';
@@ -55,9 +59,10 @@ export function useEvaluationPageState(documentId?: string) {
   // A program detected in the SLM is a suggestion only: it is shown in the
   // selector until the user replaces it, but the user must explicitly confirm
   // it before submission. Unlisted detections never auto-fill the selector.
-  const detectedProgram = document?.program?.trim().toUpperCase() ?? null;
-  const effectiveProgram =
-    selectedProgram || (detectedProgram && isLspuSccProgram(detectedProgram) ? detectedProgram : '');
+  const normalizedDetected = normalizeProgram(document?.program?.trim() ?? '');
+  const detectedProgram =
+    normalizedDetected && isLspuSccProgram(normalizedDetected) ? normalizedDetected : null;
+  const effectiveProgram = selectedProgram || detectedProgram || '';
 
   // Document fetch effect
   useEffect(() => {
@@ -101,16 +106,27 @@ export function useEvaluationPageState(documentId?: string) {
     retry: false,
   });
 
-  const submitConfirmedPartial = useCallback(
-    (program: string) => {
+  const submitEvaluationAction = useCallback(
+    ({
+      program,
+      mode,
+      curriculumId,
+    }: {
+      program: string;
+      mode: EvaluationMode;
+      curriculumId?: string | null;
+    }) => {
       if (!documentId || submitEvaluation.isPending) return;
 
+      const payload = buildEvaluationSubmitPayload({
+        documentId,
+        program,
+        mode,
+        curriculumId,
+      });
+
       submitEvaluation
-        .mutateAsync({
-          document_id: documentId,
-          partial_without_curriculum: true,
-          confirmed_program: program,
-        })
+        .mutateAsync(payload)
         .then((result) => {
           if (storageKey) {
             sessionStorage.setItem(storageKey, result.evaluation_id);
@@ -249,6 +265,6 @@ export function useEvaluationPageState(documentId?: string) {
     effectiveProgram,
     detectedProgram,
     setSelectedProgram,
-    submitConfirmedPartial,
+    submitEvaluationAction,
   };
 }
