@@ -27,6 +27,7 @@ So Coordinator now has three entry points instead of one:
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from typing import Any
@@ -39,6 +40,8 @@ from ..runtime.llm import RunLLMClient
 from ..sme.pipeline import EngineScoredAgent
 from . import curriculum, extraction
 from .summary import _build_alignment_summary
+
+logger = logging.getLogger(__name__)
 
 
 class Coordinator(EngineScoredAgent):
@@ -128,11 +131,25 @@ class Coordinator(EngineScoredAgent):
             scored = curriculum.compute(
                 objectives, list(basket["curriculum_alignment"]), curriculum_text
             )
-            justification = (
-                f"Curriculum-grounded (coordinator-only): {scored.aligned}/"
-                f"{scored.total_objectives} objective(s) addressed by this "
-                f"course's curriculum content. Score {scored.score}."
-            )
+            if scored.grounding_rejected_count > 0:
+                logger.info(
+                    "[COORDINATOR_GROUNDING] evaluation_id=%s | "
+                    "grounding_rejected_count=%d",
+                    evaluation_id,
+                    scored.grounding_rejected_count,
+                )
+                justification = (
+                    f"Curriculum-grounded (coordinator-only): {scored.aligned}/"
+                    f"{scored.total_objectives} objective(s) addressed by this "
+                    f"course's curriculum content ({scored.grounding_rejected_count} "
+                    f"unsupported claim(s) rejected). Score {scored.score}."
+                )
+            else:
+                justification = (
+                    f"Curriculum-grounded (coordinator-only): {scored.aligned}/"
+                    f"{scored.total_objectives} objective(s) addressed by this "
+                    f"course's curriculum content. Score {scored.score}."
+                )
             evidence = tuple(
                 str(a.get("evidence", ""))
                 for a in scored.curriculum_alignment
@@ -174,6 +191,7 @@ class Coordinator(EngineScoredAgent):
                 "fallback_occurred": adapter.fallback_occurred,
                 "extraction_calls": 1,
                 "summary_calls": 0,
+                "grounding_rejected_count": scored.grounding_rejected_count,
             },
         )
 
