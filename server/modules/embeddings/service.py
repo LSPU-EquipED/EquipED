@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from chromadb.errors import NotFoundError
 from server.core.chroma import get_chroma_client
 from server.core.embedding import get_embedding_model
 
@@ -54,9 +55,7 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
     """
 
     normalized = [
-        _to_embedding_chunk(chunk)
-        for chunk in chunks
-        if getattr(chunk, "text", None)
+        _to_embedding_chunk(chunk) for chunk in chunks if getattr(chunk, "text", None)
     ]
     if not normalized:
         return 0
@@ -81,17 +80,19 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
         ).tolist()
         ids = [chunk.chunk_id for chunk in grouped_chunks]
         metadatas = [
-            _omit_none({
-                "chunk_id": chunk.chunk_id,
-                "document_id": chunk.document_id,
-                "source_type": chunk.source_type,
-                "page_number": chunk.page_number,
-                "is_ocr": chunk.is_ocr,
-                "token_count": chunk.token_count,
-                "policy_area": chunk.policy_area,
-                "section_ref": chunk.section_ref,
-                "chunk_index": chunk.chunk_index,
-            })
+            _omit_none(
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "document_id": chunk.document_id,
+                    "source_type": chunk.source_type,
+                    "page_number": chunk.page_number,
+                    "is_ocr": chunk.is_ocr,
+                    "token_count": chunk.token_count,
+                    "policy_area": chunk.policy_area,
+                    "section_ref": chunk.section_ref,
+                    "chunk_index": chunk.chunk_index,
+                }
+            )
             for chunk in grouped_chunks
         ]
 
@@ -133,6 +134,38 @@ def delete_chroma_vectors(document_id: str, source_type: str) -> bool:
     return True
 
 
+def delete_chroma_vectors_strict(document_id: str, source_type: str) -> bool:
+    """Strictly delete all Chroma vectors for document_id and source_type.
+
+    - Resolves target collection name; raises ValueError if unsupported source_type.
+    - Connects to Chroma; raises if Chroma connection fails.
+    - Treats ONLY an explicitly missing collection as benign (returns False).
+    - Propagates all connection/get/query/delete errors.
+    - Deletes scoped vectors and verifies zero remain.
+    """
+    collection_name = resolve_collection_name(source_type)
+    chroma_client = get_chroma_client()
+
+    try:
+        collection = chroma_client.get_collection(collection_name)
+    except NotFoundError:
+        return False
+
+    collection.delete(where={"document_id": {"$eq": document_id}})
+
+    remaining = collection.get(
+        where={"document_id": {"$eq": document_id}},
+        limit=1,
+    )
+    if remaining.get("ids") and len(remaining["ids"]) > 0:
+        raise RuntimeError(
+            f"Chroma vectors remain for document {document_id} in {collection_name} "
+            "after deletion."
+        )
+
+    return True
+
+
 def check_chroma_availability(document_id: str, source_type: str) -> bool:
     """Return True if at least one vector exists for the given document in Chroma."""
     try:
@@ -161,5 +194,6 @@ __all__ = [
     "embed_and_store_chunks",
     "embed_document_chunks",
     "delete_chroma_vectors",
+    "delete_chroma_vectors_strict",
     "check_chroma_availability",
 ]
