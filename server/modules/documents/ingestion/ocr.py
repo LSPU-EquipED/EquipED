@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import subprocess
 import threading
@@ -21,6 +22,12 @@ from server.modules.documents.exceptions import (
 
 logger = logging.getLogger(__name__)
 
+# Conservative visual blank classification constants
+_BLANK_MIN_LUMINANCE: int = 245
+_BLANK_WHITE_PIXEL_RATIO: float = 0.999
+_BLANK_ABSOLUTE_MIN_LUMINANCE: int = 230
+_BLANK_MAX_LUMINANCE_SPREAD: int = 15
+
 # Global validation cache
 _ocr_validation_cache: dict[str, Any] | None = None
 # Concurrency Semaphore for OCR execution
@@ -32,6 +39,36 @@ _ocr_semaphore_lock = threading.Lock()
 class OcrPageOutcome:
     text: str
     is_blank: bool
+
+
+def _is_visually_blank_image(image: Image.Image) -> bool:
+    """Classify whether a PIL image is visually blank using histogram evidence.
+
+    Classifies as blank ONLY when all strict visual evidence agrees:
+    1. The absolute minimum luminance is >= _BLANK_ABSOLUTE_MIN_LUMINANCE.
+    2. The luminance spread (max - min) is <= _BLANK_MAX_LUMINANCE_SPREAD.
+    3. The fraction of near-white pixels (>= _BLANK_MIN_LUMINANCE) is >=
+       _BLANK_WHITE_PIXEL_RATIO.
+
+    Ambiguous pages are classified as nonblank (returns False).
+    """
+    total_pixels = image.width * image.height
+    if total_pixels == 0:
+        return True
+
+    gray = image.convert("L")
+    min_val, max_val = gray.getextrema()
+    if min_val < _BLANK_ABSOLUTE_MIN_LUMINANCE:
+        return False
+    if (max_val - min_val) > _BLANK_MAX_LUMINANCE_SPREAD:
+        return False
+
+    hist = gray.histogram()
+    white_pixels = sum(hist[_BLANK_MIN_LUMINANCE:])
+    if (white_pixels / total_pixels) < _BLANK_WHITE_PIXEL_RATIO:
+        return False
+
+    return True
 
 
 def get_ocr_semaphore(settings: Settings) -> threading.Semaphore:
@@ -125,26 +162,48 @@ def perform_ocr_on_page(page: fitz.Page, settings: Settings) -> OcrPageOutcome:
 
     Respects limits on resolution, pixels, concurrency, and time.
     """
-    # 1. Validate Tesseract availability
+    # 1. Validate page dimensions before probing or allocating OCR resources.
+    if (
+        not math.isfinite(page.rect.width)
+        or not math.isfinite(page.rect.height)
+        or page.rect.width <= 0
+        or page.rect.height <= 0
+    ):
+        raise OcrFailedError(
+            "Scanned PDF page could not be read. "
+            "Please check the document quality or upload a text-based PDF."
+        )
+
+    estimated_width = page.rect.width * settings.ocr_dpi / 72
+    estimated_height = page.rect.height * settings.ocr_dpi / 72
+    estimated_pixels = estimated_width * estimated_height
+    if not math.isfinite(estimated_pixels):
+        raise OcrLimitExceededError(
+            "Estimated page pixel count exceeds processing limits."
+        )
+
+    # 2. Validate Tesseract availability.
     ocr_status = validate_ocr_installation(settings)
     if not ocr_status["ready"]:
         raise OcrUnavailableError(f"OCR engine is unavailable: {ocr_status['detail']}")
 
-    # 2. Check estimated pixel bounds
-    estimated_width = page.rect.width * settings.ocr_dpi / 72
-    estimated_height = page.rect.height * settings.ocr_dpi / 72
-    estimated_pixels = estimated_width * estimated_height
+    # 3. Compute effective DPI within the pixel budget.
+    effective_dpi = settings.ocr_dpi
     if estimated_pixels > settings.ocr_max_pixels:
-        raise OcrLimitExceededError(
-            f"Estimated page pixel count ({int(estimated_pixels)}) exceeds the maximum "
-            f"limit of {settings.ocr_max_pixels} pixels."
+        scale = math.sqrt(settings.ocr_max_pixels / estimated_pixels)
+        effective_dpi = max(1, int(settings.ocr_dpi * scale * 0.99))
+        logger.info(
+            "Adapting OCR DPI for oversized page: "
+            "requested_dpi=%d, effective_dpi=%d, width=%.1f, height=%.1f",
+            settings.ocr_dpi,
+            effective_dpi,
+            page.rect.width,
+            page.rect.height,
         )
 
-    # 3. Rasterize page (alpha=False and RGB colorspace)
+    # 4. Rasterize page (alpha=False and RGB colorspace)
     try:
-        pixmap = page.get_pixmap(
-            dpi=settings.ocr_dpi, colorspace=fitz.csRGB, alpha=False
-        )
+        pixmap = page.get_pixmap(dpi=effective_dpi, colorspace=fitz.csRGB, alpha=False)
     except Exception as exc:
         logger.exception("Failed to rasterize page during OCR")
         err_msg = (
@@ -172,7 +231,11 @@ def perform_ocr_on_page(page: fitz.Page, settings: Settings) -> OcrPageOutcome:
         )
         raise OcrFailedError(err_msg) from exc
 
-    # 6. Acquire semaphore
+    # 6. Conservative visual blank classification (rasterize once, reuse PIL image)
+    if _is_visually_blank_image(image):
+        return OcrPageOutcome(text="", is_blank=True)
+
+    # 7. Acquire semaphore
     semaphore = get_ocr_semaphore(settings)
     acquired = semaphore.acquire(timeout=settings.ocr_semaphore_timeout_seconds)
     if not acquired:
@@ -181,7 +244,7 @@ def perform_ocr_on_page(page: fitz.Page, settings: Settings) -> OcrPageOutcome:
             f"while waiting to acquire OCR concurrency worker slot."
         )
 
-    # 7. Run pytesseract with OMP_THREAD_LIMIT=1 and timeout bounds
+    # 8. Run pytesseract with OMP_THREAD_LIMIT=1 and timeout bounds
     original_omp_thread_limit = os.environ.get("OMP_THREAD_LIMIT")
     os.environ["OMP_THREAD_LIMIT"] = "1"
 
@@ -220,6 +283,7 @@ def perform_ocr_on_page(page: fitz.Page, settings: Settings) -> OcrPageOutcome:
         semaphore.release()
 
     cleaned_text = text.strip()
-    is_blank = len(cleaned_text) == 0
+    if any(c.isalnum() for c in cleaned_text):
+        return OcrPageOutcome(text=cleaned_text, is_blank=False)
 
-    return OcrPageOutcome(text=cleaned_text, is_blank=is_blank)
+    return OcrPageOutcome(text="", is_blank=False)

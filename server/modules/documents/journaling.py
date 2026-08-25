@@ -21,6 +21,11 @@ from .models import Document
 
 logger = logging.getLogger(__name__)
 
+UNVERIFIED_VECTOR_CLEANUP_WARNING = (
+    "Document processing failed and local vector cleanup could not "
+    "be verified. Retry deletion when local storage is available."
+)
+
 
 def _create_upload_marker(document_id: uuid.UUID, file_path: Path) -> Path:
     """Durably claim a no-DB upload artifact before opening the PDF."""
@@ -114,6 +119,13 @@ def recover_cleanup_pending_documents(db_session_factory: Any) -> int:
 
         recovered_count = 0
         for doc in docs:
+            warnings = getattr(doc, "processing_warnings", None) or []
+            if (
+                doc.processing_status == "FAILED"
+                and UNVERIFIED_VECTOR_CLEANUP_WARNING in warnings
+            ):
+                continue
+
             if not doc.file_path:
                 doc.processing_status = "FAILED"
                 recovered_count += 1
@@ -169,6 +181,7 @@ def recover_no_database_upload_journal() -> int:
 
 
 __all__ = [
+    "UNVERIFIED_VECTOR_CLEANUP_WARNING",
     "recover_cleanup_pending_documents",
     "recover_no_database_upload_journal",
 ]

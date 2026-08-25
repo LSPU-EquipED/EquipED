@@ -60,19 +60,37 @@ def ingest_document(
     file_path: str,
     source_type: str,
     document_id: str,
+    program: str | None = None,
 ) -> list[DocumentChunkData]:
     """Extract text from a PDF and return Layer-1 chunks."""
 
     domain = resolve_agent_domain(source_type)
     doc_uuid = uuid.UUID(document_id)
 
-    if source_type == "curriculum":
-        raise ExtractionFailedError(
-            "Curriculum document ingestion is retired and is not supported."
-        )
-
     pages = _extract_pages(file_path)
     chunks: list[DocumentChunkData] = []
+
+    if source_type == "curriculum":
+        from ..curriculum.extraction import filter_curriculum_pages
+
+        filtered_pages = filter_curriculum_pages(pages, program or "")
+        for page in filtered_pages:
+            page_chunks = _chunk_page_text(page.text)
+            for text in page_chunks:
+                chunks.append(
+                    DocumentChunkData(
+                        chunk_id=uuid.uuid4(),
+                        document_id=doc_uuid,
+                        source_type="curriculum",
+                        agent_domain=domain,
+                        page_number=page.page_number,
+                        text=text,
+                        token_count=_token_count(text),
+                        is_ocr=page.is_ocr,
+                        chunk_index=len(chunks),
+                    )
+                )
+        return chunks
 
     if source_type == "syllabus":
         return _ingest_syllabus_course_contents(file_path, pages, domain, doc_uuid)
@@ -83,6 +101,8 @@ def ingest_document(
         return build_policy_chunks(pages, domain, doc_uuid)
 
     for page in pages:
+        if not page.text.strip():
+            continue
         page_chunks = _chunk_page_text(page.text)
         for text in page_chunks:
             chunks.append(
@@ -195,6 +215,17 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
 
                 # Run OCR using our new robust implementation
                 outcome = perform_ocr_on_page(page, settings)
+                if outcome.is_blank:
+                    logger.info(
+                        "Skipping visually blank page during OCR extraction",
+                        extra={"page_number": index, "file_path": str(pdf)},
+                    )
+                    continue
+
+                if not outcome.text.strip():
+                    raise ExtractionFailedError(
+                        f"OCR extraction produced no text for page {index}"
+                    )
 
                 raw_pages.append(outcome.text)
                 is_ocr_flags.append(True)
@@ -218,7 +249,6 @@ def _extract_pages(file_path: str) -> list[ExtractedPage]:
         for page_number, text, is_ocr in zip(
             page_numbers, cleaned_pages, is_ocr_flags, strict=False
         )
-        if text.strip()
     ]
 
     return pages
