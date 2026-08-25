@@ -11,10 +11,10 @@ def _clear_settings_cache(monkeypatch) -> None:
     """Clear the lru_cache so each test gets a fresh parse.
 
     NOTE: We pin ``AGENT_PROMPT_BUDGET_CHARS`` to a value strictly less
-    than the new ``AGENT_TOTAL_PROMPT_BUDGET_CHARS`` default (8000).
+    than the ``AGENT_TOTAL_PROMPT_BUDGET_CHARS`` default (32000).
     Otherwise the cross-field validation in ``get_settings()`` would fire
-    on every test that calls it (the dataclass default 5000 is no
-    longer compatible with the new 8000 total budget). Individual tests
+    on every test that calls it (the dataclass default 5000 is
+    compatible with the default 32000 total budget). Individual tests
     that want to exercise the chunk budget in isolation still override
     this via ``monkeypatch.setenv(..., "<value>")`` after the helper
     runs.
@@ -131,15 +131,13 @@ def test_config_rejects_zero_llm_max_new_tokens(monkeypatch) -> None:
 # ------------------------------------------------------------------
 
 
-def test_config_default_total_prompt_budget_is_8000(monkeypatch) -> None:
-    """AGENT_TOTAL_PROMPT_BUDGET_CHARS should default to 8000 to keep
-    assembled prompts safely below the Groq free-tier 6,000 TPM cap.
-    With dense rubric text (~1.6 chars/token), 8000 chars ≈ 5000 input
-    tokens, well under the 6000 TPM limit even with 4096 output tokens."""
+def test_config_default_total_prompt_budget_is_32000(monkeypatch) -> None:
+    """AGENT_TOTAL_PROMPT_BUDGET_CHARS should default to 32000 to keep
+    production-sized SLM and curriculum text within the prompt budget."""
     _clear_settings_cache(monkeypatch)
     try:
         settings = get_settings()
-        assert settings.agent_total_prompt_budget_chars == 16000
+        assert settings.agent_total_prompt_budget_chars == 32000
     finally:
         get_settings.cache_clear()
 
