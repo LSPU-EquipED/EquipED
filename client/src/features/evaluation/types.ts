@@ -6,6 +6,14 @@ export type EvaluationStatus =
   | 'COMPLETED'
   | 'FAILED';
 
+export interface EvaluationSubmitRequest {
+  document_id: string;
+  syllabus_id?: string | null;
+  curriculum_id?: string | null;
+  partial_without_curriculum: boolean;
+  confirmed_program: string;
+}
+
 export type CriterionReviewerCorrection = {
   action: 'EDIT' | 'REJECT';
   score: number | null;
