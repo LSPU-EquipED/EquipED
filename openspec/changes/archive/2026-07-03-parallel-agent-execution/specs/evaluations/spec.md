@@ -1,0 +1,54 @@
+## MODIFIED Requirements
+
+### Requirement: Evaluation jobs progress into Layer 3
+The system SHALL support evaluation job submission, pre-agent processing, and execution of the Layer 3 multi-agent evaluation boundary. Layer 3 agent execution SHALL run agents in parallel using a thread pool, with each agent assigned a distinct LLM model to avoid rate-limit contention.
+
+#### Scenario: Evaluation job is accepted and begins processing
+- **WHEN** an authenticated user submits a new evaluation request for a document they own
+- **THEN** the system SHALL create an evaluation job in `SUBMITTED` state and continue into the pre-agent processing stages
+
+#### Scenario: Layer 3 execution starts after pre-agent processing
+- **WHEN** an evaluation job completes the pre-agent stages
+- **THEN** the system SHALL enter Layer 3 multi-agent evaluation, run all agents in parallel via `ThreadPoolExecutor`, and record progress without claiming the job is complete
+
+#### Scenario: Precomputed context is shared across parallel agents
+- **WHEN** Layer 3 parallel execution begins
+- **THEN** the supervisor SHALL pre-compute rubric and reference context sequentially before dispatching agents in parallel
+- **AND** all agents SHALL receive the same read-only precomputed context
+
+#### Scenario: Parallel agent execution completes
+- **WHEN** all parallel agent futures complete (success or failure)
+- **THEN** the system SHALL collect all results and proceed to persistence
+- **AND** a single agent failure SHALL NOT prevent other agents from completing
+
+#### Scenario: Inter-agent pacing delays are removed
+- **WHEN** agents run in parallel with distinct models
+- **THEN** the system SHALL NOT apply inter-agent sleep delays between agent executions
+- **AND** pacing delays SHALL only be used as a fallback when all agents share the same model
+
+### Requirement: Evaluation outputs are persisted before stopping
+The system SHALL persist Layer 3 outputs for the evaluation job after all parallel agents complete, before the workflow stops at the unimplemented Layer 4 boundary.
+
+#### Scenario: Layer 3 outputs are stored after parallel completion
+- **WHEN** all parallel agent futures complete
+- **THEN** the system SHALL persist the outputs through the evaluation data persistence contract sequentially
+
+#### Scenario: Persisted outputs remain tied to the job
+- **WHEN** evaluation outputs are saved
+- **THEN** the system SHALL associate them with the owning evaluation job and document owner
+
+### Requirement: Evaluation lifecycle status sequence
+Evaluation jobs SHALL progress through the following status sequence: `SUBMITTED` → `PREPROCESSING` → `EVALUATING` → `SYNTHESIZING` → `COMPLETED`. Jobs that encounter errors SHALL transition to `FAILED` from any non-terminal status. The `EMBEDDING` status SHALL NOT be used. During the `EVALUATING` phase, the system SHALL emit a heartbeat before dispatching parallel agents and after all agents complete.
+
+#### Scenario: Job progresses through lifecycle with parallel execution
+- **WHEN** an evaluation job is submitted and accepted
+- **THEN** the system SHALL transition through `SUBMITTED` → `PREPROCESSING` → `EVALUATING` (parallel agents) → `SYNTHESIZING` → `COMPLETED` (or `FAILED` on error)
+
+#### Scenario: Heartbeat during parallel execution
+- **WHEN** the system enters the `EVALUATING` phase with parallel agents
+- **THEN** a heartbeat SHALL be emitted before dispatching agents to the thread pool
+- **AND** a heartbeat SHALL be emitted after all agent futures complete
+
+#### Scenario: Job fails during processing
+- **WHEN** an error occurs during any non-terminal stage
+- **THEN** the system SHALL transition the job to `FAILED` and record the error message
