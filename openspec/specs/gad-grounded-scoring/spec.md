@@ -31,11 +31,11 @@ The system SHALL validate all combined extraction sections before scoring any cr
 ### Requirement: Combined extraction failures are bounded and honest
 GAD prompt budgets SHALL be derived from serialized prompt contents. Repair SHALL be one whole-envelope attempt over frozen context with bounded validator category/path and no rejected-output echo; no criterion-level fallback is allowed.
 
+The system SHALL use at most one GAD-specific whole-envelope repair attempt for malformed, duplicate, missing, or field-invalid combined output. The repair SHALL use the same frozen context and SHALL request the complete fact-only envelope without numeric scores. If required criterion sections remain invalid after bounded repair, the system SHALL record one GAD failure with known runtime metadata when available and SHALL use normal partial-evaluation synthesis behavior without issuing criterion-level fallback calls.
+
 #### Scenario: Oversized envelope
 - **WHEN** the serialized prompt exceeds the configured budget
 - **THEN** packing and repair remain bounded and the agent does not issue extra criterion calls
-### Requirement: Combined extraction failures are bounded and honest
-The system SHALL use at most one GAD-specific whole-envelope repair attempt for malformed, duplicate, missing, or field-invalid combined output. The repair SHALL use the same frozen context and SHALL request the complete fact-only envelope without numeric scores. If required criterion sections remain invalid after bounded repair, the system SHALL record one GAD failure with known runtime metadata when available and SHALL use normal partial-evaluation synthesis behavior without issuing criterion-level fallback calls.
 
 #### Scenario: Repairable malformed response
 - **WHEN** the combined GAD response is malformed but the bounded repair response is valid for all criteria

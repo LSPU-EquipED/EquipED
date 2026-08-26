@@ -18,7 +18,7 @@ The system SHALL invoke the ITSO evaluator with an ITSO-specific temperature def
 - **THEN** the result provenance SHALL record both the requested model and the actual served model
 - **AND** the system SHALL NOT represent the fallback result as having been served by the requested model alone
 
-### Requirement: ITSO consistency is regression-tested
+### Requirement: ITSO output schema validation and bounded regeneration
 ITSO SHALL validate a versioned criterion schema with no coercion, duplicates, unknown envelope keys, or missing criterion ids. It SHALL permit at most one whole-task regeneration from identical frozen context using bounded validator categories/paths.
 
 Shape tolerance for small models: `criterion_scores` MAY be accepted as a dict keyed by criterion id in addition to the canonical array form; criterion titles SHALL be derived from the canonical map rather than trusted from the model; missing justification/evidence/chunk_ids SHALL default to empty. A criterion scored without justification, evidence, or chunk grounding SHALL be recorded as ungrounded advisory output and surfaced as a review flag — it SHALL NOT be indistinguishable from a grounded score.

@@ -9,9 +9,6 @@
 .cortexkit/
 skills-lock.json
 
-# OpenSpec working changes
-openspec/changes/
-
 # Environment files
 .env
 .env.*

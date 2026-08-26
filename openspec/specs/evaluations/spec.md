@@ -42,7 +42,7 @@ The system SHALL persist Layer 3 outputs for the evaluation job after all parall
 - **WHEN** evaluation outputs are saved
 - **THEN** the system SHALL associate them with the owning evaluation job and document owner
 
-### Requirement: Evaluation lifecycle status sequence
+### Requirement: Evaluation lifecycle recovery uses CAS and heartbeat-aware transitions
 Evaluation jobs SHALL use CAS/token transitions and heartbeat-aware recovery; each logical LLM request SHALL use the transport's absolute monotonic request deadline, and `EMBEDDING` SHALL NOT be used.
 
 #### Scenario: Stale worker recovery

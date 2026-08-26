@@ -18,7 +18,7 @@ The registered criteria SHALL be `OP-01` through `OP-05` and `A-01` through `A-0
 - **WHEN** the SME engine completes successfully
 - **THEN** it SHALL return the same structured agent-result contract used by the other evaluation agents
 
-### Requirement: Engine extraction uses bounded, representative document slices
+### Requirement: Engine extraction consumes canonical clean source text
 SME SHALL consume canonical clean source text prepared before dispatch and SHALL NOT reopen PDFs or duplicate full source persistence.
 
 #### Scenario: Canonical source dispatch

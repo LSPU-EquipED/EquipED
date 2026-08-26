@@ -1,20 +1,26 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  FastAPI modular monolith with infrastructure-only `server/core/` and a feature-isolated React client.
+  Layer 3 agents run in-process through FastAPI BackgroundTasks and a supervisor-managed ThreadPoolExecutor; Layer 4 synthesis is terminal.
+  PostgreSQL, ChromaDB, uploads, and model inference remain institution-controlled; SLMs are direct input and are never embedded.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - State the user outcome, scope, non-goals, affected capabilities, and material high-risk impacts.
+  specs:
+    - Use delta specs and observable WHEN/THEN requirements; restate ownership, residency, and human-review invariants because omission never waives them.
+  design:
+    - Record only material decisions, trade-offs, failure modes, and module-boundary impacts.
+  tasks:
+    - Order bounded tasks by dependency and include explicit verification before completion.
+
+operations:
+  apply:
+    guidance:
+      - Implement only approved tasks; stop on contract conflicts and run narrow verification before completion.
+  archive:
+    guidance:
+      - Archives are historical evidence only; never edit or re-apply an archived delta without a new proposal.
+      - Compare deltas against canonical specs and preserve newer canonical wording.
+      - Never use no-validate, unattended, or bulk archive in this repository.

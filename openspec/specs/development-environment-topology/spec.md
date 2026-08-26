@@ -1,4 +1,9 @@
-## ADDED Requirements
+# development-environment-topology Specification
+
+## Purpose
+Define EquipED's official local development topology, runtime contract, and migration-safe persistence boundaries so team setup, review, and future institution-hosted deployment remain deterministic and authoritative.
+
+## Requirements
 
 ### Requirement: Official development topology
 The project SHALL define one official development topology for the current phase: frontend local per developer, backend local per developer, shared Neon PostgreSQL for relational persistence, local Chroma per developer for vector storage, and local per-developer uploads.
