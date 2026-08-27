@@ -1,26 +1,34 @@
 ## Scope
 
-- This directory covers frontend implementation under `client/`.
-- Preserve the feature-driven structure defined in `openspec/specs/`.
+- Applies to all frontend code and assets under `client/`.
+- Inherits repository root rules and implementation contracts in `openspec/specs/`.
 
-## Frontend Guardrails
+## Frontend Boundaries
 
-- `src/features/*` owns feature-local components, hooks, API files, types, and utils (under `features/<feature>/utils`).
-- Integration and component tests live under `components/__tests__/`; utility tests under `utils/**/__tests__/`.
-- Features must not import from each other directly.
-- `src/shared/` is strictly for code proven to be reused by at least two features.
-- `src/app/` is for app shell concerns only: routing tree, providers, and layout.
-- Do not turn `shared/` into a dumping ground for unfinished or single-feature code.
-- Route access must follow the hydrated backend session and role from `admin` or `faculty`.
-- Document views and actions must respect per-user ownership.
-- Faculty upload SLMs only (direct evaluation input). Admin manages reference documents, curricula, rubrics, and policy documents.
-- Curriculum confirmation and explicit partial-decision UX must be presented to the user before evaluation starts.
-- Evaluation status rendering must truthfully reflect terminal (COMPLETED), partial (COMPLETED_PARTIAL), and failed (FAILED) states.
-- Admin-only surfaces: Policy Library (upload/view policy documents) and Model Validation (local-only toxicity check, model configuration).
-- Client-side PDF export must preserve result truthfulness and must not expose raw chunk IDs.
+- Features (`src/features/*`) are self-contained: each feature owns its components, hooks, API calls, types, utilities, and tests.
+- Never import across features (`features/A` must not import from `features/B`).
+- `src/shared/` is strictly for shared primitives and utilities with proven reuse across two or more features; do not use `shared/` for single-feature code.
+- `src/app/` is the composition root for router configuration, global providers, session management, and layout shell. `app` may import entry points from features.
+- Features may import from `app` only for type-only routing contracts.
 
-## Before Making Frontend Changes
+## Product And Access Enforcement
 
-- Read `../openspec/specs/` first for supporting structure notes.
-- Prefer promoting code to `shared/` only after real duplication exists.
-- Keep role-gated routes, document ownership, and admin/faculty surfaces aligned with the implementation contracts.
+- UI navigation and route visibility derive from the hydrated session, but backend authorization remains authoritative.
+- Document and evaluation management must enforce user ownership boundaries.
+- Evaluation setup must present full versus explicit partial evaluation intent clearly before submission.
+- Evaluation status rendering must preserve truthfulness across completed, intentional-partial, and failed states; never present a failed evaluation run as partial success.
+- Client-side exports must preserve provenance and completeness without leaking internal database IDs or sensitive source details.
+
+## Design
+
+- Follow guidance in `../PRODUCT.md` and `../DESIGN.md`.
+- Use institutional design tokens, typography rules, and flat elevation principles defined in the design system.
+- Maintain WCAG 2.1 AA compliance for color contrast, keyboard navigation, visible focus indicators, and reduced motion preferences.
+- Do not import external UI template kits or introduce redundant local UI primitives without demonstrated reuse.
+
+## Tests And Verification
+
+- Frontend commands run from `client/`; from repository root use `pnpm --dir client <command>`.
+- Colocate tests near behavior using adjacent `*.test.ts(x)` files or local `__tests__/` directories.
+- Run targeted `pnpm test` paths during development iteration.
+- Run `pnpm lint` and `pnpm build` before completing work when TypeScript contracts, routing, providers, or production UI components change.
