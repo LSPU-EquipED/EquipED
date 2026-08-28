@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '@/shared/api/http';
 import { rubricEditorApi } from '../api/rubricEditor.api';
-import type { CriterionTextUpdate, DomainTitleUpdate } from '../types';
+import type { CriterionUpdate, DomainTitleUpdate } from '../types';
 
 const QUERY_KEY = ['adminRubrics'];
 
@@ -16,7 +16,7 @@ export function useUpdateCriterion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ criterionId, body }: { criterionId: string; body: CriterionTextUpdate }) =>
+    mutationFn: ({ criterionId, body }: { criterionId: string; body: CriterionUpdate }) =>
       rubricEditorApi.updateCriterion(criterionId, body),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: QUERY_KEY });

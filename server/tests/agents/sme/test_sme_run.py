@@ -45,6 +45,10 @@ def _make_agent(monkeypatch, client) -> SME:
         "server.modules.agents.sme.pipeline.get_active_rubric_descriptions",
         lambda agent_id, db=None: {},
     )
+    monkeypatch.setattr(
+        "server.modules.agents.sme.pipeline.get_active_rubric_scoring_rules",
+        lambda agent_id, db=None: {},
+    )
     return agent
 
 

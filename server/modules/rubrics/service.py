@@ -166,6 +166,54 @@ def get_active_rubric_descriptions(
             session.close()
 
 
+def get_active_rubric_scoring_rules(
+    agent_id: str, db: Any | None = None
+) -> dict[str, str]:
+    """Return ``{criterion_code: scoring_rule}`` for the active rubric set.
+
+    Mirrors ``get_active_rubric_descriptions`` but returns the per-criterion
+    scoring rule (the "count X, band 1-4" text). Criteria whose
+    ``scoring_rule`` is NULL or blank are omitted. Returns ``{}`` if no
+    active rubric set exists.
+    """
+
+    session = db or get_session_factory()()
+    close_session = db is None
+    try:
+        rubric_set = (
+            session.query(RubricSet)
+            .filter_by(agent_id=agent_id, status="active")
+            .order_by(RubricSet.version_number.desc())
+            .first()
+        )
+        if rubric_set is None:
+            return {}
+
+        criteria = (
+            session.query(RubricCriterion)
+            .join(
+                RubricDomain,
+                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
+            )
+            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
+            .order_by(
+                RubricDomain.display_order.asc(),
+                RubricDomain.code.asc(),
+                RubricCriterion.display_order.asc(),
+                RubricCriterion.criterion_code.asc(),
+            )
+            .all()
+        )
+        return {
+            c.criterion_code: c.scoring_rule
+            for c in criteria
+            if c.scoring_rule and c.scoring_rule.strip()
+        }
+    finally:
+        if close_session:
+            session.close()
+
+
 def get_rubric_sets_for_editor(db: Any | None = None) -> list[dict[str, Any]]:
     """Return every active rubric set, fully nested, for the admin editor.
 
@@ -240,6 +288,7 @@ def get_rubric_sets_for_editor(db: Any | None = None) -> list[dict[str, Any]]:
                                 "criterion_code": c.criterion_code,
                                 "title": c.title,
                                 "description": c.description,
+                                "scoring_rule": c.scoring_rule,
                                 "display_order": c.display_order,
                             }
                             for c in criteria_by_domain.get(
@@ -257,17 +306,18 @@ def get_rubric_sets_for_editor(db: Any | None = None) -> list[dict[str, Any]]:
             session.close()
 
 
-def update_criterion_text(
+def update_criterion(
     db: Any,
     criterion_id: uuid.UUID,
     *,
-    title: str,
     description: str,
+    scoring_rule: str | None,
 ) -> RubricCriterion:
-    """Update a criterion's title and description in place.
+    """Update a criterion's description and scoring rule in place.
 
-    The ``criterion_code`` is never changed. Raises ``LookupError`` when the
-    id does not exist so the router can map it to a 404.
+    ``criterion_code`` and ``title`` are never changed here. A blank or
+    ``None`` ``scoring_rule`` is stored as SQL NULL. Raises ``LookupError``
+    when the id does not exist so the router can map it to a 404.
     """
 
     criterion = (
@@ -277,8 +327,10 @@ def update_criterion_text(
     )
     if criterion is None:
         raise LookupError(f"rubric criterion {criterion_id} not found")
-    criterion.title = title
     criterion.description = description
+    criterion.scoring_rule = (
+        scoring_rule.strip() if scoring_rule and scoring_rule.strip() else None
+    )
     db.flush()
     return criterion
 
@@ -300,8 +352,9 @@ __all__ = [
     "get_active_rubric_context",
     "get_active_rubric_criteria",
     "get_active_rubric_descriptions",
+    "get_active_rubric_scoring_rules",
     "get_rubric_sets_for_editor",
     "resolve_rubric_agent_id",
-    "update_criterion_text",
+    "update_criterion",
     "update_domain_title",
 ]

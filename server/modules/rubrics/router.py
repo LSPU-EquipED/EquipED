@@ -24,7 +24,7 @@ from .schemas import (
 )
 from .service import (
     get_rubric_sets_for_editor,
-    update_criterion_text,
+    update_criterion,
     update_domain_title,
 )
 
@@ -47,11 +47,11 @@ def patch_criterion(
     db=Depends(get_db_session),
 ) -> RubricCriterionOut:
     try:
-        criterion = update_criterion_text(
+        criterion = update_criterion(
             db,
             criterion_id,
-            title=body.title,
             description=body.description,
+            scoring_rule=body.scoring_rule,
         )
     except LookupError as exc:
         raise HTTPException(
@@ -64,6 +64,7 @@ def patch_criterion(
         criterion_code=criterion.criterion_code,
         title=criterion.title,
         description=criterion.description,
+        scoring_rule=criterion.scoring_rule,
         display_order=criterion.display_order,
     )
 

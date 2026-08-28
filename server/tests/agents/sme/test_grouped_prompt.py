@@ -17,7 +17,7 @@ DESCRIPTIONS = {
 
 def test_build_group_prompt_is_valid_json_with_expected_keys():
     prompt = build_group_prompt(
-        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, "some SLM text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, "some SLM text"
     )
     payload = json.loads(prompt)
     assert payload["agent"] == "sme"
@@ -28,7 +28,7 @@ def test_build_group_prompt_is_valid_json_with_expected_keys():
 
 def test_build_group_prompt_includes_scoring_rule_per_code():
     prompt = build_group_prompt(
-        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, "text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, "text"
     )
     payload = json.loads(prompt)
     assert "5+" in payload["criteria"]["A-02"]["scoring_rule"]
@@ -37,12 +37,26 @@ def test_build_group_prompt_includes_scoring_rule_per_code():
     )
 
 
+def test_build_group_prompt_uses_provided_scoring_rule_over_fallback():
+    prompt = build_group_prompt(
+        "assessment_alignment",
+        CODES,
+        TITLES,
+        DESCRIPTIONS,
+        {"A-02": "DB-provided scoring rule"},
+        "text",
+    )
+    payload = json.loads(prompt)
+    assert payload["criteria"]["A-02"]["scoring_rule"] == "DB-provided scoring rule"
+
+
 def test_build_group_prompt_uses_provided_description_over_fallback():
     prompt = build_group_prompt(
         "assessment_alignment",
         CODES,
         TITLES,
         {**DESCRIPTIONS, "A-02": "DB-provided description text"},
+        {},
         "text",
     )
     payload = json.loads(prompt)
@@ -50,20 +64,21 @@ def test_build_group_prompt_uses_provided_description_over_fallback():
 
 
 def test_build_group_prompt_falls_back_when_description_missing():
-    prompt = build_group_prompt("assessment_alignment", CODES, TITLES, {}, "text")
+    prompt = build_group_prompt("assessment_alignment", CODES, TITLES, {}, {}, "text")
     payload = json.loads(prompt)
     assert payload["criteria"]["A-02"]["description"] == FALLBACK_DESCRIPTIONS["A-02"]
 
 
 def test_build_group_prompt_prepends_preamble():
     without = build_group_prompt(
-        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, "text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, "text"
     )
     with_preamble = build_group_prompt(
         "assessment_alignment",
         CODES,
         TITLES,
         DESCRIPTIONS,
+        {},
         "text",
         prompt_preamble="SYSTEM RULES",
     )
@@ -78,6 +93,7 @@ def test_build_group_prompt_slices_long_text():
         ("A-01",),
         {"A-01": "Learner Transformation"},
         {"A-01": "Students are engaged in transforming what they learn."},
+        {},
         long_text,
     )
     payload = json.loads(prompt)
@@ -90,6 +106,7 @@ def test_op01_scoring_rule_includes_both_branches():
         ("OP-01",),
         {"OP-01": "Topic Coherence"},
         {"OP-01": "Topics are coherent from Unit to Chapter."},
+        {},
         "text",
     )
     payload = json.loads(prompt)

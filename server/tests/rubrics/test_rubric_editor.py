@@ -16,7 +16,7 @@ from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricS
 from server.modules.rubrics.service import (
     get_active_rubric_context,
     get_rubric_sets_for_editor,
-    update_criterion_text,
+    update_criterion,
     update_domain_title,
 )
 from server.tests.rubrics.conftest import _auth
@@ -67,17 +67,18 @@ def test_get_rubric_sets_for_editor_returns_nested_active_sets(db_session) -> No
     assert first["title"] == "Topic Coherence"
     assert first["description"] == "Topics are coherent from Unit to Chapter."
     assert "rubric_criterion_id" in first
+    assert "scoring_rule" in first  # present (may be None for some agents)
 
 
-def test_update_criterion_text_persists_new_title_and_description(db_session) -> None:
+def test_update_criterion_persists_description_and_scoring_rule(db_session) -> None:
     _seed_from_json(db_session)
     criterion = _criterion(db_session, "sme", "OP-01")
 
-    update_criterion_text(
+    update_criterion(
         db_session,
         criterion.rubric_criterion_id,
-        title="Topic Flow",
         description="Topics flow coherently across chapters.",
+        scoring_rule="EDITED: 0 issues -> 4, else lower.",
     )
     db_session.commit()
 
@@ -86,19 +87,40 @@ def test_update_criterion_text_persists_new_title_and_description(db_session) ->
         .filter_by(rubric_criterion_id=criterion.rubric_criterion_id)
         .one()
     )
-    assert refreshed.title == "Topic Flow"
     assert refreshed.description == "Topics flow coherently across chapters."
-    # criterion_code is never touched by a text edit.
+    assert refreshed.scoring_rule == "EDITED: 0 issues -> 4, else lower."
     assert refreshed.criterion_code == "OP-01"
+    # title is unchanged (not editable anymore)
+    assert refreshed.title == "Topic Coherence"
 
 
-def test_update_criterion_text_missing_id_raises_lookup_error(db_session) -> None:
+def test_update_criterion_blank_scoring_rule_clears_to_null(db_session) -> None:
+    _seed_from_json(db_session)
+    criterion = _criterion(db_session, "sme", "OP-01")
+
+    update_criterion(
+        db_session,
+        criterion.rubric_criterion_id,
+        description="still here",
+        scoring_rule="   ",
+    )
+    db_session.commit()
+
+    refreshed = (
+        db_session.query(RubricCriterion)
+        .filter_by(rubric_criterion_id=criterion.rubric_criterion_id)
+        .one()
+    )
+    assert refreshed.scoring_rule is None
+
+
+def test_update_criterion_missing_id_raises_lookup_error(db_session) -> None:
     import uuid
 
     _seed_from_json(db_session)
     with pytest.raises(LookupError):
-        update_criterion_text(
-            db_session, uuid.uuid4(), title="x", description="y"
+        update_criterion(
+            db_session, uuid.uuid4(), description="y", scoring_rule=None
         )
 
 
@@ -149,7 +171,10 @@ def test_rubrics_patch_criterion_access_control(
 ) -> None:
     _seed_from_json(db_session)
     criterion_id = str(_criterion(db_session, "sme", "OP-02").rubric_criterion_id)
-    payload = {"title": "Interaction", "description": "Lessons are interactive."}
+    payload = {
+        "description": "Lessons are interactive.",
+        "scoring_rule": "count interactive elements",
+    }
 
     response = client.patch(
         f"/api/v1/admin/rubrics/criteria/{criterion_id}", json=payload
@@ -167,7 +192,7 @@ def test_rubrics_patch_criterion_access_control(
         f"/api/v1/admin/rubrics/criteria/{criterion_id}", json=payload
     )
     assert response.status_code == 200
-    assert response.json()["title"] == "Interaction"
+    assert response.json()["description"] == "Lessons are interactive."
 
 
 # --- router: behaviour -------------------------------------------------------
@@ -183,17 +208,31 @@ def test_patch_criterion_reflects_in_active_rubric_context(
     response = client.patch(
         f"/api/v1/admin/rubrics/criteria/{criterion_id}",
         json={
-            "title": "Topic Flow",
             "description": "Topics flow coherently across chapters.",
+            "scoring_rule": None,
         },
     )
     assert response.status_code == 200
 
     context = get_active_rubric_context("sme", db=db_session)
     assert (
-        "OP-01 | Title: Topic Flow | Description: "
+        "OP-01 | Title: Topic Coherence | Description: "
         "Topics flow coherently across chapters." in context
     )
+
+
+def test_patch_criterion_sets_scoring_rule(
+    client: TestClient, auth_cookies_admin, db_session
+) -> None:
+    _seed_from_json(db_session)
+    criterion = _criterion(db_session, "sme", "A-02")
+    _auth(client, auth_cookies_admin)
+    response = client.patch(
+        f"/api/v1/admin/rubrics/criteria/{criterion.rubric_criterion_id}",
+        json={"description": "keep", "scoring_rule": "NEW RULE: 6+ types -> 4"},
+    )
+    assert response.status_code == 200
+    assert response.json()["scoring_rule"] == "NEW RULE: 6+ types -> 4"
 
 
 def test_patch_criterion_unknown_id_returns_404(
@@ -205,12 +244,12 @@ def test_patch_criterion_unknown_id_returns_404(
     _auth(client, auth_cookies_admin)
     response = client.patch(
         f"/api/v1/admin/rubrics/criteria/{uuid.uuid4()}",
-        json={"title": "x", "description": "y"},
+        json={"description": "y", "scoring_rule": None},
     )
     assert response.status_code == 404
 
 
-def test_patch_criterion_blank_title_rejected(
+def test_patch_criterion_blank_description_rejected(
     client: TestClient, auth_cookies_admin, db_session
 ) -> None:
     _seed_from_json(db_session)
@@ -218,7 +257,7 @@ def test_patch_criterion_blank_title_rejected(
     _auth(client, auth_cookies_admin)
     response = client.patch(
         f"/api/v1/admin/rubrics/criteria/{criterion_id}",
-        json={"title": "   ", "description": "still here"},
+        json={"description": "   ", "scoring_rule": None},
     )
     assert response.status_code == 422
 

@@ -21,6 +21,7 @@ class RubricCriterionOut(BaseModel):
     criterion_code: str
     title: str
     description: str
+    scoring_rule: str | None
     display_order: int
 
 
@@ -46,13 +47,8 @@ class RubricSetListResponse(BaseModel):
 
 
 class RubricCriterionUpdate(BaseModel):
-    title: str
     description: str
-
-    @field_validator("title")
-    @classmethod
-    def _check_title(cls, value: str) -> str:
-        return _clean_title(value, max_length=300)
+    scoring_rule: str | None
 
     @field_validator("description")
     @classmethod
@@ -61,6 +57,13 @@ class RubricCriterionUpdate(BaseModel):
         if not stripped:
             raise ValueError("must not be blank")
         return stripped
+
+    @field_validator("scoring_rule")
+    @classmethod
+    def _clean_scoring_rule(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class RubricDomainUpdate(BaseModel):

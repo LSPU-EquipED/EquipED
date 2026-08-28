@@ -12,7 +12,7 @@ describe('rubricEditorApi', () => {
     spy.mockRestore();
   });
 
-  it('PATCHes a criterion with a JSON title/description body', async () => {
+  it('PATCHes a criterion with a description + scoring_rule body', async () => {
     let capturedUrl: string | undefined;
     let capturedInit: RequestInit | undefined;
     const spy = vi
@@ -24,15 +24,15 @@ describe('rubricEditorApi', () => {
       });
 
     await rubricEditorApi.updateCriterion('crit-1', {
-      title: 'New Title',
       description: 'New description.',
+      scoring_rule: 'New rule: count differently.',
     });
 
     expect(capturedUrl).toBe('/admin/rubrics/criteria/crit-1');
     expect(capturedInit?.method).toBe('PATCH');
     expect(JSON.parse(capturedInit?.body as string)).toEqual({
-      title: 'New Title',
       description: 'New description.',
+      scoring_rule: 'New rule: count differently.',
     });
     spy.mockRestore();
   });

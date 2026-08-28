@@ -1,6 +1,6 @@
 import { requestJson } from '@/shared/api/http';
 import type {
-  CriterionTextUpdate,
+  CriterionUpdate,
   DomainTitleUpdate,
   RubricCriterion,
   RubricDomain,
@@ -10,7 +10,7 @@ import type {
 export const rubricEditorApi = {
   getRubricSets: () => requestJson<RubricSetListResponse>('/admin/rubrics'),
 
-  updateCriterion: (criterionId: string, body: CriterionTextUpdate) =>
+  updateCriterion: (criterionId: string, body: CriterionUpdate) =>
     requestJson<RubricCriterion>(`/admin/rubrics/criteria/${criterionId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),

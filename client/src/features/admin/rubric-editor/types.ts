@@ -3,6 +3,7 @@ export type RubricCriterion = {
   criterion_code: string;
   title: string;
   description: string;
+  scoring_rule: string | null;
   display_order: number;
 };
 
@@ -27,9 +28,9 @@ export type RubricSetListResponse = {
   rubric_sets: RubricSet[];
 };
 
-export type CriterionTextUpdate = {
-  title: string;
+export type CriterionUpdate = {
   description: string;
+  scoring_rule: string | null;
 };
 
 export type DomainTitleUpdate = {
