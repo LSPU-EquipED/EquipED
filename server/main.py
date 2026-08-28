@@ -42,6 +42,7 @@ MODULE_ROUTER_PATHS = (
     "server.modules.feedback.router",
     "server.modules.admin.router",
     "server.modules.curriculum.router",
+    "server.modules.rubrics.router",
 )
 
 
