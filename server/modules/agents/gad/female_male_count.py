@@ -6,6 +6,8 @@ CRITERION_ID = "GAD-02"
 CRITERION_TITLE = "The material shows females and males an equal number of times"
 CRITERION_KIND = "representation_balance"
 
+# NOTE: not in the live prompt. Seeded FALLBACK_GAD_INSTRUCTIONS;
+# edit that (or the DB scoring_rule) instead.
 GAD_ROW_2_PROMPT = (
     "Analyze the learning material and count the number of meaningful female "
     "and male representations.\n\n"

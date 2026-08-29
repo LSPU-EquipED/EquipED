@@ -19,13 +19,11 @@ def _instructions(prompt: str) -> str:
     return "\n".join(json.loads(prompt)["instructions"])
 
 
-def test_all_five_codes_have_fallback_text() -> None:
+def test_fallback_covers_every_registered_criterion() -> None:
+    from server.modules.agents.gad import registry
+
     assert set(FALLBACK_GAD_INSTRUCTIONS) == {
-        "GAD-01",
-        "GAD-02",
-        "GAD-03",
-        "GAD-04",
-        "GAD-05",
+        d.criterion_id for d in registry.CRITERIA
     }
     assert all(v.strip() for v in FALLBACK_GAD_INSTRUCTIONS.values())
 

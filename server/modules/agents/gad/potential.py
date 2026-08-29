@@ -8,6 +8,8 @@ CRITERION_TITLE = (
 )
 CRITERION_KIND = "respect_potential_instances"
 
+# NOTE: not in the live prompt. Seeded FALLBACK_GAD_INSTRUCTIONS;
+# edit that (or the DB scoring_rule) instead.
 GAD_ROW_3_PROMPT = (
     "Analyze the learning material and identify instances that portray one "
     "gender as less capable, less respected, less deserving, or having fewer "
