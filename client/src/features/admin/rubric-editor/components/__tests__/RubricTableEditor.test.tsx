@@ -56,6 +56,31 @@ const mockData: RubricSetListResponse = {
         },
       ],
     },
+    {
+      rubric_set_id: 'set-itso',
+      agent_id: 'itso',
+      name: 'ITSO Rubric v1',
+      version_number: 1,
+      status: 'active',
+      domains: [
+        {
+          rubric_domain_id: 'dom-itso',
+          code: 'IP',
+          title: 'IP Compliance',
+          display_order: 1,
+          criteria: [
+            {
+              rubric_criterion_id: 'crit-itso1',
+              criterion_code: 'IP-01',
+              title: 'Attribution',
+              description: 'Sources are attributed.',
+              scoring_rule: null,
+              display_order: 1,
+            },
+          ],
+        },
+      ],
+    },
   ],
 };
 
@@ -108,9 +133,11 @@ describe('RubricTableEditor', () => {
     );
   });
 
-  it('shows a "not used yet" note for non-SME agents', () => {
+  it('shows the "not used yet" note for ITSO but not for GAD', () => {
     render(<RubricTableEditor />);
-    expect(screen.getByText(/not used by this agent's scoring yet/i)).toBeDefined();
+    const notes = screen.getAllByText(/not used by this agent's scoring yet/i);
+    // exactly one note — the ITSO row; GAD no longer shows it
+    expect(notes).toHaveLength(1);
   });
 
   it('keeps criterion code read-only and structural buttons disabled', () => {
