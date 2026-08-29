@@ -9,7 +9,7 @@ import {
 import { AGENT_LABELS, type RubricCriterion } from '../types';
 
 const STRUCTURAL_DISABLED_HINT = 'Structural editing (add / remove / rename) is coming soon';
-const WIRED_AGENT = 'sme';
+const WIRED_AGENTS = new Set(['sme', 'gad']);
 
 type Draft = { description: string; scoring_rule: string };
 
@@ -109,7 +109,7 @@ export function RubricTableEditor() {
 
       <div className="grid gap-4">
         {rubricSets.map((rubricSet) => {
-          const isWired = rubricSet.agent_id === WIRED_AGENT;
+          const isWired = WIRED_AGENTS.has(rubricSet.agent_id);
 
           return (
             <section
