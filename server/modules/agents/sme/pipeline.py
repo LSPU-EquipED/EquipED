@@ -19,6 +19,7 @@ from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.service import (
     get_active_rubric_criteria,
     get_active_rubric_descriptions,
+    get_active_rubric_scoring_rules,
     resolve_rubric_agent_id,
 )
 
@@ -29,6 +30,7 @@ from . import groups
 from .fallback import registry
 from .group_execution import execute_group
 from .group_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
+from .group_prompt import FALLBACK_SCORING_RULES as _FALLBACK_SCORING_RULES
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,16 @@ class EngineScoredAgent:
     def _rubric_descriptions(self, db: Any | None) -> dict[str, str]:
         """This agent's own rubric criterion descriptions, keyed by code."""
         return get_active_rubric_descriptions(
+            resolve_rubric_agent_id(self.rubric_source_type), db=db
+        )
+
+    def _rubric_scoring_rules(self, db: Any | None) -> dict[str, str]:
+        """This agent's own rubric criterion scoring rules, keyed by code.
+
+        Empty for codes whose ``scoring_rule`` is unset in the DB; callers
+        fall back to ``group_prompt.FALLBACK_SCORING_RULES``.
+        """
+        return get_active_rubric_scoring_rules(
             resolve_rubric_agent_id(self.rubric_source_type), db=db
         )
 
@@ -111,6 +123,7 @@ class EngineScoredAgent:
         )
         titles = self._rubric_titles(db)
         descriptions = self._rubric_descriptions(db)
+        scoring_rules = self._rubric_scoring_rules(db)
 
         all_scores: dict[str, CriterionScore] = {}
         group_prompts: dict[str, str] = {}
@@ -124,12 +137,17 @@ class EngineScoredAgent:
                 code: descriptions.get(code, _FALLBACK_DESCRIPTIONS[code])
                 for code in codes
             }
+            group_scoring_rules = {
+                code: scoring_rules.get(code) or _FALLBACK_SCORING_RULES[code]
+                for code in codes
+            }
             try:
                 scores, prompt_text, response_snapshot = execute_group(
                     group_name,
                     codes,
                     group_titles,
                     group_descriptions,
+                    group_scoring_rules,
                     client,
                     full_text,
                     prompt_preamble=prompt_preamble,

@@ -28,9 +28,12 @@ class _BarrierSME(SME):
     def _rubric_descriptions(self, db):
         return {code: code for code in REGISTERED_CODES}
 
+    def _rubric_scoring_rules(self, db):
+        return {}
+
 
 def _barrier_execute_group(
-    group, codes, titles, descriptions, client, full_text, **kwargs
+    group, codes, titles, descriptions, scoring_rules, client, full_text, **kwargs
 ):
     """Stand-in for ``grouped_execution.execute_group`` that blocks both
     threads inside the scoring lane before either can return."""
@@ -110,7 +113,7 @@ def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
     captured: list[str] = []
 
     def capture_execute_group(
-        group, codes, titles, descriptions, client, full_text, **kwargs
+        group, codes, titles, descriptions, scoring_rules, client, full_text, **kwargs
     ):
         captured.append(full_text)
         scores = tuple(
@@ -150,6 +153,11 @@ def test_sme_uses_canonical_text_without_pdf_reopening(monkeypatch) -> None:
         pipeline.EngineScoredAgent,
         "_rubric_descriptions",
         lambda self, db: {code: code for code in REGISTERED_CODES},
+    )
+    monkeypatch.setattr(
+        pipeline.EngineScoredAgent,
+        "_rubric_scoring_rules",
+        lambda self, db: {},
     )
     agent = SME(llm_client=_Client("model"))
     result = agent.run(

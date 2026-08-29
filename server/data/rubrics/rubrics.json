@@ -16,30 +16,35 @@
               "criterion_code": "OP-01",
               "title": "Topic Coherence",
               "description": "Topics are coherent from Unit to Chapter.",
+              "scoring_rule": "If there are fewer than 4 topic-to-topic transitions total, score by issue count instead (a short module with 0 issues is coherent, not deficient): 0 issues -> 4, 1 -> 3, 2 -> 2, 3+ issues -> 1. Otherwise (4+ transitions), score the percentage of transitions that are coherent (each topic logically follows the last) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No topics at all -> 1.",
               "display_order": 1
             },
             {
               "criterion_code": "OP-02",
               "title": "Interactivity",
               "description": "Material is interactive in each lesson which makes life-long learning easier.",
+              "scoring_rule": "Count genuine interactive elements with real task content (not just a label like 'Activity 1' with no actual task). Score: 4+ elements -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 2
             },
             {
               "criterion_code": "OP-03",
               "title": "Clear Directions",
               "description": "Directions are clear and complete enough for students to perform required tasks.",
+              "scoring_rule": "Score the percentage of tasks with clear, complete directions on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1.",
               "display_order": 3
             },
             {
               "criterion_code": "OP-04",
               "title": "Accurate Sections",
               "description": "Paragraphs and sections have clear and accurate information.",
+              "scoring_rule": "Score the percentage of sections that are clear and internally consistent (no contradictions or garbled content) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1.",
               "display_order": 4
             },
             {
               "criterion_code": "OP-05",
               "title": "Enhancement Activities",
               "description": "Enhancement activities for students are provided.",
+              "scoring_rule": "Count genuine enhancement activities beyond the core lesson content. Score: 3+ activities -> 4, 2 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 5
             }
           ]
@@ -53,30 +58,35 @@
               "criterion_code": "A-01",
               "title": "Learner Transformation",
               "description": "Students are engaged in transforming what they learn.",
+              "scoring_rule": "Score the percentage of tasks that engage higher-order thinking (apply/analyze/evaluate/create, not just remember/understand) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No tasks found -> 1.",
               "display_order": 1
             },
             {
               "criterion_code": "A-02",
               "title": "Varied Assessment Tools",
               "description": "Teachers can easily assess students' progress by using varied assessment tools.",
+              "scoring_rule": "Count distinct assessment TYPES used (objective test, written, reflection, performance task, project, oral, self-assessment). Score: 5+ types -> 4, 3-4 types -> 3, 2 types -> 2, <=1 type -> 1.",
               "display_order": 2
             },
             {
               "criterion_code": "A-03",
               "title": "Progress Monitoring",
               "description": "The material keeps an on-going record of students' progress and allows the teacher to monitor student performance.",
+              "scoring_rule": "Count genuine progress-monitoring mechanisms, spanning up to 4 types (checkpoint, self-assessment, reflection, cumulative). Score: 4+ mechanisms -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 3
             },
             {
               "criterion_code": "A-04",
               "title": "Prescriptive Feedback",
               "description": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+              "scoring_rule": "Count distinct feedback/intervention mechanism TYPES (answer key, rubric, remediation referral, positive reinforcement). Score: 3-4 types -> 4, 2 types -> 3, 1 type -> 2, 0 types -> 1.",
               "display_order": 4
             },
             {
               "criterion_code": "A-05",
               "title": "Objective Gauging",
               "description": "Objectives are gauged effectively.",
+              "scoring_rule": "Score the percentage of stated objectives that are measured by a real assessment on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No objectives found -> 1.",
               "display_order": 5
             }
           ]
@@ -99,30 +109,35 @@
               "criterion_code": "OP-01",
               "title": "Topic Coherence",
               "description": "Topics are coherent from Unit to Chapter.",
+              "scoring_rule": "If there are fewer than 4 topic-to-topic transitions total, score by issue count instead (a short module with 0 issues is coherent, not deficient): 0 issues -> 4, 1 -> 3, 2 -> 2, 3+ issues -> 1. Otherwise (4+ transitions), score the percentage of transitions that are coherent (each topic logically follows the last) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No topics at all -> 1.",
               "display_order": 1
             },
             {
               "criterion_code": "OP-02",
               "title": "Interactivity",
               "description": "Material is interactive in each lesson which makes life-long learning easier.",
+              "scoring_rule": "Count genuine interactive elements with real task content (not just a label like 'Activity 1' with no actual task). Score: 4+ elements -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 2
             },
             {
               "criterion_code": "OP-03",
               "title": "Clear Directions",
               "description": "Directions are clear and complete enough for students to perform required tasks.",
+              "scoring_rule": "Score the percentage of tasks with clear, complete directions on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1.",
               "display_order": 3
             },
             {
               "criterion_code": "OP-04",
               "title": "Accurate Sections",
               "description": "Paragraphs and sections have clear and accurate information.",
+              "scoring_rule": "Score the percentage of sections that are clear and internally consistent (no contradictions or garbled content) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1.",
               "display_order": 4
             },
             {
               "criterion_code": "OP-05",
               "title": "Enhancement Activities",
               "description": "Enhancement activities for students are provided.",
+              "scoring_rule": "Count genuine enhancement activities beyond the core lesson content. Score: 3+ activities -> 4, 2 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 5
             }
           ]
@@ -136,30 +151,35 @@
               "criterion_code": "A-01",
               "title": "Learner Transformation",
               "description": "Students are engaged in transforming what they learn.",
+              "scoring_rule": "Score the percentage of tasks that engage higher-order thinking (apply/analyze/evaluate/create, not just remember/understand) on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No tasks found -> 1.",
               "display_order": 1
             },
             {
               "criterion_code": "A-02",
               "title": "Varied Assessment Tools",
               "description": "Teachers can easily assess students' progress by using varied assessment tools.",
+              "scoring_rule": "Count distinct assessment TYPES used (objective test, written, reflection, performance task, project, oral, self-assessment). Score: 5+ types -> 4, 3-4 types -> 3, 2 types -> 2, <=1 type -> 1.",
               "display_order": 2
             },
             {
               "criterion_code": "A-03",
               "title": "Progress Monitoring",
               "description": "The material keeps an on-going record of students' progress and allows the teacher to monitor student performance.",
+              "scoring_rule": "Count genuine progress-monitoring mechanisms, spanning up to 4 types (checkpoint, self-assessment, reflection, cumulative). Score: 4+ mechanisms -> 4, 2-3 -> 3, 1 -> 2, 0 -> 1.",
               "display_order": 3
             },
             {
               "criterion_code": "A-04",
               "title": "Prescriptive Feedback",
               "description": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+              "scoring_rule": "Count distinct feedback/intervention mechanism TYPES (answer key, rubric, remediation referral, positive reinforcement). Score: 3-4 types -> 4, 2 types -> 3, 1 type -> 2, 0 types -> 1.",
               "display_order": 4
             },
             {
               "criterion_code": "A-05",
               "title": "Objective Gauging",
               "description": "Objectives are gauged effectively.",
+              "scoring_rule": "Score the percentage of stated objectives that are measured by a real assessment on the moderate scale: 4 if >=80%, 3 if >=50%, 2 if >=20%, else 1. No objectives found -> 1.",
               "display_order": 5
             }
           ]

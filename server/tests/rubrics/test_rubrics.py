@@ -43,6 +43,7 @@ def _seed_from_json(db_session) -> None:
                         title=criterion_data["title"],
                         description=criterion_data["description"],
                         display_order=criterion_data["display_order"],
+                        scoring_rule=criterion_data.get("scoring_rule"),
                     )
                 )
     db_session.commit()
@@ -106,3 +107,49 @@ def test_active_rubric_context_avoids_n_plus_one_queries(db_session) -> None:
     # Expected: 1 (rubric_set) + 1 (domains) + 1 (all criteria via JOIN) = 3
     # Before fix: 1 + 1 + N (one per domain) = 1 + 1 + 3 = 5 for SME (3 domains)
     assert query_count == 3, f"expected 3 queries, got {query_count}"
+
+
+def test_active_rubric_scoring_rules_returns_sme_rules_and_skips_blank(
+    db_session,
+) -> None:
+    from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
+    from server.modules.rubrics.service import get_active_rubric_scoring_rules
+
+    _seed_from_json(db_session)
+
+    rules = get_active_rubric_scoring_rules("sme", db=db_session)
+    assert set(rules) == {
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+    }
+    assert "assessment TYPES" in rules["A-02"]
+
+    sme_a01 = (
+        db_session.query(RubricCriterion)
+        .join(
+            RubricDomain,
+            RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
+        )
+        .join(RubricSet, RubricDomain.rubric_set_id == RubricSet.rubric_set_id)
+        .filter(RubricSet.agent_id == "sme", RubricCriterion.criterion_code == "A-01")
+        .one()
+    )
+    sme_a01.scoring_rule = None
+    db_session.flush()
+    rules_after = get_active_rubric_scoring_rules("sme", db=db_session)
+    assert "A-01" not in rules_after
+    assert "A-02" in rules_after
+
+
+def test_active_rubric_scoring_rules_empty_when_no_active_set(db_session) -> None:
+    from server.modules.rubrics.service import get_active_rubric_scoring_rules
+
+    assert get_active_rubric_scoring_rules("sme", db=db_session) == {}

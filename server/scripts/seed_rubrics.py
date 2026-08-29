@@ -2,6 +2,10 @@
 
 Usage:
     python -m scripts.seed_rubrics --input data/rubrics/rubrics.json
+
+This is initial-seed tooling only. Admins edit criterion / domain *text* in
+place through the rubric editor (PATCH /admin/rubrics/...); re-running this
+script overwrites those edits with the JSON contents.
 """
 
 from __future__ import annotations
@@ -91,6 +95,7 @@ def seed_domain(session: Any, rubric_set_id: uuid.UUID, domain_data: dict[str, A
             criterion_code=str(criterion_data["criterion_code"]),
             title=str(criterion_data["title"]),
             description=str(criterion_data["description"]),
+            scoring_rule=criterion_data.get("scoring_rule"),
             display_order=int(criterion_data["display_order"]),
         )
         session.add(criterion)

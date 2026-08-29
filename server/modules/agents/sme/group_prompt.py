@@ -1,14 +1,16 @@
 """Prompt construction for SME's grouped LLM-scoring calls.
 
-Each criterion's scoring rule text is copied verbatim from
-``registry._render()``'s justification templates -- the single source of
-truth for the threshold each retired ``compute()`` function used -- so the
-LLM is anchored to the same numeric bands, not asked to invent its own scale.
+Both the criterion description and its scoring rule are fetched from the
+``rubric_criteria`` DB table at call time (see ``pipeline.py``'s
+``_rubric_descriptions`` and ``get_active_rubric_scoring_rules``) so CID
+admins can edit rubric text and scoring rules without a redeploy.
+``FALLBACK_DESCRIPTIONS`` and ``FALLBACK_SCORING_RULES`` below are used only
+when the DB has no active rubric set or is missing a code.
 
-Criterion descriptions are fetched from the ``rubric_criteria`` DB table at
-call time (see ``pipeline.py``'s ``_rubric_descriptions``) so CID admins can
-edit rubric text without a redeploy. ``FALLBACK_DESCRIPTIONS`` below is used
-only if the DB has no active rubric set or is missing a code.
+``FALLBACK_SCORING_RULES`` is copied verbatim from ``registry._render()``'s
+justification templates -- the single source of truth for the threshold
+each retired ``compute()`` function used -- so a fallback score is anchored
+to the same numeric bands, not an invented scale.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ FALLBACK_DESCRIPTIONS: dict[str, str] = {
     "OP-05": "Enhancement activities for students are provided.",
 }
 
-_SCORING_RULES: dict[str, str] = {
+FALLBACK_SCORING_RULES: dict[str, str] = {
     "A-01": (
         "Score the percentage of tasks that engage higher-order thinking "
         "(apply/analyze/evaluate/create, not just remember/understand) on "
@@ -135,6 +137,7 @@ def build_group_prompt(
     codes: tuple[str, ...],
     titles: dict[str, str],
     descriptions: dict[str, str],
+    scoring_rules: dict[str, str],
     full_text: str,
     *,
     prompt_preamble: str | None = None,
@@ -144,7 +147,7 @@ def build_group_prompt(
         code: {
             "title": titles[code],
             "description": descriptions.get(code, FALLBACK_DESCRIPTIONS[code]),
-            "scoring_rule": _SCORING_RULES[code],
+            "scoring_rule": scoring_rules.get(code) or FALLBACK_SCORING_RULES[code],
         }
         for code in codes
     }
@@ -179,4 +182,8 @@ def build_group_prompt(
     )
 
 
-__all__ = ["FALLBACK_DESCRIPTIONS", "build_group_prompt"]
+__all__ = [
+    "FALLBACK_DESCRIPTIONS",
+    "FALLBACK_SCORING_RULES",
+    "build_group_prompt",
+]

@@ -36,6 +36,11 @@ def _titles(monkeypatch):
         "_rubric_descriptions",
         lambda self, db: {},
     )
+    monkeypatch.setattr(
+        pipeline.EngineScoredAgent,
+        "_rubric_scoring_rules",
+        lambda self, db: {},
+    )
 
 
 def _run(client: GroupScoringFakeClient):
@@ -112,3 +117,18 @@ def test_group_prompts_are_the_exact_prompts_sent():
     assert set(result.metadata["group_prompts"].values()) <= set(client.prompts)
     for group, prompt in result.metadata["group_prompts"].items():
         assert f'"group": "{group}"' in prompt
+
+
+def test_db_scoring_rule_reaches_the_group_prompt(monkeypatch):
+    monkeypatch.setattr(
+        pipeline.EngineScoredAgent,
+        "_rubric_scoring_rules",
+        lambda self, db: {"A-02": "EDITED RULE: 6+ types -> 4"},
+    )
+    client = GroupScoringFakeClient(sme_group_payloads(2))
+    result = _run(client)
+
+    assessment_prompt = result.metadata["group_prompts"]["assessment_alignment"]
+    assert "EDITED RULE: 6+ types -> 4" in assessment_prompt
+    # A-05 had no DB rule -> the fallback text is still present.
+    assert "moderate scale" in assessment_prompt

@@ -75,7 +75,7 @@ def test_execute_group_returns_scores_and_prompt_text(monkeypatch):
     llm = _LLM([_response(4)])
     client = RunLLMClient(llm, "sme")
     scores, prompt_text, snapshot = execute_group(
-        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "some SLM text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, client, "some SLM text"
     )
     assert [s.criterion_id for s in scores] == list(CODES)
     assert all(s.score == 4 for s in scores)
@@ -101,7 +101,7 @@ def test_execute_group_repairs_once_on_bad_json(monkeypatch):
     llm = _LLM(["{broken", _response(3)])
     client = RunLLMClient(llm, "sme")
     scores, prompt_returned, snapshot = execute_group(
-        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "text"
+        "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, client, "text"
     )
     assert len(llm.prompts) == 2
     assert len(llm.calls) == 2
@@ -141,6 +141,6 @@ def test_execute_group_raises_after_repair_also_fails():
     client = RunLLMClient(llm, "sme")
     with pytest.raises(AgentExecutionError):
         execute_group(
-            "assessment_alignment", CODES, TITLES, DESCRIPTIONS, client, "text"
+            "assessment_alignment", CODES, TITLES, DESCRIPTIONS, {}, client, "text"
         )
     assert len(llm.prompts) == 2
