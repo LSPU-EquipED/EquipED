@@ -235,7 +235,12 @@ def get_rubric_sets_for_editor(db: Any | None = None) -> list[dict[str, Any]]:
         sets_by_agent: dict[str, RubricSet] = {}
         for rubric_set in rubric_sets:
             sets_by_agent.setdefault(rubric_set.agent_id, rubric_set)
-        active_sets = list(sets_by_agent.values())
+        # Present agents in evaluation order, not alphabetically.
+        agent_order = {"sme": 0, "coordinator": 1, "gad": 2, "itso": 3}
+        active_sets = sorted(
+            sets_by_agent.values(),
+            key=lambda s: (agent_order.get(s.agent_id, len(agent_order)), s.agent_id),
+        )
         set_ids = [s.rubric_set_id for s in active_sets]
         if not set_ids:
             return []
