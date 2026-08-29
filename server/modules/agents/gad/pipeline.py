@@ -15,6 +15,10 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import ResponseContract, get_llm_model_name
+from server.modules.rubrics.service import (
+    get_active_rubric_scoring_rules,
+    resolve_rubric_agent_id,
+)
 
 from ..contracts import AgentEvaluationResult
 from ..exceptions import AgentExecutionError
@@ -54,6 +58,7 @@ def _fit_gad_chunks(
     budget: int,
     prompt_version: str | None,
     managed_prompt: str | None,
+    scoring_rules: dict[str, str],
 ) -> tuple[list[dict[str, Any]], bool]:
     """Fit the complete serialized GAD envelope without changing evidence IDs."""
     candidate = [dict(chunk) for chunk in chunks]
@@ -64,6 +69,7 @@ def _fit_gad_chunks(
             packed_chunks=items,
             prompt_version=prompt_version,
             gad_managed_prompt=managed_prompt,
+            scoring_rules=scoring_rules,
         )
 
     while candidate and len(rendered(candidate)) > budget:
@@ -103,6 +109,20 @@ class GADScoredAgent:
 
     def __init__(self, *, llm_client: Any | None = None) -> None:
         self._default_llm_client = llm_client
+
+    def _rubric_scoring_rules(self, db: Any | None = None) -> dict[str, str]:
+        """Active per-criterion counting rules for this agent's rubric.
+
+        A method (not a bare call) so tests can patch it without a DB — a
+        bare ``get_active_rubric_scoring_rules`` reaches ``get_session_factory``
+        and raises ``InfrastructureUnavailableError`` under ``DATABASE_URL=''``.
+
+        ``db`` is always ``None`` in production (agents get no session from
+        dispatch); it exists as a test seam / for parity with SME.
+        """
+        return get_active_rubric_scoring_rules(
+            resolve_rubric_agent_id(self.rubric_source_type), db=db
+        )
 
     def _run_gad_scoring(
         self,
@@ -167,11 +187,25 @@ class GADScoredAgent:
         start = time.perf_counter()
         gad_managed_prompt = prompt_version
         try:
+            db_rules = self._rubric_scoring_rules()
+        except Exception:
+            logger.warning(
+                "GAD rubric scoring rules unavailable; using in-code fallbacks",
+                exc_info=True,
+            )
+            db_rules = {}
+        scoring_rules = {
+            d.criterion_id: (db_rules.get(d.criterion_id) or "").strip()
+            or prompt.FALLBACK_GAD_INSTRUCTIONS[d.criterion_id]
+            for d in registry.CRITERIA
+        }
+        try:
             packed_chunks, gad_budget_trimmed = _fit_gad_chunks(
                 packed_chunks,
                 budget=repair_safe_budget,
                 prompt_version=str(prompt_version_id) if prompt_version_id else None,
                 managed_prompt=gad_managed_prompt,
+                scoring_rules=scoring_rules,
             )
         except AgentExecutionError as exc:
             return _failed_result(
@@ -209,6 +243,7 @@ class GADScoredAgent:
             packed_chunks=packed_chunks,
             prompt_version=str(prompt_version_id) if prompt_version_id else None,
             gad_managed_prompt=gad_managed_prompt,
+            scoring_rules=scoring_rules,
         )
 
         if len(combined_prompt) > repair_safe_budget:
@@ -528,6 +563,7 @@ class GADScoredAgent:
             token_count=token_count,
             prompt_version_id=prompt_version_id,
             success=True,
+            prompt_text=combined_prompt,
             raw_response=json.dumps(combined, ensure_ascii=False),
             provenance=merged_provenance if merged_provenance else None,
             metadata={

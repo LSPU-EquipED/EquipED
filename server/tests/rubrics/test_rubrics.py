@@ -8,7 +8,6 @@ from pathlib import Path
 from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
 from server.modules.rubrics.service import get_active_rubric_context
 
-
 ROOT = Path(__file__).resolve().parents[2]
 RUBRIC_JSON = ROOT / "data" / "rubrics" / "rubrics.json"
 
@@ -75,13 +74,13 @@ def test_active_rubric_context_includes_exact_sme_rows(db_session) -> None:
     assert context[:3] == ["[SME Rubric v1]", "Agent: sme", "Version: 1"]
     assert "Domain: Organization & Presentation" in context
     assert (
-        "OP-01 | Title: Topic Coherence | Description: Topics are coherent from Unit to Chapter."
-        in context
-    )
+        "OP-01 | Title: Topic Coherence | Description: Topics are coherent "
+        "from Unit to Chapter."
+    ) in context
     assert (
-        "A-05 | Title: Objective Gauging | Description: Objectives are gauged effectively."
-        in context
-    )
+        "A-05 | Title: Objective Gauging | Description: Objectives are gauged "
+        "effectively."
+    ) in context
 
 
 def test_active_rubric_context_avoids_n_plus_one_queries(db_session) -> None:
@@ -153,3 +152,13 @@ def test_active_rubric_scoring_rules_empty_when_no_active_set(db_session) -> Non
     from server.modules.rubrics.service import get_active_rubric_scoring_rules
 
     assert get_active_rubric_scoring_rules("sme", db=db_session) == {}
+
+
+def test_active_rubric_scoring_rules_returns_gad_rules(db_session) -> None:
+    from server.modules.rubrics.service import get_active_rubric_scoring_rules
+
+    _seed_from_json(db_session)
+
+    rules = get_active_rubric_scoring_rules("gad", db=db_session)
+    assert set(rules) == {"GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"}
+    assert "unique instance" in rules["GAD-01"]

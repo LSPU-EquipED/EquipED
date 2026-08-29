@@ -6,6 +6,8 @@ CRITERION_ID = "GAD-01"
 CRITERION_TITLE = "The material is free from gender stereotypes"
 CRITERION_KIND = "stereotype_instances"
 
+# NOTE: not in the live prompt. Seeded FALLBACK_GAD_INSTRUCTIONS;
+# edit that (or the DB scoring_rule) instead.
 GAD_ROW_1_PROMPT = (
     "Analyze the learning material and identify instances of gender stereotypes "
     "or gender-biased representations.\n\n"
