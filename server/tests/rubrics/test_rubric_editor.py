@@ -47,6 +47,8 @@ def test_get_rubric_sets_for_editor_returns_nested_active_sets(db_session) -> No
 
     by_agent = {s["agent_id"]: s for s in sets}
     assert set(by_agent) == {"sme", "coordinator", "gad", "itso"}
+    # Editor presents agents in evaluation order, not alphabetically.
+    assert [s["agent_id"] for s in sets] == ["sme", "coordinator", "gad", "itso"]
 
     sme = by_agent["sme"]
     assert sme["name"] == "SME Rubric v1"
