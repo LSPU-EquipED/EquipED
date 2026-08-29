@@ -26,7 +26,6 @@ from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient, call_llm, error_reference
 from ..runtime.prompt_budget import pack_chunks
 from . import envelope, prompt, registry
-from .prompt import FALLBACK_GAD_INSTRUCTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +116,9 @@ class GADScoredAgent:
         A method (not a bare call) so tests can patch it without a DB — a
         bare ``get_active_rubric_scoring_rules`` reaches ``get_session_factory``
         and raises ``InfrastructureUnavailableError`` under ``DATABASE_URL=''``.
+
+        ``db`` is always ``None`` in production (agents get no session from
+        dispatch); it exists as a test seam / for parity with SME.
         """
         return get_active_rubric_scoring_rules(
             resolve_rubric_agent_id(self.rubric_source_type), db=db
@@ -184,10 +186,17 @@ class GADScoredAgent:
         )
         start = time.perf_counter()
         gad_managed_prompt = prompt_version
-        db_rules = self._rubric_scoring_rules()
+        try:
+            db_rules = self._rubric_scoring_rules()
+        except Exception:
+            logger.warning(
+                "GAD rubric scoring rules unavailable; using in-code fallbacks",
+                exc_info=True,
+            )
+            db_rules = {}
         scoring_rules = {
             d.criterion_id: (db_rules.get(d.criterion_id) or "").strip()
-            or FALLBACK_GAD_INSTRUCTIONS[d.criterion_id]
+            or prompt.FALLBACK_GAD_INSTRUCTIONS[d.criterion_id]
             for d in registry.CRITERIA
         }
         try:
@@ -554,6 +563,7 @@ class GADScoredAgent:
             token_count=token_count,
             prompt_version_id=prompt_version_id,
             success=True,
+            prompt_text=combined_prompt,
             raw_response=json.dumps(combined, ensure_ascii=False),
             provenance=merged_provenance if merged_provenance else None,
             metadata={

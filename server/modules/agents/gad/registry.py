@@ -68,6 +68,9 @@ logger = logging.getLogger(__name__)
 class CriterionDefinition:
     criterion_id: str
     title: str
+    # Unused since the single-pass rewrite. Live counting guidance is
+    # prompt.FALLBACK_GAD_INSTRUCTIONS (DB-overridable via
+    # rubric_criteria.scoring_rule).
     prompt: str
     score: Callable[..., int]
     balance: bool = False

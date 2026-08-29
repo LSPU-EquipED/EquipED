@@ -9,6 +9,8 @@ CRITERION_TITLE = (
 )
 CRITERION_KIND = "peace_equality_instances"
 
+# NOTE: not in the live prompt. Seeded FALLBACK_GAD_INSTRUCTIONS;
+# edit that (or the DB scoring_rule) instead.
 GAD_ROW_5_PROMPT = (
     "Analyze the learning material and identify instances of discriminatory, "
     "prejudicial, exclusionary, or inequality-promoting content related to:\n\n"

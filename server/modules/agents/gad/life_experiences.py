@@ -9,6 +9,8 @@ CRITERION_TITLE = (
 )
 CRITERION_KIND = "life_experience_instances"
 
+# NOTE: not in the live prompt. Seeded FALLBACK_GAD_INSTRUCTIONS;
+# edit that (or the DB scoring_rule) instead.
 GAD_ROW_4_PROMPT = (
     "Analyze the learning material and identify instances where the material:\n\n"
     "- Excludes one gender's experiences.\n"
