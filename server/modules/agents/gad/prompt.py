@@ -122,22 +122,27 @@ def build_combined_prompt(
         if definition.balance:
             criterion_details.append(
                 header
-                + "    - Return non-negative integer 'female_count' and "
-                "'male_count'.\n"
-                "    - Include a non-empty 'summary' (1-2 sentences).\n"
-                "    - Do NOT include 'instances', 'instance_count', or any "
-                "numeric score fields."
+                + "    Return a JSON object for this section with EXACTLY "
+                "these fields and no others:\n"
+                "    - \"female_count\": a non-negative integer.\n"
+                "    - \"male_count\": a non-negative integer.\n"
+                "    - \"summary\": a non-empty string, 1-2 sentences.\n"
+                "    Do not include \"instances\", \"instance_count\", a score, "
+                "or any other field."
             )
         else:
             criterion_details.append(
                 header
-                + "    - Count instances with non-negative integer "
-                "'instance_count'.\n"
-                "    - List each unique instance with exact 'excerpt' "
-                "and 'chunk_id' from document_chunks.\n"
-                f"    - Max {MAX_INSTANCES_PER_CRITERION} instances.\n"
-                "    - Include a non-empty 'summary' (1-2 sentences).\n"
-                "    - Do NOT include numeric score fields."
+                + "    Return a JSON object for this section with EXACTLY "
+                "these fields and no others:\n"
+                "    - \"instance_count\": a non-negative integer — the "
+                "number of unique instances found; use 0 if none.\n"
+                "    - \"instances\": an array (may be empty) of objects, each "
+                "with exactly \"excerpt\" (an exact substring of a chunk's "
+                "text) and \"chunk_id\" (matching a document_chunks id); at "
+                f"most {MAX_INSTANCES_PER_CRITERION}.\n"
+                "    - \"summary\": a non-empty string, 1-2 sentences.\n"
+                "    Do not include a score, band, rating, or any other field."
             )
 
     instruction_parts.append("PER-CRITERION DETAILS:\n" + "\n".join(criterion_details))

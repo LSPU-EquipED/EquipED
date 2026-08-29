@@ -75,12 +75,29 @@ def test_structural_scaffold_survives_rule_injection() -> None:
             scoring_rules={c: f"rule {c}" for c in FALLBACK_GAD_INSTRUCTIONS},
         )
     )
-    assert "exact 'excerpt'" in text
-    assert "'chunk_id'" in text
-    assert "Do NOT include" in text and "score" in text
+    assert '"excerpt"' in text
+    assert '"chunk_id"' in text
+    assert "Do not include" in text and "score" in text
     assert "10" in text  # MAX_INSTANCES_PER_CRITERION still stated
     # GAD-02 balance scaffold still present
     assert "female_count" in text and "male_count" in text
+
+
+def test_scaffold_names_required_output_fields_explicitly() -> None:
+    text = _instructions(
+        build_combined_prompt(packed_chunks=_CHUNKS, prompt_version="v1")
+    )
+    # instance criteria must spell out the required fields as named JSON keys
+    assert '"instance_count"' in text
+    assert '"instances"' in text
+    assert '"summary"' in text
+    assert '"excerpt"' in text and '"chunk_id"' in text
+    # balance criterion
+    assert '"female_count"' in text and '"male_count"' in text
+    # the wording must frame these as REQUIRED output fields, not just a task
+    assert "EXACTLY these fields" in text
+    # each instance criterion still tells the model to use 0 when none found
+    assert "use 0 if none" in text
 
 
 def test_blank_rule_falls_back() -> None:
