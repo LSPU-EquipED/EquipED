@@ -202,30 +202,35 @@
               "criterion_code": "GAD-01",
               "title": "Free from Stereotypes",
               "description": "The material is free from gender stereotypes.",
+              "scoring_rule": "Count each unique instance of gender stereotypes or gender-biased representations — content that reinforces stereotypes about gender roles, abilities, behaviors, occupations, or characteristics, or that explicitly or implicitly portrays one gender using stereotypical assumptions. Do NOT count discussions of gender stereotypes presented for educational, analytical, historical, or critical purposes, or gender-neutral content. Count each unique instance once.",
               "display_order": 1
             },
             {
               "criterion_code": "GAD-02",
               "title": "Equal Representation",
               "description": "The material shows females and males an equal number of times.",
+              "scoring_rule": "Count meaningful female and male representations: named individuals, names listed under a gender-labeled group or heading, characters, illustrations depicting people, examples or case studies involving people, explicit gender references (woman, man, girl, boy, female, male), and gender-specific pronouns (she, her, he, him). Count each meaningful representation once within the same discussion, example, or scenario; if the same individual appears in different examples, count each appearance separately. Do NOT infer gender when it is ambiguous, and ignore gender-neutral references.",
               "display_order": 2
             },
             {
               "criterion_code": "GAD-03",
               "title": "Equal Respect",
               "description": "The material shows females and males with equal respect, and potential.",
+              "scoring_rule": "Count each unique instance that portrays one gender as less capable, less respected, less deserving, or as having fewer opportunities than another. Do NOT count discussions of discrimination presented for educational, analytical, historical, or critical purposes. Count each unique instance once.",
               "display_order": 3
             },
             {
               "criterion_code": "GAD-04",
               "title": "Reflects Experiences",
               "description": "The material reflects the needs and life experiences of both male and female students.",
+              "scoring_rule": "Count each unique instance where the material excludes one gender's experiences, disproportionately favors one gender's experiences, or assumes that activities, roles, responsibilities, interests, or aspirations belong primarily to one gender. Do NOT count gender-neutral examples or discussions presented for educational, analytical, historical, or critical purposes. Count each unique instance once.",
               "display_order": 4
             },
             {
               "criterion_code": "GAD-05",
               "title": "Promotes Equality",
               "description": "The material promotes peace and equality for males and females, regardless of their race, class, disability, religion, sexual preference, or ethnic background.",
+              "scoring_rule": "Count each unique instance of discriminatory, prejudicial, exclusionary, or inequality-promoting content related to gender, race, social class, disability, religion, sexual orientation, or ethnic background. Do NOT count historical, educational, analytical, or critical discussions of discrimination. Count each unique instance once.",
               "display_order": 5
             }
           ]

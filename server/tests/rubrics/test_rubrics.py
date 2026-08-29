@@ -153,3 +153,13 @@ def test_active_rubric_scoring_rules_empty_when_no_active_set(db_session) -> Non
     from server.modules.rubrics.service import get_active_rubric_scoring_rules
 
     assert get_active_rubric_scoring_rules("sme", db=db_session) == {}
+
+
+def test_active_rubric_scoring_rules_returns_gad_rules(db_session) -> None:
+    from server.modules.rubrics.service import get_active_rubric_scoring_rules
+
+    _seed_from_json(db_session)
+
+    rules = get_active_rubric_scoring_rules("gad", db=db_session)
+    assert set(rules) == {"GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"}
+    assert "unique instance" in rules["GAD-01"]

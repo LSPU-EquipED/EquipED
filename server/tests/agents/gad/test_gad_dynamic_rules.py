@@ -30,6 +30,23 @@ def test_all_five_codes_have_fallback_text() -> None:
     assert all(v.strip() for v in FALLBACK_GAD_INSTRUCTIONS.values())
 
 
+def test_seed_json_matches_fallback_constant() -> None:
+    import json as _json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    payload = _json.loads(
+        (root / "data" / "rubrics" / "rubrics.json").read_text(encoding="utf-8")
+    )
+    gad_set = next(s for s in payload["rubric_sets"] if s["agent_id"] == "gad")
+    seeded = {
+        c["criterion_code"]: c["scoring_rule"]
+        for d in gad_set["domains"]
+        for c in d["criteria"]
+    }
+    assert seeded == FALLBACK_GAD_INSTRUCTIONS
+
+
 def test_prompt_uses_fallback_when_no_rules_supplied() -> None:
     text = _instructions(
         build_combined_prompt(packed_chunks=_CHUNKS, prompt_version="v1")
