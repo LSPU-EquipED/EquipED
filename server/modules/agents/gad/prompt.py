@@ -9,6 +9,57 @@ from . import registry
 from .grounding import MAX_INSTANCES_PER_CRITERION
 
 # ---------------------------------------------------------------------------
+# Canonical fallback counting rules per criterion
+# ---------------------------------------------------------------------------
+
+FALLBACK_GAD_INSTRUCTIONS = {
+    "GAD-01": (
+        "Count each unique instance of gender stereotypes or gender-biased "
+        "representations — content that reinforces stereotypes about gender "
+        "roles, abilities, behaviors, occupations, or characteristics, or that "
+        "explicitly or implicitly portrays one gender using stereotypical "
+        "assumptions. Do NOT count discussions of gender stereotypes presented "
+        "for educational, analytical, historical, or critical purposes, or "
+        "gender-neutral content. Count each unique instance once."
+    ),
+    "GAD-02": (
+        "Count meaningful female and male representations: named individuals, "
+        "names listed under a gender-labeled group or heading, characters, "
+        "illustrations depicting people, examples or case studies involving "
+        "people, explicit gender references (woman, man, girl, boy, female, "
+        "male), and gender-specific pronouns (she, her, he, him). Count each "
+        "meaningful representation once within the same discussion, example, or "
+        "scenario; if the same individual appears in different examples, count "
+        "each appearance separately. Do NOT infer gender when it is ambiguous, "
+        "and ignore gender-neutral references."
+    ),
+    "GAD-03": (
+        "Count each unique instance that portrays one gender as less capable, "
+        "less respected, less deserving, or as having fewer opportunities than "
+        "another. Do NOT count discussions of discrimination presented for "
+        "educational, analytical, historical, or critical purposes. Count each "
+        "unique instance once."
+    ),
+    "GAD-04": (
+        "Count each unique instance where the material excludes one gender's "
+        "experiences, disproportionately favors one gender's experiences, or "
+        "assumes that activities, roles, responsibilities, interests, or "
+        "aspirations belong primarily to one gender. Do NOT count "
+        "gender-neutral examples or discussions presented for educational, "
+        "analytical, historical, or critical purposes. Count each unique "
+        "instance once."
+    ),
+    "GAD-05": (
+        "Count each unique instance of discriminatory, prejudicial, "
+        "exclusionary, or inequality-promoting content related to gender, race, "
+        "social class, disability, religion, sexual orientation, or ethnic "
+        "background. Do NOT count historical, educational, analytical, or "
+        "critical discussions of discrimination. Count each unique instance "
+        "once."
+    ),
+}
+
+# ---------------------------------------------------------------------------
 # 2.1 — Combined prompt builder (GAD-local, reuses runtime transport)
 # ---------------------------------------------------------------------------
 
@@ -18,18 +69,29 @@ def build_combined_prompt(
     packed_chunks: list[dict[str, Any]],
     prompt_version: str | None,
     gad_managed_prompt: str | None = None,
+    scoring_rules: dict[str, str] | None = None,
 ) -> str:
     """Build one combined fact-only extraction prompt.
 
     ``gad_managed_prompt`` is the active managed GAD prompt text (fact-only
     revision). When provided it is embedded as the primary instruction.
     ``packed_chunks`` are the only factual source — syllabus/curriculum
-    reference context is excluded.
+    reference context is excluded. ``scoring_rules`` is an optional dict
+    mapping criterion codes to semantic counting guidance text; missing or
+    blank entries fall back to ``FALLBACK_GAD_INSTRUCTIONS``.
 
     The returned JSON string is ready for total-budget enforcement and LLM
     transport. This is a GAD-local pipeline that does not use ITSO execution's
     score-shaped prompt template.
     """
+    rules = scoring_rules or {}
+
+    def _rule(code: str) -> str:
+        supplied = rules.get(code)
+        if supplied and supplied.strip():
+            return supplied.strip()
+        return FALLBACK_GAD_INSTRUCTIONS[code]
+
     instruction_parts: list[str] = []
 
     if gad_managed_prompt:
@@ -55,38 +117,27 @@ def build_combined_prompt(
     # Per-criterion extraction details
     criterion_details: list[str] = []
     for definition in registry.CRITERIA:
+        code = definition.criterion_id
+        header = f"  {code} ({definition.title}):\n    {_rule(code)}\n"
         if definition.balance:
             criterion_details.append(
-                f"  {definition.criterion_id} ({definition.title}):\n"
-                f"    - Count meaningful female ('female_count') and male "
-                f"('male_count') representations.\n"
-                f"    - A meaningful representation includes: named individuals, "
-                f"characters, illustrations depicting people, examples or case "
-                f"studies involving people, explicit gender references (e.g., "
-                f"woman, man, girl, boy, female, male), and gender-specific "
-                f"pronouns (e.g., she, her, he, him).\n"
-                f"    - If a list, table, or paragraph labels people as female "
-                f"or male, count each listed person/name in the matching gender "
-                f"count.\n"
-                f"    - Count each representation once within the same discussion, "
-                f"example, or case study. If the same individual appears in "
-                f"different examples, count each appearance separately.\n"
-                f"    - Do NOT infer gender when ambiguous. Ignore gender-neutral "
-                f"references.\n"
-                f"    - Include a non-empty 'summary' (1-2 sentences).\n"
-                f"    - Do NOT include 'instances', 'instance_count', or any "
-                f"numeric score fields."
+                header
+                + "    - Return non-negative integer 'female_count' and "
+                "'male_count'.\n"
+                "    - Include a non-empty 'summary' (1-2 sentences).\n"
+                "    - Do NOT include 'instances', 'instance_count', or any "
+                "numeric score fields."
             )
         else:
             criterion_details.append(
-                f"  {definition.criterion_id} ({definition.title}):\n"
-                f"    - Count instances with non-negative integer "
-                f"'instance_count'.\n"
-                f"    - List each unique instance with exact 'excerpt' "
-                f"and 'chunk_id' from document_chunks.\n"
+                header
+                + "    - Count instances with non-negative integer "
+                "'instance_count'.\n"
+                "    - List each unique instance with exact 'excerpt' "
+                "and 'chunk_id' from document_chunks.\n"
                 f"    - Max {MAX_INSTANCES_PER_CRITERION} instances.\n"
-                f"    - Include a non-empty 'summary' (1-2 sentences).\n"
-                f"    - Do NOT include numeric score fields."
+                "    - Include a non-empty 'summary' (1-2 sentences).\n"
+                "    - Do NOT include numeric score fields."
             )
 
     instruction_parts.append("PER-CRITERION DETAILS:\n" + "\n".join(criterion_details))
@@ -149,3 +200,10 @@ def build_combined_repair_prompt(
         full_context=full_prompt_context,
         error=error_detail[:500],
     )
+
+
+__all__ = [
+    "FALLBACK_GAD_INSTRUCTIONS",
+    "build_combined_prompt",
+    "build_combined_repair_prompt",
+]
