@@ -89,7 +89,7 @@ def test_history_contains_bridge_and_single_head():
     bridge = script.get_revision("20260810_0002")
     assert bridge is not None
     assert bridge.down_revision == "20260808_0002"
-    assert script.get_heads() == ["20260829_0002"]
+    assert script.get_heads() == ["20260829_0003"]
     # DPO feature migrations re-home off the current head after the bridge.
     assert script.get_revision("20260811_0003").down_revision == "20260811_0002"
     assert script.get_revision("20260811_0004").down_revision == "20260811_0003"
@@ -98,3 +98,4 @@ def test_history_contains_bridge_and_single_head():
     assert script.get_revision("20260820_0002").down_revision == "20260820_0001"
     assert script.get_revision("20260829_0001").down_revision == "20260820_0002"
     assert script.get_revision("20260829_0002").down_revision == "20260829_0001"
+    assert script.get_revision("20260829_0003").down_revision == "20260829_0002"
