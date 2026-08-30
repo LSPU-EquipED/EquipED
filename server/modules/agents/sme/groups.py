@@ -19,9 +19,7 @@ GROUP_CODES: dict[str, tuple[str, ...]] = {
 GROUP_NAMES: tuple[str, ...] = tuple(GROUP_CODES)
 
 CODE_TO_GROUP: dict[str, str] = {
-    code: group_name
-    for group_name, codes in GROUP_CODES.items()
-    for code in codes
+    code: group_name for group_name, codes in GROUP_CODES.items() for code in codes
 }
 
 _SLICERS = {
