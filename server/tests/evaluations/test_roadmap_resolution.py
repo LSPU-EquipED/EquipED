@@ -24,7 +24,7 @@ from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.evaluations.service import acquire_evaluation_execution
 
-from .conftest import _add_document, _seed_active_prompts
+from .conftest import _add_document, _seed_active_prompts, _seed_all_rubrics
 
 
 def _seed_roadmap(db_session) -> ProgramRoadmap:
@@ -153,6 +153,7 @@ def _run_orchestrator_capture(
         doc.course_code = course_code
         db_session.commit()
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
     if seed_roadmap:
         _seed_roadmap(db_session)
 
@@ -178,6 +179,9 @@ def _run_orchestrator_capture(
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
     captured: dict = {}
+    from server.tests.evaluations.snapshot_test_helpers import (
+        make_scheduled_agent_results,
+    )
 
     def fake_run_evaluation(
         self,
@@ -185,6 +189,7 @@ def _run_orchestrator_capture(
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -195,7 +200,11 @@ def _run_orchestrator_capture(
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[_sme_result(evaluation_id, document_id)],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=True,
+            ),
         )
 
     monkeypatch.setattr(

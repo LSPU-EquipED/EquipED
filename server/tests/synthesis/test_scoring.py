@@ -250,3 +250,28 @@ def test_score_to_adjectival_boundaries() -> None:
     assert score_to_adjectival(3.49) == "Satisfactory"
     assert score_to_adjectival(2.49) == "Needs Improvement"
     assert score_to_adjectival(1.49) == "Poor"
+
+
+def test_coordinator_single_criterion_subtotal_fixed_agent_weight() -> None:
+    """Coordinator subtotal (from single A-05 criterion) contributes via 0.30 weight.
+
+    Criterion count does not alter or renormalize agent-level weights, and no
+    per-criterion weighting is applied.
+    """
+    agent_results = [
+        make_scored_agent("sme", 3.0, criteria_count=10),
+        make_scored_agent("coordinator", 4.0, criteria_count=1),
+        make_scored_agent("gad", 2.0, criteria_count=1),
+        make_scored_agent("itso", 1.0, criteria_count=1),
+    ]
+    assert len(agent_results[0].criterion_scores) == 10
+    assert len(agent_results[1].criterion_scores) == 1
+
+    result = compute_synthesized_score(agent_results)
+
+    # 0.35 * 3.0 + 0.30 * 4.0 + 0.20 * 2.0 + 0.15 * 1.0 = 2.80
+    assert result["overall_score"] == pytest.approx(2.80)
+    # 0.35 * 75 + 0.30 * 100 + 0.20 * 50 + 0.15 * 25 = 70.00
+    assert result["synthesized_score"] == pytest.approx(70.00)
+    assert result["domain_scores"]["coordinator"]["subtotal"] == 4.0
+    assert AGENT_WEIGHTS["coordinator"] == 0.30

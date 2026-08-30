@@ -7,6 +7,9 @@ from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
 from server.modules.documents.models import Document, DocumentChunk
+from server.tests.rubrics.helpers import seed_all_rubrics
+
+_seed_all_rubrics = seed_all_rubrics
 
 
 def _add_document(

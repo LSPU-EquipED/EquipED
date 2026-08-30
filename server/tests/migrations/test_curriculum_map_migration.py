@@ -75,8 +75,8 @@ BRANCH_B = "20260801_0001"
 #: and agent-result group_prompts snapshotting (20260814_0001), then the
 #: rubric-criterion scoring_rule column (20260829_0001), then the
 #: rubric-criterion GAD scoring_rule backfill (20260829_0002), then the
-#: managed GAD prompt trim (20260829_0003).
-CHAIN_HEAD_REV = "20260829_0003"
+#: criterion-agnostic managed prompts (20260829_0005).
+CHAIN_HEAD_REV = "20260829_0006"
 
 #: Common ancestor of both feature branches; the former-curriculum head shape.
 FORMER_CURRICULUM_ANCESTOR = "20260716_0001"

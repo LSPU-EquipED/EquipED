@@ -6,8 +6,6 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -15,6 +13,9 @@ from server.modules.evaluations.exceptions import EvaluationPipelineFailure
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.synthesis.models import MonitoringMatrix
+from server.tests.evaluations.snapshot_test_helpers import make_agent_result
+
+from .conftest import _seed_all_rubrics
 
 
 def _job(db_session, *, partial: bool, curriculum: bool = False):
@@ -109,30 +110,22 @@ def _job(db_session, *, partial: bool, curriculum: bool = False):
 
 
 def _result(agent, evaluation_id, document_id, success=True):
-    scores = (
-        tuple(
-            CriterionScore(code, code, 1, "evidence", ())
-            for code in sorted(REGISTERED_CODES)
-        )
-        if success
-        else ()
-    )
-    return AgentEvaluationResult(
-        agent_name=agent,
-        evaluation_id=evaluation_id,
-        document_id=document_id,
-        subtotal=1 if success else 0,
+    return make_agent_result(
+        agent,
+        evaluation_id,
+        document_id,
+        success=success,
+        default_score=1,
         summary="ok",
         model_name=f"{agent}-test",
         processing_seconds=0,
         token_count=1,
-        success=success,
         error_message=None if success else f"{agent} failed",
-        criterion_scores=scores,
     )
 
 
 def _run(db_session, monkeypatch, *, partial, agents, curriculum=False):
+    _seed_all_rubrics(db_session)
     monkeypatch.setattr(
         "server.modules.documents.curriculum.service.check_chroma_availability",
         lambda doc_id, source_type: True,
