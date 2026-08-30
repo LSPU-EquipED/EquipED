@@ -1,134 +1,201 @@
-"""Tests for ``EngineScoredAgent._run_full_llm_scoring`` via ``SME.run()``.
-
-SME now scores every criterion with 3 grouped direct-LLM calls (see
-``sme/groups.py`` and ``sme/grouped_execution.py``). The retained
-per-criterion engine lane (``registry.run_criterion``) is only a fallback for
-a group whose grouped call fails outright.
-"""
+"""Tests for SME snapshot envelope scoring."""
 
 from __future__ import annotations
 
+import json
 import uuid
 
-import pytest
-from server.modules.agents.sme import pipeline
+from server.core.llm import CompletionResult
 from server.modules.agents.sme.agent import SME
-from server.tests.agents.helpers import (
-    SME_CRITERION_FALLBACKS,
-    SME_GROUP_TITLES,
-    GroupScoringFakeClient,
-    sme_group_payloads,
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    DomainDefinition,
+    FormDefinition,
+    RatioBandConfig,
 )
+from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snapshot
 
 _CHUNK_INFOS = [{"chunk_id": "c1", "page_number": 1, "text": "x"}]
-_CANONICAL = "clean SLM text " * 50
+_CANONICAL = "clean SLM text with genuine interactive activity and tasks. " * 10
 
 
-@pytest.fixture(autouse=True)
-def _titles(monkeypatch):
-    monkeypatch.setattr(
-        pipeline.EngineScoredAgent,
-        "_rubric_titles",
-        lambda self, db: SME_GROUP_TITLES,
-    )
-    monkeypatch.setattr(
-        pipeline.EngineScoredAgent,
-        "_rubric_descriptions",
-        lambda self, db: {},
-    )
-    monkeypatch.setattr(
-        pipeline.EngineScoredAgent,
-        "_rubric_scoring_rules",
-        lambda self, db: {},
+def _make_criterion(
+    code: str, title: str, config: object, order: int = 0
+) -> CriterionDefinition:
+    return CriterionDefinition(
+        rubric_criterion_id=uuid.uuid4(),
+        criterion_code=code,
+        title=title,
+        description=f"Description for {title}",
+        display_order=order,
+        strategy_config=config,
     )
 
 
-def _run(client: GroupScoringFakeClient):
-    return SME().run(
-        evaluation_id=uuid.uuid4(),
+def _make_snapshot(eval_id: uuid.UUID):
+    d1 = (
+        _make_criterion(
+            "OP-01",
+            "Topic Coherence",
+            RatioBandConfig(
+                mode="coverage_percentage",
+                threshold_4=80.0,
+                threshold_3=50.0,
+                threshold_2=20.0,
+            ),
+            0,
+        ),
+    )
+    d2 = (
+        _make_criterion(
+            "OP-02",
+            "Interactive Elements",
+            CountBandConfig(
+                mode="minimum_count", threshold_4=3, threshold_3=2, threshold_2=1
+            ),
+            0,
+        ),
+    )
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="sme",
+        adapter_key="sme",
+        adapter_version=1,
+        version_number=1,
+        name="Test Form",
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="D1",
+                title="Domain 1",
+                display_order=0,
+                criteria=d1,
+            ),
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="D2",
+                title="Domain 2",
+                display_order=1,
+                criteria=d2,
+            ),
+        ),
+    )
+    return build_evaluation_form_snapshot(eval_id, form)
+
+
+class MockLLM:
+    def __init__(self, payloads: list[str]) -> None:
+        self.payloads = list(payloads)
+        self.prompts: list[str] = []
+
+    def generate_result(self, prompt: str, **kwargs: object) -> CompletionResult:
+        self.prompts.append(prompt)
+        return CompletionResult(
+            content=self.payloads.pop(0),
+            served_model="test-model",
+            prompt_tokens=10,
+            completion_tokens=20,
+            total_tokens=30,
+            finish_reason="stop",
+            attempts=1,
+        )
+
+
+def test_sme_run_scores_all_criteria_via_envelopes():
+    eval_id = uuid.uuid4()
+    snap = _make_snapshot(eval_id)
+    payloads = [
+        json.dumps(
+            {
+                "summary": "d1 ok",
+                "criterion_measurements": [
+                    {
+                        "criterion_id": "OP-01",
+                        "criterion_title": "Topic Coherence",
+                        "total_units": [
+                            {"unit_id": "u1", "evidence": "clean SLM text"}
+                        ],
+                        "qualifying_unit_ids": ["u1"],
+                        "has_measurable_content": True,
+                    }
+                ],
+            }
+        ),
+        json.dumps(
+            {
+                "summary": "d2 ok",
+                "criterion_measurements": [
+                    {
+                        "criterion_id": "OP-02",
+                        "criterion_title": "Interactive Elements",
+                        "instances": [
+                            {"excerpt": "genuine interactive activity"},
+                            {"excerpt": "clean SLM text"},
+                        ],
+                    }
+                ],
+            }
+        ),
+    ]
+
+    client = MockLLM(payloads)
+    result = SME(llm_client=client).run(
+        evaluation_id=eval_id,
         document_id=uuid.uuid4(),
+        form_snapshot=snap,
         chunk_infos=_CHUNK_INFOS,
         canonical_source_text=_CANONICAL,
-        llm_client=client,
     )
 
-
-def test_sme_run_scores_all_ten_criteria_via_llm():
-    client = GroupScoringFakeClient(sme_group_payloads(3))
-    result = _run(client)
-
     assert result.success is True
-    assert len(result.criterion_scores) == 10
-    assert all(score.score == 3 for score in result.criterion_scores)
-    assert all(score.chunk_ids == () for score in result.criterion_scores)
-    # Exactly one LLM call per group, no per-criterion fallback.
-    assert client.group_calls == 3
-    assert client.fallback_calls == 0
-    assert set(result.metadata["group_prompts"]) == {
-        "assessment_alignment",
-        "task_execution",
-        "document_wide",
-    }
-    assert set(result.metadata["group_responses"]) == {
-        "assessment_alignment",
-        "task_execution",
-        "document_wide",
-    }
-    for group_name, resp in result.metadata["group_responses"].items():
-        assert resp["summary"] == "ok"
-        assert len(resp["criterion_scores"]) >= 2
-        assert all(c["score"] == 3 for c in resp["criterion_scores"])
-    assert result.provenance["criterion_fallback_calls"] == 0
-    assert result.provenance["logical_calls"] == 3
-
-
-def test_sme_run_falls_back_to_per_criterion_when_one_group_fails():
-    payloads = sme_group_payloads(3)
-    payloads["assessment_alignment"] = "{still not valid"
-    client = GroupScoringFakeClient(
-        payloads,
-        [SME_CRITERION_FALLBACKS["A-02"], SME_CRITERION_FALLBACKS["A-05"]],
-    )
-    result = _run(client)
-
-    assert result.success is True
-    assert len(result.criterion_scores) == 10
-    by_id = {score.criterion_id: score for score in result.criterion_scores}
-    # A-02/A-05 came from the per-criterion engine lane, so their justification
-    # is the code-computed text, not the grouped LLM's.
-    assert "code-computed" in by_id["A-02"].justification
-    assert "code-computed" in by_id["A-05"].justification
-    assert by_id["OP-02"].justification == "justification"
-    # The failed group has no single snapshot-able prompt or response.
-    assert "assessment_alignment" not in result.metadata["group_prompts"]
-    assert "assessment_alignment" not in result.metadata["group_responses"]
-    assert "task_execution" in result.metadata["group_prompts"]
-    assert "task_execution" in result.metadata["group_responses"]
-    assert "document_wide" in result.metadata["group_prompts"]
-    assert "document_wide" in result.metadata["group_responses"]
-    assert client.fallback_calls == 2
-    assert result.provenance["criterion_fallback_calls"] == 2
+    assert len(result.criterion_scores) == 2
+    assert result.criterion_scores[0].score == 4
+    assert result.criterion_scores[1].score == 3
+    assert set(result.metadata["group_prompts"]) == {"envelope_0", "envelope_1"}
+    assert set(result.metadata["group_responses"]) == {"envelope_0", "envelope_1"}
 
 
 def test_group_prompts_are_the_exact_prompts_sent():
-    client = GroupScoringFakeClient(sme_group_payloads(2))
-    result = _run(client)
-
-    assert set(result.metadata["group_prompts"].values()) <= set(client.prompts)
-    for group, prompt in result.metadata["group_prompts"].items():
-        assert f'"group": "{group}"' in prompt
-
-
-def test_db_scoring_rule_reaches_the_group_prompt(monkeypatch):
-    monkeypatch.setattr(
-        pipeline.EngineScoredAgent,
-        "_rubric_scoring_rules",
-        lambda self, db: {"A-02": "EDITED RULE: 6+ types -> 4"},
+    eval_id = uuid.uuid4()
+    snap = _make_snapshot(eval_id)
+    payloads = [
+        json.dumps(
+            {
+                "summary": "d1 ok",
+                "criterion_measurements": [
+                    {
+                        "criterion_id": "OP-01",
+                        "criterion_title": "Topic Coherence",
+                        "total_units": [
+                            {"unit_id": "u1", "evidence": "clean SLM text"}
+                        ],
+                        "qualifying_unit_ids": ["u1"],
+                        "has_measurable_content": True,
+                    }
+                ],
+            }
+        ),
+        json.dumps(
+            {
+                "summary": "d2 ok",
+                "criterion_measurements": [
+                    {
+                        "criterion_id": "OP-02",
+                        "criterion_title": "Interactive Elements",
+                        "instances": [{"excerpt": "clean SLM text"}],
+                    }
+                ],
+            }
+        ),
+    ]
+    client = MockLLM(payloads)
+    result = SME(llm_client=client).run(
+        evaluation_id=eval_id,
+        document_id=uuid.uuid4(),
+        form_snapshot=snap,
+        chunk_infos=_CHUNK_INFOS,
+        canonical_source_text=_CANONICAL,
     )
-    client = GroupScoringFakeClient(sme_group_payloads(2))
-    result = _run(client)
 
-    assessment_prompt = result.metadata["group_prompts"]["assessment_alignment"]
-    assert "EDITED RULE: 6+ types -> 4" in assessment_prompt
-    # A-05 had no DB rule -> the fallback text is still present.
-    assert "moderate scale" in assessment_prompt
+    assert set(result.metadata["group_prompts"].values()) == set(client.prompts)

@@ -116,12 +116,10 @@ def test_execute_group_repairs_once_on_bad_json(monkeypatch):
     assert first_call["temperature"] == repair_call["temperature"] == 0.1
     assert first_call["max_new_tokens"] == repair_call["max_new_tokens"] == 1800
     assert (
-        first_call["response_contract"].schema_name
-        == "sme_group_assessment_alignment"
+        first_call["response_contract"].schema_name == "sme_group_assessment_alignment"
     )
     assert (
-        repair_call["response_contract"].schema_name
-        == "sme_group_assessment_alignment"
+        repair_call["response_contract"].schema_name == "sme_group_assessment_alignment"
     )
 
     # Assert repair prompt text structure

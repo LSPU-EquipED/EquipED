@@ -24,9 +24,7 @@ def test_build_group_prompt_prefers_passed_scoring_rule() -> None:
         "EDITED RULE: count things differently"
     )
     # A-05 not in the passed dict -> falls back to the constant.
-    assert (
-        payload["criteria"]["A-05"]["scoring_rule"] == FALLBACK_SCORING_RULES["A-05"]
-    )
+    assert payload["criteria"]["A-05"]["scoring_rule"] == FALLBACK_SCORING_RULES["A-05"]
 
 
 def test_fallback_scoring_rules_has_all_ten_codes() -> None:
