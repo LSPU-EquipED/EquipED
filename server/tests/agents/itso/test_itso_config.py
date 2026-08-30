@@ -9,6 +9,7 @@ from server.core.exceptions import ConfigurationError
 from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.itso.agent import ITSO
 from server.tests.agents.helpers import _mock_settings
+from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 from server.tests.agents.itso.test_itso_execution import _response
 
 _OK_RESPONSE = _response()
@@ -132,16 +133,18 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
     )
 
     agent = ITSO(llm_client=_TempCaptureLLM())
+    eval_id = uuid4()
     result = agent.run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=[
             {
                 "chunk_id": "c1",
                 "page_number": 1,
-                "text": "text with citations (Author, 2020)",
+                "text": "security text with citations (Author, 2020)",
             }
         ],
+        form_snapshot=make_itso_test_snapshot(eval_id),
         llm_temperature=0.0,
     )
 
@@ -180,10 +183,12 @@ def test_itso_agent_records_requested_vs_actual_model() -> None:
             )
 
     agent = ITSO(llm_client=_ModelTrackingLLM())
+    eval_id = uuid4()
     result = agent.run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "content"}],
+        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "security content"}],
+        form_snapshot=make_itso_test_snapshot(eval_id),
     )
 
     assert result.provenance is not None

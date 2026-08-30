@@ -11,7 +11,7 @@ from server.modules.documents.models import DocumentChunk
 from server.tests.agents.helpers import (
     _BatchAgent,
     _FailingAgent,
-    _RetrievedChunk,
+    _make_dummy_snapshot,
     _seed_active_prompts,
 )
 
@@ -44,6 +44,8 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
     agent = _BatchAgent()
     supervisor = Supervisor(agents=[agent], db=db_session)
+    eval_id = uuid4()
+    snapshots = (_make_dummy_snapshot("sme", evaluation_id=eval_id),)
 
     chunks = [
         DocumentChunk(
@@ -87,9 +89,10 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     )
 
     result = supervisor.run_evaluation(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunks=chunks,
+        form_snapshots=snapshots,
         context={
             "reference_document_ids": {
                 "syllabus": uuid4(),
@@ -159,10 +162,17 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
         ),
     ]
 
+    eval_id = uuid4()
+    snapshots = (
+        _make_dummy_snapshot("coordinator", evaluation_id=eval_id),
+        _make_dummy_snapshot("sme", evaluation_id=eval_id),
+    )
+
     result = supervisor.run_evaluation(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunks=chunks,
+        form_snapshots=snapshots,
         context={
             "reference_document_ids": {
                 "syllabus": uuid4(),
@@ -176,28 +186,15 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     assert result.failures["coordinator"].startswith("RuntimeError (reference: ")
 
 
-def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> None:
-    """Each agent should only receive its own rubric context from precomputed dict."""
+def test_precomputed_context_references() -> None:
+    """ITSO execution _references extracts syllabus/curriculum context."""
     from server.modules.agents.itso import execution
     from server.modules.agents.runtime.context import ITSOExecutionContext
 
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-
-    # Precomputed dict has entries for all source types, but each agent
-    # should only use its own rubric_source_type.
     precomputed = {
-        "rubric_sme": ["sme-only-context"],
-        "rubric_coord": ["coord-only-context"],
-        "rubric_gad": ["gad-only-context"],
-        "rubric_itso": ["itso-only-context"],
-        "syllabus": ["syllabus-context"],
+        "syllabus": ["syllabus-context-1", "syllabus-context-2"],
+        "curriculum": ["curriculum-context"],
+        "other": ["other-context"],
     }
 
     context = ITSOExecutionContext(
@@ -207,44 +204,26 @@ def test_precomputed_context_respects_per_agent_rubric_scope(monkeypatch) -> Non
         reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,
     )
-    assert execution._rubric("query", context) == ["itso-only-context"]
-    assert execution._references("query", context) == ["syllabus-context"]
+    assert execution._references(context) == [
+        "syllabus-context-1",
+        "syllabus-context-2",
+        "curriculum-context",
+    ]
 
 
-def test_precomputed_context_falls_back_when_source_type_missing(
-    monkeypatch,
-) -> None:
-    """Fall back to live retrieval when source type is not precomputed."""
+def test_precomputed_context_references_empty_when_missing() -> None:
+    """ITSO execution _references returns empty list when no syllabus or curriculum."""
     from server.modules.agents.itso import execution
     from server.modules.agents.runtime.context import ITSOExecutionContext
 
-    monkeypatch.setattr(
-        execution,
-        "retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("live-retrieved")],
-    )
-    monkeypatch.setattr(
-        execution, "resolve_collection_name", lambda source_type: source_type
-    )
-
-    # Precomputed dict is missing the agent's rubric source type.
-    precomputed = {
-        "rubric_coord": ["other-context"],
-    }
-
-    monkeypatch.setattr(execution, "resolve_rubric_agent_id", lambda _: "sme")
-    monkeypatch.setattr(
-        execution, "get_active_rubric_context", lambda _: ["live-rubric"]
-    )
     context = ITSOExecutionContext(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "doc text"},),
-        reference_document_ids={"syllabus": uuid4()},
-        precomputed_context=precomputed,
+        reference_document_ids={},
+        precomputed_context={},
     )
-    assert execution._rubric("query", context) == ["live-rubric"]
-    assert execution._references("query", context) == ["live-retrieved"]
+    assert execution._references(context) == []
 
 
 def test_prepared_context_loads_authoritative_curriculum_text(
@@ -380,3 +359,79 @@ def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
     partial_agent_names = [a.agent_name for a in partial_supervisor.agents]
     assert "coordinator" not in partial_agent_names
     assert set(partial_agent_names) == {"sme", "gad", "itso"}
+
+
+def test_context_builder_rejects_legacy_fixed_criterion_prompts(db_session) -> None:
+    """EvaluationContextBuilder rejects active prompt text with legacy identifiers."""
+    import pytest
+    from server.modules.agents.exceptions import SupervisorExecutionError
+    from server.modules.agents.gad.agent import GAD
+    from server.modules.agents.itso.agent import ITSO
+    from server.modules.agents.supervision.context import EvaluationContextBuilder
+
+    # Seed GAD with legacy GAD-01 identifier
+    gad_legacy = PromptVersion(
+        agent_id="gad",
+        version_number=1,
+        prompt_text="Extract facts for GAD-01 and GAD-02 criteria.",
+        is_active=True,
+    )
+    db_session.add(gad_legacy)
+    db_session.commit()
+
+    builder_gad = EvaluationContextBuilder(db=db_session, agents=[GAD()])
+    with pytest.raises(SupervisorExecutionError) as exc_info:
+        builder_gad._load_active_prompt_versions()
+    assert "legacy fixed criterion identifiers" in str(exc_info.value)
+    assert "gad" in str(exc_info.value)
+
+    # Deactivate legacy GAD and set generic GAD
+    gad_legacy.is_active = False
+    gad_generic = PromptVersion(
+        agent_id="gad",
+        version_number=2,
+        prompt_text="Generic GAD role prompt with runtime criteria only.",
+        is_active=True,
+    )
+    # Seed ITSO with legacy ITSO-01 identifier
+    itso_legacy = PromptVersion(
+        agent_id="itso",
+        version_number=1,
+        prompt_text="Evaluate ITSO-01 (IP) and ITSO-02 (References).",
+        is_active=True,
+    )
+    db_session.add_all([gad_generic, itso_legacy])
+    db_session.commit()
+
+    builder_itso = EvaluationContextBuilder(db=db_session, agents=[ITSO()])
+    with pytest.raises(SupervisorExecutionError) as exc_info:
+        builder_itso._load_active_prompt_versions()
+    assert "legacy fixed criterion identifiers" in str(exc_info.value)
+    assert "itso" in str(exc_info.value)
+
+    # Deactivate legacy ITSO and set generic ITSO
+    itso_legacy.is_active = False
+    itso_generic = PromptVersion(
+        agent_id="itso",
+        version_number=2,
+        prompt_text="Generic ITSO role prompt with runtime criteria only.",
+        is_active=True,
+    )
+    db_session.add(itso_generic)
+    db_session.commit()
+
+    # Now both GAD and ITSO generic prompts are accepted
+    builder_both = EvaluationContextBuilder(db=db_session, agents=[GAD(), ITSO()])
+    prompts = builder_both._load_active_prompt_versions()
+    assert "gad" in prompts
+    assert "itso" in prompts
+    assert (
+        prompts["gad"].prompt_text
+        == "Generic GAD role prompt with runtime criteria only."
+    )
+    assert (
+        prompts["itso"].prompt_text
+        == "Generic ITSO role prompt with runtime criteria only."
+    )
+    assert prompts["gad"].version_id == gad_generic.version_id
+    assert prompts["itso"].version_id == itso_generic.version_id

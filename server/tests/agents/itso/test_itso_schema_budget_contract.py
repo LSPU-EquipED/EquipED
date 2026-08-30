@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from jsonschema import Draft202012Validator
 from server.core.llm import CompletionResult
+from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.itso.execution import execute as run_itso_execution
 from server.modules.agents.itso.response import (
     ITSO_CHUNK_ID_MAX,
@@ -23,6 +24,7 @@ from server.modules.agents.itso.response import (
     parse_response as parse_itso_response,
 )
 from server.modules.agents.runtime.context import ITSOExecutionContext
+from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 
 def _payload(summary="summary"):
@@ -65,10 +67,16 @@ def test_canonical_schema_and_parser_are_equivalent():
 
 def test_task_schema_and_parser_share_chunk_id_bounds():
     payload = _payload()
-    payload["criterion_scores"][0]["chunk_ids"] = ["c1", "c1"]
+    payload["criterion_scores"][0]["chunk_ids"] = ["c1"]
     schema = build_response_schema(("c1",))
     assert not list(Draft202012Validator(schema).iter_errors(payload))
     assert parse_itso_response(json.dumps(payload), known_chunk_ids=("c1",)) == payload
+
+    dup = copy.deepcopy(payload)
+    dup["criterion_scores"][0]["chunk_ids"] = ["c1", "c1"]
+    assert list(Draft202012Validator(schema).iter_errors(dup))
+    with pytest.raises(Exception):
+        parse_itso_response(json.dumps(dup), known_chunk_ids=("c1",))
 
     unknown = copy.deepcopy(payload)
     unknown["criterion_scores"][0]["chunk_ids"] = ["unknown"]
@@ -80,6 +88,7 @@ def test_task_schema_and_parser_share_chunk_id_bounds():
     empty = _payload()
     for item in empty["criterion_scores"]:
         item["chunk_ids"] = []
+        item["evidence"] = []
     assert not list(Draft202012Validator(empty_schema).iter_errors(empty))
     assert parse_itso_response(json.dumps(empty), known_chunk_ids=()) == empty
     too_many = copy.deepcopy(payload)
@@ -123,7 +132,6 @@ def test_mutations_fail_schema_and_parser(mutation):
     "mutation",
     [
         lambda p: p.update(summary=""),
-        lambda p: p["criterion_scores"].reverse(),
         lambda p: p["criterion_scores"][0].update(criterion_title="wrong title"),
         lambda p: p["criterion_scores"][0].update(justification=""),
     ],
@@ -134,6 +142,64 @@ def test_mutations_accepted_by_resilient_parser(mutation):
     parsed = parse_itso_response(json.dumps(payload), known_chunk_ids=("c1",))
     scores = criterion_scores(parsed, known_chunk_ids=("c1",))
     assert len(scores) == 5
+
+
+def test_dict_shorthand_mutation_accepted_by_resilient_parser():
+    shorthand_dict = {
+        "summary": "shorthand",
+        "criterion_scores": {
+            "ITSO-01": 4,
+            "ITSO-02": 3,
+            "ITSO-03": 4,
+            "ITSO-04": 2,
+            "ITSO-05": 1,
+        },
+    }
+    parsed = parse_itso_response(json.dumps(shorthand_dict), known_chunk_ids=("c1",))
+    scores = criterion_scores(parsed, known_chunk_ids=("c1",))
+    assert len(scores) == 5
+    assert [s.score for s in scores] == [4, 3, 4, 2, 1]
+
+
+def test_list_reordering_mutation_rejected_by_resilient_parser():
+    payload = _payload()
+    payload["criterion_scores"].reverse()
+    with pytest.raises(AgentExecutionError, match="ITSOInvalidCriterion"):
+        parse_itso_response(json.dumps(payload), known_chunk_ids=("c1",))
+
+
+def test_revision_1_golden_schema_and_result_parity():
+    """Verify Revision-1 5-criterion snapshot parity with legacy constants."""
+    eval_id = uuid4()
+    snapshot = make_itso_test_snapshot(eval_id)
+    criteria_specs = tuple(
+        (c.criterion_code, c.title)
+        for domain in snapshot.form.domains
+        for c in domain.criteria
+    )
+    schema = build_response_schema(("c1",), criteria_specs=criteria_specs)
+    payload = _payload()
+    assert not list(Draft202012Validator(schema).iter_errors(payload))
+
+    expected_ids = tuple(c[0] for c in criteria_specs)
+    expected_titles = dict(criteria_specs)
+    parsed = parse_itso_response(
+        json.dumps(payload),
+        expected_ids=expected_ids,
+        expected_titles=expected_titles,
+        known_chunk_ids=("c1",),
+    )
+    scores = criterion_scores(
+        parsed,
+        expected_ids=expected_ids,
+        expected_titles=expected_titles,
+        known_chunk_ids=("c1",),
+    )
+    assert len(scores) == 5
+    for idx, cid in enumerate(ITSO_CRITERIA):
+        assert scores[idx].criterion_id == cid
+        assert scores[idx].criterion_title == ITSO_CRITERIA_TITLES[cid]
+        assert scores[idx].score == 3
 
 
 class _CapturingClient:
@@ -161,14 +227,16 @@ class _CapturingClient:
 
 
 def _context(client):
+    eval_id = uuid4()
     return ITSOExecutionContext(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=(
             {"chunk_id": "c1", "page_number": 1, "text": "security evidence"},
         ),
+        form_snapshot=make_itso_test_snapshot(eval_id),
         llm_client=client,
-        precomputed_context={"rubric_itso": ["rubric"], "syllabus": ["reference"]},
+        precomputed_context={"syllabus": ["reference"]},
     )
 
 
