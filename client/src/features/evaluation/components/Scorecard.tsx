@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, CheckCircle, Flag, FileText, Clock } from 'lucide-react';
+import { AlertTriangle, Loader2, CheckCircle, Flag } from 'lucide-react';
 import { cn } from '@/shared/components/utils';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
@@ -59,12 +59,22 @@ export function Scorecard() {
   const isPartial = Boolean(results?.is_partial || evaluation?.partial_without_curriculum);
   const partialReason = results?.partial_reason || evaluation?.partial_reason;
 
-  const agentLabels: Record<string, string> = useMemo(() => ({
-    sme: 'Subject Matter Expert (SME)',
-    coordinator: 'Program Coordinator',
-    gad: 'Gender and Development (GAD)',
-    itso: 'Innovation and IP (ITSO)',
-  }), []);
+  const agentLabels: Record<string, string> = useMemo(
+    () => ({
+      sme: 'Subject Matter Expert (SME)',
+      coordinator: 'Program Coordinator',
+      gad: 'Gender and Development (GAD)',
+      itso: 'Innovation and IP (ITSO)',
+    }),
+    [],
+  );
+
+  const domainKeys = useMemo(() => {
+    const canonical = ['sme', 'coordinator', 'gad', 'itso'];
+    if (!results?.domain_scores) return canonical;
+    const extras = Object.keys(results.domain_scores).filter((key) => !canonical.includes(key));
+    return [...canonical, ...extras];
+  }, [results]);
 
   if (!id) {
     return (
@@ -90,7 +100,9 @@ export function Scorecard() {
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-[#f8fafc]">
         <div className="flex flex-col items-center gap-4 text-[#b91c1c] border border-[#b91c1c]/20 bg-white p-8 rounded-sm">
           <AlertTriangle className="size-8 text-[#b91c1c]" />
-          <p className="text-sm font-bold uppercase tracking-wider">Failed to load evaluation details.</p>
+          <p className="text-sm font-bold uppercase tracking-wider">
+            Failed to load evaluation details.
+          </p>
         </div>
       </div>
     );
@@ -104,7 +116,10 @@ export function Scorecard() {
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 select-none">
             Report Ledger
           </span>
-          <h1 className="truncate text-sm font-bold text-slate-800 select-all" title={evaluation.evaluation_id}>
+          <h1
+            className="truncate text-sm font-bold text-slate-800 select-all"
+            title={evaluation.evaluation_id}
+          >
             Job ID: {evaluation.evaluation_id}
           </h1>
           {isTerminal && (
@@ -122,22 +137,23 @@ export function Scorecard() {
           )}
         </div>
 
-        {results && (() => {
-          const display = overallScoreDisplay({
-            overallScore: results.overall_score,
-            synthesizedScore: results.synthesized_score,
-          });
-          return (
-            <div className="flex shrink-0 items-center gap-4 select-none">
-              <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                <span>Overall:</span>
-                <span className="text-[#1b3b87] font-extrabold">{display.canonicalText}</span>
-                <span className="text-slate-400">({display.monitoringText} monitoring)</span>
+        {results &&
+          (() => {
+            const display = overallScoreDisplay({
+              overallScore: results.overall_score,
+              synthesizedScore: results.synthesized_score,
+            });
+            return (
+              <div className="flex shrink-0 items-center gap-4 select-none">
+                <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                  <span>Overall:</span>
+                  <span className="text-[#1b3b87] font-extrabold">{display.canonicalText}</span>
+                  <span className="text-slate-400">({display.monitoringText} monitoring)</span>
+                </div>
+                <ScorecardPdfExport results={results} />
               </div>
-              <ScorecardPdfExport results={results} />
-            </div>
-          );
-        })()}
+            );
+          })()}
       </header>
 
       {/* Main Ledger workspace */}
@@ -166,28 +182,39 @@ export function Scorecard() {
             {/* Metadata information table-style grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed">
               <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Target Document</span>
-                <span className="font-bold text-slate-800 block truncate" title={results?.document_title || evaluation.document_id}>
+                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                  Target Document
+                </span>
+                <span
+                  className="font-bold text-slate-800 block truncate"
+                  title={results?.document_title || evaluation.document_id}
+                >
                   {results?.document_title || evaluation.document_id}
                 </span>
               </div>
 
               <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Syllabus Reference</span>
+                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                  Syllabus Reference
+                </span>
                 <span className="font-bold text-slate-800 block">
                   {evaluation.syllabus_id ?? '—'}
                 </span>
               </div>
 
               <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Curriculum Reference</span>
+                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                  Curriculum Reference
+                </span>
                 <span className="font-bold text-slate-800 block">
                   {evaluation.curriculum_id ?? '—'}
                 </span>
               </div>
 
               <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Submitted At</span>
+                <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                  Submitted At
+                </span>
                 <span className="font-bold text-slate-700 block">
                   {new Date(evaluation.submitted_at).toLocaleString()}
                 </span>
@@ -195,7 +222,9 @@ export function Scorecard() {
 
               {evaluation.completed_at && (
                 <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                  <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Finished At</span>
+                  <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                    Finished At
+                  </span>
                   <span className="font-bold text-slate-700 block">
                     {new Date(evaluation.completed_at).toLocaleString()}
                   </span>
@@ -204,7 +233,9 @@ export function Scorecard() {
 
               {evaluation.completed_at && results?.duration_seconds != null && (
                 <div className="border border-slate-100 bg-[#f8fafc]/50 p-3 rounded-sm">
-                  <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Evaluation Time</span>
+                  <span className="font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+                    Evaluation Time
+                  </span>
                   <span className="font-bold text-slate-700 block">
                     {formatDuration(results.duration_seconds)}
                   </span>
@@ -212,10 +243,19 @@ export function Scorecard() {
               )}
             </div>
 
+            {/* Legacy notice */}
+            {results?.legacy_notice && (
+              <div className="mt-4 rounded-sm border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 leading-relaxed">
+                {results.legacy_notice}
+              </div>
+            )}
+
             {/* Advisory status alert */}
             {isPartial && (
               <div className="mt-4 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/5 px-3 py-2 text-xs text-[#1e293b] leading-relaxed">
-                <strong>Partial evaluation:</strong> {partialReason || 'This evaluation ran without a curriculum reference. Coordinator review was skipped.'}
+                <strong>Partial evaluation:</strong>{' '}
+                {partialReason ||
+                  'This evaluation ran without a curriculum reference. Coordinator review was skipped.'}
               </div>
             )}
 
@@ -241,7 +281,9 @@ export function Scorecard() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="size-5 shrink-0" />
               <div className="flex-1">
-                <p className="font-bold uppercase tracking-wider text-xs">Failed to load evaluation results</p>
+                <p className="font-bold uppercase tracking-wider text-xs">
+                  Failed to load evaluation results
+                </p>
                 <p className="mt-1 text-sm">
                   {resultsError instanceof Error
                     ? resultsError.message
@@ -282,7 +324,9 @@ export function Scorecard() {
                           Score: {formatScore(flag.score)}/4
                         </span>
                       </div>
-                      <h4 className="font-bold text-slate-900 leading-normal">{flag.criterion_text}</h4>
+                      <h4 className="font-bold text-slate-900 leading-normal">
+                        {flag.criterion_text}
+                      </h4>
                       {flag.justification && (
                         <p className="text-slate-600 mt-1.5 leading-relaxed bg-slate-50 p-2 border border-slate-100 rounded-sm">
                           {cleanJustification(flag.justification)}
@@ -311,7 +355,7 @@ export function Scorecard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {(['sme', 'coordinator', 'gad', 'itso'] as const).map((domain) => {
+                  {domainKeys.map((domain) => {
                     const domainData = results.domain_scores[domain];
                     const isSkipped = isPartial && domain === 'coordinator' && !domainData;
 
@@ -324,7 +368,8 @@ export function Scorecard() {
                                 {domain.toUpperCase()} SKIPPED
                               </span>
                               <span className="text-xs text-slate-500 font-medium">
-                                Program Coordinator curriculum-grounded review was skipped because no curriculum reference was available.
+                                Program Coordinator curriculum-grounded review was skipped because
+                                no curriculum reference was available.
                               </span>
                             </div>
                           </td>
@@ -341,13 +386,29 @@ export function Scorecard() {
                         {/* Domain Group Header Row */}
                         <tr className="bg-slate-50/60 select-none">
                           <td className="py-3 px-4 text-[10px] font-extrabold text-slate-800 uppercase tracking-widest border-t border-slate-200">
-                            <div className="flex items-center gap-3">
-                              <span>{agentLabels[domain]}</span>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              <span>{agentLabels[domain] || domain.toUpperCase()}</span>
+                              {domainData.version != null && (
+                                <span className="inline-flex items-center rounded-sm border border-slate-300 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-700">
+                                  Revision {domainData.version}
+                                </span>
+                              )}
+                              {domainData.version == null &&
+                                (results.legacy_notice || domainData.form_snapshot_id == null) && (
+                                  <span className="inline-flex items-center rounded-sm border border-slate-300 bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                                    Legacy — form snapshot unavailable
+                                  </span>
+                                )}
+                              {domainData.adapter_key && (
+                                <span className="text-[9px] font-mono font-normal text-slate-500">
+                                  ({domainData.adapter_key} v{domainData.adapter_version ?? 1})
+                                </span>
+                              )}
                               {(domain === 'itso' || domain === 'sme') && (
                                 <button
                                   type="button"
                                   className="shrink-0 rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-2 py-1 text-[9px] font-bold normal-case tracking-wide text-[#1b3b87] hover:bg-[#1b3b87]/10"
-                                  onClick={() => setReviewModalAgent(domain)}
+                                  onClick={() => setReviewModalAgent(domain as 'itso' | 'sme')}
                                 >
                                   Review Scores
                                 </button>
@@ -356,15 +417,18 @@ export function Scorecard() {
                           </td>
                           <td className="py-3 px-4 text-right w-[6rem] border-t border-slate-200">
                             <span className="text-xs font-bold text-slate-500">
-                              Subtotal: {formatScore(domainData.subtotal)}/{formatScore(domainData.max_score)}
+                              Subtotal: {formatScore(domainData.subtotal)}/
+                              {formatScore(domainData.max_score)}
                             </span>
                           </td>
                           <td className="py-3 px-4 w-[10rem] border-t border-slate-200">
                             {domainData.adjectival_rating && (
-                              <span className={cn(
-                                'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                                getAdjectivalRatingClasses(domainData.adjectival_rating)
-                              )}>
+                              <span
+                                className={cn(
+                                  'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                  getAdjectivalRatingClasses(domainData.adjectival_rating),
+                                )}
+                              >
                                 {domainData.adjectival_rating}
                               </span>
                             )}
@@ -375,19 +439,47 @@ export function Scorecard() {
                         {domainData.criteria.map((criterion, idx) => {
                           const rating = Number(criterion.score);
                           const isWeak = !Number.isNaN(rating) && rating < 2;
+                          const isUngrounded = Boolean(criterion.is_ungrounded);
                           return (
                             <tr
                               key={`${domain}-${criterion.criterion_id || idx}`}
                               className={cn(
-                                isWeak && 'bg-[#b91c1c]/3 hover:bg-[#b91c1c]/5',
-                                'hover:bg-slate-50/30 transition-colors border-b border-slate-200 last:border-b-0'
+                                isUngrounded
+                                  ? 'bg-[#f2c811]/5 hover:bg-[#f2c811]/10'
+                                  : isWeak
+                                    ? 'bg-[#b91c1c]/3 hover:bg-[#b91c1c]/5'
+                                    : 'hover:bg-slate-50/30',
+                                'transition-colors border-b border-slate-200 last:border-b-0',
                               )}
                             >
                               <td className="py-4 px-4 text-slate-800 align-top">
-                                <div className="text-sm font-semibold">{criterion.criterion_text}</div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="text-sm font-semibold">
+                                    <span className="font-mono text-xs font-bold text-slate-500 mr-2">
+                                      {criterion.criterion_id}
+                                    </span>
+                                    <span>{criterion.criterion_text}</span>
+                                  </div>
+                                  {isUngrounded && (
+                                    <span className="shrink-0 inline-flex items-center rounded-sm border border-[#f2c811]/40 bg-[#f2c811]/20 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#1e293b]">
+                                      Ungrounded
+                                    </span>
+                                  )}
+                                </div>
+                                {criterion.description && (
+                                  <p className="mt-1 text-xs text-slate-500 leading-normal">
+                                    {criterion.description}
+                                  </p>
+                                )}
                                 {criterion.justification && (
                                   <div className="mt-2 text-xs leading-[1.6] text-slate-600 bg-slate-50 p-2.5 border border-slate-100 rounded-sm font-medium">
                                     {cleanJustification(criterion.justification)}
+                                  </div>
+                                )}
+                                {criterion.evidence && (
+                                  <div className="mt-2 text-xs leading-relaxed text-slate-600 bg-slate-50/50 p-2 border border-slate-100 rounded-sm font-normal">
+                                    <span className="font-semibold text-slate-700">Evidence: </span>
+                                    {cleanJustification(criterion.evidence)}
                                   </div>
                                 )}
                               </td>
@@ -402,12 +494,20 @@ export function Scorecard() {
                                     'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider',
                                     isDomainError
                                       ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
-                                      : isWeak
-                                        ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
-                                        : 'border-[#3b963e]/30 bg-[#3b963e]/10 text-[#3b963e]'
+                                      : isUngrounded
+                                        ? 'border-[#f2c811]/40 bg-[#f2c811]/15 text-[#1e293b]'
+                                        : isWeak
+                                          ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
+                                          : 'border-[#3b963e]/30 bg-[#3b963e]/10 text-[#3b963e]',
                                   )}
                                 >
-                                  {isDomainError ? 'Failed' : isWeak ? 'Needs attention' : 'Acceptable'}
+                                  {isDomainError
+                                    ? 'Failed'
+                                    : isUngrounded
+                                      ? 'Ungrounded'
+                                      : isWeak
+                                        ? 'Needs attention'
+                                        : 'Acceptable'}
                                 </span>
                               </td>
                             </tr>

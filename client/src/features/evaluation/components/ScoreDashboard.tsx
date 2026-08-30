@@ -235,8 +235,11 @@ export function ScoreDashboard({
     feedbackCriteria: domainScore?.criteria || [],
     rows: (domainScore?.criteria ?? []).map((criterion: CriterionScoreItem) => ({
       rating: formatScore(criterion.score),
+      code: criterion.criterion_id,
       criterion: criterion.criterion_text,
-      status: getShortStatusLabel(criterion.score),
+      description: criterion.description,
+      status: criterion.is_ungrounded ? 'Ungrounded' : getShortStatusLabel(criterion.score),
+      isUngrounded: Boolean(criterion.is_ungrounded),
     })),
   };
 
@@ -421,6 +424,11 @@ export function ScoreDashboard({
                   )}
               </div>
             )}
+            {results?.legacy_notice && (
+              <div className="mt-3 rounded-sm border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700 leading-relaxed">
+                {results.legacy_notice}
+              </div>
+            )}
             {isPartial && (
               <div className="mt-3 rounded-sm border border-[#f2c811]/30 bg-[#f2c811]/10 px-3 py-2">
                 <div className="flex items-start gap-2">
@@ -462,7 +470,11 @@ export function ScoreDashboard({
         )}
 
         <div className="mt-6 border-b border-slate-200">
-          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Select evaluation domain">
+          <div
+            className="flex flex-wrap gap-1"
+            role="tablist"
+            aria-label="Select evaluation domain"
+          >
             {agents.map((agent) => {
               const Icon = agent.icon;
               const isActive = agent.id === selectedAgentId;
@@ -484,7 +496,7 @@ export function ScoreDashboard({
                 >
                   <Icon className="size-3.5" aria-hidden="true" />
                   <span>{agentShortLabel(agent.id)}</span>
-                  
+
                   {agentState !== 'pending' && (
                     <span
                       className={cn(
@@ -545,7 +557,21 @@ export function ScoreDashboard({
                 return <Clock className="mt-1 size-5 shrink-0 text-slate-500" aria-hidden="true" />;
               })()}
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold">{selectedAgent.name}</h3>
+                  {domainScore?.version != null && (
+                    <span className="inline-flex items-center rounded-sm border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Revision {domainScore.version}
+                    </span>
+                  )}
+                  {domainScore?.version == null &&
+                    (results?.legacy_notice || domainScore?.form_snapshot_id == null) &&
+                    results && (
+                      <span className="inline-flex items-center rounded-sm border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                        Legacy — form snapshot unavailable
+                      </span>
+                    )}
+                </div>
                 <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-500">
                   {selectedScore.summary}
                 </p>
@@ -601,7 +627,6 @@ export function ScoreDashboard({
             </div>
           </div>
 
-
           <div className="border border-slate-200 bg-white rounded-sm overflow-x-auto">
             <table className="w-full text-left border-collapse border-spacing-0">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -643,18 +668,41 @@ export function ScoreDashboard({
                         <td
                           className={cn(
                             'py-3 px-4 text-sm whitespace-normal',
-                            isWeak ? 'text-slate-900 font-bold' : 'text-slate-600 font-semibold',
+                            row.isUngrounded
+                              ? 'text-slate-900 font-semibold'
+                              : isWeak
+                                ? 'text-slate-900 font-bold'
+                                : 'text-slate-600 font-semibold',
                           )}
                         >
-                          {row.criterion}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono text-xs font-bold text-slate-500 mr-2">
+                                {row.code}
+                              </span>
+                              <span>{row.criterion}</span>
+                              {row.description && (
+                                <p className="mt-0.5 text-xs font-normal text-slate-500 leading-normal">
+                                  {row.description}
+                                </p>
+                              )}
+                            </div>
+                            {row.isUngrounded && (
+                              <span className="shrink-0 rounded-sm border border-[#f2c811]/40 bg-[#f2c811]/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#1e293b]">
+                                Ungrounded
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-sm whitespace-normal">
                           <span
                             className={cn(
                               'rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider',
-                              isWeak
-                                ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
-                                : 'border-slate-200 bg-slate-50 text-slate-500',
+                              row.isUngrounded
+                                ? 'border-[#f2c811]/40 bg-[#f2c811]/15 text-[#1e293b] font-bold'
+                                : isWeak
+                                  ? 'border-[#b91c1c]/30 bg-[#b91c1c]/10 text-[#b91c1c]'
+                                  : 'border-slate-200 bg-slate-50 text-slate-500',
                             )}
                           >
                             {row.status}

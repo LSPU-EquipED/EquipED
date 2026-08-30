@@ -7,10 +7,7 @@
 // placeholders for missing metadata and explicit "skipped" / "failed"
 // sections for agents that did not produce a scorecard.
 
-import type {
-  CriterionScoreItem,
-  EvaluationResultsResponse,
-} from '../types';
+import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
 import {
   CANONICAL_MAX_SCORE,
   EXPORT_CRITERION_NOTE_MAX_CHARS,
@@ -30,15 +27,12 @@ import {
 export const REPORT_AGENT_ORDER = ['sme', 'coordinator', 'gad', 'itso'] as const;
 export type ReportAgentId = (typeof REPORT_AGENT_ORDER)[number];
 
-export type ReportAgentSectionState =
-  | 'available'
-  | 'skipped_partial'
-  | 'failed'
-  | 'unavailable';
+export type ReportAgentSectionState = 'available' | 'skipped_partial' | 'failed' | 'unavailable';
 
 export interface ReportAgentSection {
   agentId: ReportAgentId | string;
   displayLabel: string;
+  revisionLabel: string | null;
   state: ReportAgentSectionState;
   stateReason: string;
   subtotal: number | null;
@@ -57,6 +51,8 @@ export interface ReportCriterion {
   tier: ReturnType<typeof scoreTier>;
   tierLabel: string;
   note: string;
+  isUngrounded: boolean;
+  description: string | null;
 }
 
 export interface ReportFlag {
@@ -82,6 +78,7 @@ export interface ReportHeader {
   overallAdjectival: string;
   monitoringPercent: number | null;
   hasOverall: boolean;
+  legacyNotice: string | null;
 }
 
 export interface ReportModel {
@@ -96,8 +93,7 @@ const REASON_FAILED_BY_STATUS =
   'This agent reported an error. Other agent results may still be available.';
 const REASON_FAILED_BY_LIST =
   'This agent did not complete. The overall evaluation has been marked partial and the remaining agents were weighted accordingly.';
-const REASON_UNAVAILABLE =
-  'No agent output was recorded for this domain.';
+const REASON_UNAVAILABLE = 'No agent output was recorded for this domain.';
 const REASON_COORDINATOR_SKIPPED_FALLBACK =
   'Program Coordinator curriculum-grounded review was skipped because no curriculum reference was available.';
 
@@ -145,10 +141,7 @@ function resolveAgentState(
   //     evaluation is the deliberate no-curriculum path. Only this
   //     combination is allowed to render as `skipped_partial`.
   const isDeliberatePartialSkip =
-    agentId === 'coordinator' &&
-    !domainBlock &&
-    results.is_partial &&
-    !overallFailed;
+    agentId === 'coordinator' && !domainBlock && results.is_partial && !overallFailed;
   if (isDeliberatePartialSkip) {
     return {
       state: 'skipped_partial',
@@ -168,14 +161,23 @@ function resolveAgentState(
   return { state: 'available', reason: '' };
 }
 
-function buildCriterionRows(
-  criteria: ReadonlyArray<CriterionScoreItem>,
-): ReportCriterion[] {
+function buildCriterionRows(criteria: ReadonlyArray<CriterionScoreItem>): ReportCriterion[] {
   return criteria.map((criterion, index) => {
+    const isUngrounded = Boolean(criterion.is_ungrounded);
     const tier = scoreTier(criterion.score);
-    const tierLabel =
-      tier === 'strong' ? 'Strong' : tier === 'moderate' ? 'Moderate' : tier === 'weak' ? 'Needs attention' : 'Not available';
-    const note = boundNarrative(criterion.justification || criterion.evidence || '', EXPORT_CRITERION_NOTE_MAX_CHARS);
+    const tierLabel = isUngrounded
+      ? 'Ungrounded'
+      : tier === 'strong'
+        ? 'Strong'
+        : tier === 'moderate'
+          ? 'Moderate'
+          : tier === 'weak'
+            ? 'Needs attention'
+            : 'Not available';
+    const note = boundNarrative(
+      criterion.justification || criterion.evidence || '',
+      EXPORT_CRITERION_NOTE_MAX_CHARS,
+    );
     return {
       criterionId: criterion.criterion_id,
       index: index + 1,
@@ -185,8 +187,23 @@ function buildCriterionRows(
       tier,
       tierLabel,
       note,
+      isUngrounded,
+      description: criterion.description ?? null,
     };
   });
+}
+
+function resolveRevisionLabel(
+  domainBlock: EvaluationResultsResponse['domain_scores'][string] | undefined,
+  results: EvaluationResultsResponse,
+): string | null {
+  if (results.legacy_notice || (domainBlock && domainBlock.form_snapshot_id == null)) {
+    return 'Legacy — form snapshot unavailable';
+  }
+  if (domainBlock?.version != null) {
+    return `Revision ${domainBlock.version}`;
+  }
+  return null;
 }
 
 export function buildReportModel(results: EvaluationResultsResponse): ReportModel {
@@ -197,10 +214,14 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
     const subtotal = domain?.subtotal ?? null;
     const maxScore = domain?.max_score ?? CANONICAL_MAX_SCORE;
     const monitoring =
-      subtotal != null && domain ? monitoringPercentage(subtotal, maxScore || CANONICAL_MAX_SCORE) : null;
+      subtotal != null && domain
+        ? monitoringPercentage(subtotal, maxScore || CANONICAL_MAX_SCORE)
+        : null;
+    const revisionLabel = resolveRevisionLabel(domain, results);
     return {
       agentId,
       displayLabel: agentDisplayLabel(agentId),
+      revisionLabel,
       state,
       stateReason: reason,
       subtotal,
@@ -218,9 +239,11 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
     if (REPORT_AGENT_ORDER.includes(extra as ReportAgentId)) continue;
     const domain = domainScores[extra];
     const { state, reason } = resolveAgentState(extra, domain, results);
+    const revisionLabel = resolveRevisionLabel(domain, results);
     agents.push({
       agentId: extra,
       displayLabel: agentDisplayLabel(extra),
+      revisionLabel,
       state,
       stateReason: reason,
       subtotal: domain?.subtotal ?? null,
@@ -246,7 +269,8 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
 
   const hasOverall = typeof results.overall_score === 'number';
   const overallScore = hasOverall ? (results.overall_score as number) : null;
-  const monitoringPercent = overallScore != null ? monitoringPercentage(overallScore, CANONICAL_MAX_SCORE) : null;
+  const monitoringPercent =
+    overallScore != null ? monitoringPercentage(overallScore, CANONICAL_MAX_SCORE) : null;
 
   return {
     header: {
@@ -262,6 +286,7 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
       overallAdjectival: results.adjectival_rating || adjectivalRating(overallScore),
       monitoringPercent,
       hasOverall,
+      legacyNotice: results.legacy_notice ?? null,
     },
     agents,
     flags,
@@ -311,7 +336,9 @@ const NON_WIN_ANSI_RANGES = [
   [0xa0, 0xff], // Latin-1 Supplement
 ];
 const NON_WIN_ANSI_PATTERN = NON_WIN_ANSI_RANGES.map(([start, end]) =>
-  start === end ? `\\u${start.toString(16).padStart(4, '0')}` : `\\u${start.toString(16).padStart(4, '0')}-\\u${end.toString(16).padStart(4, '0')}`,
+  start === end
+    ? `\\u${start.toString(16).padStart(4, '0')}`
+    : `\\u${start.toString(16).padStart(4, '0')}-\\u${end.toString(16).padStart(4, '0')}`,
 ).join('');
 const NON_WIN_ANSI = new RegExp(`[^${NON_WIN_ANSI_PATTERN}]`, 'g');
 
@@ -324,7 +351,10 @@ export function findUnsupportedChars(text: string): string {
 }
 
 export function requirePageBreak(
-  pdf: { addPage: (size?: string, orientation?: string) => void; internal: { pageSize: { getHeight: () => number } } },
+  pdf: {
+    addPage: (size?: string, orientation?: string) => void;
+    internal: { pageSize: { getHeight: () => number } };
+  },
   nextY: number,
   pageBottomGuard: number = PDF_PAGE_BOTTOM_MM,
 ): number {
