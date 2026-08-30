@@ -118,6 +118,9 @@ class EvaluationJob(Base):
     )
     partial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     confirmed_program: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    is_pre_snapshot_legacy: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False
+    )
 
 
 def can_transition_status(
