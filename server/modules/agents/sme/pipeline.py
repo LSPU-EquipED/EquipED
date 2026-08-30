@@ -1,12 +1,4 @@
-"""Shared scoring base for SME and Coordinator.
-
-Both agents' rubrics map 1:1 onto ``registry.REGISTERED_CODES`` (SME's and
-Coordinator's rubric sets are identical -- see
-``server/data/rubrics/rubrics.json``). This module holds everything that's
-agent-agnostic: loading the SLM's clean text, running the grouped-LLM
-scoring pass with a per-criterion engine fallback, and building the final
-``AgentEvaluationResult``.
-"""
+"""Execution pipeline for SME strategy-shaped snapshot evaluation."""
 
 from __future__ import annotations
 
@@ -16,29 +8,139 @@ import uuid
 from typing import Any
 
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
-from server.modules.rubrics.service import (
-    get_active_rubric_criteria,
-    get_active_rubric_descriptions,
-    get_active_rubric_scoring_rules,
-    resolve_rubric_agent_id,
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    DomainDefinition,
+    LlmRubricGuidanceConfig,
+    RatioBandConfig,
 )
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AgentEvaluationResult, CriterionScore
 from ..exceptions import AgentExecutionError
-from ..runtime.llm import RunLLMClient, error_reference
-from . import groups
-from .fallback import registry
-from .group_execution import execute_group
-from .group_prompt import FALLBACK_DESCRIPTIONS as _FALLBACK_DESCRIPTIONS
-from .group_prompt import FALLBACK_SCORING_RULES as _FALLBACK_SCORING_RULES
+from ..provenance import sanitize_provenance
+from ..runtime.llm import RunLLMClient
+from .execution import execute_envelope
+from .packing import pack_domains
 
 logger = logging.getLogger(__name__)
 
+_IMPROVEMENT_THRESHOLD = 2
+_IMPROVEMENT_SUGGESTIONS: dict[str, str] = {
+    "A-01": "incorporating more higher-order thinking tasks",
+    "A-02": "diversifying the types of assessments used",
+    "A-03": "adding more checkpoints or reflection activities",
+    "A-04": "providing more varied feedback or intervention mechanisms",
+    "A-05": "aligning more assessments directly to the stated objectives",
+    "OP-01": "adding clearer transitions between topics",
+    "OP-02": "adding more interactive elements with real task content",
+    "OP-03": "providing clearer, more complete task directions",
+    "OP-04": "reviewing sections for clarity and internal consistency",
+    "OP-05": "adding more enrichment activities beyond the core content",
+}
+_DEFAULT_SUGGESTION = "revisiting this criterion"
+
+
+def _join_with_and(items: list[str]) -> str:
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def build_improvement_summary(criterion_scores: tuple[CriterionScore, ...]) -> str:
+    """Deterministic, code-computed summary with generic fallback for novel codes."""
+    if not criterion_scores:
+        return ""
+
+    strongest = max(criterion_scores, key=lambda c: c.score)
+    positive = f"{strongest.criterion_title} is the strongest area."
+
+    weak = sorted(
+        (c for c in criterion_scores if c.score <= _IMPROVEMENT_THRESHOLD),
+        key=lambda c: c.score,
+    )
+    if weak:
+        titles = _join_with_and([c.criterion_title for c in weak])
+        verb = "needs" if len(weak) == 1 else "need"
+        suggestions = _join_with_and(
+            [
+                _IMPROVEMENT_SUGGESTIONS.get(c.criterion_id, _DEFAULT_SUGGESTION)
+                for c in weak
+            ]
+        )
+        improvement = f"{titles} {verb} improvement; consider {suggestions}."
+    else:
+        improvement = "No areas need improvement."
+
+    return f"{positive} {improvement}"
+
+
+def validate_sme_snapshot(
+    form_snapshot: EvaluationFormSnapshotDTO,
+    evaluation_id: uuid.UUID,
+    agent_name: str,
+) -> tuple[DomainDefinition, ...]:
+    """Validate snapshot invariants and supported strategies before LLM execution."""
+    if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
+        raise AgentExecutionError("SME requires a valid EvaluationFormSnapshotDTO")
+
+    if form_snapshot.agent_id != agent_name:
+        raise AgentExecutionError(
+            f"Snapshot agent_id '{form_snapshot.agent_id}' does not "
+            f"match '{agent_name}'"
+        )
+    if form_snapshot.evaluation_id != evaluation_id:
+        raise AgentExecutionError(
+            f"Snapshot evaluation_id '{form_snapshot.evaluation_id}' does not "
+            f"match '{evaluation_id}'"
+        )
+    if form_snapshot.adapter_key != agent_name or form_snapshot.adapter_version != 1:
+        raise AgentExecutionError(
+            f"Invalid snapshot adapter key '{form_snapshot.adapter_key}' "
+            f"or version {form_snapshot.adapter_version}"
+        )
+
+    domains = form_snapshot.form.domains
+    total_criteria = sum(len(d.criteria) for d in domains)
+    if total_criteria < 1:
+        raise AgentExecutionError("SME snapshot contains no criteria")
+    if total_criteria > 20:
+        raise AgentExecutionError(
+            f"SME snapshot exceeds 20 criteria ({total_criteria})"
+        )
+
+    for d in domains:
+        for c in d.criteria:
+            cfg = c.strategy_config
+            if isinstance(cfg, LlmRubricGuidanceConfig):
+                pass
+            elif isinstance(cfg, CountBandConfig):
+                if cfg.mode != "minimum_count":
+                    raise AgentExecutionError(
+                        f"SME criterion '{c.criterion_code}' has unsupported "
+                        f"count mode '{cfg.mode}'"
+                    )
+            elif isinstance(cfg, RatioBandConfig):
+                if cfg.mode != "coverage_percentage":
+                    raise AgentExecutionError(
+                        f"SME criterion '{c.criterion_code}' has unsupported "
+                        f"ratio mode '{cfg.mode}'"
+                    )
+            else:
+                raise AgentExecutionError(
+                    f"SME criterion '{c.criterion_code}' has unsupported "
+                    f"strategy '{cfg.strategy}'"
+                )
+
+    return domains
+
 
 class EngineScoredAgent:
-    """Base for agents whose full rubric is scored by the code-side engine."""
+    """Base scoring agent driven exclusively by evaluation form snapshots."""
 
-    agent_name = "engine"
+    agent_name = "sme"
     rubric_source_type = "rubric_sme"
 
     def __init__(self, *, llm_client: Any | None = None) -> None:
@@ -46,66 +148,30 @@ class EngineScoredAgent:
 
     def _resolve_full_text(
         self,
-        document_id: uuid.UUID,
-        context_text: str | None,
-        chunk_infos: list[dict[str, Any]],
         canonical_source_text: str | None = None,
     ) -> str:
-        """The SLM's clean text, or the best available fallback.
-
-        Shared by the full engine pass and Coordinator's single-call path --
-        both need identical full-text resolution, so this is pulled out to
-        avoid duplicating the fallback chain.
-        """
         if not canonical_source_text or not canonical_source_text.strip():
             raise AgentExecutionError("canonical source text is required")
         return canonical_source_text
 
-    def _rubric_titles(self, db: Any | None) -> dict[str, str]:
-        """This agent's own rubric criterion titles, keyed by code."""
-        return get_active_rubric_criteria(
-            resolve_rubric_agent_id(self.rubric_source_type), db=db
-        )
-
-    def _rubric_descriptions(self, db: Any | None) -> dict[str, str]:
-        """This agent's own rubric criterion descriptions, keyed by code."""
-        return get_active_rubric_descriptions(
-            resolve_rubric_agent_id(self.rubric_source_type), db=db
-        )
-
-    def _rubric_scoring_rules(self, db: Any | None) -> dict[str, str]:
-        """This agent's own rubric criterion scoring rules, keyed by code.
-
-        Empty for codes whose ``scoring_rule`` is unset in the DB; callers
-        fall back to ``group_prompt.FALLBACK_SCORING_RULES``.
-        """
-        return get_active_rubric_scoring_rules(
-            resolve_rubric_agent_id(self.rubric_source_type), db=db
-        )
-
-    def _run_full_llm_scoring(
+    def _run_snapshot_scoring(
         self,
         *,
         evaluation_id: uuid.UUID,
         document_id: uuid.UUID,
+        form_snapshot: EvaluationFormSnapshotDTO,
         chunk_infos: list[dict[str, Any]],
-        context_text: str | None,
-        prompt_version_id: uuid.UUID | None,
-        db: Any | None,
+        context_text: str | None = None,
+        prompt_version_id: uuid.UUID | None = None,
         canonical_source_text: str | None = None,
         llm_client: Any | None = None,
         prompt_preamble: str | None = None,
     ) -> AgentEvaluationResult:
-        """Score every criterion via 3 grouped direct-LLM-scoring calls
-        (``groups.GROUP_CODES``), falling back to the existing per-criterion
-        engine path (``registry.run_criterion``) for any group whose call
-        fails outright.
-        """
-        full_text = self._resolve_full_text(
-            document_id, context_text, chunk_infos, canonical_source_text
-        )
-        if not full_text.strip():
-            raise AgentExecutionError("no document text available for evaluation")
+        domains = validate_sme_snapshot(form_snapshot, evaluation_id, self.agent_name)
+        if not chunk_infos:
+            raise AgentExecutionError("document chunks are required for evaluation")
+
+        full_text = self._resolve_full_text(canonical_source_text)
 
         start = time.perf_counter()
         primary_client = llm_client or self._default_llm_client or get_llm_client()
@@ -121,77 +187,44 @@ class EngineScoredAgent:
                 default_response_contract=ResponseContract.json_object(),
             )
         )
-        titles = self._rubric_titles(db)
-        descriptions = self._rubric_descriptions(db)
-        scoring_rules = self._rubric_scoring_rules(db)
 
-        all_scores: dict[str, CriterionScore] = {}
-        group_prompts: dict[str, str] = {}
-        group_responses: dict[str, dict[str, Any]] = {}
-        fallback_calls = 0
+        envelopes = pack_domains(domains)
+        all_scores: list[CriterionScore] = []
+        envelope_prompts: dict[str, str] = {}
+        envelope_responses: dict[str, dict[str, Any]] = {}
+        any_repair_occurred = False
 
-        for group_name in groups.GROUP_NAMES:
-            codes = groups.GROUP_CODES[group_name]
-            group_titles = {code: titles.get(code, code) for code in codes}
-            group_descriptions = {
-                code: descriptions.get(code, _FALLBACK_DESCRIPTIONS[code])
-                for code in codes
-            }
-            group_scoring_rules = {
-                code: scoring_rules.get(code) or _FALLBACK_SCORING_RULES[code]
-                for code in codes
-            }
-            try:
-                scores, prompt_text, response_snapshot = execute_group(
-                    group_name,
-                    codes,
-                    group_titles,
-                    group_descriptions,
-                    group_scoring_rules,
-                    client,
-                    full_text,
-                    prompt_preamble=prompt_preamble,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "[SME_LLM_SCORING] group=%s failed, falling back to "
-                    "per-criterion engine path: category=%s | reference=%s",
-                    group_name,
-                    type(exc).__name__,
-                    error_reference(exc),
-                )
-            else:
-                for score in scores:
-                    all_scores[score.criterion_id] = score
-                group_prompts[group_name] = prompt_text
-                group_responses[group_name] = response_snapshot
-                continue
+        for idx, env_criteria in enumerate(envelopes):
+            env_key = f"envelope_{idx}"
+            scores, prompt_text, response_dict, repair_occurred = execute_envelope(
+                idx,
+                env_criteria,
+                client,
+                full_text,
+                prompt_preamble=prompt_preamble,
+            )
+            all_scores.extend(scores)
+            envelope_prompts[env_key] = prompt_text
+            envelope_responses[env_key] = response_dict
+            if repair_occurred:
+                any_repair_occurred = True
 
-            for code in codes:
-                fallback_calls += 1
-                try:
-                    band, justification, evidence = registry.run_criterion(
-                        code, client, full_text, prompt_preamble=prompt_preamble
-                    )
-                except Exception as fallback_exc:
-                    raise AgentExecutionError(
-                        f"{self.agent_name} criterion {code} failed in both "
-                        "the grouped LLM-scoring path and the per-criterion "
-                        f"engine fallback (category="
-                        f"{type(fallback_exc).__name__}, "
-                        f"reference={error_reference(fallback_exc)})"
-                    ) from fallback_exc
-                all_scores[code] = CriterionScore(
-                    criterion_id=code,
-                    criterion_title=titles.get(code, code),
-                    score=band,
-                    justification=justification,
-                    chunk_ids=(),
-                    evidence=evidence,
-                )
-
-        criterion_scores = tuple(all_scores[code] for code in sorted(all_scores))
-        subtotal = sum(s.score for s in criterion_scores) / len(criterion_scores)
+        criterion_scores = tuple(all_scores)
+        expected_codes = tuple(
+            criterion.criterion_code
+            for domain in domains
+            for criterion in domain.criteria
+        )
+        actual_codes = tuple(score.criterion_id for score in criterion_scores)
+        if actual_codes != expected_codes:
+            raise AgentExecutionError(
+                "SME scored criterion order does not match the frozen form snapshot"
+            )
+        subtotal = (
+            sum(s.score for s in criterion_scores) / len(criterion_scores)
+            if criterion_scores
+            else 0.0
+        )
         total_seconds = time.perf_counter() - start
         actual_model = (
             client.actual_model
@@ -199,15 +232,23 @@ class EngineScoredAgent:
             else client.requested_model
         )
 
-        logger.info(
-            "[SME_LLM_SCORING] agent=%s | seconds=%.3f | criteria=%d | "
-            "groups_scored=%d | criterion_fallback_calls=%d",
-            self.agent_name,
-            total_seconds,
-            len(criterion_scores),
-            len(group_prompts),
-            fallback_calls,
-        )
+        provenance_dict: dict[str, Any] = {
+            "requested_model": client.requested_model,
+            "actual_model": actual_model,
+            "fallback_occurred": client.fallback_occurred,
+            "repair_occurred": any_repair_occurred,
+            "logical_calls": client.telemetry.get("call_count", 0),
+            "physical_attempts": client.telemetry.get("attempt_count", 0),
+            "input_tokens": client.telemetry.get("prompt_tokens", 0),
+            "output_tokens": client.telemetry.get("completion_tokens", 0),
+            "truncation_count": client.telemetry.get("cap_hit_count", 0),
+            "cap_hit_count": client.telemetry.get("cap_hit_count", 0),
+            "grouped_calls": len(envelopes),
+            "provider_seconds_ms": round(
+                client.telemetry.get("provider_seconds", 0) * 1000
+            ),
+            "trim_count": client.telemetry.get("cap_hit_count", 0),
+        }
 
         return AgentEvaluationResult(
             agent_name=self.agent_name,
@@ -215,35 +256,22 @@ class EngineScoredAgent:
             document_id=document_id,
             subtotal=subtotal,
             criterion_scores=criterion_scores,
-            summary="",
+            summary=build_improvement_summary(criterion_scores),
             model_name=actual_model,
             processing_seconds=total_seconds,
             token_count=len(full_text.split()),
             prompt_version_id=prompt_version_id,
             success=True,
             metadata={
-                "group_prompts": group_prompts,
-                "group_responses": group_responses,
+                "group_prompts": envelope_prompts,
+                "group_responses": envelope_responses,
             },
-            provenance={
-                "requested_model": client.requested_model,
-                "actual_model": actual_model,
-                "fallback_occurred": client.fallback_occurred,
-                "criterion_fallback_calls": fallback_calls,
-                "logical_calls": client.telemetry["call_count"],
-                "physical_attempts": client.telemetry["attempt_count"],
-                "input_tokens": client.telemetry["prompt_tokens"],
-                "output_tokens": client.telemetry["completion_tokens"],
-                "truncation_count": client.telemetry["cap_hit_count"],
-                "cap_hit_count": client.telemetry["cap_hit_count"],
-                "grouped_calls": len(group_prompts),
-                "fallback_calls": fallback_calls,
-                "provider_seconds_ms": round(
-                    client.telemetry["provider_seconds"] * 1000
-                ),
-                "trim_count": client.telemetry["cap_hit_count"],
-            },
+            provenance=sanitize_provenance(provenance_dict),
         )
 
 
-__all__ = ["EngineScoredAgent"]
+__all__ = [
+    "EngineScoredAgent",
+    "build_improvement_summary",
+    "validate_sme_snapshot",
+]
