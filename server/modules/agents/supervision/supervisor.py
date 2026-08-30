@@ -14,6 +14,7 @@ from server.modules.agents.itso.evidence import (
     ITSOEvidenceSnapshot,
 )
 from server.modules.documents.models import DocumentChunk
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..coordinator.agent import Coordinator
 from ..exceptions import SupervisorExecutionError
@@ -45,6 +46,7 @@ class Supervisor:
         evaluation_id: uuid.UUID,
         document_id: uuid.UUID,
         chunks: list[DocumentChunk],
+        form_snapshots: tuple[EvaluationFormSnapshotDTO, ...],
         query_text: str | None = None,
         context: dict[str, Any] | None = None,
         heartbeat_callback: Callable[[], None] | None = None,
@@ -65,6 +67,7 @@ class Supervisor:
             evaluation_id=evaluation_id,
             document_id=document_id,
             chunk_infos=prepared.chunk_infos,
+            form_snapshots=form_snapshots,
             context_text=prepared.query_text,
             prompt_versions=prepared.prompt_versions,
             reference_document_ids=prepared.reference_document_ids,

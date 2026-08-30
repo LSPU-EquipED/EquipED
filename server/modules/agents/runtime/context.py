@@ -5,8 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 
 def _freeze(value: Any) -> Any:
@@ -60,6 +63,7 @@ class AgentExecutionContext:
 @dataclass(frozen=True, slots=True)
 class ITSOExecutionContext(AgentExecutionContext):
     policy_evidence: Mapping[str, Any] = None  # type: ignore[assignment]
+    form_snapshot: EvaluationFormSnapshotDTO | None = None
     llm_client: Any | None = None
     llm_temperature: float | None = None
     domain_keywords: tuple[str, ...] = ()

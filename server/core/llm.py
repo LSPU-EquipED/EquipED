@@ -25,6 +25,7 @@ _MAX_RETRY_AFTER_SECONDS = 60.0
 _GATES: dict[tuple, _ProviderGate] = {}
 _GATES_LOCK = threading.Lock()
 _MAX_USAGE = 10_000_000
+_MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
 
 def _freeze(value):
@@ -396,8 +397,41 @@ class LocalLLMClient:
                     method="POST",
                 )
                 with request.urlopen(req, timeout=remaining) as response:
-                    data = json.loads(response.read())
                     response_headers = getattr(response, "headers", {})
+                    content_length = None
+                    if hasattr(response_headers, "get"):
+                        raw_content_length = response_headers.get("Content-Length")
+                        if raw_content_length is None and hasattr(
+                            response_headers, "items"
+                        ):
+                            for k, v in response_headers.items():
+                                if str(k).lower() == "content-length":
+                                    raw_content_length = v
+                                    break
+                        if raw_content_length is not None:
+                            try:
+                                parsed_cl = int(raw_content_length)
+                                if parsed_cl >= 0:
+                                    content_length = parsed_cl
+                            except (ValueError, TypeError):
+                                content_length = None
+
+                    if (
+                        content_length is not None
+                        and content_length > _MAX_RESPONSE_BYTES
+                    ):
+                        raise ValueError(
+                            "LLM response body exceeds maximum allowed size"
+                        )
+
+                    raw_body = response.read(_MAX_RESPONSE_BYTES + 1)
+
+                    if len(raw_body) > _MAX_RESPONSE_BYTES:
+                        raise ValueError(
+                            "LLM response body exceeds maximum allowed size"
+                        )
+
+                    data = json.loads(raw_body)
                 choice = data["choices"][0]
                 message = choice["message"]
                 usage = data.get("usage") or {}
