@@ -1,5 +1,6 @@
-import { Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { Download } from 'lucide-react';
+import { Button } from '@/shared/components/Button';
 import type { AlignmentRun } from '../types';
 import { exportAlignmentPdf } from '../utils/alignmentPdf';
 
@@ -24,16 +25,18 @@ export function AlignmentReportActions({
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => void exportPdf()}
         disabled={exporting}
-        className="inline-flex h-9 items-center gap-2 border border-slate-300 bg-white px-3 text-xs font-bold uppercase tracking-wide text-slate-700 disabled:opacity-50"
+        isLoading={exporting}
       >
-        {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+        {!exporting ? <Download className="size-4" /> : null}
         Export PDF
-      </button>
-      {error && <p className="w-full text-right text-xs font-semibold text-[#b91c1c]">{error}</p>}
+      </Button>
+      {error && <p className="w-full text-right text-xs font-semibold text-destructive">{error}</p>}
     </div>
   );
 }

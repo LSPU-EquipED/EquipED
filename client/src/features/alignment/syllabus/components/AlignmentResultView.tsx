@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { cn } from '@/shared/components/utils';
 import { buildApiUrl } from '@/shared/api/http';
 import type { AlignmentRun } from '../types';
 import { levelLabels, levelStyles } from '../utils/alignmentPresentation';
@@ -11,12 +12,12 @@ type AlignmentResultViewProps = {
 
 function LevelIcon({ run }: { run: AlignmentRun }) {
   if (run.alignment_level === 'MEETS') {
-    return <CheckCircle2 className="size-6 text-[#246b29]" aria-hidden="true" />;
+    return <CheckCircle2 className="size-6 text-success" aria-hidden="true" />;
   }
   if (run.alignment_level === 'PARTIALLY_MEETS') {
-    return <AlertTriangle className="size-6 text-[#8a5a12]" aria-hidden="true" />;
+    return <AlertTriangle className="size-6 text-warning" aria-hidden="true" />;
   }
-  return <XCircle className="size-6 text-[#b91c1c]" aria-hidden="true" />;
+  return <XCircle className="size-6 text-destructive" aria-hidden="true" />;
 }
 
 export function AlignmentResultView({
@@ -24,11 +25,11 @@ export function AlignmentResultView({
   emptyMessage = 'No syllabus alignment result is available.',
   linkSlmEvidence = false,
 }: AlignmentResultViewProps) {
-  if (!run) return <p className="p-5 text-sm leading-relaxed text-slate-600">{emptyMessage}</p>;
+  if (!run) return <p className="p-5 text-sm leading-relaxed text-text-muted">{emptyMessage}</p>;
   if (run.status === 'QUEUED' || run.status === 'RUNNING') {
     return (
-      <div className="flex items-center gap-3 p-5 text-sm font-semibold text-slate-700">
-        <Loader2 className="size-5 animate-spin text-[#1b3b87]" aria-hidden="true" />
+      <div className="flex items-center gap-3 p-5 text-sm font-semibold text-text">
+        <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
         Alignment is running. This page updates automatically.
       </div>
     );
@@ -40,12 +41,12 @@ export function AlignmentResultView({
 
   return (
     <div>
-      <section className={`border-b border-l-4 p-5 ${style.border} ${style.background}`}>
+      <section className={cn('border-b border-l-4 p-5', style.border, style.background)}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <LevelIcon run={run} />
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Alignment level
               </p>
               <h2 className={`mt-1 text-2xl font-bold ${style.accent}`}>
@@ -54,8 +55,8 @@ export function AlignmentResultView({
             </div>
           </div>
           {artifact && (
-            <div className={`border px-3 py-2 text-right ${style.badge}`}>
-              <p className="text-xl font-bold">
+            <div className={`rounded-sm border px-3 py-2 text-right ${style.badge}`}>
+              <p className="text-xl font-bold tabular-nums">
                 {artifact.aligned_topics} / {artifact.total_topics}
               </p>
               <p className="text-[11px] font-bold uppercase tracking-wide">Topics aligned</p>
@@ -64,19 +65,19 @@ export function AlignmentResultView({
         </div>
 
         <div className="mt-5 max-w-4xl border-t border-current/15 pt-4">
-          <h3 className="text-sm font-bold text-slate-950">Why this level was assigned</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-700">
+          <h3 className="text-sm font-bold text-text">Why this level was assigned</h3>
+          <p className="mt-2 text-sm leading-6 text-text">
             {run.justification || 'No detailed justification was recorded.'}
           </p>
         </div>
 
-        <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600">
+        <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-text-muted">
           <div>
-            <dt className="inline font-bold">Compared with: </dt>
+            <dt className="inline font-semibold">Compared with: </dt>
             <dd className="inline">{run.syllabus_title ?? 'Selected syllabus'}</dd>
           </div>
           <div>
-            <dt className="inline font-bold">Completed: </dt>
+            <dt className="inline font-semibold">Completed: </dt>
             <dd className="inline">
               {run.completed_at ? new Date(run.completed_at).toLocaleString() : 'Unavailable'}
             </dd>
@@ -86,7 +87,7 @@ export function AlignmentResultView({
           href={`${buildApiUrl(`/documents/${run.syllabus_document_id}/file`)}#page=1`}
           target="_blank"
           rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#1b3b87] underline"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary underline hover:text-primary-strong"
         >
           View source syllabus <ExternalLink className="size-3" aria-hidden="true" />
         </a>
@@ -135,46 +136,46 @@ function TopicSection({
 }) {
   const articleClass =
     tone === 'aligned'
-      ? 'border-[#3b963e]/30 bg-[#3b963e]/5'
-      : 'border-[#b91c1c]/25 bg-[#b91c1c]/5';
+      ? 'border-success/30 bg-success-soft/30'
+      : 'border-destructive/30 bg-destructive-soft/30';
   return (
     <section>
-      <h2 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-950">{title}</h2>
+      <h2 className="border-b border-border pb-2 text-base font-bold text-text">{title}</h2>
       <div className="mt-3 space-y-3">
         {items.length ? (
           items.map((item) => (
-            <article key={item.topic_id} className={`border p-4 ${articleClass}`}>
-              <h3 className="text-sm font-bold text-slate-950">{item.topic}</h3>
+            <article key={item.topic_id} className={`rounded-sm border p-4 ${articleClass}`}>
+              <h3 className="text-sm font-bold text-text">{item.topic}</h3>
               {linkSlmEvidence ? (
                 <a
                   href={`#chunk-${item.slm_chunk_id}`}
-                  className="mt-1 inline-block text-xs font-bold text-[#1b3b87] underline"
+                  className="mt-1 inline-block text-xs font-semibold text-primary underline hover:text-primary-strong"
                 >
                   View SLM page {item.slm_page_number ?? '—'}
                 </a>
               ) : (
-                <p className="mt-1 text-xs font-bold text-slate-600">
+                <p className="mt-1 text-xs font-semibold text-text-muted">
                   SLM page {item.slm_page_number ?? '—'}
                 </p>
               )}
-              <blockquote className="mt-2 border-l-2 border-slate-300 pl-3 text-xs leading-5 text-slate-700">
+              <blockquote className="mt-2 border-l-2 border-border pl-3 text-xs leading-5 text-text-muted">
                 “{item.slm_evidence}”
               </blockquote>
               {item.content_text && (
-                <div className="mt-3 border-t border-slate-200 pt-3">
-                  <p className="text-xs font-bold text-[#246b29]">
+                <div className="mt-3 border-t border-border pt-3">
+                  <p className="text-xs font-semibold text-success">
                     {item.content_ref || 'Syllabus course content'}, page {item.page_number ?? '—'}
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-slate-700">{item.content_text}</p>
+                  <p className="mt-1 text-xs leading-5 text-text">{item.content_text}</p>
                 </div>
               )}
-              <p className={`mt-3 text-xs leading-5 ${tone === 'outside' ? 'text-[#991b1b]' : 'text-slate-700'}`}>
+              <p className={`mt-3 text-xs leading-5 ${tone === 'outside' ? 'text-destructive font-medium' : 'text-text-muted'}`}>
                 <strong>Reason:</strong> {item.rationale}
               </p>
             </article>
           ))
         ) : (
-          <p className="text-sm text-slate-600">{empty}</p>
+          <p className="text-sm text-text-muted">{empty}</p>
         )}
       </div>
     </section>

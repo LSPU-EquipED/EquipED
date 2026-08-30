@@ -12,28 +12,28 @@ export const levelStyles: Record<
   { border: string; background: string; accent: string; badge: string }
 > = {
   MEETS: {
-    border: 'border-[#3b963e]/40',
-    background: 'bg-[#3b963e]/5',
-    accent: 'text-[#246b29]',
-    badge: 'border-[#3b963e]/40 bg-[#3b963e]/10 text-[#246b29]',
+    border: 'border-success/30',
+    background: 'bg-success-soft/30',
+    accent: 'text-success',
+    badge: 'border-success/30 bg-success-soft text-success',
   },
   PARTIALLY_MEETS: {
-    border: 'border-[#b7791f]/40',
-    background: 'bg-[#f2c811]/10',
-    accent: 'text-[#8a5a12]',
-    badge: 'border-[#b7791f]/40 bg-[#f2c811]/15 text-[#74470a]',
+    border: 'border-warning/30',
+    background: 'bg-warning-soft/30',
+    accent: 'text-warning',
+    badge: 'border-warning/30 bg-warning-soft text-warning',
   },
   DOES_NOT_MEET: {
-    border: 'border-[#b91c1c]/35',
-    background: 'bg-[#b91c1c]/5',
-    accent: 'text-[#b91c1c]',
-    badge: 'border-[#b91c1c]/35 bg-[#b91c1c]/10 text-[#991b1b]',
+    border: 'border-destructive/30',
+    background: 'bg-destructive-soft/30',
+    accent: 'text-destructive',
+    badge: 'border-destructive/30 bg-destructive-soft text-destructive',
   },
   UNAVAILABLE: {
-    border: 'border-slate-400',
-    background: 'bg-slate-100',
-    accent: 'text-slate-700',
-    badge: 'border-slate-400 bg-slate-100 text-slate-700',
+    border: 'border-border',
+    background: 'bg-surface-subtle',
+    accent: 'text-text-muted',
+    badge: 'border-border bg-surface-subtle text-text-muted',
   },
 };
 
