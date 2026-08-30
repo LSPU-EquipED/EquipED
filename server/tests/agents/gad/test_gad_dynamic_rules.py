@@ -8,8 +8,15 @@ import uuid
 from server.core.llm import CompletionResult, ResponseContract
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.gad.prompt import (
-    FALLBACK_GAD_INSTRUCTIONS,
     build_combined_prompt,
+)
+from server.modules.rubrics.contracts import (
+    CriterionDefinition,
+)
+from server.tests.agents.gad.conftest import (
+    REVISION_1_GAD_CRITERIA,
+    REVISION_1_GAD_RULES,
+    make_gad_snapshot,
 )
 
 _CHUNKS = [{"chunk_id": "c1", "text": "Sample learning material text."}]
@@ -19,16 +26,7 @@ def _instructions(prompt: str) -> str:
     return "\n".join(json.loads(prompt)["instructions"])
 
 
-def test_fallback_covers_every_registered_criterion() -> None:
-    from server.modules.agents.gad import registry
-
-    assert set(FALLBACK_GAD_INSTRUCTIONS) == {
-        d.criterion_id for d in registry.CRITERIA
-    }
-    assert all(v.strip() for v in FALLBACK_GAD_INSTRUCTIONS.values())
-
-
-def test_seed_json_matches_fallback_constant() -> None:
+def test_seed_json_matches_revision_1_fixture_constant() -> None:
     import json as _json
     from pathlib import Path
 
@@ -42,86 +40,118 @@ def test_seed_json_matches_fallback_constant() -> None:
         for d in gad_set["domains"]
         for c in d["criteria"]
     }
-    assert seeded == FALLBACK_GAD_INSTRUCTIONS
+    assert seeded == REVISION_1_GAD_RULES
 
 
-def test_prompt_uses_fallback_when_no_rules_supplied() -> None:
+def test_prompt_uses_snapshot_rules() -> None:
+    snap = make_gad_snapshot()
     text = _instructions(
-        build_combined_prompt(packed_chunks=_CHUNKS, prompt_version="v1")
+        build_combined_prompt(
+            packed_chunks=_CHUNKS, form_snapshot=snap, prompt_version="v1"
+        )
     )
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-01"] in text
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-05"] in text
+    assert REVISION_1_GAD_RULES["GAD-01"] in text
+    assert REVISION_1_GAD_RULES["GAD-05"] in text
 
 
-def test_supplied_rule_overrides_fallback_per_criterion() -> None:
+def test_custom_snapshot_rule_reaches_prompt() -> None:
+    custom_c0 = REVISION_1_GAD_CRITERIA[0].model_copy(
+        update={"scoring_rule": "EDITED GAD-01 COUNTING RULE"}
+    )
+    custom_criteria = (custom_c0,) + REVISION_1_GAD_CRITERIA[1:]
+    snap = make_gad_snapshot(criteria=custom_criteria)
     text = _instructions(
         build_combined_prompt(
             packed_chunks=_CHUNKS,
+            form_snapshot=snap,
             prompt_version="v1",
-            scoring_rules={"GAD-01": "EDITED GAD-01 COUNTING RULE"},
         )
     )
     assert "EDITED GAD-01 COUNTING RULE" in text
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-01"] not in text
-    # untouched criteria still use the fallback
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-02"] in text
+    assert REVISION_1_GAD_RULES["GAD-01"] not in text
+    assert REVISION_1_GAD_RULES["GAD-02"] in text
 
 
 def test_structural_scaffold_survives_rule_injection() -> None:
+    snap = make_gad_snapshot()
     text = _instructions(
         build_combined_prompt(
             packed_chunks=_CHUNKS,
+            form_snapshot=snap,
             prompt_version="v1",
-            scoring_rules={c: f"rule {c}" for c in FALLBACK_GAD_INSTRUCTIONS},
         )
     )
     assert '"excerpt"' in text
     assert '"chunk_id"' in text
     assert "Do not include" in text and "score" in text
-    assert "10" in text  # MAX_INSTANCES_PER_CRITERION still stated
-    # GAD-02 balance scaffold still present
+    assert "10" in text
     assert "female_count" in text and "male_count" in text
 
 
 def test_scaffold_names_required_output_fields_explicitly() -> None:
+    snap = make_gad_snapshot()
     text = _instructions(
-        build_combined_prompt(packed_chunks=_CHUNKS, prompt_version="v1")
+        build_combined_prompt(
+            packed_chunks=_CHUNKS, form_snapshot=snap, prompt_version="v1"
+        )
     )
-    # instance criteria must spell out the required fields as named JSON keys
     assert '"instance_count"' in text
     assert '"instances"' in text
     assert '"summary"' in text
     assert '"excerpt"' in text and '"chunk_id"' in text
-    # balance criterion
     assert '"female_count"' in text and '"male_count"' in text
-    # the wording must frame these as REQUIRED output fields, not just a task
     assert "EXACTLY these fields" in text
-    # each instance criterion still tells the model to use 0 when none found
     assert "use 0 if none" in text
 
 
-def test_blank_rule_falls_back() -> None:
+def test_blank_snapshot_rule_falls_back_to_description() -> None:
+    custom_c2 = REVISION_1_GAD_CRITERIA[2].model_copy(
+        update={"scoring_rule": "   ", "description": "Custom fallback description."}
+    )
+    custom_criteria = (
+        REVISION_1_GAD_CRITERIA[0],
+        REVISION_1_GAD_CRITERIA[1],
+        custom_c2,
+        REVISION_1_GAD_CRITERIA[3],
+        REVISION_1_GAD_CRITERIA[4],
+    )
+    snap = make_gad_snapshot(criteria=custom_criteria)
     text = _instructions(
         build_combined_prompt(
             packed_chunks=_CHUNKS,
+            form_snapshot=snap,
             prompt_version="v1",
-            scoring_rules={"GAD-03": "   "},
         )
     )
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-03"] in text
+    assert "Custom fallback description." in text
 
 
 _FIVE_SECTION_RESPONSE = {
-    "gad-01": {"criterion": "x", "instance_count": 0, "instances": [],
-               "summary": "none."},
-    "gad-02": {"criterion": "x", "female_count": 0, "male_count": 0,
-               "summary": "balanced."},
-    "gad-03": {"criterion": "x", "instance_count": 0, "instances": [],
-               "summary": "none."},
-    "gad-04": {"criterion": "x", "instance_count": 0, "instances": [],
-               "summary": "none."},
-    "gad-05": {"criterion": "x", "instance_count": 0, "instances": [],
-               "summary": "none."},
+    "gad-01": {
+        "instance_count": 0,
+        "instances": [],
+        "summary": "none.",
+    },
+    "gad-02": {
+        "female_count": 0,
+        "male_count": 0,
+        "summary": "balanced.",
+    },
+    "gad-03": {
+        "instance_count": 0,
+        "instances": [],
+        "summary": "none.",
+    },
+    "gad-04": {
+        "instance_count": 0,
+        "instances": [],
+        "summary": "none.",
+    },
+    "gad-05": {
+        "instance_count": 0,
+        "instances": [],
+        "summary": "none.",
+    },
 }
 
 
@@ -157,34 +187,44 @@ class _SequenceLLM:
 
 
 _DOC_CHUNKS = [
-    {"chunk_id": "c1", "page_number": 1,
-     "text": "The learning material discusses community roles and helpers."}
+    {
+        "chunk_id": "c1",
+        "page_number": 1,
+        "text": "The learning material discusses community roles and helpers.",
+    }
 ]
 
 
-def _run_gad(monkeypatch, rules: dict[str, str]) -> str:
-    monkeypatch.setattr(
-        "server.modules.agents.gad.pipeline.GADScoredAgent._rubric_scoring_rules",
-        lambda self, db=None: rules,
-    )
+def _run_gad_with_snapshot(criteria: tuple[CriterionDefinition, ...]) -> str:
+    eval_id = uuid.uuid4()
+    snap = make_gad_snapshot(eval_id, criteria=criteria)
     fake = _SequenceLLM()
     GAD(llm_client=fake).run(
-        evaluation_id=uuid.uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid.uuid4(),
         chunk_infos=_DOC_CHUNKS,
+        form_snapshot=snap,
     )
     return "\n".join(fake.prompts[0]["instructions"])
 
 
-def test_db_rule_reaches_the_extraction_prompt(monkeypatch) -> None:
-    text = _run_gad(monkeypatch, {"GAD-01": "EDITED GAD-01 COUNTING RULE"})
+def test_snapshot_rule_reaches_the_extraction_prompt() -> None:
+    custom_c0 = REVISION_1_GAD_CRITERIA[0].model_copy(
+        update={"scoring_rule": "EDITED GAD-01 COUNTING RULE"}
+    )
+    custom_criteria = (custom_c0,) + REVISION_1_GAD_CRITERIA[1:]
+    text = _run_gad_with_snapshot(custom_criteria)
     assert "EDITED GAD-01 COUNTING RULE" in text
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-02"] in text
+    assert REVISION_1_GAD_RULES["GAD-02"] in text
 
 
-def test_empty_db_rules_fall_back(monkeypatch) -> None:
-    text = _run_gad(monkeypatch, {})
-    assert FALLBACK_GAD_INSTRUCTIONS["GAD-01"] in text
+def test_empty_snapshot_rules_fall_back() -> None:
+    custom_c0 = REVISION_1_GAD_CRITERIA[0].model_copy(
+        update={"scoring_rule": None, "description": "Fallback description"}
+    )
+    custom_criteria = (custom_c0,) + REVISION_1_GAD_CRITERIA[1:]
+    text = _run_gad_with_snapshot(custom_criteria)
+    assert "Fallback description" in text
 
 
 def _trim_migration():
@@ -206,11 +246,54 @@ def test_trimmed_managed_prompt_is_framing_only() -> None:
 def test_managed_prompt_and_rules_do_not_both_carry_criteria() -> None:
     """With the trimmed framing as the managed prompt, per-criterion guidance
     appears once (from the injected rule), not twice."""
+    snap = make_gad_snapshot()
     rendered = _instructions(
         build_combined_prompt(
             packed_chunks=_CHUNKS,
+            form_snapshot=snap,
             prompt_version="v1",
             gad_managed_prompt=_trim_migration().TRIMMED_GAD_PROMPT,
         )
     )
-    assert rendered.count(FALLBACK_GAD_INSTRUCTIONS["GAD-01"]) == 1
+    assert rendered.count(REVISION_1_GAD_RULES["GAD-01"]) == 1
+
+
+def test_criterion_agnostic_gad_prompt_with_novel_codes():
+    """Criterion-agnostic GAD prompt formats arbitrary criteria without legacy codes."""
+    import importlib
+
+    from server.modules.rubrics.contracts import CountBandConfig
+
+    mig = importlib.import_module(
+        "server.alembic.versions.20260829_0005_criterion_agnostic_agent_prompts"
+    )
+
+    novel_c0 = CriterionDefinition(
+        rubric_criterion_id=uuid.uuid4(),
+        criterion_code="NOVEL-G-01",
+        title="Novel Inclusivity",
+        description="Check novel inclusivity aspects.",
+        scoring_rule="Count instances of novel terminology.",
+        display_order=1,
+        strategy_config=CountBandConfig(
+            strategy="count_band",
+            mode="maximum_count",
+            threshold_4=0,
+            threshold_3=1,
+            threshold_2=3,
+        ),
+    )
+    snap = make_gad_snapshot(criteria=(novel_c0,))
+    rendered = _instructions(
+        build_combined_prompt(
+            packed_chunks=_CHUNKS,
+            form_snapshot=snap,
+            prompt_version="v1",
+            gad_managed_prompt=mig.CRITERION_AGNOSTIC_GAD_PROMPT,
+        )
+    )
+    assert "NOVEL-G-01" in rendered
+    assert "Novel Inclusivity" in rendered
+    assert "Count instances of novel terminology." in rendered
+    for legacy_code in ("GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"):
+        assert legacy_code not in rendered
