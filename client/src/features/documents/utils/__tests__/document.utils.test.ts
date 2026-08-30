@@ -5,29 +5,34 @@ describe('document.utils', () => {
   it('maps PROCESSED status to Ready with accessible contrast badge class', () => {
     const meta = getStatusMeta('PROCESSED');
     expect(meta.label).toBe('Ready');
-    expect(meta.badgeClass).toContain('bg-[#166534]');
-    expect(meta.badgeClass).toContain('text-white');
+    expect(meta.badgeClass).toContain('bg-success-soft');
+    expect(meta.badgeClass).toContain('text-success');
   });
 
   it('maps PENDING and PROCESSING statuses correctly', () => {
     const pending = getStatusMeta('PENDING');
     expect(pending.label).toBe('Processing');
-    expect(pending.badgeClass).toContain('bg-[#f2c811]');
+    expect(pending.badgeClass).toContain('bg-warning-soft');
+    expect(pending.badgeClass).toContain('text-warning');
 
     const processing = getStatusMeta('PROCESSING');
     expect(processing.label).toBe('Processing');
+    expect(processing.badgeClass).toContain('bg-warning-soft');
+    expect(processing.badgeClass).toContain('text-warning');
   });
 
   it('maps FAILED status correctly', () => {
     const failed = getStatusMeta('FAILED');
     expect(failed.label).toBe('Failed');
-    expect(failed.badgeClass).toContain('bg-[#b91c1c]');
+    expect(failed.badgeClass).toContain('bg-destructive-soft');
+    expect(failed.badgeClass).toContain('text-destructive');
   });
 
   it('returns fallback for unknown statuses', () => {
     const fallback = getStatusMeta('NON_EXISTENT');
     expect(fallback.label).toBe('Unavailable');
-    expect(fallback.badgeClass).toContain('bg-slate-600');
+    expect(fallback.badgeClass).toContain('bg-surface-subtle');
+    expect(fallback.badgeClass).toContain('text-text-muted');
   });
 
   it('formats dates consistently', () => {
