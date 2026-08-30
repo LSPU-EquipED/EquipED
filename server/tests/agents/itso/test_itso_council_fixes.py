@@ -6,6 +6,7 @@ from server.core.llm import CompletionResult
 from server.modules.agents.itso import execution
 from server.modules.agents.itso.agent import ITSO
 from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
+from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 
 def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
@@ -42,10 +43,12 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
         )(),
     )
     client = Client()
+    eval_id = uuid4()
     result = ITSO(llm_client=client).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=[{"chunk_id": "c", "text": "x"}],
+        form_snapshot=make_itso_test_snapshot(eval_id),
     )
     assert result.provenance["repair_occurred"] is True
     assert result.provenance["fallback_occurred"] is False

@@ -11,6 +11,7 @@ from server.modules.embeddings.policy_retrieval import (
     PolicyEvidenceChunk,
     PolicyRetrievalResult,
 )
+from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 CRITERIA = {
     "ITSO-03": "intellectual_property",
@@ -32,11 +33,13 @@ def _settings(enabled=False):
 
 
 def _context(policy):
+    snapshot = make_itso_test_snapshot()
     return ITSOExecutionContext(
         evaluation_id=uuid4(),
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "text": "SLM text"},),
         policy_evidence=policy,
+        form_snapshot=snapshot,
     )
 
 
@@ -138,13 +141,19 @@ def test_enabled_delivery_groups_concrete_clauses(monkeypatch):
     monkeypatch.setattr(
         "server.modules.agents.itso.evidence.retrieve_policy_context", retrieve
     )
-    snapshot = ITSOEvidenceBuilder(db=object())._build_policy_evidence_snapshot()
+    snapshot_evidence = ITSOEvidenceBuilder(
+        db=object()
+    )._build_policy_evidence_snapshot()
     assert {
         key: value["policy_area"]
-        for key, value in snapshot["evidence"]["criteria"].items()
+        for key, value in snapshot_evidence["evidence"]["criteria"].items()
     } == CRITERIA
+    test_snapshot = make_itso_test_snapshot()
+    criteria = [c for d in test_snapshot.form.domains for c in d.criteria]
     prompt = build_prompt(
-        _context(snapshot["evidence"]), rubric_context=[], reference_context=[]
+        _context(snapshot_evidence["evidence"]),
+        ordered_criteria=criteria,
+        reference_context=[],
     )
     assert all("approved " + cid in prompt for cid in CRITERIA)
 
@@ -211,8 +220,12 @@ def test_provenance_is_opaque_exact_schema():
 
 def test_blocked_and_unavailable_prompt_has_no_clause_text():
     policy = _available_snapshot()["evidence"] | {"delivery_state": "blocked"}
-    prompt = build_prompt(_context(policy), rubric_context=[], reference_context=[])
-    assert "approved ITSO" not in prompt
+    test_snapshot = make_itso_test_snapshot()
+    criteria = [c for d in test_snapshot.form.domains for c in d.criteria]
+    prompt = build_prompt(
+        _context(policy), ordered_criteria=criteria, reference_context=[]
+    )
+    assert not any("clause " + cid in prompt for cid in CRITERIA)
     assert "delivery_blocked" in prompt
     unavailable = {
         "delivery_state": "enabled",
@@ -222,7 +235,7 @@ def test_blocked_and_unavailable_prompt_has_no_clause_text():
         },
     }
     assert "UNAVAILABLE" in build_prompt(
-        _context(unavailable), rubric_context=[], reference_context=[]
+        _context(unavailable), ordered_criteria=criteria, reference_context=[]
     )
 
 

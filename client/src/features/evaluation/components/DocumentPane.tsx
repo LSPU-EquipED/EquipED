@@ -29,7 +29,7 @@ type DocumentPaneProps = {
 };
 
 export function DocumentPane({
-  document,
+  document: _document,
   isLoading,
   error,
   isResolvingEval,
@@ -45,10 +45,6 @@ export function DocumentPane({
   chunkMap,
   selectedAgentLabel,
 }: DocumentPaneProps) {
-  const documentSubtitle = [document?.courseTitle, document?.lessonTitle]
-    .filter(Boolean)
-    .join(' - ');
-
   // Active group selection (supports multiple documents, defaults to first)
   const [activeGroupIndex, setActiveGroupIndex] = useState<number>(0);
   const activeGroup = documentTextGroups[activeGroupIndex] || documentTextGroups[0];

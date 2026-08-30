@@ -39,6 +39,7 @@ from server.modules.agents.gad.registry import (
     REGISTRY_VERSION,
     score_from_combined,
 )
+from server.tests.agents.gad.conftest import make_gad_snapshot
 from server.tests.agents.gad.gad_comparison_harness import (
     GADComparisonHarness,
     normalize_result,
@@ -109,42 +110,26 @@ def _full_response(
 ) -> dict:
     return {
         "gad-01": {
-            "criterion": "The material is free from gender stereotypes",
             "instance_count": gad_01_count,
             "instances": gad_01_instances or [],
             "summary": gad_01_summary,
         },
         "gad-02": {
-            "criterion": (
-                "The material shows females and males an equal number of times"
-            ),
             "female_count": gad_02_female,
             "male_count": gad_02_male,
             "summary": gad_02_summary,
         },
         "gad-03": {
-            "criterion": (
-                "The material shows females and males with equal respect and potential"
-            ),
             "instance_count": gad_03_count,
             "instances": gad_03_instances or [],
             "summary": gad_03_summary,
         },
         "gad-04": {
-            "criterion": (
-                "The material reflects the needs and life experiences of"
-                " both male and female students"
-            ),
             "instance_count": gad_04_count,
             "instances": gad_04_instances or [],
             "summary": gad_04_summary,
         },
         "gad-05": {
-            "criterion": (
-                "The material promotes peace and equality regardless of gender,"
-                " race, class, disability, religion, sexual orientation, or"
-                " ethnic background"
-            ),
             "instance_count": gad_05_count,
             "instances": gad_05_instances or [],
             "summary": gad_05_summary,
@@ -160,51 +145,53 @@ def _full_response(
 class TestParseCombinedResponseEdgeCases:
     """Exhaustive edge cases beyond the core GAD scoring tests."""
 
+    snap = make_gad_snapshot()
+
     def test_empty_string_raises(self) -> None:
         with pytest.raises(AgentExecutionError, match="empty or non-string"):
-            parse_combined_response("")
+            parse_combined_response("", self.snap)
 
     def test_whitespace_only_raises(self) -> None:
         with pytest.raises(AgentExecutionError, match="empty or non-string"):
-            parse_combined_response("   \n\n   ")
+            parse_combined_response("   \n\n   ", self.snap)
 
     def test_non_string_raises_typeerror(self) -> None:
         with pytest.raises(AgentExecutionError, match="empty or non-string"):
-            parse_combined_response(None)  # type: ignore[arg-type]
+            parse_combined_response(None, self.snap)  # type: ignore[arg-type]
 
     def test_with_non_string_passed_non_string(self) -> None:
         with pytest.raises(AgentExecutionError, match="empty or non-string"):
-            parse_combined_response(123)  # type: ignore[arg-type]
+            parse_combined_response(123, self.snap)  # type: ignore[arg-type]
 
     def test_rejects_unknown_section(self) -> None:
         """Unknown sections should be rejected."""
         resp = _full_response()
         resp["gad-99"] = {"instance_count": 0, "instances": [], "summary": "unknown"}
         with pytest.raises(AgentExecutionError, match="unknown section"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_rejects_instances(self) -> None:
         resp = _full_response()
         resp["gad-02"]["instances"] = [{"excerpt": "test", "chunk_id": "c1"}]
         with pytest.raises(AgentExecutionError, match="unapproved field"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_rejects_instance_count(self) -> None:
         resp = _full_response()
         resp["gad-02"]["instance_count"] = 0
         with pytest.raises(AgentExecutionError, match="unapproved field"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_non_list_instances(self) -> None:
         resp = _full_response()
         resp["gad-01"]["instances"] = "not a list"
         with pytest.raises(AgentExecutionError, match="must be a list"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_non_dict_instance(self) -> None:
         resp = _full_response(gad_01_count=1, gad_01_instances=["string, not dict"])  # type: ignore[arg-type]
         with pytest.raises(AgentExecutionError, match="must be a JSON object"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_missing_excerpt(self) -> None:
         resp = _full_response(
@@ -212,7 +199,7 @@ class TestParseCombinedResponseEdgeCases:
             gad_01_instances=[{"chunk_id": "c1"}],  # no excerpt
         )
         with pytest.raises(AgentExecutionError, match="non-empty 'excerpt'"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_empty_excerpt(self) -> None:
         resp = _full_response(
@@ -220,7 +207,7 @@ class TestParseCombinedResponseEdgeCases:
             gad_01_instances=[{"excerpt": "", "chunk_id": "c1"}],
         )
         with pytest.raises(AgentExecutionError, match="non-empty 'excerpt'"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_missing_chunk_id(self) -> None:
         resp = _full_response(
@@ -228,7 +215,7 @@ class TestParseCombinedResponseEdgeCases:
             gad_01_instances=[{"excerpt": "Some text."}],  # no chunk_id
         )
         with pytest.raises(AgentExecutionError, match="non-empty 'chunk_id'"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_empty_chunk_id(self) -> None:
         resp = _full_response(
@@ -236,93 +223,91 @@ class TestParseCombinedResponseEdgeCases:
             gad_01_instances=[{"excerpt": "Some text.", "chunk_id": ""}],
         )
         with pytest.raises(AgentExecutionError, match="non-empty 'chunk_id'"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_summary_empty_raises(self) -> None:
         resp = _full_response(gad_02_summary="")
         with pytest.raises(AgentExecutionError, match="non-empty summary"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_summary_whitespace_raises(self) -> None:
         resp = _full_response(gad_02_summary="   ")
         with pytest.raises(AgentExecutionError, match="non-empty summary"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_summary_empty_raises(self) -> None:
         resp = _full_response(gad_01_summary="")
         with pytest.raises(AgentExecutionError, match="non-empty summary"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_non_int_female_count_raises(self) -> None:
         resp = _full_response()
         resp["gad-02"]["female_count"] = "three"
         with pytest.raises(AgentExecutionError, match="non-negative integer"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_negative_female_count_raises(self) -> None:
         resp = _full_response()
         resp["gad-02"]["female_count"] = -1
         with pytest.raises(AgentExecutionError, match="non-negative integer"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_balance_section_bool_female_count_raises(self) -> None:
         resp = _full_response()
         resp["gad-02"]["female_count"] = True
         with pytest.raises(AgentExecutionError, match="non-negative integer"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_negative_count_raises(self) -> None:
         resp = _full_response()
         resp["gad-01"]["instance_count"] = -1
         with pytest.raises(AgentExecutionError, match="non-negative integer"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_instance_section_bool_count_raises(self) -> None:
         resp = _full_response()
         resp["gad-01"]["instance_count"] = False
         with pytest.raises(AgentExecutionError, match="non-negative integer"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_blocks_score_in_gad_02_nested_obj(self) -> None:
         """Score blocklist should catch nested objects anywhere."""
         resp = _full_response()
-        # Inject score inside an allowed section's instance
         resp["gad-01"]["instances"] = [
             {"excerpt": "test", "chunk_id": "c1", "score": 4}
         ]
         with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_fenced_json_with_code_block_no_lang(self) -> None:
         resp = _full_response()
         fenced = f"```\n{json.dumps(resp)}\n```"
-        parsed = parse_combined_response(fenced)
+        parsed = parse_combined_response(fenced, self.snap)
         assert "gad-01" in parsed
 
     def test_picks_first_json_object_from_noisy_text(self) -> None:
         """When text has leading/following commentary, extract the JSON."""
         resp = _full_response()
         noisy = f"Here is the result:\n{json.dumps(resp)}\nLet me know if satisfied."
-        parsed = parse_combined_response(noisy)
+        parsed = parse_combined_response(noisy, self.snap)
         assert "gad-01" in parsed
 
     def test_rejects_when_no_json_object_found(self) -> None:
         with pytest.raises(AgentExecutionError, match="invalid JSON"):
-            parse_combined_response("This has no JSON in it at all.")
+            parse_combined_response("This has no JSON in it at all.", self.snap)
 
     def test_duplicate_key_case_folded(self) -> None:
         """Case-insensitive duplicate detection catches GAD-01 vs gad-01."""
         resp = _full_response()
         resp["GAD-01"] = resp["gad-01"]
         with pytest.raises(AgentExecutionError, match="duplicate key"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_max_instances_validated_then_capped(self) -> None:
         """Valid instances are capped only after every item is validated."""
         many = [{"excerpt": f"Instance {i}.", "chunk_id": "c1"} for i in range(15)]
         resp = _full_response(gad_01_count=15, gad_01_instances=many)
-        parsed = parse_combined_response(json.dumps(resp))
-        # The cap is applied after complete validation.
+        parsed = parse_combined_response(json.dumps(resp), self.snap)
         assert "gad-01" in parsed
         instances = parsed["gad-01"].get("instances", [])
         assert len(instances) == MAX_INSTANCES_PER_CRITERION
@@ -331,20 +316,20 @@ class TestParseCombinedResponseEdgeCases:
         resp = _full_response()
         resp["gad-01"] = "just a string"
         with pytest.raises(AgentExecutionError, match="must be a JSON object"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_extra_unknown_key_rejected(self) -> None:
         """Unknown top-level keys should be rejected."""
         resp = _full_response()
         resp["extra_info"] = {"note": "test"}
         with pytest.raises(AgentExecutionError, match="unknown section"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_score_blocklist_inside_instance_evidence(self) -> None:
         resp = _full_response()
         resp["gad-01"]["instances"] = [{"excerpt": "test", "chunk_id": "c1", "band": 4}]
         with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
-            parse_combined_response(json.dumps(resp))
+            parse_combined_response(json.dumps(resp), self.snap)
 
     def test_all_score_blocklist_variants(self) -> None:
         """Every term in _SCORE_BLOCKLIST must be rejected at top level."""
@@ -360,7 +345,7 @@ class TestParseCombinedResponseEdgeCases:
             resp = _full_response()
             resp["gad-01"][blocked] = 4
             with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
-                parse_combined_response(json.dumps(resp))
+                parse_combined_response(json.dumps(resp), self.snap)
 
 
 # ===========================================================================
@@ -567,15 +552,19 @@ class TestGroundInstancesEdgeCases:
 
 
 class TestBuildCombinedPrompt:
-    def test_no_managed_prompt_falls_back(self) -> None:
+    snap = make_gad_snapshot()
+
+    def test_prompt_includes_evaluator_and_untrusted_framing(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version="v1",
             gad_managed_prompt=None,
         )
         payload = json.loads(prompt)
         instructions = "\n".join(payload["instructions"])
-        assert "GAD fact extractor" in instructions
+        assert "EVALUATOR INSTRUCTIONS" in instructions
+        assert "UNTRUSTED DATA" in instructions
         assert "gad-01" in instructions.lower()
         assert "gad-02" in instructions.lower()
         assert "gad-03" in instructions.lower()
@@ -585,6 +574,7 @@ class TestBuildCombinedPrompt:
     def test_empty_chunks_does_not_crash(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=[],
+            form_snapshot=self.snap,
             prompt_version="v1",
         )
         payload = json.loads(prompt)
@@ -593,6 +583,7 @@ class TestBuildCombinedPrompt:
     def test_empty_prompt_version(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version="",
         )
         payload = json.loads(prompt)
@@ -601,6 +592,7 @@ class TestBuildCombinedPrompt:
     def test_none_prompt_version(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version=None,
         )
         payload = json.loads(prompt)
@@ -609,6 +601,7 @@ class TestBuildCombinedPrompt:
     def test_prompt_contains_max_instances_reference(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version="v1",
         )
         payload = json.loads(prompt)
@@ -619,20 +612,19 @@ class TestBuildCombinedPrompt:
         """Instructions must not mention 'score' as a field name."""
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version="v1",
         )
         payload = json.loads(prompt)
         instructions = "\n".join(payload["instructions"])
-        # The word "score" may appear in "Do NOT include numeric score fields"
-        # but should not appear as "score: N" instructions.
         assert "score:" not in instructions.lower()
 
     def test_serializes_as_json(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
+            form_snapshot=self.snap,
             prompt_version="v1",
         )
-        # Should be valid JSON
         parsed = json.loads(prompt)
         assert isinstance(parsed, dict)
         assert "agent" in parsed
@@ -649,6 +641,8 @@ class TestBuildCombinedPrompt:
 class TestScoreFromCombined:
     """Direct unit tests for score_from_combined (no LLM, no GAD.run)."""
 
+    snap = make_gad_snapshot()
+
     def test_all_zero_instances_yields_band_4_for_instances(self) -> None:
         """0 stereotype instances -> band 4, 0 life_experience -> band 4, etc."""
         payload = _full_response(
@@ -660,7 +654,7 @@ class TestScoreFromCombined:
             gad_05_count=0,
         )
         scores, candidates, accepted, rejected = score_from_combined(
-            payload, _SAMPLE_CHUNKS
+            payload, _SAMPLE_CHUNKS, self.snap
         )
         score_map = {s.criterion_id: s.score for s in scores}
         assert score_map["GAD-01"] == 4
@@ -678,9 +672,9 @@ class TestScoreFromCombined:
                 {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
             ],
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         score_map = {s.criterion_id: s.score for s in scores}
-        assert score_map["GAD-01"] == 2  # 2 instances -> band 2 (2-3)
+        assert score_map["GAD-01"] == 2
 
     def test_unmatched_instances_excluded_from_score(self) -> None:
         """Instances with unknown chunk_ids are rejected and don't count."""
@@ -692,10 +686,9 @@ class TestScoreFromCombined:
             ],
         )
         scores, candidates, accepted, rejected = score_from_combined(
-            payload, _SAMPLE_CHUNKS
+            payload, _SAMPLE_CHUNKS, self.snap
         )
         score_map = {s.criterion_id: s.score for s in scores}
-        # Only 1 grounded instance -> band 3
         assert score_map["GAD-01"] == 3
         assert accepted == 1
         assert rejected == 1
@@ -709,9 +702,9 @@ class TestScoreFromCombined:
                 {"excerpt": "Also not in any chunk.", "chunk_id": "unknown2"},
             ],
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         score_map = {s.criterion_id: s.score for s in scores}
-        assert score_map["GAD-01"] == 4  # 0 grounded -> band 4
+        assert score_map["GAD-01"] == 4
 
     def test_gad_02_counts_and_balance(self) -> None:
         """GAD-02 difference is 12 -> band 1."""
@@ -719,14 +712,14 @@ class TestScoreFromCombined:
             gad_02_female=13,
             gad_02_male=1,
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         score_map = {s.criterion_id: s.score for s in scores}
         assert score_map["GAD-02"] == 1
 
     def test_gad_02_difference_two_scores_band_4(self) -> None:
         """diff=2 (|5-3|) maps to band 4 per female_male_count."""
         payload = _full_response(gad_02_female=5, gad_02_male=3)
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         score_map = {s.criterion_id: s.score for s in scores}
         assert score_map["GAD-02"] == 4
 
@@ -751,9 +744,10 @@ class TestScoreFromCombined:
                     ),
                 },
             ],
+            self.snap,
         )
         g01 = next(s for s in scores if s.criterion_id == "GAD-01")
-        assert len(g01.chunk_ids) == 1  # one distinct chunk
+        assert len(g01.chunk_ids) == 1
         assert len(g01.evidence) == 2
 
     def test_subtotal_is_mean_of_five_criteria(self) -> None:
@@ -765,15 +759,13 @@ class TestScoreFromCombined:
             gad_04_count=0,
             gad_05_count=0,
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         assert len(scores) == 5
-        # The subtotal is computed in GADScoredAgent, not in score_from_combined.
-        # score_from_combined returns criterion scores, not a subtotal.
 
     def test_score_range_is_one_to_four(self) -> None:
         """All returned scores must be 1-4."""
         payload = _full_response()
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         for s in scores:
             assert 1 <= s.score <= 4, f"{s.criterion_id} score {s.score} out of range"
 
@@ -785,7 +777,7 @@ class TestScoreFromCombined:
                 {"excerpt": "Fake instance.", "chunk_id": "unknown"},
             ],
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         g01 = next(s for s in scores if s.criterion_id == "GAD-01")
         assert "1 unsupported" in g01.justification
         assert "excluded" in g01.justification
@@ -796,7 +788,7 @@ class TestScoreFromCombined:
             gad_02_male=3,
             gad_02_summary="Moderate imbalance.",
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         g02 = next(s for s in scores if s.criterion_id == "GAD-02")
         assert "Female representations: 8" in g02.justification
         assert "male representations: 3" in g02.justification
@@ -811,13 +803,13 @@ class TestScoreFromCombined:
                 {"excerpt": "Women cannot lead teams.", "chunk_id": "c1"},
             ],
         )
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         g01 = next(s for s in scores if s.criterion_id == "GAD-01")
         assert "model reported 5" in g01.justification
 
     def test_all_criteria_present_ordered(self) -> None:
         payload = _full_response()
-        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS)
+        scores, *_ = score_from_combined(payload, _SAMPLE_CHUNKS, self.snap)
         ids = [s.criterion_id for s in scores]
         assert ids == ["GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"]
 
@@ -829,7 +821,9 @@ class TestScoreFromCombined:
                 {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
             ],
         )
-        _, candidates, accepted, rejected = score_from_combined(payload, _SAMPLE_CHUNKS)
+        _, candidates, accepted, rejected = score_from_combined(
+            payload, _SAMPLE_CHUNKS, self.snap
+        )
         assert candidates == 2
         assert accepted == 2
         assert rejected == 0
@@ -861,7 +855,7 @@ class TestBuildCombinedRepairPrompt:
             partial_response=partial,
             error_detail="Malformed JSON",
         )
-        assert "gad-01" in prompt
+        assert partial not in prompt
         assert '"summary": "ok."' not in prompt
 
     def test_omits_long_partial(self) -> None:
@@ -872,7 +866,7 @@ class TestBuildCombinedRepairPrompt:
             error_detail="Error detail",
         )
         assert len(prompt) < 5500  # truncated + template overhead
-        assert "x" * 100 not in prompt
+        assert partial not in prompt
 
     def test_truncates_long_error(self) -> None:
         error = "x" * 1000
@@ -955,10 +949,12 @@ class TestRepairPaths:
                 valid,
             ]
         )
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is True
         assert result.metadata["llm_call_count"] == 2
@@ -970,10 +966,12 @@ class TestRepairPaths:
         resp["GAD-01"] = resp["gad-01"]
         valid = json.dumps(_full_response())
         llm = _TrackingLLM([json.dumps(resp), valid])
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is True
         assert result.metadata["llm_call_count"] == 2
@@ -984,10 +982,12 @@ class TestRepairPaths:
         resp["gad-01"]["score"] = 4
         valid = json.dumps(_full_response())
         llm = _TrackingLLM([json.dumps(resp), valid])
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is True
         assert result.metadata["llm_call_count"] == 2
@@ -1034,7 +1034,9 @@ class TestRepairPaths:
         # The direct path: test that score_from_combined raises with
         # incomplete input.
         with pytest.raises(AgentExecutionError, match="Missing or invalid"):
-            score_from_combined(combined_missing, self.make_chunks())
+            score_from_combined(
+                combined_missing, self.make_chunks(), make_gad_snapshot()
+            )
 
     def test_repair_also_malformed_returns_failure(self) -> None:
         """When repair call also returns invalid JSON, result is failure."""
@@ -1044,10 +1046,12 @@ class TestRepairPaths:
                 "still not valid json",
             ]
         )
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is False
         assert len(result.criterion_scores) == 0
@@ -1057,10 +1061,12 @@ class TestRepairPaths:
     def test_no_fallback_needed(self) -> None:
         """One successful call, no repair, no fallback."""
         llm = _TrackingLLM([json.dumps(_full_response())])
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is True
         assert result.provenance["repair_occurred"] is False
@@ -1070,10 +1076,12 @@ class TestRepairPaths:
     def test_honest_partial_synthesis_via_failed_gad(self) -> None:
         """A failed GAD result has success=False, scores=(), subtotal=0.0."""
         llm = _TrackingLLM(["garbage response", "more garbage"])
+        eval_id = uuid4()
         result = GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=self.make_chunks(),
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         assert result.success is False
         assert result.subtotal == 0.0
@@ -1099,10 +1107,12 @@ class TestRepairPaths:
         agent = GAD(llm_client=first)
 
         def run(client: _ConcurrentLLM):
+            eval_id = uuid4()
             return agent.run(
-                evaluation_id=uuid4(),
+                evaluation_id=eval_id,
                 document_id=uuid4(),
                 chunk_infos=self.make_chunks(),
+                form_snapshot=make_gad_snapshot(eval_id),
                 llm_client=client,
             )
 
@@ -1126,11 +1136,13 @@ class TestRepairPaths:
     def test_invalid_response_log_contains_no_exception_secret(self, caplog) -> None:
         secret = "provider-secret-should-not-be-logged"
         llm = _TrackingLLM([f"invalid response: {secret}", "still invalid"])
+        eval_id = uuid4()
         with caplog.at_level("WARNING"):
             result = GAD(llm_client=llm).run(
-                evaluation_id=uuid4(),
+                evaluation_id=eval_id,
                 document_id=uuid4(),
                 chunk_infos=self.make_chunks(),
+                form_snapshot=make_gad_snapshot(eval_id),
             )
         assert result.success is False
         assert secret not in caplog.text
@@ -1151,12 +1163,14 @@ class TestProvenanceCompleteness:
             def generate(self, prompt: str, **kw) -> str:
                 return json.dumps(_full_response())
 
+        eval_id = uuid4()
         result = GAD(llm_client=_ProvenanceLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=[
                 {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
             ],
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         prov = result.provenance or {}
         expected_keys = {
@@ -1184,12 +1198,14 @@ class TestProvenanceCompleteness:
             def generate(self, prompt: str, **kw) -> str:
                 return json.dumps(_full_response())
 
+        eval_id = uuid4()
         result = GAD(llm_client=_ProvLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=[
                 {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
             ],
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         prov = result.provenance or {}
         assert prov["extraction_schema_version"] == EXTRACTION_SCHEMA_VERSION
@@ -1210,8 +1226,9 @@ class TestProvenanceCompleteness:
                     )
                 )
 
+        eval_id = uuid4()
         result = GAD(llm_client=_CountLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=[
                 {
@@ -1220,6 +1237,7 @@ class TestProvenanceCompleteness:
                     "text": "Women cannot lead teams.",
                 },
             ],
+            form_snapshot=make_gad_snapshot(eval_id),
         )
         prov = result.provenance or {}
         assert prov["evidence_candidates"] >= 0
@@ -1275,7 +1293,7 @@ class TestRepeatability:
             gad_05_summary="No issues.",
         )
         scores, candidates, accepted, rejected = score_from_combined(
-            payload, self.SAMPLE_CHUNKS
+            payload, self.SAMPLE_CHUNKS, make_gad_snapshot()
         )
         return (
             tuple(s.score for s in scores),
@@ -1294,8 +1312,9 @@ class TestRepeatability:
     def test_identical_results_after_deepcopy(self) -> None:
         payload = _full_response()
         copied = copy.deepcopy(payload)
-        r1 = score_from_combined(payload, self.SAMPLE_CHUNKS)
-        r2 = score_from_combined(copied, self.SAMPLE_CHUNKS)
+        snap = make_gad_snapshot()
+        r1 = score_from_combined(payload, self.SAMPLE_CHUNKS, snap)
+        r2 = score_from_combined(copied, self.SAMPLE_CHUNKS, snap)
         assert r1[0] == r2[0]  # same scores
         assert r1[1] == r2[1]  # same candidates
         assert r1[2] == r2[2]  # same accepted
@@ -1325,15 +1344,19 @@ class TestRepeatability:
             def generate(self, prompt: str, **kw) -> str:
                 return response
 
+        eval_id_1 = uuid4()
         r1 = GAD(llm_client=_ConstLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id_1,
             document_id=uuid4(),
             chunk_infos=self.SAMPLE_CHUNKS,
+            form_snapshot=make_gad_snapshot(eval_id_1),
         )
+        eval_id_2 = uuid4()
         r2 = GAD(llm_client=_ConstLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id_2,
             document_id=uuid4(),
             chunk_infos=self.SAMPLE_CHUNKS,
+            form_snapshot=make_gad_snapshot(eval_id_2),
         )
         assert r1.subtotal == pytest.approx(r2.subtotal)
         assert [s.score for s in r1.criterion_scores] == [

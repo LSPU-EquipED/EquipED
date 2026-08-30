@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -13,14 +14,16 @@ from server.modules.admin.prompt_service import get_active_prompt
 from server.modules.documents.ingestion.pipeline import prepare_canonical_source
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.documents.paths import resolve_document_pdf_path
-from server.modules.rubrics.service import (
-    get_active_rubric_context,
-    resolve_rubric_agent_id,
-)
 
 from ..exceptions import SupervisorExecutionError
 
 logger = logging.getLogger(__name__)
+
+
+_AGENT_FIXED_CRITERION_PATTERNS = {
+    "gad": re.compile(r"\bgad-\d{1,3}\b", re.IGNORECASE),
+    "itso": re.compile(r"\bitso-\d{1,3}\b", re.IGNORECASE),
+}
 
 
 class _Unset:
@@ -96,9 +99,9 @@ class EvaluationContextBuilder:
         When ``chunk_infos`` is provided and the document has more than one
         non-empty chunk, reference retrieval is split across at most
         ``_MAX_REFERENCE_ANCHORS`` anchor queries (early / middle / late) to
-        avoid full-document query dilution for long SLMs. Rubric precompute
-        is unaffected. When ``chunk_infos`` is absent (legacy callers /
-        tests), the historical single-query path is preserved.
+        avoid full-document query dilution for long SLMs. When ``chunk_infos``
+        is absent (legacy callers / tests), the historical single-query path
+        is preserved.
         """
         from server.modules.embeddings.collections import resolve_collection_name
         from server.modules.embeddings.retrieval import (
@@ -133,11 +136,6 @@ class EvaluationContextBuilder:
             document_id_filter: str | None = None,
             n_results: int = 5,
         ) -> list[str]:
-            if source_type.startswith("rubric_"):
-                return get_active_rubric_context(
-                    resolve_rubric_agent_id(source_type),
-                    db=self.db,
-                )
             collection_name = resolve_collection_name(source_type)
             embedding = get_query_embedding()
             if embedding is not None:
@@ -155,22 +153,6 @@ class EvaluationContextBuilder:
                     document_id_filter=document_id_filter,
                 )
             return [c.text for c in chunks]
-
-        # Pre-compute rubric context for each agent's rubric source type.
-        # Rubric behavior is preserved exactly as-is.
-        rubric_sources = (
-            "rubric_sme",
-            "rubric_coord",
-            "rubric_gad",
-            "rubric_itso",
-        )
-        for source_type in rubric_sources:
-            try:
-                precomputed[source_type] = get_active_rubric_context(
-                    resolve_rubric_agent_id(source_type), db=self.db
-                )
-            except Exception:
-                precomputed[source_type] = []
 
         # Pre-compute reference context per source type.
         if reference_document_ids:
@@ -317,6 +299,13 @@ class EvaluationContextBuilder:
                 prompt_versions[agent_name] = PromptSnapshot(None, "")
                 continue
             prompt = get_active_prompt(agent_name, self.db)
+            if agent_name in _AGENT_FIXED_CRITERION_PATTERNS:
+                pattern = _AGENT_FIXED_CRITERION_PATTERNS[agent_name]
+                if pattern.search(prompt.prompt_text or ""):
+                    raise SupervisorExecutionError(
+                        f"Active prompt for agent '{agent_name}' contains "
+                        "legacy fixed criterion identifiers"
+                    )
             prompt_versions[agent_name] = PromptSnapshot(
                 prompt.version_id, prompt.prompt_text
             )

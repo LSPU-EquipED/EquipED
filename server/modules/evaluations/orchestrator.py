@@ -19,14 +19,18 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.coordinator.reconciliation import merge_with_sme
+from server.modules.agents.coordinator.agent import Coordinator
+from server.modules.agents.gad.agent import GAD
+from server.modules.agents.itso.agent import ITSO
 from server.modules.agents.runtime.llm import error_reference
+from server.modules.agents.sme.agent import SME
 from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.curriculum.service import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.persistence import get_document_chunks
+from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
     EvaluationPipelineFailure,
@@ -40,12 +44,20 @@ from server.modules.evaluations.service import (
     seconds_until_stale_evaluation_execution,
     transition_evaluation_status,
 )
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
+from server.modules.rubrics.snapshots import (
+    load_verified_evaluation_snapshots,
+    resolve_or_reuse_evaluation_snapshots,
+)
 from server.modules.synthesis.matrix import (
     compute_synthesized_score,
     upsert_monitoring_matrix,
 )
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
-from server.modules.synthesis.service import persist_agent_outputs
+from server.modules.synthesis.service import (
+    load_verified_persisted_agent_results,
+    persist_agent_outputs,
+)
 
 logger = logging.getLogger(__name__)
 _DRAIN_LOCK = threading.Lock()
@@ -178,35 +190,35 @@ def _execute_claimed_evaluation(
             [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
         )
 
-        transition_evaluation_status(
-            evaluation_id,
-            EvaluationStatus.EVALUATING,
+        scheduled_ids = scheduled_agent_ids(
+            partial_without_curriculum=job.partial_without_curriculum
+        )
+        existing_results = (
+            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
+        )
+        reuse_only = existing_results > 0
+
+        _verified_snapshots = _prepare_snapshots_and_enter_evaluating(
             session,
-            execution_token=execution_token,
+            evaluation_id,
+            execution_token,
+            scheduled_ids,
+            reuse_only=reuse_only,
         )
         heartbeat_evaluation_execution(session, evaluation_id, execution_token)
 
         # 2) Idempotency check: if a prior attempt already persisted
         #    AgentResult rows, do not re-run the supervisor. Resume from
         #    synthesis/finalization instead.
-        existing_results = (
-            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
-        )
         if existing_results == 0:
+            verified_snapshots = load_verified_evaluation_snapshots(
+                session, evaluation_id, scheduled_ids
+            )
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
-            if job.partial_without_curriculum:
-                from server.modules.agents.gad.agent import GAD
-                from server.modules.agents.itso.agent import ITSO
-                from server.modules.agents.sme.agent import SME
-
-                supervisor = Supervisor(agents=[SME(), GAD(), ITSO()], db=session)
-            else:
-                # A full-intent run must attempt Coordinator even when its
-                # curriculum is unavailable; its absence is a terminal
-                # lifecycle failure, not an implicit partial evaluation.
-                supervisor = Supervisor(db=session)
+            agents = _build_supervisor_agents(scheduled_ids)
+            supervisor = Supervisor(agents=agents, db=session)
             # Resolve program-roadmap context once, before the supervisor
             # context is built. Advisory-only: any failure yields None and
             # leaves the evaluation unaffected.
@@ -231,6 +243,7 @@ def _execute_claimed_evaluation(
                 document_id=job.document_id,
                 chunks=slm_chunks,
                 query_text=slm_text,
+                form_snapshots=verified_snapshots,
                 context={
                     "reference_document_ids": {
                         **({"syllabus": job.syllabus_id} if job.syllabus_id else {}),
@@ -249,12 +262,6 @@ def _execute_claimed_evaluation(
                 raise EvaluationPipelineUnavailableError(
                     "Layer 3 produced no usable agent outputs."
                 )
-            # Coordinator's parallel run computes only A-05. Reconciliation
-            # purely merges that successful result with SME's other scores;
-            # it never performs a fallback or second agent pass.
-            supervisor_result.agent_results = _reconcile_coordinator_result(
-                supervisor_result.agent_results
-            )
             _verify_token_ownership(session, evaluation_id, execution_token)
             # Heartbeat after all agent futures complete.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
@@ -284,8 +291,8 @@ def _execute_claimed_evaluation(
                 commit=True,
             )
 
-        agent_results = (
-            session.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
+        agent_results = load_verified_persisted_agent_results(
+            session, evaluation_id, job.document_id
         )
         if not job.partial_without_curriculum:
             final_readiness = (
@@ -419,6 +426,62 @@ def _execute_claimed_evaluation(
         session.close()
 
 
+def _build_supervisor_agents(scheduled_ids: tuple[str, ...]) -> list[Any]:
+    """Build specialist agent instances matching the exact scheduled IDs and order."""
+    agent_factories: dict[str, Any] = {
+        "sme": SME,
+        "coordinator": Coordinator,
+        "gad": GAD,
+        "itso": ITSO,
+    }
+    return [agent_factories[agent_id]() for agent_id in scheduled_ids]
+
+
+def _prepare_snapshots_and_enter_evaluating(
+    session: Any,
+    evaluation_id: uuid.UUID,
+    execution_token: uuid.UUID,
+    scheduled_ids: tuple[str, ...],
+    *,
+    reuse_only: bool,
+) -> tuple[EvaluationFormSnapshotDTO, ...]:
+    """Atomically resolve/verify snapshots and transition evaluation to EVALUATING."""
+    try:
+        job = _verify_token_ownership(
+            session, evaluation_id, execution_token, for_update=True
+        )
+        if (
+            job.status != EvaluationStatus.PREPROCESSING.value
+            or job.admission_slot != 1
+        ):
+            raise EvaluationExecutionOwnershipError(
+                f"Lost ownership or invalid state for evaluation {evaluation_id}"
+            )
+
+        if reuse_only:
+            snapshots = load_verified_evaluation_snapshots(
+                session, evaluation_id, scheduled_ids
+            )
+        else:
+            snapshots = resolve_or_reuse_evaluation_snapshots(
+                session, evaluation_id, scheduled_ids
+            )
+
+        transition_evaluation_status(
+            evaluation_id,
+            EvaluationStatus.EVALUATING,
+            session,
+            execution_token=execution_token,
+            expected_status=EvaluationStatus.PREPROCESSING,
+            commit=False,
+        )
+        session.commit()
+        return snapshots
+    except Exception:
+        session.rollback()
+        raise
+
+
 def _validate_required_agent_results(
     agent_results: list[AgentResult],
     *,
@@ -426,12 +489,13 @@ def _validate_required_agent_results(
     curriculum_available: bool,
 ) -> str | None:
     """Validate the execution contract before accepting synthesized output."""
-    required = {"sme", "gad", "itso"}
-    if not partial_without_curriculum:
-        required.add("coordinator")
-        if not curriculum_available:
-            return "Full evaluation requires an authoritative curriculum."
+    scheduled = scheduled_agent_ids(
+        partial_without_curriculum=partial_without_curriculum
+    )
+    if not partial_without_curriculum and not curriculum_available:
+        return "Full evaluation requires an authoritative curriculum."
 
+    required = set(scheduled)
     by_name = {result.agent_name: result for result in agent_results}
     missing = sorted(required - by_name.keys())
     if missing:
@@ -448,11 +512,12 @@ def _verify_token_ownership(
     execution_token: uuid.UUID,
     *,
     for_update: bool = False,
-) -> None:
+) -> EvaluationJob:
     """Raise if the runner no longer owns the evaluation job.
 
     This guards against stale runners (e.g. after a recovery cycle)
     doing expensive or persistent work on a job that has been re-claimed.
+    Returns the owned EvaluationJob row.
     """
 
     from sqlalchemy import select
@@ -465,76 +530,7 @@ def _verify_token_ownership(
         raise EvaluationExecutionOwnershipError(
             f"Lost ownership of evaluation {evaluation_id}"
         )
-
-
-def _reconcile_coordinator_result(
-    agent_results: list[AgentEvaluationResult],
-) -> list[AgentEvaluationResult]:
-    """Reconcile Coordinator's A-05 result with SME's complete scores."""
-    sme_result = next((r for r in agent_results if r.agent_name == "sme"), None)
-    coordinator_result = next(
-        (r for r in agent_results if r.agent_name == "coordinator"), None
-    )
-    if coordinator_result is None:
-        # e.g. partial_without_curriculum, which already excludes Coordinator
-        # entirely -- nothing to reconcile.
-        return agent_results
-
-    if sme_result is not None and sme_result.success and coordinator_result.success:
-        try:
-            merged = merge_with_sme(
-                coordinator_result,
-                sme_result,
-            )
-            return [merged if r is coordinator_result else r for r in agent_results]
-        except Exception as exc:
-            category, reference = _safe_failure(exc)
-            failed = AgentEvaluationResult(
-                agent_name="coordinator",
-                evaluation_id=coordinator_result.evaluation_id,
-                document_id=coordinator_result.document_id,
-                subtotal=0.0,
-                criterion_scores=(),
-                summary="",
-                model_name=coordinator_result.model_name,
-                processing_seconds=coordinator_result.processing_seconds,
-                token_count=0,
-                success=False,
-                error_message=f"{category} (reference: {reference})",
-                prompt_version_id=None,
-                raw_response=None,
-                metadata={},
-                provenance=None,
-                advisory_outputs=None,
-            )
-            return [failed if r is coordinator_result else r for r in agent_results]
-    reason = "CoordinatorFailure"
-    if sme_result is None:
-        reason = "SMEResultMissing"
-    elif not sme_result.success:
-        reason = "SMEFailure"
-    elif not coordinator_result.success:
-        reason = "CoordinatorFailure"
-    reference = error_reference(RuntimeError(reason))
-    failed = AgentEvaluationResult(
-        agent_name="coordinator",
-        evaluation_id=coordinator_result.evaluation_id,
-        document_id=coordinator_result.document_id,
-        subtotal=0.0,
-        criterion_scores=(),
-        summary="",
-        model_name=coordinator_result.model_name[:128],
-        processing_seconds=coordinator_result.processing_seconds,
-        token_count=0,
-        success=False,
-        error_message=f"{reason} (reference: {reference})",
-        prompt_version_id=None,
-        raw_response=None,
-        metadata={},
-        provenance=None,
-        advisory_outputs=None,
-    )
-    return [failed if r is coordinator_result else r for r in agent_results]
+    return row
 
 
 def recover_interrupted_evaluation_jobs(db_session_factory: object) -> int:

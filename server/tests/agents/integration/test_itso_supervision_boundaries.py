@@ -16,6 +16,7 @@ from server.modules.agents.supervision.context import (
     PromptSnapshot,
 )
 from server.modules.agents.supervision.supervisor import Supervisor
+from server.tests.agents.helpers import _make_dummy_snapshot
 
 
 def _frozen_snapshot() -> ITSOEvidenceSnapshot:
@@ -70,10 +71,14 @@ def _dispatch(
     )
     monkeypatch.setattr(dispatch, "get_settings", lambda: settings)
     prompts = {a.agent_name: _prompt(a.agent_name) for a in agents}
+    form_snapshots = tuple(
+        _make_dummy_snapshot(a.agent_name, evaluation_id) for a in agents
+    )
     result = dispatch.AgentDispatcher(agents).dispatch(
         evaluation_id=evaluation_id,
         document_id=document_id,
         chunk_infos=(MappingProxyType({"text": "slm"}),),
+        form_snapshots=form_snapshots,
         context_text="query",
         prompt_versions=MappingProxyType(prompts),
         reference_document_ids=MappingProxyType({"ref": "id"}),
@@ -142,8 +147,13 @@ def test_supervisor_builds_itso_evidence_once_only_when_included(
         return original(chunks)
 
     builder.build = counted
+    eval_id = uuid.uuid4()
+    form_snapshots = tuple(_make_dummy_snapshot(a.agent_name, eval_id) for a in agents)
     Supervisor(agents=agents).run_evaluation(
-        evaluation_id=uuid.uuid4(), document_id=uuid.uuid4(), chunks=[]
+        evaluation_id=eval_id,
+        document_id=uuid.uuid4(),
+        chunks=[],
+        form_snapshots=form_snapshots,
     )
     assert calls["count"] == expected
 

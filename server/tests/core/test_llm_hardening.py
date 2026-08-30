@@ -17,8 +17,8 @@ class Response:
         self.body = json.dumps(body).encode()
         self.headers = headers or {}
 
-    def read(self):
-        return self.body
+    def read(self, amount=None):
+        return self.body if amount is None else self.body[:amount]
 
     def __enter__(self):
         return self
@@ -240,3 +240,245 @@ def test_provider_error_body_sentinel_not_exposed(monkeypatch):
             "p", response_contract=llm.ResponseContract.json_object()
         )
     assert sentinel not in str(exc.value)
+
+
+def test_response_body_exact_cap_accepted(monkeypatch):
+    assert llm._MAX_RESPONSE_BYTES == 1024 * 1024
+    target_len = llm._MAX_RESPONSE_BYTES
+    base_obj = {
+        "model": "served",
+        "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+        "usage": {
+            "prompt_tokens": 1,
+            "completion_tokens": 1,
+            "total_tokens": 2,
+        },
+        "padding": "",
+    }
+    base_bytes = json.dumps(base_obj).encode("utf-8")
+    needed_padding = target_len - len(base_bytes)
+    base_obj["padding"] = "a" * needed_padding
+    full_body = json.dumps(base_obj).encode("utf-8")
+    assert len(full_body) == target_len
+
+    class ExactCapResponse:
+        headers = {"Content-Length": str(len(full_body))}
+
+        def read(self, amt=None):
+            return full_body[:amt] if amt is not None else full_body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(llm.request, "urlopen", lambda *a, **k: ExactCapResponse())
+    result = client().generate_result(
+        "p", response_contract=llm.ResponseContract.json_object()
+    )
+    assert result.served_model == "served"
+
+    # Also verify exact 1 MiB cap is accepted when Content-Length header is missing
+    class MissingCLExactCapResponse:
+        headers = {}
+
+        def read(self, amt=None):
+            return full_body[:amt] if amt is not None else full_body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        llm.request, "urlopen", lambda *a, **k: MissingCLExactCapResponse()
+    )
+    result_no_cl = client().generate_result(
+        "p", response_contract=llm.ResponseContract.json_object()
+    )
+    assert result_no_cl.served_model == "served"
+
+
+def test_response_body_cap_plus_one_rejected(monkeypatch):
+    oversized_body = b"x" * (llm._MAX_RESPONSE_BYTES + 1)
+
+    class OversizedResponse:
+        headers = {}
+
+        def read(self, amt=None):
+            return oversized_body[:amt] if amt is not None else oversized_body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(llm.request, "urlopen", lambda *a, **k: OversizedResponse())
+    with pytest.raises(InfrastructureUnavailableError) as exc_info:
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+    assert "malformed LLM response" in str(exc_info.value)
+
+
+def test_oversized_content_length_rejected_without_body_read(monkeypatch):
+    read_called = False
+
+    class OversizedHeaderResponse:
+        headers = {"Content-Length": str(llm._MAX_RESPONSE_BYTES + 100)}
+
+        def read(self, *a, **k):
+            nonlocal read_called
+            read_called = True
+            raise AssertionError(
+                "read() must not be called when Content-Length exceeds cap"
+            )
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        llm.request, "urlopen", lambda *a, **k: OversizedHeaderResponse()
+    )
+    with pytest.raises(InfrastructureUnavailableError) as exc_info:
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+    assert "malformed LLM response" in str(exc_info.value)
+    assert not read_called
+
+
+def test_missing_and_malformed_content_length_capped_behavior(monkeypatch):
+    oversized_stream = b"{" * (llm._MAX_RESPONSE_BYTES + 50)
+
+    class MissingCLResponse:
+        headers = {}
+
+        def read(self, amt=None):
+            return oversized_stream[:amt] if amt is not None else oversized_stream
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(llm.request, "urlopen", lambda *a, **k: MissingCLResponse())
+    with pytest.raises(InfrastructureUnavailableError) as exc_info:
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+    assert "malformed LLM response" in str(exc_info.value)
+
+    class MalformedCLOversizedResponse:
+        headers = {"Content-Length": "not-a-number"}
+
+        def read(self, amt=None):
+            return oversized_stream[:amt] if amt is not None else oversized_stream
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        llm.request, "urlopen", lambda *a, **k: MalformedCLOversizedResponse()
+    )
+    with pytest.raises(InfrastructureUnavailableError) as exc_info:
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+    assert "malformed LLM response" in str(exc_info.value)
+
+    class MalformedCLValidResponse:
+        headers = {"Content-Length": "invalid"}
+
+        def read(self, amt=None):
+            valid_bytes = json.dumps(
+                {
+                    "model": "served",
+                    "choices": [
+                        {"message": {"content": "{}"}, "finish_reason": "stop"}
+                    ],
+                }
+            ).encode("utf-8")
+            return valid_bytes[:amt] if amt is not None else valid_bytes
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        llm.request, "urlopen", lambda *a, **k: MalformedCLValidResponse()
+    )
+    result = client().generate_result(
+        "p", response_contract=llm.ResponseContract.json_object()
+    )
+    assert result.served_model == "served"
+
+
+def test_oversized_response_body_sentinel_not_exposed(monkeypatch):
+    secret_token = "SUPER_SECRET_PAYLOAD_TOKEN_12345"
+    oversized_body = (secret_token * 1000).encode("utf-8") + (
+        b"x" * llm._MAX_RESPONSE_BYTES
+    )
+
+    class SecretOversizedResponse:
+        headers = {}
+
+        def read(self, amt=None):
+            return oversized_body[:amt] if amt is not None else oversized_body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(
+        llm.request, "urlopen", lambda *a, **k: SecretOversizedResponse()
+    )
+    with pytest.raises(InfrastructureUnavailableError) as exc_info:
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+    assert secret_token not in str(exc_info.value)
+    if exc_info.value.__cause__:
+        assert secret_token not in str(exc_info.value.__cause__)
+
+
+def test_transport_never_falls_back_to_an_unbounded_read(monkeypatch):
+    calls = []
+
+    class NoSizedReadResponse:
+        headers = {}
+
+        def read(self, *args):
+            calls.append(args)
+            if args:
+                raise TypeError("sized reads unsupported")
+            return b'{"secret":"must never be read without a cap"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+    monkeypatch.setattr(llm.request, "urlopen", lambda *a, **k: NoSizedReadResponse())
+
+    with pytest.raises(InfrastructureUnavailableError):
+        client().generate_result(
+            "p", response_contract=llm.ResponseContract.json_object()
+        )
+
+    assert calls == [(llm._MAX_RESPONSE_BYTES + 1,)]

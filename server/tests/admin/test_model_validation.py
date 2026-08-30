@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +15,13 @@ from server.modules.admin.models import ModelValidation, ModelValidationCriterio
 from server.modules.admin.schemas import ModelValidationMetricsResponse
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
+from server.modules.rubrics.models import (
+    EvaluationFormSnapshot,
+    RubricAgentActivation,
+    RubricCriterion,
+    RubricDomain,
+    RubricSet,
+)
 from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import _auth
 
@@ -86,21 +92,67 @@ def _seed_document(
     return document
 
 
-def _seed_active_rubrics(db_session) -> list[dict[str, object]]:
+def _seed_active_rubrics(
+    db_session, *, include_coordinator: bool = False
+) -> list[dict[str, object]]:
     expected_scores: list[dict[str, object]] = []
-    # Coordinator is excluded from curriculum-retired validation runs, so only
-    # the active evaluator agents (SME, GAD, ITSO) are benchmarked.
-    scores = {"sme": 3, "gad": 2, "itso": 1}
-    codes = {"sme": "SME-1", "gad": "GAD-1", "itso": "ITSO-1"}
-    for agent_id in ("sme", "gad", "itso"):
+    target_agents = (
+        ("sme", "gad", "itso", "coordinator")
+        if include_coordinator
+        else ("sme", "gad", "itso")
+    )
+    scores = {"sme": 3, "gad": 2, "itso": 1, "coordinator": 4}
+    codes = {
+        "sme": "SME-1",
+        "gad": "GAD-1",
+        "itso": "ITSO-1",
+        "coordinator": "A-05",
+    }
+    configs = {
+        "sme": {
+            "strategy": "count_band",
+            "mode": "minimum_count",
+            "threshold_4": 3,
+            "threshold_3": 2,
+            "threshold_2": 1,
+        },
+        "gad": {
+            "strategy": "count_band",
+            "mode": "maximum_count",
+            "threshold_4": 0,
+            "threshold_3": 1,
+            "threshold_2": 3,
+        },
+        "itso": {
+            "strategy": "llm_rubric_guidance",
+            "guidance": "ITSO guidance",
+        },
+        "coordinator": {
+            "strategy": "curriculum_alignment",
+            "guidance": "Coordinator guidance",
+        },
+    }
+    now = datetime.now(UTC)
+    for agent_id in ("sme", "gad", "itso", "coordinator"):
         rubric_set = RubricSet(
             agent_id=agent_id,
             name=f"{agent_id} validation rubric",
             version_number=1,
-            status="active",
+            status="published",
+            adapter_key=agent_id,
+            adapter_version=1,
+            published_at=now,
         )
         db_session.add(rubric_set)
         db_session.flush()
+        db_session.add(
+            RubricAgentActivation(
+                agent_id=agent_id,
+                rubric_set_id=rubric_set.rubric_set_id,
+                updated_by=None,
+                updated_at=now,
+            )
+        )
         domain = RubricDomain(
             rubric_set_id=rubric_set.rubric_set_id,
             code=f"{agent_id}-domain",
@@ -109,24 +161,50 @@ def _seed_active_rubrics(db_session) -> list[dict[str, object]]:
         )
         db_session.add(domain)
         db_session.flush()
-        db_session.add(
-            RubricCriterion(
-                rubric_domain_id=domain.rubric_domain_id,
-                criterion_code=codes[agent_id],
-                title=f"{agent_id} criterion",
-                description=f"Expected {agent_id} behavior",
-                display_order=1,
+        criterion = RubricCriterion(
+            rubric_domain_id=domain.rubric_domain_id,
+            criterion_code=codes[agent_id],
+            title=f"{agent_id} criterion",
+            description=f"Expected {agent_id} behavior",
+            scoring_strategy=configs[agent_id]["strategy"],
+            strategy_config=configs[agent_id],
+            display_order=1,
+        )
+        db_session.add(criterion)
+        db_session.flush()
+        if agent_id in target_agents:
+            expected_scores.append(
+                {
+                    "agent_id": agent_id,
+                    "rubric_set_id": str(rubric_set.rubric_set_id),
+                    "rubric_criterion_id": str(criterion.rubric_criterion_id),
+                    "expected_score": scores[agent_id],
+                }
             )
-        )
-        expected_scores.append(
-            {
-                "agent_id": agent_id,
-                "criterion_id": codes[agent_id],
-                "expected_score": scores[agent_id],
-            }
-        )
     db_session.commit()
     return expected_scores
+
+
+def _setup_validation(
+    db_session,
+    admin_user,
+    expected_scores=None,
+    program: str = "BSCS",
+    include_coordinator: bool = False,
+):
+    """Shared helper: seed rubrics + docs + create validation, return key objects."""
+    if expected_scores is None:
+        expected_scores = _seed_active_rubrics(
+            db_session, include_coordinator=include_coordinator
+        )
+    slm = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="slm",
+        chroma_stored=False,
+        program=program,
+    )
+    return expected_scores, slm
 
 
 def test_model_validation_requires_admin(
@@ -165,7 +243,11 @@ def test_model_validation_readiness_failure_creates_nothing(
     _auth(client, auth_cookies_admin)
     response = client.post(
         "/api/v1/admin/model-validations",
-        json={"document_id": str(slm.document_id), "expected_scores": expected_scores},
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        },
     )
     assert response.status_code == 503
     assert db_session.query(EvaluationJob).count() == 0
@@ -188,28 +270,16 @@ def test_model_validation_admission_failure_creates_nothing(
     _auth(client, auth_cookies_admin)
     response = client.post(
         "/api/v1/admin/model-validations",
-        json={"document_id": str(slm.document_id), "expected_scores": expected_scores},
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        },
     )
     assert response.status_code == 503
     assert db_session.query(EvaluationJob).count() == 0
     assert db_session.query(ModelValidation).count() == 0
     assert drained == []
-
-
-def _setup_validation(
-    db_session, admin_user, expected_scores=None, program: str = "BSCS"
-):
-    """Shared helper: seed rubrics + docs + create validation, return key objects."""
-    if expected_scores is None:
-        expected_scores = _seed_active_rubrics(db_session)
-    slm = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="slm",
-        chroma_stored=False,
-        program=program,
-    )
-    return expected_scores, slm
 
 
 def test_admin_creates_validation_without_leaking_expected_score_into_job(
@@ -242,7 +312,55 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_response = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_response.status_code == 200
-    assert criteria_response.json()["total_criteria"] == 3
+    assert criteria_response.json()["total_criteria"] == 4
+
+    # Regression check: higher version published rubric is ignored if not activated.
+    sme_v2 = RubricSet(
+        agent_id="sme",
+        name="sme validation rubric v2",
+        version_number=2,
+        status="published",
+        adapter_key="sme",
+        adapter_version=1,
+        published_at=datetime.now(UTC),
+    )
+    db_session.add(sme_v2)
+    db_session.flush()
+    sme_v2_domain = RubricDomain(
+        rubric_set_id=sme_v2.rubric_set_id,
+        code="sme-v2-domain",
+        title="sme v2 domain",
+        display_order=1,
+    )
+    db_session.add(sme_v2_domain)
+    db_session.flush()
+    db_session.add(
+        RubricCriterion(
+            rubric_domain_id=sme_v2_domain.rubric_domain_id,
+            criterion_code="SME-V2-EXTRA",
+            title="sme v2 extra criterion",
+            description="Extra criterion",
+            scoring_strategy="count_band",
+            strategy_config={
+                "strategy": "count_band",
+                "mode": "minimum_count",
+                "threshold_4": 3,
+                "threshold_3": 2,
+                "threshold_2": 1,
+            },
+            display_order=1,
+        )
+    )
+    db_session.commit()
+
+    criteria_resp_v2 = client.get("/api/v1/admin/model-validations/criteria")
+    assert criteria_resp_v2.status_code == 200
+    assert criteria_resp_v2.json()["total_criteria"] == 4
+    sme_group = next(
+        g for g in criteria_resp_v2.json()["agents"] if g["agent_id"] == "sme"
+    )
+    assert sme_group["rubric_version"] == 1
+    assert [c["criterion_code"] for c in sme_group["criteria"]] == ["SME-1"]
 
     incomplete_response = client.post(
         "/api/v1/admin/model-validations",
@@ -281,6 +399,15 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         .all()
     )
     assert len(stored_scores) == 3
+
+    # Check that standard evaluation form snapshots were persisted
+    snapshots = (
+        db_session.query(EvaluationFormSnapshot)
+        .filter_by(evaluation_id=job.evaluation_id)
+        .all()
+    )
+    assert len(snapshots) == 3
+    assert {s.agent_id for s in snapshots} == {"sme", "gad", "itso"}
 
     job.status = "COMPLETED"
     job.completed_at = job.submitted_at + timedelta(seconds=5)
@@ -363,28 +490,21 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
 
 def test_model_validation_rejects_score_outside_institutional_scale(
-    client: TestClient, auth_cookies_admin
+    client: TestClient, auth_cookies_admin, admin_user, db_session
 ) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     _auth(client, auth_cookies_admin)
+    bad_scores = list(expected_scores)
+    bad_scores[0] = dict(bad_scores[0], expected_score=5)
     response = client.post(
         "/api/v1/admin/model-validations",
         json={
-            "document_id": str(uuid.uuid4()),
-            "expected_scores": [
-                {
-                    "agent_id": "sme",
-                    "criterion_id": "SME-1",
-                    "expected_score": 5,
-                }
-            ],
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": bad_scores,
         },
     )
     assert response.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# Test 5: Shared-admin oversight — cross-admin access + faculty denial
-# ---------------------------------------------------------------------------
 
 
 def test_admin_can_detail_validation_record(
@@ -417,6 +537,8 @@ def test_admin_can_detail_validation_record(
     detail_resp = client.get(f"/api/v1/admin/model-validations/{validation_id}")
     assert detail_resp.status_code == 200
     assert detail_resp.json()["validation_id"] == validation_id
+    assert len(detail_resp.json()["bound_forms"]) == 3
+    assert len(detail_resp.json()["criterion_scores"]) == 3
 
     # Faculty blocked
     _auth(client, auth_cookies_faculty)
@@ -476,45 +598,59 @@ def test_faculty_cannot_list_validations(
     assert client.get("/api/v1/admin/model-validations/criteria").status_code == 403
 
 
-# ---------------------------------------------------------------------------
-# Test 6: Curriculum-retired partial validation is always enforced
-# ---------------------------------------------------------------------------
-
-
-def test_validation_always_runs_partial_without_curriculum(
+def test_validation_full_requires_curriculum_and_all_four_agents(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Every new validation run is a curriculum-retired partial evaluation.
-
-    The service forces partial_without_curriculum=True and curriculum_id=None
-    even when the request omits them or supplies a curriculum reference.
-    """
-    expected_scores, slm = _setup_validation(db_session, admin_user)
+    """Full validation requires explicit curriculum and all 4 agents."""
+    expected_scores_4, slm = _setup_validation(
+        db_session, admin_user, include_coordinator=True
+    )
+    curriculum_doc = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+        program="BSCS",
+    )
     monkeypatch.setattr(
         "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda doc_id, domain: True,
+    )
     _auth(client, auth_cookies_admin)
 
-    # Omitting partial_without_curriculum still produces a partial job.
-    resp = client.post(
+    # Missing curriculum_id when partial_without_curriculum=False -> 422
+    resp_no_curr = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "expected_scores": expected_scores,
+            "partial_without_curriculum": False,
+            "expected_scores": expected_scores_4,
         },
     )
-    assert resp.status_code == 202
-    assert resp.json()["partial_without_curriculum"] is True
+    assert resp_no_curr.status_code == 422
 
-    job = db_session.get(EvaluationJob, uuid.UUID(resp.json()["evaluation_id"]))
-    assert job is not None
-    assert job.curriculum_id is None
-    assert job.partial_without_curriculum is True
-    assert job.confirmed_program == "BSCS"
+    # Providing curriculum_id and all 4 agents -> 202
+    resp_full = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "curriculum_id": str(curriculum_doc.document_id),
+            "partial_without_curriculum": False,
+            "expected_scores": expected_scores_4,
+        },
+    )
+    assert resp_full.status_code == 202
+    data = resp_full.json()
+    assert data["partial_without_curriculum"] is False
+    assert len(data["bound_forms"]) == 4
+    assert len(data["criterion_scores"]) == 4
 
 
 def test_validation_explicit_partial_without_curriculum(
@@ -543,49 +679,32 @@ def test_validation_explicit_partial_without_curriculum(
     assert resp.json()["partial_without_curriculum"] is True
 
 
-# ---------------------------------------------------------------------------
-# Test 6b: Coordinator expected scores are retired for Model Validation
-# ---------------------------------------------------------------------------
-
-
-def test_validation_rejects_coordinator_expected_scores(
+def test_validation_rejects_coordinator_in_partial_mode(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Model Validation no longer accepts Program Coordinator expected scores."""
-
-    expected_scores, slm = _setup_validation(db_session, admin_user)
+    """Partial validation rejects Program Coordinator expected scores."""
+    expected_scores, slm = _setup_validation(
+        db_session, admin_user, include_coordinator=True
+    )
     monkeypatch.setattr(
         "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     _auth(client, auth_cookies_admin)
-
-    coordinator_scores = expected_scores + [
-        {
-            "agent_id": "coordinator",
-            "criterion_id": "COORD-1",
-            "expected_score": 4,
-        }
-    ]
 
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
             "partial_without_curriculum": True,
-            "expected_scores": coordinator_scores,
+            "expected_scores": expected_scores,  # Contains coordinator
         },
     )
     assert resp.status_code == 422
-    assert "coordinator" in resp.json()["detail"].lower()
-
-
-# ---------------------------------------------------------------------------
-# Test 4: Toxicity disabled behavior (no external call, null persisted)
-# ---------------------------------------------------------------------------
+    assert "coordinator" in str(resp.json()["detail"]).lower()
 
 
 def test_toxicity_disabled_stores_none_with_message(
@@ -613,8 +732,6 @@ def test_toxicity_disabled_stores_none_with_message(
     validation_id = create_resp.json()["validation_id"]
     validation = db_session.get(ModelValidation, uuid.UUID(validation_id))
 
-    # Call toxicity assessment without an explicit client (no monkeypatch
-    # of settings so toxicity_assessment_enabled defaults to False).
     assess_model_validation_toxicity(
         uuid.UUID(create_resp.json()["evaluation_id"]), db_session
     )
@@ -623,11 +740,6 @@ def test_toxicity_disabled_stores_none_with_message(
     assert validation.toxicity_label is None
     assert validation.toxicity_error is not None
     assert "not enabled" in validation.toxicity_error.lower()
-
-
-# ---------------------------------------------------------------------------
-# Test 2: Atomic creation — failure before commit rolls back everything
-# ---------------------------------------------------------------------------
 
 
 def test_validation_atomic_creation_rolls_back_on_failure(
@@ -644,9 +756,7 @@ def test_validation_atomic_creation_rolls_back_on_failure(
     )
     _auth(client, auth_cookies_admin)
 
-    # Trigger a failure by providing a non-existent document_id.
-    # The evaluation service masks the missing SLM as a 404; this should
-    # prevent the whole transaction from committing.
+    # Missing SLM document triggers 404 and rollback
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
@@ -655,16 +765,14 @@ def test_validation_atomic_creation_rolls_back_on_failure(
             "expected_scores": expected_scores,
         },
     )
-    assert resp.status_code == 404  # SLM document not found
+    assert resp.status_code == 404
 
-    # No evaluation job should exist from the failed attempt.
     eval_count = db_session.query(EvaluationJob).count()
     assert eval_count == 0
-
-
-# ---------------------------------------------------------------------------
-# Test 5b: Cross-admin access — second admin can view first admin's validation
-# ---------------------------------------------------------------------------
+    val_count = db_session.query(ModelValidation).count()
+    assert val_count == 0
+    snap_count = db_session.query(EvaluationFormSnapshot).count()
+    assert snap_count == 0
 
 
 def test_cross_admin_access(
@@ -730,11 +838,6 @@ def test_cross_admin_access(
     )
     assert eval_resp.status_code == 200
     assert eval_resp.json()["evaluation_id"] == created_eval_id
-
-
-# ---------------------------------------------------------------------------
-# Regression: summary aggregation with zero matched pairs
-# ---------------------------------------------------------------------------
 
 
 def test_metrics_includes_completed_run_with_zero_matched_pairs(
@@ -873,3 +976,187 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
             [0, 0, 0, 0],
             [0, 0, 0, 0],
         ], f"Agent {agent} should have empty matrix"
+
+
+def test_create_model_validation_rejects_unknown_fields(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    _auth(client, auth_cookies_admin)
+
+    # Unknown field in expected_scores item
+    bad_item_scores = [dict(item) for item in expected_scores]
+    bad_item_scores[0]["snapshot_rubric_set_id"] = str(uuid.uuid4())
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": bad_item_scores,
+        },
+    )
+    assert resp.status_code == 422
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0
+
+    # UUIDs remain valid JSON strings, while primitive request values are strict.
+    string_score_items = [dict(item) for item in expected_scores]
+    string_score_items[0]["expected_score"] = "3"
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": string_score_items,
+        },
+    )
+    assert resp.status_code == 422
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": "true",
+            "expected_scores": expected_scores,
+        },
+    )
+    assert resp.status_code == 422
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0
+
+    # Unknown field in root payload
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+            "extra_root_field": "forbidden",
+        },
+    )
+    assert resp.status_code == 422
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0
+
+
+def test_create_model_validation_rollback_on_snapshot_failure(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    def failing_persist(*args, **kwargs):
+        raise RuntimeError("Simulated snapshot persistence error")
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.persist_evaluation_form_snapshots",
+        failing_persist,
+    )
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="Simulated snapshot persistence error"):
+        create_model_validation(
+            req,
+            created_by=admin_user.user_id,
+            created_by_role="admin",
+            db=db_session,
+        )
+
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0
+
+
+def test_create_model_validation_rollback_on_post_job_model_construction_failure(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    def failing_model_validation(*args, **kwargs):
+        raise RuntimeError("Simulated model validation construction error")
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.ModelValidation",
+        failing_model_validation,
+    )
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError, match="Simulated model validation construction error"
+    ):
+        create_model_validation(
+            req,
+            created_by=admin_user.user_id,
+            created_by_role="admin",
+            db=db_session,
+        )
+
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0
+
+
+def test_create_model_validation_rollback_on_post_job_criterion_failure(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    original_add_all = db_session.add_all
+
+    def failing_add_all(instances):
+        if any(isinstance(i, ModelValidationCriterionScore) for i in instances):
+            raise RuntimeError("Simulated criterion insertion failure")
+        return original_add_all(instances)
+
+    monkeypatch.setattr(db_session, "add_all", failing_add_all)
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "partial_without_curriculum": True,
+            "expected_scores": expected_scores,
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="Simulated criterion insertion failure"):
+        create_model_validation(
+            req,
+            created_by=admin_user.user_id,
+            created_by_role="admin",
+            db=db_session,
+        )
+
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+    assert db_session.query(EvaluationFormSnapshot).count() == 0
+    assert db_session.query(ModelValidationCriterionScore).count() == 0

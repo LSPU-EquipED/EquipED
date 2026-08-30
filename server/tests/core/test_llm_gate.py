@@ -14,10 +14,11 @@ from server.core.exceptions import InfrastructureUnavailableError
 class _Response:
     headers = {}
 
-    def read(self):
-        return json.dumps(
+    def read(self, amount=None):
+        body = json.dumps(
             {"model": "m", "choices": [{"message": {"content": "ok"}}]}
         ).encode()
+        return body if amount is None else body[:amount]
 
     def __enter__(self):
         return self

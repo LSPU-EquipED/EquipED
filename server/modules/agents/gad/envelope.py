@@ -8,6 +8,13 @@ import re
 from collections import OrderedDict
 from typing import Any
 
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    RatioBandConfig,
+)
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
+
 from ..exceptions import AgentExecutionError
 from .grounding import MAX_INSTANCES_PER_CRITERION
 
@@ -22,46 +29,98 @@ EXTRACTION_SCHEMA_VERSION = "2.0.0"
 """Version of the combined extraction envelope schema."""
 
 
-def extraction_schema() -> dict[str, Any]:
-    """Return the task-local transport schema; parser remains authoritative."""
-    # Transport schema is intentionally structural; the authoritative parser
-    # enforces the closed per-section contract and exact types.
-    sections = {
-        key: {"type": "object", "additionalProperties": True}
-        for key in ("gad-01", "gad-02", "gad-03", "gad-04", "gad-05")
-    }
+def extraction_schema(form_snapshot: EvaluationFormSnapshotDTO) -> dict[str, Any]:
+    """Return the strict Draft 2020-12 transport JSON schema for snapshot criteria."""
+    if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
+        raise TypeError("form_snapshot must be an EvaluationFormSnapshotDTO instance")
+
+    criteria = [c for d in form_snapshot.form.domains for c in d.criteria]
+    properties: dict[str, Any] = {}
+
+    for crit in criteria:
+        section_key = crit.criterion_code.strip().casefold()
+        config = crit.strategy_config
+        if isinstance(config, RatioBandConfig):
+            properties[section_key] = {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["female_count", "male_count", "summary"],
+                "properties": {
+                    "female_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000,
+                    },
+                    "male_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000,
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000,
+                    },
+                },
+            }
+        elif isinstance(config, CountBandConfig):
+            properties[section_key] = {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["instance_count", "instances", "summary"],
+                "properties": {
+                    "instance_count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000,
+                    },
+                    "instances": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["excerpt", "chunk_id"],
+                            "properties": {
+                                "excerpt": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 4000,
+                                },
+                                "chunk_id": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 50,
+                                },
+                                "explanation": {
+                                    "type": "string",
+                                    "maxLength": 4000,
+                                },
+                                "location": {
+                                    "type": "string",
+                                    "maxLength": 200,
+                                },
+                            },
+                        },
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000,
+                    },
+                },
+            }
+        else:
+            raise ValueError(
+                f"Unsupported strategy config for criterion {crit.criterion_code}"
+            )
+
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": list(sections),
-        "properties": sections,
+        "required": list(properties.keys()),
+        "properties": properties,
     }
 
-
-# ---------------------------------------------------------------------------
-# Canonical section keys — the ONLY accepted top-level envelope keys.
-# ---------------------------------------------------------------------------
-
-CANONICAL_SECTION_KEYS: frozenset[str] = frozenset(
-    {
-        "gad-01",
-        "gad-02",
-        "gad-03",
-        "gad-04",
-        "gad-05",
-    }
-)
-
-_INSTANCE_SECTION_KEYS: frozenset[str] = frozenset(
-    {
-        "gad-01",
-        "gad-03",
-        "gad-04",
-        "gad-05",
-    }
-)
-
-_BALANCE_SECTION_KEYS: frozenset[str] = frozenset({"gad-02"})
 
 # ---------------------------------------------------------------------------
 # Numeric-score blocklist — every known alias that assigns scores.
@@ -97,7 +156,7 @@ def _hook_detect_duplicate_keys(pairs: list[tuple[str, Any]]) -> OrderedDict:
     """
     seen: dict[str, str] = {}
     for key, _val in pairs:
-        lower = key.strip().lower()
+        lower = key.strip().casefold()
         if lower in seen:
             raise ValueError(
                 f"duplicate key (case-insensitive): '{key}' "
@@ -107,22 +166,33 @@ def _hook_detect_duplicate_keys(pairs: list[tuple[str, Any]]) -> OrderedDict:
     return OrderedDict(pairs)
 
 
-def parse_combined_response(raw_response: str) -> dict[str, Any]:
-    """Parse and strictly validate the combined GAD extraction envelope.
+def parse_combined_response(
+    raw_response: str,
+    form_snapshot: EvaluationFormSnapshotDTO,
+) -> dict[str, Any]:
+    """Parse and strictly validate combined response against snapshot criteria.
 
     * Uses ``object_pairs_hook`` to catch exact/case-insensitive duplicates
       **before** JSON construction.
-    * Normalises all keys to canonical lower-case (``gad-01``…``gad-05``).
-    * Rejects **any** key not in ``CANONICAL_SECTION_KEYS``.
+    * Normalises all keys to canonical lower-case via ``casefold()``.
+    * Rejects **any** key not in snapshot section keys.
     * Rejects any section containing a numeric-score blocklist field.
-    * Validates each section's strict schema (field types, presence,
-      non-empty summaries, prohibition of cross-type fields).
-    * Returns a dict with exactly the five canonical keys.
+    * Validates each section's strict schema based on its strategy shape.
+    * Returns a dict with exactly the snapshot canonical keys.
 
     Raises ``AgentExecutionError`` on any violation — never defaults ``{}``.
     """
+    if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
+        raise TypeError("form_snapshot must be an EvaluationFormSnapshotDTO instance")
+
     if not isinstance(raw_response, str) or not raw_response.strip():
         raise AgentExecutionError("GAD combined response is empty or non-string")
+
+    criteria = [c for d in form_snapshot.form.domains for c in d.criteria]
+    expected_by_key: dict[str, CriterionDefinition] = {
+        c.criterion_code.strip().casefold(): c for c in criteria
+    }
+    expected_section_keys = set(expected_by_key)
 
     payload = raw_response.strip()
     fenced = re.match(
@@ -151,21 +221,21 @@ def parse_combined_response(raw_response: str) -> dict[str, Any]:
     if not isinstance(parsed, (dict, OrderedDict)):
         raise AgentExecutionError("GAD combined response must be a JSON object")
 
-    # --- Normalise keys to canonical lower-case ---
+    # --- Normalise keys to canonical casefolded form ---
     normalised: dict[str, Any] = {}
     for raw_key, val in parsed.items():
-        canonical_key = raw_key.strip().lower()
+        canonical_key = raw_key.strip().casefold()
         normalised[canonical_key] = val
 
     # --- Reject unknown sections ---
-    unknown = set(normalised) - CANONICAL_SECTION_KEYS
+    unknown = set(normalised) - expected_section_keys
     if unknown:
         raise AgentExecutionError(
             f"GAD combined response contains unknown section(s): {sorted(unknown)}"
         )
 
     # --- Reject missing required sections ---
-    missing = CANONICAL_SECTION_KEYS - set(normalised)
+    missing = expected_section_keys - set(normalised)
     if missing:
         raise AgentExecutionError(
             f"GAD combined response missing required sections: {sorted(missing)}"
@@ -175,14 +245,14 @@ def parse_combined_response(raw_response: str) -> dict[str, Any]:
     _reject_score_fields(normalised)
 
     # --- Validate each section's strict schema ---
-    for section_key in CANONICAL_SECTION_KEYS:
+    for section_key, crit_def in expected_by_key.items():
         section_val = normalised[section_key]
         if not isinstance(section_val, dict):
             raise AgentExecutionError(
                 f"GAD section '{section_key}' must be a JSON object, "
                 f"got {type(section_val).__name__}"
             )
-        _validate_section(section_key, section_val)
+        _validate_section_for_criterion(section_key, section_val, crit_def)
 
     return normalised
 
@@ -199,7 +269,7 @@ def _reject_score_fields(obj: Any, path: str = "") -> None:
     """
     if isinstance(obj, dict):
         for key, val in obj.items():
-            lower_key = key.strip().lower()
+            lower_key = key.strip().casefold()
             if lower_key in _SCORE_BLOCKLIST:
                 raise AgentExecutionError(
                     f"GAD combined response contains prohibited numeric-score "
@@ -215,18 +285,16 @@ def _reject_score_fields(obj: Any, path: str = "") -> None:
 # Per-section strict schema validation
 # ---------------------------------------------------------------------------
 
-_ALLOWED_BALANCE_FIELDS: frozenset[str] = frozenset(
+_ALLOWED_RATIO_FIELDS: frozenset[str] = frozenset(
     {
-        "criterion",
         "female_count",
         "male_count",
         "summary",
     }
 )
 
-_ALLOWED_INSTANCE_FIELDS: frozenset[str] = frozenset(
+_ALLOWED_COUNT_FIELDS: frozenset[str] = frozenset(
     {
-        "criterion",
         "instance_count",
         "instances",
         "summary",
@@ -238,44 +306,44 @@ _ALLOWED_INSTANCE_ITEM_FIELDS: frozenset[str] = frozenset(
         "excerpt",
         "chunk_id",
         "explanation",
+        "location",
     }
 )
 
 
-def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
-    """Validate a single criterion section's structure, field types, and allowlist."""
-    lower_key = section_key.strip().lower()
+def _validate_section_for_criterion(
+    section_key: str,
+    section_val: dict[str, Any],
+    crit_def: CriterionDefinition,
+) -> None:
+    """Validate criterion section structure and field types based on strategy."""
+    config = crit_def.strategy_config
 
-    if lower_key in _BALANCE_SECTION_KEYS:
-        # GAD-02: female_count, male_count, summary — reject any extra field
-        extra = set(section_val) - _ALLOWED_BALANCE_FIELDS
+    if isinstance(config, RatioBandConfig):
+        extra = set(section_val) - _ALLOWED_RATIO_FIELDS
         if extra:
             raise AgentExecutionError(
                 f"GAD section '{section_key}' has unapproved field(s): {sorted(extra)}"
             )
         for field in ("female_count", "male_count"):
             val = section_val.get(field)
-            if not isinstance(val, int) or isinstance(val, bool) or val < 0:
+            if (
+                not isinstance(val, int)
+                or isinstance(val, bool)
+                or not 0 <= val <= 100000
+            ):
                 raise AgentExecutionError(
                     f"GAD section '{section_key}' field '{field}' must be "
                     f"a non-negative integer, got {type(val).__name__}: {val}"
                 )
-        summary = section_val.get("summary", "")
-        if not isinstance(summary, str) or not summary.strip():
+        summary = section_val.get("summary")
+        if not isinstance(summary, str) or not summary.strip() or len(summary) > 4000:
             raise AgentExecutionError(
-                f"GAD section '{section_key}' requires a non-empty summary"
+                f"GAD section '{section_key}' requires a non-empty summary "
+                f"(max 4000 chars)"
             )
-        # Reject instance-specific fields
-        for banned in ("instances", "instance_count"):
-            if banned in section_val:
-                raise AgentExecutionError(
-                    f"GAD section '{section_key}' (balance) must not contain "
-                    f"field '{banned}'"
-                )
-
-    elif lower_key in _INSTANCE_SECTION_KEYS:
-        # GAD-01/03/04/05: instance_count, instances, summary — reject extra fields
-        extra = set(section_val) - _ALLOWED_INSTANCE_FIELDS
+    elif isinstance(config, CountBandConfig):
+        extra = set(section_val) - _ALLOWED_COUNT_FIELDS
         if extra:
             raise AgentExecutionError(
                 f"GAD section '{section_key}' has unapproved field(s): {sorted(extra)}"
@@ -284,25 +352,24 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
         if (
             not isinstance(instance_count, int)
             or isinstance(instance_count, bool)
-            or instance_count < 0
+            or not 0 <= instance_count <= 100000
         ):
             raise AgentExecutionError(
                 f"GAD section '{section_key}' field 'instance_count' must be "
                 f"a non-negative integer"
             )
-        raw_instances = section_val.get("instances", [])
+        raw_instances = section_val.get("instances")
         if not isinstance(raw_instances, list):
             raise AgentExecutionError(
                 f"GAD section '{section_key}' field 'instances' must be a list"
             )
-        summary = section_val.get("summary", "")
-        if not isinstance(summary, str) or not summary.strip():
+        summary = section_val.get("summary")
+        if not isinstance(summary, str) or not summary.strip() or len(summary) > 4000:
             raise AgentExecutionError(
-                f"GAD section '{section_key}' requires a non-empty summary"
+                f"GAD section '{section_key}' requires a non-empty summary "
+                f"(max 4000 chars)"
             )
-        max_instances = MAX_INSTANCES_PER_CRITERION
-        # Validate EVERY supplied item before applying the cap.  Otherwise an
-        # invalid item beyond the cap would be silently accepted.
+
         for idx, inst in enumerate(raw_instances):
             if not isinstance(inst, dict):
                 raise AgentExecutionError(
@@ -314,24 +381,59 @@ def _validate_section(section_key: str, section_val: dict[str, Any]) -> None:
                     f"GAD section '{section_key}' instance[{idx}] has unapproved "
                     f"field(s): {sorted(extra_inst)}"
                 )
-            excerpt = inst.get("excerpt", "")
-            if not isinstance(excerpt, str) or not excerpt.strip():
+            excerpt = inst.get("excerpt")
+            if (
+                not isinstance(excerpt, str)
+                or not excerpt.strip()
+                or len(excerpt) > 4000
+            ):
                 raise AgentExecutionError(
                     f"GAD section '{section_key}' instance[{idx}] requires "
-                    f"a non-empty 'excerpt'"
+                    f"a non-empty 'excerpt' (max 4000 chars)"
                 )
-            chunk_id = inst.get("chunk_id", "")
-            if not isinstance(chunk_id, str) or not chunk_id.strip():
+            chunk_id = inst.get("chunk_id")
+            if (
+                not isinstance(chunk_id, str)
+                or not chunk_id.strip()
+                or len(chunk_id) > 50
+            ):
                 raise AgentExecutionError(
                     f"GAD section '{section_key}' instance[{idx}] requires "
-                    f"a non-empty 'chunk_id'"
+                    f"a non-empty 'chunk_id' (max 50 chars)"
+                )
+            explanation = inst.get("explanation")
+            if explanation is not None and (
+                not isinstance(explanation, str) or len(explanation) > 4000
+            ):
+                raise AgentExecutionError(
+                    f"GAD section '{section_key}' instance[{idx}] field 'explanation' "
+                    f"must be a string (max 4000 chars)"
+                )
+            location = inst.get("location")
+            if location is not None and (
+                not isinstance(location, str) or len(location) > 200
+            ):
+                raise AgentExecutionError(
+                    f"GAD section '{section_key}' instance[{idx}] field 'location' "
+                    f"must be a string (max 200 chars)"
                 )
 
-        if len(raw_instances) > max_instances:
+        if len(raw_instances) > MAX_INSTANCES_PER_CRITERION:
             logger.info(
                 "GAD section '%s' returned %d instances; applying max %d",
                 section_key,
                 len(raw_instances),
-                max_instances,
+                MAX_INSTANCES_PER_CRITERION,
             )
-            section_val["instances"] = raw_instances[:max_instances]
+            section_val["instances"] = raw_instances[:MAX_INSTANCES_PER_CRITERION]
+    else:
+        raise AgentExecutionError(
+            f"Unsupported strategy config for criterion {crit_def.criterion_code}"
+        )
+
+
+__all__ = [
+    "EXTRACTION_SCHEMA_VERSION",
+    "extraction_schema",
+    "parse_combined_response",
+]

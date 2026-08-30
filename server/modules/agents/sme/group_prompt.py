@@ -37,8 +37,7 @@ FALLBACK_DESCRIPTIONS: dict[str, str] = {
     "A-05": "Objectives are gauged effectively.",
     "OP-01": "Topics are coherent from Unit to Chapter.",
     "OP-02": (
-        "Material is interactive in each lesson which makes life-long "
-        "learning easier."
+        "Material is interactive in each lesson which makes life-long learning easier."
     ),
     "OP-03": (
         "Directions are clear and complete enough for students to perform "
@@ -105,9 +104,7 @@ FALLBACK_SCORING_RULES: dict[str, str] = {
 }
 
 
-def _example_response(
-    codes: tuple[str, ...], titles: dict[str, str]
-) -> dict[str, Any]:
+def _example_response(codes: tuple[str, ...], titles: dict[str, str]) -> dict[str, Any]:
     """A shape-correct example, filled with placeholder values, so a weak
     model can copy the structure instead of inferring it from a description.
     """
@@ -123,8 +120,7 @@ def _example_response(
                     "it maps to this score."
                 ),
                 "evidence": [
-                    "A short verbatim quote from document_text that "
-                    "supports the score."
+                    "A short verbatim quote from document_text that supports the score."
                 ],
             }
             for code in codes
@@ -175,11 +171,7 @@ def build_group_prompt(
         "instructions": instructions,
     }
     body = json.dumps(payload, ensure_ascii=False)
-    return (
-        (prompt_preamble.rstrip() + "\n\n" + body)
-        if prompt_preamble
-        else body
-    )
+    return (prompt_preamble.rstrip() + "\n\n" + body) if prompt_preamble else body
 
 
 __all__ = [

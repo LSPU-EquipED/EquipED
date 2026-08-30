@@ -96,15 +96,23 @@ def test_shared_instance_real_runs_are_isolated(monkeypatch):
 
     def run(label, client):
         try:
+            eval_id = uuid4()
+            from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+
+            crit_specs = tuple((f"ITSO-0{i}", f"Title {i}") for i in range(1, 6))
+            snapshot = make_itso_test_snapshot(
+                evaluation_id=eval_id, criteria_specs=crit_specs
+            )
+
             results.append(
                 agent.run(
-                    evaluation_id=uuid4(),
+                    evaluation_id=eval_id,
                     document_id=uuid4(),
                     chunk_infos=({"chunk_id": label, "text": f"marker-{label}"},),
+                    form_snapshot=snapshot,
                     provenance={"precheck_version": label},
                     policy_evidence={"delivery_state": "blocked"},
                     precomputed_context={
-                        "rubric_itso": [],
                         "syllabus": [],
                         "curriculum": [],
                     },

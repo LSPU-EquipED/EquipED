@@ -8,7 +8,13 @@ from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
 from server.modules.agents.runtime.timing import PhaseTimer
-from server.tests.agents.helpers import _DummyAgent, _FakeLLM, _RetrievedChunk
+from server.tests.agents.helpers import (
+    _BatchAgent,
+    _DummyAgent,
+    _FakeLLM,
+    _make_dummy_snapshot,
+    _seed_active_prompts,
+)
 from server.tests.agents.runtime.response_helpers import itso_response
 
 
@@ -68,14 +74,6 @@ def test_phase_timer_reports_parse_error(monkeypatch, caplog) -> None:
 def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
     """A successful agent.run() should emit an EVAL_TIMING log line."""
     caplog.set_level(logging.INFO, logger="server.modules.agents.runtime.timing")
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
 
     agent = _DummyAgent(llm_client=_FakeLLM(itso_response()))
 
@@ -103,7 +101,6 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
 def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
     """Supervisor run_evaluation should emit precompute and per-agent timing logs."""
     from server.modules.agents.supervision.supervisor import Supervisor
-    from server.tests.agents.helpers import _BatchAgent, _seed_active_prompts
 
     for logger_name in (
         "server.modules.agents.supervision.context",
@@ -151,10 +148,13 @@ def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
         ),
     ]
 
+    eval_id = uuid4()
+    form_snapshots = (_make_dummy_snapshot("sme", eval_id),)
     supervisor.run_evaluation(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunks=chunks,
+        form_snapshots=form_snapshots,
     )
 
     # Should have precompute timing log.

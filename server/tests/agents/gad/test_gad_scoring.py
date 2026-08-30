@@ -1,4 +1,4 @@
-"""Tests for single-pass GAD extraction and code-side scoring (tasks 1.1-3.4)."""
+"""Tests for single-pass GAD extraction and code-side scoring."""
 
 from __future__ import annotations
 
@@ -7,36 +7,36 @@ from uuid import uuid4
 
 import pytest
 from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.exceptions import AgentExecutionError
+from server.modules.agents.exceptions import AgentExecutionError, AgentLLMError
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.gad.envelope import (
     EXTRACTION_SCHEMA_VERSION,
+    extraction_schema,
     parse_combined_response,
-)
-from server.modules.agents.gad.female_male_count import (
-    score_representation_balance,
 )
 from server.modules.agents.gad.grounding import (
     MAX_INSTANCES_PER_CRITERION,
     ground_instances,
-)
-from server.modules.agents.gad.life_experiences import (
-    score_life_experience_instances,
-)
-from server.modules.agents.gad.peace_and_equality import (
-    score_peace_equality_instances,
-)
-from server.modules.agents.gad.potential import (
-    score_respect_potential_instances,
 )
 from server.modules.agents.gad.prompt import (
     build_combined_prompt,
 )
 from server.modules.agents.gad.registry import (
     REGISTRY_VERSION,
+    score_from_combined,
 )
-from server.modules.agents.gad.stereotypes import (
-    score_stereotype_instances,
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    GroundedInstance,
+    GroundedInstanceMeasurement,
+    PairedCountsMeasurement,
+    RatioBandConfig,
+)
+from server.modules.rubrics.strategies.calculators import score_count, score_ratio
+from server.tests.agents.gad.conftest import (
+    REVISION_1_GAD_CRITERIA,
+    make_gad_snapshot,
 )
 
 # ---------------------------------------------------------------------------
@@ -130,41 +130,26 @@ def _combined_response(
 ) -> dict[str, object]:
     return {
         "gad-01": {
-            "criterion": "The material is free from gender stereotypes",
             "instance_count": gad_01_count,
             "instances": gad_01_instances or [],
             "summary": gad_01_summary,
         },
         "gad-02": {
-            "criterion": (
-                "The material shows females and males an equal number of times"
-            ),
             "female_count": gad_02_female,
             "male_count": gad_02_male,
             "summary": gad_02_summary,
         },
         "gad-03": {
-            "criterion": (
-                "The material shows females and males with equal respect and potential"
-            ),
             "instance_count": gad_03_count,
             "instances": gad_03_instances or [],
             "summary": gad_03_summary,
         },
         "gad-04": {
-            "criterion": (
-                "The material reflects the needs and life experiences of both male "
-                "and female students"
-            ),
             "instance_count": gad_04_count,
             "instances": gad_04_instances or [],
             "summary": gad_04_summary,
         },
         "gad-05": {
-            "criterion": (
-                "The material promotes peace and equality regardless of gender, race, "
-                "class, disability, religion, sexual orientation, or ethnic background"
-            ),
             "instance_count": gad_05_count,
             "instances": gad_05_instances or [],
             "summary": gad_05_summary,
@@ -195,7 +180,8 @@ def test_registry_version_is_positive_int() -> None:
 
 def test_parse_valid_combined_response() -> None:
     resp = _combined_response()
-    parsed = parse_combined_response(json.dumps(resp))
+    snap = make_gad_snapshot()
+    parsed = parse_combined_response(json.dumps(resp), snap)
     assert "gad-01" in parsed
     assert "gad-02" in parsed
     assert parsed["gad-02"]["female_count"] == 0
@@ -205,63 +191,87 @@ def test_parse_valid_combined_response() -> None:
 def test_parse_rejects_missing_section() -> None:
     resp = _combined_response()
     del resp["gad-03"]
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="missing required sections"):
-        parse_combined_response(json.dumps(resp))
+        parse_combined_response(json.dumps(resp), snap)
 
 
 def test_parse_rejects_duplicate_key() -> None:
     resp = _combined_response()
-    # Add a second key that is a case-insensitive duplicate of gad-01
     resp["GAD-01"] = resp["gad-01"]
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="duplicate key"):
-        parse_combined_response(json.dumps(resp))
+        parse_combined_response(json.dumps(resp), snap)
 
 
 def test_parse_rejects_numeric_score_field() -> None:
     resp = _combined_response()
     resp["gad-01"]["score"] = 4
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
-        parse_combined_response(json.dumps(resp))
+        parse_combined_response(json.dumps(resp), snap)
 
 
 def test_parse_rejects_score_in_instances() -> None:
     resp = _combined_response()
     resp["gad-01"]["instances"] = [{"excerpt": "test", "chunk_id": "c1", "score": 4}]
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="prohibited numeric-score"):
-        parse_combined_response(json.dumps(resp))
+        parse_combined_response(json.dumps(resp), snap)
 
 
 def test_parse_rejects_balance_section_with_instances() -> None:
     resp = _combined_response()
     resp["gad-02"]["instance_count"] = 0
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="unapproved field"):
-        parse_combined_response(json.dumps(resp))
+        parse_combined_response(json.dumps(resp), snap)
+
+
+def test_parse_rejects_stale_criterion_field() -> None:
+    resp = _combined_response()
+    resp["gad-01"]["criterion"] = "stale"
+    snap = make_gad_snapshot()
+    with pytest.raises(AgentExecutionError, match="unapproved field"):
+        parse_combined_response(json.dumps(resp), snap)
+
+
+def test_parse_rejects_stale_category_field() -> None:
+    resp = _combined_response()
+    resp["gad-01"]["instances"] = [
+        {"excerpt": "test", "chunk_id": "c1", "category": "gender"}
+    ]
+    snap = make_gad_snapshot()
+    with pytest.raises(AgentExecutionError, match="unapproved field"):
+        parse_combined_response(json.dumps(resp), snap)
 
 
 def test_parse_accepts_fenced_json() -> None:
     resp = _combined_response()
     fenced = f"```json\n{json.dumps(resp)}\n```"
-    parsed = parse_combined_response(fenced)
+    snap = make_gad_snapshot()
+    parsed = parse_combined_response(fenced, snap)
     assert "gad-01" in parsed
 
 
 def test_parse_accepts_curly_braces_in_text() -> None:
-    """Combined envelope must survive plain-text extraction."""
     resp = _combined_response()
     raw = json.dumps(resp)
-    # No fencing, no prefix — should parse directly
-    parsed = parse_combined_response(raw)
+    snap = make_gad_snapshot()
+    parsed = parse_combined_response(raw, snap)
     assert "gad-01" in parsed
 
 
 def test_parse_rejects_malformed_json() -> None:
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="invalid JSON"):
-        parse_combined_response("not json at all")
+        parse_combined_response("not json at all", snap)
 
 
 def test_parse_rejects_non_object() -> None:
+    snap = make_gad_snapshot()
     with pytest.raises(AgentExecutionError, match="must be a JSON object"):
-        parse_combined_response('"just a string"')
+        parse_combined_response('"just a string"', snap)
 
 
 # ---------------------------------------------------------------------------
@@ -324,8 +334,10 @@ def test_ground_rejects_malformed_instance() -> None:
 
 
 def test_build_combined_prompt_has_all_criteria() -> None:
+    snap = make_gad_snapshot()
     prompt = build_combined_prompt(
         packed_chunks=_SAMPLE_CHUNKS,
+        form_snapshot=snap,
         prompt_version="test-v1",
     )
     payload = json.loads(prompt)
@@ -333,14 +345,17 @@ def test_build_combined_prompt_has_all_criteria() -> None:
     assert payload["prompt_version"] == "test-v1"
     assert len(payload["document_chunks"]) == len(_SAMPLE_CHUNKS)
     instructions = "\n".join(payload["instructions"])
+    assert "UNTRUSTED DATA" in instructions
     for cid in ("GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"):
         assert cid in instructions
 
 
 def test_build_combined_prompt_includes_managed_text() -> None:
     managed = "Custom managed GAD instruction text."
+    snap = make_gad_snapshot()
     prompt = build_combined_prompt(
         packed_chunks=_SAMPLE_CHUNKS,
+        form_snapshot=snap,
         prompt_version="v1",
         gad_managed_prompt=managed,
     )
@@ -350,18 +365,19 @@ def test_build_combined_prompt_includes_managed_text() -> None:
 
 
 def test_build_combined_prompt_no_score_fields() -> None:
+    snap = make_gad_snapshot()
     prompt = build_combined_prompt(
         packed_chunks=_SAMPLE_CHUNKS,
+        form_snapshot=snap,
         prompt_version="v1",
     )
     payload = json.loads(prompt)
     instructions = "\n".join(payload["instructions"])
-    # Score-related terms should not be in the instructions
     assert "criterion_scores" not in instructions.lower()
 
 
 # ---------------------------------------------------------------------------
-# 2.2-2.4 — Single-pass integration test (replaces the five-call test)
+# 2.2-2.4 — Single-pass integration test with snapshot adapter
 # ---------------------------------------------------------------------------
 
 
@@ -401,14 +417,16 @@ def test_gad_one_combined_call_yields_all_five_scores() -> None:
         },
     ]
 
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id)
     result = GAD(llm_client=fake).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=snap,
         llm_temperature=0.8,
     )
 
-    # All five criteria present
     assert [score.criterion_id for score in result.criterion_scores] == [
         "GAD-01",
         "GAD-02",
@@ -416,25 +434,20 @@ def test_gad_one_combined_call_yields_all_five_scores() -> None:
         "GAD-04",
         "GAD-05",
     ]
-    # Expected scores from grounded evidence
     assert [score.score for score in result.criterion_scores] == [3, 3, 4, 3, 4]
     assert result.subtotal == pytest.approx(3.4)
 
-    # Exactly one LLM call (no criterion-level fallback)
     assert len(fake.prompts) == 1
     assert fake.temperatures == [0.0]
 
-    # Metadata reflects single-pass mode
-    assert result.metadata["scoring_mode"] == "single_pass_code_bands"
+    assert result.metadata["scoring_mode"] == "single_pass_snapshot_strategies"
     assert result.metadata["llm_call_count"] == 1
 
-    # Grounded evidence
     stereotype = result.criterion_scores[0]
     assert stereotype.evidence == ("Women cannot lead teams.",)
     assert stereotype.chunk_ids == ("c1",)
-    assert "1 unsupported" in stereotype.justification  # reported 2, grounded 1
+    assert "1 unsupported" in stereotype.justification
 
-    # Provenance
     assert result.provenance["extraction_schema_version"] == EXTRACTION_SCHEMA_VERSION
     assert result.provenance["registry_version"] == REGISTRY_VERSION
 
@@ -445,7 +458,6 @@ def test_gad_one_combined_call_yields_all_five_scores() -> None:
 
 
 def test_repair_recovers_malformed_response() -> None:
-    """Malformed combined response triggers one repair call then succeeds."""
     malformed = '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}'
     repair_response = _combined_response(
         gad_01_summary="Repaired GAD-01.",
@@ -477,21 +489,21 @@ def test_repair_recovers_malformed_response() -> None:
         {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
     ]
 
+    eval_id = uuid4()
     result = GAD(llm_client=fake).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
 
     assert result.success is True
     assert len(result.criterion_scores) == 5
-    assert result.metadata["llm_call_count"] == 2  # original + repair
+    assert result.metadata["llm_call_count"] == 2
     assert result.provenance["repair_occurred"] is True
 
 
 def test_unrecoverable_response_returns_failure() -> None:
-    """When repair also fails, GAD returns failed result with metadata."""
-
     class _FailLLM(_TypedResultMixin):
         model = "gad-fail-model"
 
@@ -510,10 +522,12 @@ def test_unrecoverable_response_returns_failure() -> None:
         {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
     ]
 
+    eval_id = uuid4()
     result = GAD(llm_client=fake).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
 
     assert result.success is False
@@ -545,10 +559,12 @@ def test_provenance_contains_gad_scalar_keys() -> None:
         {"chunk_id": "c1", "page_number": 1, "text": "Neutral content."},
     ]
 
+    eval_id = uuid4()
     result = GAD(llm_client=fake).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
 
     prov = result.provenance
@@ -563,28 +579,61 @@ def test_provenance_contains_gad_scalar_keys() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Deterministic registry scoring boundaries (unchanged from original)
+# Deterministic registry scoring boundaries
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("scorer", "values", "expected"),
-    [
-        (score_stereotype_instances, (0, 1, 2, 4), (4, 3, 2, 1)),
-        (score_respect_potential_instances, (0, 1, 3, 6), (4, 3, 2, 1)),
-        (score_life_experience_instances, (0, 2, 5, 6), (4, 3, 2, 1)),
-        (score_peace_equality_instances, (0, 2, 5, 6), (4, 3, 2, 1)),
-    ],
-)
-def test_instance_scoring_boundaries(scorer, values, expected) -> None:
-    assert tuple(scorer(value) for value in values) == expected
+def test_instance_scoring_boundaries() -> None:
+    c1 = CountBandConfig(
+        strategy="count_band",
+        mode="maximum_count",
+        threshold_4=0,
+        threshold_3=1,
+        threshold_2=3,
+    )
+    assert score_count(c1, GroundedInstanceMeasurement(instances=())).score == 4
+    assert (
+        score_count(
+            c1,
+            GroundedInstanceMeasurement(instances=(GroundedInstance(excerpt="e"),)),
+        ).score
+        == 3
+    )
+    assert (
+        score_count(
+            c1,
+            GroundedInstanceMeasurement(
+                instances=(
+                    GroundedInstance(excerpt="e1"),
+                    GroundedInstance(excerpt="e2"),
+                )
+            ),
+        ).score
+        == 2
+    )
+    assert (
+        score_count(
+            c1,
+            GroundedInstanceMeasurement(
+                instances=tuple(GroundedInstance(excerpt=f"e{i}") for i in range(4))
+            ),
+        ).score
+        == 1
+    )
 
 
 def test_representation_balance_boundaries() -> None:
-    assert score_representation_balance(5, 5) == 4
-    assert score_representation_balance(5, 2) == 3
-    assert score_representation_balance(10, 2) == 2
-    assert score_representation_balance(12, 1) == 1
+    r1 = RatioBandConfig(
+        strategy="ratio_band",
+        mode="absolute_difference",
+        threshold_4=2.0,
+        threshold_3=5.0,
+        threshold_2=10.0,
+    )
+    assert score_ratio(r1, PairedCountsMeasurement(count_a=5, count_b=5)).score == 4
+    assert score_ratio(r1, PairedCountsMeasurement(count_a=5, count_b=2)).score == 3
+    assert score_ratio(r1, PairedCountsMeasurement(count_a=10, count_b=2)).score == 2
+    assert score_ratio(r1, PairedCountsMeasurement(count_a=12, count_b=1)).score == 1
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +642,6 @@ def test_representation_balance_boundaries() -> None:
 
 
 def test_repair_prompt_never_exceeds_budget() -> None:
-    """Blocker 1: repair prompt must fit within total prompt budget."""
     settings = pytest.importorskip("server.core.config").get_settings()
     budget = settings.agent_total_prompt_budget_chars
 
@@ -618,20 +666,19 @@ def test_repair_prompt_never_exceeds_budget() -> None:
     llm = _BigRepairLLM()
     chunks = [{"chunk_id": "c1", "page_number": 1, "text": "x" * 3000}]
 
+    eval_id = uuid4()
     GAD(llm_client=llm).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
-    # Repair prompt should be within budget (whether repair succeeded or not)
     assert len(llm.second_prompt) <= budget, (
         f"Repair prompt {len(llm.second_prompt)} > {budget} budget"
     )
 
 
 def test_instance_cap_enforced_in_persisted_response() -> None:
-    """Blocker 2: instances exceeding MAX_INSTANCES_PER_CRITERION must be
-    truncated in the persisted raw_response, not just in scoring."""
     max_inst = MAX_INSTANCES_PER_CRITERION
     many = [{"excerpt": f"Instance {i}.", "chunk_id": "c1"} for i in range(20)]
 
@@ -654,14 +701,15 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
         {"chunk_id": "c1", "page_number": 1, "text": instance_text},
     ]
 
+    eval_id = uuid4()
     result = GAD(llm_client=_ManyInstLLM()).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
 
     assert result.success is True
-    # The raw_response should contain at most max_inst instances
     raw = result.raw_response
     assert raw is not None
     import json as _json
@@ -675,9 +723,6 @@ def test_instance_cap_enforced_in_persisted_response() -> None:
 
 
 def test_repair_attempt_recorded_before_transport_failure() -> None:
-    """Blocker 3: repair_occurred set True and llm_call_count=2 even
-    when repair transport fails (not just after successful response)."""
-
     class _FailOnRepairLLM(_TypedResultMixin):
         model = "test"
         call_count = 0
@@ -694,13 +739,15 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
                         }
                     }
                 )
-            raise RuntimeError("repair transport failure")
+            raise AgentLLMError("repair transport failure")
 
     llm = _FailOnRepairLLM()
+    eval_id = uuid4()
     result = GAD(llm_client=llm).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
+        form_snapshot=make_gad_snapshot(eval_id),
     )
     assert result.success is False
     assert result.provenance["repair_occurred"] is True
@@ -708,16 +755,12 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
 
 
 def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
-    """Blocker 2: when ``score_from_combined`` raises, the engine-path
-    returns a standard failed ``AgentEvaluationResult`` with correct
-    provenance — no extra LLM call for recovery."""
     import server.modules.agents.gad.registry as _sp
 
     class _ScoreFailLLM(_TypedResultMixin):
         model = "test-model"
 
         def generate(self, prompt: str, **kw) -> str:
-            # Return valid combined response that passes parsing.
             return json.dumps(
                 _combined_response(
                     gad_01_summary="s1",
@@ -735,10 +778,12 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
 
     try:
         _sp.score_from_combined = _failing_score  # type: ignore[assignment]
+        eval_id = uuid4()
         result = GAD(llm_client=_ScoreFailLLM()).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
+            form_snapshot=make_gad_snapshot(eval_id),
         )
     finally:
         _sp.score_from_combined = original_score
@@ -749,7 +794,6 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     assert result.error_message is not None
     assert result.error_message.startswith("GADExecutionFailure (reference: ")
     assert "simulated scoring failure" not in result.error_message
-    # No extra LLM call was made for scoring recovery
     assert result.metadata["llm_call_count"] == 1
     assert result.provenance["repair_occurred"] is False
     assert result.provenance["fallback_occurred"] is False
@@ -757,15 +801,12 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
 
 
 def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> None:
-    """When _REPAIR_OVERHEAD_RESERVE >= total budget, GAD fails before
-    any LLM transport, raising AgentExecutionError."""
     from server.core.config import Settings
     from server.modules.agents.gad.pipeline import (
         _REPAIR_OVERHEAD_RESERVE,
     )
 
-    # Create settings with a total budget smaller than the reserve.
-    tiny_budget = _REPAIR_OVERHEAD_RESERVE - 1  # just under reserve
+    tiny_budget = _REPAIR_OVERHEAD_RESERVE - 1
     tiny_settings = Settings(agent_total_prompt_budget_chars=tiny_budget)
     monkeypatch.setattr(
         "server.modules.agents.gad.pipeline.get_settings",
@@ -781,20 +822,18 @@ def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> 
             return "{}"
 
     llm = _NoopLLM()
+    eval_id = uuid4()
     with pytest.raises(AgentExecutionError, match="exceeds total prompt budget"):
         GAD(llm_client=llm).run(
-            evaluation_id=uuid4(),
+            evaluation_id=eval_id,
             document_id=uuid4(),
             chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "x"}],
+            form_snapshot=make_gad_snapshot(eval_id),
         )
-    # No LLM call was ever made
     assert llm.called is False
 
 
 def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
-    """The same frozen packed chunks from the budget-enforced initial
-    prompt are reused for repair and grounding — never repacked."""
-
     class _ChunkCheckLLM(_TypedResultMixin):
         model = "test"
         prompts: list[str] = []
@@ -827,24 +866,19 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
         {"chunk_id": "c2", "page_number": 2, "text": "B"},
     ]
 
+    eval_id = uuid4()
     result = GAD(llm_client=llm).run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_gad_snapshot(eval_id),
     )
     assert result.success is True
 
-    # Extract frozen chunks from both prompts.
-    # The initial prompt is pure JSON. The repair prompt is initial_prompt +
-    # plain-text suffix (repair instructions + error + partial). We parse the
-    # JSON prefix by finding the boundary where the JSON ends.
     import json as _json
 
     initial_chunks = _json.loads(llm.prompts[0]).get("document_chunks", [])
-
     repair_raw = llm.prompts[1]
-    # The JSON prefix ends at the closing brace of the initial prompt, which
-    # is followed by "\n\nYour previous GAD extraction..."
     json_boundary = repair_raw.find("\n\nYour previous GAD")
     if json_boundary >= 0:
         repair_json = repair_raw[:json_boundary]
@@ -852,10 +886,427 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
         repair_json = repair_raw
     repair_chunks = _json.loads(repair_json).get("document_chunks", [])
 
-    # Same identity — same chunk count, same chunk_ids
     assert len(initial_chunks) == len(repair_chunks)
     initial_ids = [c["chunk_id"] for c in initial_chunks]
     repair_ids = [c["chunk_id"] for c in repair_chunks]
-    assert initial_ids == repair_ids, (
-        f"Frozen chunk IDs differ: initial={initial_ids} repair={repair_ids}"
+    assert initial_ids == repair_ids
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 Snapshot Adapter Suite: Parity, Dynamic Forms, Novel Codes, Validation
+# ---------------------------------------------------------------------------
+
+
+def test_golden_parity_revision_1_threshold_ladders() -> None:
+    snap = make_gad_snapshot()
+    chunks = [
+        {
+            "chunk_id": "c1",
+            "text": " ".join(f"Instance {i} adverse occurrence." for i in range(15)),
+        }
+    ]
+
+    # Test GAD-01 ladder: 0, 1, 2, 3, 4 instances
+    for count, expected in [(0, 4), (1, 3), (2, 2), (3, 2), (4, 1)]:
+        instances = [
+            {"excerpt": f"Instance {i} adverse occurrence.", "chunk_id": "c1"}
+            for i in range(count)
+        ]
+        payload = _combined_response(gad_01_count=count, gad_01_instances=instances)
+        scores, *_ = score_from_combined(payload, chunks, form_snapshot=snap)
+        assert next(s for s in scores if s.criterion_id == "GAD-01").score == expected
+
+    # Test GAD-02 ladder: differences 0, 2, 3, 5, 6, 10, 11
+    for f, m, expected in [
+        (5, 5, 4),
+        (5, 3, 4),
+        (6, 3, 3),
+        (8, 3, 3),
+        (9, 3, 2),
+        (13, 3, 2),
+        (15, 3, 1),
+    ]:
+        payload = _combined_response(gad_02_female=f, gad_02_male=m)
+        scores, *_ = score_from_combined(payload, chunks, form_snapshot=snap)
+        assert next(s for s in scores if s.criterion_id == "GAD-02").score == expected
+
+    # Test GAD-03/04/05 ladders: 0, 1, 2, 3, 5, 6 instances
+    for count, expected in [(0, 4), (1, 3), (2, 3), (3, 2), (5, 2), (6, 1)]:
+        instances = [
+            {"excerpt": f"Instance {i} adverse occurrence.", "chunk_id": "c1"}
+            for i in range(count)
+        ]
+        payload = _combined_response(gad_03_count=count, gad_03_instances=instances)
+        scores, *_ = score_from_combined(payload, chunks, form_snapshot=snap)
+        assert next(s for s in scores if s.criterion_id == "GAD-03").score == expected
+
+
+def test_dynamic_subset_of_criteria() -> None:
+    subset_criteria = (
+        REVISION_1_GAD_CRITERIA[0],
+        REVISION_1_GAD_CRITERIA[1],
     )
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id, criteria=subset_criteria)
+
+    fake = _SequenceLLM(
+        [
+            {
+                "gad-01": {
+                    "instance_count": 0,
+                    "instances": [],
+                    "summary": "No stereotypes.",
+                },
+                "gad-02": {
+                    "female_count": 5,
+                    "male_count": 5,
+                    "summary": "Balanced.",
+                },
+            }
+        ]
+    )
+    result = GAD(llm_client=fake).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral text."}],
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    assert len(result.criterion_scores) == 2
+    assert [s.criterion_id for s in result.criterion_scores] == ["GAD-01", "GAD-02"]
+    assert result.subtotal == 4.0
+
+    prompt_payload = fake.prompts[0]
+    prompt_text = "\n".join(prompt_payload["instructions"])
+    assert "GAD-01" in prompt_text
+    assert "GAD-02" in prompt_text
+    assert "GAD-03" not in prompt_text
+
+
+def test_dynamic_reordering_of_criteria() -> None:
+    reversed_criteria = tuple(
+        c.model_copy(update={"display_order": i})
+        for i, c in enumerate(reversed(REVISION_1_GAD_CRITERIA), start=1)
+    )
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id, criteria=reversed_criteria)
+
+    response_payload = {
+        crit.criterion_code.lower(): (
+            {"female_count": 3, "male_count": 3, "summary": "ok."}
+            if isinstance(crit.strategy_config, RatioBandConfig)
+            else {"instance_count": 0, "instances": [], "summary": "ok."}
+        )
+        for crit in reversed_criteria
+    }
+    fake = _SequenceLLM([response_payload])
+    result = GAD(llm_client=fake).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral text."}],
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    expected_order = [c.criterion_code for c in reversed_criteria]
+    assert [s.criterion_id for s in result.criterion_scores] == expected_order
+
+
+def test_novel_criterion_codes_and_thresholds() -> None:
+    novel_criteria = (
+        CriterionDefinition(
+            rubric_criterion_id=uuid4(),
+            criterion_code="CUSTOM-COUNT",
+            title="Custom Count Adverse Criterion",
+            description="Detect custom adverse instances.",
+            scoring_rule="Count custom instances.",
+            display_order=1,
+            strategy_config=CountBandConfig(
+                strategy="count_band",
+                mode="maximum_count",
+                threshold_4=0,
+                threshold_3=2,
+                threshold_2=4,
+            ),
+        ),
+        CriterionDefinition(
+            rubric_criterion_id=uuid4(),
+            criterion_code="CUSTOM-RATIO",
+            title="Custom Ratio Balance Criterion",
+            description="Measure custom ratio balance.",
+            scoring_rule="Count custom male and female instances.",
+            display_order=2,
+            strategy_config=RatioBandConfig(
+                strategy="ratio_band",
+                mode="absolute_difference",
+                threshold_4=1.0,
+                threshold_3=3.0,
+                threshold_2=6.0,
+            ),
+        ),
+    )
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id, criteria=novel_criteria)
+
+    chunks = [{"chunk_id": "c1", "text": "Custom item 1. Custom item 2."}]
+    fake = _SequenceLLM(
+        [
+            {
+                "custom-count": {
+                    "instance_count": 2,
+                    "instances": [
+                        {"excerpt": "Custom item 1.", "chunk_id": "c1"},
+                        {"excerpt": "Custom item 2.", "chunk_id": "c1"},
+                    ],
+                    "summary": "Found 2 custom items.",
+                },
+                "custom-ratio": {
+                    "female_count": 4,
+                    "male_count": 2,
+                    "summary": "Difference of 2.",
+                },
+            }
+        ]
+    )
+    result = GAD(llm_client=fake).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=chunks,
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    scores_by_code = {s.criterion_id: s.score for s in result.criterion_scores}
+    assert scores_by_code["CUSTOM-COUNT"] == 3
+    assert scores_by_code["CUSTOM-RATIO"] == 3
+
+
+def test_validation_fails_boundedly_before_llm_call() -> None:
+    class _UncalledLLM:
+        def generate(self, *a, **kw):
+            raise AssertionError("LLM should not have been called")
+
+    agent = GAD(llm_client=_UncalledLLM())
+    eval_id = uuid4()
+    chunks = [{"chunk_id": "c1", "text": "Sample text."}]
+
+    # 1. Missing form_snapshot
+    with pytest.raises(AgentExecutionError, match="valid EvaluationFormSnapshotDTO"):
+        agent.run(
+            evaluation_id=eval_id,
+            document_id=uuid4(),
+            chunk_infos=chunks,
+            form_snapshot=None,  # type: ignore[arg-type]
+        )
+
+    # 2. Evaluation ID mismatch
+    snap_other_eval = make_gad_snapshot(uuid4())
+    with pytest.raises(AgentExecutionError, match="evaluation_id mismatch"):
+        agent.run(
+            evaluation_id=eval_id,
+            document_id=uuid4(),
+            chunk_infos=chunks,
+            form_snapshot=snap_other_eval,
+        )
+
+    # 3. Unsupported strategy mode
+    unsupported_criteria = (
+        CriterionDefinition(
+            rubric_criterion_id=uuid4(),
+            criterion_code="GAD-01",
+            title="Title",
+            description="Desc",
+            display_order=1,
+            strategy_config=CountBandConfig(
+                strategy="count_band",
+                mode="minimum_count",
+                threshold_4=5,
+                threshold_3=3,
+                threshold_2=1,
+            ),
+        ),
+    )
+    snap_unsupported = make_gad_snapshot(eval_id, criteria=unsupported_criteria)
+    with pytest.raises(
+        AgentExecutionError, match="Unsupported count mode 'minimum_count'"
+    ):
+        agent.run(
+            evaluation_id=eval_id,
+            document_id=uuid4(),
+            chunk_infos=chunks,
+            form_snapshot=snap_unsupported,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Additional Regressions (Item 12)
+# ---------------------------------------------------------------------------
+
+
+def test_strict_draft202012_schema_validation() -> None:
+    """Schema generated by extraction_schema must strictly define sections."""
+    snap = make_gad_snapshot()
+    schema = extraction_schema(snap)
+    assert schema["type"] == "object"
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == {
+        "gad-01",
+        "gad-02",
+        "gad-03",
+        "gad-04",
+        "gad-05",
+    }
+    assert schema["properties"]["gad-01"]["additionalProperties"] is False
+    assert schema["properties"]["gad-02"]["additionalProperties"] is False
+
+
+def test_primary_and_repair_use_identical_deadline() -> None:
+    """Primary and repair LLM calls must receive the identical deadline timestamp."""
+    deadlines: list[float | None] = []
+
+    class _DeadlineLLM:
+        model = "test-model"
+
+        def generate_result(self, prompt, *, deadline, **kw):
+            deadlines.append(deadline)
+            if len(deadlines) == 1:
+                return CompletionResult(
+                    content="not valid json",
+                    served_model=self.model,
+                    finish_reason="stop",
+                )
+            return CompletionResult(
+                content=json.dumps(_combined_response()),
+                served_model=self.model,
+                finish_reason="stop",
+            )
+
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id)
+    result = GAD(llm_client=_DeadlineLLM()).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral"}],
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    assert len(deadlines) == 2
+    assert deadlines[0] is not None
+    assert deadlines[0] == deadlines[1]
+
+
+def test_primary_truncation_triggers_one_repair_call() -> None:
+    """Primary truncation error triggers repair retry; success records call_count=2."""
+
+    class _TruncatingLLM:
+        model = "test-model"
+        calls = 0
+
+        def generate_result(self, prompt, **kw):
+            self.calls += 1
+            if self.calls == 1:
+                raise AgentLLMError("LLM output was truncated")
+            return CompletionResult(
+                content=json.dumps(_combined_response()),
+                served_model=self.model,
+                finish_reason="stop",
+            )
+
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id)
+    result = GAD(llm_client=_TruncatingLLM()).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral"}],
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    assert result.metadata["llm_call_count"] == 2
+    assert result.provenance["repair_occurred"] is True
+
+
+def test_primary_non_truncation_transport_error_fails_immediately() -> None:
+    """Non-truncation transport error aborts without making a repair call."""
+
+    class _TransportFailLLM:
+        model = "test-model"
+        calls = 0
+
+        def generate_result(self, prompt, **kw):
+            self.calls += 1
+            raise AgentLLMError("Connection reset by peer")
+
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id)
+    result = GAD(llm_client=_TransportFailLLM()).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral"}],
+        form_snapshot=snap,
+    )
+    assert result.success is False
+    assert result.metadata["llm_call_count"] == 1
+    assert result.provenance["repair_occurred"] is False
+    assert "Connection reset" not in (result.error_message or "")
+
+
+def test_served_model_alias_does_not_set_fallback() -> None:
+    """Different served model alias from provider does not falsely set fallback."""
+
+    class _AliasLLM:
+        model = "requested-model"
+
+        def generate_result(self, prompt, **kw):
+            return CompletionResult(
+                content=json.dumps(_combined_response()),
+                served_model="served-alias",
+                finish_reason="stop",
+            )
+
+    eval_id = uuid4()
+    snap = make_gad_snapshot(eval_id)
+    result = GAD(llm_client=_AliasLLM()).run(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=[{"chunk_id": "c1", "text": "Neutral"}],
+        form_snapshot=snap,
+    )
+    assert result.success is True
+    assert result.provenance["fallback_occurred"] is False
+    assert result.provenance["actual_model"] == "served-alias"
+
+
+def test_no_db_or_deleted_modules_imported_by_gad() -> None:
+    """Ensure GAD modules never import database or deleted fixed-code modules."""
+    import inspect
+
+    import server.modules.agents.gad.agent as gad_agent
+    import server.modules.agents.gad.envelope as gad_envelope
+    import server.modules.agents.gad.grounding as gad_grounding
+    import server.modules.agents.gad.pipeline as gad_pipeline
+    import server.modules.agents.gad.prompt as gad_prompt
+    import server.modules.agents.gad.registry as gad_registry
+
+    banned_terms = (
+        "get_session_factory",
+        "get_active_rubric_scoring_rules",
+        "resolve_rubric_agent_id",
+        "RubricSet",
+        "RubricCriterion",
+        "female_male_count",
+        "stereotypes",
+        "potential",
+        "life_experiences",
+        "peace_and_equality",
+        "FALLBACK_GAD_INSTRUCTIONS",
+    )
+
+    for mod in (
+        gad_agent,
+        gad_envelope,
+        gad_grounding,
+        gad_pipeline,
+        gad_prompt,
+        gad_registry,
+    ):
+        source = inspect.getsource(mod)
+        for term in banned_terms:
+            assert term not in source, f"Found banned term '{term}' in {mod.__name__}"

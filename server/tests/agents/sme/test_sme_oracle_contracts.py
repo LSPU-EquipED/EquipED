@@ -285,4 +285,3 @@ def test_validate_defaults_emptyable_fields() -> None:
     op04 = {"sections": [{"id": 1, "title": "Sec", "is_clean": True}]}
     val_op04 = validate("OP-04", op04)
     assert val_op04["sections"][0]["issue"] == ""
-

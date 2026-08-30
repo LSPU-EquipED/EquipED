@@ -1,190 +1,100 @@
-"""Registry, validation, and rendering for code-scored GAD criteria."""
+"""Deterministic scoring for snapshot-configured GAD criteria."""
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
+
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    GroundedInstance,
+    GroundedInstanceMeasurement,
+    PairedCountsMeasurement,
+    RatioBandConfig,
+)
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
+from server.modules.rubrics.strategies.calculators import score_count, score_ratio
 
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError
-from .female_male_count import (
-    CRITERION_ID as BALANCE_ID,
-)
-from .female_male_count import (
-    CRITERION_TITLE as BALANCE_TITLE,
-)
-from .female_male_count import (
-    GAD_ROW_2_PROMPT,
-    score_representation_balance,
-)
 from .grounding import MAX_INSTANCES_PER_CRITERION, ground_instances
-from .life_experiences import (
-    CRITERION_ID as LIFE_ID,
-)
-from .life_experiences import (
-    CRITERION_TITLE as LIFE_TITLE,
-)
-from .life_experiences import (
-    GAD_ROW_4_PROMPT,
-    score_life_experience_instances,
-)
-from .peace_and_equality import (
-    CRITERION_ID as PEACE_ID,
-)
-from .peace_and_equality import (
-    CRITERION_TITLE as PEACE_TITLE,
-)
-from .peace_and_equality import (
-    GAD_ROW_5_PROMPT,
-    score_peace_equality_instances,
-)
-from .potential import (
-    CRITERION_ID as POTENTIAL_ID,
-)
-from .potential import (
-    CRITERION_TITLE as POTENTIAL_TITLE,
-)
-from .potential import (
-    GAD_ROW_3_PROMPT,
-    score_respect_potential_instances,
-)
-from .stereotypes import (
-    CRITERION_ID as STEREOTYPE_ID,
-)
-from .stereotypes import (
-    CRITERION_TITLE as STEREOTYPE_TITLE,
-)
-from .stereotypes import (
-    GAD_ROW_1_PROMPT,
-    score_stereotype_instances,
-)
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True, slots=True)
-class CriterionDefinition:
-    criterion_id: str
-    title: str
-    # Unused since the single-pass rewrite. Live counting guidance is
-    # prompt.FALLBACK_GAD_INSTRUCTIONS (DB-overridable via
-    # rubric_criteria.scoring_rule).
-    prompt: str
-    score: Callable[..., int]
-    balance: bool = False
-
-
-CRITERIA: tuple[CriterionDefinition, ...] = (
-    CriterionDefinition(
-        STEREOTYPE_ID,
-        STEREOTYPE_TITLE,
-        GAD_ROW_1_PROMPT,
-        score_stereotype_instances,
-    ),
-    CriterionDefinition(
-        BALANCE_ID,
-        BALANCE_TITLE,
-        GAD_ROW_2_PROMPT,
-        score_representation_balance,
-        balance=True,
-    ),
-    CriterionDefinition(
-        POTENTIAL_ID,
-        POTENTIAL_TITLE,
-        GAD_ROW_3_PROMPT,
-        score_respect_potential_instances,
-    ),
-    CriterionDefinition(
-        LIFE_ID,
-        LIFE_TITLE,
-        GAD_ROW_4_PROMPT,
-        score_life_experience_instances,
-    ),
-    CriterionDefinition(
-        PEACE_ID,
-        PEACE_TITLE,
-        GAD_ROW_5_PROMPT,
-        score_peace_equality_instances,
-    ),
-)
-
 REGISTRY_VERSION = 1
-"""Increment when score-band thresholds change."""
-
-REGISTERED_CODES: frozenset[str] = frozenset(
-    definition.criterion_id for definition in CRITERIA
-)
-
-
-# Score adapter — translates combined sections into registry scores
-# ---------------------------------------------------------------------------
+"""Deterministic adapter scoring version."""
 
 
 def score_from_combined(
     combined: dict[str, Any],
     packed_chunks: list[dict[str, Any]],
+    form_snapshot: EvaluationFormSnapshotDTO,
 ) -> tuple[list[CriterionScore], int, int, int]:
-    """Adapt validated combined sections into registry ``CriterionScore`` values.
+    """Adapt combined sections into ``CriterionScore`` values using snapshot configs.
 
     Returns (scores, evidence_candidates, evidence_accepted, evidence_rejected).
-    Each criterion section is passed to the corresponding registry scorer
-    after grounding evidence. GAD-02 bypasses grounding (counts only).
-
-    ``combined`` MUST already have passed ``parse_combined_response`` so that
-    all keys are canonical, all schemas validated, and no numeric-score fields
-    remain. This function never defaults ``{}`` for a missing section.
+    Each section is passed to pure strategy calculators (score_count/score_ratio)
+    with snapshot thresholds.
     """
+    if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
+        raise TypeError("form_snapshot must be an EvaluationFormSnapshotDTO instance")
+
+    criteria = [c for d in form_snapshot.form.domains for c in d.criteria]
     scores: list[CriterionScore] = []
     evidence_candidates = 0
     evidence_accepted = 0
     evidence_rejected = 0
 
-    for definition in CRITERIA:
-        section_key = definition.criterion_id.lower()
+    for crit in criteria:
+        section_key = crit.criterion_code.strip().casefold()
         section = combined.get(section_key)
         if section is None or not isinstance(section, dict):
             raise AgentExecutionError(
-                f"Missing or invalid section for {definition.criterion_id}: "
+                f"Missing or invalid section for {crit.criterion_code}: "
                 f"section must be present and a dict after parsing"
             )
 
-        if definition.balance:
-            # GAD-02: counts only, no grounding
+        config = crit.strategy_config
+        if isinstance(config, RatioBandConfig):
             female_count = int(section.get("female_count", 0))
             male_count = int(section.get("male_count", 0))
-            band = definition.score(female_count, male_count)
-            difference = abs(female_count - male_count)
             summary = str(section.get("summary", "")).strip()
+
+            measurement = PairedCountsMeasurement(
+                count_a=female_count,
+                count_b=male_count,
+                summary=summary or None,
+            )
+            score_res = score_ratio(config, measurement)
+            diff = (
+                score_res.difference
+                if score_res.difference is not None
+                else abs(female_count - male_count)
+            )
             justification = (
                 f"Female representations: {female_count}; male representations: "
-                f"{male_count}; absolute difference: {difference}. {summary}"
+                f"{male_count}; absolute difference: {diff}. {summary}"
             )
             scores.append(
                 CriterionScore(
-                    criterion_id=definition.criterion_id,
-                    criterion_title=definition.title,
-                    score=band,
+                    criterion_id=crit.criterion_code,
+                    criterion_title=crit.title,
+                    score=score_res.score,
                     justification=justification,
                     chunk_ids=(),
                     evidence=(),
                 )
             )
-        else:
-            # GAD-01/03/04/05: grounded instances
+        elif isinstance(config, CountBandConfig):
             raw_instances = section.get("instances", [])
             if not isinstance(raw_instances, list):
                 raw_instances = []
-            # Blocker 2: enforce hard per-criterion instance cap before any
-            # scoring/persistence — truncate both the local list AND the
-            # combined dict so the persisted raw_response reflects the cap.
             if len(raw_instances) > MAX_INSTANCES_PER_CRITERION:
                 raw_instances = raw_instances[:MAX_INSTANCES_PER_CRITERION]
                 section["instances"] = raw_instances
                 logger.info(
                     "GAD section '%s' truncated to %d instances",
-                    definition.criterion_id,
+                    crit.criterion_code,
                     MAX_INSTANCES_PER_CRITERION,
                 )
             claimed_count = int(section.get("instance_count", 0))
@@ -196,9 +106,18 @@ def score_from_combined(
             evidence_accepted += len(accepted_excerpts)
             evidence_rejected += rejected
 
-            grounded_count = len(accepted_excerpts)
-            band = definition.score(grounded_count)
+            grounded_dtos = tuple(
+                GroundedInstance(excerpt=e) for e in accepted_excerpts
+            )
             summary = str(section.get("summary", "")).strip()
+
+            measurement = GroundedInstanceMeasurement(
+                instances=grounded_dtos,
+                summary=summary or None,
+            )
+            score_res = score_count(config, measurement)
+
+            grounded_count = len(accepted_excerpts)
             justification = (
                 f"Grounded unique instances: {grounded_count} "
                 f"(model reported {claimed_count}; {rejected} unsupported "
@@ -206,22 +125,23 @@ def score_from_combined(
             )
             scores.append(
                 CriterionScore(
-                    criterion_id=definition.criterion_id,
-                    criterion_title=definition.title,
-                    score=band,
+                    criterion_id=crit.criterion_code,
+                    criterion_title=crit.title,
+                    score=score_res.score,
                     justification=justification,
                     chunk_ids=tuple(accepted_ids),
                     evidence=tuple(accepted_excerpts),
                 )
+            )
+        else:
+            raise AgentExecutionError(
+                f"Unsupported strategy config for criterion {crit.criterion_code}"
             )
 
     return scores, evidence_candidates, evidence_accepted, evidence_rejected
 
 
 __all__ = [
-    "CRITERIA",
-    "REGISTERED_CODES",
     "REGISTRY_VERSION",
-    "CriterionDefinition",
     "score_from_combined",
 ]

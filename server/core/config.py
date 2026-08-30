@@ -246,6 +246,8 @@ def get_settings() -> Settings:
         raise ConfigurationError("LLM_MAX_NEW_TOKENS must be a valid integer") from exc
     if parsed_llm_max_new_tokens < 1:
         raise ConfigurationError("LLM_MAX_NEW_TOKENS must be at least 1")
+    if parsed_llm_max_new_tokens > 32768:
+        raise ConfigurationError("LLM_MAX_NEW_TOKENS cannot exceed 32768")
 
     llm_request_timeout_seconds_raw = _env("LLM_REQUEST_TIMEOUT_SECONDS", "120")
     try:
@@ -258,6 +260,8 @@ def get_settings() -> Settings:
         ) from exc
     if parsed_llm_request_timeout_seconds < 1:
         raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS must be at least 1")
+    if parsed_llm_request_timeout_seconds > 3600:
+        raise ConfigurationError("LLM_REQUEST_TIMEOUT_SECONDS cannot exceed 3600")
 
     agent_max_chunks = _env("AGENT_MAX_CHUNKS", "12")
     try:

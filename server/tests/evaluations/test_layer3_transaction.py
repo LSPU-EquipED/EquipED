@@ -7,14 +7,19 @@ from uuid import uuid4
 import pytest
 from server.core.database import Base
 from server.db.metadata import import_model_modules
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
+from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.auth.models import User, UserRole
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.exceptions import EvaluationExecutionOwnershipError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _persist_layer3_and_transition
+from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.models import CriterionScore as StoredScore
+from server.tests.evaluations.snapshot_test_helpers import (
+    make_agent_result,
+    prepare_test_snapshots,
+)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -81,34 +86,27 @@ def _setup(factory):
             execution_token=token,
         )
     )
+    db.flush()
+    prepare_test_snapshots(db, evaluation_id, partial_without_curriculum=False)
     db.commit()
     return db, (owner_id, document_id, chunk_id, evaluation_id, token)
 
 
-def _result(ids):
+def _results(ids):
     _, document_id, chunk_id, evaluation_id, _ = ids
-    return AgentEvaluationResult(
-        agent_name="sme",
-        evaluation_id=evaluation_id,
-        document_id=document_id,
-        subtotal=1,
-        criterion_scores=(
-            CriterionScore(
-                criterion_id="c1",
-                criterion_title="C1",
-                score=1,
-                justification="needs review",
-                chunk_ids=(str(chunk_id),),
-                evidence=("evidence",),
-            ),
+    return [
+        make_agent_result(
+            "sme",
+            evaluation_id,
+            document_id,
+            default_score=1,
+            chunk_ids_by_criterion={"A-01": (str(chunk_id),)},
+            evidence_by_criterion={"A-01": ("evidence",)},
         ),
-        summary="ok",
-        model_name="local",
-        processing_seconds=0,
-        token_count=1,
-        raw_response="{}",
-        advisory_outputs={"review": True},
-    )
+        make_agent_result("coordinator", evaluation_id, document_id, default_score=1),
+        make_agent_result("gad", evaluation_id, document_id, default_score=1),
+        make_agent_result("itso", evaluation_id, document_id, default_score=1),
+    ]
 
 
 def test_layer3_commit_failure_rolls_back_all_rows():
@@ -121,9 +119,15 @@ def test_layer3_commit_failure_rolls_back_all_rows():
         nonlocal calls
         calls += 1
         writer.flush()
-        assert writer.query(AgentResult).count() == 1
-        assert writer.query(StoredScore).count() == 1
-        assert writer.query(EvaluationFlag).count() == 1
+        assert writer.query(AgentResult).count() == 4
+        assert writer.query(StoredScore).count() == 21
+        assert (
+            writer.query(EvaluationFlag)
+            .filter(EvaluationFlag.chunk_id.isnot(None))
+            .count()
+            == 1
+        )
+        assert writer.query(EvaluationFlag).count() == 6
         assert (
             writer.get(EvaluationJob, ids[3]).status
             == EvaluationStatus.SYNTHESIZING.value
@@ -132,7 +136,7 @@ def test_layer3_commit_failure_rolls_back_all_rows():
 
     writer.commit = fail_commit
     with pytest.raises(RuntimeError):
-        _persist_layer3_and_transition(writer, ids[3], ids[1], [_result(ids)], ids[4])
+        _persist_layer3_and_transition(writer, ids[3], ids[1], _results(ids), ids[4])
     assert calls == 1
     observer.expire_all()
     assert (
@@ -155,23 +159,65 @@ def test_layer3_success_persists_rows_and_transitions():
         original_commit()
 
     writer.commit = counted_commit
-    _persist_layer3_and_transition(writer, ids[3], ids[1], [_result(ids)], ids[4])
+    _persist_layer3_and_transition(writer, ids[3], ids[1], _results(ids), ids[4])
     observer = factory()
     assert calls == 1
     assert (
         observer.get(EvaluationJob, ids[3]).status
         == EvaluationStatus.SYNTHESIZING.value
     )
-    assert observer.query(AgentResult).count() == 1
-    assert observer.query(StoredScore).count() == 1
-    assert observer.query(EvaluationFlag).one().chunk_id == ids[2]
+    persisted_results = observer.query(AgentResult).all()
+    assert len(persisted_results) == 4
+    for r in persisted_results:
+        assert r.form_snapshot_id is not None
+    assert observer.query(StoredScore).count() == 21
+    assert (
+        observer.query(EvaluationFlag)
+        .filter(EvaluationFlag.chunk_id.isnot(None))
+        .one()
+        .chunk_id
+        == ids[2]
+    )
 
 
 def test_layer3_wrong_token_does_not_persist():
     factory = _factory()
     db, ids = _setup(factory)
     with pytest.raises(EvaluationExecutionOwnershipError):
-        _persist_layer3_and_transition(db, ids[3], ids[1], [_result(ids)], uuid4())
+        _persist_layer3_and_transition(db, ids[3], ids[1], _results(ids), uuid4())
+    observer = factory()
+    assert (
+        observer.get(EvaluationJob, ids[3]).status == EvaluationStatus.EVALUATING.value
+    )
+    assert observer.query(AgentResult).count() == 0
+    assert observer.query(StoredScore).count() == 0
+    assert observer.query(EvaluationFlag).count() == 0
+
+
+def test_layer3_integrity_failure_rolls_back_all_rows():
+    factory = _factory()
+    db, ids = _setup(factory)
+    # Result missing required criteria
+    bad_results = [
+        AgentEvaluationResult(
+            agent_name="sme",
+            evaluation_id=ids[3],
+            document_id=ids[1],
+            subtotal=1.0,
+            criterion_scores=(),
+            summary="",
+            model_name="test",
+            processing_seconds=1.0,
+            token_count=10,
+            success=True,
+        ),
+        make_agent_result("coordinator", ids[3], ids[1]),
+        make_agent_result("gad", ids[3], ids[1]),
+        make_agent_result("itso", ids[3], ids[1]),
+    ]
+    with pytest.raises(EvaluationResultIntegrityError):
+        _persist_layer3_and_transition(db, ids[3], ids[1], bad_results, ids[4])
+
     observer = factory()
     assert (
         observer.get(EvaluationJob, ids[3]).status == EvaluationStatus.EVALUATING.value

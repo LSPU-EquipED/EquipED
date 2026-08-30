@@ -1,3 +1,4 @@
+import { isApiError } from '@/shared/api/http';
 import type {
   ModelValidationAgentCriteria,
   ModelValidationCriterionScore,
@@ -6,12 +7,20 @@ import type {
 
 export const terminalStatuses = new Set(['COMPLETED', 'FAILED']);
 
-export const criterionKey = (agentId: string, criterionId: string) => `${agentId}:${criterionId}`;
+export const PARTIAL_VALIDATION_AGENTS = ['sme', 'gad', 'itso'] as const;
+export type PartialValidationAgentId = (typeof PARTIAL_VALIDATION_AGENTS)[number];
+
+export function isPartialValidationAgent(agentId: string): agentId is PartialValidationAgentId {
+  return (PARTIAL_VALIDATION_AGENTS as readonly string[]).includes(agentId);
+}
+
+export const criterionKey = (agentId: string, criterionIdOrRubricId: string) =>
+  `${agentId}:${criterionIdOrRubricId}`;
 
 /**
  * True when every criterion of every active agent group returned by the
  * criterion catalog has an integer score in the 1–4 scale. Validity follows
- * the catalog (SME/GAD/ITSO for curriculum-retired runs), never a fixed
+ * the catalog (SME/GAD/ITSO for explicit partial runs), never a fixed
  * agent count, so missing groups can't block or unblock submission.
  */
 export function areAllCriterionScoresComplete(
@@ -22,14 +31,37 @@ export function areAllCriterionScoresComplete(
     return false;
   }
 
-  return criterionDefinitions.every(
-    (agent) =>
-      agent.criteria.length > 0 &&
-      agent.criteria.every((criterion) => {
-        const score = Number(expectedScores[criterionKey(agent.agent_id, criterion.criterion_id)]);
-        return Number.isInteger(score) && score >= 1 && score <= 4;
-      }),
-  );
+  return criterionDefinitions.every((agent) => {
+    if (!agent.rubric_set_id) {
+      return false;
+    }
+    const criteria =
+      agent.criteria && agent.criteria.length > 0
+        ? agent.criteria
+        : agent.domains && agent.domains.length > 0
+          ? agent.domains.flatMap((d) => d.criteria)
+          : [];
+
+    if (criteria.length === 0) {
+      return false;
+    }
+
+    return criteria.every((criterion) => {
+      const id = criterion.rubric_criterion_id || criterion.criterion_id;
+      if (!id) return false;
+      const key = criterionKey(agent.agent_id, id);
+      const score = Number(expectedScores[key]);
+      return Number.isInteger(score) && score >= 1 && score <= 4;
+    });
+  });
+}
+
+export function isStaleBindingError(error: unknown): boolean {
+  if (!error) return false;
+  if (isApiError(error)) {
+    return error.status === 409 || error.status === 422;
+  }
+  return false;
 }
 
 export const validationAgents = [
@@ -56,6 +88,8 @@ export function statusClass(status: ModelValidationItem['status']) {
 export type GroupedCriteria = {
   agentId: string;
   agentName: string;
+  rubricSetId?: string | null;
+  rubricVersion?: number | null;
   criteria: ModelValidationCriterionScore[];
 };
 
@@ -73,6 +107,8 @@ export function groupCriteriaByAgent(scores: ModelValidationCriterionScore[]): G
       ordered.push({
         agentId: agent.id,
         agentName: agent.label,
+        rubricSetId: items[0]?.rubric_set_id ?? null,
+        rubricVersion: items[0]?.rubric_version ?? null,
         criteria: [...items].sort((a, b) => a.criterion_id.localeCompare(b.criterion_id)),
       });
       buckets.delete(agent.id);
@@ -82,6 +118,8 @@ export function groupCriteriaByAgent(scores: ModelValidationCriterionScore[]): G
     ordered.push({
       agentId,
       agentName: agentLabel(agentId),
+      rubricSetId: criteria[0]?.rubric_set_id ?? null,
+      rubricVersion: criteria[0]?.rubric_version ?? null,
       criteria: [...criteria].sort((a, b) => a.criterion_id.localeCompare(b.criterion_id)),
     });
   }

@@ -104,6 +104,10 @@ def pack_chunks(
                 packed[0]["text"] = excerpt_text(packed[0]["text"], safe_text_len)
                 text_excerpted = True
                 final_chunk_len = len(packed[0]["text"])
+                if final_chunk_len >= original_chunk_len:
+                    raise ValueError(
+                        "prompt budget cannot fit the minimum chunk excerpt"
+                    )
                 if final_chunk_len < 100:
                     logger.warning(
                         "Agent %s: prompt budget guard hard-trimmed single "

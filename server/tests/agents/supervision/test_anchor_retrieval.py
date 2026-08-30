@@ -527,7 +527,7 @@ def test_build_precomputed_context_multi_anchor_dedupes_results(
 
 
 def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> None:
-    """The precomputed_context dict shape (rubric + reference keys) must be stable."""
+    """The precomputed_context dict shape (reference keys only) must be stable."""
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context",
         lambda *a, **k: [_RetrievedChunk("ref-hit")],
@@ -535,10 +535,6 @@ def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> N
     monkeypatch.setattr(
         "server.modules.embeddings.collections.resolve_collection_name",
         lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_rubric_context",
-        lambda agent_id, db: [f"rubric-for:{agent_id}"],
     )
 
     builder = EvaluationContextBuilder(db=None, agents=[])
@@ -553,16 +549,12 @@ def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> N
         },
     )
 
-    # Shape: every rubric_ + both reference keys.
+    # Shape: reference keys only, no obsolete rubric keys.
     expected_keys = {
-        "rubric_sme",
-        "rubric_coord",
-        "rubric_gad",
-        "rubric_itso",
         "syllabus",
         "curriculum",
     }
-    assert expected_keys.issubset(set(result.keys()))
+    assert set(result.keys()) == expected_keys
 
     # All values must be list[str] (precomputed contract).
     for key, value in result.items():
@@ -570,27 +562,19 @@ def test_build_precomputed_context_preserves_precomputed_shape(monkeypatch) -> N
         for item in value:
             assert isinstance(item, str), f"{key} items should be str"
 
-    # Rubric precompute is preserved exactly (no anchor interference).
-    assert result["rubric_sme"] == ["rubric-for:sme"]
-    assert result["rubric_coord"] == ["rubric-for:coordinator"]
-    assert result["rubric_gad"] == ["rubric-for:gad"]
-    assert result["rubric_itso"] == ["rubric-for:itso"]
+    for key in ("rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"):
+        assert key not in result
 
 
-def test_build_precomputed_context_rubric_precompute_unaffected_by_anchors(
+def test_build_precomputed_context_has_no_rubric_keys_or_queries(
     monkeypatch,
 ) -> None:
-    """Rubric precompute must use get_active_rubric_context, not retrieval."""
+    """Rubric context is not precomputed in EvaluationContextBuilder."""
     retrieval_calls = {"n": 0}
-    rubric_calls = {"agent_ids": []}
 
     def fake_retrieve(*a, **k):
         retrieval_calls["n"] += 1
-        return [_RetrievedChunk("should-not-be-used-for-rubric")]
-
-    def fake_rubric(agent_id, db):
-        rubric_calls["agent_ids"].append(agent_id)
-        return [f"real-rubric-for:{agent_id}"]
+        return [_RetrievedChunk("ref-hit")]
 
     monkeypatch.setattr(
         "server.modules.embeddings.retrieval.retrieve_context",
@@ -600,14 +584,10 @@ def test_build_precomputed_context_rubric_precompute_unaffected_by_anchors(
         "server.modules.embeddings.collections.resolve_collection_name",
         lambda source_type: source_type,
     )
-    monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_rubric_context",
-        fake_rubric,
-    )
 
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
-    builder._build_precomputed_context(
+    result = builder._build_precomputed_context(
         "query text",
         query_embedding=None,
         chunk_infos=chunks,
@@ -616,10 +596,8 @@ def test_build_precomputed_context_rubric_precompute_unaffected_by_anchors(
         },
     )
 
-    # Rubric precompute is still via get_active_rubric_context, exactly 4 agents.
-    assert sorted(rubric_calls["agent_ids"]) == sorted(
-        ["sme", "coordinator", "gad", "itso"]
-    )
+    for key in ("rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"):
+        assert key not in result
 
 
 # ------------------------------------------------------------------
@@ -643,10 +621,6 @@ def test_build_precomputed_context_falls_back_to_empty_on_retrieval_failure(
         "server.modules.embeddings.collections.resolve_collection_name",
         lambda source_type: source_type,
     )
-    monkeypatch.setattr(
-        "server.modules.rubrics.service.get_active_rubric_context",
-        lambda agent_id, db: [],
-    )
 
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
@@ -662,9 +636,8 @@ def test_build_precomputed_context_falls_back_to_empty_on_retrieval_failure(
     # Even though retrieval exploded, syllabus key is present and empty,
     # and the surrounding pipeline is not interrupted.
     assert result["syllabus"] == []
-    # Rubric keys are also present (preserved shape).
     for key in ("rubric_sme", "rubric_coord", "rubric_gad", "rubric_itso"):
-        assert key in result
+        assert key not in result
 
 
 def test_build_precomputed_context_multi_anchor_continues_on_partial_failure(
@@ -844,10 +817,6 @@ def test_build_precomputed_context_empty_reference_document_ids(
         "server.modules.embeddings.collections.resolve_collection_name",
         lambda source_type: source_type,
     )
-    monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_rubric_context",
-        lambda agent_id, db: [f"rubric-for:{agent_id}"],
-    )
 
     builder = EvaluationContextBuilder(db=None, agents=[])
     chunks = _chunks([f"chunk-{i}" for i in range(5)])
@@ -863,8 +832,7 @@ def test_build_precomputed_context_empty_reference_document_ids(
     # No reference keys in the result.
     assert "syllabus" not in result
     assert "curriculum" not in result
-    # Rubric keys are still present.
-    assert "rubric_sme" in result
+    assert len(result) == 0
 
 
 def test_build_precomputed_context_empty_chunk_infos_list_uses_single_query(
@@ -1025,10 +993,6 @@ def test_build_precomputed_context_no_reference_ids_does_not_compute_embedding(
     monkeypatch.setattr(
         "server.modules.embeddings.collections.resolve_collection_name",
         lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_rubric_context",
-        lambda agent_id, db: [f"rubric-for:{agent_id}"],
     )
 
     builder = EvaluationContextBuilder(db=None, agents=[])

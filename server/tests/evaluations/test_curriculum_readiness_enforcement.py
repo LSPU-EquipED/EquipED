@@ -6,8 +6,6 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.sme.rubric import REGISTERED_CODES
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
@@ -16,6 +14,11 @@ from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.evaluations.service import acquire_evaluation_execution
 from server.modules.synthesis.models import MonitoringMatrix
+from server.tests.evaluations.snapshot_test_helpers import (
+    make_scheduled_agent_results,
+)
+
+from .conftest import _seed_all_rubrics
 
 
 def _create_test_environment(
@@ -112,6 +115,7 @@ def _create_test_environment(
                 )
             )
 
+    _seed_all_rubrics(db_session)
     job_id = uuid4()
     job = EvaluationJob(
         evaluation_id=job_id,
@@ -132,34 +136,11 @@ def _create_test_environment(
 def _mock_successful_supervisor(
     monkeypatch, evaluation_id, document_id, *, partial=False
 ):
-    agents = ["sme", "gad", "itso"]
-    if not partial:
-        agents.append("coordinator")
-    agent_results = [
-        AgentEvaluationResult(
-            agent_name=agent,
-            evaluation_id=evaluation_id,
-            document_id=document_id,
-            subtotal=3.0,
-            criterion_scores=tuple(
-                CriterionScore(code, f"{code} title", 3, "good evidence", ())
-                for code in sorted(REGISTERED_CODES)
-            )
-            if agent == "sme"
-            else (
-                (CriterionScore("A-05", "A-05 title", 3, "good evidence", ()),)
-                if agent == "coordinator"
-                else ()
-            ),
-            summary="ok",
-            model_name=f"{agent}-model",
-            processing_seconds=0.1,
-            token_count=10,
-            success=True,
-            error_message=None,
-        )
-        for agent in agents
-    ]
+    agent_results = make_scheduled_agent_results(
+        evaluation_id,
+        document_id,
+        partial_without_curriculum=partial,
+    )
 
     class FakeSupervisor:
         def __init__(self, *args, **kwargs):
@@ -263,28 +244,11 @@ def test_full_evaluation_final_readiness_drift_fails(db_session, monkeypatch):
     job_id = _create_test_environment(db_session, partial=False)
     job = db_session.get(EvaluationJob, job_id)
 
-    agents = ["sme", "gad", "itso", "coordinator"]
-    agent_results = [
-        AgentEvaluationResult(
-            agent_name=agent,
-            evaluation_id=job_id,
-            document_id=job.document_id,
-            subtotal=3.0,
-            criterion_scores=tuple(
-                CriterionScore(code, f"{code} title", 3, "good evidence", ())
-                for code in sorted(REGISTERED_CODES)
-            )
-            if agent == "sme"
-            else (),
-            summary="ok",
-            model_name=f"{agent}-model",
-            processing_seconds=0.1,
-            token_count=10,
-            success=True,
-            error_message=None,
-        )
-        for agent in agents
-    ]
+    agent_results = make_scheduled_agent_results(
+        job_id,
+        job.document_id,
+        partial_without_curriculum=False,
+    )
 
     class FakeSupervisorWithDrift:
         def __init__(self, *args, **kwargs):

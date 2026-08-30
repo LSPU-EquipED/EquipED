@@ -5,12 +5,15 @@ from __future__ import annotations
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.synthesis.models import AgentResult, EvaluationFlag
 from server.modules.synthesis.service import persist_agent_outputs
 from server.tests.agents.helpers import _seed_active_prompts
+from server.tests.evaluations.snapshot_test_helpers import (
+    make_agent_result,
+    prepare_test_snapshots,
+)
 
 
 def test_persist_agent_outputs_creates_flags_for_low_scores(db_session) -> None:
@@ -18,7 +21,6 @@ def test_persist_agent_outputs_creates_flags_for_low_scores(db_session) -> None:
     document_id = uuid4()
     chunk_id = uuid4()
     evaluation_id = uuid4()
-    prompt_version_id = uuid4()
 
     db_session.add(
         Document(
@@ -58,53 +60,55 @@ def test_persist_agent_outputs_creates_flags_for_low_scores(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
+
+    results = [
+        make_agent_result(
+            "sme",
+            evaluation_id,
+            document_id,
+            prompt_version_id=prompt_version_id,
+            scores_by_criterion={"A-01": 1, "A-02": 3},
+            chunk_ids_by_criterion={"A-01": (str(chunk_id),)},
+            evidence_by_criterion={"A-01": ("evidence",)},
+        ),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result("itso", evaluation_id, document_id),
+    ]
 
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="sme",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=1,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=1,
-                        justification="needs work",
-                        chunk_ids=(str(chunk_id),),
-                        evidence=("evidence",),
-                    ),
-                    CriterionScore(
-                        criterion_id="c2",
-                        criterion_title="Criterion 2",
-                        score=3,
-                        justification="fine",
-                    ),
-                ),
-                summary="summary",
-                model_name="local-model",
-                processing_seconds=0.1,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="sme")
+        .one()
+    )
     assert result_row.prompt_version_id == prompt_version_id
-    assert db_session.query(EvaluationFlag).count() == 1
-    flag = db_session.query(EvaluationFlag).one()
+    assert result_row.form_snapshot_id is not None
+    flags = (
+        db_session.query(EvaluationFlag)
+        .filter(
+            EvaluationFlag.evaluation_id == evaluation_id,
+            EvaluationFlag.chunk_id.isnot(None),
+        )
+        .all()
+    )
+    assert len(flags) == 1
+    flag = flags[0]
     assert flag.chunk_id == chunk_id
     assert flag.score == 1
-    assert flag.criterion_id == "c1"
+    assert flag.criterion_id == "A-01"
 
 
 def test_persist_agent_outputs_ignores_invalid_and_missing_chunk_ids(
@@ -144,42 +148,61 @@ def test_persist_agent_outputs_ignores_invalid_and_missing_chunk_ids(
     prompt_version_id = (
         db_session.query(PromptVersion).filter_by(agent_id="sme").one().version_id
     )
+    db_session.add(
+        EvaluationJob(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            syllabus_id=uuid4(),
+            curriculum_id=uuid4(),
+            status=EvaluationStatus.EVALUATING.value,
+            submitted_by=owner_id,
+            partial_without_curriculum=True,
+        )
+    )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
+
+    results = [
+        make_agent_result(
+            "sme",
+            evaluation_id,
+            document_id,
+            prompt_version_id=prompt_version_id,
+            scores_by_criterion={"A-01": 1},
+            chunk_ids_by_criterion={
+                "A-01": ("not-a-uuid", str(uuid4()), str(valid_chunk_id))
+            },
+            evidence_by_criterion={"A-01": ("evidence",)},
+        ),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result("itso", evaluation_id, document_id),
+    ]
 
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="sme",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=1,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=1,
-                        justification="needs work",
-                        chunk_ids=("not-a-uuid", str(uuid4()), str(valid_chunk_id)),
-                        evidence=("evidence",),
-                    ),
-                ),
-                summary="summary",
-                model_name="local-model",
-                processing_seconds=0.1,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="sme")
+        .one()
+    )
     assert result_row.prompt_version_id == prompt_version_id
-    assert db_session.query(EvaluationFlag).count() == 1
-    flag = db_session.query(EvaluationFlag).one()
+    flags = (
+        db_session.query(EvaluationFlag)
+        .filter(
+            EvaluationFlag.evaluation_id == evaluation_id,
+            EvaluationFlag.chunk_id.isnot(None),
+        )
+        .all()
+    )
+    assert len(flags) == 1
+    flag = flags[0]
     assert flag.chunk_id == valid_chunk_id
 
 
@@ -209,35 +232,30 @@ def test_persist_agent_outputs_stores_group_prompts(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
+
+    results = [
+        make_agent_result(
+            "sme",
+            evaluation_id,
+            document_id,
+            metadata={"group_prompts": {"task_execution": "prompt text"}},
+        ),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result("itso", evaluation_id, document_id),
+    ]
 
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="sme",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=3.0,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="A-01",
-                        criterion_title="Learner Transformation",
-                        score=3,
-                        justification="j",
-                    ),
-                ),
-                summary="",
-                model_name="test-model",
-                processing_seconds=1.0,
-                token_count=10,
-                metadata={"group_prompts": {"task_execution": "prompt text"}},
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
     result_row = (

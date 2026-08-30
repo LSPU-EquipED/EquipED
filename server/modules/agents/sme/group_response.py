@@ -55,8 +55,7 @@ _CATEGORY_HINTS: dict[str, str] = {
         "position."
     ),
     "SMEGroupInvalidCriterionTitle": (
-        '"criterion_title" must exactly match the title given for that '
-        "criterion_id."
+        '"criterion_title" must exactly match the title given for that criterion_id.'
     ),
     "SMEGroupInvalidScore": (
         '"score" must be an integer from 1 to 4 (not a string or boolean).'

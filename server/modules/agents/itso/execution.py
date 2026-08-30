@@ -9,21 +9,22 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
-from server.modules.embeddings.collections import resolve_collection_name
-from server.modules.embeddings.retrieval import retrieve_context
-from server.modules.rubrics.service import (
-    get_active_rubric_context,
-    resolve_rubric_agent_id,
+from server.modules.rubrics.contracts import (
+    CriterionDefinition,
+    GroundedScoreMeasurement,
+    LlmRubricGuidanceConfig,
 )
+from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
+from server.modules.rubrics.strategies.calculators import normalize_llm_guidance_score
 
 from ..contracts import AgentEvaluationResult
-from ..exceptions import AgentExecutionError
+from ..exceptions import AgentExecutionError, AgentLLMError
 from ..provenance import sanitize_provenance
 from ..runtime.context import ITSOExecutionContext, thaw
 from ..runtime.llm import RunLLMClient
 from ..runtime.prompt_budget import enforce_total_prompt_budget
 from ..runtime.timing import PhaseTimer
-from .prompt import build_prompt
+from .prompt import build_prompt, pack_itso_chunks
 from .response import (
     ITSO_RESPONSE_SCHEMA_VERSION,
     build_response_schema,
@@ -33,6 +34,58 @@ from .response import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_and_validate_snapshot(
+    context: ITSOExecutionContext,
+) -> tuple[tuple[CriterionDefinition, ...], tuple[str, ...], dict[str, str]]:
+    """Validate snapshot form bounds and return ordered criteria, codes, titles."""
+    snapshot = context.form_snapshot
+    if not isinstance(snapshot, EvaluationFormSnapshotDTO):
+        raise AgentExecutionError(
+            "ITSO requires an EvaluationFormSnapshotDTO instance, "
+            f"got {type(snapshot).__name__}"
+        )
+
+    if snapshot.agent_id != "itso" or snapshot.evaluation_id != context.evaluation_id:
+        raise AgentExecutionError(
+            f"ITSO snapshot mismatch: agent_id={snapshot.agent_id!r}, "
+            f"evaluation_id={snapshot.evaluation_id!r} "
+            f"(expected eval={context.evaluation_id!r})"
+        )
+
+    if snapshot.adapter_key != "itso" or snapshot.adapter_version != 1:
+        raise AgentExecutionError(
+            f"ITSO snapshot adapter mismatch: adapter_key={snapshot.adapter_key!r}, "
+            f"adapter_version={snapshot.adapter_version!r} (expected 'itso', 1)"
+        )
+
+    ordered_criteria: list[CriterionDefinition] = []
+    for domain in snapshot.form.domains:
+        for criterion in domain.criteria:
+            if not isinstance(criterion.strategy_config, LlmRubricGuidanceConfig):
+                raise AgentExecutionError(
+                    f"ITSO criterion '{criterion.criterion_code}' has unsupported "
+                    f"strategy '{criterion.strategy_config.strategy}' "
+                    "(expected 'llm_rubric_guidance')"
+                )
+            ordered_criteria.append(criterion)
+
+    if not ordered_criteria:
+        raise AgentExecutionError("ITSO snapshot contains no criteria")
+    if len(ordered_criteria) > 10:
+        raise AgentExecutionError("ITSO snapshot exceeds 10 criteria")
+
+    casefolded_codes = [c.criterion_code.casefold() for c in ordered_criteria]
+    if len(casefolded_codes) != len(set(casefolded_codes)):
+        raise AgentExecutionError(
+            "ITSO snapshot contains case-insensitive duplicate criterion codes"
+        )
+
+    criteria_tuple = tuple(ordered_criteria)
+    expected_ids = tuple(c.criterion_code for c in ordered_criteria)
+    expected_titles = {c.criterion_code: c.title for c in ordered_criteria}
+    return criteria_tuple, expected_ids, expected_titles
 
 
 def execute(
@@ -45,6 +98,13 @@ def execute(
         dict(chunk).get("text") for chunk in context.chunk_infos
     ):
         raise AgentExecutionError("document chunks are required for evaluation")
+
+    # Fail boundedly before LLM call on missing/wrong snapshot
+    ordered_criteria, expected_ids, expected_titles = _extract_and_validate_snapshot(
+        context
+    )
+    criteria_specs = tuple((c.criterion_code, c.title) for c in ordered_criteria)
+
     start = time.perf_counter()
     timer = PhaseTimer("itso")
     texts = [
@@ -52,20 +112,27 @@ def execute(
         for chunk in context.chunk_infos
         if dict(chunk).get("text")
     ]
-    known_chunk_ids = [
-        str(dict(chunk)["chunk_id"])
-        for chunk in context.chunk_infos
-        if dict(chunk).get("chunk_id")
-    ]
-    query = "\n".join(texts)
-    with timer.measure("retrieval"):
-        rubric = _rubric(query, context)
-        references = _references(query, context)
-    with timer.measure("prompt_build"):
-        prompt = build_prompt(
-            context, rubric_context=rubric, reference_context=references
-        )
     settings = get_settings()
+    with timer.measure("retrieval"):
+        references = _references(context)
+    with timer.measure("prompt_build"):
+        packed_chunks, packed_chunk_map, dropped, excerpted = pack_itso_chunks(
+            context.chunk_infos,
+            max_chunks=settings.agent_max_chunks,
+            max_excerpt_chars=settings.agent_max_excerpt_chars,
+            prompt_budget_chars=settings.agent_prompt_budget_chars,
+            small_doc_threshold=settings.agent_small_doc_threshold,
+            domain_keywords=context.domain_keywords,
+        )
+        packed_chunk_ids = tuple(packed_chunk_map.keys())
+        prompt = build_prompt(
+            context,
+            ordered_criteria=list(ordered_criteria),
+            reference_context=references,
+            packed_chunks=packed_chunks,
+            dropped=dropped,
+            excerpted=excerpted,
+        )
     # Reserve a bounded, sanitized repair suffix before packing the first request.
     repair_suffix = (
         "\n\nVALIDATOR_FAILURE category=ITSO_INVALID path=criterion_scores. "
@@ -84,12 +151,11 @@ def execute(
     prompt_chars = len(prompt)
     logger.info(
         "[EVAL_PROMPT_SIZE] agent=itso | prompt_chars=%d | trimmed=%s | "
-        "budget=%d | rubric_context=%d | reference_context=%d | "
+        "budget=%d | rubric_context=0 | reference_context=%d | "
         "prompt_version_id=%s",
         prompt_chars,
         "yes" if budget.trimmed else "no",
         settings.agent_total_prompt_budget_chars,
-        len(rubric),
         len(references),
         str(context.prompt_version_id) if context.prompt_version_id else None,
     )
@@ -101,7 +167,8 @@ def execute(
     client = llm_client or context.llm_client or get_llm_client()
     if getattr(settings, "llm_response_mode", "json_object") == "json_schema":
         response_contract = ResponseContract.json_schema(
-            build_response_schema(known_chunk_ids), name="itso_response_v1"
+            build_response_schema(packed_chunk_ids, criteria_specs=criteria_specs),
+            name="itso_response_v1",
         )
     else:
         response_contract = ResponseContract.json_object()
@@ -121,23 +188,24 @@ def execute(
                 response_contract=response_contract,
             )
             raw = completion.content
-        except Exception as exc:
-            if "truncated" not in str(exc).lower():
+        except AgentLLMError as exc:
+            if str(exc) == "LLM output was truncated":
+                raw = ""
+                repair_occurred = True
+            else:
                 raise
-            raw = ""
-            repair_occurred = True
     with timer.measure("parse"):
         try:
-            parsed = parse_response(raw, known_chunk_ids=known_chunk_ids)
-        except AgentExecutionError as exc:
-            category = str(exc).split(" (reference:", 1)[0][:160]
-            # Reduce category to a fixed safe token; raw output is never echoed.
-            # Keep the reserved suffix length invariant; never let validator
-            # details consume task-prompt budget or echo model output.
-            safe_category = category if category.startswith("ITSO") else "ITSO_INVALID"
-            repair_prompt = prompt + repair_suffix.replace(
-                "ITSO_INVALID", safe_category[: len("ITSO_INVALID")]
+            parsed = parse_response(
+                raw,
+                expected_ids=expected_ids,
+                expected_titles=expected_titles,
+                known_chunk_ids=packed_chunk_ids,
+                packed_chunk_map=packed_chunk_map,
             )
+        except AgentExecutionError as exc:
+            del exc
+            repair_prompt = prompt + repair_suffix
             if len(repair_prompt) > total_budget:
                 raise AgentExecutionError("ITSO repair prompt exceeds total budget")
             with timer.measure("llm_repair"):
@@ -149,10 +217,41 @@ def execute(
                     response_contract=response_contract,
                 )
                 repaired = repaired_result.content
-            parsed = parse_response(repaired, known_chunk_ids=known_chunk_ids)
+            parsed = parse_response(
+                repaired,
+                expected_ids=expected_ids,
+                expected_titles=expected_titles,
+                known_chunk_ids=packed_chunk_ids,
+                packed_chunk_map=packed_chunk_map,
+            )
             repair_occurred = True
-        scores = criterion_scores(parsed, known_chunk_ids=known_chunk_ids)
-        advisory_outputs = collect_advisory_outputs(parsed)
+        scores = criterion_scores(
+            parsed,
+            expected_ids=expected_ids,
+            expected_titles=expected_titles,
+            known_chunk_ids=packed_chunk_ids,
+            packed_chunk_map=packed_chunk_map,
+        )
+        # Strategy typed score normalization verification
+        criteria_by_code = {c.criterion_code: c for c in ordered_criteria}
+        for score_item in scores:
+            crit_def = criteria_by_code[score_item.criterion_id]
+            measurement_evidence = (
+                score_item.evidence[0]
+                if score_item.evidence
+                else "ungrounded advisory output"
+            )
+            norm_res = normalize_llm_guidance_score(
+                crit_def.strategy_config,  # type: ignore[arg-type]
+                GroundedScoreMeasurement(
+                    score=score_item.score,
+                    evidence=measurement_evidence,
+                ),
+            )
+            if norm_res.score != score_item.score:
+                raise AgentExecutionError("Score normalization mismatch")
+
+        advisory_outputs = collect_advisory_outputs(parsed, expected_ids=expected_ids)
     provenance = thaw(context.provenance)
     policy_evidence = thaw(context.policy_evidence)
     policy_trimmed = bool(policy_evidence) and ("=== POLICY EVIDENCE ===" not in prompt)
@@ -192,12 +291,12 @@ def execute(
         success=True,
         error_message=None,
         raw_response=None,
-        prompt_text=prompt,
+        prompt_text=None,
         provenance=safe,
         advisory_outputs=advisory_outputs,
         metadata={
             "prompt_chars": prompt_chars,
-            "rubric_context_size": len(rubric),
+            "rubric_context_size": 0,
             "reference_context_size": len(references),
             "prompt_trimmed": budget.trimmed,
             "reference_context_dropped": budget.reference_context_dropped,
@@ -219,34 +318,16 @@ def execute(
     )
 
 
-def _rubric(query: str, context: ITSOExecutionContext) -> list[str]:
+def _references(context: ITSOExecutionContext) -> list[str]:
     cached = dict(context.precomputed_context)
-    if "rubric_itso" in cached:
-        return list(cached["rubric_itso"])
-    try:
-        return get_active_rubric_context(resolve_rubric_agent_id("rubric_itso")) or []
-    except Exception:
-        return []
-
-
-def _references(query: str, context: ITSOExecutionContext) -> list[str]:
-    result: list[str] = []
-    cached = dict(context.precomputed_context)
-    if "syllabus" in cached or "curriculum" in cached:
-        return list(cached.get("syllabus", ())) + list(cached.get("curriculum", ()))  # type: ignore[arg-type]
-    for source in ("syllabus", "curriculum"):
-        try:
-            document_ids = dict(context.reference_document_ids)
-            if source in document_ids:
-                result.extend(
-                    chunk.text
-                    for chunk in retrieve_context(
-                        query,
-                        resolve_collection_name(source),
-                        n_results=5,
-                        document_id_filter=str(document_ids[source]),
-                    )
-                )
-        except Exception:
-            continue
-    return result
+    references: list[str] = []
+    for source_type in ("syllabus", "curriculum"):
+        values = cached.get(source_type, ())
+        if not isinstance(values, tuple) or any(
+            not isinstance(value, str) or not value.strip() for value in values
+        ):
+            raise AgentExecutionError(
+                "ITSO precomputed reference context has an invalid shape"
+            )
+        references.extend(values)
+    return references
