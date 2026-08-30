@@ -346,7 +346,7 @@ export function RubricTableEditor() {
   if (revisionsQuery.isLoading) {
     return (
       <div
-        className="flex items-center justify-center p-12 text-sm font-bold text-slate-500 uppercase tracking-wider"
+        className="flex items-center justify-center p-12 text-sm font-bold text-text-muted uppercase tracking-wider"
         role="status"
       >
         Loading CID rubric revisions…
@@ -359,7 +359,7 @@ export function RubricTableEditor() {
       <div
         role="alert"
         aria-live="assertive"
-        className="rounded-sm border border-[#b91c1c]/40 bg-[#b91c1c]/5 p-5 text-sm font-bold text-[#b91c1c]"
+        className="rounded-sm border border-destructive/30 bg-destructive-soft p-5 text-sm font-bold text-destructive"
       >
         {getRubricOperationError(revisionsQuery.error, 'Failed to load evaluation rubrics.')}
       </div>
@@ -369,7 +369,7 @@ export function RubricTableEditor() {
   return (
     <section className="grid gap-6">
       {/* Top Navigation: Agent Selector Tabs */}
-      <div className="border-b border-slate-200 bg-white">
+      <div className="border-b border-border bg-surface">
         <nav className="flex flex-wrap gap-1 px-4 pt-3" aria-label="Evaluation Form Agent Selector">
           {AGENT_ORDER.map((agentId) => {
             const isTabSelected = selectedAgent === agentId;
@@ -390,22 +390,22 @@ export function RubricTableEditor() {
                 }}
                 className={`relative flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
                   isTabSelected
-                    ? 'border-[#1b3b87] text-[#1b3b87] bg-slate-50/50'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                    ? 'border-primary text-primary bg-surface-subtle/50'
+                    : 'border-transparent text-text-muted hover:text-text hover:border-border'
                 }`}
                 aria-selected={isTabSelected}
                 role="tab"
               >
                 <span>{AGENT_LABELS[agentId]}</span>
                 {activeRev && (
-                  <span className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                  <span className="rounded-sm bg-surface-subtle px-1.5 py-0.5 text-[10px] font-semibold text-text-muted tabular-nums">
                     v{activeRev.version_number}
                   </span>
                 )}
                 {hasDraft && (
                   <span
                     title="Draft revision available"
-                    className="size-2 rounded-full bg-[#f2c811]"
+                    className="size-2 rounded-full bg-warning"
                     aria-label="Draft exists"
                   />
                 )}
@@ -420,7 +420,7 @@ export function RubricTableEditor() {
         <div
           role="alert"
           aria-live="assertive"
-          className="rounded-sm border border-[#b91c1c]/40 bg-[#b91c1c]/5 p-4 text-xs font-semibold text-[#b91c1c]"
+          className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs font-semibold text-destructive"
         >
           {getRubricOperationError(generalMutationError)}
         </div>
@@ -431,43 +431,43 @@ export function RubricTableEditor() {
         {/* Main Editor Section */}
         <div className="grid gap-5">
           {/* Header Card: Selected Revision Status & Action Toolbar */}
-          <div className="rounded-sm border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="rounded-sm border border-border bg-surface p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-base font-bold text-slate-900 tracking-tight">
+                  <h1 className="text-base font-bold text-text tracking-tight">
                     {AGENT_LABELS[selectedAgent]} Evaluation Form
                   </h1>
                   {currentRevision && (
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <span className="text-xs font-bold text-text-muted uppercase tracking-wider tabular-nums">
                       · v{currentRevision.version_number}
                     </span>
                   )}
                   {isActive && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-[#3b963e]/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#3b963e]">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-success-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-success border border-success/20">
                       <CheckCircle className="size-3.5" />
                       Active Pointer
                     </span>
                   )}
                   {isDraft && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-[#f2c811]/25 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-900 border border-[#f2c811]/40">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-warning border border-warning/20">
                       Draft (Editable)
                     </span>
                   )}
                   {isPublished && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-[#1b3b87] border border-blue-200">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-primary-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary border border-primary/20">
                       <Lock className="size-3" />
                       Published (Immutable)
                     </span>
                   )}
                   {isRetired && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-slate-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-slate-600 border border-slate-200">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-surface-subtle px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-text-muted border border-border">
                       Retired
                     </span>
                   )}
                 </div>
 
-                <p className="mt-1 text-xs text-slate-500 font-medium">{agentCaps?.description}</p>
+                <p className="mt-1 text-xs text-text-muted font-medium">{agentCaps?.description}</p>
               </div>
 
               {/* Action Toolbar */}
@@ -478,22 +478,22 @@ export function RubricTableEditor() {
                       type="button"
                       onClick={handleValidateDraft}
                       disabled={validateDraftMutation.isPending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-slate-300 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                     >
-                      <FileCheck className="size-4 text-slate-500" />
+                      <FileCheck className="size-4 text-text-muted" />
                       Validate
                     </button>
                     <button
                       type="button"
                       onClick={() => setPublishModalOpen(true)}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-[#1b3b87] px-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       Publish Revision
                     </button>
                     <button
                       type="button"
                       onClick={() => setDomainModal({ isOpen: true })}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-[#1b3b87] bg-white px-3 text-xs font-bold uppercase tracking-wider text-[#1b3b87] hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-primary bg-surface px-3 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <Plus className="size-4" />
                       Add Domain
@@ -504,7 +504,7 @@ export function RubricTableEditor() {
                         currentRevision && handleDeleteDraft(currentRevision.rubric_set_id)
                       }
                       disabled={deleteDraftMutation.isPending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-[#b91c1c]/30 text-[#b91c1c] hover:bg-[#b91c1c]/5 px-3 text-xs font-bold uppercase tracking-wider focus:outline-none disabled:opacity-50"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-destructive/30 text-destructive hover:bg-destructive-soft px-3 text-xs font-bold uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50"
                     >
                       <Trash2 className="size-4" />
                       Delete Draft
@@ -517,7 +517,7 @@ export function RubricTableEditor() {
                         type="button"
                         onClick={handleCreateDraft}
                         disabled={createDraftMutation.isPending}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-[#1b3b87] px-3.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                       >
                         <Plus className="size-4" />
                         Create Editable Draft
@@ -531,7 +531,7 @@ export function RubricTableEditor() {
                             currentRevision && handleActivateRevision(currentRevision.rubric_set_id)
                           }
                           disabled={activateRevisionMutation.isPending}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-[#3b963e] px-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#3b963e]/90 focus:outline-none focus:ring-2 focus:ring-[#3b963e] disabled:opacity-50"
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-success px-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success disabled:opacity-50"
                         >
                           <Check className="size-4" />
                           Activate (Rollback)
@@ -542,7 +542,7 @@ export function RubricTableEditor() {
                             currentRevision && handleRetireRevision(currentRevision.rubric_set_id)
                           }
                           disabled={retireRevisionMutation.isPending}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-slate-300 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 focus:outline-none disabled:opacity-50"
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                         >
                           Retire
                         </button>
@@ -554,7 +554,7 @@ export function RubricTableEditor() {
                 <button
                   type="button"
                   onClick={() => setShowHistorySidebar((prev) => !prev)}
-                  className="lg:hidden inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-slate-300 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+                  className="lg:hidden inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <History className="size-4" />
                   History
@@ -564,15 +564,15 @@ export function RubricTableEditor() {
 
             {/* Immutability / Notice Banner */}
             {!isDraft && currentRevision && (
-              <div className="mt-4 flex items-start gap-2.5 rounded-sm border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                <Lock className="size-4 shrink-0 text-slate-500 mt-0.5" />
+              <div className="mt-4 flex items-start gap-2.5 rounded-sm border border-border bg-surface-subtle p-3 text-xs text-text">
+                <Lock className="size-4 shrink-0 text-text-muted mt-0.5" />
                 <div>
-                  <span className="font-bold text-slate-800">
+                  <span className="font-bold text-text">
                     {isPublished
                       ? 'Published Revision (Read-Only)'
                       : 'Retired Revision (Historical Reference)'}
                   </span>
-                  <p className="mt-0.5 text-slate-600">
+                  <p className="mt-0.5 text-text-muted">
                     {isPublished
                       ? 'Published form revisions cannot be directly modified. Create a new draft to add, edit, delete, or reorder criteria.'
                       : 'Retired revisions remain in database history for audit purposes and cannot be reactivated.'}
@@ -602,19 +602,19 @@ export function RubricTableEditor() {
                 return (
                   <section
                     key={domain.rubric_domain_id}
-                    className="rounded-sm border border-slate-200 bg-white p-5 shadow-2xs"
+                    className="rounded-sm border border-border bg-surface p-5 shadow-2xs"
                     aria-label={`Domain ${domain.code}: ${domain.title}`}
                   >
                     {/* Domain Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-sm bg-[#1b3b87] px-2.5 py-1 text-xs font-bold text-white uppercase tracking-wider">
+                        <span className="rounded-sm bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground uppercase tracking-wider">
                           {domain.code}
                         </span>
-                        <h2 className="text-sm font-bold text-slate-800 tracking-tight">
+                        <h2 className="text-sm font-bold text-text tracking-tight">
                           {domain.title}
                         </h2>
-                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider tabular-nums">
                           ({domain.criteria.length} criteria)
                         </span>
                       </div>
@@ -626,7 +626,7 @@ export function RubricTableEditor() {
                             type="button"
                             onClick={() => handleMoveDomain(domainIndex, 'up')}
                             disabled={isFirstDomain || reorderTreeMutation.isPending}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-slate-200 text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1b3b87] disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
                             aria-label={`Move ${domain.code} domain up`}
                             title="Move Domain Up"
                           >
@@ -636,7 +636,7 @@ export function RubricTableEditor() {
                             type="button"
                             onClick={() => handleMoveDomain(domainIndex, 'down')}
                             disabled={isLastDomain || reorderTreeMutation.isPending}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-slate-200 text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1b3b87] disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
                             aria-label={`Move ${domain.code} domain down`}
                             title="Move Domain Down"
                           >
@@ -645,7 +645,7 @@ export function RubricTableEditor() {
                           <button
                             type="button"
                             onClick={() => setDomainModal({ isOpen: true, domain })}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-slate-200 text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1b3b87]"
+                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             aria-label={`Edit ${domain.code} domain`}
                             title="Edit Domain"
                           >
@@ -662,7 +662,7 @@ export function RubricTableEditor() {
                                 deleteDomainMutation.mutate(domain.rubric_domain_id);
                               }
                             }}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-transparent text-[#b91c1c] hover:bg-[#b91c1c]/10 focus:outline-none focus:ring-1 focus:ring-[#b91c1c]"
+                            className="inline-flex size-8 items-center justify-center rounded-sm border border-transparent text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
                             aria-label={`Delete ${domain.code} domain`}
                             title="Delete Domain"
                           >
@@ -677,7 +677,7 @@ export function RubricTableEditor() {
                                 domainTitle: domain.title,
                               })
                             }
-                            className="ml-2 inline-flex h-8 items-center justify-center gap-1 rounded-sm bg-[#1b3b87] px-2.5 text-[11px] font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+                            className="ml-2 inline-flex h-8 items-center justify-center gap-1 rounded-sm bg-primary px-2.5 text-[11px] font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           >
                             <Plus className="size-3.5" />
                             Add Criterion
@@ -687,9 +687,9 @@ export function RubricTableEditor() {
                     </div>
 
                     {/* Criteria Table */}
-                    <div className="mt-3 overflow-x-auto rounded-sm border border-slate-200">
+                    <div className="mt-3 overflow-x-auto rounded-sm border border-border">
                       <table className="w-full text-left border-collapse border-spacing-0">
-                        <thead className="bg-slate-50 text-[11px] uppercase tracking-wider font-bold text-slate-500 border-b border-slate-200">
+                        <thead className="bg-surface-subtle text-[11px] uppercase tracking-wider font-bold text-text-muted border-b border-border">
                           <tr>
                             {isDraft && <th className="py-2.5 px-3 w-16 text-center">Order</th>}
                             <th className="py-2.5 px-3 w-28">Criterion ID</th>
@@ -699,7 +699,7 @@ export function RubricTableEditor() {
                             {isDraft && <th className="py-2.5 px-3 w-28 text-right">Actions</th>}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200 text-xs">
+                        <tbody className="divide-y divide-border text-xs">
                           {domain.criteria.map((criterion, critIndex) => {
                             const isFirstCrit = critIndex === 0;
                             const isLastCrit = critIndex === domain.criteria.length - 1;
@@ -708,7 +708,7 @@ export function RubricTableEditor() {
                             return (
                               <tr
                                 key={criterion.rubric_criterion_id}
-                                className="hover:bg-slate-50/50 transition-colors"
+                                className="hover:bg-surface-subtle/50 transition-colors"
                               >
                                 {/* Order Controls */}
                                 {isDraft && (
@@ -718,7 +718,7 @@ export function RubricTableEditor() {
                                         type="button"
                                         onClick={() => handleMoveCriterion(domain, critIndex, 'up')}
                                         disabled={isFirstCrit || reorderTreeMutation.isPending}
-                                        className="inline-flex size-6 items-center justify-center rounded-sm text-slate-500 hover:bg-slate-200 disabled:opacity-20 disabled:cursor-not-allowed"
+                                        className="inline-flex size-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed"
                                         aria-label={`Move ${criterion.criterion_code} criterion up`}
                                         title="Move Up"
                                       >
@@ -730,7 +730,7 @@ export function RubricTableEditor() {
                                           handleMoveCriterion(domain, critIndex, 'down')
                                         }
                                         disabled={isLastCrit || reorderTreeMutation.isPending}
-                                        className="inline-flex size-6 items-center justify-center rounded-sm text-slate-500 hover:bg-slate-200 disabled:opacity-20 disabled:cursor-not-allowed"
+                                        className="inline-flex size-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed"
                                         aria-label={`Move ${criterion.criterion_code} criterion down`}
                                         title="Move Down"
                                       >
@@ -746,26 +746,25 @@ export function RubricTableEditor() {
                                     type="text"
                                     value={criterion.criterion_code}
                                     readOnly
-                                    className="w-full border border-transparent bg-transparent rounded-sm text-xs font-bold text-slate-900"
+                                    className="w-full border border-transparent bg-transparent rounded-sm text-xs font-bold text-text"
                                     aria-label={`${domain.code} criterion ID`}
                                   />
                                 </td>
 
                                 {/* Entry (Title & Description) */}
                                 <td className="py-2.5 px-4 align-top">
-                                  <p className="font-bold text-slate-900">{criterion.title}</p>
-                                  <p className="mt-1 text-slate-600 whitespace-pre-wrap leading-relaxed">
+                                  <p className="font-bold text-text">{criterion.title}</p>
+                                  <p className="mt-1 text-text-muted whitespace-pre-wrap leading-relaxed">
                                     {criterion.description}
                                   </p>
                                 </td>
-
                                 {/* Strategy & Config */}
                                 <td className="py-2.5 px-4 align-top">
                                   <div className="grid gap-1">
-                                    <span className="w-fit rounded-sm bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-800">
+                                    <span className="w-fit rounded-sm bg-primary-soft border border-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                                       {strategyBadge.label}
                                     </span>
-                                    <span className="text-[11px] text-slate-500 font-mono">
+                                    <span className="text-[11px] text-text-muted font-mono tabular-nums">
                                       {strategyBadge.detail}
                                     </span>
                                   </div>
@@ -774,11 +773,11 @@ export function RubricTableEditor() {
                                 {/* Scoring Rule */}
                                 <td className="py-2.5 px-4 align-top">
                                   {criterion.scoring_rule ? (
-                                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                    <p className="text-text whitespace-pre-wrap leading-relaxed">
                                       {criterion.scoring_rule}
                                     </p>
                                   ) : (
-                                    <span className="text-slate-400 italic">No rule summary</span>
+                                    <span className="text-text-muted italic">No rule summary</span>
                                   )}
                                 </td>
 
@@ -796,7 +795,7 @@ export function RubricTableEditor() {
                                             criterion,
                                           })
                                         }
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1b3b87]"
+                                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         aria-label={`Edit ${criterion.criterion_code} row`}
                                         title="Edit Criterion"
                                       >
@@ -811,7 +810,7 @@ export function RubricTableEditor() {
                                             currentDomainId: domain.rubric_domain_id,
                                           })
                                         }
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-[#1b3b87]"
+                                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                         aria-label={`Move ${criterion.criterion_code} to another domain`}
                                         title="Move Criterion"
                                       >
@@ -830,7 +829,7 @@ export function RubricTableEditor() {
                                             );
                                           }
                                         }}
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-[#b91c1c] hover:bg-[#b91c1c]/10 focus:outline-none focus:ring-1 focus:ring-[#b91c1c]"
+                                        className="inline-flex size-7 items-center justify-center rounded-sm text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
                                         aria-label={`Delete ${criterion.criterion_code} row`}
                                         title="Delete Criterion"
                                       >
@@ -847,7 +846,7 @@ export function RubricTableEditor() {
                             <tr>
                               <td
                                 colSpan={isDraft ? 6 : 4}
-                                className="py-6 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/20"
+                                className="py-6 text-center text-xs font-semibold text-text-muted uppercase tracking-wider bg-surface-subtle/20"
                               >
                                 No criteria in this domain. Click &quot;Add Criterion&quot; to
                                 create one.
@@ -862,13 +861,13 @@ export function RubricTableEditor() {
               })}
 
               {currentRevision.domains.length === 0 && (
-                <div className="rounded-sm border border-slate-200 bg-white p-8 text-center">
-                  <p className="text-sm font-bold text-slate-700">No domains in this form.</p>
+                <div className="rounded-sm border border-border bg-surface p-8 text-center">
+                  <p className="text-sm font-bold text-text">No domains in this form.</p>
                   {isDraft && (
                     <button
                       type="button"
                       onClick={() => setDomainModal({ isOpen: true })}
-                      className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-[#1b3b87] px-4 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90"
+                      className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <Plus className="size-4" />
                       Add First Domain
@@ -878,14 +877,14 @@ export function RubricTableEditor() {
               )}
             </div>
           ) : (
-            <div className="rounded-sm border border-slate-200 bg-white p-8 text-center">
-              <p className="text-sm font-bold text-slate-700">
+            <div className="rounded-sm border border-border bg-surface p-8 text-center">
+              <p className="text-sm font-bold text-text">
                 No active or draft form found for {AGENT_LABELS[selectedAgent]}.
               </p>
               <button
                 type="button"
                 onClick={handleCreateDraft}
-                className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-[#1b3b87] px-4 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90"
+                className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <Plus className="size-4" />
                 Create New Form Draft

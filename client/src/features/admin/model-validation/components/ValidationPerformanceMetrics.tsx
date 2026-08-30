@@ -1,12 +1,11 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ModelValidationMetricsResponse } from '../types';
 import { ConfusionMatrix } from './ConfusionMatrix';
-
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 px-4 py-3">
-      <dt className="text-xs font-semibold text-slate-600">{label}</dt>
-      <dd className="text-lg font-bold tabular-nums text-slate-900">{value}</dd>
+      <dt className="text-xs font-semibold text-text-muted">{label}</dt>
+      <dd className="text-lg font-bold tabular-nums text-text">{value}</dd>
     </div>
   );
 }
@@ -21,16 +20,16 @@ export function ValidationPerformanceMetrics({
       aria-labelledby="validation-performance-heading"
       className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]"
     >
-      <div className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="overflow-hidden rounded-sm border border-border bg-surface">
+        <div className="border-b border-border bg-surface-subtle px-4 py-3">
           <h2
             id="validation-performance-heading"
-            className="text-xs font-bold uppercase tracking-wider text-slate-700"
+            className="text-xs font-bold uppercase tracking-wider text-text"
           >
             Performance metrics
           </h2>
         </div>
-        <dl className="divide-y divide-slate-200">
+        <dl className="divide-y divide-border">
           <MetricRow
             label="Completed runs"
             value={String(metricSummary.data?.completed_runs ?? 0)}
@@ -60,7 +59,7 @@ export function ValidationPerformanceMetrics({
             }
           />
         </dl>
-        <div className="grid gap-2 border-t border-slate-200 p-4 text-xs leading-relaxed text-slate-600">
+        <div className="grid gap-2 border-t border-border p-4 text-xs leading-relaxed text-text-muted">
           <p>
             Toxicity reads stored agent summaries and criterion justifications. Model Validation
             stores the resulting assessment and model provenance, not a duplicate comment.

@@ -19,9 +19,9 @@ export function ModelValidationPage() {
   return (
     <section className="grid min-w-0 gap-6">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Admin</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">Model Validation</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Admin</p>
+        <h1 className="mt-1 text-2xl font-bold text-text">Model Validation</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-muted">
           Run the standard multi-agent SLM evaluation against an independent human benchmark.
           Expected scores are entered for every active agent criterion, stay private from the
           evaluator agents, and use the institutional 1–4 scale.
