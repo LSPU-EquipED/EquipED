@@ -6,9 +6,10 @@ import json
 import logging
 from uuid import uuid4
 
+import pytest
 from server.modules.agents.gad.agent import GAD
 from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.runtime.prompt_budget import select_chunks
+from server.modules.agents.runtime.prompt_budget import pack_chunks, select_chunks
 from server.modules.agents.sme.agent import SME
 from server.tests.agents.helpers import (
     _FakeLLM,
@@ -16,26 +17,16 @@ from server.tests.agents.helpers import (
     _make_mixed_chunks,
     _mock_settings,
     _PackingCaptureAgent,
-    _RetrievedChunk,
     patch_settings,
 )
+from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 from server.tests.agents.runtime.response_helpers import itso_response
 
 
 def test_per_agent_selection_differs_by_domain(monkeypatch) -> None:
     """Different agents should select different chunks based on domain keywords."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-
-    # Use a small threshold so selection kicks in.
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: type(
             "Settings",
             (),
@@ -92,15 +83,6 @@ def test_per_agent_selection_differs_by_domain(monkeypatch) -> None:
 
 def test_selection_is_capped(monkeypatch) -> None:
     """Chunk selection should never exceed max_chunks."""
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-
     agent = SME()
     chunks = _make_chunk_infos(20, keyword="accuracy content knowledge")
 
@@ -117,15 +99,7 @@ def test_selection_is_capped(monkeypatch) -> None:
 def test_chunk_ids_and_page_numbers_preserved(monkeypatch) -> None:
     """Packed chunks must retain chunk_id and page_number from originals."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(),
     )
 
@@ -150,15 +124,7 @@ def test_chunk_ids_and_page_numbers_preserved(monkeypatch) -> None:
 def test_small_docs_not_over_truncated(monkeypatch) -> None:
     """Documents below the small-doc threshold should pass through unchanged."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(),
     )
 
@@ -187,15 +153,7 @@ def test_small_docs_not_over_truncated(monkeypatch) -> None:
 def test_excerpt_truncates_long_chunks(monkeypatch) -> None:
     """Long chunk text should be excerpted with ellipsis."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_excerpt_chars=50,
             agent_small_doc_threshold=0,  # Force excerpting path
@@ -222,15 +180,7 @@ def test_excerpt_truncates_long_chunks(monkeypatch) -> None:
 def test_budget_guard_trims_when_exceeded(monkeypatch) -> None:
     """If packed prompt JSON exceeds budget, text should be further trimmed."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_chunks=10,
             agent_max_excerpt_chars=500,
@@ -260,15 +210,7 @@ def test_budget_guard_trims_when_exceeded(monkeypatch) -> None:
 def test_budget_guard_enforces_after_serialization(monkeypatch) -> None:
     """Post-trim serialized JSON must actually fit within the budget."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_chunks=10,
             agent_max_excerpt_chars=1000,
@@ -299,15 +241,7 @@ def test_budget_guard_enforces_after_serialization(monkeypatch) -> None:
 def test_single_oversized_chunk_shrinks_to_fit(monkeypatch) -> None:
     """A single chunk that exceeds the budget must be shrunk to fit."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_chunks=10,
             agent_max_excerpt_chars=5000,  # Large enough to not excerpt initially
@@ -340,15 +274,7 @@ def test_single_oversized_chunk_shrinks_to_fit(monkeypatch) -> None:
 def test_small_doc_long_chunk_passes_through_unchanged(monkeypatch) -> None:
     """Small docs with long individual chunks should NOT be excerpted."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_chunks=12,
             agent_max_excerpt_chars=50,  # Would normally excerpt
@@ -382,14 +308,6 @@ def test_small_doc_long_chunk_passes_through_unchanged(monkeypatch) -> None:
 
 def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     """Prompt note should be present when chunks are dropped."""
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
     patch_settings(
         monkeypatch,
         agent_max_chunks=2,
@@ -399,6 +317,7 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     )
 
     chunks = _make_chunk_infos(5, keyword="security data")
+    eval_id = uuid4()
     agent = ITSO(
         llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
@@ -413,9 +332,10 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
     )
 
@@ -427,14 +347,6 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
 
 def test_note_present_when_text_excerpted(monkeypatch) -> None:
     """Prompt note should be present when text is excerpted."""
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
     patch_settings(
         monkeypatch,
         agent_max_chunks=12,
@@ -444,6 +356,7 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
     )
 
     chunks = _make_chunk_infos(3, keyword="security data")
+    eval_id = uuid4()
     agent = ITSO(
         llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
@@ -458,9 +371,10 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
     monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
     )
 
@@ -473,19 +387,12 @@ def test_note_present_when_text_excerpted(monkeypatch) -> None:
 def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
     """Prompt note should be absent when small docs pass through unchanged."""
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(),
     )
 
     chunks = _make_chunk_infos(3)  # Below threshold of 6, short text.
+    eval_id = uuid4()
     agent = ITSO(
         llm_client=_FakeLLM(itso_response(chunk_ids=("chunk-0",))),
     )
@@ -500,9 +407,10 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
     monkeypatch.setattr(_FakeLLM, "generate", capture_generate)
 
     agent.run(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=chunks,
+        form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
     )
 
@@ -523,15 +431,7 @@ def test_hard_trim_emits_warning_when_excerpt_becomes_tiny(monkeypatch, caplog) 
         logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
     )
     monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("rubric context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
+        "server.core.config.get_settings",
         lambda: _mock_settings(
             agent_max_chunks=10,
             agent_max_excerpt_chars=5000,  # Large enough to not excerpt initially
@@ -565,3 +465,14 @@ def test_hard_trim_emits_warning_when_excerpt_becomes_tiny(monkeypatch, caplog) 
         and "original_chars=2000" in r.message
         for r in warnings
     ), f"expected hard-trim warning, got: {[r.message for r in warnings]}"
+
+
+def test_tiny_budget_fails_instead_of_retrying_unchanged_single_chunk():
+    with pytest.raises(ValueError, match="cannot fit the minimum chunk excerpt"):
+        pack_chunks(
+            [{"chunk_id": "c1", "page_number": 1, "text": "A" * 200}],
+            max_chunks=1,
+            max_excerpt_chars=200,
+            prompt_budget_chars=20,
+            small_doc_threshold=10,
+        )

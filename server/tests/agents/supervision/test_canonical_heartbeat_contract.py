@@ -12,6 +12,7 @@ from server.modules.agents.supervision.context import (
     EvaluationContextBuilder,
     PromptSnapshot,
 )
+from server.tests.agents.helpers import _make_dummy_snapshot
 
 
 def _result(name, evaluation_id, document_id, prompt_id):
@@ -52,10 +53,15 @@ def _dispatch(monkeypatch, agents, heartbeat_callback=None):
     prompts = MappingProxyType(
         {a.agent_name: PromptSnapshot(1, "prompt") for a in agents}
     )
+    eval_id = uuid4()
+    snapshots = tuple(
+        _make_dummy_snapshot(a.agent_name, evaluation_id=eval_id) for a in agents
+    )
     return dispatch.AgentDispatcher(agents).dispatch(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=(),
+        form_snapshots=snapshots,
         context_text="q",
         prompt_versions=prompts,
         reference_document_ids=MappingProxyType({}),

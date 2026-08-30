@@ -18,6 +18,7 @@ from server.modules.agents.supervision.context import (
 )
 from server.modules.agents.supervision.dispatch import AgentDispatcher
 from server.modules.agents.supervision.supervisor import Supervisor
+from server.tests.agents.helpers import _make_dummy_snapshot
 
 
 def _context() -> PreparedEvaluationContext:
@@ -79,10 +80,15 @@ def _result(name, evaluation_id, document_id, *, success=True):
 
 
 def _dispatch(monkeypatch, agents, prepared):
+    eval_id = uuid4()
+    snapshots = tuple(
+        _make_dummy_snapshot(a.agent_name, evaluation_id=eval_id) for a in agents
+    )
     return AgentDispatcher(agents).dispatch(
-        evaluation_id=uuid4(),
+        evaluation_id=eval_id,
         document_id=uuid4(),
         chunk_infos=prepared.chunk_infos,
+        form_snapshots=snapshots,
         context_text=prepared.query_text,
         prompt_versions=MappingProxyType(
             {a.agent_name: PromptSnapshot(1, "prompt") for a in agents}
@@ -97,9 +103,9 @@ def _dispatch(monkeypatch, agents, prepared):
 
 def test_dispatched_agents_receive_independent_mutable_snapshots(monkeypatch) -> None:
     prepared = _context()
-    a, b = _Agent("a", []), _Agent("b", [])
+    a, b = _Agent("sme", []), _Agent("gad", [])
     _dispatch(monkeypatch, [a, b], prepared)
-    assert b.seen[0][0][0]["text"] == "b"
+    assert b.seen[0][0][0]["text"] == "gad"
     assert prepared.chunk_infos[0]["text"] == "original"
     assert prepared.precomputed_context["syllabus"] == ("reference",)
     assert prepared.reference_document_ids["syllabus"] == "ref-1"
@@ -140,15 +146,20 @@ def test_supervisor_builds_context_and_evidence_before_dispatch(monkeypatch) -> 
         return [_result("itso", kwargs["evaluation_id"], kwargs["document_id"])], {}
 
     monkeypatch.setattr(AgentDispatcher, "dispatch", dispatch)
+    eval_id = uuid4()
+    snapshots = (_make_dummy_snapshot("itso", evaluation_id=eval_id),)
     result = Supervisor(agents=[_Agent("itso", [])]).run_evaluation(
-        evaluation_id=uuid4(), document_id=uuid4(), chunks=[object()]
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunks=[object()],
+        form_snapshots=snapshots,
     )
     assert result.agent_results
     assert events == ["context", "evidence", ("dispatch", True, evidence.provenance)]
 
 
 def test_dispatch_submits_once_and_creates_one_client_per_agent(monkeypatch) -> None:
-    agents = [_Agent(name, []) for name in ("a", "b", "c")]
+    agents = [_Agent(name, []) for name in ("sme", "gad", "itso")]
     submitted, clients = [], []
     monkeypatch.setattr(
         "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
@@ -174,7 +185,7 @@ def test_dispatch_submits_once_and_creates_one_client_per_agent(monkeypatch) -> 
 
     monkeypatch.setattr(module.concurrent.futures, "ThreadPoolExecutor", Executor)
     _dispatch(monkeypatch, agents, _context())
-    assert submitted == ["a", "b", "c"] and clients == submitted
+    assert submitted == ["sme", "gad", "itso"] and clients == submitted
 
 
 def test_dispatch_agents_overlap_with_real_thread_pool(monkeypatch) -> None:
@@ -186,9 +197,9 @@ def test_dispatch_agents_overlap_with_real_thread_pool(monkeypatch) -> None:
             return super().run(**kwargs)
 
     results, failures = _dispatch(
-        monkeypatch, [Agent("a", []), Agent("b", [])], _context()
+        monkeypatch, [Agent("sme", []), Agent("gad", [])], _context()
     )
-    assert {r.agent_name for r in results} == {"a", "b"} and not failures
+    assert {r.agent_name for r in results} == {"sme", "gad"} and not failures
 
 
 def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -> None:
@@ -196,7 +207,7 @@ def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -
 
     def factory(name):
         attempts.append(name)
-        if name == "a":
+        if name == "sme":
             raise RuntimeError("factory failed")
         return object()
 
@@ -204,8 +215,8 @@ def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -
         "server.modules.agents.supervision.dispatch.get_llm_client_for_agent", factory
     )
     results, failures = _dispatch(
-        monkeypatch, [_Agent("a", []), _Agent("b", [])], _context()
+        monkeypatch, [_Agent("sme", []), _Agent("gad", [])], _context()
     )
-    assert set(attempts) == {"a", "b"}
-    assert {r.agent_name for r in results} == {"a", "b"}
-    assert failures["a"].startswith("RuntimeError") and not failures.get("b")
+    assert set(attempts) == {"sme", "gad"}
+    assert {r.agent_name for r in results} == {"sme", "gad"}
+    assert failures["sme"].startswith("RuntimeError") and not failures.get("gad")

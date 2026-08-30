@@ -22,8 +22,9 @@ class _FakeHTTPResponse:
         self._body = body
         self._headers = headers or {}
 
-    def read(self):
-        return self._body.encode("utf-8")
+    def read(self, amount=None):
+        body = self._body.encode("utf-8")
+        return body if amount is None else body[:amount]
 
     def __enter__(self):
         return self

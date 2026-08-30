@@ -36,7 +36,6 @@ from server.modules.agents.runtime.prompt_budget import enforce_total_prompt_bud
 from server.tests.agents.helpers import (
     _DummyAgent,
     _FakeLLM,
-    _RetrievedChunk,
     patch_settings,
 )
 from server.tests.agents.runtime.response_helpers import itso_response
@@ -295,15 +294,8 @@ def test_no_trim_emits_no_budget_warning(caplog) -> None:
 
 
 def _patch_retrieval(monkeypatch) -> None:
-    """Patch retrieval so we don't hit ChromaDB during the integration test."""
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        lambda *args, **kwargs: [_RetrievedChunk("context")],
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.resolve_collection_name",
-        lambda source_type: source_type,
-    )
+    """No-op helper retained for compatibility."""
+    pass
 
 
 def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
@@ -313,21 +305,11 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
 
-    # Force retrieval to return a large rubric context so the prompt
-    # exceeds the configured total budget.
-    huge_rubric = "R" * 5000
-
-    def _huge_rubric(*args, **kwargs):
-        return [huge_rubric, huge_rubric, huge_rubric]
-
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        _huge_rubric,
-    )
+    huge_ref = "R" * 5000
     patch_settings(
         monkeypatch,
-        agent_prompt_budget_chars=2000,
-        agent_total_prompt_budget_chars=1500,  # very tight
+        agent_prompt_budget_chars=5000,
+        agent_total_prompt_budget_chars=3500,
     )
 
     agent = _DummyAgent(
@@ -341,6 +323,7 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
             {"chunk_id": "c1", "page_number": 1, "text": "doc text"},
         ],
         context_text="query",
+        precomputed_context={"syllabus": [huge_ref, huge_ref, huge_ref]},
     )
 
     # EVAL_PROMPT_SIZE log was emitted.
@@ -360,10 +343,6 @@ def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) ->
     EVAL_PROMPT_BUDGET warning should fire."""
     caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        lambda *args, **kwargs: ["tiny rubric"],
-    )
     patch_settings(
         monkeypatch,
         agent_total_prompt_budget_chars=8000,
@@ -380,6 +359,7 @@ def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) ->
             {"chunk_id": "c1", "page_number": 1, "text": "doc text"},
         ],
         context_text="query",
+        precomputed_context={"syllabus": ["tiny ref"]},
     )
 
     # EVAL_PROMPT_SIZE log was emitted.
@@ -395,22 +375,10 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
     _patch_retrieval(monkeypatch)
 
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
-
-    def _long_refs(*args, **kwargs):
-        return list(long_refs)
-
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        _long_refs,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        lambda *args, **kwargs: [],
-    )
     patch_settings(
         monkeypatch,
-        agent_prompt_budget_chars=2000,
-        agent_total_prompt_budget_chars=1500,
+        agent_prompt_budget_chars=5000,
+        agent_total_prompt_budget_chars=3500,
     )
 
     captured_prompts: list[str] = []
@@ -446,12 +414,13 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
             {"chunk_id": "c1", "page_number": 1, "text": "doc text"},
         ],
         context_text="query",
+        precomputed_context={"syllabus": long_refs},
     )
 
     assert len(captured_prompts) == 1
     final_prompt = captured_prompts[0]
     # The prompt that reached the LLM fits within the total budget.
-    assert len(final_prompt) <= 1500
+    assert len(final_prompt) <= 3500
     parsed = json.loads(final_prompt)
     # At least one reference was dropped.
     assert len(parsed["reference_context"]) < 3
@@ -470,25 +439,11 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     _patch_retrieval(monkeypatch)
 
     # Long reference entries to force budget enforcement to drop them.
-    long_refs = [
-        _RetrievedChunk(f"reference entry {i} " + ("X" * 500)) for i in range(3)
-    ]
-
-    def _long_refs(*args, **kwargs):
-        return list(long_refs)
-
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        _long_refs,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        lambda *args, **kwargs: [],
-    )
+    long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
-        agent_prompt_budget_chars=2000,
-        agent_total_prompt_budget_chars=1500,
+        agent_prompt_budget_chars=5000,
+        agent_total_prompt_budget_chars=3500,
     )
 
     agent = _DummyAgent(
@@ -503,6 +458,7 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
         ],
         context_text="query",
         reference_document_ids={"syllabus": uuid4()},
+        precomputed_context={"syllabus": long_refs},
     )
 
     # Metadata must include the new observability fields.
@@ -519,10 +475,6 @@ def test_run_metadata_records_no_trim_when_under_budget(
     """When the prompt fits the budget, run() must record
     ``prompt_trimmed=False`` and ``reference_context_dropped=0``."""
     _patch_retrieval(monkeypatch)
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        lambda *args, **kwargs: ["small rubric"],
-    )
     patch_settings(
         monkeypatch,
         agent_total_prompt_budget_chars=8000,
@@ -540,6 +492,7 @@ def test_run_metadata_records_no_trim_when_under_budget(
         ],
         context_text="query",
         reference_document_ids={"syllabus": uuid4()},
+        precomputed_context={"syllabus": ["small reference"]},
     )
 
     assert result.metadata["prompt_trimmed"] is False
@@ -553,29 +506,11 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
     only the actual removals (not the surviving entries)."""
     _patch_retrieval(monkeypatch)
 
-    # One huge reference (always dropped) and several moderate ones
-    # (may or may not be dropped depending on budget pressure).
-    long_refs = [
-        _RetrievedChunk(f"reference entry {i} " + ("X" * 500)) for i in range(3)
-    ]
-
-    def _long_refs(*args, **kwargs):
-        return list(long_refs)
-
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.retrieve_context",
-        _long_refs,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_active_rubric_context",
-        lambda *args, **kwargs: [],
-    )
-    # Loose enough budget that references are dropped but we still record
-    # exactly the count that disappeared.
+    long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
-        agent_prompt_budget_chars=2000,
-        agent_total_prompt_budget_chars=1500,
+        agent_prompt_budget_chars=5000,
+        agent_total_prompt_budget_chars=3500,
     )
 
     agent = _DummyAgent(
@@ -590,6 +525,7 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
         ],
         context_text="query",
         reference_document_ids={"syllabus": uuid4()},
+        precomputed_context={"syllabus": long_refs},
     )
 
     # Trim fired (prompt was over budget).

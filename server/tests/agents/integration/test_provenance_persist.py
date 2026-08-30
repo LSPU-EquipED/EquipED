@@ -5,12 +5,15 @@ from __future__ import annotations
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.synthesis.models import AgentResult
 from server.modules.synthesis.service import persist_agent_outputs
 from server.tests.agents.helpers import _seed_active_prompts
+from server.tests.evaluations.snapshot_test_helpers import (
+    make_agent_result,
+    prepare_test_snapshots,
+)
 
 # ------------------------------------------------------------------
 # Phase-1 + phase-2 provenance persistence
@@ -48,8 +51,11 @@ def test_provenance_persisted_with_agent_result(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
 
     provenance: dict = {
@@ -73,36 +79,31 @@ def test_provenance_persisted_with_agent_result(db_session) -> None:
         "api_key": "secret-token-value",
     }
 
+    results = [
+        make_agent_result("sme", evaluation_id, document_id),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result(
+            "itso",
+            evaluation_id,
+            document_id,
+            prompt_version_id=prompt_version_id,
+            provenance=provenance,
+        ),
+    ]
+
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="itso",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=3.0,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=3,
-                        justification="adequate",
-                    ),
-                ),
-                summary="summary",
-                model_name="test-model",
-                processing_seconds=0.1,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-                provenance=provenance,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="itso")
+        .one()
+    )
     db_session.expire_all()
     result_row = db_session.get(AgentResult, result_row.agent_result_id)
     assert result_row.provenance is not None
@@ -148,8 +149,11 @@ def test_provenance_fallback_attribution(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
 
     provenance: dict = {
@@ -159,36 +163,32 @@ def test_provenance_fallback_attribution(db_session) -> None:
         "repair_occurred": False,
     }
 
+    results = [
+        make_agent_result("sme", evaluation_id, document_id),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result(
+            "itso",
+            evaluation_id,
+            document_id,
+            model_name="fallback-model-v1",
+            prompt_version_id=prompt_version_id,
+            provenance=provenance,
+        ),
+    ]
+
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="itso",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=2.5,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=2,
-                        justification="needs improvement",
-                    ),
-                ),
-                summary="summary",
-                model_name="fallback-model-v1",
-                processing_seconds=0.2,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-                provenance=provenance,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="itso")
+        .one()
+    )
     assert result_row.provenance is not None
     assert result_row.provenance["requested_model"] == "requested-model-v2"
     assert result_row.provenance["actual_model"] == "fallback-model-v1"
@@ -229,8 +229,11 @@ def test_provenance_excludes_raw_text(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
 
     sensitive_provenance: dict = {
@@ -238,36 +241,31 @@ def test_provenance_excludes_raw_text(db_session) -> None:
         "chunk_ids_ordered": ["c1"],
     }
 
+    results = [
+        make_agent_result("sme", evaluation_id, document_id),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result(
+            "itso",
+            evaluation_id,
+            document_id,
+            prompt_version_id=prompt_version_id,
+            provenance=sensitive_provenance,
+        ),
+    ]
+
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="itso",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=3.0,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=3,
-                        justification="ok",
-                    ),
-                ),
-                summary="summary",
-                model_name="test-model",
-                processing_seconds=0.1,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-                provenance=sensitive_provenance,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="itso")
+        .one()
+    )
     prov = result_row.provenance or {}
     prov_str = str(prov)
 
@@ -317,40 +315,36 @@ def test_historical_result_without_provenance_graceful(db_session) -> None:
             curriculum_id=uuid4(),
             status=EvaluationStatus.EVALUATING.value,
             submitted_by=owner_id,
+            partial_without_curriculum=True,
         )
     )
+    db_session.flush()
+    prepare_test_snapshots(db_session, evaluation_id, partial_without_curriculum=True)
     db_session.commit()
 
-    # Persist an AgentEvaluationResult WITHOUT provenance (historical)
+    results = [
+        make_agent_result("sme", evaluation_id, document_id),
+        make_agent_result("gad", evaluation_id, document_id),
+        make_agent_result(
+            "itso",
+            evaluation_id,
+            document_id,
+            prompt_version_id=prompt_version_id,
+            provenance=None,
+        ),
+    ]
+
     persist_agent_outputs(
         db_session,
         evaluation_id,
         document_id,
-        [
-            AgentEvaluationResult(
-                agent_name="itso",
-                evaluation_id=evaluation_id,
-                document_id=document_id,
-                subtotal=3.0,
-                criterion_scores=(
-                    CriterionScore(
-                        criterion_id="c1",
-                        criterion_title="Criterion 1",
-                        score=3,
-                        justification="ok",
-                    ),
-                ),
-                summary="summary",
-                model_name="test-model",
-                processing_seconds=0.1,
-                token_count=10,
-                raw_response="{}",
-                prompt_version_id=prompt_version_id,
-                provenance=None,
-            )
-        ],
+        results,
+        verify_ownership=lambda db: None,
     )
 
-    result_row = db_session.query(AgentResult).one()
-    # Historical rows should have provenance=None
+    result_row = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=evaluation_id, agent_name="itso")
+        .one()
+    )
     assert result_row.provenance is None

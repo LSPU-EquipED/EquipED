@@ -12,6 +12,76 @@ from server.modules.admin.models import PromptVersion
 from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.agents.itso.agent import ITSO
 from server.modules.agents.runtime.prompt_budget import pack_chunks
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    CurriculumAlignmentConfig,
+    DomainDefinition,
+    FormDefinition,
+    LlmRubricGuidanceConfig,
+)
+from server.modules.rubrics.snapshot_contracts import (
+    EvaluationFormSnapshotDTO,
+    build_evaluation_form_snapshot,
+)
+
+
+def _make_dummy_snapshot(
+    agent_id: str,
+    evaluation_id: Any | None = None,
+) -> EvaluationFormSnapshotDTO:
+    """Create a minimal valid EvaluationFormSnapshotDTO matching agent manifest."""
+    import uuid
+
+    eval_id = evaluation_id or uuid.uuid4()
+    set_id = uuid.uuid4()
+
+    if agent_id == "coordinator":
+        crit_code = "A-05"
+        strategy_config = CurriculumAlignmentConfig(
+            guidance="Verify curriculum alignment."
+        )
+    elif agent_id == "gad":
+        crit_code = "GAD-01"
+        strategy_config = CountBandConfig(
+            mode="maximum_count",
+            threshold_4=0,
+            threshold_3=1,
+            threshold_2=2,
+        )
+    elif agent_id == "itso":
+        crit_code = "ITSO-01"
+        strategy_config = LlmRubricGuidanceConfig(guidance="Evaluate ITSO guidance.")
+    else:  # sme or default
+        crit_code = "OP-01"
+        strategy_config = LlmRubricGuidanceConfig(guidance="Evaluate content quality.")
+
+    crit = CriterionDefinition(
+        rubric_criterion_id=uuid.uuid4(),
+        criterion_code=crit_code,
+        title=f"{agent_id} Criterion",
+        description=f"{agent_id} description",
+        scoring_rule="Scoring rule",
+        display_order=0,
+        strategy_config=strategy_config,
+    )
+    dom = DomainDefinition(
+        rubric_domain_id=uuid.uuid4(),
+        code="DOM-01",
+        title="Domain 1",
+        display_order=0,
+        criteria=(crit,),
+    )
+    form = FormDefinition(
+        rubric_set_id=set_id,
+        agent_id=agent_id,
+        name=f"{agent_id} Form",
+        version_number=1,
+        adapter_key=agent_id,
+        adapter_version=1,
+        domains=(dom,),
+    )
+    return build_evaluation_form_snapshot(eval_id, form)
 
 
 class SequencedFakeClient:
@@ -358,6 +428,12 @@ class _DummyAgent:
         self.llm_client = llm_client
 
     def run(self, **kwargs):
+        if "form_snapshot" not in kwargs:
+            from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+
+            kwargs["form_snapshot"] = make_itso_test_snapshot(
+                kwargs.get("evaluation_id")
+            )
         result = ITSO(llm_client=self.llm_client).run(**kwargs)
         return replace(result, agent_name=self.agent_name)
 
@@ -526,7 +602,7 @@ class _PackingCaptureAgent:
 
     def run(self, *, chunk_infos, **kwargs):
         del kwargs
-        from server.modules.agents.itso.execution import get_settings
+        from server.core.config import get_settings
 
         settings = get_settings()
         packed, chunks_dropped, text_excerpted = pack_chunks(
