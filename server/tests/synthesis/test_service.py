@@ -30,7 +30,10 @@ def _seed(db_session, *, user_id, agent_name="itso"):
     )
     db_session.flush()
     job = EvaluationJob(
-        evaluation_id=uuid4(), document_id=document_id, submitted_by=user_id
+        evaluation_id=uuid4(),
+        document_id=document_id,
+        submitted_by=user_id,
+        is_pre_snapshot_legacy=True,
     )
     db_session.add(job)
     db_session.flush()
@@ -294,10 +297,21 @@ def test_get_evaluation_results_surfaces_sme_reviewer_correction(
 def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
     db_session, seeded_user
 ):
-    from server.modules.agents.contracts import AgentEvaluationResult
-    from server.modules.agents.contracts import CriterionScore as AgentCriterionScore
+    from server.modules.agents.contracts import (
+        AdvisoryOutput,
+        UngroundedCriterionAdvisory,
+    )
+    from server.modules.documents.models import Document, DocumentChunk
+    from server.modules.evaluations.models import EvaluationJob
     from server.modules.synthesis.models import EvaluationFlag
-    from server.modules.synthesis.service import persist_agent_outputs
+    from server.modules.synthesis.service import (
+        get_evaluation_results,
+        persist_agent_outputs,
+    )
+    from server.tests.evaluations.snapshot_test_helpers import (
+        make_agent_result,
+        prepare_test_snapshots,
+    )
 
     document_id = uuid4()
     db_session.add(
@@ -314,54 +328,102 @@ def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
             processing_status="PROCESSED",
         )
     )
+    chunk_id = uuid4()
+    db_session.add(
+        DocumentChunk(
+            chunk_id=chunk_id,
+            document_id=document_id,
+            source_type="slm",
+            agent_domain="all",
+            page_number=1,
+            text="evidence text",
+            token_count=2,
+            is_ocr=False,
+            chroma_stored=True,
+        )
+    )
     db_session.flush()
     job = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=document_id,
         submitted_by=seeded_user.user_id,
         status="EVALUATING",
+        partial_without_curriculum=True,
     )
     db_session.add(job)
     db_session.flush()
 
-    agent_result = AgentEvaluationResult(
-        agent_name="sme",
-        evaluation_id=job.evaluation_id,
-        document_id=document_id,
-        subtotal=3.0,
-        criterion_scores=(
-            AgentCriterionScore("SME-01", "Alignment", 3, "Partially aligned", ()),
-            AgentCriterionScore("SME-02", "Depth", 4, "Deeply covered", ()),
-        ),
-        summary="Evaluation complete",
-        model_name="test-model",
-        processing_seconds=1.2,
-        token_count=100,
-        advisory_outputs={
-            "ungrounded_criteria": [
-                {"criterion_id": "SME-01", "score": 3},
-            ]
+    prepare_test_snapshots(
+        db_session,
+        job.evaluation_id,
+        partial_without_curriculum=True,
+    )
+    db_session.commit()
+
+    sme_result = make_agent_result(
+        "sme",
+        job.evaluation_id,
+        document_id,
+    )
+    gad_result = make_agent_result("gad", job.evaluation_id, document_id)
+    itso_result = make_agent_result(
+        "itso",
+        job.evaluation_id,
+        document_id,
+        scores_by_criterion={
+            "ITSO-01": 3,
+            "ITSO-02": 4,
+            "ITSO-03": 4,
+            "ITSO-04": 4,
+            "ITSO-05": 4,
         },
+        chunk_ids_by_criterion={
+            "ITSO-02": (str(chunk_id),),
+            "ITSO-03": (str(chunk_id),),
+            "ITSO-04": (str(chunk_id),),
+            "ITSO-05": (str(chunk_id),),
+        },
+        evidence_by_criterion={
+            "ITSO-02": ("ev",),
+            "ITSO-03": ("ev",),
+            "ITSO-04": ("ev",),
+            "ITSO-05": ("ev",),
+        },
+        advisory_outputs=AdvisoryOutput(
+            ungrounded_criteria=(
+                UngroundedCriterionAdvisory(
+                    criterion_id="ITSO-01",
+                    reason=(
+                        "Model score for ITSO-01 provided without grounded "
+                        "evidence — human review required"
+                    ),
+                ),
+            )
+        ),
     )
 
     persist_agent_outputs(
         db_session,
         job.evaluation_id,
         document_id,
-        [agent_result],
+        [sme_result, gad_result, itso_result],
+        verify_ownership=lambda db: None,
     )
 
     flags = (
         db_session.query(EvaluationFlag)
-        .filter(EvaluationFlag.evaluation_id == job.evaluation_id)
+        .filter(
+            EvaluationFlag.evaluation_id == job.evaluation_id,
+            EvaluationFlag.chunk_id.is_(None),
+        )
         .all()
     )
     assert len(flags) == 1
     flag = flags[0]
-    assert flag.criterion_id == "SME-01"
+    assert flag.criterion_id == "ITSO-01"
     assert flag.score == 3
     assert flag.reason == (
-        "Model score for SME-01 provided without grounded evidence — human "
+        "Model score for ITSO-01 provided without grounded evidence — human "
         "review required"
     )
     assert flag.chunk_id is None
@@ -372,24 +434,22 @@ def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
     db_session.commit()
     results = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
     assert len(results.flags) == 1
-    assert results.flags[0].criterion_id == "SME-01"
+    assert results.flags[0].criterion_id == "ITSO-01"
     assert results.flags[0].justification == (
-        "Model score for SME-01 provided without grounded evidence — human "
+        "Model score for ITSO-01 provided without grounded evidence — human "
         "review required"
     )
 
 
 def test_persist_agent_outputs_stores_group_responses(db_session, seeded_user):
-    from server.modules.agents.contracts import (
-        AgentEvaluationResult,
-    )
-    from server.modules.agents.contracts import (
-        CriterionScore as AgentCriterionScore,
-    )
     from server.modules.documents.models import Document
     from server.modules.evaluations.models import EvaluationJob
     from server.modules.synthesis.models import AgentResult
     from server.modules.synthesis.service import persist_agent_outputs
+    from server.tests.evaluations.snapshot_test_helpers import (
+        make_agent_result,
+        prepare_test_snapshots,
+    )
 
     document_id = uuid4()
     db_session.add(
@@ -412,9 +472,17 @@ def test_persist_agent_outputs_stores_group_responses(db_session, seeded_user):
         document_id=document_id,
         submitted_by=seeded_user.user_id,
         status="EVALUATING",
+        partial_without_curriculum=True,
     )
     db_session.add(job)
     db_session.flush()
+
+    prepare_test_snapshots(
+        db_session,
+        job.evaluation_id,
+        partial_without_curriculum=True,
+    )
+    db_session.commit()
 
     group_responses = {
         "assessment_alignment": {
@@ -431,34 +499,32 @@ def test_persist_agent_outputs_stores_group_responses(db_session, seeded_user):
         }
     }
 
-    agent_result = AgentEvaluationResult(
-        agent_name="sme",
-        evaluation_id=job.evaluation_id,
-        document_id=document_id,
-        subtotal=3.0,
-        criterion_scores=(
-            AgentCriterionScore("A-02", "Varied Assessment", 3, "justification", ()),
-        ),
-        summary="Evaluation complete",
-        model_name="test-model",
-        processing_seconds=1.2,
-        token_count=100,
+    sme_result = make_agent_result(
+        "sme",
+        job.evaluation_id,
+        document_id,
         metadata={
             "group_prompts": {"assessment_alignment": "prompt text"},
             "group_responses": group_responses,
         },
     )
+    gad_result = make_agent_result("gad", job.evaluation_id, document_id)
+    itso_result = make_agent_result("itso", job.evaluation_id, document_id)
 
     persist_agent_outputs(
         db_session,
         job.evaluation_id,
         document_id,
-        [agent_result],
+        [sme_result, gad_result, itso_result],
+        verify_ownership=lambda db: None,
     )
 
     saved_row = (
         db_session.query(AgentResult)
-        .filter(AgentResult.evaluation_id == job.evaluation_id)
+        .filter(
+            AgentResult.evaluation_id == job.evaluation_id,
+            AgentResult.agent_name == "sme",
+        )
         .one()
     )
     assert saved_row.group_prompts == {"assessment_alignment": "prompt text"}

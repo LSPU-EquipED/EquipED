@@ -17,8 +17,8 @@ class _Response:
     def __init__(self, body):
         self._body = json.dumps(body).encode()
 
-    def read(self):
-        return self._body
+    def read(self, amount=None):
+        return self._body if amount is None else self._body[:amount]
 
     def __enter__(self):
         return self

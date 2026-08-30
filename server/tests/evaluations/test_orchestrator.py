@@ -5,18 +5,29 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.evaluations.exceptions import EvaluationPipelineFailure
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
 from server.modules.evaluations.service import acquire_evaluation_execution
-from server.modules.synthesis.models import MonitoringMatrix
+from server.modules.synthesis.models import (
+    AgentResult,
+    MonitoringMatrix,
+)
+from server.modules.synthesis.models import (
+    CriterionScore as StoredCriterionScore,
+)
+from server.tests.evaluations.snapshot_test_helpers import (
+    make_agent_result,
+    make_scheduled_agent_results,
+)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from .conftest import _add_document, _seed_active_prompts
+from .conftest import _add_document, _seed_active_prompts, _seed_all_rubrics
 
 
 def _run_claimed(evaluation_id, session_factory):
@@ -69,6 +80,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(session)
+    _seed_all_rubrics(session)
 
     captured_context: dict[str, object] = {}
 
@@ -93,7 +105,6 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     )
 
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
     from server.modules.agents.supervision.result import SupervisorResult
 
     monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
@@ -135,16 +146,21 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         recording_transition,
     )
 
+    captured_snapshots: tuple | None = None
+
     def fake_run_evaluation(
         self,
         *,
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots,
         query_text=None,
         context=None,
         heartbeat_callback=None,
     ):
+        nonlocal captured_snapshots
+        captured_snapshots = form_snapshots
         if callable(heartbeat_callback):
             heartbeat_callback()
         captured_context.update(context or {})
@@ -158,54 +174,17 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(
-                        CriterionScore(
-                            criterion_id="c1",
-                            criterion_title="Criterion 1",
-                            score=3,
-                            justification="ok",
-                        ),
-                    ),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    prompt_version_id=None,
-                ),
-                *[
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=3,
-                        criterion_scores=(),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                    for agent_name in ("gad", "itso", "coordinator")
-                ],
-            ],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=False,
+            ),
         )
 
     monkeypatch.setattr(
         evaluation_orchestrator.Supervisor,
         "run_evaluation",
         fake_run_evaluation,
-    )
-    monkeypatch.setattr(
-        evaluation_orchestrator,
-        "_reconcile_coordinator_result",
-        lambda results, **kwargs: results,
     )
 
     _run_claimed(job.evaluation_id, SessionLocal)
@@ -214,6 +193,14 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         refreshed = readback.get(EvaluationJob, job.evaluation_id)
         assert refreshed is not None
         assert refreshed.status == EvaluationStatus.COMPLETED.value
+        assert isinstance(captured_snapshots, tuple)
+        assert [s.agent_id for s in captured_snapshots] == [
+            "sme",
+            "coordinator",
+            "gad",
+            "itso",
+        ]
+        assert all(s.evaluation_id == job.evaluation_id for s in captured_snapshots)
         assert seen_statuses == [
             EvaluationStatus.EVALUATING,
             EvaluationStatus.SYNTHESIZING,
@@ -223,6 +210,18 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         assert (
             readback.query(MonitoringMatrix).filter_by(document_id=slm_id).count() == 1
         )  # noqa: E501
+        coord_result = (
+            readback.query(AgentResult)
+            .filter_by(evaluation_id=job.evaluation_id, agent_name="coordinator")
+            .one()
+        )
+        coord_scores = (
+            readback.query(StoredCriterionScore)
+            .filter_by(agent_result_id=coord_result.agent_result_id)
+            .all()
+        )
+        assert len(coord_scores) == 1
+        assert coord_scores[0].criterion_id == "A-05"
     assert captured_context == {
         "reference_document_ids": {
             "syllabus": syllabus_id,
@@ -237,7 +236,6 @@ def test_orchestrator_partial_without_curriculum_completes(
 ) -> None:
     """A deliberate no-curriculum partial job skips Coordinator and ends COMPLETED."""
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -253,6 +251,7 @@ def test_orchestrator_partial_without_curriculum_completes(
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -313,6 +312,7 @@ def test_orchestrator_partial_without_curriculum_completes(
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -326,65 +326,17 @@ def test_orchestrator_partial_without_curriculum_completes(
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(
-                        CriterionScore(
-                            criterion_id="c1",
-                            criterion_title="Criterion 1",
-                            score=3,
-                            justification="ok",
-                        ),
-                    ),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                AgentEvaluationResult(
-                    agent_name="gad",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                AgentEvaluationResult(
-                    agent_name="itso",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-            ],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=True,
+            ),
         )
 
     monkeypatch.setattr(
         evaluation_orchestrator.Supervisor,
         "run_evaluation",
         fake_run_evaluation,
-    )
-    monkeypatch.setattr(
-        evaluation_orchestrator,
-        "_reconcile_coordinator_result",
-        lambda results, **kwargs: results,
     )
 
     _run_claimed(job.evaluation_id, session_factory)
@@ -416,7 +368,6 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
 
     from server.core import database as core_database
     from server.modules.admin import model_validation_service
-    from server.modules.agents.contracts import AgentEvaluationResult
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -431,6 +382,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
     db_session.commit()
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
     job = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=slm_id,
@@ -456,6 +408,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -465,37 +418,11 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                *[
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=3,
-                        criterion_scores=(),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                    for agent_name in ("gad", "itso")
-                ],
-            ],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=True,
+            ),
         )
 
     monkeypatch.setattr(
@@ -532,7 +459,6 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     and the supervisor/synthesis path — no duplicate back-to-back query.
     """
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -548,6 +474,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -587,6 +514,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -596,37 +524,11 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                *[
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=3,
-                        criterion_scores=(),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                    for agent_name in ("gad", "itso")
-                ],
-            ],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=True,
+            ),
         )
 
     monkeypatch.setattr(
@@ -646,8 +548,6 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     db_session, monkeypatch
 ) -> None:
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.sme.rubric import REGISTERED_CODES
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -676,6 +576,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         db_session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -708,6 +609,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -717,66 +619,11 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         return SupervisorResult(
             evaluation_id=evaluation_id,
             document_id=document_id,
-            agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=30,
-                    criterion_scores=tuple(
-                        CriterionScore(
-                            criterion_id=criterion_code,
-                            criterion_title=f"{criterion_code} title",
-                            score=3,
-                            justification="great",
-                        )
-                        for criterion_code in sorted(REGISTERED_CODES)
-                    ),
-                    summary="great",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                *[
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=3,
-                        criterion_scores=(),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                    for agent_name in ("gad", "itso")
-                ],
-                AgentEvaluationResult(
-                    agent_name="coordinator",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=4,
-                    criterion_scores=(
-                        CriterionScore(
-                            criterion_id="A-05",
-                            criterion_title="A-05 title",
-                            score=4,
-                            justification="curriculum evidence",
-                            evidence=("quote",),
-                        ),
-                    ),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-            ],
+            agent_results=make_scheduled_agent_results(
+                evaluation_id,
+                document_id,
+                partial_without_curriculum=False,
+            ),
         )
 
     monkeypatch.setattr(
@@ -799,7 +646,6 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
 ) -> None:
     """Accidental partial caused by agent failure in a full evaluation ends FAILED."""
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from sqlalchemy.orm import sessionmaker
@@ -828,6 +674,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         db_session, owner_id=admin.user_id, source_type="curriculum"
     )
     _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
 
     job = EvaluationJob(
         evaluation_id=uuid4(),
@@ -860,6 +707,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         evaluation_id,
         document_id,
         chunks,
+        form_snapshots=None,
         query_text=None,
         context=None,
         heartbeat_callback=None,
@@ -870,48 +718,17 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
             evaluation_id=evaluation_id,
             document_id=document_id,
             agent_results=[
-                AgentEvaluationResult(
-                    agent_name="sme",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=3,
-                    criterion_scores=(),
-                    summary="ok",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=4,
-                    success=True,
-                    prompt_version_id=None,
-                ),
-                *[
-                    AgentEvaluationResult(
-                        agent_name=agent_name,
-                        evaluation_id=evaluation_id,
-                        document_id=document_id,
-                        subtotal=3,
-                        criterion_scores=(),
-                        summary="ok",
-                        model_name="local-model",
-                        processing_seconds=0.1,
-                        token_count=4,
-                        success=True,
-                        prompt_version_id=None,
-                    )
-                    for agent_name in ("gad", "itso")
-                ],
-                AgentEvaluationResult(
-                    agent_name="coordinator",
-                    evaluation_id=evaluation_id,
-                    document_id=document_id,
-                    subtotal=0,
-                    criterion_scores=(),
-                    summary="",
-                    model_name="local-model",
-                    processing_seconds=0.1,
-                    token_count=0,
+                make_agent_result("sme", evaluation_id, document_id, success=True),
+                make_agent_result("gad", evaluation_id, document_id, success=True),
+                make_agent_result("itso", evaluation_id, document_id, success=True),
+                make_agent_result(
+                    "coordinator",
+                    evaluation_id,
+                    document_id,
                     success=False,
-                    error_message="Coordinator LLM call failed",
-                    prompt_version_id=None,
+                    error_message=(
+                        f"CoordinatorExecutionFailure (reference: {uuid4().hex[:16]})"
+                    ),
                 ),
             ],
         )
@@ -951,9 +768,9 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
        job FAILED, matrix FAILED, full intent.
     """
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
     from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
     from server.modules.synthesis.models import MonitoringMatrix
     from server.modules.synthesis.service import get_evaluation_results
     from sqlalchemy.orm import sessionmaker
@@ -965,40 +782,27 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
         password="password123",
         role=UserRole.FACULTY,
     )
+    _seed_all_rubrics(db_session)
     db_session.commit()
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
     )
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
-    monkeypatch.setattr(
-        evaluation_orchestrator,
-        "_reconcile_coordinator_result",
-        lambda results, **kwargs: results,
-    )
 
     def _agent_result(name, eval_id, doc_id, success=True):
-        return AgentEvaluationResult(
-            agent_name=name,
-            evaluation_id=eval_id,
-            document_id=doc_id,
-            subtotal=3.5 if success else 0.0,
-            criterion_scores=(
-                CriterionScore(
-                    criterion_id=f"{name}-01",
-                    criterion_title=f"{name} 01",
-                    score=3,
-                    justification="ok",
-                ),
-            )
-            if success
-            else (),
+        return make_agent_result(
+            name,
+            eval_id,
+            doc_id,
+            success=success,
+            default_score=3,
             summary="ok",
             model_name="test-model",
             processing_seconds=0.1,
             token_count=10,
-            success=success,
-            error_message=None if success else f"{name} failed",
-            prompt_version_id=None,
+            error_message=None
+            if success
+            else f"{name.capitalize()}ExecutionFailure (reference: {uuid4().hex[:16]})",
         )
 
     # --- Case 1: intentional partial + all SME/GAD/ITSO success ---
@@ -1202,10 +1006,8 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     m4 = db_session.query(MonitoringMatrix).filter_by(document_id=slm_4).one()
     assert m4.evaluation_status == "FAILED"
     assert m4.evaluation_status != "COMPLETED_PARTIAL"
-    res4 = get_evaluation_results(job_4.evaluation_id, owner.user_id, db_session)
-    assert res4.is_partial is False
-    assert res4.partial_reason is None
-    assert res4.evaluation_status == EvaluationStatus.FAILED.value
+    with pytest.raises(EvaluationResultIntegrityError):
+        get_evaluation_results(job_4.evaluation_id, owner.user_id, db_session)
 
 
 def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
@@ -1224,6 +1026,7 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
         password="password123",
         role=UserRole.FACULTY,
     )
+    _seed_all_rubrics(db_session)
     db_session.commit()
     session_factory = sessionmaker(
         bind=db_session.get_bind(), autoflush=False, autocommit=False
@@ -1231,6 +1034,10 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
 
     # 1. Resumed intentional partial with 3 existing AgentResults
+    from server.modules.evaluations.agent_schedule import scheduled_agent_ids
+    from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
+    from server.modules.synthesis.service import persist_agent_outputs
+
     slm_partial = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
     job_partial = EvaluationJob(
         evaluation_id=uuid4(),
@@ -1246,21 +1053,24 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     db_session.add(job_partial)
     db_session.flush()
 
-    for agent_name in ("sme", "gad", "itso"):
-        db_session.add(
-            AgentResult(
-                agent_result_id=uuid4(),
-                evaluation_id=job_partial.evaluation_id,
-                document_id=slm_partial,
-                agent_name=agent_name,
-                subtotal=3.0,
-                processing_seconds=0.1,
-                token_count=10,
-                model_name="test-model",
-                summary="ok",
-                success=True,
-            )
-        )
+    resolve_or_reuse_evaluation_snapshots(
+        db_session,
+        job_partial.evaluation_id,
+        scheduled_agent_ids(partial_without_curriculum=True),
+    )
+
+    partial_results = make_scheduled_agent_results(
+        job_partial.evaluation_id,
+        slm_partial,
+        partial_without_curriculum=True,
+    )
+    persist_agent_outputs(
+        db_session,
+        job_partial.evaluation_id,
+        slm_partial,
+        partial_results,
+        verify_ownership=lambda db: None,
+    )
     db_session.commit()
 
     _run_claimed(job_partial.evaluation_id, session_factory)
@@ -1303,28 +1113,53 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     db_session.add(job_full)
     db_session.flush()
 
+    full_snapshots = resolve_or_reuse_evaluation_snapshots(
+        db_session,
+        job_full.evaluation_id,
+        scheduled_agent_ids(partial_without_curriculum=False),
+    )
+    full_snap_by_agent = {s.agent_id: s for s in full_snapshots}
+
+    from server.modules.synthesis.result_integrity import build_persistable_agent_result
+
     for agent_name in ("sme", "gad", "itso"):
-        db_session.add(
-            AgentResult(
-                agent_result_id=uuid4(),
-                evaluation_id=job_full.evaluation_id,
-                document_id=slm_full,
-                agent_name=agent_name,
-                subtotal=3.0,
-                processing_seconds=0.1,
-                token_count=10,
-                model_name="test-model",
-                summary="ok",
-                success=True,
-            )
+        res = make_agent_result(agent_name, job_full.evaluation_id, slm_full)
+        dto = full_snap_by_agent[agent_name]
+        p = build_persistable_agent_result(res, dto)
+        ar = AgentResult(
+            agent_result_id=uuid4(),
+            evaluation_id=job_full.evaluation_id,
+            document_id=slm_full,
+            agent_name=agent_name,
+            subtotal=p.subtotal,
+            processing_seconds=p.processing_seconds,
+            token_count=p.token_count,
+            model_name=p.model_name,
+            summary=p.summary,
+            success=True,
+            form_snapshot_id=dto.snapshot_id,
         )
+        db_session.add(ar)
+        db_session.flush()
+        for s in p.criterion_scores:
+            db_session.add(
+                StoredCriterionScore(
+                    criterion_score_id=uuid4(),
+                    agent_result_id=ar.agent_result_id,
+                    evaluation_id=job_full.evaluation_id,
+                    document_id=slm_full,
+                    criterion_id=s.criterion_id,
+                    criterion_title=s.criterion_title,
+                    score=s.score,
+                    justification=s.justification,
+                )
+            )
     db_session.commit()
 
     _run_claimed(job_full.evaluation_id, session_factory)
     db_session.expire_all()
     refreshed_full = db_session.get(EvaluationJob, job_full.evaluation_id)
     assert refreshed_full.status == EvaluationStatus.FAILED.value
-    assert "coordinator" in refreshed_full.error_message.lower()
     matrix_full = (
         db_session.query(MonitoringMatrix).filter_by(document_id=slm_full).one()
     )

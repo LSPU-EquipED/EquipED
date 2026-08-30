@@ -62,23 +62,23 @@ def test_evaluation_flag_item_rejects_uuid_string_as_agent_name() -> None:
     assert flag.agent_id == "coordinator"
 
 
-def test_criterion_score_item_accepts_evidence_and_chunk_ids() -> None:
-    """CriterionScoreItem should accept optional evidence and chunk_ids fields."""
+def test_criterion_score_item_accepts_evidence_and_ungrounded() -> None:
+    """CriterionScoreItem should accept optional evidence and ungrounded fields."""
     item = CriterionScoreItem(
         criterion_id="c1",
         criterion_text="Clear learning outcomes",
         score=4,
         justification="Well-defined outcomes aligned with standards",
         evidence="Section 2 states measurable outcomes...",
-        chunk_ids='["uuid-1", "uuid-2"]',
+        is_ungrounded=True,
     )
 
     assert item.evidence == "Section 2 states measurable outcomes..."
-    assert item.chunk_ids == '["uuid-1", "uuid-2"]'
+    assert item.is_ungrounded is True
 
 
-def test_criterion_score_item_evidence_and_chunk_ids_are_optional() -> None:
-    """evidence and chunk_ids should default to None when not provided."""
+def test_criterion_score_item_evidence_and_optional_fields_default() -> None:
+    """Optional fields should default cleanly when not provided."""
     item = CriterionScoreItem(
         criterion_id="c2",
         criterion_text="Assessment alignment",
@@ -87,7 +87,10 @@ def test_criterion_score_item_evidence_and_chunk_ids_are_optional() -> None:
     )
 
     assert item.evidence is None
-    assert item.chunk_ids is None
+    assert item.is_ungrounded is False
+    assert item.rubric_criterion_id is None
+    assert item.description is None
+    assert item.display_order is None
 
 
 def test_domain_score_block_accepts_adjectival_rating() -> None:

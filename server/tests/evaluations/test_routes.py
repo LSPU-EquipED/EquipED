@@ -119,7 +119,15 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     )
 
     def fake_run_evaluation(
-        self, *, evaluation_id, document_id, chunks, query_text=None, context=None
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        form_snapshots=None,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
     ):
         return SupervisorResult(
             evaluation_id=evaluation_id,
@@ -267,6 +275,7 @@ def test_results_partial_without_curriculum_returns_partial_reason(
         completed_at=datetime.now(UTC),
         partial_without_curriculum=True,
         partial_reason="No curriculum reference was available; Coordinator review was skipped.",  # noqa: E501
+        is_pre_snapshot_legacy=True,
     )
     db_session.add(job)
     db_session.flush()
