@@ -81,17 +81,17 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => setFilterType('all')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               filterType === 'all'
-                ? 'bg-[#1b3b87] text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                ? 'bg-primary text-primary-foreground'
+                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
             )}
           >
             All
             <span
               className={cn(
                 'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                filterType === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
+                filterType === 'all' ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-surface-subtle text-text-muted',
               )}
             >
               {counts.all}
@@ -102,10 +102,10 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => setFilterType('syllabus')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               filterType === 'syllabus'
-                ? 'bg-[#1b3b87] text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                ? 'bg-primary text-primary-foreground'
+                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
             )}
           >
             Syllabus
@@ -113,8 +113,8 @@ export function ReferenceLibraryTab() {
               className={cn(
                 'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
                 filterType === 'syllabus'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 text-slate-600',
+                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                  : 'bg-surface-subtle text-text-muted',
               )}
             >
               {counts.syllabus}
@@ -125,10 +125,10 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => setFilterType('curriculum')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               filterType === 'curriculum'
-                ? 'bg-[#1b3b87] text-white'
-                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                ? 'bg-primary text-primary-foreground'
+                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
             )}
           >
             Curriculum
@@ -136,8 +136,8 @@ export function ReferenceLibraryTab() {
               className={cn(
                 'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
                 filterType === 'curriculum'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-slate-100 text-slate-600',
+                  ? 'bg-primary-foreground/20 text-primary-foreground'
+                  : 'bg-surface-subtle text-text-muted',
               )}
             >
               {counts.curriculum}
@@ -150,7 +150,7 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => refetch()}
             disabled={isLoading}
-            className="inline-flex h-8 items-center gap-2 border border-slate-200 bg-white px-3 text-xs font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] disabled:opacity-50 rounded-sm"
+            className="inline-flex h-8 items-center gap-2 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-wide text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm"
             aria-label="Refresh reference list"
           >
             {isLoading ? (
@@ -167,38 +167,38 @@ export function ReferenceLibraryTab() {
         <div
           role="alert"
           aria-live="assertive"
-          className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm font-semibold text-[#b91c1c]"
+          className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive"
         >
           {tableError}
         </div>
       ) : null}
 
-      <div className="border border-slate-200 bg-white rounded-sm overflow-hidden">
+      <div className="border border-border bg-surface rounded-sm overflow-hidden">
         {isLoading ? (
           <div className="space-y-2.5 p-5">
-            <div className="animate-pulse bg-slate-100 h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-slate-100 h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-slate-100 h-8 w-full rounded-sm" />
+            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
+            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
+            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
           </div>
         ) : isError ? (
           <div className="py-12 text-center">
-            <p className="text-sm font-semibold text-[#b91c1c]">
+            <p className="text-sm font-semibold text-destructive">
               {getReferenceOperationError(error)}
             </p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
+            <p className="mt-1 text-xs font-medium text-text-muted">
               Please try refreshing the page.
             </p>
           </div>
         ) : items.length === 0 ? (
           <div className="py-12 text-center">
-            <BookOpen className="mx-auto size-8 text-slate-300" aria-hidden="true" />
-            <p className="mt-3 text-sm font-semibold text-slate-600">No references found.</p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
+            <BookOpen className="mx-auto size-8 text-text-muted" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-text">No references found.</p>
+            <p className="mt-1 text-xs font-medium text-text-muted">
               Upload a syllabus or curriculum to get started.
             </p>
             <Link
               to="/admin/ingest"
-              className="mt-4 inline-flex h-10 items-center gap-2 bg-[#1b3b87] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm"
+              className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             >
               <Upload className="size-4" />
               Upload reference
@@ -206,34 +206,34 @@ export function ReferenceLibraryTab() {
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="py-12 text-center">
-            <BookOpen className="mx-auto size-8 text-slate-300" aria-hidden="true" />
-            <p className="mt-3 text-sm font-semibold text-slate-600">
+            <BookOpen className="mx-auto size-8 text-text-muted" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-text">
               No {filterType} references found.
             </p>
-            <p className="mt-1 text-xs font-medium text-slate-500">
+            <p className="mt-1 text-xs font-medium text-text-muted">
               Select another filter or upload a new {filterType} reference.
             </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse border-spacing-0">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[11px] tracking-wider font-semibold border-b border-slate-200">
+              <thead className="bg-surface-subtle text-text-muted uppercase text-[11px] tracking-wider font-semibold border-b border-border">
                 <tr>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Title</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Type</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Program</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Course code</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Sem / AY</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Lesson</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Status</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">File</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Chunks</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Chroma</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500">Uploaded</th>
-                  <th scope="col" className="py-3 px-4 font-semibold text-slate-500 text-right">Actions</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Title</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Type</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Program</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Course code</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Sem / AY</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Lesson</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Status</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">File</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Chunks</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Chroma</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted">Uploaded</th>
+                  <th scope="col" className="py-3 px-4 font-semibold text-text-muted text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-border">
                 {filteredItems.map((item) => (
                   <ReferenceRow
                     key={item.documentId}
