@@ -9,10 +9,16 @@ import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
+from types import MappingProxyType
 
 from server.core.config import get_settings
 from server.core.llm import get_llm_client_for_agent
 
+from ...rubrics.snapshot_contracts import (
+    EvaluationFormSnapshotDTO,
+    SnapshotIntegrityError,
+    verify_evaluation_form_snapshot,
+)
 from ..contracts import AgentEvaluationResult
 from ..exceptions import SupervisorExecutionError
 from ..provenance import sanitize_provenance
@@ -109,7 +115,7 @@ class AgentDispatcher:
     ) -> AgentEvaluationResult:
         """Keep structured failure fields while removing untrusted diagnostics."""
         safe_match = re.fullmatch(
-            r"(GADExecutionFailure|AgentReportedFailure) \(reference: ([0-9a-f]{16})\)",
+            r"([A-Za-z][A-Za-z0-9_]{0,63}) \(reference: ([0-9a-f]{16})\)",
             result.error_message or "",
         )
         if safe_match:
@@ -138,6 +144,7 @@ class AgentDispatcher:
             token_count=0,
             error_message=f"{category} (reference: {reference})",
             raw_response=None,
+            prompt_text=None,
             metadata={},
             advisory_outputs=None,
             provenance=sanitize_provenance(_thaw(result.provenance)),
@@ -150,6 +157,7 @@ class AgentDispatcher:
         agent_name,
         evaluation_id,
         document_id,
+        form_snapshot: EvaluationFormSnapshotDTO,
         chunk_infos,
         context_text,
         prompt_row,
@@ -168,6 +176,7 @@ class AgentDispatcher:
             kwargs = {
                 "evaluation_id": evaluation_id,
                 "document_id": document_id,
+                "form_snapshot": form_snapshot,
                 "chunk_infos": _thaw(chunk_infos),
                 "context_text": context_text,
                 # PromptSnapshot is captured before workers start. Pass both
@@ -241,6 +250,7 @@ class AgentDispatcher:
         evaluation_id,
         document_id,
         chunk_infos,
+        form_snapshots: tuple[EvaluationFormSnapshotDTO, ...],
         context_text,
         prompt_versions,
         reference_document_ids,
@@ -252,6 +262,61 @@ class AgentDispatcher:
         authoritative_curriculum_text=None,
         heartbeat_callback: Callable[[], None] | None = None,
     ):
+        # 1. Validate worker agent names uniqueness
+        agent_names = [
+            getattr(agent, "agent_name", agent.__class__.__name__)
+            for agent in self.agents
+        ]
+        if len(set(agent_names)) != len(agent_names):
+            raise SupervisorExecutionError(
+                "Duplicate worker agent names configured for dispatch"
+            )
+
+        # 2. Validate form_snapshots type
+        if not isinstance(form_snapshots, tuple) or not all(
+            isinstance(s, EvaluationFormSnapshotDTO) for s in form_snapshots
+        ):
+            raise SupervisorExecutionError(
+                "form_snapshots must be a tuple of EvaluationFormSnapshotDTO instances"
+            )
+
+        # 3. Validate snapshot agent_ids uniqueness
+        snapshot_agent_ids = [s.agent_id for s in form_snapshots]
+        if len(set(snapshot_agent_ids)) != len(snapshot_agent_ids):
+            raise SupervisorExecutionError("Duplicate agent_id found in form_snapshots")
+
+        # 4. Validate exact match of agent sets
+        if set(snapshot_agent_ids) != set(agent_names):
+            raise SupervisorExecutionError(
+                "Snapshot agent-id set does not match worker agent-name set"
+            )
+
+        # 5. Pure dispatch-time re-verification of each snapshot DTO
+        verified_snapshot_map: dict[str, EvaluationFormSnapshotDTO] = {}
+        for s in form_snapshots:
+            if s.evaluation_id != evaluation_id:
+                raise SupervisorExecutionError(
+                    "Snapshot evaluation_id does not match dispatch evaluation_id"
+                )
+            try:
+                verify_evaluation_form_snapshot(
+                    snapshot_id=s.snapshot_id,
+                    evaluation_id=s.evaluation_id,
+                    agent_id=s.agent_id,
+                    rubric_set_id=s.rubric_set_id,
+                    adapter_key=s.adapter_key,
+                    adapter_version=s.adapter_version,
+                    snapshot_hash=s.snapshot_hash,
+                    snapshot_payload=s.snapshot_payload.model_dump(mode="json"),
+                )
+            except SnapshotIntegrityError as exc:
+                raise SupervisorExecutionError(
+                    "Form snapshot failed dispatch integrity re-verification"
+                ) from exc
+            verified_snapshot_map[s.agent_id] = s
+
+        snapshot_mapping = MappingProxyType(verified_snapshot_map)
+
         results, failures, pending = [], {}, {}
         snapshots = {
             "chunk_infos": chunk_infos,
@@ -278,6 +343,7 @@ class AgentDispatcher:
                     agent_name=name,
                     evaluation_id=evaluation_id,
                     document_id=document_id,
+                    form_snapshot=snapshot_mapping[name],
                     chunk_infos=snapshots["chunk_infos"],
                     context_text=context_text,
                     prompt_row=prompt,
