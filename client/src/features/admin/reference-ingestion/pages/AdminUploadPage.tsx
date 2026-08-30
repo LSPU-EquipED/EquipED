@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowLeft, CheckCircle, FileText, Loader2, Upload, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle,
+  FileText,
+  Spinner,
+  UploadSimple,
+  XCircle,
+} from '@phosphor-icons/react';
 import { documentsApi } from '@/shared/api/documents.api';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { cn } from '@/shared/components/utils';
@@ -292,7 +299,7 @@ export function AdminUploadPage() {
               'transition-colors hover:border-border-strong hover:bg-surface-subtle focus-within:ring-2 focus-within:ring-ring',
             )}
           >
-            <Upload className="size-7 text-text-muted" aria-hidden="true" />
+            <UploadSimple className="size-7 text-text-muted" aria-hidden="true" />
             <span className="max-w-full truncate text-sm font-semibold text-text">
               {file ? file.name : 'Drop a PDF here or browse files'}
             </span>
@@ -320,7 +327,7 @@ export function AdminUploadPage() {
               {isSuccess ? (
                 <CheckCircle className="mt-0.5 size-5 shrink-0 text-success" aria-hidden="true" />
               ) : isProcessing ? (
-                <Loader2
+                <Spinner
                   className="mt-0.5 size-5 shrink-0 animate-spin text-text-muted"
                   aria-hidden="true"
                 />
@@ -398,7 +405,7 @@ export function AdminUploadPage() {
             >
               {isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  <Spinner className="size-4 animate-spin" aria-hidden="true" />
                   Ingesting...
                 </span>
               ) : (

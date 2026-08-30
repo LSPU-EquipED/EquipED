@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { Warning, X } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 
 type ReplaceAlignmentModalProps = {
@@ -52,7 +52,7 @@ export function ReplaceAlignmentModal({
       >
         <header className="flex items-start justify-between gap-4 border-b border-border bg-surface p-4">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="size-5 text-destructive" aria-hidden="true" />
+            <Warning className="size-5 text-destructive" aria-hidden="true" />
             <h2 id="replace-alignment-title" className="text-lg font-bold text-text">
               Replace the current result?
             </h2>

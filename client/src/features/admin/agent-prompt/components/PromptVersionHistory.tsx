@@ -1,4 +1,4 @@
-import { Loader2, RotateCcw } from 'lucide-react';
+import { ArrowCounterClockwise, Spinner } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { usePromptVersions } from '../hooks/usePromptVersions';
@@ -25,7 +25,7 @@ export function PromptVersionHistory({ agentId, onSelectVersion }: PromptVersion
       <div className="p-6 grid gap-3 max-h-[700px] overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider py-4">
-            <Loader2 className="size-4 animate-spin" /> Loading versions...
+            <Spinner className="size-4 animate-spin" /> Loading versions...
           </div>
         ) : isError ? (
           <p className="text-xs font-semibold text-destructive uppercase tracking-wider py-4">
@@ -57,7 +57,7 @@ export function PromptVersionHistory({ agentId, onSelectVersion }: PromptVersion
                     className="h-7 px-2 text-xs font-semibold text-primary hover:text-primary-strong"
                     title="Load this prompt into editor"
                   >
-                    <RotateCcw className="size-3 mr-1" />
+                    <ArrowCounterClockwise className="size-3 mr-1" />
                     Load
                   </Button>
                 ) : null}

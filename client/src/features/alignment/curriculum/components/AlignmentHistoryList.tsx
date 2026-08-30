@@ -4,7 +4,7 @@
 // (meta bar + status-badge table) so the two history views feel
 // consistent, but this is its own implementation.
 import { useEffect, useState } from 'react';
-import { AlertTriangle, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { Warning, ArrowSquareOut, Spinner, Trash } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
@@ -71,14 +71,14 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {isError ? (
           <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive">
-            <AlertTriangle className="size-4 shrink-0" />
+            <Warning className="size-4 shrink-0" />
             {getErrorMessage(error, 'Could not load check history.')}
           </div>
         ) : null}
 
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-text-muted">
-            <Loader2 className="size-5 animate-spin text-primary" />
+            <Spinner className="size-5 animate-spin text-primary" />
             <span>Loading check history…</span>
           </div>
         ) : null}
@@ -133,7 +133,7 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
                           onClick={() => onSelect(item)}
                         >
                           <span>View</span>
-                          <ExternalLink className="ml-1.5 size-3" aria-hidden="true" />
+                          <ArrowSquareOut className="ml-1.5 size-3" aria-hidden="true" />
                         </Button>
                         <button
                           type="button"
@@ -142,7 +142,7 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
                           aria-label="Delete check"
                           className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-destructive-soft hover:text-destructive focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <Trash2 className="size-4" />
+                          <Trash className="size-4" />
                         </button>
                       </div>
                     </td>

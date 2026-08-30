@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, FileText, Loader2, PlayCircle } from 'lucide-react';
+import { ArrowRight, FileText, PlayCircle, Spinner } from '@phosphor-icons/react';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { LatestEvaluationItem } from '@/shared/types/evaluations';
 import { cn } from '@/shared/components/utils';
@@ -94,7 +94,7 @@ export function RecentSlmsLedger({
                           )}
                         >
                           {display.showSpinner ? (
-                            <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+                            <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />
                           ) : null}
                           {display.badgeLabel}
                         </span>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Loader2, AlertTriangle, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { Spinner, WarningCircle, CaretLeft, CaretRight, Flag } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import type { EvaluationFlagItem } from '../types';
@@ -179,7 +179,7 @@ export function DocumentPane({
                 className="inline-flex size-7 items-center justify-center text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                 aria-label="Previous Page"
               >
-                <ChevronLeft className="size-4" />
+                <CaretLeft className="size-4" />
               </button>
 
               <div className="px-2">
@@ -206,7 +206,7 @@ export function DocumentPane({
                 className="inline-flex size-7 items-center justify-center text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                 aria-label="Next Page"
               >
-                <ChevronRight className="size-4" />
+                <CaretRight className="size-4" />
               </button>
             </div>
 
@@ -232,7 +232,7 @@ export function DocumentPane({
         {isLoading || isResolvingEval || submitIsPending ? (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/70">
             <div className="flex items-center gap-3 rounded-sm border border-border bg-surface px-5 py-4 text-xs font-bold text-text-muted uppercase tracking-wider shadow-sm">
-              <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />
+              <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
               {isResolvingEval
                 ? 'Checking for existing evaluation…'
                 : submitIsPending
@@ -253,7 +253,7 @@ export function DocumentPane({
           {isResolveError && (
             <div className="w-full max-w-2xl rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold mb-6">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <WarningCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <div className="flex-1">
                   <p className="font-semibold">
                     {getErrorMessage(resolveError, 'Failed to start evaluation.')}
@@ -273,7 +273,7 @@ export function DocumentPane({
           {submitIsError && (
             <div className="w-full max-w-2xl rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold mb-6">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <WarningCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <div className="flex-1">
                   <p className="font-semibold">
                     {getErrorMessage(submitError, 'Failed to start evaluation.')}
@@ -296,7 +296,7 @@ export function DocumentPane({
               {currentPage === (availablePages[0] || 1) && generalFlags.length > 0 && (
                 <div className="mb-6 rounded-sm border border-warning/30 bg-warning-soft p-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-warning uppercase tracking-wider">
-                    <AlertTriangle className="size-4 text-warning" />
+                    <WarningCircle className="size-4 text-warning" />
                     General Document-Wide Flags
                   </div>
                   <div className="mt-3 space-y-3">

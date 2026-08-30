@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Outlet, useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, CheckCircle, Flag } from 'lucide-react';
+import { WarningCircle, Spinner, CheckCircle, Flag } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
@@ -88,7 +88,7 @@ export function Scorecard() {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-canvas">
         <div className="flex flex-col items-center gap-4 text-text-muted border border-border bg-surface p-8 rounded-sm">
-          <Loader2 className="size-8 animate-spin text-primary" />
+          <Spinner className="size-8 animate-spin text-primary" />
           <p className="text-xs font-bold uppercase tracking-wider text-text">Loading evaluation status...</p>
         </div>
       </div>
@@ -99,7 +99,7 @@ export function Scorecard() {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-canvas">
         <div className="flex flex-col items-center gap-4 text-destructive border border-destructive/20 bg-surface p-8 rounded-sm">
-          <AlertTriangle className="size-8 text-destructive" />
+          <WarningCircle className="size-8 text-destructive" />
           <p className="text-sm font-bold uppercase tracking-wider">
             Failed to load evaluation details.
           </p>
@@ -161,12 +161,12 @@ export function Scorecard() {
         {/* Unified Ledger Summary block */}
         <div className="mx-auto max-w-[90rem] border border-border bg-surface p-6 rounded-sm mb-6">
           <div className="flex items-center gap-3 border-b border-border pb-4 select-none">
-            {!isTerminal && <Loader2 className="size-5 animate-spin text-primary" />}
+            {!isTerminal && <Spinner className="size-5 animate-spin text-primary" />}
             {isTerminal && (!isFailed || isFailedWithResults) && (
               <CheckCircle className="size-5 text-success" />
             )}
             {isFailed && !isFailedWithResults && (
-              <AlertTriangle className="size-5 text-destructive" />
+              <WarningCircle className="size-5 text-destructive" />
             )}
 
             <div>
@@ -272,14 +272,14 @@ export function Scorecard() {
 
         {isTerminal && isLoadingResults && (
           <div className="flex justify-center py-12">
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <Spinner className="size-6 animate-spin text-primary" />
           </div>
         )}
 
         {isTerminal && isResultsError && (
           <div className="mx-auto max-w-[90rem] rounded-sm border border-destructive/20 bg-destructive-soft p-6 mb-8 text-destructive">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="size-5 shrink-0" />
+              <WarningCircle className="size-5 shrink-0" />
               <div className="flex-1">
                 <p className="font-bold uppercase tracking-wider text-xs">
                   Failed to load evaluation results

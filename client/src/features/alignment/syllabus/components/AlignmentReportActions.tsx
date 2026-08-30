@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { DownloadSimple } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 import type { AlignmentRun } from '../types';
 import { exportAlignmentPdf } from '../utils/alignmentPdf';
@@ -33,7 +33,7 @@ export function AlignmentReportActions({
         disabled={exporting}
         isLoading={exporting}
       >
-        {!exporting ? <Download className="size-4" /> : null}
+        {!exporting ? <DownloadSimple className="size-4" /> : null}
         Export PDF
       </Button>
       {error && <p className="w-full text-right text-xs font-semibold text-destructive">{error}</p>}

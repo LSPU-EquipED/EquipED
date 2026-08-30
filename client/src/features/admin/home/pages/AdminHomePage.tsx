@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
-import { AlertTriangle, ArrowRight, Plus, ScanSearch, Upload } from 'lucide-react';
+import { ArrowRight, Plus, Scan, UploadSimple, Warning } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
@@ -91,7 +91,7 @@ export function AdminHomePage() {
         <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="flex size-10 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-              <ScanSearch className="size-5" />
+              <Scan className="size-5" />
             </div>
             <div>
               <p className="font-semibold text-text">Validate Model Scores</p>
@@ -115,7 +115,7 @@ export function AdminHomePage() {
         <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="flex size-10 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-              <Upload className="size-5" />
+              <UploadSimple className="size-5" />
             </div>
             <div>
               <p className="font-semibold text-text">Upload Reference Document</p>
@@ -139,7 +139,7 @@ export function AdminHomePage() {
         <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="flex size-10 items-center justify-center rounded-sm bg-warning-soft border border-warning/20 text-warning shrink-0">
-              <AlertTriangle className="size-5" />
+              <Warning className="size-5" />
             </div>
             <div>
               <p className="font-semibold text-text">Review Failures</p>

@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { CaretDown, Check, MagnifyingGlass } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import type { ProgramCollegeGroup, ProgramEntry } from '@/shared/constants/programs';
 
@@ -211,7 +211,7 @@ export function ProgramSelector({
             {placeholder}
           </span>
         )}
-        <ChevronDown
+        <CaretDown
           className={cn(
             'size-4 shrink-0 text-text-muted transition-transform',
             isOpen && 'rotate-180',
@@ -228,7 +228,7 @@ export function ProgramSelector({
           className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-border bg-surface shadow-sm"
         >
           <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
-            <Search className="size-4 text-text-muted" aria-hidden="true" />
+            <MagnifyingGlass className="size-4 text-text-muted" aria-hidden="true" />
             <input
               ref={searchInputRef}
               id={searchId}

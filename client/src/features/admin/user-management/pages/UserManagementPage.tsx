@@ -1,5 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, AlertTriangle, Pencil, UserX, Trash2, UserCheck } from 'lucide-react';
+import {
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  Trash,
+  UserCheck,
+  UserMinus,
+  Warning,
+} from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
@@ -87,7 +95,7 @@ export function UserManagementPage() {
             disabled={deactivateUser.isPending}
             className="text-xs font-semibold uppercase tracking-wider"
           >
-            <UserX className="size-4" />
+            <UserMinus className="size-4" />
             Deactivate {selectedIds.size}
           </Button>
         ) : null}
@@ -103,7 +111,7 @@ export function UserManagementPage() {
       </div>
 
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+        <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <input
           type="text"
           className={cn(
@@ -127,7 +135,7 @@ export function UserManagementPage() {
           </div>
         ) : isError ? (
           <div className="flex items-center justify-center gap-2 py-12 text-destructive font-semibold">
-            <AlertTriangle className="size-5" />
+            <Warning className="size-5" />
             <span>Failed to load users.</span>
           </div>
         ) : filteredUsers.length === 0 ? (
@@ -202,7 +210,7 @@ export function UserManagementPage() {
                         className="text-xs uppercase tracking-wider font-semibold"
                         aria-label={`Edit ${user.name}`}
                       >
-                        <Pencil className="size-3.5" />
+                        <PencilSimple className="size-3.5" />
                         Edit
                       </Button>
                       {user.is_active ? (
@@ -223,7 +231,7 @@ export function UserManagementPage() {
                           className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
                           aria-label={`Deactivate ${user.name}`}
                         >
-                          <UserX className="size-3.5" />
+                          <UserMinus className="size-3.5" />
                           Deactivate
                         </Button>
                       ) : (
@@ -259,7 +267,7 @@ export function UserManagementPage() {
                         className="text-xs uppercase tracking-wider font-semibold"
                         aria-label={`Delete ${user.name}`}
                       >
-                        <Trash2 className="size-3.5" />
+                        <Trash className="size-3.5" />
                         Delete
                       </Button>
                     </div>

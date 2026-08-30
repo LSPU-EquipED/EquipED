@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from '@tanstack/react-router';
-import { CheckCircle, FileText, TriangleAlert } from 'lucide-react';
+import { CheckCircle, FileText, Warning } from '@phosphor-icons/react';
 
 import { getErrorMessage } from '@/shared/api/http';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
@@ -101,7 +101,7 @@ export function DocumentDashboard() {
 
       {error ? (
         <div className="flex items-center gap-2 border-b border-destructive/30 bg-destructive-soft px-6 md:px-8 py-3 text-sm text-destructive font-semibold">
-          <TriangleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+          <Warning className="size-4 shrink-0 text-destructive" aria-hidden="true" />
           {getErrorMessage(error, 'Unable to load documents.')}
         </div>
       ) : null}

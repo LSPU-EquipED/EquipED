@@ -1,4 +1,4 @@
-import { MessageSquareText, Quote } from 'lucide-react';
+import { ChatTeardropText, Quotes } from '@phosphor-icons/react';
 import type { CriterionScoreItem } from '../types';
 import { cleanJustification } from '../utils/scoreHelpers';
 
@@ -18,7 +18,7 @@ export function FeedbackPanel({ criteria = [] }: FeedbackPanelProps) {
             className="flex gap-3 rounded-sm border border-border bg-surface p-3 text-sm transition duration-200 hover:bg-surface-subtle/50"
           >
             <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-sm bg-surface-subtle text-text-muted">
-              <MessageSquareText className="size-4" aria-hidden="true" />
+              <ChatTeardropText className="size-4" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-medium leading-snug text-text">{item.criterion_text}</p>
@@ -29,7 +29,7 @@ export function FeedbackPanel({ criteria = [] }: FeedbackPanelProps) {
               )}
               {item.evidence && (
                 <div className="mt-2 flex items-start gap-1.5 rounded-sm border border-border bg-surface-subtle px-2.5 py-1.5">
-                  <Quote className="mt-0.5 size-3 shrink-0 text-text-muted" aria-hidden="true" />
+                  <Quotes className="mt-0.5 size-3 shrink-0 text-text-muted" aria-hidden="true" />
                   <p className="text-xs leading-relaxed text-text-muted">{item.evidence}</p>
                 </div>
               )}
@@ -39,7 +39,7 @@ export function FeedbackPanel({ criteria = [] }: FeedbackPanelProps) {
       ) : (
         <div className="flex gap-3 rounded-sm border border-border bg-surface p-3 text-sm">
           <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-sm bg-surface-subtle text-text-muted">
-            <MessageSquareText className="size-4" aria-hidden="true" />
+            <ChatTeardropText className="size-4" aria-hidden="true" />
           </span>
           <p className="m-0 leading-6 text-text-muted">
             Agent feedback will appear here after persisted Layer 3 outputs are available for this

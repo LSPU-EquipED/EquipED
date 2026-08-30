@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { DownloadSimple } from '@phosphor-icons/react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
 import type { EvaluationResultsResponse } from '../types';
 import {
@@ -577,7 +577,7 @@ export function ScorecardPdfExport({ results }: ScorecardPdfExportProps) {
         onClick={handleExport}
         disabled={isExporting}
       >
-        <Download className="mr-1.5 size-4" aria-hidden="true" />
+        <DownloadSimple className="mr-1.5 size-4" aria-hidden="true" />
         {isExporting ? 'Creating PDF...' : 'Export Scorecard PDF'}
       </button>
       {errorMessage && (

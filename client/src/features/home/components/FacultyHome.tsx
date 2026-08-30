@@ -1,4 +1,4 @@
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { ArrowsClockwise, Warning } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/Button';
 import { TYPOGRAPHY } from '@/shared/constants/theme';
@@ -38,7 +38,7 @@ export function FacultyHome() {
             className="h-9 px-3 text-xs uppercase tracking-wider"
             title="Refresh dashboard data"
           >
-            <RefreshCw className="size-3.5" aria-hidden="true" />
+            <ArrowsClockwise className="size-3.5" aria-hidden="true" />
             <span>Refresh</span>
           </Button>
         </div>
@@ -48,7 +48,7 @@ export function FacultyHome() {
       {isError ? (
         <div className="flex items-center justify-between rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive">
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="size-5 shrink-0" aria-hidden="true" />
+            <Warning className="size-5 shrink-0" aria-hidden="true" />
             <span className="font-semibold">
               {getErrorMessage(error, 'Unable to load workspace data.')}
             </span>

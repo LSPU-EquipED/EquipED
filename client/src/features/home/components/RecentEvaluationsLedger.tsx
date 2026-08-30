@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, ClipboardList, ExternalLink } from 'lucide-react';
+import { ArrowRight, ArrowSquareOut, ClipboardText } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import type { HomeEvaluationItem } from '../types';
@@ -18,7 +18,7 @@ export function RecentEvaluationsLedger({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-5 py-3.5">
         <div className="flex items-center gap-2">
-          <ClipboardList className="size-4 text-primary" aria-hidden="true" />
+          <ClipboardText className="size-4 text-primary" aria-hidden="true" />
           <h2 className="text-xs font-semibold uppercase tracking-wider text-text">
             Recent Evaluations
           </h2>
@@ -41,7 +41,7 @@ export function RecentEvaluationsLedger({
           </div>
         ) : evaluations.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center">
-            <ClipboardList className="size-8 text-text-muted/40 mb-2" aria-hidden="true" />
+            <ClipboardText className="size-8 text-text-muted/40 mb-2" aria-hidden="true" />
             <p className="text-sm font-semibold text-text">No evaluations yet</p>
             <p className="text-xs text-text-muted mt-1 max-w-xs">
               Evaluations will appear here after you evaluate an SLM.
@@ -99,7 +99,7 @@ export function RecentEvaluationsLedger({
                           className="inline-flex h-7 items-center gap-1 rounded-sm border border-border bg-surface px-2.5 text-[11px] font-semibold uppercase tracking-wider text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <span>View</span>
-                          <ExternalLink className="size-3 text-text-muted" aria-hidden="true" />
+                          <ArrowSquareOut className="size-3 text-text-muted" aria-hidden="true" />
                         </Link>
                       </td>
                     </tr>

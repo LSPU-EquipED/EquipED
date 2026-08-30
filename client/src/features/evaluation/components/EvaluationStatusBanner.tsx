@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react';
+import { Info } from '@phosphor-icons/react';
 
 type EvaluationStatusBannerProps = {
   readonly status?: string;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { DownloadSimple } from '@phosphor-icons/react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
@@ -504,7 +504,7 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
         onClick={handleDownload}
         disabled={isDownloading}
       >
-        <Download className="size-4 mr-1.5" aria-hidden="true" />
+        <DownloadSimple className="size-4 mr-1.5" aria-hidden="true" />
         {isDownloading ? 'Creating PDF...' : 'Download PDF'}
       </button>
       {errorMessage && (

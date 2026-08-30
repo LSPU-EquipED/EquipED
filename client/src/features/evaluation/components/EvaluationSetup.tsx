@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  AlertTriangle,
+  WarningCircle,
   BookOpen,
-  Loader2,
+  Spinner,
   Play,
-  ShieldAlert,
-} from 'lucide-react';
+  ShieldWarning,
+} from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
@@ -156,7 +156,7 @@ export function EvaluationSetup({
             role="status"
             className="flex items-center gap-3 rounded-sm border border-border bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-text-muted"
           >
-            <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />
+            <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
             <span>Loading SLM metadata…</span>
           </div>
         ) : null}
@@ -179,7 +179,7 @@ export function EvaluationSetup({
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
+                <WarningCircle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
                 <div className="flex-1">
                   <p className="font-bold text-text">Unable to verify existing evaluations</p>
                   <p className="mt-1 text-xs leading-relaxed text-destructive">
@@ -383,7 +383,7 @@ export function EvaluationSetup({
                 role="status"
                 className="flex items-center gap-3 rounded-sm border border-border bg-surface-subtle p-4 text-xs font-semibold uppercase tracking-wider text-text-muted"
               >
-                <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />
+                <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
                 <span>Loading curriculum references for {selectedProgram}…</span>
               </div>
             ) : null}
@@ -514,7 +514,7 @@ export function EvaluationSetup({
         {canConfigure && evaluationMode === 'partial' ? (
           <div className="rounded-sm border border-warning/40 bg-warning-soft p-5 space-y-4">
             <div className="flex items-start gap-3">
-              <ShieldAlert className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
+              <ShieldWarning className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
               <div className="flex-1">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-text">
                   Partial Review Terms
@@ -556,7 +556,7 @@ export function EvaluationSetup({
                 className="rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive"
               >
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <WarningCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                   <div className="flex-1">
                     <p>{getErrorMessage(submitError, 'Failed to start evaluation.')}</p>
                     <button
@@ -579,7 +579,7 @@ export function EvaluationSetup({
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  <Spinner className="size-4 animate-spin" aria-hidden="true" />
                   <span>Starting evaluation…</span>
                 </>
               ) : (

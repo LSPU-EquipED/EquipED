@@ -1,11 +1,10 @@
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import {
-  PanelLeftClose,
-  PanelLeftOpen,
-  Upload,
+  SidebarSimple,
+  UploadSimple,
   X,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/components/utils';
@@ -223,7 +222,7 @@ export function Sidebar({
                 title={collapsed ? 'Upload SLM' : undefined}
                 aria-label="Upload SLM"
               >
-                <Upload className="size-4 shrink-0" aria-hidden="true" />
+                <UploadSimple className="size-4 shrink-0" aria-hidden="true" />
                 <span className={cn(collapsed && 'md:hidden')}>Upload SLM</span>
               </Link>
             </div>
@@ -311,7 +310,7 @@ export function Sidebar({
                 title={collapsed ? 'Rubrics' : undefined}
                 aria-label={collapsed ? 'Rubrics' : undefined}
               >
-                <Upload className="size-4 shrink-0" aria-hidden="true" />
+                <UploadSimple className="size-4 shrink-0" aria-hidden="true" />
                 <span className={cn('truncate', collapsed && 'md:hidden')}>Rubrics</span>
               </Link>
             </nav>
@@ -334,9 +333,9 @@ export function Sidebar({
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
-            <PanelLeftOpen className="size-4 shrink-0" aria-hidden="true" />
+            <SidebarSimple className="size-4 shrink-0 rotate-180" aria-hidden="true" />
           ) : (
-            <PanelLeftClose className="size-4 shrink-0" aria-hidden="true" />
+            <SidebarSimple className="size-4 shrink-0" aria-hidden="true" />
           )}
         </button>
       </div>

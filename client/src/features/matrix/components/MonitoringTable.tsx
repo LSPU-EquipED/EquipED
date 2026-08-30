@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Spinner, Warning } from '@phosphor-icons/react';
 import { MatrixFilters } from './MatrixFilters';
 import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
 import { formatRevisionContext, getStatusVariant, getRatingVariant } from '../utils';
@@ -29,12 +29,12 @@ export function MonitoringTable() {
       <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
           <div className="flex justify-center items-center py-12 text-text-muted font-medium text-sm gap-2">
-            <Loader2 className="size-6 animate-spin text-primary" />
+            <Spinner className="size-6 animate-spin text-primary" />
             <span>Loading matrix data...</span>
           </div>
         ) : isError ? (
           <div className="flex justify-center items-center py-12 text-destructive font-semibold text-sm gap-2 bg-destructive-soft">
-            <AlertTriangle className="size-6 text-destructive" />
+            <Warning className="size-6 text-destructive" />
             <span>Failed to load matrix data.</span>
           </div>
         ) : !data || data.items.length === 0 ? (

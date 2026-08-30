@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { BookOpen, Upload } from 'lucide-react';
+import { UploadSimple, type Icon } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 
 export function PageHeader() {
@@ -16,7 +16,7 @@ export function PageHeader() {
         to="/admin/ingest"
         className="inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus:outline-none focus:ring-2 focus:ring-ring rounded-sm"
       >
-        <Upload className="size-4" />
+        <UploadSimple className="size-4" />
         Upload reference
       </Link>
     </div>
@@ -28,7 +28,7 @@ interface LibraryTabButtonProps {
   isActive: boolean;
   onSelect: () => void;
   label: string;
-  icon: typeof BookOpen;
+  icon: Icon;
 }
 
 export function LibraryTabButton({

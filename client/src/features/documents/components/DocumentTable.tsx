@@ -1,4 +1,4 @@
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { CaretRight, Spinner } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { MouseEvent } from 'react';
 import { cn } from '@/shared/components/utils';
@@ -111,7 +111,7 @@ export function DocumentTable({
                     )}
                   >
                     {display.showSpinner ? (
-                      <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
+                      <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />
                     ) : null}
                     {display.badgeLabel}
                   </span>
@@ -154,7 +154,7 @@ export function DocumentTable({
                       title={display.actionLabel}
                       className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <ChevronRight
+                      <CaretRight
                         className="size-4 text-text-muted group-hover:text-text transition-colors"
                         aria-hidden="true"
                       />

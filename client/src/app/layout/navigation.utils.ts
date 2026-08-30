@@ -1,24 +1,24 @@
 import {
   BookOpen,
-  BookOpenCheck,
-  ClipboardList,
-  FileUp,
+  BookOpenText,
+  Books,
+  ClipboardText,
   FolderOpen,
-  LayoutDashboard,
-  Library,
+  Gear,
+  GitFork,
+  type Icon,
   ListChecks,
-  Network,
-  ScanSearch,
-  Settings,
+  Scan,
   Shield,
+  SquaresFour,
+  UploadSimple,
   Users,
-  type LucideIcon,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 
 export interface NavItem {
   to: string;
   label: string;
-  icon: LucideIcon;
+  icon: Icon;
   exact: boolean;
 }
 
@@ -33,7 +33,7 @@ export const facultyNavGroups: readonly NavGroup[] = [
     id: 'home',
     label: 'HOME',
     items: [
-      { to: '/dashboard', label: 'Home', icon: LayoutDashboard, exact: true },
+      { to: '/dashboard', label: 'Home', icon: SquaresFour, exact: true },
     ],
   },
   {
@@ -41,7 +41,7 @@ export const facultyNavGroups: readonly NavGroup[] = [
     label: 'WORKSPACE',
     items: [
       { to: '/documents', label: 'My SLMs', icon: FolderOpen, exact: false },
-      { to: '/evaluations', label: 'Evaluations', icon: ClipboardList, exact: false },
+      { to: '/evaluations', label: 'Evaluations', icon: ClipboardText, exact: false },
     ],
   },
   {
@@ -49,24 +49,24 @@ export const facultyNavGroups: readonly NavGroup[] = [
     label: 'ALIGNMENT',
     items: [
       { to: '/syllabus-alignment', label: 'Syllabus Alignment', icon: ListChecks, exact: false },
-      { to: '/alignment', label: 'Curriculum Check', icon: BookOpenCheck, exact: false },
+      { to: '/alignment', label: 'Curriculum Check', icon: BookOpenText, exact: false },
     ],
   },
 ] as const;
 
 export const facultySecondaryNavItems: readonly NavItem[] = [
-  { to: '/evaluation-map', label: 'Evaluation Map', icon: Network, exact: false },
+  { to: '/evaluation-map', label: 'Evaluation Map', icon: GitFork, exact: false },
 ] as const;
 
 export const adminNavItems: readonly NavItem[] = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/admin', label: 'Dashboard', icon: SquaresFour, exact: true },
   { to: '/admin/users', label: 'Users', icon: Users, exact: true },
-  { to: '/admin/ingest', label: 'Ingest', icon: FileUp, exact: true },
-  { to: '/admin/references', label: 'References', icon: Library, exact: true },
+  { to: '/admin/ingest', label: 'Ingest', icon: UploadSimple, exact: true },
+  { to: '/admin/references', label: 'References', icon: Books, exact: true },
   { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
-  { to: '/evaluation-map', label: 'Knowledge Map', icon: Network, exact: true },
-  { to: '/admin/model-validation', label: 'Model Validation', icon: ScanSearch, exact: true },
-  { to: '/admin/prompts', label: 'Prompts', icon: Settings, exact: false },
+  { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
+  { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
+  { to: '/admin/prompts', label: 'Prompts', icon: Gear, exact: false },
   { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },
 ] as const;
 

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { AlertCircle, ArrowRight } from 'lucide-react';
+import { ArrowRight, WarningCircle } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { TYPOGRAPHY } from '@/shared/constants/theme';
 import type { AttentionItem } from '../types';
@@ -17,7 +17,7 @@ export function AttentionLedger({ items }: AttentionLedgerProps) {
     <div className="rounded-md border border-destructive/30 bg-surface overflow-hidden">
       <div className="flex items-center justify-between border-b border-destructive/20 bg-destructive-soft px-5 py-3">
         <div className="flex items-center gap-2">
-          <AlertCircle className="size-4 text-destructive" aria-hidden="true" />
+          <WarningCircle className="size-4 text-destructive" aria-hidden="true" />
           <h3 className="text-xs font-semibold uppercase tracking-wider text-destructive">
             Recent Issues ({items.length})
           </h3>

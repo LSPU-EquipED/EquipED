@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowDown,
-  ArrowRightLeft,
   ArrowUp,
+  ArrowsLeftRight,
   Check,
   CheckCircle,
-  FileCheck,
-  History,
+  ClockCounterClockwise,
   Lock,
-  Pencil,
+  PencilSimple,
   Plus,
-  Trash2,
-} from 'lucide-react';
+  Trash,
+} from '@phosphor-icons/react';
 import {
   getRubricOperationError,
   getValidationReportFromError,
@@ -480,7 +479,7 @@ export function RubricTableEditor() {
                       disabled={validateDraftMutation.isPending}
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                     >
-                      <FileCheck className="size-4 text-text-muted" />
+                      <CheckCircle className="size-4 text-text-muted" />
                       Validate
                     </button>
                     <button
@@ -506,7 +505,7 @@ export function RubricTableEditor() {
                       disabled={deleteDraftMutation.isPending}
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-destructive/30 text-destructive hover:bg-destructive-soft px-3 text-xs font-bold uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50"
                     >
-                      <Trash2 className="size-4" />
+                      <Trash className="size-4" />
                       Delete Draft
                     </button>
                   </>
@@ -556,7 +555,7 @@ export function RubricTableEditor() {
                   onClick={() => setShowHistorySidebar((prev) => !prev)}
                   className="lg:hidden inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <History className="size-4" />
+                  <ClockCounterClockwise className="size-4" />
                   History
                 </button>
               </div>
@@ -649,7 +648,7 @@ export function RubricTableEditor() {
                             aria-label={`Edit ${domain.code} domain`}
                             title="Edit Domain"
                           >
-                            <Pencil className="size-4" />
+                            <PencilSimple className="size-4" />
                           </button>
                           <button
                             type="button"
@@ -666,7 +665,7 @@ export function RubricTableEditor() {
                             aria-label={`Delete ${domain.code} domain`}
                             title="Delete Domain"
                           >
-                            <Trash2 className="size-4" />
+                            <Trash className="size-4" />
                           </button>
                           <button
                             type="button"
@@ -799,7 +798,7 @@ export function RubricTableEditor() {
                                         aria-label={`Edit ${criterion.criterion_code} row`}
                                         title="Edit Criterion"
                                       >
-                                        <Pencil className="size-3.5" />
+                                        <PencilSimple className="size-3.5" />
                                       </button>
                                       <button
                                         type="button"
@@ -814,7 +813,7 @@ export function RubricTableEditor() {
                                         aria-label={`Move ${criterion.criterion_code} to another domain`}
                                         title="Move Criterion"
                                       >
-                                        <ArrowRightLeft className="size-3.5" />
+                                        <ArrowsLeftRight className="size-3.5" />
                                       </button>
                                       <button
                                         type="button"
@@ -833,7 +832,7 @@ export function RubricTableEditor() {
                                         aria-label={`Delete ${criterion.criterion_code} row`}
                                         title="Delete Criterion"
                                       >
-                                        <Trash2 className="size-3.5" />
+                                        <Trash className="size-3.5" />
                                       </button>
                                     </div>
                                   </td>

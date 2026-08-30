@@ -1,7 +1,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type DragEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, GraduationCap, Loader2 } from 'lucide-react';
+import { ArrowRight, GraduationCap, Spinner } from '@phosphor-icons/react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import { Button } from '@/shared/components/Button';
@@ -308,7 +308,7 @@ export function UploadForm() {
                 >
                   {isLoading ? (
                     <span className="inline-flex items-center gap-2">
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      <Spinner className="size-4 animate-spin" aria-hidden="true" />
                       Uploading and Processing…
                     </span>
                   ) : (

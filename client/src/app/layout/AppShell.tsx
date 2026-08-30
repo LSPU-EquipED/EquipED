@@ -1,6 +1,6 @@
 import { Outlet, useLocation, useMatches } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { LogOut, Menu } from 'lucide-react';
+import { List, SignOut } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
@@ -98,7 +98,7 @@ export function AppShell() {
             aria-expanded={isMobileMenuOpen}
             aria-controls="app-sidebar"
           >
-            <Menu className="size-5" aria-hidden="true" />
+            <List className="size-5" aria-hidden="true" />
           </button>
 
           <span className="text-base font-bold text-text">
@@ -141,7 +141,7 @@ export function AppShell() {
                     void handleLogout();
                   }}
                 >
-                  <LogOut className="size-4" aria-hidden="true" />
+                  <SignOut className="size-4" aria-hidden="true" />
                   <span>Sign Out</span>
                 </button>
               </div>

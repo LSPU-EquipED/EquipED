@@ -1,11 +1,11 @@
 import { Link } from '@tanstack/react-router';
 import {
   ArrowRight,
-  ClipboardList,
+  ClipboardText,
   FolderOpen,
   ListChecks,
-  Upload,
-} from 'lucide-react';
+  UploadSimple,
+} from '@phosphor-icons/react';
 import { TYPOGRAPHY } from '@/shared/constants/theme';
 
 export function HomeQuickActions() {
@@ -15,7 +15,7 @@ export function HomeQuickActions() {
       <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="flex size-10 items-center justify-center rounded-sm border border-primary/20 bg-primary-soft text-primary shrink-0">
-            <Upload className="size-5" aria-hidden="true" />
+            <UploadSimple className="size-5" aria-hidden="true" />
           </div>
           <div>
             <h3 className={TYPOGRAPHY.headingSm}>Upload SLM</h3>
@@ -59,7 +59,7 @@ export function HomeQuickActions() {
       <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="flex size-10 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <ClipboardList className="size-5" aria-hidden="true" />
+            <ClipboardText className="size-5" aria-hidden="true" />
           </div>
           <div>
             <h3 className={TYPOGRAPHY.headingSm}>Evaluations</h3>
