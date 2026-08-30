@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
 from server.modules.evaluations.models import EvaluationStatus
 
 
@@ -115,28 +115,38 @@ class SystemSummaryResponse(BaseModel):
     failed_evaluations: int
 
 
-class ExpectedCriterionScoreCreate(BaseModel):
+class ModelValidationExpectedScoreInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     agent_id: Literal["sme", "coordinator", "gad", "itso"]
-    criterion_id: str = Field(min_length=1, max_length=100)
-    expected_score: int = Field(ge=1, le=4)
+    rubric_set_id: uuid.UUID
+    rubric_criterion_id: uuid.UUID
+    expected_score: StrictInt = Field(ge=1, le=4)
 
 
 class ModelValidationCreateRequest(BaseModel):
     """Create a benchmark without exposing expected criterion scores to agents.
 
-    Curriculum selection is retired: every new validation run is a
-    curriculum-retired partial evaluation of an admin-uploaded SLM.
+    Curriculum selection is required for full evaluations
+    (partial_without_curriculum=False) and must be omitted for partial
+    evaluations (partial_without_curriculum=True).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     document_id: uuid.UUID
     syllabus_id: uuid.UUID | None = None
-    partial_without_curriculum: bool = False
-    expected_scores: list[ExpectedCriterionScoreCreate] = Field(min_length=1)
+    curriculum_id: uuid.UUID | None = None
+    partial_without_curriculum: StrictBool = False
+    expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
 
 
 class ModelValidationCriterionScoreResponse(BaseModel):
     expected_score_id: uuid.UUID
     agent_id: str
+    rubric_set_id: uuid.UUID | None = None
+    rubric_version: int | None = None
+    rubric_criterion_id: uuid.UUID | None = None
     criterion_id: str
     criterion_title: str
     expected_score: int
@@ -145,22 +155,43 @@ class ModelValidationCriterionScoreResponse(BaseModel):
 
 
 class ModelValidationCriterionDefinition(BaseModel):
-    criterion_id: str
+    rubric_criterion_id: uuid.UUID
+    criterion_id: str | None = None
+    criterion_code: str
     title: str
     description: str
-    domain_title: str
+    domain_title: str | None = None
+    display_order: int
+
+
+class ModelValidationDomainDefinition(BaseModel):
+    rubric_domain_id: uuid.UUID
+    code: str
+    title: str
+    display_order: int
+    criteria: list[ModelValidationCriterionDefinition] = Field(default_factory=list)
 
 
 class ModelValidationAgentCriteria(BaseModel):
     agent_id: str
     agent_name: str
+    rubric_set_id: uuid.UUID
     rubric_version: int
-    criteria: list[ModelValidationCriterionDefinition]
+    domains: list[ModelValidationDomainDefinition] = Field(default_factory=list)
+    criteria: list[ModelValidationCriterionDefinition] = Field(default_factory=list)
 
 
 class ModelValidationCriteriaResponse(BaseModel):
     agents: list[ModelValidationAgentCriteria]
     total_criteria: int
+
+
+class ModelValidationBoundForm(BaseModel):
+    agent_id: str
+    rubric_set_id: uuid.UUID
+    rubric_version: int
+    adapter_key: str
+    adapter_version: int
 
 
 class ModelValidationResponse(BaseModel):
@@ -169,6 +200,7 @@ class ModelValidationResponse(BaseModel):
     document_id: uuid.UUID
     document_title: str | None = None
     partial_without_curriculum: bool = False
+    bound_forms: list[ModelValidationBoundForm] = Field(default_factory=list)
     criterion_scores: list[ModelValidationCriterionScoreResponse]
     absolute_error: float | None = None
     latency_seconds: float | None = None
@@ -229,11 +261,13 @@ __all__ = [
     "AdminUserListResponse",
     "SystemSummaryResponse",
     "ModelValidationCreateRequest",
-    "ExpectedCriterionScoreCreate",
+    "ModelValidationExpectedScoreInput",
     "ModelValidationCriterionScoreResponse",
     "ModelValidationCriterionDefinition",
+    "ModelValidationDomainDefinition",
     "ModelValidationAgentCriteria",
     "ModelValidationCriteriaResponse",
+    "ModelValidationBoundForm",
     "ModelValidationResponse",
     "ModelValidationListResponse",
     "ModelValidationMetricsResponse",

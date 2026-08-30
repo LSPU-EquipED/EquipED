@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -17,24 +18,36 @@ from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.modules.evaluations.service import create_evaluation
-from server.modules.rubrics.models import RubricCriterion, RubricDomain, RubricSet
+from server.modules.rubrics import (
+    lock_and_load_requested_active_forms,
+    persist_evaluation_form_snapshots,
+)
+from server.modules.rubrics.contracts import CriterionDefinition
+from server.modules.rubrics.models import (
+    EvaluationFormSnapshot,
+    RubricAgentActivation,
+    RubricCriterion,
+    RubricDomain,
+    RubricSet,
+)
 from server.modules.synthesis.models import AgentResult, CriterionScore
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
     AdminEvaluationResponse,
     ModelValidationAgentCriteria,
+    ModelValidationBoundForm,
     ModelValidationCreateRequest,
     ModelValidationCriteriaResponse,
     ModelValidationCriterionDefinition,
     ModelValidationCriterionScoreResponse,
+    ModelValidationDomainDefinition,
     ModelValidationMetricsResponse,
     ModelValidationResponse,
 )
 
-# New curriculum-retired evaluations never dispatch the Program Coordinator,
-# so Model Validation only benchmarks the active evaluator agents.
-ACTIVE_VALIDATION_AGENTS = ("sme", "gad", "itso")
+VALIDATION_AGENTS = ("sme", "coordinator", "gad", "itso")
+PARTIAL_VALIDATION_AGENTS = ("sme", "gad", "itso")
 AGENT_NAMES = {
     "sme": "Subject Matter Expert",
     "coordinator": "Program Coordinator",
@@ -62,11 +75,53 @@ def _model_validation_response(
     job: EvaluationJob,
     document: Document | None,
     criterion_rows: list[ModelValidationCriterionScore],
+    snapshots: Sequence[EvaluationFormSnapshot] = (),
 ) -> ModelValidationResponse:
+    crit_meta: dict[
+        tuple[str, str], tuple[uuid.UUID | None, uuid.UUID | None, int | None]
+    ] = {}
+    bound_forms: list[ModelValidationBoundForm] = []
+
+    for snap in snapshots:
+        payload = snap.snapshot_payload or {}
+        form_data = payload.get("form") or {}
+        rubric_set_id = snap.rubric_set_id
+        version_num = form_data.get("version_number", snap.adapter_version)
+        bound_forms.append(
+            ModelValidationBoundForm(
+                agent_id=snap.agent_id,
+                rubric_set_id=rubric_set_id,
+                rubric_version=version_num,
+                adapter_key=snap.adapter_key,
+                adapter_version=snap.adapter_version,
+            )
+        )
+        domains = form_data.get("domains") or []
+        for dom in domains:
+            for crit in dom.get("criteria") or []:
+                c_code = crit.get("criterion_code")
+                c_id_raw = crit.get("rubric_criterion_id")
+                c_id = uuid.UUID(str(c_id_raw)) if c_id_raw else None
+                if c_code:
+                    crit_meta[(snap.agent_id, c_code)] = (
+                        c_id,
+                        rubric_set_id,
+                        version_num,
+                    )
+
     criterion_scores = [
         ModelValidationCriterionScoreResponse(
             expected_score_id=row.expected_score_id,
             agent_id=row.agent_id,
+            rubric_set_id=crit_meta.get(
+                (row.agent_id, row.criterion_id), (None, None, None)
+            )[1],
+            rubric_version=crit_meta.get(
+                (row.agent_id, row.criterion_id), (None, None, None)
+            )[2],
+            rubric_criterion_id=crit_meta.get(
+                (row.agent_id, row.criterion_id), (None, None, None)
+            )[0],
             criterion_id=row.criterion_id,
             criterion_title=row.criterion_title,
             expected_score=row.expected_score,
@@ -92,6 +147,7 @@ def _model_validation_response(
         document_id=job.document_id,
         document_title=document.title if document is not None else None,
         partial_without_curriculum=job.partial_without_curriculum,
+        bound_forms=bound_forms,
         criterion_scores=criterion_scores,
         absolute_error=absolute_error,
         latency_seconds=latency_seconds,
@@ -122,35 +178,88 @@ def create_model_validation(
 ) -> ModelValidationResponse:
     """Create an evaluation job with private criterion-level benchmarks.
 
-    All persistence (evaluation job, validation record, expected criterion
-    rows) is committed atomically so a failure after the evaluation job
-    is created never leaves an orphan job.
+    All persistence (evaluation job, form snapshots, validation record,
+    expected criterion rows) is committed atomically so a failure after any
+    step never leaves an orphan job.
     """
-
-    criterion_catalog = _active_validation_criterion_map(db)
-    provided: dict[tuple[str, str], int] = {}
-    for item in request.expected_scores:
-        key = (item.agent_id, item.criterion_id)
-        if key in provided:
+    is_partial = bool(request.partial_without_curriculum)
+    if is_partial:
+        if request.curriculum_id is not None:
             raise InvalidEvaluationTargetError(
-                f"Duplicate expected score for {item.agent_id}/{item.criterion_id}."
+                "Partial evaluation without curriculum cannot specify a curriculum_id."
             )
-        provided[key] = item.expected_score
+        expected_agents = set(PARTIAL_VALIDATION_AGENTS)
+    else:
+        if request.curriculum_id is None:
+            raise InvalidEvaluationTargetError(
+                "Full evaluation benchmark requires an explicit curriculum_id."
+            )
+        expected_agents = set(VALIDATION_AGENTS)
 
-    expected_keys = set(criterion_catalog)
-    provided_keys = set(provided)
-    if expected_keys != provided_keys:
-        missing = sorted(expected_keys - provided_keys)
-        unexpected = sorted(provided_keys - expected_keys)
+    if not request.expected_scores:
+        raise InvalidEvaluationTargetError("expected_scores cannot be empty.")
+
+    agent_sets: dict[str, set[uuid.UUID]] = {}
+    provided_scores: dict[tuple[str, uuid.UUID], int] = {}
+    for item in request.expected_scores:
+        agent_sets.setdefault(item.agent_id, set()).add(item.rubric_set_id)
+        key = (item.agent_id, item.rubric_criterion_id)
+        if key in provided_scores:
+            raise InvalidEvaluationTargetError(
+                f"Duplicate expected score for {item.agent_id}/"
+                f"{item.rubric_criterion_id}."
+            )
+        provided_scores[key] = item.expected_score
+
+    submitted_agents = set(agent_sets.keys())
+    if submitted_agents != expected_agents:
+        missing = sorted(expected_agents - submitted_agents)
+        unexpected = sorted(submitted_agents - expected_agents)
         details: list[str] = []
         if missing:
-            details.append(
-                "missing " + ", ".join(f"{agent}/{code}" for agent, code in missing)
-            )
+            details.append("missing agents: " + ", ".join(missing))
         if unexpected:
+            details.append("unexpected agents: " + ", ".join(unexpected))
+        raise InvalidEvaluationTargetError(
+            "Expected scores must match the required agents for this run: "
+            + "; ".join(details)
+        )
+
+    for agent_id, sets in agent_sets.items():
+        if len(sets) > 1:
+            raise InvalidEvaluationTargetError(
+                f"Cross-revision criteria detected for agent '{agent_id}'."
+            )
+
+    agent_rubric_bindings = {
+        agent_id: next(iter(sets)) for agent_id, sets in agent_sets.items()
+    }
+
+    try:
+        locked_forms = lock_and_load_requested_active_forms(db, agent_rubric_bindings)
+    except (ValueError, LookupError) as exc:
+        raise InvalidEvaluationTargetError(str(exc)) from exc
+
+    locked_criteria: dict[tuple[str, uuid.UUID], CriterionDefinition] = {}
+    for agent_id, form_def in locked_forms.items():
+        for domain in form_def.domains:
+            for crit in domain.criteria:
+                locked_criteria[(agent_id, crit.rubric_criterion_id)] = crit
+
+    expected_crit_keys = set(locked_criteria.keys())
+    provided_crit_keys = set(provided_scores.keys())
+    if expected_crit_keys != provided_crit_keys:
+        missing_crit = sorted(expected_crit_keys - provided_crit_keys)
+        unexpected_crit = sorted(provided_crit_keys - expected_crit_keys)
+        details = []
+        if missing_crit:
+            details.append(
+                "missing " + ", ".join(f"{agent}/{uid}" for agent, uid in missing_crit)
+            )
+        if unexpected_crit:
             details.append(
                 "unexpected "
-                + ", ".join(f"{agent}/{code}" for agent, code in unexpected)
+                + ", ".join(f"{agent}/{uid}" for agent, uid in unexpected_crit)
             )
         raise InvalidEvaluationTargetError(
             "Expected scores must cover every active agent criterion: "
@@ -158,7 +267,7 @@ def create_model_validation(
         )
 
     # Program confirmation: the SLM document's detected program is used as the
-    # confirmed program for the retired-curriculum partial validation run.
+    # confirmed program for the validation run.
     slm_doc = db.get(Document, request.document_id)
     if slm_doc is None:
         raise DocumentNotFoundError(f"Document {request.document_id} not found")
@@ -168,48 +277,73 @@ def create_model_validation(
             "Model Validation requires an SLM with a confirmed program."
         )
 
-    evaluation = create_evaluation(
-        EvaluationSubmitRequest(
-            document_id=request.document_id,
-            syllabus_id=request.syllabus_id,
-            curriculum_id=None,
-            partial_without_curriculum=True,
-            confirmed_program=confirmed_program,
-        ),
-        submitted_by=created_by,
-        submitted_by_role=created_by_role,
-        db=db,
-        with_commit=False,
-    )
-    # Persist the FK parent before adding the benchmark child. PostgreSQL
-    # enforces this constraint immediately; the flush stays inside the same
-    # transaction, so later failures still roll the entire operation back.
-    db.flush()
-    validation = ModelValidation(
-        validation_id=uuid.uuid4(),
-        evaluation_id=evaluation.evaluation_id,
-        created_by=created_by,
-    )
-    db.add(validation)
-    db.flush()
-    criterion_rows = [
-        ModelValidationCriterionScore(
-            expected_score_id=uuid.uuid4(),
-            validation_id=validation.validation_id,
-            agent_id=agent_id,
-            criterion_id=criterion_id,
-            criterion_title=criterion_catalog[(agent_id, criterion_id)]["title"],
-            expected_score=provided[(agent_id, criterion_id)],
+    validation_id = uuid.uuid4()
+    criterion_rows: list[ModelValidationCriterionScore] = []
+    for agent_id in sorted(locked_forms.keys()):
+        form_def = locked_forms[agent_id]
+        for domain in form_def.domains:
+            for crit in domain.criteria:
+                criterion_rows.append(
+                    ModelValidationCriterionScore(
+                        expected_score_id=uuid.uuid4(),
+                        validation_id=validation_id,
+                        agent_id=agent_id,
+                        criterion_id=crit.criterion_code,
+                        criterion_title=crit.title,
+                        expected_score=provided_scores[
+                            (agent_id, crit.rubric_criterion_id)
+                        ],
+                    )
+                )
+
+    try:
+        evaluation = create_evaluation(
+            EvaluationSubmitRequest(
+                document_id=request.document_id,
+                syllabus_id=request.syllabus_id,
+                curriculum_id=request.curriculum_id if not is_partial else None,
+                partial_without_curriculum=is_partial,
+                confirmed_program=confirmed_program,
+            ),
+            submitted_by=created_by,
+            submitted_by_role=created_by_role,
+            db=db,
+            with_commit=False,
         )
-        for agent_id, criterion_id in sorted(expected_keys)
-    ]
-    db.add_all(criterion_rows)
-    # Atomic commit: evaluation job + validation + criterion rows all at once.
-    db.commit()
+        # Persist the FK parent before adding snapshots and benchmark children.
+        db.flush()
+
+        # Precreate exact standard snapshots from locked forms
+        persist_evaluation_form_snapshots(
+            db, evaluation.evaluation_id, list(locked_forms.values())
+        )
+
+        validation = ModelValidation(
+            validation_id=validation_id,
+            evaluation_id=evaluation.evaluation_id,
+            created_by=created_by,
+        )
+        db.add(validation)
+        db.flush()
+
+        db.add_all(criterion_rows)
+
+        # Atomic commit: evaluation job, snapshots, validation, and criteria.
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(validation)
     document = db.get(Document, evaluation.document_id)
     job = db.get(EvaluationJob, evaluation.evaluation_id)
-    return _model_validation_response(validation, job, document, criterion_rows)
+    snapshots = (
+        db.query(EvaluationFormSnapshot)
+        .filter(EvaluationFormSnapshot.evaluation_id == evaluation.evaluation_id)
+        .all()
+    )
+    return _model_validation_response(
+        validation, job, document, criterion_rows, snapshots
+    )
 
 
 def list_model_validations(db: Any) -> list[ModelValidationResponse]:
@@ -224,6 +358,7 @@ def list_model_validations(db: Any) -> list[ModelValidationResponse]:
         .all()
     )
     validation_ids = [validation.validation_id for validation, _, _ in rows]
+    evaluation_ids = [job.evaluation_id for _, job, _ in rows]
     criteria_by_validation: dict[uuid.UUID, list[ModelValidationCriterionScore]] = {}
     if validation_ids:
         criterion_rows = (
@@ -240,12 +375,23 @@ def list_model_validations(db: Any) -> list[ModelValidationResponse]:
                 criterion
             )
 
+    snapshots_by_eval: dict[uuid.UUID, list[EvaluationFormSnapshot]] = {}
+    if evaluation_ids:
+        snapshot_rows = (
+            db.query(EvaluationFormSnapshot)
+            .filter(EvaluationFormSnapshot.evaluation_id.in_(evaluation_ids))
+            .all()
+        )
+        for snap in snapshot_rows:
+            snapshots_by_eval.setdefault(snap.evaluation_id, []).append(snap)
+
     return [
         _model_validation_response(
             validation,
             job,
             document,
             criteria_by_validation.get(validation.validation_id, []),
+            snapshots_by_eval.get(job.evaluation_id, []),
         )
         for validation, job, document in rows
     ]
@@ -272,7 +418,14 @@ def get_model_validation_detail(
         )
         .all()
     )
-    return _model_validation_response(validation, job, document, criterion_rows)
+    snapshots = (
+        db.query(EvaluationFormSnapshot)
+        .filter(EvaluationFormSnapshot.evaluation_id == job.evaluation_id)
+        .all()
+    )
+    return _model_validation_response(
+        validation, job, document, criterion_rows, snapshots
+    )
 
 
 def get_admin_evaluation(
@@ -315,65 +468,81 @@ def get_model_validation_criteria(db: Any) -> ModelValidationCriteriaResponse:
     )
 
 
-def _active_validation_criterion_map(db: Any) -> dict[tuple[str, str], dict[str, str]]:
-    groups = _active_validation_criteria(db)
-    available_agents = {group.agent_id for group in groups if group.criteria}
-    missing_agents = sorted(set(ACTIVE_VALIDATION_AGENTS) - available_agents)
-    if missing_agents:
-        raise InvalidEvaluationTargetError(
-            "Active rubric criteria are required for every active evaluator "
-            "agent. Missing: " + ", ".join(missing_agents)
-        )
-    criterion_map = {
-        (group.agent_id, criterion.criterion_id): {
-            "title": criterion.title,
-            "description": criterion.description,
-        }
-        for group in groups
-        for criterion in group.criteria
-    }
-    return criterion_map
-
-
 def _active_validation_criteria(db: Any) -> list[ModelValidationAgentCriteria]:
     groups: list[ModelValidationAgentCriteria] = []
-    for agent_id in ACTIVE_VALIDATION_AGENTS:
+    for agent_id in VALIDATION_AGENTS:
         rubric_set = (
             db.query(RubricSet)
-            .filter(RubricSet.agent_id == agent_id, RubricSet.status == "active")
-            .order_by(RubricSet.version_number.desc())
-            .first()
+            .join(
+                RubricAgentActivation,
+                RubricAgentActivation.rubric_set_id == RubricSet.rubric_set_id,
+            )
+            .filter(
+                RubricAgentActivation.agent_id == agent_id,
+                RubricSet.agent_id == agent_id,
+                RubricSet.status == "published",
+            )
+            .one_or_none()
         )
         if rubric_set is None:
             continue
-        rows = (
-            db.query(RubricCriterion, RubricDomain)
+        domains = (
+            db.query(RubricDomain)
+            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
+            .order_by(RubricDomain.display_order.asc(), RubricDomain.code.asc())
+            .all()
+        )
+        criteria = (
+            db.query(RubricCriterion)
             .join(
                 RubricDomain,
-                RubricDomain.rubric_domain_id == RubricCriterion.rubric_domain_id,
+                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
             )
             .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
             .order_by(
-                RubricDomain.display_order.asc(),
                 RubricCriterion.display_order.asc(),
                 RubricCriterion.criterion_code.asc(),
             )
             .all()
         )
+        criteria_by_domain: dict[uuid.UUID, list[RubricCriterion]] = {}
+        for crit in criteria:
+            criteria_by_domain.setdefault(crit.rubric_domain_id, []).append(crit)
+
+        domain_defs: list[ModelValidationDomainDefinition] = []
+        flat_criteria: list[ModelValidationCriterionDefinition] = []
+        for domain in domains:
+            dom_crit_defs: list[ModelValidationCriterionDefinition] = []
+            for crit in criteria_by_domain.get(domain.rubric_domain_id, []):
+                crit_def = ModelValidationCriterionDefinition(
+                    rubric_criterion_id=crit.rubric_criterion_id,
+                    criterion_id=str(crit.rubric_criterion_id),
+                    criterion_code=crit.criterion_code,
+                    title=crit.title,
+                    description=crit.description,
+                    domain_title=domain.title,
+                    display_order=crit.display_order,
+                )
+                dom_crit_defs.append(crit_def)
+                flat_criteria.append(crit_def)
+            domain_defs.append(
+                ModelValidationDomainDefinition(
+                    rubric_domain_id=domain.rubric_domain_id,
+                    code=domain.code,
+                    title=domain.title,
+                    display_order=domain.display_order,
+                    criteria=dom_crit_defs,
+                )
+            )
+
         groups.append(
             ModelValidationAgentCriteria(
                 agent_id=agent_id,
-                agent_name=AGENT_NAMES[agent_id],
+                agent_name=AGENT_NAMES.get(agent_id, agent_id),
+                rubric_set_id=rubric_set.rubric_set_id,
                 rubric_version=rubric_set.version_number,
-                criteria=[
-                    ModelValidationCriterionDefinition(
-                        criterion_id=criterion.criterion_code,
-                        title=criterion.title,
-                        description=criterion.description,
-                        domain_title=domain.title,
-                    )
-                    for criterion, domain in rows
-                ],
+                domains=domain_defs,
+                criteria=flat_criteria,
             )
         )
     return groups
@@ -467,9 +636,7 @@ def assess_model_validation_toxicity(
         generated_text = _generated_evaluation_text(evaluation_id, db)
         if not generated_text:
             model_name = (
-                getattr(llm_client, "model", None)
-                or settings.toxicity_model_name
-                or ""
+                getattr(llm_client, "model", None) or settings.toxicity_model_name or ""
             )
             validation.toxicity_score = None
             validation.toxicity_label = None
@@ -610,8 +777,7 @@ def get_model_validation_metrics(db: Any) -> ModelValidationMetricsResponse:
     ]
     matrix = [[0 for _ in range(4)] for _ in range(4)]
     agent_matrices = {
-        agent_id: [[0 for _ in range(4)] for _ in range(4)]
-        for agent_id in AGENT_NAMES
+        agent_id: [[0 for _ in range(4)] for _ in range(4)] for agent_id in AGENT_NAMES
     }
     for score in paired_scores:
         expected_class = _score_class(score.expected_score)
