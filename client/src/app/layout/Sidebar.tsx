@@ -43,13 +43,12 @@ function NavLink({
   const isActive = isNavigationActive(pathname, item.to, item.exact);
 
   const baseClass = cn(
-    'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+    'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isActive
-      ? 'font-semibold text-slate-900 bg-slate-200 border-l-2 border-[#1b3b87]'
-      : 'font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900',
+      ? 'font-semibold text-primary bg-primary-soft border-l-2 border-primary'
+      : 'font-medium text-text-muted hover:bg-surface-subtle hover:text-text',
     collapsed ? 'md:justify-center md:px-0 max-md:gap-3 max-md:pl-3 max-md:pr-3' : 'gap-3 pl-3 pr-3',
   );
-
   return (
     <Link
       to={item.to}
@@ -162,7 +161,7 @@ export function Sidebar({
       {...(inert ? { inert: '' } : {})}
       aria-hidden={ariaHidden ? 'true' : undefined}
       className={cn(
-        'fixed bottom-0 left-0 top-0 z-50 flex flex-col border-r border-slate-200 bg-slate-50 transition-all duration-200',
+        'fixed bottom-0 left-0 top-0 z-50 flex flex-col border-r border-border bg-surface-subtle transition-all duration-200',
         'w-72 max-md:shadow-xl',
         mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
         'md:translate-x-0',
@@ -172,17 +171,17 @@ export function Sidebar({
       {/* Brand / Logo */}
       <div
         className={cn(
-          'flex h-16 shrink-0 items-center border-b border-slate-200',
+          'flex h-16 shrink-0 items-center border-b border-border bg-surface',
           collapsed ? 'md:justify-center md:px-2 max-md:justify-between max-md:px-4' : 'justify-between px-4',
         )}
       >
         <div className="flex items-center gap-3">
           <img src="/lspu-logo.png" alt="LSPU" className="size-9 shrink-0 object-contain" />
           <div className={cn('flex flex-col leading-none', collapsed && 'md:hidden')}>
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
               LSPU
             </span>
-            <span className="text-base font-bold tracking-tight text-slate-900 mt-0.5">
+            <span className="text-base font-bold tracking-tight text-text mt-0.5">
               EquipED
             </span>
           </div>
@@ -194,7 +193,7 @@ export function Sidebar({
             ref={closeButtonRef}
             type="button"
             onClick={onMobileClose}
-            className="md:hidden flex size-8 items-center justify-center rounded-sm text-slate-500 hover:bg-slate-200/60 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+            className="md:hidden flex size-8 items-center justify-center rounded-sm text-text-muted hover:bg-surface hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Close navigation menu"
           >
             <X className="size-4" aria-hidden="true" />
@@ -213,10 +212,10 @@ export function Sidebar({
                 onClick={handleItemNavigate}
                 aria-current={getAriaCurrent(isUploadActive)}
                 className={cn(
-                  'flex items-center justify-center rounded-sm text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] focus-visible:ring-offset-2',
+                  'flex items-center justify-center rounded-sm text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                   isUploadActive
-                    ? 'bg-[#142d69] text-white shadow-none'
-                    : 'bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white shadow-none',
+                    ? 'bg-primary-strong text-primary-foreground shadow-none'
+                    : 'bg-primary hover:bg-primary-strong text-primary-foreground shadow-none',
                   collapsed
                     ? 'md:size-10 max-md:h-10 max-md:w-full max-md:gap-2 max-md:px-3 max-md:tracking-wide max-md:uppercase max-md:text-xs'
                     : 'h-10 w-full gap-2 px-3 tracking-wide uppercase text-xs',
@@ -236,7 +235,7 @@ export function Sidebar({
                   {collapsed ? (
                     groupIdx > 0 ? (
                       <div
-                        className="hidden md:block my-1 border-t border-slate-200/80 mx-1"
+                        className="hidden md:block my-1 border-t border-border mx-1"
                         role="separator"
                         aria-hidden="true"
                       />
@@ -244,7 +243,7 @@ export function Sidebar({
                   ) : null}
                   <div
                     className={cn(
-                      'px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 select-none',
+                      'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
                       collapsed && 'md:hidden',
                     )}
                   >
@@ -263,7 +262,7 @@ export function Sidebar({
               ))}
             </nav>
 
-            <div className="mx-3 my-3 border-t border-slate-200" role="separator" aria-hidden="true" />
+            <div className="mx-3 my-3 border-t border-border" role="separator" aria-hidden="true" />
 
             {/* Secondary Faculty Navigation */}
             <nav aria-label="Secondary Navigation" className="grid gap-1 px-3">
@@ -293,7 +292,7 @@ export function Sidebar({
               ))}
             </nav>
 
-            <div className="mx-3 my-4 border-t border-slate-200" role="separator" aria-hidden="true" />
+            <div className="mx-3 my-4 border-t border-border" role="separator" aria-hidden="true" />
 
             <nav aria-label="Secondary" className="grid gap-1 px-3">
               <Link
@@ -301,10 +300,10 @@ export function Sidebar({
                 onClick={handleItemNavigate}
                 aria-current={getAriaCurrent(isRubricsActive)}
                 className={cn(
-                  'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                  'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isRubricsActive
-                    ? 'font-semibold text-slate-900 bg-slate-200 border-l-2 border-[#1b3b87]'
-                    : 'font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900',
+                    ? 'font-semibold text-primary bg-primary-soft border-l-2 border-primary'
+                    : 'font-medium text-text-muted hover:bg-surface-subtle hover:text-text',
                   collapsed
                     ? 'md:justify-center md:px-0 max-md:gap-3 max-md:pl-3 max-md:pr-3'
                     : 'gap-3 pl-3 pr-3',
@@ -323,14 +322,14 @@ export function Sidebar({
       {/* ── Bottom Collapse Toggle (Desktop only) ───────────────────────── */}
       <div
         className={cn(
-          'hidden md:flex h-12 shrink-0 items-center px-3 border-t border-slate-200 mt-auto',
+          'hidden md:flex h-12 shrink-0 items-center px-3 border-t border-border bg-surface mt-auto',
           collapsed ? 'justify-center' : 'justify-end',
         )}
       >
         <button
           type="button"
           onClick={onToggle}
-          className="flex size-9 items-center justify-center rounded-sm text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+          className="flex size-9 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >

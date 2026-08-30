@@ -1,3 +1,5 @@
+import { cn } from '@/shared/components/utils';
+
 type DocumentType = 'slm' | 'syllabus' | 'curriculum' | 'reference';
 
 interface DocumentTypeSelectorProps {
@@ -15,8 +17,8 @@ const DOCUMENT_TYPES: Array<{ id: DocumentType; label: string; description: stri
 export function DocumentTypeSelector({ value = 'slm', onChange }: DocumentTypeSelectorProps) {
   return (
     <div className="space-y-2">
-      <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 block">
-        Document Type
+      <label className="text-xs font-semibold text-text mb-1.5 block">
+        Document type
       </label>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {DOCUMENT_TYPES.map((type) => (
@@ -24,14 +26,17 @@ export function DocumentTypeSelector({ value = 'slm', onChange }: DocumentTypeSe
             key={type.id}
             type="button"
             onClick={() => onChange?.(type.id)}
-            className={`rounded-sm border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87] ${
+            className={cn(
+              'rounded-sm border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
               value === type.id
-                ? 'border-[#1b3b87] bg-[#1b3b87]/10 text-[#1b3b87]'
-                : 'border-slate-200 bg-transparent hover:border-slate-300 hover:bg-slate-50 text-slate-600'
-            }`}
+                ? 'border-primary bg-primary-soft text-text'
+                : 'border-border bg-surface hover:border-border hover:bg-surface-subtle text-text',
+            )}
           >
-            <div className="font-bold text-xs uppercase tracking-wider">{type.label}</div>
-            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-1">
+            <div className={cn('text-xs font-semibold', value === type.id ? 'text-primary' : 'text-text')}>
+              {type.label}
+            </div>
+            <div className="text-[11px] text-text-muted mt-1 leading-snug">
               {type.description}
             </div>
           </button>
