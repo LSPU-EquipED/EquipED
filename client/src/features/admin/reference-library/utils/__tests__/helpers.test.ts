@@ -18,16 +18,16 @@ describe('isPolicyArea', () => {
 
 describe('processingStatusClass', () => {
   it('returns correct class for statuses', () => {
-    expect(processingStatusClass('PROCESSED')).toContain('bg-[#3b963e]');
-    expect(processingStatusClass('FAILED')).toContain('bg-[#b91c1c]');
-    expect(processingStatusClass('PENDING')).toContain('bg-[#f2c811]');
+    expect(processingStatusClass('PROCESSED')).toContain('bg-success');
+    expect(processingStatusClass('FAILED')).toContain('bg-destructive');
+    expect(processingStatusClass('PENDING')).toContain('bg-warning');
   });
 });
 
 describe('healthBadgeClass', () => {
   it('returns green for healthy and red for unhealthy', () => {
-    expect(healthBadgeClass(true)).toContain('text-[#3b963e]');
-    expect(healthBadgeClass(false)).toContain('text-[#b91c1c]');
+    expect(healthBadgeClass(true)).toContain('text-success');
+    expect(healthBadgeClass(false)).toContain('text-destructive');
   });
 });
 
