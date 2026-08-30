@@ -85,33 +85,33 @@ export function EvaluationHeader({
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <h1
-          className="truncate text-sm font-bold tracking-tight text-slate-900"
+          className="truncate text-sm font-bold tracking-tight text-text"
           title={document?.title ?? ''}
         >
           {document?.title ?? 'Loading document...'}
         </h1>
 
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-50 select-none">
-          <FileText className="size-3 text-slate-400" aria-hidden="true" />
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-text-muted bg-surface-subtle select-none">
+          <FileText className="size-3 text-text-muted" aria-hidden="true" />
           {document?.pageCount != null ? `${document.pageCount} pages` : 'SLM'}
         </span>
 
         {isTerminal && hasResults && results?.duration_seconds != null && (
           <span
-            className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-semibold tabular-nums text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-sm select-none"
+            className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] font-semibold tabular-nums text-text-muted bg-surface-subtle border border-border px-2 py-0.5 rounded-sm select-none"
             title="Evaluation duration"
           >
-            <Clock className="size-3 text-slate-400" aria-hidden="true" />
+            <Clock className="size-3 text-text-muted" aria-hidden="true" />
             {formatDuration(results.duration_seconds)}
           </span>
         )}
 
         {isPartial && (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-[#f2c811]/40 bg-[#f2c811]/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#1e293b] select-none">
-            <AlertTriangle className="size-3 text-[#f2c811]" aria-hidden="true" />
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-warning/30 bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning select-none">
+            <AlertTriangle className="size-3 text-warning" aria-hidden="true" />
             Partial Review
           </span>
         )}
@@ -120,7 +120,7 @@ export function EvaluationHeader({
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
+          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle text-text px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
           disabled={!hasResults || !isTerminal}
           onClick={() => setShowExportModal(true)}
           title={
@@ -137,7 +137,7 @@ export function EvaluationHeader({
 
         <button
           type="button"
-          className="inline-flex h-8 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
+          className="inline-flex h-8 items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
           disabled={!isTerminal || !evaluationId}
           onClick={handleViewFullReport}
           title={!isTerminal ? 'Available once evaluation completes' : undefined}
@@ -148,22 +148,22 @@ export function EvaluationHeader({
 
         {showExportModal && (
           <div
-            className="fixed inset-0 z-50 flex justify-end bg-slate-900/40"
+            className="fixed inset-0 z-50 flex justify-end bg-foreground/40"
             onClick={() => setShowExportModal(false)}
           >
             <div
-              className="w-full max-w-4xl bg-white border-l border-slate-200 h-full flex flex-col justify-between overflow-hidden relative"
+              className="w-full max-w-4xl bg-surface border-l border-border h-full flex flex-col justify-between overflow-hidden relative"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-col h-full">
-                <div className="border-b border-slate-200 p-6 bg-slate-50/50">
+                <div className="border-b border-border p-6 bg-surface-subtle">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h3 className="text-base font-bold text-slate-900 uppercase tracking-wider">
+                      <h3 className="text-base font-bold text-text uppercase tracking-wider">
                         LSPU-CID-SF-004 {selectedAgent.name} Evaluation Export
                         {isPartial && ' — Partial'}
                       </h3>
-                      <p className="mt-1 text-xs font-semibold text-slate-500 uppercase tracking-wider leading-relaxed">
+                      <p className="mt-1 text-xs font-semibold text-text-muted uppercase tracking-wider leading-relaxed">
                         Preview follows the referenced Gender and Development Unit criteria form.
                         {isPartial && partialReason
                           ? ` ${partialReason}`
@@ -177,14 +177,14 @@ export function EvaluationHeader({
                       <button
                         type="button"
                         onClick={() => setShowExportModal(false)}
-                        className="inline-flex h-9 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase focus:outline-none transition-colors"
+                        className="inline-flex h-9 items-center justify-center border border-border hover:bg-surface-subtle text-text px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase focus:outline-none transition-colors"
                       >
                         Close
                       </button>
                     </div>
                   </div>
                 </div>
-                <div className="grid min-h-0 flex-1 place-items-start justify-items-center overflow-auto bg-slate-50/20 p-6">
+                <div className="grid min-h-0 flex-1 place-items-start justify-items-center overflow-auto bg-canvas p-6">
                   <GadExportPreview domainData={domainData} />
                 </div>
               </div>

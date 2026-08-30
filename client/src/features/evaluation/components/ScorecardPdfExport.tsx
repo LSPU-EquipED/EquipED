@@ -573,7 +573,7 @@ export function ScorecardPdfExport({ results }: ScorecardPdfExportProps) {
     <div className="inline-flex flex-col items-start gap-1">
       <button
         type="button"
-        className="inline-flex h-9 items-center justify-center rounded-sm bg-[#1b3b87] px-4 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1b3b87]/90 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:cursor-wait disabled:opacity-70"
+        className="inline-flex h-9 items-center justify-center rounded-sm bg-primary px-4 text-xs font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-wait disabled:opacity-70"
         onClick={handleExport}
         disabled={isExporting}
       >
@@ -581,7 +581,7 @@ export function ScorecardPdfExport({ results }: ScorecardPdfExportProps) {
         {isExporting ? 'Creating PDF...' : 'Export Scorecard PDF'}
       </button>
       {errorMessage && (
-        <span className="text-xs font-medium text-[#b91c1c]" role="alert">
+        <span className="text-xs font-medium text-destructive" role="alert">
           {errorMessage}
         </span>
       )}
