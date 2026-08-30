@@ -34,17 +34,17 @@ export function PolicyRow({
     : (item.policyArea ?? '—');
 
   return (
-    <tr className="hover:bg-slate-50/50">
+    <tr className="hover:bg-surface-subtle/70 transition-colors">
       <td className="py-3 px-4 align-top">
         <p
-          className="text-sm font-semibold text-slate-900 truncate max-w-[18rem]"
+          className="text-sm font-semibold text-text truncate max-w-[18rem]"
           title={item.title}
         >
           {item.title}
         </p>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="inline-flex items-center rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-slate-700">
+        <span className="inline-flex items-center rounded-sm border border-border bg-surface-subtle px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-text">
           {areaLabel}
         </span>
       </td>
@@ -89,7 +89,7 @@ export function PolicyRow({
         </span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600">{formatDate(item.uploadedAt)}</span>
+        <span className="text-sm font-medium text-text-muted tabular-nums">{formatDate(item.uploadedAt)}</span>
       </td>
       <td className="py-3 px-4 align-top text-right">
         <RowActionButtons

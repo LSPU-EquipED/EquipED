@@ -15,7 +15,7 @@ export function ReferenceLibraryPage() {
       <div
         role="tablist"
         aria-label="Reference library sections"
-        className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-1"
+        className="flex flex-wrap items-center gap-2 border-b border-border pb-1"
       >
         <LibraryTabButton
           id="library-tab-references"

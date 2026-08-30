@@ -30,36 +30,36 @@ export function ReferenceRow({
   const canRebuild = item.chunkCount > 0 && !item.chromaAvailable;
 
   return (
-    <tr className="hover:bg-slate-50/50">
+    <tr className="hover:bg-surface-subtle/70 transition-colors">
       <td className="py-3 px-4 align-top">
         <p
-          className="text-sm font-semibold text-slate-900 truncate max-w-[16rem]"
+          className="text-sm font-semibold text-text truncate max-w-[16rem]"
           title={item.title}
         >
           {item.title}
         </p>
         {item.courseTitle ? (
-          <p className="text-xs font-medium text-slate-500 truncate max-w-[16rem]">
+          <p className="text-xs font-medium text-text-muted truncate max-w-[16rem]">
             {item.courseTitle}
           </p>
         ) : null}
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-700">
+        <span className="text-sm font-medium text-text">
           {referenceTypeLabels[item.sourceType] ?? item.sourceType}
         </span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600">{item.program ?? '—'}</span>
+        <span className="text-sm font-medium text-text-muted">{item.program ?? '—'}</span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600">{item.courseCode ?? '—'}</span>
+        <span className="text-sm font-medium text-text-muted">{item.courseCode ?? '—'}</span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600">{item.academicYear ?? '—'}</span>
+        <span className="text-sm font-medium text-text-muted">{item.academicYear ?? '—'}</span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600 truncate max-w-[10rem] block">
+        <span className="text-sm font-medium text-text-muted truncate max-w-[10rem] block">
           {item.lessonTitle ?? '—'}
         </span>
       </td>
@@ -104,7 +104,7 @@ export function ReferenceRow({
         </span>
       </td>
       <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-slate-600">{formatDate(item.uploadedAt)}</span>
+        <span className="text-sm font-medium text-text-muted tabular-nums">{formatDate(item.uploadedAt)}</span>
       </td>
       <td className="py-3 px-4 align-top text-right">
         <RowActionButtons

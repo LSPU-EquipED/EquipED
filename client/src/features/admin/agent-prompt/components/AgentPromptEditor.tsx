@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/shared/components/Button';
 import { agentPromptApi } from '../api/agentPrompt.api';
 import { usePromptVersions } from '../hooks/usePromptVersions';
+import type { PromptVersionItem } from '../types';
 import { PromptVersionHistory } from './PromptVersionHistory';
 
 const AGENTS = [
@@ -34,15 +36,20 @@ export function AgentPromptEditor() {
     },
   });
 
+  const handleSelectVersion = (version: PromptVersionItem) => {
+    setPromptText(version.prompt_text);
+    setMotivation(`Reverted to v${version.version_number}`);
+  };
+
   return (
     <section key={activeAgent} className="grid gap-6">
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-        <div className="border border-slate-200 bg-white rounded-sm">
-          <div className="border-b border-slate-200 p-6 bg-slate-50/50">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+        <div className="rounded-md border border-border bg-surface overflow-hidden">
+          <div className="border-b border-border p-6 bg-surface-subtle">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-text">
               Edit Prompt
             </h2>
-            <div className="flex items-center gap-3 mt-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="flex items-center gap-3 mt-3 text-xs font-semibold text-text-muted uppercase tracking-wider">
               <span>Current Agent:</span>
               <select
                 value={activeAgent}
@@ -52,7 +59,7 @@ export function AgentPromptEditor() {
                     params: { agentId: e.target.value },
                   });
                 }}
-                className="w-56 h-8 border border-slate-200 bg-white px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-xs font-bold text-slate-700 cursor-pointer"
+                className="w-56 h-8 border border-input bg-surface px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm text-xs font-semibold text-text cursor-pointer"
               >
                 {AGENTS.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -67,26 +74,28 @@ export function AgentPromptEditor() {
               value={promptText}
               onChange={(event) => setPromptText(event.target.value)}
               rows={12}
-              className="min-h-40 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-600 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
+              className="min-h-40 rounded-sm border border-input bg-surface px-3 py-2 text-sm outline-none placeholder:text-text-muted font-medium text-text focus-visible:ring-2 focus-visible:ring-ring"
               placeholder={latestPrompt || 'Enter prompt text...'}
             />
             <textarea
               value={motivation}
               onChange={(event) => setMotivation(event.target.value)}
               rows={3}
-              className="min-h-24 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-600 font-medium text-slate-800 focus:ring-2 focus:ring-[#1b3b87]"
+              className="min-h-24 rounded-sm border border-input bg-surface px-3 py-2 text-sm outline-none placeholder:text-text-muted font-medium text-text focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Motivation for this update"
             />
-            <button
+            <Button
               type="button"
+              variant="primary"
               onClick={() => savePrompt.mutate()}
               disabled={savePrompt.isPending || !promptText.trim()}
-              className="w-fit h-10 inline-flex items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              isLoading={savePrompt.isPending}
+              className="w-fit text-xs font-semibold uppercase tracking-wider"
             >
-              {savePrompt.isPending ? 'Saving...' : 'Save Prompt'}
-            </button>
+              Save Prompt
+            </Button>
             {savePrompt.isError && (
-              <p className="text-sm font-semibold text-[#b91c1c]">
+              <p className="text-sm font-semibold text-destructive">
                 {savePrompt.error instanceof Error
                   ? savePrompt.error.message
                   : 'Failed to save prompt'}
@@ -95,7 +104,7 @@ export function AgentPromptEditor() {
           </div>
         </div>
 
-        <PromptVersionHistory agentId={activeAgent} />
+        <PromptVersionHistory agentId={activeAgent} onSelectVersion={handleSelectVersion} />
       </div>
     </section>
   );

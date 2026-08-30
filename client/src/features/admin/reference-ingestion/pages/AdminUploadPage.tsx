@@ -177,12 +177,12 @@ export function AdminUploadPage() {
     <section className="grid gap-6">
       <div className="mx-auto flex w-full max-w-[48rem] items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Admin</p>
-          <h1 className="mt-1 text-xl font-bold text-slate-900">Reference Ingestion</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Admin</p>
+          <h1 className="mt-1 text-xl font-bold text-text">Reference Ingestion</h1>
         </div>
         <Link
           to="/admin/references"
-          className="inline-flex h-10 min-h-[40px] items-center gap-2 border border-slate-200 bg-white px-3 text-sm font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm"
+          className="inline-flex h-10 min-h-[40px] items-center gap-2 border border-border bg-surface px-3 text-sm font-semibold uppercase tracking-wide text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back to library
@@ -191,12 +191,12 @@ export function AdminUploadPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-sm border border-slate-200 bg-white p-6"
+        className="mx-auto grid w-full max-w-[48rem] gap-6 rounded-sm border border-border bg-surface p-6"
       >
         <div className="space-y-2">
           <label
             htmlFor="ref-source-type"
-            className="text-xs font-bold uppercase tracking-wider text-slate-500"
+            className="text-xs font-bold uppercase tracking-wider text-text-muted"
           >
             Document Type
           </label>
@@ -204,7 +204,7 @@ export function AdminUploadPage() {
             id="ref-source-type"
             value={sourceType}
             onChange={(e) => handleSourceTypeChange(e.target.value as AdminUploadSourceType)}
-            className="w-full h-10 min-h-[40px] border border-slate-200 bg-white px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800"
+            className="w-full h-10 min-h-[40px] border border-input bg-surface px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent rounded-sm text-sm font-semibold text-text"
           >
             {referenceTypes.map((type) => (
               <option key={type} value={type}>
@@ -217,7 +217,7 @@ export function AdminUploadPage() {
         <div className="space-y-2">
           <label
             htmlFor="ref-title"
-            className="text-xs font-bold uppercase tracking-wider text-slate-500"
+            className="text-xs font-bold uppercase tracking-wider text-text-muted"
           >
             Title
           </label>
@@ -227,7 +227,7 @@ export function AdminUploadPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Enter the document title"
-            className="w-full h-10 min-h-[40px] px-3 border border-slate-200 bg-white rounded-sm text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] placeholder:text-slate-500 font-semibold text-slate-800"
+            className="w-full h-10 min-h-[40px] px-3 border border-input bg-surface rounded-sm text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent placeholder:text-text-muted font-semibold text-text"
             required
           />
         </div>
@@ -248,7 +248,7 @@ export function AdminUploadPage() {
               <p
                 id="ref-program-error"
                 role="alert"
-                className="text-xs font-semibold text-[#b91c1c] mt-1"
+                className="text-xs font-semibold text-destructive mt-1"
               >
                 Please select a program for this curriculum document.
               </p>
@@ -260,7 +260,7 @@ export function AdminUploadPage() {
           <div className="space-y-2">
             <label
               htmlFor="ref-policy-area"
-              className="text-xs font-bold uppercase tracking-wider text-slate-500"
+              className="text-xs font-bold uppercase tracking-wider text-text-muted"
             >
               Policy Area
             </label>
@@ -268,7 +268,7 @@ export function AdminUploadPage() {
               id="ref-policy-area"
               value={policyArea}
               onChange={(e) => setPolicyArea(e.target.value as PolicyArea)}
-              className="w-full h-10 min-h-[40px] border border-slate-200 bg-white px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-800"
+              className="w-full h-10 min-h-[40px] border border-input bg-surface px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent rounded-sm text-sm font-semibold text-text"
               required={isPolicyAreaRequired}
             >
               {POLICY_AREAS.map((area) => (
@@ -277,7 +277,7 @@ export function AdminUploadPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs font-medium text-slate-500">
+            <p className="text-xs font-medium text-text-muted">
               Required for policy references. The area is used to route retrieval during ITSO
               evaluation.
             </p>
@@ -288,15 +288,15 @@ export function AdminUploadPage() {
           <label
             htmlFor="ref-file"
             className={cn(
-              'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-slate-200 bg-slate-50/50 px-4 py-8',
-              'transition-colors hover:border-slate-300 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-[#1b3b87]',
+              'flex min-h-40 cursor-pointer flex-col items-center justify-center gap-3 rounded-sm border border-dashed border-border bg-surface-subtle/50 px-4 py-8',
+              'transition-colors hover:border-border-strong hover:bg-surface-subtle focus-within:ring-2 focus-within:ring-ring',
             )}
           >
-            <Upload className="size-7 text-slate-500" aria-hidden="true" />
-            <span className="max-w-full truncate text-sm font-semibold text-slate-800">
+            <Upload className="size-7 text-text-muted" aria-hidden="true" />
+            <span className="max-w-full truncate text-sm font-semibold text-text">
               {file ? file.name : 'Drop a PDF here or browse files'}
             </span>
-            <span className="text-center text-xs text-slate-500 font-medium">
+            <span className="text-center text-xs text-text-muted font-medium">
               PDF only. Upload syllabus, curriculum, or policy references for embedding.
             </span>
             <input
@@ -314,25 +314,25 @@ export function AdminUploadPage() {
           <div
             role={isFailed ? 'alert' : 'status'}
             aria-live={isFailed ? 'assertive' : 'polite'}
-            className="rounded-sm border border-slate-200 bg-white px-5 py-4"
+            className="rounded-sm border border-border bg-surface px-5 py-4"
           >
             <div className="flex items-start gap-3">
               {isSuccess ? (
-                <CheckCircle className="mt-0.5 size-5 shrink-0 text-[#15803d]" aria-hidden="true" />
+                <CheckCircle className="mt-0.5 size-5 shrink-0 text-success" aria-hidden="true" />
               ) : isProcessing ? (
                 <Loader2
-                  className="mt-0.5 size-5 shrink-0 animate-spin text-slate-500"
+                  className="mt-0.5 size-5 shrink-0 animate-spin text-text-muted"
                   aria-hidden="true"
                 />
               ) : (
-                <XCircle className="mt-0.5 size-5 shrink-0 text-[#b91c1c]" aria-hidden="true" />
+                <XCircle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Result
                 </p>
-                <p className="mt-1 text-base font-bold text-slate-900">{uploadResult.title}</p>
-                <p className="mt-1 text-sm text-slate-600 font-semibold">
+                <p className="mt-1 text-base font-bold text-text">{uploadResult.title}</p>
+                <p className="mt-1 text-sm text-text-muted font-semibold">
                   {sourceTypeLabels[uploadResult.sourceType as AdminUploadSourceType] ??
                     uploadResult.sourceType}
                   {uploadResult.program ? ` · ${uploadResult.program}` : ''}
@@ -341,19 +341,19 @@ export function AdminUploadPage() {
                   <span
                     className={cn(
                       'inline-flex items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-white',
-                      isSuccess ? 'bg-[#15803d]' : isProcessing ? 'bg-slate-500' : 'bg-[#b91c1c]',
+                      isSuccess ? 'bg-success' : isProcessing ? 'bg-text-muted' : 'bg-destructive',
                     )}
                   >
                     {isSuccess ? 'Ready' : isProcessing ? 'Processing…' : 'Failed'}
                   </span>
                 </div>
                 {isProcessing ? (
-                  <p className="mt-2 text-sm font-semibold text-slate-500">
+                  <p className="mt-2 text-sm font-semibold text-text-muted">
                     Extracting and embedding the document in the background. This can take several
                     minutes for scanned PDFs — you can leave this page; check the{' '}
                     <Link
                       to="/admin/references"
-                      className="underline focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm"
+                      className="underline focus-visible:ring-2 focus-visible:ring-ring text-primary rounded-sm"
                     >
                       reference library
                     </Link>{' '}
@@ -361,7 +361,7 @@ export function AdminUploadPage() {
                   </p>
                 ) : null}
                 {isFailed ? (
-                  <p className="mt-2 text-sm font-semibold text-[#b91c1c]">
+                  <p className="mt-2 text-sm font-semibold text-destructive">
                     {uploadResult.errorMessage ||
                       'Document processing failed. Please verify the uploaded reference and try again.'}
                   </p>
@@ -375,7 +375,7 @@ export function AdminUploadPage() {
           <div
             role="alert"
             aria-live="assertive"
-            className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold"
+            className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold"
           >
             {errorMessage}
           </div>
@@ -385,7 +385,7 @@ export function AdminUploadPage() {
           {uploadResult ? (
             <button
               type="button"
-              className="inline-flex h-10 min-h-[40px] items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus-visible:ring-2 focus-visible:ring-[#1b3b87] focus-visible:outline-none"
+              className="inline-flex h-10 min-h-[40px] items-center justify-center border border-border hover:bg-surface-subtle text-text px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               onClick={handleReset}
             >
               Upload another
@@ -393,7 +393,7 @@ export function AdminUploadPage() {
           ) : (
             <button
               type="submit"
-              className="inline-flex h-10 min-h-[40px] items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus-visible:ring-2 focus-visible:ring-[#1b3b87] focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex h-10 min-h-[40px] items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !canSubmit}
             >
               {isLoading ? (

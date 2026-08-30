@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/shared/components/Button';
+import { cn } from '@/shared/components/utils';
+import { INPUT_STYLES } from '@/shared/constants/theme';
 import { useCreateUser } from '../hooks/useAdminUsers';
 import type { AdminUserCreateBody } from '../types';
 
@@ -65,25 +68,28 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={handleClose}>
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs"
+      onClick={handleClose}
+    >
       <div
-        className="w-full sm:max-w-md bg-white border-l border-slate-200 p-6 sm:p-8 h-full flex flex-col justify-between overflow-y-auto relative"
+        className="w-full sm:max-w-md bg-surface border-l border-border p-6 sm:p-8 h-full flex flex-col justify-between overflow-y-auto relative"
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-            <h3 className="text-base font-bold uppercase tracking-wider text-slate-900">
+          <div className="flex items-center justify-between pb-4 border-b border-border">
+            <h3 className="text-base font-bold uppercase tracking-wider text-text">
               Create Account
             </h3>
             <button
               type="button"
               onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600 text-sm font-semibold uppercase tracking-wider focus:outline-none"
+              className="text-text-muted hover:text-text text-sm font-semibold uppercase tracking-wider focus-visible:outline-none cursor-pointer"
             >
               Close
             </button>
           </div>
-          <p className="text-xs text-slate-500 font-semibold mt-3 leading-relaxed uppercase tracking-wider">
+          <p className="text-xs text-text-muted font-medium mt-3 leading-relaxed">
             Add a new user to the system. Faculty can upload SLMs and run evaluations. Admins can
             manage users, prompts, and review system activity.
           </p>
@@ -92,7 +98,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
             <div className="space-y-2">
               <label
                 htmlFor="user-name"
-                className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                className="text-xs font-semibold uppercase tracking-wider text-text-muted"
               >
                 Full Name
               </label>
@@ -101,18 +107,22 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Juan Dela Cruz"
-                className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-800"
+                className={cn(
+                  INPUT_STYLES.base,
+                  'font-medium text-text placeholder:text-text-muted',
+                  errors.name && 'border-destructive focus-visible:ring-destructive',
+                )}
                 aria-invalid={!!errors.name}
               />
               {errors.name ? (
-                <p className="text-xs font-semibold text-[#b91c1c]">{errors.name}</p>
+                <p className="text-xs font-semibold text-destructive">{errors.name}</p>
               ) : null}
             </div>
 
             <div className="space-y-2">
               <label
                 htmlFor="user-email"
-                className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                className="text-xs font-semibold uppercase tracking-wider text-text-muted"
               >
                 Email
               </label>
@@ -122,18 +132,22 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 placeholder="juan@lspu.edu.ph"
-                className="w-full h-10 px-3 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-800"
+                className={cn(
+                  INPUT_STYLES.base,
+                  'font-medium text-text placeholder:text-text-muted',
+                  errors.email && 'border-destructive focus-visible:ring-destructive',
+                )}
                 aria-invalid={!!errors.email}
               />
               {errors.email ? (
-                <p className="text-xs font-semibold text-[#b91c1c]">{errors.email}</p>
+                <p className="text-xs font-semibold text-destructive">{errors.email}</p>
               ) : null}
             </div>
 
             <div className="space-y-2">
               <label
                 htmlFor="user-password"
-                className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                className="text-xs font-semibold uppercase tracking-wider text-text-muted"
               >
                 Password
               </label>
@@ -144,27 +158,31 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                   value={formData.password}
                   onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                   placeholder="At least 8 characters"
-                  className="w-full h-10 pl-3 pr-10 border border-slate-200 bg-white rounded-sm text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-805"
+                  className={cn(
+                    INPUT_STYLES.base,
+                    'pl-3 pr-10 font-medium text-text placeholder:text-text-muted',
+                    errors.password && 'border-destructive focus-visible:ring-destructive',
+                  )}
                   aria-invalid={!!errors.password}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer"
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
               {errors.password ? (
-                <p className="text-xs font-semibold text-[#b91c1c]">{errors.password}</p>
+                <p className="text-xs font-semibold text-destructive">{errors.password}</p>
               ) : null}
             </div>
 
             <div className="space-y-2">
               <label
                 htmlFor="user-role"
-                className="text-xs font-bold uppercase tracking-wider text-slate-500"
+                className="text-xs font-semibold uppercase tracking-wider text-text-muted"
               >
                 Role
               </label>
@@ -174,7 +192,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, role: e.target.value as 'admin' | 'faculty' }))
                 }
-                className="w-full h-10 border border-slate-200 bg-white px-3 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-sm font-semibold text-slate-900 cursor-pointer"
+                className="w-full h-10 border border-input bg-surface px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm text-sm font-medium text-text cursor-pointer"
               >
                 <option value="faculty">Faculty</option>
                 <option value="admin">Admin</option>
@@ -182,34 +200,29 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
             </div>
 
             {createUser.isError ? (
-              <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold">
+              <div className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold">
                 Failed to create user. Please try again.
               </div>
             ) : null}
 
-            <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
-              <button
+            <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-border">
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={handleClose}
                 disabled={createUser.isPending}
-                className="inline-flex h-10 items-center justify-center border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50"
+                className="text-xs font-semibold uppercase tracking-wider"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                disabled={createUser.isPending}
-                className="inline-flex h-10 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50"
+                variant="primary"
+                isLoading={createUser.isPending}
+                className="text-xs font-semibold uppercase tracking-wider"
               >
-                {createUser.isPending ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" />
-                    Creating...
-                  </span>
-                ) : (
-                  'Create Account'
-                )}
-              </button>
+                Create Account
+              </Button>
             </div>
           </form>
         </div>

@@ -22,7 +22,7 @@ export function DeleteModal({
 }: DeleteModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={(event) => {
         if (event.target === event.currentTarget) onCancel();
       }}
@@ -30,13 +30,13 @@ export function DeleteModal({
       aria-modal="true"
       aria-labelledby="delete-dialog-title"
     >
-      <div className="w-full max-w-md border border-slate-200 bg-white p-6 rounded-sm">
+      <div className="w-full max-w-md border border-border bg-surface p-6 rounded-sm shadow-md">
         <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-[#f2c811]/40 bg-[#f2c811]/15 text-[#1e293b]">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-warning/40 bg-warning-soft text-warning">
             <AlertTriangle className="size-5" aria-hidden="true" />
           </div>
           <div>
-            <h3 id="delete-dialog-title" className="text-base font-bold text-slate-900">
+            <h3 id="delete-dialog-title" className="text-base font-bold text-text">
               {title}
             </h3>
             {body}
@@ -48,7 +48,7 @@ export function DeleteModal({
             type="button"
             onClick={onCancel}
             disabled={isDeleting}
-            className="inline-flex h-10 items-center justify-center border border-slate-200 bg-white px-4 text-sm font-semibold uppercase tracking-wide text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50 rounded-sm"
+            className="inline-flex h-10 items-center justify-center border border-border bg-surface px-4 text-sm font-semibold uppercase tracking-wide text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm"
           >
             Cancel
           </button>
@@ -56,7 +56,7 @@ export function DeleteModal({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="inline-flex h-10 items-center justify-center bg-[#b91c1c] px-4 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#b91c1c]/90 focus:outline-none focus:ring-2 focus:ring-[#b91c1c] disabled:opacity-50 rounded-sm"
+            className="inline-flex h-10 items-center justify-center bg-destructive px-4 text-sm font-semibold uppercase tracking-wide text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50 rounded-sm"
           >
             {isDeleting ? (
               <span className="inline-flex items-center gap-2">
@@ -91,13 +91,13 @@ export function ReferenceDeleteModal({
       title="Delete reference?"
       body={
         <>
-          <p className="mt-1 text-sm font-medium text-slate-600">
+          <p className="mt-1 text-sm font-medium text-text-muted">
             This will permanently remove{' '}
-            <span className="font-semibold text-slate-900">{item.title}</span> and all stored
+            <span className="font-semibold text-text">{item.title}</span> and all stored
             chunks, embeddings, and the local PDF file.
           </p>
           {item.embeddingReady ? (
-            <p className="mt-2 text-xs font-semibold text-[#b91c1c]">
+            <p className="mt-2 text-xs font-semibold text-destructive">
               This reference is currently ready for evaluations. Deleting it may break linked
               evaluation jobs.
             </p>
@@ -134,13 +134,13 @@ export function PolicyDeleteModal({
       title="Delete policy?"
       body={
         <>
-          <p className="mt-1 text-sm font-medium text-slate-600">
+          <p className="mt-1 text-sm font-medium text-text-muted">
             This will permanently remove the policy{' '}
-            <span className="font-semibold text-slate-900">{item.title}</span> and all stored
+            <span className="font-semibold text-text">{item.title}</span> and all stored
             chunks, embeddings, and the local PDF file.
           </p>
-          <p className="mt-2 text-xs font-semibold text-slate-500">
-            Policy area: <span className="text-slate-700">{areaLabel}</span>. Historical ITSO
+          <p className="mt-2 text-xs font-semibold text-text-muted">
+            Policy area: <span className="text-text">{areaLabel}</span>. Historical ITSO
             results retain only hash-level audit evidence after deletion.
           </p>
         </>
