@@ -20,22 +20,24 @@ export function DocumentFilterBar({
   isTableReady,
 }: DocumentFilterBarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-6 md:px-8 py-4">
+    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface px-6 md:px-8 py-4">
       <button
         type="button"
         onClick={() => setStatusFilter('all')}
         className={cn(
-          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           statusFilter === 'all'
-            ? 'bg-[#1b3b87] text-white'
-            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+            ? 'bg-primary text-primary-foreground'
+            : 'border border-border bg-surface text-text hover:bg-surface-subtle',
         )}
       >
         All
         <span
           className={cn(
-            'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-            statusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600',
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
+            statusFilter === 'all'
+              ? 'bg-primary-foreground/20 text-primary-foreground'
+              : 'bg-surface-subtle text-text-muted border border-border/50',
           )}
         >
           {stats.total}
@@ -46,19 +48,19 @@ export function DocumentFilterBar({
         type="button"
         onClick={() => setStatusFilter('PROCESSED')}
         className={cn(
-          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           statusFilter === 'PROCESSED'
-            ? 'bg-[#1b3b87] text-white'
-            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+            ? 'bg-primary text-primary-foreground'
+            : 'border border-border bg-surface text-text hover:bg-surface-subtle',
         )}
       >
         Processed
         <span
           className={cn(
-            'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
             statusFilter === 'PROCESSED'
-              ? 'bg-white/20 text-white'
-              : 'bg-[#166534]/10 text-[#166534]',
+              ? 'bg-primary-foreground/20 text-primary-foreground'
+              : 'bg-success-soft text-success border border-success/20',
           )}
         >
           {stats.ready}
@@ -69,19 +71,19 @@ export function DocumentFilterBar({
         type="button"
         onClick={() => setStatusFilter('PROCESSING')}
         className={cn(
-          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           statusFilter === 'PROCESSING' || statusFilter === 'PENDING'
-            ? 'bg-[#1b3b87] text-white'
-            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+            ? 'bg-primary text-primary-foreground'
+            : 'border border-border bg-surface text-text hover:bg-surface-subtle',
         )}
       >
         Processing
         <span
           className={cn(
-            'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
             statusFilter === 'PROCESSING' || statusFilter === 'PENDING'
-              ? 'bg-white/20 text-white'
-              : 'bg-[#f2c811]/10 text-[#1e293b]',
+              ? 'bg-primary-foreground/20 text-primary-foreground'
+              : 'bg-warning-soft text-warning border border-warning/20',
           )}
         >
           {stats.processing}
@@ -92,24 +94,26 @@ export function DocumentFilterBar({
         type="button"
         onClick={() => setStatusFilter('FAILED')}
         className={cn(
-          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+          'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           statusFilter === 'FAILED'
-            ? 'bg-[#1b3b87] text-white'
-            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+            ? 'bg-primary text-primary-foreground'
+            : 'border border-border bg-surface text-text hover:bg-surface-subtle',
         )}
       >
         Upload Failed
         <span
           className={cn(
-            'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-            statusFilter === 'FAILED' ? 'bg-white/20 text-white' : 'bg-[#b91c1c]/10 text-[#b91c1c]',
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
+            statusFilter === 'FAILED'
+              ? 'bg-primary-foreground/20 text-primary-foreground'
+              : 'bg-destructive-soft text-destructive border border-destructive/20',
           )}
         >
           {stats.failed}
         </span>
       </button>
 
-      <p className="ml-auto text-xs font-semibold text-slate-600 tabular-nums whitespace-nowrap">
+      <p className="ml-auto text-xs font-semibold text-text-muted tabular-nums whitespace-nowrap">
         {isTableReady
           ? `${documentsCount} of ${totalFiltered ?? stats.total} shown`
           : 'Loading…'}

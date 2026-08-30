@@ -16,11 +16,11 @@ export function DocumentPagination({
   totalPages,
 }: DocumentPaginationProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/30 px-6 md:px-8 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-subtle px-6 md:px-8 py-4">
       <div className="flex items-center gap-2">
         <label
           htmlFor="document-page-size"
-          className="text-xs text-slate-600 font-bold uppercase tracking-wider"
+          className="text-xs text-text-muted font-bold uppercase tracking-wider"
         >
           Show
         </label>
@@ -32,7 +32,7 @@ export function DocumentPagination({
             setPageSize(Number(e.target.value));
             setPage(1);
           }}
-          className="h-8 border border-slate-200 bg-white px-2 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] rounded-sm text-xs font-bold text-slate-700 cursor-pointer"
+          className="h-8 border border-input bg-surface px-2 focus:outline-none focus:ring-2 focus:ring-ring rounded-sm text-xs font-bold text-text cursor-pointer"
         >
           <option value={10}>10 rows</option>
           <option value={25}>25 rows</option>
@@ -41,7 +41,7 @@ export function DocumentPagination({
       </div>
 
       <div
-        className="text-xs font-bold text-slate-600 uppercase tracking-wider tabular-nums"
+        className="text-xs font-bold text-text-muted uppercase tracking-wider tabular-nums"
         aria-live="polite"
       >
         Page {page} of {totalPages}
@@ -53,7 +53,7 @@ export function DocumentPagination({
           disabled={page === 1}
           aria-label="Previous page"
           onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface text-text px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Previous
         </button>
@@ -68,7 +68,7 @@ export function DocumentPagination({
                 <span
                   key="dots-start"
                   aria-hidden="true"
-                  className="px-1 text-slate-500 text-xs font-bold select-none"
+                  className="px-1 text-text-muted text-xs font-bold select-none"
                 >
                   ...
                 </span>
@@ -79,7 +79,7 @@ export function DocumentPagination({
                 <span
                   key="dots-end"
                   aria-hidden="true"
-                  className="px-1 text-slate-500 text-xs font-bold select-none"
+                  className="px-1 text-text-muted text-xs font-bold select-none"
                 >
                   ...
                 </span>
@@ -96,10 +96,10 @@ export function DocumentPagination({
               aria-current={isCurrent ? 'page' : undefined}
               onClick={() => setPage(p)}
               className={cn(
-                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isCurrent
-                  ? 'bg-[#1b3b87] text-white'
-                  : 'border border-slate-200 bg-white hover:bg-slate-50 text-slate-700',
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-border bg-surface hover:bg-surface-subtle text-text',
               )}
             >
               {p}
@@ -112,7 +112,7 @@ export function DocumentPagination({
           disabled={page === totalPages}
           aria-label="Next page"
           onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-          className="inline-flex h-8 items-center justify-center border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-white text-slate-700 px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface text-text px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Next
         </button>
