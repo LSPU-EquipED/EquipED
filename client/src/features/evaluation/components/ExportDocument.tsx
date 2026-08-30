@@ -14,11 +14,7 @@ import {
   formatScore,
   monitoringPercentage,
 } from '../utils/scoreHelpers';
-import {
-  registerOptionalUnicodeFont,
-  safeFontWeight,
-  type FontWeight,
-} from '../utils/pdfFonts';
+import { registerOptionalUnicodeFont, safeFontWeight, type FontWeight } from '../utils/pdfFonts';
 
 export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
 
@@ -45,6 +41,9 @@ export type ExportDomainData = {
   status: string;
   adjectival_rating?: string;
   summary?: string;
+  version?: number | null;
+  form_snapshot_id?: string | null;
+  legacy_notice?: string | null;
   // Carries the full results payload so the export can show the
   // monitoring % and overall adjectival rating from the same source the
   // scorecard uses.
@@ -89,7 +88,8 @@ async function loadAutoTable(): Promise<AutoTablePlugin> {
 
 async function loadJsPdf(): Promise<new (options?: unknown) => JsPdfDocument> {
   const mod = await import('jspdf');
-  return (mod.jsPDF || (mod as unknown as { jsPDF: new (options?: unknown) => JsPdfDocument }).jsPDF) as new (
+  return (mod.jsPDF ||
+    (mod as unknown as { jsPDF: new (options?: unknown) => JsPdfDocument }).jsPDF) as new (
     options?: unknown,
   ) => JsPdfDocument;
 }
@@ -130,7 +130,10 @@ function safeTableFontStyle(fontName: string): 'normal' | 'bold' {
 // agents (the Supervisor may emit a code-computed summary there). Fall back
 // to bounded, sanitized criterion justifications.
 function buildComments(domainData: ExportDomainData): string {
-  if ((domainData.agentId === 'sme' || domainData.agentId === 'coordinator') && domainData.summary) {
+  if (
+    (domainData.agentId === 'sme' || domainData.agentId === 'coordinator') &&
+    domainData.summary
+  ) {
     return boundNarrative(domainData.summary, EXPORT_NARRATIVE_MAX_CHARS);
   }
   return domainData.criteria
@@ -152,10 +155,7 @@ function buildHeaderLines(domainData: ExportDomainData): Array<{ label: string; 
   });
   lines.push({
     label: 'Course Title:',
-    value:
-      (domainData.courseTitle || '').trim() ||
-      domainData.documentTitle ||
-      'Not available',
+    value: (domainData.courseTitle || '').trim() || domainData.documentTitle || 'Not available',
   });
   lines.push({
     label: 'Course Code:',
@@ -191,12 +191,11 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
   };
 
   const subtotal = Number.isFinite(domainData.subtotal) ? domainData.subtotal : 0;
-  const maxScore = Number.isFinite(domainData.max_score) && domainData.max_score > 0
-    ? domainData.max_score
-    : CANONICAL_MAX_SCORE;
-  const rating =
-    domainData.adjectival_rating ||
-    adjectivalRating(subtotal);
+  const maxScore =
+    Number.isFinite(domainData.max_score) && domainData.max_score > 0
+      ? domainData.max_score
+      : CANONICAL_MAX_SCORE;
+  const rating = domainData.adjectival_rating || adjectivalRating(subtotal);
   const monitoring = monitoringPercentage(subtotal, maxScore);
 
   const pdf = new JsPdfCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -241,7 +240,9 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
     pdf.setTextColor(17, 24, 39);
     pdf.setFontSize(9);
     applyFont(pdf, activeFont, 'normal');
-    pdf.text('Laguna State Polytechnic University - Evaluation Report', pageWidth / 2, y + 10, { align: 'center' });
+    pdf.text('Laguna State Polytechnic University - Evaluation Report', pageWidth / 2, y + 10, {
+      align: 'center',
+    });
   }
   y += 24;
 
@@ -254,7 +255,13 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
   pdf.setFontSize(10);
   applyFont(pdf, activeFont, 'normal');
   pdf.setTextColor(17, 24, 39);
-  pdf.text(`FOR ${config.unitName}`, pageWidth / 2, y + 6, { align: 'center' });
+  const revisionSuffix =
+    domainData.version != null
+      ? ` (Revision ${domainData.version})`
+      : domainData.legacy_notice || domainData.form_snapshot_id == null
+        ? ' (Legacy — form snapshot unavailable)'
+        : '';
+  pdf.text(`FOR ${config.unitName}${revisionSuffix}`, pageWidth / 2, y + 6, { align: 'center' });
   y += 14;
 
   // Honest state banner -------------------------------------------------
@@ -299,10 +306,16 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
       },
       1: { cellWidth: 'auto' },
     },
-    didDrawCell: (data: { section?: string; column: { index: number }; row: { index: number } }) => {
+    didDrawCell: (data: {
+      section?: string;
+      column: { index: number };
+      row: { index: number };
+    }) => {
       if (data.section !== 'body' || data.column.index !== 1) return;
       // underline the value cell on the value baseline
-      const cell = data as unknown as { cell: { x: number; y: number; width: number; height: number } };
+      const cell = data as unknown as {
+        cell: { x: number; y: number; width: number; height: number };
+      };
       const baseline = cell.cell.y + cell.cell.height - 1.5;
       pdf.setDrawColor(17, 24, 39);
       pdf.setLineWidth(0.2);
@@ -326,14 +339,19 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
   y += 6;
 
   // Criteria rubric table ----------------------------------------------
-  const criteriaRows = domainData.criteria.map((row, index) => [
-    String(index + 1),
-    cleanJustification(row.criterion_text) || '(criterion text unavailable)',
-    row.score === 4 ? 'X' : '',
-    row.score === 3 ? 'X' : '',
-    row.score === 2 ? 'X' : '',
-    row.score === 1 ? 'X' : '',
-  ]);
+  const criteriaRows = domainData.criteria.map((row, index) => {
+    const ungroundedMarker = row.is_ungrounded ? ' [Ungrounded]' : '';
+    const text =
+      (cleanJustification(row.criterion_text) || '(criterion text unavailable)') + ungroundedMarker;
+    return [
+      String(index + 1),
+      text,
+      row.score === 4 ? 'X' : '',
+      row.score === 3 ? 'X' : '',
+      row.score === 2 ? 'X' : '',
+      row.score === 1 ? 'X' : '',
+    ];
+  });
   autoTable(pdf, {
     startY: y,
     margin: { top: margin, right: margin, bottom: 15, left: margin },
@@ -372,18 +390,10 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
   pdf.setFontSize(9.5);
   applyFont(pdf, activeFont, 'bold');
   pdf.setTextColor(27, 59, 135);
-  pdf.text(
-    `Subtotal (1-4 scale): ${formatScore(subtotal)} / ${formatScore(maxScore)}`,
-    margin,
-    y,
-  );
+  pdf.text(`Subtotal (1-4 scale): ${formatScore(subtotal)} / ${formatScore(maxScore)}`, margin, y);
   applyFont(pdf, activeFont, 'normal');
   pdf.setTextColor(17, 24, 39);
-  pdf.text(
-    `   Adjectival rating: ${rating}`,
-    margin + 65,
-    y,
-  );
+  pdf.text(`   Adjectival rating: ${rating}`, margin + 65, y);
   y += 6;
   pdf.setFontSize(9.5);
   applyFont(pdf, activeFont, 'bold');
@@ -444,14 +454,19 @@ async function downloadExport(domainData: ExportDomainData): Promise<void> {
     pdf.setTextColor(71, 85, 105);
     pdf.text(config.code, margin, 289);
     pdf.text('EquipED - LSPU SCC', pageWidth / 2, 289, { align: 'center' });
-    pdf.text('Advisory only - Human review authoritative', pageWidth - margin, 289, { align: 'right' });
+    pdf.text('Advisory only - Human review authoritative', pageWidth - margin, 289, {
+      align: 'right',
+    });
   }
 
   const safeAgent = (domainData.agentId || 'agent').toString().replace(/[^a-z0-9_-]/gi, '-');
   pdf.save(`${config.code}-${safeAgent}-evaluation.pdf`);
 }
 
-function getExportDomainData({ domainData, agentId = 'gad' }: ExportDocumentProps): ExportDomainData {
+function getExportDomainData({
+  domainData,
+  agentId = 'gad',
+}: ExportDocumentProps): ExportDomainData {
   return (
     domainData ?? {
       agentId,
@@ -509,9 +524,10 @@ export function GadExportPreview(props: ExportDocumentProps) {
     unitName: domainData.agentId.toString().toUpperCase(),
   };
   const subtotal = Number.isFinite(domainData.subtotal) ? domainData.subtotal : 0;
-  const maxScore = Number.isFinite(domainData.max_score) && domainData.max_score > 0
-    ? domainData.max_score
-    : CANONICAL_MAX_SCORE;
+  const maxScore =
+    Number.isFinite(domainData.max_score) && domainData.max_score > 0
+      ? domainData.max_score
+      : CANONICAL_MAX_SCORE;
   const rating = domainData.adjectival_rating || adjectivalRating(subtotal);
   const monitoring = monitoringPercentage(subtotal, maxScore);
   const comments = buildComments(domainData);
@@ -540,7 +556,9 @@ export function GadExportPreview(props: ExportDocumentProps) {
 
       {domainData.isPartial && (
         <div className="mt-4 rounded-sm border border-amber-300 bg-amber-50 p-2 text-[10px] text-amber-900">
-          <p className="font-semibold uppercase tracking-wider">Partial evaluation - Advisory only</p>
+          <p className="font-semibold uppercase tracking-wider">
+            Partial evaluation - Advisory only
+          </p>
           {domainData.partialReason && <p className="mt-1">{domainData.partialReason}</p>}
         </div>
       )}
@@ -555,8 +573,8 @@ export function GadExportPreview(props: ExportDocumentProps) {
       </div>
 
       <p className="mt-4 text-xs leading-5">
-        <strong>Scale:</strong> 4 = Very Satisfactory, 3 = Satisfactory, 2 = Needs Improvement, 1 = Poor
-        (1-4 scale).
+        <strong>Scale:</strong> 4 = Very Satisfactory, 3 = Satisfactory, 2 = Needs Improvement, 1 =
+        Poor (1-4 scale).
       </p>
 
       <table className="mt-3 w-full border-collapse text-[11px]">
@@ -599,8 +617,8 @@ export function GadExportPreview(props: ExportDocumentProps) {
       </div>
 
       <p className="mt-3 text-xs leading-5">
-        3.50 - 4.00 = Very Satisfactory; 2.50 - 3.49 = Satisfactory; 1.50 - 2.49 = Needs Improvement;
-        1.00 - 1.49 = Poor.
+        3.50 - 4.00 = Very Satisfactory; 2.50 - 3.49 = Satisfactory; 1.50 - 2.49 = Needs
+        Improvement; 1.00 - 1.49 = Poor.
       </p>
 
       <div className="mt-4 text-xs">
@@ -620,7 +638,9 @@ export function GadExportPreview(props: ExportDocumentProps) {
         <span>EquipED - LSPU SCC</span>
         <span>Advisory only</span>
       </div>
-      <p className="mt-2 text-center text-[10px] text-slate-500">{agentDisplayLabel(domainData.agentId)}</p>
+      <p className="mt-2 text-center text-[10px] text-slate-500">
+        {agentDisplayLabel(domainData.agentId)}
+      </p>
     </div>
   );
 }

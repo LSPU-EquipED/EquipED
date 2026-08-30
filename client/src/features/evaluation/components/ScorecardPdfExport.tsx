@@ -11,10 +11,7 @@ import {
   type ReportAgentSection,
   type ReportModel,
 } from '../utils/pdfReport';
-import {
-  PDF_PAGE_BOTTOM_MM,
-  formatScore,
-} from '../utils/scoreHelpers';
+import { PDF_PAGE_BOTTOM_MM, formatScore } from '../utils/scoreHelpers';
 import {
   registerOptionalUnicodeFont,
   safeFontWeight,
@@ -35,7 +32,8 @@ async function loadAutoTable(): Promise<AutoTablePlugin> {
 
 async function loadJsPdf(): Promise<new (options?: unknown) => JsPdfDocument> {
   const mod = await import('jspdf');
-  return (mod.jsPDF || (mod as unknown as { jsPDF: new (options?: unknown) => JsPdfDocument }).jsPDF) as new (
+  return (mod.jsPDF ||
+    (mod as unknown as { jsPDF: new (options?: unknown) => JsPdfDocument }).jsPDF) as new (
     options?: unknown,
   ) => JsPdfDocument;
 }
@@ -156,9 +154,10 @@ function drawAgentSection(
 
   setTextStyle(pdf, activeFont, 8.5, 'normal');
   pdf.setTextColor(71, 85, 105);
+  const revisionPrefix = section.revisionLabel ? `${section.revisionLabel}  -  ` : '';
   const subtitle =
     section.state === 'available'
-      ? `Subtotal ${formatAgentSubtotalLabel(section)}  -  Adjectival ${formatAgentRatingLabel(section)}  -  Monitoring ${formatAgentMonitoringLabel(section)}`
+      ? `${revisionPrefix}Subtotal ${formatAgentSubtotalLabel(section)}  -  Adjectival ${formatAgentRatingLabel(section)}  -  Monitoring ${formatAgentMonitoringLabel(section)}`
       : section.state === 'skipped_partial'
         ? 'Coordinator review was skipped (partial evaluation).'
         : section.state === 'failed'
@@ -219,11 +218,18 @@ function drawAgentSection(
       3: { cellWidth: 25 },
       4: { cellWidth: 'auto' },
     },
-    didParseCell: (data: { section?: string; column?: { index: number }; cell: { raw?: unknown; styles: Record<string, unknown> } }) => {
+    didParseCell: (data: {
+      section?: string;
+      column?: { index: number };
+      cell: { raw?: unknown; styles: Record<string, unknown> };
+    }) => {
       if (data.section !== 'body' || data.column?.index !== 3) return;
       const text = String(data.cell.raw ?? '');
       if (text === 'Needs attention') {
         data.cell.styles.textColor = [185, 28, 28];
+        data.cell.styles.fontStyle = safeTableFontStyle(activeFont);
+      } else if (text === 'Ungrounded') {
+        data.cell.styles.textColor = [180, 83, 9];
         data.cell.styles.fontStyle = safeTableFontStyle(activeFont);
       } else if (text === 'Strong') {
         data.cell.styles.textColor = [59, 150, 62];
@@ -331,7 +337,9 @@ async function exportScorecardPdf(results: EvaluationResultsResponse): Promise<v
     applyFont(pdf, activeFont, 'bold');
     pdf.text('EquipED Evaluation Report', pageWidth / 2, y + 6, { align: 'center' });
     setTextStyle(pdf, activeFont, 9, 'normal');
-    pdf.text('Laguna State Polytechnic University - Evaluation Report', pageWidth / 2, y + 12, { align: 'center' });
+    pdf.text('Laguna State Polytechnic University - Evaluation Report', pageWidth / 2, y + 12, {
+      align: 'center',
+    });
   }
   y += 26;
 
@@ -357,24 +365,29 @@ async function exportScorecardPdf(results: EvaluationResultsResponse): Promise<v
   y += 8;
 
   // Identity & state table ----------------------------------------------
+  const tableRows: Array<[string, string]> = [
+    ['Document', formatHeaderField(model.header.documentTitle, 'Not available')],
+    ['Evaluation ID', model.header.evaluationId],
+    ['Program', formatHeaderField(model.header.program, 'Not specified')],
+    ['Evaluation status', model.header.evaluationStatus],
+  ];
+  if (model.header.legacyNotice) {
+    tableRows.push(['Form snapshot', model.header.legacyNotice]);
+  }
+  tableRows.push([
+    'Result state',
+    model.header.isPartial
+      ? model.header.partialReason
+        ? 'Partial evaluation'
+        : 'Partial evaluation (no curriculum reference)'
+      : 'Complete',
+  ]);
+  tableRows.push(['Completed', formatTimestamp(model.header.completedAt)]);
+
   autoTable(pdf, {
     startY: y,
     margin: { right: margin, left: margin },
-    body: [
-      ['Document', formatHeaderField(model.header.documentTitle, 'Not available')],
-      ['Evaluation ID', model.header.evaluationId],
-      ['Program', formatHeaderField(model.header.program, 'Not specified')],
-      ['Evaluation status', model.header.evaluationStatus],
-      [
-        'Result state',
-        model.header.isPartial
-          ? model.header.partialReason
-            ? 'Partial evaluation'
-            : 'Partial evaluation (no curriculum reference)'
-          : 'Complete',
-      ],
-      ['Completed', formatTimestamp(model.header.completedAt)],
-    ],
+    body: tableRows,
     theme: 'grid',
     styles: {
       font: activeFont,
@@ -509,7 +522,10 @@ async function exportScorecardPdf(results: EvaluationResultsResponse): Promise<v
       2: { cellWidth: 30, halign: 'center' },
       3: { cellWidth: 'auto' },
     },
-    didParseCell: (data: { section?: string; cell: { raw?: unknown; styles: Record<string, unknown> } }) => {
+    didParseCell: (data: {
+      section?: string;
+      cell: { raw?: unknown; styles: Record<string, unknown> };
+    }) => {
       if (data.section !== 'body') return;
       const label = String(data.cell.raw ?? '');
       if (label === 'Skipped' || label === 'Unavailable' || label === 'Unavailable (failed)') {

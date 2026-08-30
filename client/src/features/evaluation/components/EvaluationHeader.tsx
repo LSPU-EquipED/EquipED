@@ -68,9 +68,12 @@ export function EvaluationHeader({
     subtotal: domainScore?.subtotal || 0,
     max_score: domainScore?.max_score || 4,
     status: domainScore?.status || 'UNKNOWN',
-    adjectival_rating: domainScore?.adjectival_rating,
+    adjectival_rating: domainScore?.adjectival_rating ?? undefined,
     criteria: domainScore?.criteria || [],
     summary: domainScore?.summary,
+    version: domainScore?.version,
+    form_snapshot_id: domainScore?.form_snapshot_id,
+    legacy_notice: results?.legacy_notice,
     results,
     document: document ?? null,
   };
@@ -84,7 +87,10 @@ export function EvaluationHeader({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <h1 className="truncate text-sm font-bold tracking-tight text-slate-900" title={document?.title ?? ''}>
+        <h1
+          className="truncate text-sm font-bold tracking-tight text-slate-900"
+          title={document?.title ?? ''}
+        >
           {document?.title ?? 'Loading document...'}
         </h1>
 
