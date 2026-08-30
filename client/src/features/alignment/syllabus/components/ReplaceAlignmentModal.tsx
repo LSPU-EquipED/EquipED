@@ -1,5 +1,6 @@
-import { AlertTriangle, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
+import { Button } from '@/shared/components/Button';
 
 type ReplaceAlignmentModalProps = {
   open: boolean;
@@ -40,19 +41,19 @@ export function ReplaceAlignmentModal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4" role="presentation">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="presentation">
       <section
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="replace-alignment-title"
         aria-describedby="replace-alignment-description"
-        className="w-full max-w-md border border-slate-300 bg-white"
+        className="w-full max-w-md rounded-md border border-border bg-surface shadow-none overflow-hidden"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-4">
+        <header className="flex items-start justify-between gap-4 border-b border-border bg-surface p-4">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="size-5 text-[#b91c1c]" aria-hidden="true" />
-            <h2 id="replace-alignment-title" className="text-lg font-bold text-slate-950">
+            <AlertTriangle className="size-5 text-destructive" aria-hidden="true" />
+            <h2 id="replace-alignment-title" className="text-lg font-bold text-text">
               Replace the current result?
             </h2>
           </div>
@@ -60,37 +61,40 @@ export function ReplaceAlignmentModal({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="grid size-8 place-items-center border border-slate-300 text-slate-700 disabled:opacity-50"
+            className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-surface text-text hover:bg-surface-subtle disabled:opacity-50 transition-colors"
             aria-label="Close confirmation"
           >
             <X className="size-4" aria-hidden="true" />
           </button>
         </header>
         <div className="p-4">
-          <p id="replace-alignment-description" className="text-sm leading-6 text-slate-700">
+          <p id="replace-alignment-description" className="text-sm leading-6 text-text-muted">
             This SLM already has a stored syllabus-alignment result. Evaluating it again will
             permanently replace that result in the database. The previous result cannot be viewed
             afterward.
           </p>
         </div>
-        <footer className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 p-4">
-          <button
+        <footer className="flex justify-end gap-2 border-t border-border bg-surface-subtle p-4">
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={onCancel}
             disabled={busy}
-            className="h-9 border border-slate-300 bg-white px-4 text-xs font-bold uppercase tracking-wide text-slate-700 disabled:opacity-50"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="destructive"
+            size="sm"
             onClick={onConfirm}
             disabled={busy}
+            isLoading={busy}
             autoFocus
-            className="h-9 bg-[#b91c1c] px-4 text-xs font-bold uppercase tracking-wide text-white disabled:opacity-50"
           >
             {busy ? 'Replacing…' : 'Replace and evaluate'}
-          </button>
+          </Button>
         </footer>
       </section>
     </div>

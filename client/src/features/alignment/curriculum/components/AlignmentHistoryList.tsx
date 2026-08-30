@@ -5,10 +5,13 @@
 // consistent, but this is its own implementation.
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { Badge } from '@/shared/components/Badge';
+import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { TABLE_STYLES } from '@/shared/constants/theme';
 import { getErrorMessage } from '@/shared/api/http';
-import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
 import { useDeleteAlignmentCheck } from '../hooks/useDeleteAlignmentCheck';
+import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import type { AlignmentCheckListItem } from '../types';
 
@@ -53,37 +56,37 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-sm border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/50 px-6 py-4">
-        <p className="text-sm font-medium text-slate-600">
+    <div className="flex flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-subtle px-6 py-4">
+        <p className="text-sm font-medium text-text-muted">
           {isLoading
             ? 'Loading records…'
             : `${total} check${total === 1 ? '' : 's'} found`}
         </p>
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
           Advisory only.
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {isError ? (
-          <div className="flex items-center gap-2 rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm font-semibold text-[#b91c1c]">
+          <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive">
             <AlertTriangle className="size-4 shrink-0" />
             {getErrorMessage(error, 'Could not load check history.')}
           </div>
         ) : null}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-slate-500">
-            <Loader2 className="size-5 animate-spin text-[#1b3b87]" />
+          <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-text-muted">
+            <Loader2 className="size-5 animate-spin text-primary" />
             <span>Loading check history…</span>
           </div>
         ) : null}
 
         {!isError && !isLoading && items.length === 0 ? (
-          <div className="grid gap-2 rounded-sm border border-dashed border-slate-200 px-6 py-12 text-center">
-            <h3 className="text-lg font-semibold text-slate-800">No checks yet</h3>
-            <p className="text-sm text-slate-500">
+          <div className="grid gap-2 rounded-sm border border-dashed border-border px-6 py-12 text-center bg-surface">
+            <h3 className="text-lg font-semibold text-text">No checks yet</h3>
+            <p className="text-sm text-text-muted">
               Pick a document and course above, then run a check to see it here.
             </p>
           </div>
@@ -91,56 +94,53 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
 
         {!isError && !isLoading && items.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border-spacing-0 text-left">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+            <table className={TABLE_STYLES.table}>
+              <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th className="min-w-[20rem] px-4 py-3 font-semibold text-slate-500">
+                  <th className={cn(TABLE_STYLES.th, 'min-w-[20rem]')}>
                     Document / Course
                   </th>
-                  <th className="px-4 py-3 font-semibold text-slate-500">Status</th>
-                  <th className="px-4 py-3 font-semibold text-slate-500">Run at</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-500">Action</th>
+                  <th className={TABLE_STYLES.th}>Status</th>
+                  <th className={TABLE_STYLES.th}>Run at</th>
+                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
-                {items.map((item) => (
-                  <tr key={item.check_id} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">
+              <tbody className={TABLE_STYLES.tbody}>
+                {items.map((item: AlignmentCheckListItem) => (
+                  <tr key={item.check_id} className={TABLE_STYLES.tr}>
+                    <td className={cn(TABLE_STYLES.td, 'font-semibold text-text')}>
                       <div className="flex flex-col gap-0.5">
                         <span className="max-w-[22rem] truncate">{item.document_title}</span>
-                        <span className="text-xs font-medium text-slate-400">
+                        <span className="text-xs font-medium text-text-muted">
                           {item.course_title}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span
-                        className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                          item.success ? 'bg-[#3b963e] text-white' : 'bg-[#b91c1c] text-white'
-                        }`}
-                      >
+                    <td className={TABLE_STYLES.td}>
+                      <Badge variant={item.success ? 'success' : 'destructive'} withDot>
                         {item.success ? 'Completed' : 'Failed'}
-                      </span>
+                      </Badge>
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-600">
+                    <td className={cn(TABLE_STYLES.tdData, 'text-text-muted')}>
                       {formatDate(item.run_at)}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm">
+                    <td className={cn(TABLE_STYLES.td, 'text-right')}>
                       <div className="inline-flex items-center gap-2">
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="sm"
                           onClick={() => onSelect(item)}
-                          className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
                         >
                           <span>View</span>
                           <ExternalLink className="ml-1.5 size-3" aria-hidden="true" />
-                        </button>
+                        </Button>
                         <button
                           type="button"
                           onClick={() => setPendingDelete(item)}
                           disabled={deleteCheck.isPending}
                           aria-label="Delete check"
-                          className="inline-flex size-8 items-center justify-center rounded-sm text-slate-400 transition-colors hover:bg-[#b91c1c]/10 hover:text-[#b91c1c] focus:outline-none focus:ring-2 focus:ring-[#b91c1c] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-destructive-soft hover:text-destructive focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -170,16 +170,16 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
       ) : null}
 
       {items.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/30 px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-subtle px-6 py-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Show</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Show</span>
             <select
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="h-8 cursor-pointer rounded-sm border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              className="h-8 cursor-pointer rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value={10}>10 rows</option>
               <option value={25}>25 rows</option>
@@ -187,19 +187,20 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
             </select>
           </div>
 
-          <div className="text-xs font-bold uppercase tracking-wider tabular-nums text-slate-500">
+          <div className="text-xs font-semibold uppercase tracking-wider tabular-nums text-text-muted">
             Page {page} of {totalPages}
           </div>
 
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               disabled={page === 1}
               onClick={() => setPage((p) => Math.max(p - 1, 1))}
-              className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] disabled:opacity-40 disabled:hover:bg-white"
             >
               Previous
-            </button>
+            </Button>
 
             {Array.from({ length: totalPages }).map((_, idx) => {
               const p = idx + 1;
@@ -210,7 +211,7 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
                   return (
                     <span
                       key="dots-start"
-                      className="select-none px-1 text-xs font-bold text-slate-400"
+                      className="select-none px-1 text-xs font-semibold text-text-muted"
                     >
                       ...
                     </span>
@@ -220,7 +221,7 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
                   return (
                     <span
                       key="dots-end"
-                      className="select-none px-1 text-xs font-bold text-slate-400"
+                      className="select-none px-1 text-xs font-semibold text-text-muted"
                     >
                       ...
                     </span>
@@ -235,10 +236,10 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
                   type="button"
                   onClick={() => setPage(p)}
                   className={cn(
-                    'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                    'inline-flex size-8 items-center justify-center rounded-sm text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     isCurrent
-                      ? 'bg-[#1b3b87] text-white'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border bg-surface text-text hover:bg-surface-subtle',
                   )}
                 >
                   {p}
@@ -246,14 +247,15 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
               );
             })}
 
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               disabled={page === totalPages}
               onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-              className="inline-flex h-8 items-center justify-center rounded-sm border border-slate-200 bg-white px-3 text-xs font-bold uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] disabled:opacity-40 disabled:hover:bg-white"
             >
               Next
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

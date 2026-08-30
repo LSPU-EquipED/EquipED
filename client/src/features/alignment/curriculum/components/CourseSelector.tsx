@@ -128,10 +128,10 @@ export function CourseSelector({
       {label ? (
         <label
           htmlFor={id}
-          className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+          className="mb-1.5 block text-xs font-semibold text-text"
         >
           {label}
-          {required ? <span className="ml-1 text-[#b91c1c]">*</span> : null}
+          {required ? <span className="ml-1 text-destructive">*</span> : null}
         </label>
       ) : null}
 
@@ -146,24 +146,24 @@ export function CourseSelector({
         onClick={() => (isOpen ? closePicker() : openPicker())}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-sm border border-slate-200 bg-white px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]',
+          'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-sm border border-input bg-surface px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
         {selectedCourse ? (
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="text-sm font-bold text-slate-900">{selectedCourse.course_code}</span>
-            <span className="truncate text-sm font-medium text-slate-500">
+            <span className="text-sm font-bold text-text">{selectedCourse.course_code}</span>
+            <span className="truncate text-sm font-medium text-text-muted">
               {selectedCourse.course_title}
             </span>
           </span>
         ) : (
-          <span className="min-w-0 truncate text-sm font-semibold text-slate-500">
+          <span className="min-w-0 truncate text-sm font-medium text-text-muted">
             {placeholder}
           </span>
         )}
         <ChevronDown
-          className={cn('size-4 shrink-0 text-slate-500 transition-transform', isOpen && 'rotate-180')}
+          className={cn('size-4 shrink-0 text-text-muted transition-transform', isOpen && 'rotate-180')}
           aria-hidden="true"
         />
       </button>
@@ -173,10 +173,10 @@ export function CourseSelector({
           id={listId}
           role="listbox"
           aria-label={label ?? 'Courses'}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-slate-200 bg-white"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-border bg-surface shadow-sm"
         >
-          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-            <Search className="size-4 text-slate-400" aria-hidden="true" />
+          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
+            <Search className="size-4 text-text-muted" aria-hidden="true" />
             <input
               ref={searchInputRef}
               type="text"
@@ -187,7 +187,7 @@ export function CourseSelector({
               }}
               onKeyDown={handleKeyDown}
               placeholder="Search by code or course title"
-              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text placeholder:text-text-muted focus:outline-none"
               aria-autocomplete="list"
               aria-controls={listId}
             />
@@ -195,7 +195,7 @@ export function CourseSelector({
 
           <div className="max-h-64 overflow-y-auto">
             {filteredCourses.length === 0 ? (
-              <div className="px-3 py-4 text-center text-sm font-semibold text-slate-500">
+              <div className="px-3 py-4 text-center text-sm font-medium text-text-muted">
                 No courses found
               </div>
             ) : (
@@ -215,17 +215,17 @@ export function CourseSelector({
                     onMouseEnter={() => setHighlightedIndex(index)}
                     className={cn(
                       'flex w-full items-center gap-2 px-3 py-2 text-left transition-colors focus:outline-none',
-                      isHighlighted ? 'bg-[#1b3b87]/5' : 'bg-white hover:bg-slate-50/60',
-                      isSelected && 'bg-[#1b3b87]/5',
+                      isHighlighted ? 'bg-primary-soft text-primary' : 'bg-surface hover:bg-surface-subtle text-text',
+                      isSelected && 'bg-primary-soft font-semibold text-primary',
                     )}
                   >
                     <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                      <span className="text-sm font-bold text-slate-900">{course.course_code}</span>
-                      <span className="truncate text-sm font-medium text-slate-500">
+                      <span className="text-sm font-bold">{course.course_code}</span>
+                      <span className="truncate text-sm font-medium opacity-80">
                         {course.course_title}
                       </span>
                     </span>
-                    {isSelected ? <Check className="size-4 shrink-0 text-[#1b3b87]" aria-hidden="true" /> : null}
+                    {isSelected ? <Check className="size-4 shrink-0 text-primary" aria-hidden="true" /> : null}
                   </button>
                 );
               })
@@ -234,7 +234,7 @@ export function CourseSelector({
         </div>
       ) : null}
 
-      {hint ? <p className="mt-2 text-xs font-medium text-slate-500">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-xs font-normal text-text-muted">{hint}</p> : null}
     </div>
   );
 }

@@ -81,7 +81,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
 
     if (pages.length === 0) {
       return (
-        <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">
+        <div className="flex h-full items-center justify-center text-sm font-semibold text-text-muted">
           No document content available.
         </div>
       );
@@ -105,17 +105,17 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
     };
 
     return (
-      <div className="flex h-full flex-col bg-[#f8fafc]">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+      <div className="flex h-full flex-col bg-canvas">
+        <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
             SLM Content
           </span>
-          <div className="flex items-center border border-slate-200 rounded-sm bg-white p-0.5">
+          <div className="flex items-center border border-border rounded-sm bg-surface p-0.5">
             <button
               type="button"
               onClick={handlePrevPage}
               disabled={currentIndex <= 0}
-              className="inline-flex size-7 items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-950 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
               aria-label="Previous page"
             >
               <ChevronLeft className="size-4" />
@@ -124,7 +124,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
               <select
                 value={currentPage}
                 onChange={(e) => setCurrentPage(Number(e.target.value))}
-                className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer focus:ring-0 border-0 p-0"
+                className="bg-transparent text-xs font-semibold text-text outline-none cursor-pointer focus:ring-0 border-0 p-0"
               >
                 {pages.map((page) => (
                   <option key={page.page_number} value={page.page_number}>
@@ -137,7 +137,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
               type="button"
               onClick={handleNextPage}
               disabled={currentIndex < 0 || currentIndex >= pages.length - 1}
-              className="inline-flex size-7 items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-slate-950 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
               aria-label="Next page"
             >
               <ChevronRight className="size-4" />
@@ -147,18 +147,18 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
 
         <div className="flex-1 overflow-y-auto p-4">
           <div
-            className={`rounded-sm border border-slate-200 bg-white p-4 transition-colors ${
-              flashed ? 'bg-[#f2c811]/15' : ''
+            className={`rounded-sm border border-border bg-surface p-4 transition-colors ${
+              flashed ? 'bg-warning-soft/40' : ''
             }`}
           >
-            <div className="mb-2 text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+            <div className="mb-2 text-[9px] font-bold uppercase tracking-wider text-text-muted">
               Page {activePage.page_number}
             </div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-text">
               {match ? (
                 <>
                   {match.before}
-                  <mark className="rounded-sm bg-[#f2c811]/35 px-0.5 text-slate-900">{match.match}</mark>
+                  <mark className="rounded-xs bg-warning-soft text-warning font-medium px-0.5">{match.match}</mark>
                   {match.after}
                 </>
               ) : (
