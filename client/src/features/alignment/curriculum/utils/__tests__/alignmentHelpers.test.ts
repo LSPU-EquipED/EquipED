@@ -13,18 +13,18 @@ describe('statusLabel', () => {
 
 describe('statusBadgeClasses', () => {
   it('uses green for match', () => {
-    expect(statusBadgeClasses('match')).toContain('#3b963e');
+    expect(statusBadgeClasses('match')).toContain('success');
   });
 
   it('uses light blue for over-developed', () => {
-    expect(statusBadgeClasses('over-developed')).toContain('#3eaed4');
+    expect(statusBadgeClasses('over-developed')).toContain('info');
   });
 
   it('uses gold for under-developed', () => {
-    expect(statusBadgeClasses('under-developed')).toContain('#f2c811');
+    expect(statusBadgeClasses('under-developed')).toContain('warning');
   });
 
   it('uses red for not_addressed', () => {
-    expect(statusBadgeClasses('not_addressed')).toContain('#b91c1c');
+    expect(statusBadgeClasses('not_addressed')).toContain('destructive');
   });
 });
