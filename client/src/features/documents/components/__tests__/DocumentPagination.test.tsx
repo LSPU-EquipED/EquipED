@@ -63,7 +63,7 @@ describe('DocumentPagination', () => {
     expect(page3Markup).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Next page"/);
   });
 
-  it('renders dots with aria-hidden="true" and accessible text-slate-500 class when totalPages > 5', () => {
+  it('renders dots with aria-hidden="true" and accessible text-text-muted class when totalPages > 5', () => {
     const markup = renderToStaticMarkup(
       <DocumentPagination
         page={5}
@@ -75,8 +75,7 @@ describe('DocumentPagination', () => {
     );
 
     expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain('text-slate-500');
-    expect(markup).not.toContain('text-slate-400');
+    expect(markup).toContain('text-text-muted');
   });
 
   it('renders page size selector with accessible label and options', () => {

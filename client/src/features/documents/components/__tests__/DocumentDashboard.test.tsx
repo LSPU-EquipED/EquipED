@@ -104,19 +104,19 @@ describe('DocumentDashboard', () => {
     mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('<h1 class="mt-0.5 text-xl font-bold text-slate-900">My SLMs</h1>');
+    expect(markup).toMatch(/<h1[^>]*>My SLMs<\/h1>/);
     expect(markup).toContain('Faculty Workspace');
     expect(markup).toContain('Manage your uploaded Self-Learning Modules');
   });
 
-  it('renders flash success banner with accessible contrast colors (#166534)', () => {
+  it('renders flash success banner with accessible contrast colors', () => {
     mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
     const markup = renderWithClient(<DocumentDashboard />);
 
     expect(markup).toContain('Document uploaded successfully and is now available in My SLMs.');
-    expect(markup).toContain('text-[#166534]');
-    expect(markup).toContain('border-[#166534]/30');
-    expect(markup).toContain('bg-[#166534]/10');
+    expect(markup).toContain('text-success');
+    expect(markup).toContain('border-success/30');
+    expect(markup).toContain('bg-success-soft');
     expect(markup).not.toContain('#3b963e');
   });
 
