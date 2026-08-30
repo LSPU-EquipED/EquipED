@@ -25,32 +25,53 @@ export function DocumentTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse border-spacing-0">
-        <thead className="border-b border-slate-200 bg-slate-50/60">
+        <thead className="border-b border-border bg-surface-subtle">
           <tr>
-            <th scope="col" className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36">
+            <th
+              scope="col"
+              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+            >
               Status
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-[35%] min-w-[18rem]">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[35%] min-w-[18rem]"
+            >
               Name
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-[25%] min-w-[14rem]">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[25%] min-w-[14rem]"
+            >
               Course
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-28">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
+            >
               Program
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-28">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
+            >
               Type
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+            >
               Uploaded
             </th>
-            <th scope="col" className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-slate-600 text-right w-12">
+            <th
+              scope="col"
+              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted text-right w-12"
+            >
               <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border bg-surface">
           {documents.map((document) => {
             const latestEval = latestEvalsByDocId[document.documentId];
             const display = getSlmDisplayStatus(document, latestEval, latestEvalsState);
@@ -76,8 +97,8 @@ export function DocumentTable({
                 key={document.documentId}
                 className={cn(
                   'group transition-colors',
-                  isFlashing && 'bg-slate-50',
-                  display.isClickable && 'cursor-pointer hover:bg-slate-50/80',
+                  isFlashing && 'bg-surface-subtle',
+                  display.isClickable && 'cursor-pointer hover:bg-surface-subtle/80',
                   !display.isClickable && 'opacity-75',
                 )}
                 onClick={display.isClickable && primaryUrl ? handleRowClick : undefined}
@@ -85,7 +106,7 @@ export function DocumentTable({
                 <td className="py-3.5 px-6 md:px-8 w-36">
                   <span
                     className={cn(
-                      'inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold uppercase tracking-wider',
+                      'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold tracking-wide select-none',
                       display.badgeClass,
                     )}
                   >
@@ -95,34 +116,34 @@ export function DocumentTable({
                     {display.badgeLabel}
                   </span>
                 </td>
-                <td className="py-3.5 px-4 text-sm font-semibold text-slate-900 w-[35%] min-w-[18rem]">
+                <td className="py-3.5 px-4 text-sm font-semibold text-text w-[35%] min-w-[18rem]">
                   {display.isClickable && primaryUrl ? (
                     <Link
                       to={primaryUrl}
                       aria-label={display.ariaLabel}
-                      className="block truncate font-semibold text-slate-900 hover:text-[#1b3b87] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87] rounded-sm"
+                      className="block truncate font-semibold text-text hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                     >
                       {document.title}
                     </Link>
                   ) : (
                     <span
-                      className="block truncate font-semibold text-slate-700 cursor-not-allowed"
+                      className="block truncate font-semibold text-text-muted cursor-not-allowed"
                       title={display.tooltip}
                     >
                       {document.title}
                     </span>
                   )}
                 </td>
-                <td className="py-3.5 px-4 text-sm text-slate-600 font-medium w-[25%] min-w-[14rem]">
+                <td className="py-3.5 px-4 text-sm text-text-muted font-medium w-[25%] min-w-[14rem]">
                   <span className="block truncate">{document.courseTitle ?? '—'}</span>
                 </td>
-                <td className="py-3.5 px-4 text-sm text-slate-600 font-medium whitespace-nowrap w-28">
+                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap w-28">
                   {document.program ?? '—'}
                 </td>
-                <td className="py-3.5 px-4 text-sm text-slate-600 font-medium whitespace-nowrap w-28">
+                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap w-28">
                   {sourceTypeLabels[document.sourceType]}
                 </td>
-                <td className="py-3.5 px-4 text-sm text-slate-600 font-medium whitespace-nowrap tabular-nums w-36">
+                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap tabular-nums w-36">
                   {formatDate(document.uploadedAt)}
                 </td>
                 <td className="py-3.5 px-6 md:px-8 text-right w-12">
@@ -131,10 +152,10 @@ export function DocumentTable({
                       to={display.actionUrl}
                       aria-label={display.ariaLabel}
                       title={display.actionLabel}
-                      className="inline-flex size-8 items-center justify-center rounded-sm text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+                      className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <ChevronRight
-                        className="size-4 text-slate-500 group-hover:text-slate-700 transition-colors"
+                        className="size-4 text-text-muted group-hover:text-text transition-colors"
                         aria-hidden="true"
                       />
                     </Link>
@@ -153,51 +174,72 @@ export function DocumentTableSkeleton() {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left border-collapse border-spacing-0">
-        <thead className="border-b border-slate-200 bg-slate-50/60">
+        <thead className="border-b border-border bg-surface-subtle">
           <tr>
-            <th scope="col" className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36">
+            <th
+              scope="col"
+              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+            >
               Status
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-[35%] min-w-[18rem]">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[35%] min-w-[18rem]"
+            >
               Name
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-[25%] min-w-[14rem]">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[25%] min-w-[14rem]"
+            >
               Course
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-28">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
+            >
               Program
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-28">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
+            >
               Type
             </th>
-            <th scope="col" className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-slate-600 w-36">
+            <th
+              scope="col"
+              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+            >
               Uploaded
             </th>
-            <th scope="col" className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-slate-600 text-right w-12">
+            <th
+              scope="col"
+              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted text-right w-12"
+            >
               <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-border bg-surface">
           {Array.from({ length: 5 }).map((_, idx) => (
             <tr key={idx} className="animate-pulse">
               <td className="py-4 px-6 w-36">
-                <div className="h-5 w-16 bg-slate-200 rounded-sm" />
+                <div className="h-5 w-16 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-[35%] min-w-[18rem]">
-                <div className="h-4 w-48 bg-slate-200 rounded-sm" />
+                <div className="h-4 w-48 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-[25%] min-w-[14rem]">
-                <div className="h-4 w-36 bg-slate-200 rounded-sm" />
+                <div className="h-4 w-36 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-28">
-                <div className="h-4 w-12 bg-slate-200 rounded-sm" />
+                <div className="h-4 w-12 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-28">
-                <div className="h-4 w-12 bg-slate-200 rounded-sm" />
+                <div className="h-4 w-12 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-36">
-                <div className="h-4 w-20 bg-slate-200 rounded-sm" />
+                <div className="h-4 w-20 bg-surface-subtle border border-border/40 rounded-sm" />
               </td>
               <td className="py-4 px-4 w-12" />
             </tr>

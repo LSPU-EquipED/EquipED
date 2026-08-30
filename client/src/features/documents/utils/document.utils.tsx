@@ -19,32 +19,32 @@ export const statusConfig: Record<
 > = {
   PENDING: {
     label: 'Processing',
-    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
+    badgeClass: 'bg-warning-soft text-warning border border-warning/20',
     icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
   PROCESSING: {
     label: 'Processing',
-    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
+    badgeClass: 'bg-warning-soft text-warning border border-warning/20',
     icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
   PROCESSED: {
     label: 'Ready',
-    badgeClass: 'bg-[#166534] text-white',
+    badgeClass: 'bg-success-soft text-success border border-success/20',
   },
   FAILED: {
     label: 'Failed',
-    badgeClass: 'bg-[#b91c1c] text-white',
+    badgeClass: 'bg-destructive-soft text-destructive border border-destructive/20',
   },
   CLEANUP_PENDING: {
     label: 'Cleanup pending',
-    badgeClass: 'bg-[#f2c811] text-[#1e293b]',
+    badgeClass: 'bg-warning-soft text-warning border border-warning/20',
     icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
 };
 
 const unknownStatusConfig = {
   label: 'Unavailable',
-  badgeClass: 'bg-slate-600 text-white',
+  badgeClass: 'bg-surface-subtle text-text-muted border border-border',
 };
 
 export function getStatusMeta(status: string | null | undefined) {
