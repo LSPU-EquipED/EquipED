@@ -129,7 +129,7 @@ def seeded_user(db_session: Session):
     user = create_user(
         db_session,
         name="Platform Admin",
-        email="admin@example.com",
+        email="admin@lspu.edu.ph",
         password="correct-horse-battery",
         role=UserRole.ADMIN,
     )

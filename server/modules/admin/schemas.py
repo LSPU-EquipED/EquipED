@@ -6,7 +6,15 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    field_validator,
+)
+from server.modules.auth.email_policy import MAX_EMAIL_LENGTH, normalize_lspu_email
 from server.modules.evaluations.models import EvaluationStatus
 
 
@@ -72,17 +80,27 @@ class AdminUserCreateRequest(BaseModel):
     """Request body for creating a new user (admin-only)."""
 
     name: str = Field(..., min_length=1, max_length=300)
-    email: str = Field(..., min_length=1, max_length=300)
+    email: str = Field(..., min_length=1, max_length=MAX_EMAIL_LENGTH)
     password: str = Field(..., min_length=1)
     role: Literal["admin", "faculty"] = Field(default="faculty")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalize_lspu_email(value)
 
 
 class AdminUserUpdateRequest(BaseModel):
     """Request body for updating an existing user (admin-only)."""
 
     name: str | None = Field(None, min_length=1, max_length=300)
-    email: str | None = Field(None, min_length=1, max_length=300)
+    email: str | None = Field(None, min_length=1, max_length=MAX_EMAIL_LENGTH)
     is_active: bool | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return normalize_lspu_email(value) if value is not None else None
 
 
 class AdminUserResponse(BaseModel):

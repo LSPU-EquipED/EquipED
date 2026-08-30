@@ -31,7 +31,7 @@ def test_login_sets_cookie_and_returns_authenticated_user(
         "user": {
             "id": str(seeded_user.user_id),
             "displayName": "Platform Admin",
-            "email": "admin@example.com",
+            "email": "admin@lspu.edu.ph",
             "role": "admin",
         },
     }
@@ -57,7 +57,7 @@ def test_me_returns_authenticated_user_after_login(
         "user": {
             "id": str(seeded_user.user_id),
             "displayName": "Platform Admin",
-            "email": "admin@example.com",
+            "email": "admin@lspu.edu.ph",
             "role": "admin",
         },
     }

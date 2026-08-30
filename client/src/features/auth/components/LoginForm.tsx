@@ -97,6 +97,8 @@ export function LoginForm() {
                     <input
                       id="login-email"
                       type="email"
+                      maxLength={40}
+                      inputMode="email"
                       autoComplete="email"
                       autoFocus
                       placeholder="name@lspu.edu.ph"
@@ -109,10 +111,11 @@ export function LoginForm() {
                       }}
                       onBlur={handleEmailBlur}
                       required
-                      aria-describedby={auth.error ? 'login-error' : undefined}
+                      aria-invalid={Boolean(emailHint)}
+                      aria-describedby={emailHint ? 'login-email-hint' : auth.error ? 'login-error' : undefined}
                     />
                     {emailHint && (
-                      <p className="text-[11px] font-semibold text-[#f2c811] px-2 pt-1 transition-all">
+                      <p id="login-email-hint" className="text-[11px] font-semibold text-[#b91c1c] px-2 pt-1 transition-all">
                         {emailHint}
                       </p>
                     )}
@@ -135,7 +138,7 @@ export function LoginForm() {
                         id="login-password"
                         type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
-                        placeholder="••••••••"
+                        placeholder="Enter your password"
                         className={`h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-[#1b3b87] placeholder:text-slate-600 font-semibold text-slate-900 ${showPassword ? '' : 'tracking-widest'}`}
                         value={password}
                         onChange={(event) => {

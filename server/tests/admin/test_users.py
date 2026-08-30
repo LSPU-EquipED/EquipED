@@ -66,7 +66,7 @@ def test_admin_list_users_returns_all_users(
 def test_admin_create_user_requires_admin(client: TestClient, auth_cookies_faculty) -> None:
     payload = {
         "name": "New Faculty",
-        "email": "newfaculty@test.com",
+        "email": "newfaculty@lspu.edu.ph",
         "password": "password123",
         "role": "faculty",
     }
@@ -84,7 +84,7 @@ def test_admin_create_faculty_user(
     _auth(client, auth_cookies_admin)
     payload = {
         "name": "New Faculty",
-        "email": "newfaculty@test.com",
+        "email": "newfaculty@lspu.edu.ph",
         "password": "password123",
         "role": "faculty",
     }
@@ -93,13 +93,13 @@ def test_admin_create_faculty_user(
 
     data = response.json()
     assert data["name"] == "New Faculty"
-    assert data["email"] == "newfaculty@test.com"
+    assert data["email"] == "newfaculty@lspu.edu.ph"
     assert data["role"] == "faculty"
     assert data["is_active"] is True
 
     # Verify persisted in DB
     from server.modules.auth.models import User
-    user = db_session.query(User).filter_by(email="newfaculty@test.com").first()
+    user = db_session.query(User).filter_by(email="newfaculty@lspu.edu.ph").first()
     assert user is not None
     assert user.name == "New Faculty"
 
@@ -110,7 +110,7 @@ def test_admin_create_user_duplicate_email(
     _auth(client, auth_cookies_admin)
     payload = {
         "name": "Admin User",
-        "email": "admin@example.com",  # already exists from fixture
+        "email": "admin@lspu.edu.ph",  # already exists from fixture
         "password": "password123",
         "role": "faculty",
     }
@@ -154,12 +154,12 @@ def test_admin_update_user_email(
 ) -> None:
     _auth(client, auth_cookies_admin)
     user_id = str(faculty_user.user_id)
-    payload = {"email": "newemail@test.com"}
+    payload = {"email": "newemail@lspu.edu.ph"}
     response = client.put(f"/api/v1/admin/users/{user_id}", json=payload)
     assert response.status_code == 200
 
     data = response.json()
-    assert data["email"] == "newemail@test.com"
+    assert data["email"] == "newemail@lspu.edu.ph"
     assert data["name"] == faculty_user.name
 
 
@@ -191,7 +191,7 @@ def test_admin_update_user_duplicate_email(
     """Cannot update a user's email to one already in use."""
     _auth(client, auth_cookies_admin)
     user_id = str(faculty_user.user_id)
-    payload = {"email": "admin@example.com"}  # already taken by admin fixture
+    payload = {"email": "admin@lspu.edu.ph"}  # already taken by admin fixture
     response = client.put(f"/api/v1/admin/users/{user_id}", json=payload)
     assert response.status_code == 409
 

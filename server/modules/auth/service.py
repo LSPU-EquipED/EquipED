@@ -13,6 +13,7 @@ from server.core.config import Settings
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload
 
+from .email_policy import normalize_lspu_email
 from .exceptions import InactiveUserError, InvalidCredentialsError
 from .models import Session as AuthSession
 from .models import User, UserRole
@@ -130,6 +131,8 @@ def bootstrap_admin_if_configured(db: Session, settings: Settings) -> bool:
     ):
         return False
 
+    normalized_email = normalize_lspu_email(settings.bootstrap_admin_email)
+
     admin_exists = db.scalar(
         select(User.user_id).where(User.role == UserRole.ADMIN).limit(1)
     )
@@ -137,7 +140,7 @@ def bootstrap_admin_if_configured(db: Session, settings: Settings) -> bool:
         return False
 
     existing_user = db.scalar(
-        select(User).where(User.email == settings.bootstrap_admin_email.lower())
+        select(User).where(User.email == normalized_email)
     )
     if existing_user is not None:
         return False
@@ -145,7 +148,7 @@ def bootstrap_admin_if_configured(db: Session, settings: Settings) -> bool:
     create_user(
         db,
         name=settings.bootstrap_admin_name,
-        email=settings.bootstrap_admin_email,
+        email=normalized_email,
         password=settings.bootstrap_admin_password,
         role=UserRole.ADMIN,
         is_active=True,

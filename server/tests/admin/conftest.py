@@ -26,7 +26,7 @@ def admin_user(db_session):
     user = create_user(
         db_session,
         name="Admin User",
-        email="admin@example.com",
+        email="admin@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -39,7 +39,7 @@ def faculty_user(db_session):
     user = create_user(
         db_session,
         name="Faculty User",
-        email="faculty@example.com",
+        email="faculty@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

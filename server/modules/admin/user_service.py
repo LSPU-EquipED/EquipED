@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from server.modules.auth.email_policy import normalize_lspu_email
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user as auth_create_user
 
@@ -38,7 +39,7 @@ def create_admin_user(
     return auth_create_user(
         db,
         name=name,
-        email=email,
+        email=normalize_lspu_email(email),
         password=password,
         role=user_role,
         is_active=True,
@@ -61,11 +62,12 @@ def update_user(
     if user is None:
         raise ValueError("User not found")
 
-    if email is not None and email != user.email:
-        existing = db.query(User).filter(User.email == email).first()
+    normalized_email = normalize_lspu_email(email) if email is not None else None
+    if normalized_email is not None and normalized_email != user.email:
+        existing = db.query(User).filter(User.email == normalized_email).first()
         if existing is not None:
             raise ValueError("Email already in use")
-        user.email = email
+        user.email = normalized_email
 
     if name is not None:
         user.name = name

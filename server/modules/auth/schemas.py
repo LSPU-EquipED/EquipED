@@ -4,14 +4,20 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .email_policy import MAX_EMAIL_LENGTH, normalize_lspu_email
 from .models import UserRole
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
+    email: str = Field(min_length=3, max_length=MAX_EMAIL_LENGTH)
     password: str = Field(min_length=8, max_length=256)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return normalize_lspu_email(value)
 
 
 class AuthUserResponse(BaseModel):
