@@ -177,10 +177,10 @@ export function ProgramSelector({
       {label ? (
         <label
           htmlFor={id}
-          className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500"
+          className="mb-1.5 block text-xs font-semibold text-text"
         >
           {label}
-          {required ? <span className="ml-1 text-[#b91c1c]">*</span> : null}
+          {required ? <span className="ml-1 text-destructive">*</span> : null}
         </label>
       ) : null}
 
@@ -195,25 +195,25 @@ export function ProgramSelector({
         onClick={() => (isOpen ? closePicker() : openPicker())}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-sm border border-slate-200 bg-white px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-[#1b3b87]',
+          'flex h-10 min-w-0 w-full items-center justify-between gap-2 rounded-sm border border-input bg-surface px-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
           disabled && 'cursor-not-allowed opacity-60',
         )}
       >
         {selectedProgram ? (
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="text-sm font-bold text-slate-900">{selectedProgram.code}</span>
-            <span className="truncate text-sm font-medium text-slate-500">
+            <span className="text-sm font-bold text-text">{selectedProgram.code}</span>
+            <span className="truncate text-sm font-medium text-text-muted">
               {selectedProgram.name}
             </span>
           </span>
         ) : (
-          <span className="min-w-0 truncate text-sm font-semibold text-slate-500">
+          <span className="min-w-0 truncate text-sm font-medium text-text-muted">
             {placeholder}
           </span>
         )}
         <ChevronDown
           className={cn(
-            'size-4 shrink-0 text-slate-500 transition-transform',
+            'size-4 shrink-0 text-text-muted transition-transform',
             isOpen && 'rotate-180',
           )}
           aria-hidden="true"
@@ -225,10 +225,10 @@ export function ProgramSelector({
           id={listId}
           role="listbox"
           aria-label={label ?? 'Programs'}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-slate-200 bg-white"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-border bg-surface shadow-sm"
         >
-          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-            <Search className="size-4 text-slate-400" aria-hidden="true" />
+          <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
+            <Search className="size-4 text-text-muted" aria-hidden="true" />
             <input
               ref={searchInputRef}
               id={searchId}
@@ -237,7 +237,7 @@ export function ProgramSelector({
               onChange={(e) => handleQueryChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search by code or program name"
-              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-800 placeholder:text-slate-500 focus:outline-none"
+              className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text placeholder:text-text-muted focus:outline-none"
               aria-autocomplete="list"
               aria-controls={listId}
               aria-activedescendant={
@@ -250,13 +250,13 @@ export function ProgramSelector({
 
           <div className="max-h-64 overflow-y-auto">
             {filteredGroups.length === 0 ? (
-              <div className="px-3 py-4 text-center text-sm font-semibold text-slate-500">
+              <div className="px-3 py-4 text-center text-sm font-medium text-text-muted">
                 No programs found
               </div>
             ) : (
               filteredGroups.map((group) => (
                 <div key={group.code} role="group" aria-label={group.college}>
-                  <div className="bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  <div className="bg-surface-subtle px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted border-b border-border">
                     {group.college}
                   </div>
                   {group.programs.map((program) => {
@@ -280,18 +280,18 @@ export function ProgramSelector({
                         onMouseEnter={() => setHighlightedIndex(flatIndex)}
                         className={cn(
                           'flex w-full items-center gap-2 px-3 py-2 text-left transition-colors focus:outline-none',
-                          isHighlighted ? 'bg-[#1b3b87]/5' : 'bg-white hover:bg-slate-50/60',
-                          isSelected && 'bg-[#1b3b87]/5',
+                          isHighlighted ? 'bg-primary-soft text-primary' : 'bg-surface hover:bg-surface-subtle text-text',
+                          isSelected && 'bg-primary-soft font-semibold text-primary',
                         )}
                       >
                         <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                          <span className="text-sm font-bold text-slate-900">{program.code}</span>
-                          <span className="truncate text-sm font-medium text-slate-500">
+                          <span className="text-sm font-bold">{program.code}</span>
+                          <span className="truncate text-sm font-medium opacity-80">
                             {program.name}
                           </span>
                         </span>
                         {isSelected ? (
-                          <Check className="size-4 shrink-0 text-[#1b3b87]" aria-hidden="true" />
+                          <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
                         ) : null}
                       </button>
                     );
@@ -303,7 +303,7 @@ export function ProgramSelector({
         </div>
       ) : null}
 
-      {hint ? <p className="mt-2 text-xs font-medium text-slate-500">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-xs font-normal text-text-muted">{hint}</p> : null}
     </div>
   );
 }
