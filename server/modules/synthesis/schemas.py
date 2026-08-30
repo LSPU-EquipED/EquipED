@@ -7,6 +7,11 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from server.modules.rubrics.presentation import (
+    EvaluationFormCriterionPresentation,
+    EvaluationFormDomainPresentation,
+    EvaluationFormPresentation,
+)
 
 
 class ReviewerCorrection(BaseModel):
@@ -16,12 +21,15 @@ class ReviewerCorrection(BaseModel):
 
 
 class CriterionScoreItem(BaseModel):
+    rubric_criterion_id: UUID | None = None
     criterion_id: str
     criterion_text: str
+    description: str | None = None
+    display_order: int | None = None
     score: int
     justification: str
     evidence: str | None = None
-    chunk_ids: str | None = None
+    is_ungrounded: bool = False
     reviewer_correction: ReviewerCorrection | None = None
 
 
@@ -45,12 +53,20 @@ def score_to_adjectival(score: float) -> str:
 
 
 class DomainScoreBlock(BaseModel):
+    form_snapshot_id: UUID | None = None
+    rubric_set_id: UUID | None = None
+    version: int | None = None
+    snapshot_hash: str | None = None
+    adapter_key: str | None = None
+    adapter_version: int | None = None
+    domain_id: UUID | None = None
+    domain_name: str | None = None
+    domain_display_order: int | None = None
     criteria: list[CriterionScoreItem]
     subtotal: float
     max_score: int
     status: str  # "OK" | "ERROR"
     adjectival_rating: str | None = None
-    provenance: dict | None = None
     summary: str = ""
 
 
@@ -84,6 +100,8 @@ class EvaluationResultsResponse(BaseModel):
     submitted_at: datetime | None = None
     completed_at: datetime | None = None
     duration_seconds: float | None = None
+    forms: dict[str, EvaluationFormPresentation] = Field(default_factory=dict)
+    legacy_notice: str | None = None
 
 
 class MatrixRowItem(BaseModel):
@@ -113,6 +131,9 @@ __all__ = [
     "CriterionScoreItem",
     "ReviewerCorrection",
     "DomainScoreBlock",
+    "EvaluationFormCriterionPresentation",
+    "EvaluationFormDomainPresentation",
+    "EvaluationFormPresentation",
     "EvaluationResultsResponse",
     "EvaluationFlagItem",
     "MatrixRowItem",

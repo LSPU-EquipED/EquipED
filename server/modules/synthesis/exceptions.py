@@ -21,8 +21,13 @@ class UnsupportedProgramFilterError(SynthesisError):
     """Raised when a matrix program filter is not a supported program."""
 
 
+class EvaluationResultIntegrityError(SynthesisError):
+    """Raised when agent results fail strict snapshot-bound integrity validation."""
+
+
 __all__ = [
     "SynthesisError",
     "EvaluationResultsNotFoundError",
     "UnsupportedProgramFilterError",
+    "EvaluationResultIntegrityError",
 ]

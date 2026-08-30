@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
 from server.modules.synthesis.exceptions import (
+    EvaluationResultIntegrityError,
     EvaluationResultsNotFoundError,
     UnsupportedProgramFilterError,
 )
@@ -35,6 +36,10 @@ def get_evaluation_results(
         return service_get_evaluation_results(evaluation_id, current_user.id, db=db)
     except EvaluationResultsNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    except EvaluationResultIntegrityError:
+        raise HTTPException(
+            status_code=500, detail="Evaluation results failed integrity verification"
+        )
 
 
 @router.get("/matrix", response_model=MatrixListResponse)

@@ -52,6 +52,11 @@ class AgentResult(Base):
     group_responses: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     advisory_outputs: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    form_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("evaluation_form_snapshots.snapshot_id"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
