@@ -71,14 +71,14 @@ function isDifferentFromOriginal(criterion: CriterionScoreItem, draft: Criterion
 
 function scoreButtonClasses(value: number, selected: boolean, isEdited: boolean): string {
   if (!selected) {
-    return 'border-slate-200 text-slate-400 hover:bg-slate-50';
+    return 'border-border text-text-muted hover:bg-surface-subtle';
   }
   if (isEdited) {
-    return 'border-[#1b3b87] bg-[#1b3b87] text-white';
+    return 'border-primary bg-primary text-primary-foreground';
   }
   return value < 2
-    ? 'border-[#b91c1c] bg-[#b91c1c] text-white'
-    : 'border-[#3b963e] bg-[#3b963e] text-white';
+    ? 'border-destructive bg-destructive text-destructive-foreground'
+    : 'border-success bg-success text-success-foreground';
 }
 
 export function AgentReviewModal({
@@ -212,14 +212,14 @@ export function AgentReviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-sm border border-slate-200 bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4">
+      <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-sm border border-border bg-surface shadow-none">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-text">
               Review {agentLabel} Scores
             </h2>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+            <p className="mt-0.5 text-[11px] text-text-muted">
               {editedCount} of {criteria.length} edited · subtotal{' '}
               {formatScore(draftSubtotal)}/4
             </p>
@@ -227,7 +227,7 @@ export function AgentReviewModal({
           <button
             type="button"
             title="Close"
-            className="inline-flex size-7 items-center justify-center rounded-sm text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text"
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -252,15 +252,15 @@ export function AgentReviewModal({
             return (
               <div
                 key={criterion.criterion_id}
-                className="grid gap-2 rounded-sm border border-slate-200 p-3"
+                className="grid gap-2 rounded-sm border border-border p-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800">
+                    <span className="text-sm font-semibold text-text">
                       {criterion.criterion_text}
                     </span>
                     {isEdited && (
-                      <span className="rounded-full bg-[#1b3b87]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#1b3b87]">
+                      <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
                         Edited
                       </span>
                     )}
@@ -273,7 +273,7 @@ export function AgentReviewModal({
                         disabled={draft.rejected}
                         onClick={() => selectScore(criterion, value)}
                         className={cn(
-                          'inline-flex size-6 items-center justify-center rounded-sm border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40',
+                          'inline-flex size-6 items-center justify-center rounded-sm border text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40 tabular-nums',
                           scoreButtonClasses(value, draft.score === value, isEdited),
                         )}
                       >
@@ -292,8 +292,8 @@ export function AgentReviewModal({
                       className={cn(
                         'inline-flex size-6 shrink-0 items-center justify-center rounded-sm border disabled:cursor-not-allowed',
                         draft.rejected
-                          ? 'border-[#b91c1c] bg-[#b91c1c]/10 text-[#b91c1c]'
-                          : 'border-slate-200 text-slate-400 hover:bg-slate-50',
+                          ? 'border-destructive bg-destructive-soft text-destructive'
+                          : 'border-border text-text-muted hover:bg-surface-subtle',
                       )}
                     >
                       <Flag className="size-3.5" />
@@ -302,21 +302,21 @@ export function AgentReviewModal({
                 </div>
 
                 {!draft.expanded && (
-                  <p className="text-xs leading-relaxed text-slate-500">
+                  <p className="text-xs leading-relaxed text-text-muted">
                     {criterion.justification}
                   </p>
                 )}
 
                 {draft.expanded && !draft.rejected && (
                   <div className="grid gap-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
                       Justification
                       <textarea
                         className={cn(
-                          'mt-1 block w-full rounded-sm border px-2 py-1 text-xs',
+                          'mt-1 block w-full rounded-sm border bg-surface px-2 py-1 text-xs text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                           isJustificationEmpty
-                            ? 'border-[#b91c1c] focus:outline-[#b91c1c]'
-                            : 'border-slate-200',
+                            ? 'border-destructive focus-visible:ring-destructive'
+                            : 'border-border',
                         )}
                         rows={2}
                         maxLength={4000}
@@ -328,16 +328,16 @@ export function AgentReviewModal({
                         }
                       />
                       {isJustificationEmpty && (
-                        <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-[#b91c1c]">
+                        <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-destructive">
                           Justification cannot be empty.
                         </span>
                       )}
                     </label>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-[11px] text-text-muted">
                       AI scored {formatScore(criterion.score)}/4 — {criterion.justification}.{' '}
                       <button
                         type="button"
-                        className="font-semibold text-[#1b3b87] hover:underline"
+                        className="font-semibold text-primary hover:underline"
                         onClick={() => revertCriterion(criterion)}
                       >
                         Revert
@@ -350,10 +350,10 @@ export function AgentReviewModal({
           })}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
-          <p className="text-[11px] text-slate-500">
+        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-4">
+          <p className="text-[11px] text-text-muted">
             {submitError ? (
-              <span className="font-semibold text-[#b91c1c]">{submitError}</span>
+              <span className="font-semibold text-destructive">{submitError}</span>
             ) : (
               `${flaggedCount} flagged · ${editedCount} edited`
             )}
@@ -361,7 +361,7 @@ export function AgentReviewModal({
           <div className="flex gap-2">
             <button
               type="button"
-              className="rounded-sm border border-slate-200 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500"
+              className="rounded-sm border border-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-muted hover:bg-surface-subtle hover:text-text"
               onClick={onClose}
               disabled={isSubmitting}
             >
@@ -369,7 +369,7 @@ export function AgentReviewModal({
             </button>
             <button
               type="button"
-              className="rounded-sm border border-[#1b3b87]/30 bg-[#1b3b87]/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[#1b3b87] disabled:opacity-50"
+              className="rounded-sm bg-primary px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-primary-foreground hover:bg-primary-strong disabled:opacity-50"
               onClick={handleSubmit}
               disabled={isSubmitting || hasEmptyJustification}
             >

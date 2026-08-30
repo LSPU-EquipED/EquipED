@@ -78,7 +78,7 @@ export function EvaluationInterface() {
   };
 
   return (
-    <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-white">
+    <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas">
       <EvaluationHeader
         document={document}
         selectedAgent={selectedAgent}
@@ -132,7 +132,7 @@ export function EvaluationInterface() {
 
           <button
             type="button"
-            className="group relative min-h-0 cursor-col-resize bg-border outline-none transition-colors hover:bg-foreground/50 focus-visible:bg-foreground/50"
+            className="group relative min-h-0 cursor-col-resize bg-border outline-none transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring"
             onPointerDown={handleDividerPointerDown}
             aria-label="Resize document and score panels"
           >

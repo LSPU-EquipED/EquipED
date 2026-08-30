@@ -500,7 +500,7 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
     <div className="inline-flex flex-col items-start gap-1">
       <button
         type="button"
-        className="inline-flex h-9 items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-60"
+        className="inline-flex h-9 items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-4 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring focus:outline-none disabled:opacity-60"
         onClick={handleDownload}
         disabled={isDownloading}
       >
@@ -508,7 +508,7 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
         {isDownloading ? 'Creating PDF...' : 'Download PDF'}
       </button>
       {errorMessage && (
-        <span className="text-xs font-medium text-[#b91c1c]" role="alert">
+        <span className="text-xs font-medium text-destructive" role="alert">
           {errorMessage}
         </span>
       )}
@@ -534,7 +534,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
   const headerLines = buildHeaderLines(domainData);
 
   return (
-    <div className="mx-auto min-h-[297mm] w-[210mm] resize overflow-auto border border-slate-200 bg-white p-[12mm] text-[11px] text-black">
+    <div className="mx-auto min-h-[297mm] w-[210mm] resize overflow-auto border border-border bg-surface p-[12mm] text-[11px] text-text">
       <div className="flex items-center justify-center gap-4 leading-5">
         <img
           className="size-20 object-contain"
@@ -555,7 +555,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
       </h2>
 
       {domainData.isPartial && (
-        <div className="mt-4 rounded-sm border border-amber-300 bg-amber-50 p-2 text-[10px] text-amber-900">
+        <div className="mt-4 rounded-sm border border-warning/30 bg-warning-soft p-2 text-[10px] text-warning">
           <p className="font-semibold uppercase tracking-wider">
             Partial evaluation - Advisory only
           </p>
@@ -611,7 +611,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
         <div>
           <strong>Adjectival rating:</strong> {rating}
         </div>
-        <div className="text-[#1b3b87]">
+        <div className="text-primary font-semibold">
           <strong>Monitoring % (0-100 scale):</strong> {monitoring}%
         </div>
       </div>
@@ -638,7 +638,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
         <span>EquipED - LSPU SCC</span>
         <span>Advisory only</span>
       </div>
-      <p className="mt-2 text-center text-[10px] text-slate-500">
+      <p className="mt-2 text-center text-[10px] text-text-muted">
         {agentDisplayLabel(domainData.agentId)}
       </p>
     </div>
