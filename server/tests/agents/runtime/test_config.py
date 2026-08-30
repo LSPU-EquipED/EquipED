@@ -262,3 +262,58 @@ def test_config_accepts_minimum_sme_total_prompt_budget(monkeypatch) -> None:
         assert get_settings().sme_total_prompt_budget_chars == 15000
     finally:
         get_settings.cache_clear()
+
+
+def test_config_llm_max_new_tokens_upper_bound(monkeypatch) -> None:
+    """LLM_MAX_NEW_TOKENS allows up to 32768, rejects 32769."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_MAX_NEW_TOKENS", "32768")
+    try:
+        assert get_settings().llm_max_new_tokens == 32768
+    finally:
+        get_settings.cache_clear()
+
+    monkeypatch.setenv("LLM_MAX_NEW_TOKENS", "32769")
+    try:
+        with pytest.raises(
+            ConfigurationError, match="LLM_MAX_NEW_TOKENS cannot exceed 32768"
+        ):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+
+def test_config_llm_request_timeout_seconds_bounds(monkeypatch) -> None:
+    """LLM_REQUEST_TIMEOUT_SECONDS allows [1, 3600], rejects 0 and 3601."""
+    _clear_settings_cache(monkeypatch)
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "3600")
+    try:
+        assert get_settings().llm_request_timeout_seconds == 3600
+    finally:
+        get_settings.cache_clear()
+
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "1")
+    try:
+        assert get_settings().llm_request_timeout_seconds == 1
+    finally:
+        get_settings.cache_clear()
+
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "0")
+    try:
+        with pytest.raises(
+            ConfigurationError,
+            match="LLM_REQUEST_TIMEOUT_SECONDS must be at least 1",
+        ):
+            get_settings()
+    finally:
+        get_settings.cache_clear()
+
+    monkeypatch.setenv("LLM_REQUEST_TIMEOUT_SECONDS", "3601")
+    try:
+        with pytest.raises(
+            ConfigurationError,
+            match="LLM_REQUEST_TIMEOUT_SECONDS cannot exceed 3600",
+        ):
+            get_settings()
+    finally:
+        get_settings.cache_clear()

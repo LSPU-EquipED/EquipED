@@ -6,7 +6,7 @@ from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
 
 
 def itso_response(*, chunk_ids: tuple[str, ...] = ("c1",), score: int = 3) -> dict:
-    """Return a complete, schema-valid ITSO response for a known context."""
+    """Return a schema-valid, explicitly ungrounded ITSO runtime fixture."""
     return {
         "summary": "Runtime fixture evaluation.",
         "criterion_scores": [
@@ -16,7 +16,7 @@ def itso_response(*, chunk_ids: tuple[str, ...] = ("c1",), score: int = 3) -> di
                 "score": score,
                 "justification": "Evidence supports the assigned score.",
                 "chunk_ids": list(chunk_ids),
-                "evidence": ["Runtime context evidence."],
+                "evidence": [],
             }
             for criterion_id, title in ITSO_CRITERIA_TITLES.items()
         ],

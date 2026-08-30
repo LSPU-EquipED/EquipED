@@ -98,8 +98,7 @@ def test_canonical_group_response_snapshot_exact_shape_and_order():
     ]
     assert all(c["score"] == 4 for c in snapshot["criterion_scores"])
     assert all(
-        c["justification"] == "justification text"
-        for c in snapshot["criterion_scores"]
+        c["justification"] == "justification text" for c in snapshot["criterion_scores"]
     )
     assert all(
         c["evidence"] == ["evidence quote"] for c in snapshot["criterion_scores"]
