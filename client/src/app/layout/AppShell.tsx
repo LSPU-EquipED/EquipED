@@ -80,10 +80,10 @@ export function AppShell() {
   const layoutClasses = getSidebarLayoutClasses(isSidebarCollapsed);
 
   return (
-    <div className="min-h-screen bg-white text-slate-800">
+    <div className="min-h-screen bg-canvas text-text">
       <header
         className={cn(
-          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white px-4 sm:px-6 transition-[left] duration-200',
+          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-border bg-surface px-4 sm:px-6 transition-[left] duration-200',
           layoutClasses.headerLeft,
         )}
       >
@@ -93,7 +93,7 @@ export function AppShell() {
             type="button"
             ref={mobileMenuTriggerRef}
             onClick={() => setIsMobileMenuOpen(true)}
-            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Open navigation menu"
             aria-expanded={isMobileMenuOpen}
             aria-controls="app-sidebar"
@@ -101,7 +101,7 @@ export function AppShell() {
             <Menu className="size-5" aria-hidden="true" />
           </button>
 
-          <span className="text-base font-bold text-slate-900">
+          <span className="text-base font-bold text-text">
             {getRouteTitle(routeId, user?.role)}
           </span>
         </div>
@@ -111,7 +111,7 @@ export function AppShell() {
             <button
               type="button"
               ref={accountTriggerRef}
-              className="flex size-8 items-center justify-center rounded-full bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-[#1b3b87] focus:ring-offset-2"
+              className="flex size-8 items-center justify-center rounded-full bg-primary hover:bg-primary-strong text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
               aria-label={`User account menu for ${user?.displayName ?? user?.email ?? 'faculty'}`}
@@ -123,20 +123,20 @@ export function AppShell() {
             {isAccountMenuOpen ? (
               <div
                 role="menu"
-                className="absolute right-0 top-11 z-50 w-60 rounded-sm border border-slate-200 bg-white p-1.5 text-xs shadow-none"
+                className="absolute right-0 top-11 z-50 w-60 rounded-sm border border-border bg-surface p-1.5 text-xs shadow-sm"
               >
-                <div className="border-b border-slate-200 px-3 py-2">
-                  <p className="truncate font-semibold text-slate-800">
+                <div className="border-b border-border px-3 py-2">
+                  <p className="truncate font-semibold text-text">
                     {user?.displayName ?? 'EquipEd User'}
                   </p>
-                  <p className="truncate text-[10px] text-slate-500">
+                  <p className="truncate text-[11px] text-text-muted">
                     {user?.email ?? 'No email available'}
                   </p>
                 </div>
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-[#b91c1c] transition-colors hover:bg-[#b91c1c]/10"
+                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-destructive transition-colors hover:bg-destructive-soft"
                   onClick={() => {
                     void handleLogout();
                   }}

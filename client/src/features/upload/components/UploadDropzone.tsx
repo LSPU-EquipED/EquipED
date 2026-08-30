@@ -1,5 +1,6 @@
 import type { ChangeEvent, DragEvent, RefObject } from 'react';
 import { FileText, Upload } from 'lucide-react';
+import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 
 interface UploadDropzoneProps {
@@ -27,7 +28,7 @@ export function UploadDropzone({
 }: UploadDropzoneProps) {
   return (
     <div className="space-y-2.5">
-      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
         Document Attachment
       </div>
 
@@ -37,12 +38,12 @@ export function UploadDropzone({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          'relative flex flex-col md:flex-row items-center justify-between gap-4 rounded-sm border border-dashed border-slate-300 bg-slate-50/50 p-4 transition-all cursor-pointer',
-          'hover:border-slate-400 hover:bg-slate-50/80',
-          'focus-within:ring-2 focus-within:ring-[#1b3b87] focus-within:ring-offset-2 focus-within:outline-none',
-          isDragging && 'border-[#1b3b87] bg-[#1b3b87]/10 ring-2 ring-[#1b3b87]/20',
-          validationError && !file && 'border-[#b91c1c]/50 bg-[#b91c1c]/5',
-          file && 'border-solid border-[#1b3b87]/20 bg-white',
+          'relative flex flex-col md:flex-row items-center justify-between gap-4 rounded-sm border border-dashed border-border bg-surface-subtle/50 p-4 transition-all cursor-pointer',
+          'hover:border-primary/50 hover:bg-surface-subtle',
+          'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:outline-none',
+          isDragging && 'border-primary bg-primary-soft/30 ring-2 ring-primary/20',
+          validationError && !file && 'border-destructive/50 bg-destructive-soft/30',
+          file && 'border-solid border-border bg-surface',
         )}
       >
         {/* Left Column: Icon and Info */}
@@ -51,10 +52,10 @@ export function UploadDropzone({
             className={cn(
               'flex size-10 items-center justify-center rounded-sm border transition-colors shrink-0',
               file
-                ? 'bg-[#1b3b87]/5 border-[#1b3b87]/20 text-[#1b3b87]'
+                ? 'bg-primary-soft border-primary/20 text-primary'
                 : validationError
-                  ? 'bg-[#b91c1c]/10 border-[#b91c1c]/30 text-[#b91c1c]'
-                  : 'bg-slate-100 border-slate-200 text-slate-400',
+                  ? 'bg-destructive-soft border-destructive/30 text-destructive'
+                  : 'bg-primary-soft/40 border-border text-primary',
             )}
           >
             {file ? (
@@ -67,12 +68,12 @@ export function UploadDropzone({
             <p
               className={cn(
                 'text-sm font-medium truncate',
-                file ? 'text-slate-800' : 'text-slate-500',
+                file ? 'text-text font-semibold' : 'text-text-muted',
               )}
             >
               {file ? file.name : 'Select or drag the SLM PDF file'}
             </p>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wide mt-0.5">
+            <p className="text-[10px] text-text-muted font-medium uppercase tracking-wide mt-0.5">
               {file
                 ? `${(file.size / 1024 / 1024).toFixed(2)} MB • PDF Document`
                 : 'PDF ONLY • SYSTEM INTAKE'}
@@ -83,19 +84,21 @@ export function UploadDropzone({
         {/* Right Column: Browse/Remove Actions */}
         <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
           {file ? (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleReset();
               }}
-              className="h-8 px-3 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors focus:ring-2 focus:ring-[#1b3b87]"
+              className="uppercase tracking-wider font-semibold text-xs"
             >
               Remove File
-            </button>
+            </Button>
           ) : (
-            <span className="h-8 px-4 inline-flex items-center justify-center bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white rounded-sm text-xs font-bold uppercase tracking-wide transition-colors">
+            <span className="h-8 px-4 inline-flex items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors">
               Browse Files
             </span>
           )}
@@ -118,7 +121,7 @@ export function UploadDropzone({
           id="pdf-file-error"
           role="alert"
           aria-live="polite"
-          className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-3 py-2 text-xs font-semibold text-[#b91c1c]"
+          className="rounded-sm border border-destructive/30 bg-destructive-soft px-3 py-2 text-xs font-semibold text-destructive"
         >
           {validationError}
         </div>

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, GraduationCap, Loader2 } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
+import { Button } from '@/shared/components/Button';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
 import {
   isFailedStatus,
@@ -157,17 +158,17 @@ export function UploadForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid min-h-[calc(100vh-4rem)] w-full grid-cols-1 xl:grid-cols-[minmax(0,1fr)_30rem]"
+      className="grid min-h-[calc(100vh-4rem)] w-full grid-cols-1 xl:grid-cols-[minmax(0,1fr)_30rem] bg-canvas"
     >
-      <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r border-slate-200 bg-white">
+      <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r border-border bg-surface">
         <UploadHeader title={title} />
 
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 max-w-4xl space-y-6">
-          <div className="space-y-1 border-l-2 border-[#f2c811] pl-3">
-            <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+          <div className="space-y-1 border-l-2 border-primary pl-3">
+            <h3 className="text-lg font-semibold tracking-tight text-text">
               LSPU SCC Faculty Document Intake
             </h3>
-            <p className="text-[10px] leading-relaxed text-slate-500 font-semibold uppercase tracking-wide">
+            <p className="text-[11px] leading-relaxed text-text-muted font-semibold uppercase tracking-wider">
               Laguna State Polytechnic University • Quality Assurance System
             </p>
           </div>
@@ -187,20 +188,20 @@ export function UploadForm() {
           />
         </div>
 
-        <div className="flex min-h-14 flex-wrap items-center gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-500 font-semibold uppercase tracking-wide sm:px-6 bg-slate-50/20">
+        <div className="flex min-h-14 flex-wrap items-center gap-3 border-t border-border px-4 py-3 text-xs text-text-muted font-semibold uppercase tracking-wider sm:px-6 bg-surface-subtle/40">
           <span className="inline-flex items-center gap-2">
-            <GraduationCap className="size-4" aria-hidden="true" />
+            <GraduationCap className="size-4 text-text-muted" aria-hidden="true" />
             Course and semester details are auto-detected from the document.
           </span>
         </div>
       </section>
 
-      <aside className="flex min-h-[34rem] flex-col bg-slate-50/30">
-        <div className="border-b border-slate-200 px-4 py-7 sm:px-7 sm:py-8 bg-slate-50/50">
-          <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+      <aside className="flex min-h-[34rem] flex-col bg-surface-subtle">
+        <div className="border-b border-border px-4 py-7 sm:px-7 sm:py-8 bg-surface-subtle">
+          <h3 className="text-lg font-semibold tracking-tight text-text">
             Welcome back, {user?.displayName?.split(' ')?.[0] ?? 'there'}.
           </h3>
-          <p className="mt-1 text-[10px] text-slate-500 font-medium uppercase tracking-wide leading-relaxed">
+          <p className="mt-1 text-xs text-text-muted font-medium leading-relaxed">
             {isSuccess
               ? 'Your document has been uploaded and processed successfully.'
               : isProcessing
@@ -225,27 +226,28 @@ export function UploadForm() {
           {errorMessage ? (
             <div
               role="alert"
-              className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm text-[#b91c1c] font-semibold"
+              className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold"
             >
               {errorMessage}
             </div>
           ) : null}
         </div>
 
-        <div className="border-t border-slate-200 bg-white px-4 py-3 sm:px-7">
+        <div className="border-t border-border bg-surface px-4 py-4 sm:px-7 mt-auto">
           <div className="space-y-3">
             {uploadResult ? (
               <>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                <div className="flex items-center justify-between text-xs font-semibold text-text-muted">
                   <span>Status</span>
-                  <span className="text-slate-800 font-bold">
+                  <span className="text-text font-bold">
                     {isSuccess ? 'Complete' : isProcessing ? 'Processing' : 'Failed'}
                   </span>
                 </div>
                 {isSuccess ? (
-                  <button
+                  <Button
                     type="button"
-                    className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
+                    variant="primary"
+                    className="w-full justify-between uppercase tracking-wider font-semibold text-xs h-10"
                     onClick={() =>
                       navigate({
                         to: '/documents',
@@ -253,13 +255,14 @@ export function UploadForm() {
                       })
                     }
                   >
-                    Go to My SLMs
+                    <span>Go to My SLMs</span>
                     <ArrowRight className="size-4" aria-hidden="true" />
-                  </button>
+                  </Button>
                 ) : isProcessing ? (
-                  <button
+                  <Button
                     type="button"
-                    className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
+                    variant="primary"
+                    className="w-full justify-between uppercase tracking-wider font-semibold text-xs h-10"
                     onClick={() =>
                       navigate({
                         to: '/documents',
@@ -267,20 +270,21 @@ export function UploadForm() {
                       })
                     }
                   >
-                    View in My SLMs
+                    <span>View in My SLMs</span>
                     <ArrowRight className="size-4" aria-hidden="true" />
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
-                    className="h-10 w-full inline-flex items-center justify-between border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none"
+                    variant="secondary"
+                    className="w-full justify-between uppercase tracking-wider font-semibold text-xs h-10"
                     onClick={handleReset}
                   >
-                    Try Uploading Again
+                    <span>Try Uploading Again</span>
                     <ArrowRight className="size-4" aria-hidden="true" />
-                  </button>
+                  </Button>
                 )}
-                <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
+                <p className="text-center text-xs font-medium text-text-muted leading-relaxed">
                   {isSuccess
                     ? 'Continuing to the evaluation page…'
                     : isProcessing
@@ -290,15 +294,16 @@ export function UploadForm() {
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
+                <div className="flex items-center justify-between text-xs font-semibold text-text-muted">
                   <span>Upload readiness</span>
-                  <span className="text-slate-800 font-bold">
+                  <span className="text-text font-bold">
                     {file && title.trim() ? 'Ready' : 'Missing details'}
                   </span>
                 </div>
-                <button
+                <Button
                   type="submit"
-                  className="h-10 w-full inline-flex items-center justify-between bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white px-4 rounded-sm text-sm font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-[#1b3b87] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  variant="primary"
+                  className="w-full justify-between uppercase tracking-wider font-semibold text-xs h-10"
                   disabled={isLoading || !file || !title.trim()}
                 >
                   {isLoading ? (
@@ -307,13 +312,13 @@ export function UploadForm() {
                       Uploading and Processing…
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-2">
-                      Upload Document
+                    <>
+                      <span>Upload Document</span>
                       <ArrowRight className="size-4" aria-hidden="true" />
-                    </span>
+                    </>
                   )}
-                </button>
-                <p className="text-center text-xs font-medium text-slate-500 leading-relaxed">
+                </Button>
+                <p className="text-center text-xs font-medium text-text-muted leading-relaxed">
                   After processing, you will continue to the evaluation page for this SLM.
                 </p>
               </>
