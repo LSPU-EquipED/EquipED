@@ -19,7 +19,9 @@ import {
   formatHeaderField,
 } from '../pdfReport';
 
-function makeResults(overrides: Partial<EvaluationResultsResponse> = {}): EvaluationResultsResponse {
+function makeResults(
+  overrides: Partial<EvaluationResultsResponse> = {},
+): EvaluationResultsResponse {
   return {
     evaluation_id: 'eval-1',
     document_id: 'doc-1',
@@ -51,7 +53,12 @@ function makeResults(overrides: Partial<EvaluationResultsResponse> = {}): Evalua
       },
       gad: {
         criteria: [
-          { criterion_id: 'g1', criterion_text: 'Inclusivity', score: 4, justification: 'Inclusive.' },
+          {
+            criterion_id: 'g1',
+            criterion_text: 'Inclusivity',
+            score: 4,
+            justification: 'Inclusive.',
+          },
         ],
         subtotal: 4,
         max_score: 4,
@@ -95,9 +102,7 @@ describe('buildReportModel - canonical scale separation', () => {
   });
 
   it('reports an unavailable overall when the server returned no synthesis', () => {
-    const model = buildReportModel(
-      makeResults({ overall_score: undefined, synthesized_score: 0 }),
-    );
+    const model = buildReportModel(makeResults({ overall_score: undefined, synthesized_score: 0 }));
     expect(model.header.hasOverall).toBe(false);
     expect(model.header.overallScore).toBeNull();
   });
@@ -157,9 +162,7 @@ describe('buildReportModel - partial / skipped / failed agents', () => {
 
 describe('buildReportModel - unavailable institutional metadata', () => {
   it('uses null for missing document title and program', () => {
-    const model = buildReportModel(
-      makeResults({ document_title: undefined, program: undefined }),
-    );
+    const model = buildReportModel(makeResults({ document_title: undefined, program: undefined }));
     expect(model.header.documentTitle).toBeNull();
     expect(model.header.program).toBeNull();
     expect(formatHeaderField(model.header.documentTitle, 'Not available')).toBe('Not available');
@@ -361,5 +364,72 @@ describe('buildReportModel - Coordinator status discrimination', () => {
     const sme = model.agents.find((a) => a.agentId === 'sme')!;
     expect(sme.state).toBe('failed');
     expect(sme.state).not.toBe('skipped_partial');
+  });
+});
+
+describe('buildReportModel - dynamic CID forms and ungrounded/legacy notice', () => {
+  it('explicitly marks ungrounded criteria with tierLabel Ungrounded and isUngrounded flag', () => {
+    const model = buildReportModel(
+      makeResults({
+        domain_scores: {
+          sme: {
+            criteria: [
+              {
+                criterion_id: 'CUSTOM-01',
+                criterion_text: 'Dynamic Domain Criterion',
+                description: 'Authoritative dynamically authored criterion',
+                score: 4,
+                justification: 'Well presented.',
+                is_ungrounded: true,
+              },
+            ],
+            subtotal: 4,
+            max_score: 4,
+            status: 'OK',
+            version: 3,
+            form_snapshot_id: 'snap-1',
+          },
+        },
+      }),
+    );
+
+    const sme = model.agents.find((a) => a.agentId === 'sme')!;
+    expect(sme.criteria).toHaveLength(1);
+    expect(sme.criteria[0].criterionId).toBe('CUSTOM-01');
+    expect(sme.criteria[0].isUngrounded).toBe(true);
+    expect(sme.criteria[0].tierLabel).toBe('Ungrounded');
+    expect(sme.criteria[0].description).toBe('Authoritative dynamically authored criterion');
+    expect(sme.revisionLabel).toBe('Revision 3');
+  });
+
+  it('renders exact legacy notice without inventing a revision when legacy_notice is set', () => {
+    const model = buildReportModel(
+      makeResults({
+        legacy_notice: 'Legacy — form snapshot unavailable',
+        domain_scores: {
+          sme: {
+            criteria: [
+              {
+                criterion_id: 'LEGACY-01',
+                criterion_text: 'Historical criterion',
+                score: 3,
+                justification: 'Legacy output.',
+                is_ungrounded: false,
+              },
+            ],
+            subtotal: 3,
+            max_score: 4,
+            status: 'OK',
+            version: undefined,
+            form_snapshot_id: undefined,
+          },
+        },
+      }),
+    );
+
+    expect(model.header.legacyNotice).toBe('Legacy — form snapshot unavailable');
+    const sme = model.agents.find((a) => a.agentId === 'sme')!;
+    expect(sme.revisionLabel).toBe('Legacy — form snapshot unavailable');
+    expect(sme.revisionLabel).not.toContain('Revision');
   });
 });
