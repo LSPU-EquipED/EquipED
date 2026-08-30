@@ -8,6 +8,7 @@ import {
 } from '../hooks/useModelValidationQueries';
 import type { ModelValidationCriterionScore, ModelValidationItem } from '../types';
 import {
+  agentLabel,
   formatTimestamp,
   groupCriteriaByAgent,
   HISTORY_COLSPAN,
@@ -38,7 +39,26 @@ export function HistoryRow({
     <>
       <tr className={cn(isExpanded && 'bg-slate-50/60')}>
         <td className="px-4 py-3 font-semibold text-slate-900">
-          {item.document_title ?? 'Untitled SLM'}
+          <div>{item.document_title ?? 'Untitled SLM'}</div>
+          {item.bound_forms && item.bound_forms.length > 0 ? (
+            <div
+              className="mt-1 flex flex-wrap items-center gap-1"
+              aria-label="Bound rubric revisions"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Revisions:
+              </span>
+              {item.bound_forms.map((form) => (
+                <span
+                  key={form.agent_id}
+                  className="inline-flex items-center rounded-xs bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+                  title={`${agentLabel(form.agent_id)}: set ${form.rubric_set_id}, ${form.adapter_key} v${form.adapter_version}`}
+                >
+                  {form.agent_id.toUpperCase()} v{form.rubric_version}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </td>
         <td className="px-4 py-3">
           <span
@@ -107,6 +127,7 @@ export function HistoryRow({
               validationId={item.validation_id}
               evaluationId={item.evaluation_id}
               fallbackCriteria={item.criterion_scores}
+              boundForms={item.bound_forms}
               partialWithoutCurriculum={item.partial_without_curriculum}
               overallStatus={item.status}
               errorMessage={item.error_message}
@@ -125,6 +146,7 @@ type ValidationDetailProps = {
   validationId: string;
   evaluationId: string;
   fallbackCriteria: ModelValidationCriterionScore[];
+  boundForms?: ModelValidationItem['bound_forms'];
   partialWithoutCurriculum: boolean;
   overallStatus: ModelValidationItem['status'];
   errorMessage: string | null;
@@ -137,6 +159,7 @@ export function ValidationDetail({
   validationId,
   evaluationId,
   fallbackCriteria,
+  boundForms: initialBoundForms = [],
   partialWithoutCurriculum,
   overallStatus,
   errorMessage,
@@ -146,6 +169,7 @@ export function ValidationDetail({
   const detailQuery = useModelValidationDetail(validationId, isExpanded);
   const evaluationQuery = useModelValidationEvaluation(validationId, isExpanded);
 
+  const boundForms = detailQuery.data?.bound_forms ?? initialBoundForms;
   const criteria = detailQuery.data?.criterion_scores?.length
     ? detailQuery.data.criterion_scores
     : fallbackCriteria;
@@ -179,6 +203,52 @@ export function ValidationDetail({
           Close
         </button>
       </div>
+
+      {boundForms && boundForms.length > 0 ? (
+        <section
+          aria-label="Bound rubric revisions"
+          className="rounded-sm border border-slate-200 bg-slate-50/75 p-3.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              Bound rubric revisions
+            </h4>
+            <span className="text-[11px] font-medium text-slate-500">
+              Immutable form snapshots bound at validation admission
+            </span>
+          </div>
+          <div className="mt-2.5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {boundForms.map((form) => (
+              <div
+                key={form.agent_id}
+                className="flex flex-col gap-1 rounded-sm border border-slate-200 bg-white p-2.5 text-xs"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900">{agentLabel(form.agent_id)}</span>
+                  <span className="rounded-xs bg-[#1b3b87]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#1b3b87]">
+                    Rubric v{form.rubric_version}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-600">
+                  <span>Adapter:</span>
+                  <span className="font-mono font-medium text-slate-800">
+                    {form.adapter_key} (v{form.adapter_version})
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span>Rubric set:</span>
+                  <span
+                    className="max-w-[12rem] truncate font-mono text-slate-600"
+                    title={form.rubric_set_id}
+                  >
+                    {form.rubric_set_id}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {isCoordinatorSkipped ? (
         <p
@@ -216,14 +286,24 @@ export function ValidationDetail({
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        {grouped.map(({ agentId, agentName, criteria: agentCriteria }) => {
+        {grouped.map(({ agentId, agentName, rubricVersion, criteria: agentCriteria }) => {
           const isAgentSkipped = agentId === 'coordinator' && isCoordinatorSkipped;
+          const matchingBoundForm = boundForms.find((b) => b.agent_id === agentId);
+          const displayRubricVersion = matchingBoundForm?.rubric_version ?? rubricVersion;
+
           return (
             <article key={agentId} className="overflow-hidden rounded-sm border border-slate-200">
               <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  {agentName}
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    {agentName}
+                  </h4>
+                  {displayRubricVersion ? (
+                    <span className="rounded-xs bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                      Rubric v{displayRubricVersion}
+                    </span>
+                  ) : null}
+                </div>
                 {isAgentSkipped ? (
                   <span className="inline-flex items-center gap-1 rounded-sm bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
                     <ShieldAlert className="size-3" aria-hidden="true" />

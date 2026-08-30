@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { MatrixFilters } from './MatrixFilters';
 import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
+import { formatRevisionContext } from '../utils';
 import type { MonitoringMatrixRow } from '../types';
 
 function statusClass(status: string) {
@@ -66,6 +67,7 @@ export function MonitoringTable() {
                 <th className="py-3 px-4 font-semibold text-slate-500">SLM Title</th>
                 <th className="py-3 px-4 font-semibold text-slate-500">Program</th>
                 <th className="py-3 px-4 font-semibold text-slate-500">Status</th>
+                <th className="py-3 px-4 font-semibold text-slate-500">Form Revision</th>
                 <th className="py-3 px-4 font-semibold text-slate-500 text-right">Score</th>
                 <th className="py-3 px-4 font-semibold text-slate-500">Rating</th>
                 <th className="py-3 px-4 font-semibold text-slate-500 text-right">Flags</th>
@@ -74,7 +76,7 @@ export function MonitoringTable() {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {data.items.map((row: MonitoringMatrixRow) => (
-                <tr key={row.evaluation_id} className="hover:bg-slate-50/50">
+                <tr key={row.evaluation_id ?? row.matrix_id} className="hover:bg-slate-50/50">
                   <td className="py-3 px-4 text-sm font-semibold text-slate-900">
                     {row.document_title || 'Untitled SLM'}
                   </td>
@@ -87,6 +89,9 @@ export function MonitoringTable() {
                     >
                       {row.evaluation_status.replace('_', ' ')}
                     </span>
+                  </td>
+                  <td className="py-3 px-4 text-sm text-slate-600 font-medium">
+                    {formatRevisionContext(row.domain_scores)}
                   </td>
                   <td className="py-3 px-4 text-sm text-slate-600 text-right font-sans tabular-nums font-medium">
                     {row.synthesized_score != null ? row.synthesized_score.toFixed(2) : '—'}

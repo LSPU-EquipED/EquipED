@@ -1,16 +1,15 @@
-import {
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
 import { modelValidationApi } from '../api/modelValidation.api';
 import type { ModelValidationCreateBody } from '../types';
-import { areAllCriterionScoresComplete, criterionKey } from '../utils/helpers';
+import {
+  areAllCriterionScoresComplete,
+  criterionKey,
+  isPartialValidationAgent,
+  isStaleBindingError,
+} from '../utils/helpers';
 import { useModelValidationCriteria } from './useModelValidationQueries';
 
 export function useModelValidationFormState() {
@@ -86,12 +85,23 @@ export function useModelValidationFormState() {
     },
   });
 
-  const criterionDefinitions = criterionCatalog.data?.agents ?? [];
-  const orderedCriterionKeys = criterionDefinitions.flatMap((agent) =>
-    agent.criteria.map((criterion) => criterionKey(agent.agent_id, criterion.criterion_id)),
+  const rawAgents = criterionCatalog.data?.agents ?? [];
+  const criterionDefinitions = rawAgents.filter((agent) =>
+    isPartialValidationAgent(agent.agent_id),
   );
-  // Validity derives from the active criterion catalog (SME/GAD/ITSO after
-  // curriculum retirement), not a fixed agent count.
+
+  const orderedCriterionKeys = criterionDefinitions.flatMap((agent) => {
+    const crits =
+      agent.domains && agent.domains.length > 0
+        ? agent.domains.flatMap((d) => d.criteria)
+        : agent.criteria;
+    return crits.map((criterion) =>
+      criterionKey(agent.agent_id, criterion.rubric_criterion_id || criterion.criterion_id!),
+    );
+  });
+
+  // Validity derives from the active criterion catalog (SME/GAD/ITSO for
+  // explicit no-curriculum partial runs), not a fixed agent count.
   const allCriterionScoresComplete = areAllCriterionScoresComplete(
     criterionDefinitions,
     expectedScores,
@@ -103,6 +113,12 @@ export function useModelValidationFormState() {
   const canSubmitEvaluation =
     uploadedDocumentReady && allCriterionScoresComplete && partialChoiceAcknowledged;
   const error = uploadMutation.error ?? uploadedDocument.error ?? validationMutation.error;
+  const isStaleBinding = isStaleBindingError(validationMutation.error);
+
+  const handleReloadCatalog = async () => {
+    validationMutation.reset();
+    await criterionCatalog.refetch();
+  };
 
   const resetPreparedUpload = () => {
     setFile(null);
@@ -159,15 +175,22 @@ export function useModelValidationFormState() {
     validationMutation.mutate({
       document_id: uploaded.documentId,
       partial_without_curriculum: true,
-      expected_scores: criterionDefinitions.flatMap((agent) =>
-        agent.criteria.map((criterion) => ({
-          agent_id: agent.agent_id,
-          criterion_id: criterion.criterion_id,
+      expected_scores: criterionDefinitions.flatMap((agent) => {
+        const crits =
+          agent.domains && agent.domains.length > 0
+            ? agent.domains.flatMap((d) => d.criteria)
+            : agent.criteria;
+        return crits.map((criterion) => ({
+          agent_id: agent.agent_id as 'sme' | 'gad' | 'itso',
+          rubric_set_id: agent.rubric_set_id,
+          rubric_criterion_id: criterion.rubric_criterion_id,
           expected_score: Number(
-            expectedScores[criterionKey(agent.agent_id, criterion.criterion_id)],
+            expectedScores[
+              criterionKey(agent.agent_id, criterion.rubric_criterion_id || criterion.criterion_id!)
+            ],
           ),
-        })),
-      ),
+        }));
+      }),
     });
   };
 
@@ -192,6 +215,8 @@ export function useModelValidationFormState() {
     uploadedDocumentReady,
     canSubmitEvaluation,
     error,
+    isStaleBinding,
+    handleReloadCatalog,
     normalizedProgram,
     resetPreparedUpload,
     handleFile,
