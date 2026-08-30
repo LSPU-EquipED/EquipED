@@ -6,17 +6,19 @@ Defines the established deterministic scoring engine used by the Subject Matter 
 ## Requirements
 
 ### Requirement: SME uses deterministic engine scoring as its primary path
-The Subject Matter Expert SHALL evaluate its registered rubric criteria through the deterministic engine-scoring path rather than a generic model-assigned final-score path. The engine SHALL produce the standard structured agent result used by synthesis and persistence.
-
-The registered criteria SHALL be `OP-01` through `OP-05` and `A-01` through `A-05`. The engine SHALL read clean source-document text rather than joined overlapping database chunks when constructing its scoring input.
+The Subject Matter Expert SHALL evaluate its criteria through snapshot-bound typed scoring using the precomputed in-memory SME form snapshot resolved before worker dispatch. The engine SHALL evaluate criteria according to their configured typed scoring strategies (`ratio_band`, `count_band`, `llm_rubric_guidance`) and SHALL NOT perform runtime database queries to resolve rubric definitions or fallback criteria. The default criteria for Revision 1 SHALL be `OP-01` through `OP-05` and `A-01` through `A-05`, but future revisions SHALL derive criteria and strategies from the bound snapshot. Strategy and mode SHALL select the bounded measurement schema for every seeded or newly authored criterion; the criterion code SHALL NOT select a code-specific runtime plugin.
 
 #### Scenario: SME evaluates an SLM
 - **WHEN** the SME is dispatched for an evaluation
-- **THEN** it SHALL extract structured facts and compute every registered criterion score through the engine-scoring registry
+- **THEN** it SHALL extract structured facts and compute every criterion score defined in the SME form snapshot without querying the database for rubric rows
+
+#### Scenario: SME evaluates a newly authored criterion code
+- **WHEN** an SME snapshot contains a new criterion code configured with a supported guidance, count, or coverage-ratio measurement shape
+- **THEN** the engine SHALL derive the bounded extraction contract from the strategy and snapshot metadata and score it without a code deployment
 
 #### Scenario: Engine result is persisted
 - **WHEN** the SME engine completes successfully
-- **THEN** it SHALL return the same structured agent-result contract used by the other evaluation agents
+- **THEN** it SHALL return the structured agent-result contract mapped to the snapshot criterion definitions used by synthesis and persistence
 
 ### Requirement: Engine extraction consumes canonical clean source text
 SME SHALL consume canonical clean source text prepared before dispatch and SHALL NOT reopen PDFs or duplicate full source persistence.
@@ -24,8 +26,9 @@ SME SHALL consume canonical clean source text prepared before dispatch and SHALL
 #### Scenario: Canonical source dispatch
 - **WHEN** SME evaluates a document
 - **THEN** it scores from the shared canonical text and records bounded telemetry only
+
 ### Requirement: Coverage criteria use defined ratio bands
-The engine SHALL score `OP-01`, `OP-03`, `OP-04`, `A-01`, and `A-05` using a coverage ratio. Standard moderate ratio bands SHALL be score `4` at 80 percent or greater, score `3` at 50 percent or greater, score `2` at 20 percent or greater, and score `1` below 20 percent. An empty denominator SHALL score `1`, because the absence of units to measure is a deficiency, except for the documented `OP-01` short-document rule.
+The engine SHALL score criteria configured with `ratio_band` strategy using a coverage ratio. For Revision 1 default criteria (`OP-01`, `OP-03`, `OP-04`, `A-01`, and `A-05`), standard moderate ratio bands SHALL be score `4` at 80 percent or greater, score `3` at 50 percent or greater, score `2` at 20 percent or greater, and score `1` below 20 percent. Future revisions SHALL read ratio threshold bands from the criterion's `strategy_config`. An empty denominator SHALL score `1`, because the absence of units to measure is a deficiency, except for the documented `OP-01` short-document rule when present.
 
 | Criterion | Numerator | Denominator |
 | --- | --- | --- |
@@ -48,7 +51,7 @@ The engine SHALL score `OP-01`, `OP-03`, `OP-04`, `A-01`, and `A-05` using a cov
 - **THEN** the engine SHALL score by incoherence issue count: zero issues is `4`, one is `3`, two is `2`, and three or more is `1`
 
 ### Requirement: Checklist criteria use criterion-specific count bands
-The engine SHALL score checklist criteria with the following qualifying counts and score bands:
+The engine SHALL score checklist criteria configured with `count_band` strategy using configured qualifying counts and score bands. For Revision 1 default criteria, the qualifying counts and bands SHALL be:
 
 | Criterion | Counted unit | Score 4 | Score 3 | Score 2 | Score 1 |
 | --- | --- | --- | --- | --- | --- |
@@ -58,7 +61,7 @@ The engine SHALL score checklist criteria with the following qualifying counts a
 | `A-03` | monitoring instances | 4+ | 2+ | 1+ | 0 |
 | `A-04` | distinct feedback types | 3+ | 2+ | 1+ | 0 |
 
-`A-02` SHALL count breadth of types, while `A-03` SHALL count distinct instances because ongoing monitoring is frequency-sensitive. `A-04` SHALL count feedback types.
+Future revisions SHALL read count threshold bands from the criterion's `strategy_config`.
 
 #### Scenario: Assessment tool variety is evaluated
 - **WHEN** `A-02` has five or more qualifying distinct assessment types
@@ -154,14 +157,12 @@ The scoring contract SHALL preserve the following known limitations without trea
 - **WHEN** future work changes a bounded A-01/A-04 correction or the A-05 objective hierarchy
 - **THEN** it SHALL establish and document the institutional counting rule with representative evidence before changing the current behavior
 
-
 ### Requirement: SME completion and fixed budgets are honest
 An SME basket with provider `finish_reason=length` SHALL be invalid. Contractually fixed source slices and completion caps SHALL NOT be silently trimmed. Valid empty arrays SHALL remain valid findings.
 
 #### Scenario: Truncated basket
 - **WHEN** the provider finishes a basket with reason `length`
 - **THEN** that basket fails and follows the bounded fallback path without scoring truncated output
-
 
 ### Requirement: SME fact extraction is deterministic and basketed
 SME SHALL use strict non-coercing agent-local schemas for grouped and per-criterion responses. Missing, wrong, duplicate, unknown, or invalid-reference fields SHALL invalidate an atomic basket; valid empty arrays remain valid findings. Existing bounded per-criterion fallback SHALL be used without an SME repair call, and failed criteria SHALL fail honestly rather than receive invented scores.

@@ -36,3 +36,12 @@ Every extracted objective SHALL be bounded, pre-trimmed, duplicate-normalization
 #### Scenario: Positive alignment claim substring demotion
 - **WHEN** a positive alignment claim's evidence is not an exact nonempty substring of the authoritative curriculum text
 - **THEN** the positive claim is normalized to false with empty evidence, attribution rejection counts increment, and scoring proceeds across exact rows
+
+#### Scenario: All claims rejected yields valid all-false score 1
+- **WHEN** every curriculum alignment claim is rejected during grounding
+- **THEN** Coordinator returns a valid all-false alignment result with score 1 and bounded rejection attribution
+
+#### Scenario: Structural, type, identity, or cardinality violation fails closed
+- **WHEN** an objective or alignment response violates structural, type, identity, or cardinality constraints
+- **THEN** Coordinator fails closed instead of demoting or retrying the invalid response
+
