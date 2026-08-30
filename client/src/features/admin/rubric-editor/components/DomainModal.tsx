@@ -55,13 +55,13 @@ function DomainModalContent({
       role="dialog"
       aria-modal="true"
       aria-labelledby="domain-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
     >
-      <div className="relative w-full max-w-md rounded-sm border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 p-4 bg-slate-50">
+      <div className="relative w-full max-w-md rounded-sm border border-border bg-surface shadow-xl">
+        <div className="flex items-center justify-between border-b border-border p-4 bg-surface-subtle">
           <h2
             id="domain-modal-title"
-            className="text-sm font-bold uppercase tracking-wider text-slate-800"
+            className="text-sm font-bold uppercase tracking-wider text-text"
           >
             {isEditing ? 'Edit Domain' : 'Add New Domain'}
           </h2>
@@ -69,7 +69,7 @@ function DomainModalContent({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="inline-flex size-8 items-center justify-center rounded-sm text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+            className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Close domain dialog"
           >
             <X className="size-4" />
@@ -80,7 +80,7 @@ function DomainModalContent({
           {errorMessage && (
             <div
               role="alert"
-              className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/5 p-3 text-xs font-semibold text-[#b91c1c]"
+              className="rounded-sm border border-destructive/30 bg-destructive-soft p-3 text-xs font-semibold text-destructive"
             >
               {errorMessage}
             </div>
@@ -89,9 +89,9 @@ function DomainModalContent({
           <div>
             <label
               htmlFor="domain-code"
-              className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+              className="block text-xs font-bold uppercase tracking-wider text-text"
             >
-              Domain Code <span className="text-[#b91c1c]">*</span>
+              Domain Code <span className="text-destructive">*</span>
             </label>
             <input
               id="domain-code"
@@ -101,16 +101,16 @@ function DomainModalContent({
               disabled={isPending}
               placeholder="e.g. OP"
               maxLength={50}
-              className="mt-1 w-full h-8 rounded-sm border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text uppercase focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
           <div>
             <label
               htmlFor="domain-title"
-              className="block text-xs font-bold uppercase tracking-wider text-slate-700"
+              className="block text-xs font-bold uppercase tracking-wider text-text"
             >
-              Domain Title <span className="text-[#b91c1c]">*</span>
+              Domain Title <span className="text-destructive">*</span>
             </label>
             <input
               id="domain-title"
@@ -120,23 +120,23 @@ function DomainModalContent({
               disabled={isPending}
               placeholder="e.g. Organization and Presentation"
               maxLength={200}
-              className="mt-1 w-full h-8 rounded-sm border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4 mt-2">
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-4 mt-2">
             <button
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="h-9 px-3 rounded-sm border border-slate-300 bg-white text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-[#1b3b87] text-xs font-bold uppercase tracking-wider text-white hover:bg-[#1b3b87]/90 focus:outline-none focus:ring-2 focus:ring-[#1b3b87] disabled:opacity-50"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {isPending && <Loader2 className="size-3.5 animate-spin" />}
               {isEditing ? 'Save Changes' : 'Add Domain'}

@@ -79,10 +79,10 @@ export const agentLabel = (id: string) =>
 export const HISTORY_COLSPAN = 10;
 
 export function statusClass(status: ModelValidationItem['status']) {
-  if (status === 'COMPLETED') return 'bg-[#3b963e] text-white';
-  if (status === 'FAILED') return 'bg-[#b91c1c] text-white';
-  if (status === 'EVALUATING' || status === 'SYNTHESIZING') return 'bg-[#1b3b87] text-white';
-  return 'bg-[#f2c811] text-slate-900';
+  if (status === 'COMPLETED') return 'bg-success text-white';
+  if (status === 'FAILED') return 'bg-destructive text-white';
+  if (status === 'EVALUATING' || status === 'SYNTHESIZING') return 'bg-primary text-white';
+  return 'bg-warning-soft text-warning border border-warning/20';
 }
 
 export type GroupedCriteria = {

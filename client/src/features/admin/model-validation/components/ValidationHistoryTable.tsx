@@ -12,15 +12,15 @@ export function ValidationHistoryTable({
   const [expandedValidationId, setExpandedValidationId] = useState<string | null>(null);
 
   return (
-    <div className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+    <div className="overflow-hidden rounded-sm border border-border bg-surface">
+      <div className="border-b border-border bg-surface-subtle px-4 py-3">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-text">
           Validation history
         </h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-600">
+          <thead className="bg-surface-subtle text-xs uppercase tracking-wider text-text-muted border-b border-border">
             <tr>
               <th className="px-4 py-3">SLM</th>
               <th className="px-4 py-3">Status</th>
@@ -34,12 +34,12 @@ export function ValidationHistoryTable({
               <th className="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-border">
             {history.isLoading ? (
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-slate-600"
+                  className="px-4 py-8 text-center font-semibold text-text-muted"
                 >
                   Loading validation history…
                 </td>
@@ -49,7 +49,7 @@ export function ValidationHistoryTable({
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-[#b91c1c]"
+                  className="px-4 py-8 text-center font-semibold text-destructive"
                 >
                   Unable to load validation history.
                 </td>
@@ -84,7 +84,7 @@ export function ValidationHistoryTable({
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-slate-600"
+                  className="px-4 py-8 text-center font-semibold text-text-muted"
                 >
                   No validation runs yet.
                 </td>

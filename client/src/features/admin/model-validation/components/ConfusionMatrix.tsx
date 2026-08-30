@@ -22,14 +22,14 @@ function CircularMetric({
   const percentage = value == null ? null : boundedValue * 100;
 
   return (
-    <div className="flex min-w-0 items-center gap-3 border border-slate-200 bg-slate-50 p-3">
+    <div className="flex min-w-0 items-center gap-3 border border-border bg-surface-subtle p-3 rounded-sm">
       <div
         className="relative size-24 shrink-0"
         role="img"
         aria-label={`${label}: ${percentage == null ? 'unavailable' : `${percentage.toFixed(1)} percent`}`}
       >
         <svg className="size-24 -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-          <circle cx="50" cy="50" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="8" />
+          <circle cx="50" cy="50" r={radius} fill="none" stroke="var(--border)" strokeWidth="8" />
           <circle
             cx="50"
             cy="50"
@@ -41,13 +41,13 @@ function CircularMetric({
             strokeDasharray={`${boundedValue * circumference} ${circumference}`}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-lg font-bold tabular-nums text-slate-900">
+        <span className="absolute inset-0 flex items-center justify-center text-lg font-bold tabular-nums text-text">
           {percentage == null ? '—' : `${percentage.toFixed(1)}%`}
         </span>
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-800">{label}</p>
-        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+        <p className="text-xs font-bold uppercase tracking-wider text-text">{label}</p>
+        <p className="mt-1 text-xs leading-relaxed text-text-muted">
           {label === 'Accuracy' ? 'Exact score matches' : 'Macro average by score class'}
         </p>
       </div>
@@ -83,20 +83,20 @@ export function ConfusionMatrix({
   const selectedLabel = selectedAgent === 'all' ? 'All agents' : agentLabel(selectedAgent);
 
   return (
-    <div className="overflow-hidden rounded-sm border border-slate-200 bg-white">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+    <div className="overflow-hidden rounded-sm border border-border bg-surface">
+      <div className="border-b border-border bg-surface-subtle px-4 py-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-text">
           Score confusion matrix
         </h2>
-        <p className="mt-1 text-xs text-slate-600">Expected class by predicted class</p>
+        <p className="mt-1 text-xs text-text-muted">Expected class by predicted class</p>
       </div>
       <div className="overflow-x-auto p-4">
         {isLoading ? (
-          <p className="py-16 text-center text-sm font-semibold text-slate-600">
+          <p className="py-16 text-center text-sm font-semibold text-text-muted">
             Loading confusion matrix…
           </p>
         ) : isError ? (
-          <p className="py-16 text-center text-sm font-semibold text-[#b91c1c]">
+          <p className="py-16 text-center text-sm font-semibold text-destructive">
             Unable to load validation metrics.
           </p>
         ) : (
@@ -115,10 +115,10 @@ export function ConfusionMatrix({
                     aria-pressed={isSelected}
                     onClick={() => setSelectedAgent(agent.id as 'all' | ValidationAgentId)}
                     className={cn(
-                      'rounded-sm border px-3 py-2 text-xs font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]',
+                      'rounded-sm border px-3 py-2 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isSelected
-                        ? 'border-[#1b3b87] bg-[#1b3b87] text-white'
-                        : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50',
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-surface text-text hover:bg-surface-subtle',
                     )}
                   >
                     {agent.label}
@@ -126,27 +126,27 @@ export function ConfusionMatrix({
                 );
               })}
             </div>
-            <p className="text-sm font-semibold text-slate-800" aria-live="polite">
+            <p className="text-sm font-semibold text-text" aria-live="polite">
               Showing {selectedLabel} score agreement
             </p>
             <div className="grid gap-3 md:grid-cols-3" aria-label="Confusion matrix metrics">
-              <CircularMetric label="Accuracy" value={metrics.accuracy} color="#1b3b87" />
-              <CircularMetric label="Precision" value={metrics.precision} color="#3b963e" />
-              <CircularMetric label="Recall" value={metrics.recall} color="#3eaed4" />
+              <CircularMetric label="Accuracy" value={metrics.accuracy} color="var(--primary)" />
+              <CircularMetric label="Precision" value={metrics.precision} color="var(--success)" />
+              <CircularMetric label="Recall" value={metrics.recall} color="var(--info)" />
             </div>
-            <p className="text-xs leading-relaxed text-slate-600">
+            <p className="text-xs leading-relaxed text-text-muted">
               Precision and recall are macro averages across score classes with available samples.
             </p>
             {isPerAgentBreakdownMissing ? (
               <div
                 role="status"
                 data-testid="per-agent-breakdown-unavailable"
-                className="rounded-sm border border-slate-200 bg-slate-50 px-4 py-6 text-center"
+                className="rounded-sm border border-border bg-surface-subtle px-4 py-6 text-center"
               >
-                <p className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                <p className="text-sm font-bold uppercase tracking-wider text-text">
                   Breakdown unavailable
                 </p>
-                <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600">
+                <p className="mt-1 text-xs font-medium leading-relaxed text-text-muted">
                   {selectedLabel} has no recorded expected-vs-actual score pairs yet, so a
                   per-evaluator confusion matrix cannot be drawn. Run a validation against this
                   agent to populate it.
@@ -159,14 +159,14 @@ export function ConfusionMatrix({
               >
                 <thead>
                   <tr>
-                    <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-slate-600">
+                    <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-text-muted">
                       Expected ↓
                     </th>
                     {labels.map((label) => (
                       <th
                         key={label}
                         scope="col"
-                        className="h-12 min-w-20 border border-slate-200 bg-slate-50 text-sm font-bold text-slate-800"
+                        className="h-12 min-w-20 border border-border bg-surface-subtle text-sm font-bold text-text"
                       >
                         Predicted {label}
                       </th>
@@ -178,7 +178,7 @@ export function ConfusionMatrix({
                     <tr key={labels[rowIndex]}>
                       <th
                         scope="row"
-                        className="h-20 border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-800"
+                        className="h-20 border border-border bg-surface-subtle px-3 text-sm font-bold text-text"
                       >
                         Expected {labels[rowIndex]}
                       </th>
@@ -188,11 +188,11 @@ export function ConfusionMatrix({
                         return (
                           <td
                             key={`${rowIndex}-${columnIndex}`}
-                            className="h-20 min-w-20 border border-slate-200 text-xl font-bold tabular-nums text-slate-900"
+                            className="h-20 min-w-20 border border-border text-xl font-bold tabular-nums text-text"
                             style={{
                               backgroundColor: diagonal
-                                ? `rgba(59, 150, 62, ${0.08 + intensity * 0.48})`
-                                : `rgba(242, 200, 17, ${0.05 + intensity * 0.5})`,
+                                ? `rgba(47, 125, 50, ${0.08 + intensity * 0.48})`
+                                : `rgba(138, 90, 0, ${0.05 + intensity * 0.5})`,
                             }}
                             aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
                           >
@@ -208,13 +208,13 @@ export function ConfusionMatrix({
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-4 border-t border-slate-200 px-4 py-3 text-xs font-semibold text-slate-600">
+      <div className="flex flex-wrap gap-4 border-t border-border px-4 py-3 text-xs font-semibold text-text-muted">
         <span>
-          <span className="mr-1 inline-block size-3 border border-[#3b963e] bg-[#3b963e]/30" />
+          <span className="mr-1 inline-block size-3 border border-success bg-success/30" />
           Agreement
         </span>
         <span>
-          <span className="mr-1 inline-block size-3 border border-[#f2c811] bg-[#f2c811]/40" />
+          <span className="mr-1 inline-block size-3 border border-warning bg-warning/40" />
           Mismatch
         </span>
       </div>
