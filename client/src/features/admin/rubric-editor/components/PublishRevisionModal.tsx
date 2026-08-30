@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Loader2, X } from 'lucide-react';
+import { Spinner, Warning, X } from '@phosphor-icons/react';
 import { getRubricOperationError, getValidationReportFromError } from '../hooks/useRubrics';
 import { ValidationReportCard } from './ValidationReportCard';
 
@@ -69,7 +69,7 @@ export function PublishRevisionModal({
 
         <form onSubmit={handleSubmit} className="p-5 grid gap-4">
           <div className="flex items-start gap-3 rounded-sm border border-warning/40 bg-warning-soft p-3 text-xs text-text">
-            <AlertTriangle className="size-5 shrink-0 text-warning mt-0.5" aria-hidden="true" />
+            <Warning className="size-5 shrink-0 text-warning mt-0.5" aria-hidden="true" />
             <div>
               <p className="font-bold text-text">Important Immutability Notice</p>
               <p className="mt-1 text-text-muted font-medium">
@@ -125,7 +125,7 @@ export function PublishRevisionModal({
               disabled={isPending}
               className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              {isPending && <Loader2 className="size-3.5 animate-spin" />}
+              {isPending && <Spinner className="size-3.5 animate-spin" />}
               {activate ? 'Publish and Activate' : 'Publish Only'}
             </button>
           </div>

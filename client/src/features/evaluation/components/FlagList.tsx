@@ -1,4 +1,4 @@
-import { Flag, FileText } from 'lucide-react';
+import { Flag, FileText } from '@phosphor-icons/react';
 import type { EvaluationFlagItem } from '../types';
 import type { ClientDocumentChunk } from '@/shared/types/documents';
 import { cleanJustification, formatScore } from '../utils/scoreHelpers';

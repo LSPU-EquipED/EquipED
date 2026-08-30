@@ -1,5 +1,5 @@
 import type { ChangeEvent, DragEvent, RefObject } from 'react';
-import { FileText, Upload } from 'lucide-react';
+import { FileText, UploadSimple } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 
@@ -61,7 +61,7 @@ export function UploadDropzone({
             {file ? (
               <FileText className="size-5" aria-hidden="true" />
             ) : (
-              <Upload className="size-5" aria-hidden="true" />
+              <UploadSimple className="size-5" aria-hidden="true" />
             )}
           </div>
           <div className="min-w-0">

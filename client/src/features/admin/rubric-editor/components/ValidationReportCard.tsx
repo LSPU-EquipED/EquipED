@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { CheckCircle, Warning, X } from '@phosphor-icons/react';
 import type { ValidationReport } from '../types';
 
 interface ValidationReportCardProps {
@@ -24,9 +24,9 @@ export function ValidationReportCard({ report, onDismiss }: ValidationReportCard
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           {isValid ? (
-            <CheckCircle2 className="size-5 shrink-0 text-success mt-0.5" aria-hidden="true" />
+            <CheckCircle className="size-5 shrink-0 text-success mt-0.5" aria-hidden="true" />
           ) : (
-            <AlertCircle className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
+            <Warning className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
           )}
           <div>
             <h3 className="text-sm font-bold tracking-tight text-text">

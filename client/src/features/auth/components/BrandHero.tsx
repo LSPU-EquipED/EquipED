@@ -1,4 +1,4 @@
-import { ShieldAlert } from 'lucide-react';
+import { ShieldWarning } from '@phosphor-icons/react';
 
 export function BrandHero() {
   return (
@@ -46,7 +46,7 @@ export function BrandHero() {
       </div>
 
       <div className="relative z-10 mt-16 lg:mt-0 flex items-start gap-3 border-t border-primary-foreground/10 pt-6">
-        <ShieldAlert
+        <ShieldWarning
           className="size-4 shrink-0 text-primary-foreground/80 mt-0.5"
           aria-hidden="true"
         />

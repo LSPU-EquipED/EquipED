@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Loader2, PlayCircle } from 'lucide-react';
+import { ArrowRight, PlayCircle, Spinner } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { TYPOGRAPHY } from '@/shared/constants/theme';
 import type { FacultyHomeData } from '../types';
@@ -16,7 +16,7 @@ export function ActiveEvaluationBanner({ homeData }: ActiveEvaluationBannerProps
       <div className="rounded-md border border-info/30 bg-info-soft p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3.5">
           <div className="flex size-10 items-center justify-center rounded-sm border border-info/30 bg-surface text-info shrink-0 mt-0.5">
-            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+            <Spinner className="size-5 animate-spin" aria-hidden="true" />
           </div>
           <div>
             <div className="flex items-center gap-2">

@@ -1,17 +1,17 @@
 import {
-  AlertTriangle,
+  WarningCircle,
   BookOpen,
-  CheckCircle2,
+  CheckCircle,
   Circle,
   Clock,
   Eye,
-  Loader2,
+  Spinner,
   Lightbulb,
-  Scale,
+  Scales,
   ShieldCheck,
   Target,
   XCircle,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/shared/components/utils';
 import { getErrorMessage } from '@/shared/api/http';
@@ -41,7 +41,7 @@ const agents = [
     id: 'gad',
     name: 'GAD Unit',
     subtitle: 'Gender and development review',
-    icon: Scale,
+    icon: Scales,
   },
   {
     id: 'itso',
@@ -301,7 +301,7 @@ export function ScoreDashboard({
         ) : (
           <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-border bg-surface p-3">
             <div className="text-center">
-              <Loader2 className="mx-auto size-6 animate-spin text-text-muted" aria-hidden="true" />
+              <Spinner className="mx-auto size-6 animate-spin text-text-muted" aria-hidden="true" />
               <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
                 {isInProgress ? 'Running...' : submitIsPending ? 'Submitting...' : 'No data'}
               </div>
@@ -342,9 +342,9 @@ export function ScoreDashboard({
                             isUpcoming && 'border border-border text-text-muted',
                           )}
                         >
-                          {isCompleted && <CheckCircle2 className="size-3.5" aria-hidden="true" />}
+                          {isCompleted && <CheckCircle className="size-3.5" aria-hidden="true" />}
                           {isCurrent && (
-                            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                            <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
                           )}
                           {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
                         </span>
@@ -375,7 +375,7 @@ export function ScoreDashboard({
               <div className="flex items-center gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-[10px] font-bold text-text-muted uppercase tracking-widest select-none">
                 {status?.status === 'COMPLETED' ? (
                   <>
-                    <CheckCircle2 className="size-4 text-success" />
+                    <CheckCircle className="size-4 text-success" />
                     <span>Evaluation Matrix Ready</span>
                   </>
                 ) : (
@@ -402,7 +402,7 @@ export function ScoreDashboard({
                   onClick={handleRetryEvaluation}
                   disabled={isResolvingEval || submitIsPending}
                 >
-                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  <WarningCircle className="size-3.5" aria-hidden="true" />
                   Retry Evaluation
                 </button>
               </div>
@@ -432,7 +432,7 @@ export function ScoreDashboard({
             {isPartial && (
               <div className="mt-3 rounded-sm border border-warning/30 bg-warning-soft px-3 py-2">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle
+                  <WarningCircle
                     className="mt-0.5 size-4 shrink-0 text-warning"
                     aria-hidden="true"
                   />
@@ -451,7 +451,7 @@ export function ScoreDashboard({
         {isResultsError && isTerminal && (
           <div className="mt-4 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
+              <WarningCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
               <div className="flex-1">
                 <p className="font-medium">Failed to load results</p>
                 <p className="mt-1 text-xs text-destructive">
@@ -528,7 +528,7 @@ export function ScoreDashboard({
                 const agentState = getAgentCardState(selectedAgent.id, results);
                 if (agentState === 'done') {
                   return (
-                    <CheckCircle2
+                    <CheckCircle
                       className="mt-1 size-5 shrink-0 text-success"
                       aria-hidden="true"
                     />
@@ -536,7 +536,7 @@ export function ScoreDashboard({
                 }
                 if (agentState === 'running') {
                   return (
-                    <Loader2
+                    <Spinner
                       className="mt-1 size-5 shrink-0 animate-spin text-primary"
                       aria-hidden="true"
                     />
@@ -595,13 +595,13 @@ export function ScoreDashboard({
               )}
               {selectedScore.verdict === 'Acceptable' && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-success px-3 py-1.5 text-sm font-semibold text-success-foreground">
-                  <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                  <CheckCircle className="size-3.5" aria-hidden="true" />
                   Acceptable
                 </span>
               )}
               {selectedScore.verdict === 'Review recommended' && (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-warning px-3 py-1.5 text-sm font-semibold text-warning-foreground">
-                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  <WarningCircle className="size-3.5" aria-hidden="true" />
                   Review recommended
                 </span>
               )}

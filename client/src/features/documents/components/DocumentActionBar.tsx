@@ -1,4 +1,4 @@
-import { Search, Upload } from 'lucide-react';
+import { MagnifyingGlass, UploadSimple } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { cn } from '@/shared/components/utils';
 import { BUTTON_STYLES } from '@/shared/constants/theme';
@@ -12,7 +12,7 @@ export function DocumentActionBar({ search, setSearch }: DocumentActionBarProps)
   return (
     <div className="flex items-center gap-4 border-b border-border bg-surface-subtle/50 px-6 md:px-8 py-3">
       <div className="relative flex-1">
-        <Search
+        <MagnifyingGlass
           className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
           aria-hidden="true"
         />
@@ -34,7 +34,7 @@ export function DocumentActionBar({ search, setSearch }: DocumentActionBarProps)
           'text-xs font-bold tracking-wider uppercase shrink-0',
         )}
       >
-        <Upload className="size-3.5" aria-hidden="true" />
+        <UploadSimple className="size-3.5" aria-hidden="true" />
         Upload SLM
       </Link>
     </div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Loader2, RefreshCw, Scale, Upload } from 'lucide-react';
+import { ArrowsClockwise, Scales, Spinner, UploadSimple } from '@phosphor-icons/react';
 import {
   getReferenceFileUrl,
   getReferenceOperationError,
@@ -67,9 +67,9 @@ export function PolicyLibraryTab() {
           aria-label="Refresh policy list"
         >
           {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Spinner className="size-4 animate-spin" />
           ) : (
-            <RefreshCw className="size-4" />
+            <ArrowsClockwise className="size-4" />
           )}
           Refresh
         </button>
@@ -99,7 +99,7 @@ export function PolicyLibraryTab() {
           </div>
         ) : items.length === 0 ? (
           <div className="py-12 text-center">
-            <Scale className="mx-auto size-8 text-text-muted" aria-hidden="true" />
+            <Scales className="mx-auto size-8 text-text-muted" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-text">No policy documents found.</p>
             <p className="mt-1 text-xs font-medium text-text-muted">
               Upload a policy PDF with a recognized area to start the ITSO evidence library.
@@ -108,7 +108,7 @@ export function PolicyLibraryTab() {
               to="/admin/ingest"
               className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             >
-              <Upload className="size-4" />
+              <UploadSimple className="size-4" />
               Upload policy
             </Link>
           </div>

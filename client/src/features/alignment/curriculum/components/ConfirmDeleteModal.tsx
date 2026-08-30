@@ -5,7 +5,7 @@
 // use it). Focus-trap/Escape handling mirrors auth/components/
 // ResetPasswordModal.tsx's existing pattern for consistency.
 import { useEffect, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { Warning } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 
 type ConfirmDeleteModalProps = {
@@ -82,7 +82,7 @@ export function ConfirmDeleteModal({
         className="relative w-full max-w-md rounded-md border border-border bg-surface p-6 shadow-none sm:p-8"
       >
         <div className="mb-4 flex items-center gap-2 text-destructive">
-          <AlertTriangle className="size-5 shrink-0" />
+          <Warning className="size-5 shrink-0" />
           <h3
             id="confirm-delete-title"
             className="text-lg font-bold text-text"
@@ -93,7 +93,7 @@ export function ConfirmDeleteModal({
         <p className="mb-4 text-sm font-normal leading-relaxed text-text-muted">{message}</p>
         {errorMessage ? (
           <div className="mb-4 flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-3 py-2 text-xs font-semibold text-destructive">
-            <AlertTriangle className="size-3.5 shrink-0" />
+            <Warning className="size-3.5 shrink-0" />
             {errorMessage}
           </div>
         ) : null}

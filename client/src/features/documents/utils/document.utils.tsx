@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Spinner } from '@phosphor-icons/react';
 import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
 
 export const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
@@ -20,12 +20,12 @@ export const statusConfig: Record<
   PENDING: {
     label: 'Processing',
     badgeClass: 'bg-warning-soft text-warning border border-warning/20',
-    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+    icon: <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
   PROCESSING: {
     label: 'Processing',
     badgeClass: 'bg-warning-soft text-warning border border-warning/20',
-    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+    icon: <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
   PROCESSED: {
     label: 'Ready',
@@ -38,7 +38,7 @@ export const statusConfig: Record<
   CLEANUP_PENDING: {
     label: 'Cleanup pending',
     badgeClass: 'bg-warning-soft text-warning border border-warning/20',
-    icon: <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />,
+    icon: <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />,
   },
 };
 

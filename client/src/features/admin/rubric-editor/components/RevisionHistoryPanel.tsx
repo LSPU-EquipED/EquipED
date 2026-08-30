@@ -1,4 +1,4 @@
-import { CheckCircle, History, Loader2, Plus, Power, Trash2 } from 'lucide-react';
+import { CheckCircle, ClockCounterClockwise, Plus, Power, Spinner, Trash } from '@phosphor-icons/react';
 import type { RubricSet } from '../types';
 
 interface RevisionHistoryPanelProps {
@@ -34,7 +34,7 @@ export function RevisionHistoryPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4 bg-surface-subtle">
         <div>
           <div className="flex items-center gap-2">
-            <History className="size-4 text-text-muted" aria-hidden="true" />
+            <ClockCounterClockwise className="size-4 text-text-muted" aria-hidden="true" />
             <h2 className="text-xs font-bold uppercase tracking-wider text-text">
               Revision History
             </h2>
@@ -50,7 +50,7 @@ export function RevisionHistoryPanel({
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-sm bg-primary px-2.5 text-[11px] font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
             {isActionPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Spinner className="size-3.5 animate-spin" />
             ) : (
               <Plus className="size-3.5" />
             )}
@@ -141,7 +141,7 @@ export function RevisionHistoryPanel({
                       className="inline-flex h-7 items-center gap-1 px-2 rounded-sm border border-destructive/30 text-destructive hover:bg-destructive-soft text-[10px] font-bold uppercase tracking-wider focus-visible:outline-none disabled:opacity-50"
                       aria-label={`Delete draft revision v${rev.version_number}`}
                     >
-                      <Trash2 className="size-3" />
+                      <Trash className="size-3" />
                       Delete Draft
                     </button>
                   )}

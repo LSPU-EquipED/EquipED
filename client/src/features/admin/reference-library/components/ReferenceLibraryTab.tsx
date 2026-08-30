@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { BookOpen, Loader2, RefreshCw, Upload } from 'lucide-react';
+import { ArrowsClockwise, Books, Spinner, UploadSimple } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import {
   getReferenceFileUrl,
@@ -154,9 +154,9 @@ export function ReferenceLibraryTab() {
             aria-label="Refresh reference list"
           >
             {isLoading ? (
-              <Loader2 className="size-3.5 animate-spin" />
+              <Spinner className="size-3.5 animate-spin" />
             ) : (
-              <RefreshCw className="size-3.5" />
+              <ArrowsClockwise className="size-3.5" />
             )}
             Refresh
           </button>
@@ -191,7 +191,7 @@ export function ReferenceLibraryTab() {
           </div>
         ) : items.length === 0 ? (
           <div className="py-12 text-center">
-            <BookOpen className="mx-auto size-8 text-text-muted" aria-hidden="true" />
+            <Books className="mx-auto size-8 text-text-muted" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-text">No references found.</p>
             <p className="mt-1 text-xs font-medium text-text-muted">
               Upload a syllabus or curriculum to get started.
@@ -200,13 +200,13 @@ export function ReferenceLibraryTab() {
               to="/admin/ingest"
               className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             >
-              <Upload className="size-4" />
+              <UploadSimple className="size-4" />
               Upload reference
             </Link>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="py-12 text-center">
-            <BookOpen className="mx-auto size-8 text-text-muted" aria-hidden="true" />
+            <Books className="mx-auto size-8 text-text-muted" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-text">
               No {filterType} references found.
             </p>

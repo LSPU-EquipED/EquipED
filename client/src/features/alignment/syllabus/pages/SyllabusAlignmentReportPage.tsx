@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Edit3, Loader2 } from 'lucide-react';
+import { ArrowLeft, PencilSimple, Spinner } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { BUTTON_STYLES, CARD_STYLES } from '@/shared/constants/theme';
 import { alignmentApi } from '../api/syllabusAlignment.api';
@@ -47,7 +47,7 @@ export function SyllabusAlignmentReportPage() {
               params={{ documentId }}
               className={cn(BUTTON_STYLES.base, BUTTON_STYLES.variants.secondary, BUTTON_STYLES.sizes.sm)}
             >
-              <Edit3 className="size-4" aria-hidden="true" /> Evaluate again
+              <PencilSimple className="size-4" aria-hidden="true" /> Evaluate again
             </Link>
             {isAlignmentComplete(run) && (
               <AlignmentReportActions run={run} />
@@ -57,7 +57,7 @@ export function SyllabusAlignmentReportPage() {
 
         {current.isLoading ? (
           <p className="flex items-center gap-2 p-5 text-sm font-semibold text-text-muted">
-            <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading report…
+            <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading report…
           </p>
         ) : current.isError ? (
           <p className="p-5 text-sm font-semibold text-destructive">The alignment report could not be loaded.</p>

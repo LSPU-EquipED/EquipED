@@ -1,4 +1,4 @@
-import { CheckCircle, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, Spinner, XCircle } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { cn } from '@/shared/components/utils';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
@@ -74,7 +74,7 @@ export function UploadSummaryLedger({
             {isSuccess ? (
               <CheckCircle className="size-5 text-success shrink-0 mt-0.5" aria-hidden="true" />
             ) : isProcessing ? (
-              <Loader2 className="size-5 text-warning shrink-0 mt-0.5 animate-spin" aria-hidden="true" />
+              <Spinner className="size-5 text-warning shrink-0 mt-0.5 animate-spin" aria-hidden="true" />
             ) : isFailed ? (
               <XCircle className="size-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
             ) : null}

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react';
+import { Warning, CheckCircle, ArrowSquareOut, Spinner, XCircle } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { buildApiUrl } from '@/shared/api/http';
 import type { AlignmentRun } from '../types';
@@ -12,10 +12,10 @@ type AlignmentResultViewProps = {
 
 function LevelIcon({ run }: { run: AlignmentRun }) {
   if (run.alignment_level === 'MEETS') {
-    return <CheckCircle2 className="size-6 text-success" aria-hidden="true" />;
+    return <CheckCircle className="size-6 text-success" aria-hidden="true" />;
   }
   if (run.alignment_level === 'PARTIALLY_MEETS') {
-    return <AlertTriangle className="size-6 text-warning" aria-hidden="true" />;
+    return <Warning className="size-6 text-warning" aria-hidden="true" />;
   }
   return <XCircle className="size-6 text-destructive" aria-hidden="true" />;
 }
@@ -29,7 +29,7 @@ export function AlignmentResultView({
   if (run.status === 'QUEUED' || run.status === 'RUNNING') {
     return (
       <div className="flex items-center gap-3 p-5 text-sm font-semibold text-text">
-        <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
+        <Spinner className="size-5 animate-spin text-primary" aria-hidden="true" />
         Alignment is running. This page updates automatically.
       </div>
     );
@@ -89,7 +89,7 @@ export function AlignmentResultView({
           rel="noreferrer"
           className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary underline hover:text-primary-strong"
         >
-          View source syllabus <ExternalLink className="size-3" aria-hidden="true" />
+          View source syllabus <ArrowSquareOut className="size-3" aria-hidden="true" />
         </a>
       </section>
 

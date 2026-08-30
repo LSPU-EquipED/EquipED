@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link } from '@tanstack/react-router';
-import { ExternalLink, Loader2, TriangleAlert } from 'lucide-react';
+import { ArrowSquareOut, Spinner, Warning } from '@phosphor-icons/react';
 import { useEvaluationHistory } from '../hooks/useEvaluationHistory';
 import type { HistoryEvaluationItem } from '../types';
 import { Badge } from '@/shared/components/Badge';
@@ -85,7 +85,7 @@ export function EvaluationHistoryTable() {
           {/* Error state */}
           {isError ? (
             <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold">
-              <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+              <Warning className="size-4 shrink-0" aria-hidden="true" />
               Failed to load evaluation history.
             </div>
           ) : null}
@@ -93,7 +93,7 @@ export function EvaluationHistoryTable() {
           {/* Loading state */}
           {isLoading && !data ? (
             <div className="flex justify-center items-center py-12 text-text-muted font-medium text-sm gap-2">
-              <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
+              <Spinner className="size-5 animate-spin text-primary" aria-hidden="true" />
               <span>Loading evaluation history…</span>
             </div>
           ) : null}
@@ -154,7 +154,7 @@ export function EvaluationHistoryTable() {
                           className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle text-text px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         >
                           <span>View</span>
-                          <ExternalLink className="size-3 ml-1.5" aria-hidden="true" />
+                          <ArrowSquareOut className="size-3 ml-1.5" aria-hidden="true" />
                         </Link>
                       </td>
                     </tr>

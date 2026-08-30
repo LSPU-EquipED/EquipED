@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../hooks/useAuth';
 import { useLoginForm } from '../hooks/useLoginForm';
-import { ShieldAlert, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ShieldWarning, ArrowRight, Spinner, Eye, EyeSlash } from '@phosphor-icons/react';
 import { BrandHero } from './BrandHero';
 import { ResetPasswordModal } from './ResetPasswordModal';
 
@@ -154,7 +154,7 @@ export function LoginForm() {
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                       >
                         {showPassword ? (
-                          <EyeOff className="size-5" aria-hidden="true" />
+                          <EyeSlash className="size-5" aria-hidden="true" />
                         ) : (
                           <Eye className="size-5" aria-hidden="true" />
                         )}
@@ -203,7 +203,7 @@ export function LoginForm() {
                     role="alert"
                     className="border-b border-slate-200 bg-[#b91c1c]/10 px-6 sm:px-10 lg:px-14 py-5 flex items-start gap-3"
                   >
-                    <ShieldAlert
+                    <ShieldWarning
                       className="size-4 shrink-0 mt-0.5 text-[#b91c1c]"
                       aria-hidden="true"
                     />
@@ -222,7 +222,7 @@ export function LoginForm() {
                   >
                     {isSubmitting ? (
                       <span className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 animate-spin opacity-80" />
+                        <Spinner className="w-5 h-5 animate-spin opacity-80" />
                         Signing In
                       </span>
                     ) : (

@@ -5,7 +5,7 @@
 // click-to-scroll-and-flash mechanism are reimplemented here, matching
 // DocumentPane's exact behavior.
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import type { DocumentPage } from '../types';
 
 export type SlmReadingPaneHandle = {
@@ -118,7 +118,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
               className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
               aria-label="Previous page"
             >
-              <ChevronLeft className="size-4" />
+              <CaretLeft className="size-4" />
             </button>
             <div className="px-2">
               <select
@@ -140,7 +140,7 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
               className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
               aria-label="Next page"
             >
-              <ChevronRight className="size-4" />
+              <CaretRight className="size-4" />
             </button>
           </div>
         </div>

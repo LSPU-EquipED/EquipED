@@ -1,4 +1,4 @@
-import { Clock, FileText, Download, Eye, AlertTriangle } from 'lucide-react';
+import { Clock, FileText, DownloadSimple, Eye, WarningCircle } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { ClientDocument } from '@/shared/types/documents';
@@ -111,7 +111,7 @@ export function EvaluationHeader({
 
         {isPartial && (
           <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm border border-warning/30 bg-warning-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning select-none">
-            <AlertTriangle className="size-3 text-warning" aria-hidden="true" />
+            <WarningCircle className="size-3 text-warning" aria-hidden="true" />
             Partial Review
           </span>
         )}
@@ -131,7 +131,7 @@ export function EvaluationHeader({
               : undefined
           }
         >
-          <Download className="size-3.5 mr-1.5" aria-hidden="true" />
+          <DownloadSimple className="size-3.5 mr-1.5" aria-hidden="true" />
           Export
         </button>
 

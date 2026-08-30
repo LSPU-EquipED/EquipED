@@ -1,17 +1,17 @@
 import { useMemo, useState } from 'react';
 import {
-  BookOpenCheck,
-  Boxes,
-  CheckCircle2,
-  ChevronRight,
+  BookOpenText,
+  CheckCircle,
+  CaretRight,
   Database,
-  FileOutput,
+  FileArrowDown,
   GitBranch,
+  GitFork,
   Info,
-  Network,
+  Package,
   ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
+  Sparkle,
+} from '@phosphor-icons/react';
 import {
   evaluationMapEdges,
   evaluationMapNodes,
@@ -27,18 +27,18 @@ const canvasWidth = 1140;
 const kindMeta: Record<MapNodeKind, { label: string; icon: typeof Database }> = {
   reference: { label: 'References · data', icon: Database },
   process: { label: 'Evaluation processes', icon: GitBranch },
-  output: { label: 'Major features · outputs', icon: FileOutput },
+  output: { label: 'Major features · outputs', icon: FileArrowDown },
 };
 
-const outputIcons: Record<string, typeof Boxes> = {
-  'sme-output': Sparkles,
-  'gad-output': CheckCircle2,
+const outputIcons: Record<string, typeof Package> = {
+  'sme-output': Sparkle,
+  'gad-output': CheckCircle,
   'itso-output': ShieldCheck,
-  'coordinator-output': BookOpenCheck,
-  scorecard: Boxes,
-  report: FileOutput,
-  matrix: Network,
-  'syllabus-output': BookOpenCheck,
+  'coordinator-output': BookOpenText,
+  scorecard: Package,
+  report: FileArrowDown,
+  matrix: GitFork,
+  'syllabus-output': BookOpenText,
 };
 
 function nodeCenter(node: EvaluationMapNode) {
@@ -66,7 +66,7 @@ function MapNode({
   onSelect: (id: string) => void;
 }) {
   const isOutput = node.kind === 'output';
-  const Icon = isOutput ? (outputIcons[node.id] ?? FileOutput) : kindMeta[node.kind].icon;
+  const Icon = isOutput ? (outputIcons[node.id] ?? FileArrowDown) : kindMeta[node.kind].icon;
   const stateClass = active
     ? selected
       ? 'border-[#1b3b87] bg-[#1b3b87] text-white ring-4 ring-[#1b3b87]/10'
@@ -91,7 +91,7 @@ function MapNode({
       <span className="min-w-0 flex-1 text-left">
         <span className="flex items-start justify-between gap-2">
           <span className="text-[13px] font-bold leading-5">{node.title}</span>
-          {isOutput && <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden="true" />}
+          {isOutput && <CaretRight className="mt-0.5 size-4 shrink-0" aria-hidden="true" />}
         </span>
         <span className={`mt-0.5 block text-[11px] leading-4 ${selected ? 'text-blue-100' : active ? 'text-slate-600' : 'text-slate-400'}`}>
           {node.detail}
@@ -146,8 +146,8 @@ export function EvaluationMindMap() {
       <div className="mx-auto max-w-[1500px]">
         <header className="grid gap-5 border-b border-slate-300 pb-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#1b3b87]">
-              <Network className="size-4" aria-hidden="true" /> Academic evaluation system
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+              <GitFork className="size-4" aria-hidden="true" /> Academic evaluation system
             </div>
             <h1 id="evaluation-map-title" className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
               From institutional evidence to advisory output
@@ -165,7 +165,7 @@ export function EvaluationMindMap() {
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <div aria-live="polite" className="flex items-center gap-2 text-sm text-slate-700">
             <span className="flex size-7 items-center justify-center rounded-sm bg-[#1b3b87] text-white">
-              <Sparkles className="size-3.5" aria-hidden="true" />
+              <Sparkle className="size-3.5" aria-hidden="true" />
             </span>
             Showing inputs for <strong className="text-slate-950">{selectedNode.title}</strong>
           </div>

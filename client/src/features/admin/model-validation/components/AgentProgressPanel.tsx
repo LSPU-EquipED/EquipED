@@ -1,4 +1,4 @@
-import { CheckCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, Spinner } from '@phosphor-icons/react';
 import type { ModelValidationItem } from '../types';
 import { statusClass, validationAgents } from '../utils/helpers';
 
@@ -48,7 +48,7 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
                   aria-hidden="true"
                 />
               ) : isEvaluating ? (
-                <Loader2
+                <Spinner
                   className="size-5 shrink-0 animate-spin text-primary"
                   aria-hidden="true"
                 />

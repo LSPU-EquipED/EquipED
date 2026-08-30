@@ -1,14 +1,13 @@
 import {
-  AlertTriangle,
+  ArrowsClockwise,
+  CaretDown,
   CheckCircle,
-  ChevronDown,
-  FileCheck2,
-  Loader2,
   Play,
-  RotateCw,
-  ShieldAlert,
-  Upload,
-} from 'lucide-react';
+  ShieldWarning,
+  Spinner,
+  UploadSimple,
+  Warning,
+} from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
@@ -63,7 +62,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
         <span className="ml-auto hidden text-xs font-bold uppercase tracking-wider text-primary sm:block">
           Expand
         </span>
-        <ChevronDown
+        <CaretDown
           className="size-5 shrink-0 text-primary transition-transform group-open:rotate-180"
           aria-hidden="true"
         />
@@ -273,7 +272,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
         </div>
 
         <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-border bg-surface-subtle/50 px-4 py-6 text-center focus-within:ring-2 focus-within:ring-ring">
-          <Upload className="size-6 text-primary" aria-hidden="true" />
+          <UploadSimple className="size-6 text-primary" aria-hidden="true" />
           <span className="text-sm font-semibold text-text">
             {file?.name ?? 'Choose an SLM PDF'}
           </span>
@@ -304,9 +303,9 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
             className="inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {uploadMutation.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
+              <Spinner className="size-4 animate-spin" />
             ) : (
-              <FileCheck2 className="size-4" />
+              <UploadSimple className="size-4" />
             )}
             {uploadMutation.isPending ? 'Preparing SLM…' : 'Prepare validation'}
           </button>
@@ -330,7 +329,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
               </div>
             ) : (
               <div className="flex items-center gap-2 text-sm font-semibold text-text-muted">
-                <Loader2 className="size-5 animate-spin text-primary" />
+                <Spinner className="size-5 animate-spin text-primary" />
                 Confirming the SLM is fully processed…
               </div>
             )}
@@ -341,7 +340,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
                   Partial validation
                 </legend>
                 <p className="flex items-start gap-2 leading-relaxed font-semibold text-text">
-                  <ShieldAlert
+                  <ShieldWarning
                     className="mt-0.5 size-4 shrink-0 text-destructive"
                     aria-hidden="true"
                   />
@@ -377,7 +376,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
               className="inline-flex h-10 items-center justify-center gap-2 rounded-sm bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {validationMutation.isPending || !uploadedDocumentReady ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Spinner className="size-4 animate-spin" />
               ) : (
                 <Play className="size-4" />
               )}
@@ -396,7 +395,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
             className="rounded-sm border border-destructive/40 bg-destructive-soft p-4 text-text"
           >
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
+              <Warning className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
               <div className="min-w-0 flex-1 space-y-2">
                 <p className="text-sm font-bold text-destructive">
                   Active rubric criteria have changed
@@ -418,7 +417,7 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
                     disabled={criterionCatalog.isFetching}
                     className="inline-flex items-center gap-2 rounded-sm bg-destructive px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-destructive-foreground hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50"
                   >
-                    <RotateCw
+                    <ArrowsClockwise
                       className={criterionCatalog.isFetching ? 'size-3.5 animate-spin' : 'size-3.5'}
                     />
                     {criterionCatalog.isFetching ? 'Reloading catalog…' : 'Reload criteria catalog'}

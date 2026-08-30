@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, CaretLeft, CaretRight, Spinner } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 import { documentsApi } from '@/shared/api/documents.api';
 import { getErrorMessage } from '@/shared/api/http';
@@ -111,7 +111,7 @@ export function SyllabusAlignmentWorkspacePage() {
                   className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-surface text-text hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface transition-colors"
                   aria-label="Previous page"
                 >
-                  <ChevronLeft className="size-4" />
+                  <CaretLeft className="size-4" />
                 </button>
                 <span className="text-xs font-semibold tabular-nums text-text-muted">Page {activePage[0]}</span>
                 <button
@@ -121,7 +121,7 @@ export function SyllabusAlignmentWorkspacePage() {
                   className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-surface text-text hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface transition-colors"
                   aria-label="Next page"
                 >
-                  <ChevronRight className="size-4" />
+                  <CaretRight className="size-4" />
                 </button>
               </div>
             )}
@@ -129,7 +129,7 @@ export function SyllabusAlignmentWorkspacePage() {
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
             {documentQuery.isLoading && (
               <p className="flex items-center gap-2 text-sm text-text-muted">
-                <Loader2 className="size-4 animate-spin text-primary" /> Loading content…
+                <Spinner className="size-4 animate-spin text-primary" /> Loading content…
               </p>
             )}
             {documentQuery.isError && (

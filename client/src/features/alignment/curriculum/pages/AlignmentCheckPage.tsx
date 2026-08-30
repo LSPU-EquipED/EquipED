@@ -1,5 +1,5 @@
 import { useMemo, useRef, useReducer } from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, Loader2 } from 'lucide-react';
+import { Warning, CheckCircle, Clock, Spinner } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import { Badge } from '@/shared/components/Badge';
@@ -179,7 +179,7 @@ export function AlignmentCheckPage() {
       {selectedDocumentSupportNotice ? (
         <div className="rounded-sm border border-warning/30 bg-warning-soft px-4 py-3 text-sm font-semibold text-warning">
           <span className="inline-flex items-center gap-2">
-            <Clock3 className="size-4 shrink-0" />
+            <Clock className="size-4 shrink-0" />
             {selectedDocumentSupportNotice}
           </span>
         </div>
@@ -193,7 +193,7 @@ export function AlignmentCheckPage() {
 
       {runCheck.isPending ? (
         <div className="flex items-center gap-2 rounded-sm border border-primary/20 bg-primary-soft p-3 text-sm font-semibold text-primary">
-          <Loader2 className="size-4 animate-spin shrink-0 text-primary" />
+          <Spinner className="size-4 animate-spin shrink-0 text-primary" />
           Running alignment check.
         </div>
       ) : null}
@@ -201,7 +201,7 @@ export function AlignmentCheckPage() {
       {runErrorState ? (
         <div className="rounded-sm border border-destructive/20 bg-destructive-soft p-3 text-sm font-semibold text-destructive">
           <div className="mb-1 flex items-center gap-2">
-            <AlertTriangle className="size-4 shrink-0" />
+            <Warning className="size-4 shrink-0" />
             <span>{runErrorState.title}</span>
           </div>
           <p className="text-xs font-medium">{runErrorState.message}</p>
@@ -240,13 +240,13 @@ export function AlignmentCheckPage() {
 
           {activeCheck.isLoading ? (
             <div className="flex flex-1 items-center justify-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
+              <Spinner className="size-8 animate-spin text-primary" />
             </div>
           ) : null}
 
           {activeLoadErrorState ? (
             <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft p-3 text-sm font-semibold text-destructive">
-              <AlertTriangle className="size-4 shrink-0" />
+              <Warning className="size-4 shrink-0" />
               <span>{activeLoadErrorState.title}</span>
             </div>
           ) : null}
@@ -255,7 +255,7 @@ export function AlignmentCheckPage() {
 
           {activeCheck.data && !activeCheck.data.success ? (
             <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft p-3 text-sm font-semibold text-destructive">
-              <AlertTriangle className="size-4 shrink-0" />
+              <Warning className="size-4 shrink-0" />
               <div>
                 <div className="flex items-center gap-2">
                   <span>{activeFailureState?.title ?? 'Alignment check failed'}</span>
@@ -273,7 +273,7 @@ export function AlignmentCheckPage() {
 
               {isBoundedResult ? (
                 <Badge variant="warning" className="self-start">
-                  <CheckCircle2 className="size-3.5 mr-1" /> Partial - bounded coverage
+                  <CheckCircle className="size-3.5 mr-1" /> Partial - bounded coverage
                 </Badge>
               ) : null}
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 import { INPUT_STYLES } from '@/shared/constants/theme';
@@ -171,7 +171,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showPassword ? <EyeSlash className="size-4" /> : <Eye className="size-4" />}
                 </button>
               </div>
               {errors.password ? (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, FileText, Loader2 } from 'lucide-react';
+import { CaretDown, CaretRight, FileText, Spinner } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { cn } from '@/shared/components/utils';
 import { TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
@@ -41,7 +41,7 @@ export function PreferenceLogTable() {
       <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-text-muted font-medium text-sm">
-            <Loader2 className="size-5 animate-spin" /> Loading preference logs...
+            <Spinner className="size-5 animate-spin" /> Loading preference logs...
           </div>
         ) : isError ? (
           <div className="py-10 text-center text-destructive font-semibold text-sm">
@@ -117,9 +117,9 @@ function LogRow({ log, isExpanded, hasDetails, score, onToggle }: LogRowProps) {
               aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
             >
               {isExpanded ? (
-                <ChevronDown className="size-4" />
+                <CaretDown className="size-4" />
               ) : (
-                <ChevronRight className="size-4" />
+                <CaretRight className="size-4" />
               )}
             </button>
           ) : null}

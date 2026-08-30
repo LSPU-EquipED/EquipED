@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Scale } from 'lucide-react';
+import { Books, Scales } from '@phosphor-icons/react';
 import { LibraryTabButton, PageHeader } from '../components/PageHeader';
 import { PolicyLibraryTab } from '../components/PolicyLibraryTab';
 import { ReferenceLibraryTab } from '../components/ReferenceLibraryTab';
@@ -22,14 +22,14 @@ export function ReferenceLibraryPage() {
           isActive={activeTab === 'references'}
           onSelect={() => setActiveTab('references')}
           label="References"
-          icon={BookOpen}
+          icon={Books}
         />
         <LibraryTabButton
           id="library-tab-policies"
           isActive={activeTab === 'policies'}
           onSelect={() => setActiveTab('policies')}
           label="Policies"
-          icon={Scale}
+          icon={Scales}
         />
       </div>
       {activeTab === 'references' ? <ReferenceLibraryTab /> : <PolicyLibraryTab />}

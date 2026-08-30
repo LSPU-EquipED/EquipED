@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, ShieldAlert } from 'lucide-react';
+import { CaretDown, CaretRight, ShieldWarning, Spinner, Warning } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { cn } from '@/shared/components/utils';
 import {
@@ -106,9 +106,9 @@ export function HistoryRow({
               className="inline-flex items-center gap-1 rounded-sm font-bold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {isExpanded ? (
-                <ChevronDown className="size-4" aria-hidden="true" />
+                <CaretDown className="size-4" aria-hidden="true" />
               ) : (
-                <ChevronRight className="size-4" aria-hidden="true" />
+                <CaretRight className="size-4" aria-hidden="true" />
               )}
               {isExpanded ? 'Hide details' : 'Open evaluation'}
             </button>
@@ -255,7 +255,7 @@ export function ValidationDetail({
           role="note"
           className="flex items-start gap-2 rounded-sm border border-warning/40 bg-warning-soft px-3 py-2 text-xs font-semibold text-text"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+          <Warning className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
           <span className="leading-relaxed">
             This validation ran without a curriculum reference. Coordinator curriculum-grounded
             review was skipped. SME, GAD, and ITSO scores below are from the partial run.
@@ -268,7 +268,7 @@ export function ValidationDetail({
           role="status"
           className="flex items-center gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted"
         >
-          <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />
+          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
           Loading criterion detail…
         </p>
       ) : null}
@@ -306,7 +306,7 @@ export function ValidationDetail({
                 </div>
                 {isAgentSkipped ? (
                   <span className="inline-flex items-center gap-1 rounded-sm bg-surface-subtle px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-text-muted border border-border">
-                    <ShieldAlert className="size-3" aria-hidden="true" />
+                    <ShieldWarning className="size-3" aria-hidden="true" />
                     Skipped — no curriculum
                   </span>
                 ) : null}
@@ -419,7 +419,7 @@ export function ValidationDetail({
             </span>
           ) : evaluationQuery.isLoading ? (
             <span className="inline-flex items-center gap-2 text-xs font-semibold text-text-muted">
-              <Loader2 className="size-3 animate-spin text-primary" aria-hidden="true" />
+              <Spinner className="size-3 animate-spin text-primary" aria-hidden="true" />
               Loading evaluation status…
             </span>
           ) : null}

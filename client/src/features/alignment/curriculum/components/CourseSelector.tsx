@@ -3,7 +3,7 @@
 // programs, with a flat (ungrouped) list since courses aren't organized
 // into colleges the way programs are.
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search } from 'lucide-react';
+import { Check, CaretDown, MagnifyingGlass } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import type { Course } from '../types';
 
@@ -162,7 +162,7 @@ export function CourseSelector({
             {placeholder}
           </span>
         )}
-        <ChevronDown
+        <CaretDown
           className={cn('size-4 shrink-0 text-text-muted transition-transform', isOpen && 'rotate-180')}
           aria-hidden="true"
         />
@@ -176,7 +176,7 @@ export function CourseSelector({
           className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-hidden rounded-sm border border-border bg-surface shadow-sm"
         >
           <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
-            <Search className="size-4 text-text-muted" aria-hidden="true" />
+            <MagnifyingGlass className="size-4 text-text-muted" aria-hidden="true" />
             <input
               ref={searchInputRef}
               type="text"

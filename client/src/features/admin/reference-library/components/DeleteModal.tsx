@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { Spinner, Warning } from '@phosphor-icons/react';
 import type { PolicyLibraryItem, ReferenceLibraryItem } from '../types';
 import { isPolicyArea, policyAreaLabelMap } from '../utils/helpers';
 
@@ -33,7 +33,7 @@ export function DeleteModal({
       <div className="w-full max-w-md border border-border bg-surface p-6 rounded-sm shadow-md">
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-warning/40 bg-warning-soft text-warning">
-            <AlertTriangle className="size-5" aria-hidden="true" />
+            <Warning className="size-5" aria-hidden="true" />
           </div>
           <div>
             <h3 id="delete-dialog-title" className="text-base font-bold text-text">
@@ -60,7 +60,7 @@ export function DeleteModal({
           >
             {isDeleting ? (
               <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" />
+                <Spinner className="size-4 animate-spin" />
                 Deleting...
               </span>
             ) : (

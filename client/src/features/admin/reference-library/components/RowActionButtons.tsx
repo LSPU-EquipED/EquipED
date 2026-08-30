@@ -1,4 +1,4 @@
-import { ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowSquareOut, ArrowsClockwise, Spinner, Trash } from '@phosphor-icons/react';
 
 interface RowActionButtonsProps {
   canRebuild: boolean;
@@ -30,7 +30,7 @@ export function RowActionButtons({
         className="inline-flex h-8 items-center gap-1.5 border border-border bg-surface px-2.5 text-xs font-semibold uppercase tracking-wide text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm"
         title="Open PDF preview"
       >
-        <ExternalLink className="size-3.5" />
+        <ArrowSquareOut className="size-3.5" />
         Preview
       </button>
       <button
@@ -41,9 +41,9 @@ export function RowActionButtons({
         title={rebuildTooltip}
       >
         {isRebuilding ? (
-          <Loader2 className="size-3.5 animate-spin" />
+          <Spinner className="size-3.5 animate-spin" />
         ) : (
-          <RefreshCw className="size-3.5" />
+          <ArrowsClockwise className="size-3.5" />
         )}
         Rebuild
       </button>
@@ -55,9 +55,9 @@ export function RowActionButtons({
         title="Delete document and all associated data"
       >
         {isDeleting ? (
-          <Loader2 className="size-3.5 animate-spin" />
+          <Spinner className="size-3.5 animate-spin" />
         ) : (
-          <Trash2 className="size-3.5" />
+          <Trash className="size-3.5" />
         )}
         Delete
       </button>

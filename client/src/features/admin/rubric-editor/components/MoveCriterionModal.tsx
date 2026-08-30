@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Spinner, X } from '@phosphor-icons/react';
 import { getRubricOperationError } from '../hooks/useRubrics';
 import type { RubricCriterion, RubricDomain } from '../types';
 
@@ -127,7 +127,7 @@ function MoveCriterionModalContent({
               disabled={isPending || otherDomains.length === 0 || !destinationDomainId}
               className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              {isPending && <Loader2 className="size-3.5 animate-spin" />}
+              {isPending && <Spinner className="size-3.5 animate-spin" />}
               Move Criterion
             </button>
           </div>

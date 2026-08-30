@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { AlertTriangle, BookOpenCheck, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Warning, BookOpenText, CaretLeft, CaretRight, Spinner } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
@@ -52,7 +52,7 @@ export function SyllabusAlignmentPage() {
     <section className="px-6 py-7">
       <header className="border-b border-border pb-5">
         <div className="flex items-center gap-3">
-          <BookOpenCheck className="size-6 text-primary" aria-hidden="true" />
+          <BookOpenText className="size-6 text-primary" aria-hidden="true" />
           <div>
             <h1 className="text-2xl font-bold text-text">Syllabus Alignment</h1>
             <p className="mt-1 text-sm text-text-muted">
@@ -64,12 +64,12 @@ export function SyllabusAlignmentPage() {
 
       {slms.isLoading && (
         <div className="flex items-center gap-2 border-b border-border py-6 text-sm font-semibold text-text-muted">
-          <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading SLM documents…
+          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading SLM documents…
         </div>
       )}
       {slms.isError && (
         <div className="mt-5 flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft p-4 text-sm font-semibold text-destructive">
-          <AlertTriangle className="size-4" aria-hidden="true" />
+          <Warning className="size-4" aria-hidden="true" />
           {getErrorMessage(slms.error, 'Unable to load SLM documents.')}
         </div>
       )}
@@ -149,7 +149,7 @@ export function SyllabusAlignmentPage() {
                               {item.current_result?.status === 'FAILED'
                                   ? 'Retry'
                                   : 'Evaluate'}
-                              <ChevronRight className="size-3.5" aria-hidden="true" />
+                              <CaretRight className="size-3.5" aria-hidden="true" />
                             </Link>
                           )}
                         </div>
@@ -177,7 +177,7 @@ export function SyllabusAlignmentPage() {
                   onClick={() => setPage((value) => Math.max(1, value - 1))}
                   disabled={page === 1 || slms.isFetching}
                 >
-                  <ChevronLeft className="size-3.5" aria-hidden="true" /> Previous
+                  <CaretLeft className="size-3.5" aria-hidden="true" /> Previous
                 </Button>
                 <Button
                   type="button"
@@ -186,7 +186,7 @@ export function SyllabusAlignmentPage() {
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                   disabled={page === totalPages || slms.isFetching}
                 >
-                  Next <ChevronRight className="size-3.5" aria-hidden="true" />
+                  Next <CaretRight className="size-3.5" aria-hidden="true" />
                 </Button>
               </div>
             </footer>
