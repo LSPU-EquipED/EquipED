@@ -1,9 +1,11 @@
 import {
+  AlertTriangle,
   CheckCircle,
   ChevronDown,
   FileCheck2,
   Loader2,
   Play,
+  RotateCw,
   ShieldAlert,
   Upload,
 } from 'lucide-react';
@@ -37,6 +39,8 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
     uploadedDocumentReady,
     canSubmitEvaluation,
     error,
+    isStaleBinding,
+    handleReloadCatalog,
     resetPreparedUpload,
     handleFile,
     handleProgramChange,
@@ -99,77 +103,173 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
           {criterionCatalog.isLoading ? (
             <p className="text-sm font-semibold text-slate-600">Loading active criteria…</p>
           ) : criterionCatalog.isError ? (
-            <p className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 p-3 text-sm font-semibold text-[#b91c1c]">
-              Unable to load the active rubric criteria.
-            </p>
+            <div className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 p-3 text-sm font-semibold text-[#b91c1c]">
+              <p>Unable to load the active rubric criteria.</p>
+              <button
+                type="button"
+                onClick={() => criterionCatalog.refetch()}
+                className="mt-2 text-xs font-bold uppercase tracking-wider underline hover:text-[#991b1b]"
+              >
+                Retry loading criteria
+              </button>
+            </div>
           ) : criterionDefinitions.length === 0 ||
-            criterionDefinitions.some((agent) => agent.criteria.length === 0) ? (
+            criterionDefinitions.some((agent) => {
+              const count = agent.domains?.length
+                ? agent.domains.reduce((sum, d) => sum + d.criteria.length, 0)
+                : agent.criteria.length;
+              return count === 0;
+            }) ? (
             <p className="rounded-sm border border-[#f2c811] bg-[#f2c811]/10 p-3 text-sm font-semibold text-slate-800">
-              No active rubric criteria are available. Activate the evaluator agent rubrics first.
+              No active rubric criteria are available for SME, GAD, or ITSO. Activate the evaluator
+              agent rubrics first.
             </p>
           ) : (
-            criterionDefinitions.map((agent) => (
-              <section
-                key={agent.agent_id}
-                className="overflow-hidden rounded-sm border border-slate-200"
-              >
-                <div className="flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                  <h3 className="min-w-0 break-words text-sm font-bold text-slate-900">
-                    {agent.agent_name}
-                  </h3>
-                  <span className="shrink-0 text-xs font-semibold text-slate-600">
-                    Rubric v{agent.rubric_version}
-                  </span>
-                </div>
-                <div className="divide-y divide-slate-200">
-                  {agent.criteria.map((criterion) => {
-                    const key = criterionKey(agent.agent_id, criterion.criterion_id);
-                    return (
-                      <label
-                        key={key}
-                        className="grid min-w-0 gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_7rem] md:items-center"
-                      >
-                        <span className="min-w-0">
-                          <span className="block break-words text-sm font-semibold text-slate-900">
-                            {criterion.criterion_id} · {criterion.title}
-                          </span>
-                          <span className="mt-0.5 block break-words text-xs leading-relaxed text-slate-600">
-                            {criterion.domain_title} — {criterion.description}
-                          </span>
-                        </span>
-                        <span className="grid min-w-0 gap-1 text-xs font-bold uppercase tracking-wider text-slate-600">
-                          Score
-                          <input
-                            ref={(node) => {
-                              scoreInputRefs.current[key] = node;
-                            }}
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[1-4]"
-                            maxLength={1}
-                            autoComplete="off"
-                            placeholder="1–4"
-                            value={expectedScores[key] ?? ''}
-                            onChange={(event) => {
-                              const nextScore = event.target.value;
-                              if (!/^[1-4]?$/.test(nextScore)) return;
-                              setExpectedScores((current) => ({
-                                ...current,
-                                [key]: nextScore,
-                              }));
-                            }}
-                            onKeyDown={(event) => handleScoreKeyDown(event, key)}
-                            onFocus={(event) => event.currentTarget.select()}
-                            className="h-10 min-w-0 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
-                            required
-                          />
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </section>
-            ))
+            criterionDefinitions.map((agent) => {
+              const hasDomains = agent.domains && agent.domains.length > 0;
+              return (
+                <section
+                  key={agent.agent_id}
+                  className="overflow-hidden rounded-sm border border-slate-200"
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <h3 className="min-w-0 break-words text-sm font-bold text-slate-900">
+                      {agent.agent_name}
+                    </h3>
+                    <span className="shrink-0 text-xs font-semibold text-slate-600">
+                      Rubric v{agent.rubric_version}
+                    </span>
+                  </div>
+
+                  {hasDomains ? (
+                    <div className="divide-y divide-slate-200">
+                      {agent.domains.map((domain) => (
+                        <div key={domain.rubric_domain_id} className="min-w-0">
+                          <div className="flex items-center justify-between gap-2 bg-slate-100/75 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700">
+                            <span>
+                              {domain.code} · {domain.title}
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-500 normal-case">
+                              Domain #{domain.display_order}
+                            </span>
+                          </div>
+                          <div className="divide-y divide-slate-200">
+                            {domain.criteria.map((criterion) => {
+                              const key = criterionKey(
+                                agent.agent_id,
+                                criterion.rubric_criterion_id,
+                              );
+                              return (
+                                <label
+                                  key={key}
+                                  className="grid min-w-0 gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_7rem] md:items-center"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block break-words text-sm font-semibold text-slate-900">
+                                      {criterion.criterion_code} · {criterion.title}
+                                    </span>
+                                    <span className="mt-0.5 block break-words text-xs leading-relaxed text-slate-600">
+                                      {criterion.domain_title ?? domain.title} —{' '}
+                                      {criterion.description}
+                                    </span>
+                                  </span>
+                                  <span className="grid min-w-0 gap-1 text-xs font-bold uppercase tracking-wider text-slate-600">
+                                    Score
+                                    <input
+                                      ref={(node) => {
+                                        scoreInputRefs.current[key] = node;
+                                      }}
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[1-4]"
+                                      maxLength={1}
+                                      autoComplete="off"
+                                      placeholder="1–4"
+                                      value={expectedScores[key] ?? ''}
+                                      onChange={(event) => {
+                                        const nextScore = event.target.value;
+                                        if (!/^[1-4]?$/.test(nextScore)) return;
+                                        setExpectedScores((current) => ({
+                                          ...current,
+                                          [key]: nextScore,
+                                        }));
+                                      }}
+                                      onWheel={(event) => {
+                                        event.currentTarget.blur();
+                                      }}
+                                      onKeyDown={(event) => handleScoreKeyDown(event, key)}
+                                      onFocus={(event) => event.currentTarget.select()}
+                                      className="h-10 min-w-0 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+                                      required
+                                      aria-label={`Expected score for ${criterion.criterion_code} ${criterion.title}`}
+                                    />
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {agent.criteria.map((criterion) => {
+                        const key = criterionKey(
+                          agent.agent_id,
+                          criterion.rubric_criterion_id || criterion.criterion_id!,
+                        );
+                        return (
+                          <label
+                            key={key}
+                            className="grid min-w-0 gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_7rem] md:items-center"
+                          >
+                            <span className="min-w-0">
+                              <span className="block break-words text-sm font-semibold text-slate-900">
+                                {criterion.criterion_code} · {criterion.title}
+                              </span>
+                              <span className="mt-0.5 block break-words text-xs leading-relaxed text-slate-600">
+                                {criterion.domain_title} — {criterion.description}
+                              </span>
+                            </span>
+                            <span className="grid min-w-0 gap-1 text-xs font-bold uppercase tracking-wider text-slate-600">
+                              Score
+                              <input
+                                ref={(node) => {
+                                  scoreInputRefs.current[key] = node;
+                                }}
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[1-4]"
+                                maxLength={1}
+                                autoComplete="off"
+                                placeholder="1–4"
+                                value={expectedScores[key] ?? ''}
+                                onChange={(event) => {
+                                  const nextScore = event.target.value;
+                                  if (!/^[1-4]?$/.test(nextScore)) return;
+                                  setExpectedScores((current) => ({
+                                    ...current,
+                                    [key]: nextScore,
+                                  }));
+                                }}
+                                onWheel={(event) => {
+                                  event.currentTarget.blur();
+                                }}
+                                onKeyDown={(event) => handleScoreKeyDown(event, key)}
+                                onFocus={(event) => event.currentTarget.select()}
+                                className="h-10 min-w-0 w-full rounded-sm border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
+                                required
+                                aria-label={`Expected score for ${criterion.criterion_code} ${criterion.title}`}
+                              />
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              );
+            })
           )}
         </div>
 
@@ -247,9 +347,9 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
                     aria-hidden="true"
                   />
                   <span className="min-w-0">
-                    This validation runs without a curriculum reference. The Coordinator agent
-                    will be skipped; SME, GAD, and ITSO will still evaluate the SLM. The result is
-                    marked partial and remains advisory.
+                    This validation runs without a curriculum reference. The Coordinator agent will
+                    be skipped; SME, GAD, and ITSO will still evaluate the SLM. The result is marked
+                    partial and remains advisory.
                   </span>
                 </p>
                 <label className="flex items-start gap-3 border-t border-[#f2c811]/40 pt-3 text-xs font-semibold text-slate-800">
@@ -264,8 +364,8 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
                     id="validation-partial-acknowledgement-help"
                     className="min-w-0 leading-relaxed"
                   >
-                    I understand that the Coordinator agent will be skipped and the validation
-                    will be reported as a partial result.
+                    I understand that the Coordinator agent will be skipped and the validation will
+                    be reported as a partial result.
                   </span>
                 </label>
               </fieldset>
@@ -291,7 +391,44 @@ export function ValidationPreparationForm({ form }: { form: FormState }) {
           </div>
         )}
 
-        {error ? (
+        {isStaleBinding ? (
+          <div
+            role="alert"
+            className="rounded-sm border border-[#b91c1c]/40 bg-[#b91c1c]/10 p-4 text-slate-900"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-[#b91c1c]" aria-hidden="true" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="text-sm font-bold text-[#b91c1c]">
+                  Active rubric criteria have changed
+                </p>
+                <p className="text-xs leading-relaxed text-slate-800">
+                  The published rubric revisions or criteria were updated or retired while preparing
+                  this validation run. Benchmark scores must match currently active revisions.
+                  Please reload the criteria catalog to update the form before resubmitting.
+                </p>
+                {validationMutation.error ? (
+                  <p className="rounded-xs border border-slate-200 bg-white/70 px-2 py-1 font-mono text-[11px] text-slate-700">
+                    {getErrorMessage(validationMutation.error)}
+                  </p>
+                ) : null}
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleReloadCatalog}
+                    disabled={criterionCatalog.isFetching}
+                    className="inline-flex items-center gap-2 rounded-sm bg-[#b91c1c] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#991b1b] focus:outline-none focus:ring-2 focus:ring-[#b91c1c] disabled:opacity-50"
+                  >
+                    <RotateCw
+                      className={criterionCatalog.isFetching ? 'size-3.5 animate-spin' : 'size-3.5'}
+                    />
+                    {criterionCatalog.isFetching ? 'Reloading catalog…' : 'Reload criteria catalog'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : error ? (
           <p
             role="alert"
             className="rounded-sm border border-[#b91c1c]/30 bg-[#b91c1c]/10 px-4 py-3 text-sm font-semibold text-[#b91c1c]"
