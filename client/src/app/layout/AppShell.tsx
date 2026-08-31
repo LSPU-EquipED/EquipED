@@ -1,12 +1,11 @@
-import { Outlet, useLocation, useMatches } from '@tanstack/react-router';
+import { Link, Outlet, useLocation, useMatches } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
-import { List, SignOut } from '@phosphor-icons/react';
+import { CaretRight, House, List, SignOut } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { Sidebar } from './Sidebar';
-import { getRouteTitle, getSidebarLayoutClasses } from './navigation.utils';
-
+import { getBreadcrumbs, getSidebarLayoutClasses } from './navigation.utils';
 export function AppShell() {
   const matches = useMatches();
   const currentMatch = matches[matches.length - 1];
@@ -78,6 +77,7 @@ export function AppShell() {
   };
 
   const layoutClasses = getSidebarLayoutClasses(isSidebarCollapsed);
+  const breadcrumbs = getBreadcrumbs(pathname, user?.role);
 
   return (
     <div className="min-h-screen bg-canvas text-text">
@@ -87,13 +87,13 @@ export function AppShell() {
           layoutClasses.headerLeft,
         )}
       >
-        <div className="flex flex-1 items-center gap-3">
+        <div className="flex flex-1 items-center gap-3 min-w-0">
           {/* Mobile menu hamburger toggle */}
           <button
             type="button"
             ref={mobileMenuTriggerRef}
             onClick={() => setIsMobileMenuOpen(true)}
-            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
             aria-label="Open navigation menu"
             aria-expanded={isMobileMenuOpen}
             aria-controls="app-sidebar"
@@ -101,9 +101,42 @@ export function AppShell() {
             <List className="size-5" aria-hidden="true" />
           </button>
 
-          <span className="text-base font-bold text-text">
-            {getRouteTitle(routeId, user?.role)}
-          </span>
+          {/* Dynamic Breadcrumbs */}
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs sm:text-sm text-text-muted min-w-0 overflow-hidden">
+            <Link
+              to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+              className="flex items-center text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xs shrink-0"
+              title={user?.role === 'admin' ? 'Admin Dashboard' : 'Faculty Workspace'}
+              aria-label={user?.role === 'admin' ? 'Admin Dashboard' : 'Faculty Workspace'}
+            >
+              <House className="size-4 shrink-0" aria-hidden="true" />
+            </Link>
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <div key={`${crumb.label}-${idx}`} className="flex items-center gap-1.5 min-w-0">
+                  <CaretRight className="size-3 shrink-0 text-text-muted/60" aria-hidden="true" />
+                  {crumb.to && !isLast ? (
+                    <Link
+                      to={crumb.to}
+                      className="truncate font-medium text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xs"
+                    >
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span
+                      className={cn(
+                        'truncate',
+                        isLast ? 'font-semibold text-text' : 'font-medium text-text-muted',
+                      )}
+                    >
+                      {crumb.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
