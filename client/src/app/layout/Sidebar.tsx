@@ -142,7 +142,6 @@ export function Sidebar({
   }, [isMobile, mobileOpen, onMobileClose]);
 
   const isAdmin = user?.role === 'admin';
-  const isUploadActive = isNavigationActive(pathname, '/upload', false);
   const isRubricsActive = isNavigationActive(pathname, '/admin/rubrics', true);
 
   const { inert, ariaHidden } = getSidebarInertState(isMobile, mobileOpen);
@@ -204,29 +203,6 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto py-4">
         {!isAdmin ? (
           <>
-            {/* Prominent Upload SLM Action */}
-            <div className={cn('pb-3', collapsed ? 'md:px-3 md:flex md:justify-center max-md:px-3' : 'px-3')}>
-              <Link
-                to="/upload"
-                onClick={handleItemNavigate}
-                aria-current={getAriaCurrent(isUploadActive)}
-                className={cn(
-                  'flex items-center justify-center rounded-sm text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                  isUploadActive
-                    ? 'bg-primary-strong text-primary-foreground shadow-none'
-                    : 'bg-primary hover:bg-primary-strong text-primary-foreground shadow-none',
-                  collapsed
-                    ? 'md:size-10 max-md:h-10 max-md:w-full max-md:gap-2 max-md:px-3 max-md:tracking-wide max-md:uppercase max-md:text-xs'
-                    : 'h-10 w-full gap-2 px-3 tracking-wide uppercase text-xs',
-                )}
-                title={collapsed ? 'Upload SLM' : undefined}
-                aria-label="Upload SLM"
-              >
-                <UploadSimple className="size-4 shrink-0" aria-hidden="true" />
-                <span className={cn(collapsed && 'md:hidden')}>Upload SLM</span>
-              </Link>
-            </div>
-
             {/* Grouped Faculty Navigation */}
             <nav aria-label="Faculty Navigation" className="grid gap-3 px-3">
               {facultyNavGroups.map((group, groupIdx) => (
