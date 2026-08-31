@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import {
   WarningCircle,
   BookOpen,
@@ -13,11 +14,12 @@ import {
   XCircle,
 } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
+import { Badge } from '@/shared/components/Badge';
+import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
-import { getErrorMessage } from '@/shared/api/http';
+import { BUTTON_STYLES, TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import { FeedbackPanel } from './FeedbackPanel';
-import { formatScore, agentShortLabel } from '../utils/scoreHelpers';
-import { ScorecardPdfExport } from './ScorecardPdfExport';
+import { formatScore, agentShortLabel, getCriterionCategory } from '../utils/scoreHelpers';
 import type {
   CriterionScoreItem,
   EvaluationResultsResponse,
@@ -83,12 +85,6 @@ function getAgentCardState(
   return 'pending';
 }
 
-function getScoreRingColor(score: number): string {
-  if (score >= 85) return 'var(--success)';
-  if (score >= 70) return 'var(--warning)';
-  return 'var(--destructive)';
-}
-
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
     case 'Very Satisfactory':
@@ -110,19 +106,6 @@ function getCriterionTier(rating: string): 'strong' | 'medium' | 'weak' | 'unkno
   if (num >= 3) return 'strong';
   if (num >= 2) return 'medium';
   return 'weak';
-}
-
-function getCriterionStyles(tier: 'strong' | 'medium' | 'weak' | 'unknown') {
-  switch (tier) {
-    case 'strong':
-      return 'bg-success-soft text-success border-success/30';
-    case 'medium':
-      return 'bg-warning-soft text-warning border-warning/30';
-    case 'weak':
-      return 'bg-destructive-soft text-destructive border-destructive/30';
-    default:
-      return 'bg-surface-subtle text-text-muted border-border';
-  }
 }
 
 function statusMessage(
@@ -193,8 +176,8 @@ export function ScoreDashboard({
   isInProgress,
   isFailedWithResults,
   isResultsError,
-  resultsError,
-  refetchResults,
+  resultsError: _resultsError,
+  refetchResults: _refetchResults,
   handleRetryEvaluation,
   isResolvingEval,
   submitIsPending,
@@ -205,9 +188,17 @@ export function ScoreDashboard({
   const navigate = useNavigate();
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
-  const domainScore = results?.domain_scores[selectedAgent.id];
+  const domainScore = results?.domain_scores[selectedAgentId];
   const isPartial = Boolean(results?.is_partial || status?.partial_without_curriculum);
   const partialReason = results?.partial_reason || status?.partial_reason;
+
+  // Sorted criteria list by display_order or natural numeric code sequence
+  const sortedCriteria = (domainScore?.criteria ?? []).slice().sort((a, b) => {
+    if (a.display_order != null && b.display_order != null) {
+      return a.display_order - b.display_order;
+    }
+    return a.criterion_id.localeCompare(b.criterion_id, undefined, { numeric: true });
+  });
 
   const selectedScore = {
     score: domainScore
@@ -221,10 +212,10 @@ export function ScoreDashboard({
           ? 'Failed'
           : 'Review recommended'
       : isInProgress
-        ? 'Waiting…'
+        ? 'Evaluating…'
         : '—',
     summary: domainScore
-      ? `Subtotal ${formatScore(domainScore.subtotal)} of ${formatScore(domainScore.max_score)} weighted points${isPartial || isFailedWithResults ? ' (partial)' : ''}.`
+      ? domainScore.summary
       : isInProgress
         ? 'Evaluation in progress...'
         : isPartial && selectedAgent.id === 'coordinator'
@@ -232,8 +223,8 @@ export function ScoreDashboard({
           : isFailedWithResults
             ? 'Evaluation failed, but partial results are available.'
             : 'Evaluation results are not available yet.',
-    feedbackCriteria: domainScore?.criteria || [],
-    rows: (domainScore?.criteria ?? []).map((criterion: CriterionScoreItem) => ({
+    feedbackCriteria: sortedCriteria,
+    rows: sortedCriteria.map((criterion: CriterionScoreItem) => ({
       rating: formatScore(criterion.score),
       code: criterion.criterion_id,
       criterion: criterion.criterion_text,
@@ -243,8 +234,6 @@ export function ScoreDashboard({
     })),
   };
 
-  const scoreRingColor = domainScore ? getScoreRingColor(selectedScore.score) : 'var(--border)';
-
   const handleViewFullReport = () => {
     if (evaluationId) {
       void navigate({ to: '/evaluations/$id', params: { id: evaluationId } });
@@ -252,226 +241,162 @@ export function ScoreDashboard({
   };
 
   return (
-    <section className="min-h-0 overflow-y-auto bg-canvas">
-      <div className="flex min-h-44 items-center justify-between gap-6 border-b border-border bg-surface px-10">
+    <section className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-canvas">
+      {/* Streamlined Scorecard Top Summary Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-surface px-6 py-3.5 shrink-0">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-text-muted">
-            Evaluation Report
-          </p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-normal text-text">Synthesized Agent View</h2>
-          <p className="mt-2 text-base text-text-muted">
-            Advisory synthesis - Human review authoritative
-          </p>
-          {results?.adjectival_rating && (
-            <div className="mt-3 flex items-center gap-3">
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-sm font-bold uppercase tracking-wider',
-                  getAdjectivalRatingClasses(results.adjectival_rating),
-                )}
-              >
-                Overall Rating: {results.adjectival_rating}
-              </span>
-              {typeof results.overall_score === 'number' && (
-                <span className="text-sm font-semibold text-text-muted tabular-nums">
-                  {formatScore(results.overall_score)} of 4
-                </span>
-              )}
-            </div>
-          )}
-          {results && isTerminal && (
-            <div className="mt-4">
-              <ScorecardPdfExport results={results} />
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              Advisory Evaluation Synthesis
+            </span>
+            {isPartial ? (
+              <Badge variant="warning" withDot>
+                Partial Review
+              </Badge>
+            ) : null}
+          </div>
+          <h2 className="text-lg font-bold text-text mt-0.5">Synthesized Agent View</h2>
         </div>
-        {domainScore ? (
-          <div
-            className="grid size-28 place-items-center rounded-full border-4 bg-surface p-3"
-            style={{ borderColor: scoreRingColor }}
-            title="Monitoring percentage (0-100 scale) derived from the 1-4 canonical subtotal. The adjectival rating below is the canonical 1-4 evaluation."
-          >
-            <div className="text-center">
-              <div className="text-3xl font-bold text-text tabular-nums">{selectedScore.score}</div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-                monitoring %
-              </div>
-            </div>
+
+        {/* Overall Score Badge */}
+        {results?.adjectival_rating ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <span
+              className={cn(
+                'inline-flex items-center rounded-xs px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
+                getAdjectivalRatingClasses(results.adjectival_rating),
+              )}
+            >
+              {results.adjectival_rating}
+            </span>
+            {typeof results.overall_score === 'number' ? (
+              <span className="text-xs font-bold tabular-nums text-text">
+                ★ {formatScore(results.overall_score)} / 4.0
+              </span>
+            ) : null}
           </div>
-        ) : (
-          <div className="grid size-28 place-items-center rounded-full border-2 border-dashed border-border bg-surface p-3">
-            <div className="text-center">
-              <Spinner className="mx-auto size-6 animate-spin text-text-muted" aria-hidden="true" />
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-text-muted">
-                {isInProgress ? 'Running...' : submitIsPending ? 'Submitting...' : 'No data'}
-              </div>
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
 
-      <div className="px-10 py-8">
-        {evaluationId && (
-          <div className="mb-6">
-            {!isTerminal ? (
-              <div className="flex items-center gap-1">
-                {PIPELINE_STAGES.map((stage, index) => {
-                  const currentIndex = getStageIndex(status?.status);
-                  const isFailed = status?.status === 'FAILED';
-                  const isCompleted =
-                    !isFailed &&
-                    (index < currentIndex ||
-                      (status?.status === 'COMPLETED' && index === currentIndex));
-                  const isCurrent =
-                    !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
-                  const isUpcoming = isFailed || index > currentIndex;
+      {/* Main Body */}
+      <div className="p-4 sm:p-6 space-y-5 flex-1">
+        {/* Pipeline Stage Bar (when running) */}
+        {evaluationId && !isTerminal && (
+          <div className="rounded-md border border-border bg-surface p-4">
+            <div className="flex items-center gap-1">
+              {PIPELINE_STAGES.map((stage, index) => {
+                const currentIndex = getStageIndex(status?.status);
+                const isFailed = status?.status === 'FAILED';
+                const isCompleted =
+                  !isFailed &&
+                  (index < currentIndex ||
+                    (status?.status === 'COMPLETED' && index === currentIndex));
+                const isCurrent =
+                  !isFailed && index === currentIndex && status?.status !== 'COMPLETED';
+                const isUpcoming = isFailed || index > currentIndex;
 
-                  return (
-                    <div key={stage.key} className="flex flex-1 items-center">
-                      <div
+                return (
+                  <div key={stage.key} className="flex flex-1 items-center">
+                    <div
+                      className={cn(
+                        'flex flex-1 flex-col items-center gap-1 py-1 rounded-sm',
+                        isCurrent && 'bg-primary-soft/40',
+                      )}
+                    >
+                      <span
                         className={cn(
-                          'flex flex-1 flex-col items-center gap-1.5 rounded-md py-2',
-                          isCurrent && 'bg-primary/5',
+                          'grid size-5 place-items-center rounded-full text-[10px] font-bold',
+                          isCompleted && 'bg-primary text-primary-foreground',
+                          isCurrent && 'border-2 border-primary text-primary',
+                          isUpcoming && 'border border-border text-text-muted',
                         )}
                       >
-                        <span
-                          className={cn(
-                            'grid size-6 place-items-center rounded-full text-xs font-bold',
-                            isCompleted && 'bg-primary text-primary-foreground',
-                            isCurrent && 'border-2 border-primary text-primary',
-                            isUpcoming && 'border border-border text-text-muted',
-                          )}
-                        >
-                          {isCompleted && <CheckCircle className="size-3.5" aria-hidden="true" />}
-                          {isCurrent && (
-                            <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
-                          )}
-                          {isUpcoming && <Circle className="size-3.5" aria-hidden="true" />}
-                        </span>
-                        <span
-                          className={cn(
-                            'text-[10px] font-semibold uppercase tracking-wider',
-                            isCompleted && 'text-primary',
-                            isCurrent && 'text-primary',
-                            isUpcoming && 'text-text-muted',
-                          )}
-                        >
-                          {stage.label}
-                        </span>
-                      </div>
-                      {index < PIPELINE_STAGES.length - 1 && (
-                        <div
-                          className={cn(
-                            'mx-1 h-px w-4 flex-shrink-0',
-                            isCompleted ? 'bg-primary' : 'bg-border',
-                          )}
-                        />
-                      )}
+                        {isCompleted && <CheckCircle className="size-3" aria-hidden="true" />}
+                        {isCurrent && (
+                          <Spinner className="size-3 animate-spin" aria-hidden="true" />
+                        )}
+                        {isUpcoming && <Circle className="size-3" aria-hidden="true" />}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-[9px] font-semibold uppercase tracking-wider',
+                          isCompleted && 'text-primary',
+                          isCurrent && 'text-primary font-bold',
+                          isUpcoming && 'text-text-muted',
+                        )}
+                      >
+                        {stage.label}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-[10px] font-bold text-text-muted uppercase tracking-widest select-none">
-                {status?.status === 'COMPLETED' ? (
-                  <>
-                    <CheckCircle className="size-4 text-success" />
-                    <span>Evaluation Matrix Ready</span>
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="size-4 text-destructive" />
-                    <span>Evaluation pipeline stopped</span>
-                  </>
-                )}
-              </div>
-            )}
-            {status?.status === 'FAILED' && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-sm border border-destructive/20 bg-destructive-soft px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <XCircle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-                  <span className="text-sm font-medium text-destructive">
-                    {isFailedWithResults
-                      ? 'Evaluation failed, but partial results are available for review.'
-                      : 'Evaluation failed. No results were produced.'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 inline-flex h-8 items-center gap-1.5 border border-destructive/30 hover:bg-destructive/10 text-destructive px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none"
-                  onClick={handleRetryEvaluation}
-                  disabled={isResolvingEval || submitIsPending}
-                >
-                  <WarningCircle className="size-3.5" aria-hidden="true" />
-                  Retry Evaluation
-                </button>
-              </div>
-            )}
-            {status?.status !== 'FAILED' && (
-              <div className="mt-3 flex items-center gap-3">
-                <p className="text-sm font-medium text-text-muted">
-                  {statusMessage(status?.status, Boolean(isFailedWithResults), isPartial)}
-                </p>
-                {isTerminal &&
-                  (results?.duration_seconds != null || status?.duration_seconds != null) && (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-sm border border-border bg-surface-subtle px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-text-muted"
-                      title="Total evaluation duration"
-                    >
-                      <Clock className="size-3 text-text-muted" aria-hidden="true" />
-                      {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
-                    </span>
-                  )}
-              </div>
-            )}
-            {results?.legacy_notice && (
-              <div className="mt-3 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-xs font-bold text-text leading-relaxed">
-                {results.legacy_notice}
-              </div>
-            )}
-            {isPartial && (
-              <div className="mt-3 rounded-sm border border-warning/30 bg-warning-soft px-3 py-2">
-                <div className="flex items-start gap-2">
-                  <WarningCircle
-                    className="mt-0.5 size-4 shrink-0 text-warning"
-                    aria-hidden="true"
-                  />
-                  <p className="text-sm leading-relaxed text-warning">
-                    <strong>Partial evaluation:</strong>{' '}
-                    {partialReason
-                      ? partialReason
-                      : 'This evaluation ran without a curriculum reference. SME, GAD, and ITSO reviews are included, but Program Coordinator curriculum-grounded review was skipped.'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+                    {index < PIPELINE_STAGES.length - 1 && (
+                      <div
+                        className={cn(
+                          'mx-0.5 h-px w-3 flex-shrink-0',
+                          isCompleted ? 'bg-primary' : 'bg-border',
+                        )}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-        {isResultsError && isTerminal && (
-          <div className="mt-4 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive">
-            <div className="flex items-start gap-3">
-              <WarningCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
-              <div className="flex-1">
-                <p className="font-medium">Failed to load results</p>
-                <p className="mt-1 text-xs text-destructive">
-                  {getErrorMessage(resultsError, 'Results could not be retrieved.')}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 inline-flex h-8 items-center justify-center border border-destructive/30 hover:bg-destructive/10 text-destructive px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring focus:outline-none"
-                  onClick={() => refetchResults()}
-                >
-                  Retry
-                </button>
-              </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-text-muted pt-2 border-t border-border">
+              <span>{statusMessage(status?.status, Boolean(isFailedWithResults), isPartial)}</span>
+              {isTerminal &&
+                (results?.duration_seconds != null || status?.duration_seconds != null) && (
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
+                    <Clock className="size-3" aria-hidden="true" />
+                    {formatDuration(results?.duration_seconds ?? status?.duration_seconds)}
+                  </span>
+                )}
             </div>
           </div>
         )}
 
-        <div className="mt-6 border-b border-border">
+        {/* Failed Banner */}
+        {status?.status === 'FAILED' && (
+          <div className="flex items-center justify-between gap-3 rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs text-destructive font-semibold" role="alert">
+            <div className="flex items-center gap-2">
+              <XCircle className="size-4 shrink-0" aria-hidden="true" />
+              <span>
+                {isFailedWithResults
+                  ? 'Evaluation failed, but partial specialist findings are available below.'
+                  : 'Evaluation failed. No results were produced.'}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleRetryEvaluation}
+              disabled={isResolvingEval || submitIsPending}
+            >
+              Retry Evaluation
+            </Button>
+          </div>
+        )}
+
+        {/* Legacy notice */}
+        {results?.legacy_notice && (
+          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-xs text-text-muted">
+            {results.legacy_notice}
+          </div>
+        )}
+
+        {/* Partial notice */}
+        {isPartial && (
+          <div className="rounded-sm border border-warning/30 bg-warning-soft p-3 text-xs text-warning leading-relaxed">
+            <strong>Partial Evaluation: </strong>
+            {partialReason ||
+              'This evaluation ran without a curriculum reference. SME, GAD, and ITSO reviews are included, but Program Coordinator curriculum-grounded review was skipped.'}
+          </div>
+        )}
+
+        {/* Perspective Domain Tabs */}
+        <div className="rounded-md border border-border bg-surface overflow-hidden">
           <div
-            className="flex flex-wrap gap-1"
+            className="flex flex-wrap gap-1 border-b border-border bg-surface-subtle px-3 py-1.5"
             role="tablist"
             aria-label="Select evaluation domain"
           >
@@ -488,10 +413,10 @@ export function ScoreDashboard({
                   aria-selected={isActive}
                   onClick={() => onSelectAgent(agent.id)}
                   className={cn(
-                    'flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-all focus:outline-none cursor-pointer',
+                    'flex items-center gap-2 rounded-sm px-3 py-2 text-xs font-semibold transition-colors cursor-pointer select-none',
                     isActive
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-text-muted hover:text-text hover:border-border',
+                      ? 'bg-surface text-primary border border-border shadow-xs'
+                      : 'text-text-muted hover:text-text hover:bg-surface/50 border border-transparent',
                   )}
                 >
                   <Icon className="size-3.5" aria-hidden="true" />
@@ -500,14 +425,14 @@ export function ScoreDashboard({
                   {agentState !== 'pending' && (
                     <span
                       className={cn(
-                        'ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-tight',
+                        'ml-0.5 rounded-xs px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-tight tabular-nums',
                         agentState === 'done' && 'bg-success-soft text-success border border-success/20',
                         agentState === 'running' && 'bg-primary-soft text-primary border border-primary/20',
                         agentState === 'failed' && 'bg-destructive-soft text-destructive border border-destructive/20',
                         agentState === 'skipped' && 'bg-warning-soft text-warning border border-warning/20',
                       )}
                     >
-                      {agentState === 'done' && 'OK'}
+                      {agentState === 'done' && 'DONE'}
                       {agentState === 'running' && 'RUN'}
                       {agentState === 'skipped' && 'SKIP'}
                       {agentState === 'failed' && 'FAIL'}
@@ -517,233 +442,138 @@ export function ScoreDashboard({
               );
             })}
           </div>
-        </div>
 
-        <section className="mt-6 grid gap-5">
-          <div
-            className="rounded-sm border border-border bg-surface p-5"
-          >
-            <div className="flex items-start gap-4">
-              {(() => {
-                const agentState = getAgentCardState(selectedAgent.id, results);
-                if (agentState === 'done') {
-                  return (
-                    <CheckCircle
-                      className="mt-1 size-5 shrink-0 text-success"
-                      aria-hidden="true"
-                    />
-                  );
-                }
-                if (agentState === 'running') {
-                  return (
-                    <Spinner
-                      className="mt-1 size-5 shrink-0 animate-spin text-primary"
-                      aria-hidden="true"
-                    />
-                  );
-                }
-                if (agentState === 'failed') {
-                  return (
-                    <XCircle className="mt-1 size-5 shrink-0 text-destructive" aria-hidden="true" />
-                  );
-                }
-                return <Clock className="mt-1 size-5 shrink-0 text-text-muted" aria-hidden="true" />;
-              })()}
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-lg font-semibold text-text">{selectedAgent.name}</h3>
-                  {domainScore?.version != null && (
-                    <span className="inline-flex items-center rounded-sm border border-border bg-surface-subtle px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-text">
-                      Revision {domainScore.version}
-                    </span>
-                  )}
+          {/* Selected Domain Header */}
+          <div className="p-4 sm:p-5 border-b border-border bg-surface">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className={TYPOGRAPHY.headingSm}>{selectedAgent.name}</h3>
+                  {domainScore?.version != null ? (
+                    <Badge variant="neutral">Revision {domainScore.version}</Badge>
+                  ) : null}
                   {domainScore?.version == null &&
                     (results?.legacy_notice || domainScore?.form_snapshot_id == null) &&
                     results && (
-                      <span className="inline-flex items-center rounded-sm border border-border bg-surface-subtle px-2 py-0.5 text-xs font-bold text-text-muted">
-                        Legacy — form snapshot unavailable
-                      </span>
+                      <Badge variant="neutral">Legacy — form snapshot unavailable</Badge>
                     )}
                 </div>
-                <p className="mt-1 max-w-3xl text-sm leading-relaxed text-text-muted">
+                <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-2xl">
                   {selectedScore.summary}
                 </p>
               </div>
-            </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {/* Monitoring Rating & Score */}
               {domainScore ? (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold tabular-nums',
-                    selectedScore.score >= 85 && 'bg-success text-success-foreground',
-                    selectedScore.score >= 70 &&
-                      selectedScore.score < 85 &&
-                      'bg-warning text-warning-foreground',
-                    selectedScore.score < 70 && 'bg-destructive text-destructive-foreground',
-                  )}
-                  title="Monitoring percentage (0-100) derived from the canonical 1-4 subtotal. The adjectival rating below is on the 1-4 scale."
-                >
-                  <Target className="size-3.5" aria-hidden="true" />
-                  {selectedScore.score}% monitoring
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm text-text-muted">
-                  <Clock className="size-3.5" aria-hidden="true" />
-                  {isInProgress ? 'Evaluating…' : 'No data'}
-                </span>
-              )}
-              {selectedScore.verdict === 'Acceptable' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-success px-3 py-1.5 text-sm font-semibold text-success-foreground">
-                  <CheckCircle className="size-3.5" aria-hidden="true" />
-                  Acceptable
-                </span>
-              )}
-              {selectedScore.verdict === 'Review recommended' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-warning px-3 py-1.5 text-sm font-semibold text-warning-foreground">
-                  <WarningCircle className="size-3.5" aria-hidden="true" />
-                  Review recommended
-                </span>
-              )}
-              {selectedScore.verdict === 'Failed' && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 text-sm font-semibold text-destructive-foreground">
-                  <XCircle className="size-3.5" aria-hidden="true" />
-                  Failed
-                </span>
-              )}
-              {(selectedScore.verdict === 'Waiting…' || selectedScore.verdict === '—') && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-sm font-medium text-text-muted">
-                  <Clock className="size-3.5" aria-hidden="true" />
-                  {selectedScore.verdict}
-                </span>
-              )}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant={selectedScore.score >= 70 ? 'success' : 'warning'}>
+                    {selectedScore.score}% Monitoring Score
+                  </Badge>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="border border-border bg-surface rounded-sm overflow-x-auto">
-            <table className="w-full text-left border-collapse border-spacing-0">
-              <thead className="bg-surface-subtle border-b border-border">
+          {/* Ordered Criteria Table */}
+          <div className="overflow-x-auto">
+            <table className={TABLE_STYLES.table}>
+              <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-text-muted w-[8rem]">
-                    Rating
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-20 text-center')}>
+                    Score
                   </th>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-text-muted">
+                  <th scope="col" className={TABLE_STYLES.th}>
                     Evaluation Criterion
                   </th>
-                  <th className="py-3 px-4 font-semibold text-[11px] uppercase tracking-wider text-text-muted w-[14rem]">
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-36 text-right')}>
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className={TABLE_STYLES.tbody}>
                 {selectedScore.rows.length > 0 ? (
-                  selectedScore.rows.map((row) => {
-                    const tier = getCriterionTier(row.rating);
-                    const isWeak = tier === 'weak';
-                    return (
-                      <tr
-                        key={row.criterion}
-                        className={cn(
-                          isWeak && 'bg-destructive-soft/30 hover:bg-destructive-soft/50',
-                          'hover:bg-surface-subtle/50',
-                        )}
-                      >
-                        <td className="py-3 px-4 text-sm font-medium">
-                          <span
-                            className={cn(
-                              'inline-grid size-8 place-items-center rounded-full border text-xs font-bold tabular-nums',
-                              getCriterionStyles(tier),
-                            )}
-                          >
-                            {row.rating}
-                          </span>
-                        </td>
-                        <td
-                          className={cn(
-                            'py-3 px-4 text-sm whitespace-normal',
-                            row.isUngrounded
-                              ? 'text-text font-semibold'
-                              : isWeak
-                                ? 'text-text font-bold'
-                                : 'text-text-muted font-semibold',
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <span className="font-mono text-xs font-bold text-text-muted mr-2">
-                                {row.code}
-                              </span>
-                              <span>{row.criterion}</span>
-                              {row.description && (
-                                <p className="mt-0.5 text-xs font-normal text-text-muted leading-normal">
-                                  {row.description}
-                                </p>
-                              )}
-                            </div>
-                            {row.isUngrounded && (
-                              <span className="shrink-0 rounded-sm border border-warning/40 bg-warning-soft px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-warning">
+                  selectedScore.rows.map((row) => (
+                    <tr key={row.criterion} className={TABLE_STYLES.tr}>
+                      {/* Rating Number */}
+                      <td className="px-4 py-3.5 text-center align-top">
+                        <span className="inline-flex size-7 items-center justify-center rounded-xs bg-surface-subtle border border-border text-xs font-bold text-text tabular-nums">
+                          {row.rating}
+                        </span>
+                      </td>
+
+                      {/* Criterion Description */}
+                      <td className={TABLE_STYLES.td}>
+                        <div className="flex flex-col space-y-1">
+                          <div className="flex items-start gap-2.5">
+                            <span className="font-mono text-xs font-bold text-text-muted shrink-0 whitespace-nowrap bg-surface-subtle border border-border px-1.5 py-0.5 rounded-xs mt-0.5">
+                              {row.code}
+                            </span>
+                            <span className="font-semibold text-text leading-snug flex-1">
+                              {row.criterion}
+                            </span>
+                            {row.isUngrounded ? (
+                              <Badge variant="warning" className="shrink-0">
                                 Ungrounded
-                              </span>
-                            )}
+                              </Badge>
+                            ) : null}
                           </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm whitespace-normal">
-                          <span
-                            className={cn(
-                              'rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider',
-                              row.isUngrounded
-                                ? 'border-warning/40 bg-warning-soft text-warning font-bold'
-                                : isWeak
-                                  ? 'border-destructive/30 bg-destructive-soft text-destructive'
-                                  : 'border-border bg-surface-subtle text-text-muted',
-                            )}
-                          >
-                            {row.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                          {row.description ? (
+                            <p className="text-xs text-text-muted mt-0.5 leading-relaxed pl-0.5">
+                              {row.description}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td className={cn(TABLE_STYLES.td, 'text-right align-top')}>
+                        <span className="text-xs font-semibold text-text-muted whitespace-nowrap">
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
-                    <td
-                      colSpan={3}
-                      className="py-8 text-center text-xs font-semibold text-text-muted uppercase tracking-wider bg-surface-subtle/10"
-                    >
+                    <td colSpan={3} className="px-6 py-12 text-center text-xs text-text-muted">
                       {isInProgress
                         ? 'Criteria will appear once evaluation completes.'
-                        : 'No criteria available.'}
+                        : 'No criteria available for this domain.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+        </div>
 
-          <FeedbackPanel criteria={selectedScore.feedbackCriteria} />
-        </section>
+        {/* Feedback Panel */}
+        <FeedbackPanel criteria={selectedScore.feedbackCriteria} />
 
-        <section className="mt-8 rounded-sm border border-border bg-surface p-5">
-          <div className="flex items-center gap-2">
-            <Target className="size-4 text-text-muted" aria-hidden="true" />
-            <h3 className="font-semibold text-text">Next Steps</h3>
-          </div>
-          <p className="mt-3 text-sm leading-6 text-text-muted">
-            This evaluation is advisory until reviewed by an authorized human reviewer. Review the
-            criteria and scores above, then open the Full Report for a consolidated view across all
-            agents.
-          </p>
-          {isTerminal && evaluationId && (
-            <button
+        {/* Next Steps Card */}
+        {isTerminal && evaluationId ? (
+          <div className="rounded-md border border-border bg-surface p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text">
+                Authoritative Human Review
+              </h4>
+              <p className="text-xs text-text-muted mt-0.5 max-w-xl">
+                Automated evaluation findings are advisory. Open the full scorecard report to inspect individual agent rationales.
+              </p>
+            </div>
+
+            <Button
               type="button"
-              className="mt-4 inline-flex h-9 items-center justify-center border border-border hover:bg-surface-subtle text-text px-3.5 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring focus:outline-none"
+              variant="secondary"
+              size="sm"
               onClick={handleViewFullReport}
+              className="shrink-0"
             >
-              <Eye className="size-4 mr-1.5" aria-hidden="true" />
-              Open Full Report
-            </button>
-          )}
-        </section>
+              <Eye className="size-3.5" aria-hidden="true" />
+              <span>Open Full Report</span>
+            </Button>
+          </div>
+        ) : null}
       </div>
     </section>
   );

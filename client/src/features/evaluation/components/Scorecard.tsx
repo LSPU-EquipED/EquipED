@@ -1,11 +1,30 @@
-import { Fragment, useMemo, useState } from 'react';
-import { Outlet, useParams } from '@tanstack/react-router';
+import { useMemo, useState } from 'react';
+import { useParams } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { WarningCircle, Spinner, CheckCircle, Flag } from '@phosphor-icons/react';
+import {
+  BookOpen,
+  CaretRight,
+  CheckCircle,
+  Clock,
+  FileText,
+  Lightbulb,
+  Scales,
+  ShieldCheck,
+  Spinner,
+  WarningCircle,
+} from '@phosphor-icons/react';
+import { Badge } from '@/shared/components/Badge';
+import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
-import { formatScore, cleanJustification, overallScoreDisplay } from '../utils/scoreHelpers';
+import {
+  formatScore,
+  cleanJustification,
+  overallScoreDisplay,
+  monitoringPercentage,
+} from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import { AgentReviewModal } from './AgentReviewModal';
 
@@ -32,8 +51,16 @@ function formatDuration(seconds?: number | null): string {
   return `${mins}m ${secs}s`;
 }
 
+const DOMAIN_ICONS: Record<string, typeof Lightbulb> = {
+  sme: Lightbulb,
+  coordinator: BookOpen,
+  gad: Scales,
+  itso: ShieldCheck,
+};
+
 export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
+  const [selectedDomainId, setSelectedDomainId] = useState<string>('sme');
 
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
   const [reviewModalAgent, setReviewModalAgent] = useState<'itso' | 'sme' | null>(null);
@@ -54,8 +81,6 @@ export function Scorecard() {
     retry: 1,
   });
 
-  const hasResults = results && Object.keys(results.domain_scores).length > 0;
-  const isFailedWithResults = isFailed && hasResults;
   const isPartial = Boolean(results?.is_partial || evaluation?.partial_without_curriculum);
   const partialReason = results?.partial_reason || evaluation?.partial_reason;
 
@@ -87,9 +112,9 @@ export function Scorecard() {
   if (isLoading) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-canvas">
-        <div className="flex flex-col items-center gap-4 text-text-muted border border-border bg-surface p-8 rounded-sm">
-          <Spinner className="size-8 animate-spin text-primary" />
-          <p className="text-xs font-bold uppercase tracking-wider text-text">Loading evaluation status...</p>
+        <div className="flex flex-col items-center gap-3 text-text-muted border border-border bg-surface p-8 rounded-md max-w-sm text-center">
+          <Spinner className="size-7 animate-spin text-primary" aria-hidden="true" />
+          <p className="text-xs font-bold uppercase tracking-wider text-text">Loading Evaluation Scorecard…</p>
         </div>
       </div>
     );
@@ -98,440 +123,382 @@ export function Scorecard() {
   if (isError || !evaluation) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-canvas">
-        <div className="flex flex-col items-center gap-4 text-destructive border border-destructive/20 bg-surface p-8 rounded-sm">
-          <WarningCircle className="size-8 text-destructive" />
-          <p className="text-sm font-bold uppercase tracking-wider">
-            Failed to load evaluation details.
-          </p>
+        <div className="flex flex-col items-center gap-3 text-destructive border border-destructive/30 bg-destructive-soft p-8 rounded-md max-w-md text-center">
+          <WarningCircle className="size-8 text-destructive" aria-hidden="true" />
+          <p className="text-sm font-bold">Failed to load evaluation details.</p>
         </div>
       </div>
     );
   }
 
+  // Active domain data on the right (auto-falls back to first available domain with scores)
+  const availableDomains = domainKeys.filter((k) => results?.domain_scores[k] != null);
+  const effectiveDomainId = availableDomains.includes(selectedDomainId)
+    ? selectedDomainId
+    : availableDomains[0] || domainKeys[0] || 'sme';
+  const activeDomainData = results?.domain_scores[effectiveDomainId];
+  const ActiveDomainIcon = DOMAIN_ICONS[effectiveDomainId] || FileText;
+
+  const sortedCriteria = (activeDomainData?.criteria || []).slice().sort((a, b) => {
+    if (a.display_order != null && b.display_order != null) {
+      return a.display_order - b.display_order;
+    }
+    return a.criterion_id.localeCompare(b.criterion_id, undefined, { numeric: true });
+  });
+
   return (
-    <section className="flex h-[calc(100vh-4rem)] flex-col bg-canvas">
-      {/* Compact Header Row */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-text-muted select-none">
-            Report Ledger
+    <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas">
+      {/* Top Dossier Context Header */}
+      <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted select-none">
+            QA Scorecard
           </span>
-          <h1
-            className="truncate text-sm font-bold text-text select-all"
-            title={evaluation.evaluation_id}
-          >
-            Job ID: {evaluation.evaluation_id}
+          <span className="text-border">|</span>
+          <h1 className="text-sm font-bold text-text truncate max-w-md" title={results?.document_title || evaluation.document_id}>
+            {results?.document_title || evaluation.document_id}
           </h1>
-          {isTerminal && (
-            <span
-              className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${
-                isFailed && !isFailedWithResults
-                  ? 'border-destructive/40 text-destructive bg-destructive-soft'
-                  : isFailedWithResults || isPartial
-                    ? 'border-warning/45 text-warning bg-warning-soft'
-                    : 'border-primary/40 text-primary bg-primary-soft'
-              }`}
-            >
-              {isPartial ? 'Partial' : evaluation.status.replace('_', ' ')}
-            </span>
-          )}
+          {isPartial ? (
+            <Badge variant="warning" withDot>
+              Partial Review
+            </Badge>
+          ) : null}
         </div>
 
-        {results &&
-          (() => {
-            const display = overallScoreDisplay({
-              overallScore: results.overall_score,
-              synthesizedScore: results.synthesized_score,
-            });
-            return (
-              <div className="flex shrink-0 items-center gap-4 select-none">
-                <div className="flex items-center gap-1.5 border border-border bg-surface-subtle px-2.5 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider text-text">
-                  <span>Overall:</span>
-                  <span className="text-primary font-extrabold">{display.canonicalText}</span>
-                  <span className="text-text-muted">({display.monitoringText} monitoring)</span>
-                </div>
-                <ScorecardPdfExport results={results} />
-              </div>
-            );
-          })()}
+        <div className="flex items-center gap-3 shrink-0">
+          {results && isTerminal ? (
+            <ScorecardPdfExport results={results} />
+          ) : null}
+        </div>
       </header>
 
-      {/* Main Ledger workspace */}
-      <main className="flex-1 overflow-y-auto bg-canvas p-6">
-        {/* Unified Ledger Summary block */}
-        <div className="mx-auto max-w-[90rem] border border-border bg-surface p-6 rounded-sm mb-6">
-          <div className="flex items-center gap-3 border-b border-border pb-4 select-none">
-            {!isTerminal && <Spinner className="size-5 animate-spin text-primary" />}
-            {isTerminal && (!isFailed || isFailedWithResults) && (
-              <CheckCircle className="size-5 text-success" />
-            )}
-            {isFailed && !isFailedWithResults && (
-              <WarningCircle className="size-5 text-destructive" />
-            )}
-
-            <div>
-              <h2 className="text-xs font-bold text-text uppercase tracking-widest">
-                {isPartial && evaluation.status === 'COMPLETED'
-                  ? 'Partial Evaluation Completed'
-                  : `Evaluation status: ${evaluation.status.replace('_', ' ').toLowerCase()}`}
-              </h2>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            {/* Metadata information table-style grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] leading-relaxed">
-              <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                  Target Document
-                </span>
-                <span
-                  className="font-bold text-text block truncate"
-                  title={results?.document_title || evaluation.document_id}
-                >
-                  {results?.document_title || evaluation.document_id}
-                </span>
-              </div>
-
-              <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                  Syllabus Reference
-                </span>
-                <span className="font-bold text-text block">
-                  {evaluation.syllabus_id ?? '—'}
-                </span>
-              </div>
-
-              <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                  Curriculum Reference
-                </span>
-                <span className="font-bold text-text block">
-                  {evaluation.curriculum_id ?? '—'}
-                </span>
-              </div>
-
-              <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                  Submitted At
-                </span>
-                <span className="font-bold text-text block">
-                  {new Date(evaluation.submitted_at).toLocaleString()}
-                </span>
-              </div>
-
-              {evaluation.completed_at && (
-                <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                  <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                    Finished At
+      {/* 2-Column Side-by-Side Assessment Workspace */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[26rem_minmax(0,1fr)]">
+        {/* LEFT COLUMN: Executive Dossier & 4-Domain Matrix (~38% width) */}
+        <aside
+          aria-label="Executive Dossier & Review Domains"
+          className="flex flex-col h-full min-h-0 border-r border-border bg-surface overflow-y-auto p-4 sm:p-5 space-y-4"
+        >
+          {/* Overall Verdict Card */}
+          {results ? (
+            (() => {
+              const display = overallScoreDisplay({
+                overallScore: results.overall_score,
+                synthesizedScore: results.synthesized_score,
+              });
+              return (
+                <div className="rounded-md border border-border bg-surface-subtle p-4 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                    Overall Assessment Verdict
                   </span>
-                  <span className="font-bold text-text block">
-                    {new Date(evaluation.completed_at).toLocaleString()}
-                  </span>
-                </div>
-              )}
-
-              {evaluation.completed_at && results?.duration_seconds != null && (
-                <div className="border border-border bg-surface-subtle p-3 rounded-sm">
-                  <span className="font-extrabold text-text-muted uppercase tracking-wider block mb-1">
-                    Evaluation Time
-                  </span>
-                  <span className="font-bold text-text block tabular-nums">
-                    {formatDuration(results.duration_seconds)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Legacy notice */}
-            {results?.legacy_notice && (
-              <div className="mt-4 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-xs font-semibold text-text leading-relaxed">
-                {results.legacy_notice}
-              </div>
-            )}
-
-            {/* Advisory status alert */}
-            {isPartial && (
-              <div className="mt-4 rounded-sm border border-warning/30 bg-warning-soft px-3 py-2 text-xs text-warning leading-relaxed">
-                <strong>Partial evaluation:</strong>{' '}
-                {partialReason ||
-                  'This evaluation ran without a curriculum reference. Coordinator review was skipped.'}
-              </div>
-            )}
-
-            {isFailed && evaluation.error_message && (
-              <div className="mt-4 rounded-sm border border-destructive/20 bg-destructive-soft p-3 text-xs text-destructive">
-                <p className="font-bold">Error Details</p>
-                <p className="mt-1 font-mono leading-normal whitespace-pre-wrap">
-                  {evaluation.error_message}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {isTerminal && isLoadingResults && (
-          <div className="flex justify-center py-12">
-            <Spinner className="size-6 animate-spin text-primary" />
-          </div>
-        )}
-
-        {isTerminal && isResultsError && (
-          <div className="mx-auto max-w-[90rem] rounded-sm border border-destructive/20 bg-destructive-soft p-6 mb-8 text-destructive">
-            <div className="flex items-start gap-3">
-              <WarningCircle className="size-5 shrink-0" />
-              <div className="flex-1">
-                <p className="font-bold uppercase tracking-wider text-xs">
-                  Failed to load evaluation results
-                </p>
-                <p className="mt-1 text-sm">
-                  {resultsError instanceof Error
-                    ? resultsError.message
-                    : 'Results could not be retrieved. Try refreshing the page.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => refetchResults()}
-                  className="mt-3 inline-flex h-8 items-center justify-center border border-destructive/30 hover:bg-destructive/10 text-destructive px-3 rounded-sm text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {results && (
-          <div className="mx-auto max-w-[90rem] space-y-6">
-            {/* Dynamic Evaluation Flags Overview */}
-            {results.flags && results.flags.length > 0 && (
-              <div className="rounded-sm border border-warning/30 bg-warning-soft p-5">
-                <div className="flex items-center gap-2 mb-4 text-warning select-none">
-                  <Flag className="size-4.5 text-warning fill-current" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider">Evaluation Flags</h3>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {results.flags.map((flag) => (
-                    <div
-                      key={flag.flag_id}
-                      className="bg-surface rounded-sm p-4 border border-warning/30 text-xs"
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'inline-flex items-center rounded-xs px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
+                        getAdjectivalRatingClasses(results.adjectival_rating ?? undefined),
+                      )}
                     >
-                      <div className="flex items-center gap-2 mb-2 select-none">
-                        <span className="inline-flex items-center rounded-sm bg-warning-soft px-2 py-0.5 text-[9px] font-extrabold text-warning border border-warning/40 uppercase tracking-wider">
-                          {agentLabels[flag.agent_id] ? flag.agent_id.toUpperCase() : flag.agent_id}
-                        </span>
-                        <span className="font-bold text-text-muted tabular-nums">
-                          Score: {formatScore(flag.score)}/4
+                      {results.adjectival_rating}
+                    </span>
+                    <span className="text-sm font-bold text-text tabular-nums">
+                      ★ {display.canonicalText}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-text-muted tabular-nums block">
+                    {display.monitoringText} monitoring percentage
+                  </span>
+                </div>
+              );
+            })()
+          ) : null}
+
+          {/* Legacy notice */}
+          {results?.legacy_notice && (
+            <div className="rounded-sm border border-border bg-surface-subtle p-3 text-xs text-text-muted leading-relaxed font-medium">
+              {results.legacy_notice}
+            </div>
+          )}
+
+          {/* Partial Notice */}
+          {isPartial && (
+            <div className="rounded-sm border border-warning/30 bg-warning-soft p-3 text-xs text-warning leading-relaxed">
+              <strong>Partial Review: </strong>
+              {partialReason ||
+                'This evaluation ran without a curriculum reference. Coordinator review was skipped.'}
+            </div>
+          )}
+
+          {/* 4-Domain Navigation Matrix */}
+          <div className="space-y-2 pt-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted block px-1">
+              Review Domains ({domainKeys.length})
+            </span>
+
+            <div className="space-y-1.5" role="tablist" aria-label="Review domain selection">
+              {domainKeys.map((domain) => {
+                const Icon = DOMAIN_ICONS[domain] || FileText;
+                const domainData = results?.domain_scores[domain];
+                const isSkipped = isPartial && domain === 'coordinator' && !domainData;
+                const isSelected = domain === effectiveDomainId;
+                const percent = domainData ? monitoringPercentage(domainData.subtotal, domainData.max_score || 4) : 0;
+
+                if (isSkipped) {
+                  return (
+                    <div
+                      key={`${domain}-nav-skipped`}
+                      className="rounded-sm border border-border bg-surface-subtle/50 p-3 flex items-center justify-between text-xs opacity-70"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon className="size-4 text-text-muted" aria-hidden="true" />
+                        <span className="font-semibold text-text-muted">
+                          {agentLabels[domain]?.split(' ')[0] || domain}
                         </span>
                       </div>
-                      <h4 className="font-bold text-text leading-normal">
-                        {flag.criterion_text}
-                      </h4>
-                      {flag.justification && (
-                        <p className="text-text-muted mt-1.5 leading-relaxed bg-surface-subtle p-2 border border-border rounded-sm">
-                          {cleanJustification(flag.justification)}
-                        </p>
-                      )}
+                      <Badge variant="warning">Skipped</Badge>
                     </div>
-                  ))}
+                  );
+                }
+
+                if (!domainData) return null;
+
+                return (
+                  <button
+                    key={domain}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedDomainId(domain)}
+                    className={cn(
+                      'w-full text-left p-3 rounded-sm border transition-all flex items-start justify-between gap-3 cursor-pointer select-none',
+                      isSelected
+                        ? 'border-primary bg-primary-soft/50 text-primary shadow-xs ring-1 ring-primary/20'
+                        : 'border-border bg-surface hover:bg-surface-subtle hover:border-border-strong text-text',
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div
+                        className={cn(
+                          'flex size-7 items-center justify-center rounded-xs shrink-0 mt-0.5 border',
+                          isSelected
+                            ? 'bg-primary-soft text-primary border-primary/30'
+                            : 'bg-surface-subtle text-text-muted border-border',
+                        )}
+                      >
+                        <Icon className="size-4" aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs truncate">
+                            {agentLabels[domain]?.split(' ')[0] || domain}
+                          </span>
+                          {domainData.version != null ? (
+                            <Badge variant="neutral">Rev {domainData.version}</Badge>
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] text-text-muted block mt-0.5 tabular-nums">
+                          {formatScore(domainData.subtotal)} / {formatScore(domainData.max_score || 4)} ({percent}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <CaretRight
+                      className={cn(
+                        'size-4 shrink-0 transition-transform mt-1.5',
+                        isSelected ? 'text-primary' : 'text-text-muted',
+                      )}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Audit Timing & Metadata */}
+          <div className="border-t border-border pt-3 space-y-1.5 text-[11px] text-text-muted font-medium">
+            <div className="flex items-center justify-between">
+              <span>Submitted:</span>
+              <strong className="text-text tabular-nums">{new Date(evaluation.submitted_at).toLocaleDateString()}</strong>
+            </div>
+            {evaluation.completed_at ? (
+              <div className="flex items-center justify-between">
+                <span>Completed:</span>
+                <strong className="text-text tabular-nums">{new Date(evaluation.completed_at).toLocaleDateString()}</strong>
+              </div>
+            ) : null}
+            {results?.duration_seconds != null ? (
+              <div className="flex items-center justify-between">
+                <span>Duration:</span>
+                <strong className="text-text tabular-nums">{formatDuration(results.duration_seconds)}</strong>
+              </div>
+            ) : null}
+          </div>
+        </aside>
+
+        {/* RIGHT COLUMN: Active Domain Criteria & Quoted Evidence (~62% width) */}
+        <main
+          aria-label="Domain Criteria & Findings"
+          className="flex flex-col h-full min-h-0 overflow-y-auto bg-canvas p-4 sm:p-6 md:p-8 space-y-5"
+        >
+          {activeDomainData ? (
+            <div className="space-y-5">
+              {/* Active Domain Header Bar */}
+              <div className="rounded-md border border-border bg-surface p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 shadow-none">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="flex size-9 items-center justify-center rounded-xs bg-primary-soft text-primary border border-primary/20 shrink-0">
+                    <ActiveDomainIcon className="size-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className={TYPOGRAPHY.headingSm}>
+                        {agentLabels[effectiveDomainId] || effectiveDomainId.toUpperCase()}
+                      </h2>
+                      {activeDomainData.version != null ? (
+                        <Badge variant="neutral">Revision {activeDomainData.version}</Badge>
+                      ) : null}
+                      {activeDomainData.version == null &&
+                        (results?.legacy_notice || activeDomainData.form_snapshot_id == null) &&
+                        results && (
+                          <Badge variant="neutral">Legacy — form snapshot unavailable</Badge>
+                        )}
+                    </div>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      {activeDomainData.summary || 'Domain review criteria evaluated against institutional quality standards.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs font-bold text-text tabular-nums">
+                    Subtotal: {formatScore(activeDomainData.subtotal)} / {formatScore(activeDomainData.max_score || 4)}
+                  </span>
+                  {(effectiveDomainId === 'itso' || effectiveDomainId === 'sme') && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setReviewModalAgent(effectiveDomainId as 'itso' | 'sme')}
+                      className="text-xs h-7.5 px-2.5"
+                    >
+                      Review Scores
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* Structured Criteria Ledger Table */}
-            <div className="border border-border bg-surface rounded-sm overflow-hidden">
-              <table className="w-full text-left border-collapse border-spacing-0">
-                <thead className="bg-surface-subtle border-b border-border select-none">
-                  <tr>
-                    <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-text-muted">
-                      Evaluation Criterion & Justification
-                    </th>
-                    <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-text-muted w-[6rem] text-right">
-                      Score
-                    </th>
-                    <th className="py-3 px-4 font-bold text-[10px] uppercase tracking-widest text-text-muted w-[10rem]">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {domainKeys.map((domain) => {
-                    const domainData = results.domain_scores[domain];
-                    const isSkipped = isPartial && domain === 'coordinator' && !domainData;
-
-                    if (isSkipped) {
-                      return (
-                        <tr key={`${domain}-skipped`} className="bg-surface-subtle/30">
-                          <td colSpan={3} className="py-4 px-4">
-                            <div className="flex items-center gap-2 select-none">
-                              <span className="inline-flex shrink-0 items-center rounded-sm bg-warning-soft text-warning px-2 py-0.5 text-[9px] font-extrabold border border-warning/30 uppercase tracking-widest">
-                                {domain.toUpperCase()} SKIPPED
-                              </span>
-                              <span className="text-xs text-text-muted font-medium">
-                                Program Coordinator curriculum-grounded review was skipped because
-                                no curriculum reference was available.
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    if (!domainData) return null;
-
-                    const isDomainError = domainData.status === 'ERROR';
+              {/* Criteria Table */}
+              <div className="rounded-md border border-border bg-surface overflow-hidden shadow-none">
+                <div className="divide-y divide-border bg-surface">
+                  {sortedCriteria.map((criterion, idx) => {
+                    const isUngrounded = Boolean(criterion.is_ungrounded);
+                    const isPassing = criterion.score >= 3.0;
 
                     return (
-                      <Fragment key={domain}>
-                        {/* Domain Group Header Row */}
-                        <tr className="bg-surface-subtle/70 select-none">
-                          <td className="py-3 px-4 text-[10px] font-extrabold text-text uppercase tracking-widest border-t border-border">
-                            <div className="flex flex-wrap items-center gap-2.5">
-                              <span>{agentLabels[domain] || domain.toUpperCase()}</span>
-                              {domainData.version != null && (
-                                <span className="inline-flex items-center rounded-sm border border-border bg-surface px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-text">
-                                  Revision {domainData.version}
-                                </span>
-                              )}
-                              {domainData.version == null &&
-                                (results.legacy_notice || domainData.form_snapshot_id == null) && (
-                                  <span className="inline-flex items-center rounded-sm border border-border bg-surface-subtle px-2 py-0.5 text-[9px] font-bold text-text-muted">
-                                    Legacy — form snapshot unavailable
-                                  </span>
-                                )}
-                              {domainData.adapter_key && (
-                                <span className="text-[9px] font-mono font-normal text-text-muted">
-                                  ({domainData.adapter_key} v{domainData.adapter_version ?? 1})
-                                </span>
-                              )}
-                              {(domain === 'itso' || domain === 'sme') && (
-                                <button
-                                  type="button"
-                                  className="shrink-0 rounded-sm border border-primary/30 bg-primary-soft px-2 py-1 text-[9px] font-bold normal-case tracking-wide text-primary hover:bg-primary-soft/80"
-                                  onClick={() => setReviewModalAgent(domain as 'itso' | 'sme')}
-                                >
-                                  Review Scores
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-right w-[6rem] border-t border-border">
-                            <span className="text-xs font-bold text-text-muted tabular-nums">
-                              Subtotal: {formatScore(domainData.subtotal)}/
-                              {formatScore(domainData.max_score)}
+                      <div
+                        key={`${effectiveDomainId}-${criterion.criterion_id || idx}`}
+                        className="p-4 sm:p-5 space-y-2.5 hover:bg-surface-subtle/30 transition-colors"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <span className="font-mono text-xs font-bold text-text-muted shrink-0 whitespace-nowrap bg-surface-subtle border border-border px-1.5 py-0.5 rounded-xs mt-0.5">
+                              {criterion.criterion_id}
                             </span>
-                          </td>
-                          <td className="py-3 px-4 w-[10rem] border-t border-border">
-                            {domainData.adjectival_rating && (
-                              <span
-                                className={cn(
-                                  'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                                  getAdjectivalRatingClasses(domainData.adjectival_rating),
-                                )}
-                              >
-                                {domainData.adjectival_rating}
+                            <div className="min-w-0">
+                              <span className="font-semibold text-text text-sm block leading-snug">
+                                {criterion.criterion_text}
                               </span>
-                            )}
-                          </td>
-                        </tr>
+                              {criterion.description ? (
+                                <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                                  {criterion.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
 
-                        {/* Criterion Detail Rows with inline Justification */}
-                        {domainData.criteria.map((criterion, idx) => {
-                          const rating = Number(criterion.score);
-                          const isWeak = !Number.isNaN(rating) && rating < 2;
-                          const isUngrounded = Boolean(criterion.is_ungrounded);
-                          return (
-                            <tr
-                              key={`${domain}-${criterion.criterion_id || idx}`}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isUngrounded ? (
+                              <Badge variant="warning">Ungrounded</Badge>
+                            ) : null}
+                            <span
                               className={cn(
-                                isUngrounded
-                                  ? 'bg-warning-soft/30 hover:bg-warning-soft/50'
-                                  : isWeak
-                                    ? 'bg-destructive-soft/30 hover:bg-destructive-soft/50'
-                                    : 'hover:bg-surface-subtle/30',
-                                'transition-colors border-b border-border last:border-b-0',
+                                'inline-flex items-center rounded-xs px-2.5 py-0.5 text-xs font-bold tabular-nums border',
+                                isPassing
+                                  ? 'bg-success-soft text-success border-success/30'
+                                  : 'bg-warning-soft text-warning border-warning/30',
                               )}
                             >
-                              <td className="py-4 px-4 text-text align-top">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="text-sm font-semibold">
-                                    <span className="font-mono text-xs font-bold text-text-muted mr-2">
-                                      {criterion.criterion_id}
-                                    </span>
-                                    <span>{criterion.criterion_text}</span>
-                                  </div>
-                                  {isUngrounded && (
-                                    <span className="shrink-0 inline-flex items-center rounded-sm border border-warning/40 bg-warning-soft px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-warning">
-                                      Ungrounded
-                                    </span>
-                                  )}
-                                </div>
-                                {criterion.description && (
-                                  <p className="mt-1 text-xs text-text-muted leading-normal">
-                                    {criterion.description}
-                                  </p>
-                                )}
-                                {criterion.justification && (
-                                  <div className="mt-2 text-xs leading-[1.6] text-text-muted bg-surface-subtle p-2.5 border border-border rounded-sm font-medium">
-                                    {cleanJustification(criterion.justification)}
-                                  </div>
-                                )}
-                                {criterion.evidence && (
-                                  <div className="mt-2 text-xs leading-relaxed text-text-muted bg-surface-subtle/50 p-2 border border-border rounded-sm font-normal">
-                                    <span className="font-semibold text-text">Evidence: </span>
-                                    {cleanJustification(criterion.evidence)}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-4 px-4 text-right align-top w-[6rem]">
-                                <span className="inline-flex h-7 min-w-[2.5rem] items-center justify-center rounded-sm border border-border bg-surface px-2 text-xs font-sans font-bold text-text tabular-nums">
-                                  {formatScore(criterion.score)}/4
+                              Score {formatScore(criterion.score)} / 4
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quoted Evidence & Findings Callout */}
+                        {criterion.justification || criterion.evidence ? (
+                          <div className="rounded-sm border border-warning/30 bg-warning-soft/15 p-3.5 space-y-1.5 text-xs">
+                            {criterion.evidence ? (
+                              <div className="font-mono text-text bg-surface/80 p-2.5 border border-border rounded-xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-0.5">
+                                  Quoted Evidence:
                                 </span>
-                              </td>
-                              <td className="py-4 px-4 align-top w-[10rem]">
-                                <span
-                                  className={cn(
-                                    'inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider',
-                                    isDomainError
-                                      ? 'border-destructive/30 bg-destructive-soft text-destructive'
-                                      : isUngrounded
-                                        ? 'border-warning/40 bg-warning-soft text-warning'
-                                        : isWeak
-                                          ? 'border-destructive/30 bg-destructive-soft text-destructive'
-                                          : 'border-success/30 bg-success-soft text-success',
-                                  )}
-                                >
-                                  {isDomainError
-                                    ? 'Failed'
-                                    : isUngrounded
-                                      ? 'Ungrounded'
-                                      : isWeak
-                                        ? 'Needs attention'
-                                        : 'Acceptable'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </Fragment>
+                                "{cleanJustification(criterion.evidence)}"
+                              </div>
+                            ) : null}
+                            {criterion.justification ? (
+                              <p className="text-text-muted leading-relaxed">
+                                <strong>Specialist Finding: </strong>
+                                {cleanJustification(criterion.justification)}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-xs text-success font-medium pt-0.5">
+                            <CheckCircle className="size-3.5 text-success shrink-0" aria-hidden="true" />
+                            <span>Verified compliant with institutional quality standards.</span>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              </div>
+
+              {/* Authoritative Human Review & Sign-Off */}
+              <div className="rounded-md border border-border bg-surface p-5 sm:p-6 space-y-3">
+                <div className="border-b border-border pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text">
+                    Authoritative Faculty Review & Sign-Off
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Automated multi-agent evaluation findings are advisory. CID faculty evaluators maintain final authoritative determination.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 text-xs">
+                  <div className="border-t border-border pt-1.5 text-text font-medium">
+                    CID Evaluator / Reviewer Signature
+                  </div>
+                  <div className="border-t border-border pt-1.5 text-text font-medium">
+                    Date Completed & Verified
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : (
+            <div className="flex h-full min-h-[20rem] items-center justify-center p-8 text-center text-text-muted">
+              Select a domain on the left to inspect criteria.
+            </div>
+          )}
+        </main>
+      </div>
 
-            {reviewModalAgent && results.domain_scores[reviewModalAgent] && (
-              <AgentReviewModal
-                agentName={reviewModalAgent}
-                evaluationId={evaluation.evaluation_id}
-                criteria={results.domain_scores[reviewModalAgent].criteria}
-                onClose={() => setReviewModalAgent(null)}
-              />
-            )}
-          </div>
-        )}
-      </main>
-
-      <Outlet />
+      {/* Review Scores Modal */}
+      {reviewModalAgent && id && (
+        <AgentReviewModal
+          agentName={reviewModalAgent}
+          evaluationId={id}
+          criteria={results?.domain_scores[reviewModalAgent]?.criteria || []}
+          onClose={() => setReviewModalAgent(null)}
+        />
+      )}
     </section>
   );
 }
