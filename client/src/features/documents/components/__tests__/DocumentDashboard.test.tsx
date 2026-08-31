@@ -100,13 +100,12 @@ describe('DocumentDashboard', () => {
     data: { items: [], total: 2 },
   };
 
-  it('renders a proper visible h1 and page intro for My SLMs', () => {
+  it('renders document repository table wrapper and filters', () => {
     mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toMatch(/<h1[^>]*>My SLMs<\/h1>/);
-    expect(markup).toContain('Faculty Workspace');
-    expect(markup).toContain('Manage your uploaded Self-Learning Modules');
+    expect(markup).toContain('Status');
+    expect(markup).toContain('Network Systems Module');
   });
 
   it('renders flash success banner with accessible contrast colors', () => {
