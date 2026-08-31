@@ -200,3 +200,52 @@ export function scoreTier(score: number | null | undefined): 'strong' | 'moderat
   if (score >= 2) return 'moderate';
   return 'weak';
 }
+export function getCriterionCategory(criterion: {
+  criterion_id: string;
+  criterion_text: string;
+  category?: string | null;
+}): string {
+  if (criterion.category) return criterion.category;
+
+  const text = criterion.criterion_text.toLowerCase();
+  const id = criterion.criterion_id.toUpperCase();
+
+  if (id.startsWith('GAD') || text.includes('gender') || text.includes('inclusive') || text.includes('stereotype')) {
+    if (text.includes('language') || text.includes('term') || text.includes('pronoun') || text.includes('non-sexist')) {
+      return 'Gender-Fair Language & Principles';
+    }
+    if (text.includes('role') || text.includes('representation') || text.includes('career') || text.includes('illustration') || text.includes('character')) {
+      return 'Representation & Social Roles';
+    }
+    if (text.includes('exercise') || text.includes('task') || text.includes('activity') || text.includes('assessment')) {
+      return 'Equitable Instructional Activities';
+    }
+    return 'Gender Sensitivity & Inclusivity';
+  }
+
+  if (id.startsWith('SME') || text.includes('content') || text.includes('accuracy') || text.includes('bloom') || text.includes('taxonomy')) {
+    if (text.includes('exercise') || text.includes('assessment') || text.includes('exam') || text.includes('quiz') || text.includes('rubric') || text.includes('formative')) {
+      return 'Assessment & Formative Exercises';
+    }
+    if (text.includes('topic') || text.includes('depth') || text.includes('accuracy') || text.includes('rigor') || text.includes('concept')) {
+      return 'Discipline Depth & Rigor';
+    }
+    return 'Instructional Clarity & Accuracy';
+  }
+
+  if (id.startsWith('COORD') || text.includes('syllabus') || text.includes('curriculum') || text.includes('prerequisite')) {
+    if (text.includes('syllabus') || text.includes('ilo') || text.includes('outcome')) {
+      return 'Syllabus Topic & Outcome Coverage';
+    }
+    return 'Curriculum Roadmap Alignment';
+  }
+
+  if (id.startsWith('ITSO') || text.includes('citation') || text.includes('copyright') || text.includes('patent') || text.includes('ip')) {
+    if (text.includes('citation') || text.includes('reference') || text.includes('source') || text.includes('attribution')) {
+      return 'Citation & Attribution Standards';
+    }
+    return 'Intellectual Property & Copyright';
+  }
+
+  return 'Core Quality Standards';
+}

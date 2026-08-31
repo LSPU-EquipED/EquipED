@@ -132,7 +132,7 @@ export function EvaluationHeader({
           }
         >
           <DownloadSimple className="size-3.5 mr-1.5" aria-hidden="true" />
-          Export
+          Export GAD Form
         </button>
 
         <button
@@ -145,7 +145,6 @@ export function EvaluationHeader({
           <Eye className="size-3.5 mr-1.5" aria-hidden="true" />
           Full Report
         </button>
-
         {showExportModal && (
           <div
             className="fixed inset-0 z-50 flex justify-end bg-foreground/40"
