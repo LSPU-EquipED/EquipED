@@ -1,10 +1,19 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, Link } from '@tanstack/react-router';
-import { ArrowSquareOut, Spinner, Warning } from '@phosphor-icons/react';
+import {
+  CaretLeft,
+  CaretRight,
+  ClipboardText,
+  FileText,
+  MagnifyingGlass,
+  Spinner,
+  Warning,
+} from '@phosphor-icons/react';
 import { useEvaluationHistory } from '../hooks/useEvaluationHistory';
 import type { HistoryEvaluationItem } from '../types';
 import { Badge } from '@/shared/components/Badge';
-import { CARD_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
+import { Button } from '@/shared/components/Button';
+import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
 
 const STATUS_OPTIONS = [
@@ -26,144 +35,247 @@ function getStatusVariant(status: string): StatusVariant {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
+    month: 'short',
+    day: 'numeric',
     year: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(value));
 }
 
 export function EvaluationHistoryTable() {
   const [status, setStatus] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data, isLoading, isError } = useEvaluationHistory({
     status: status !== 'all' ? status : undefined,
+    page,
+    page_size: pageSize,
   });
 
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Client-side search filter over current page items if needed
+  const filteredItems = useMemo(() => {
+    const items = data?.items ?? [];
+    if (!search.trim()) return items;
+    const query = search.toLowerCase();
+    return items.filter(
+      (item) =>
+        (item.document_title && item.document_title.toLowerCase().includes(query)) ||
+        item.evaluation_id.toLowerCase().includes(query),
+    );
+  }, [data?.items, search]);
+
+  const handleStatusChange = (val: string) => {
+    setStatus(val);
+    setPage(1);
+  };
+
   return (
-    <section className="mx-auto grid w-full max-w-[108rem] gap-7">
-      {/* Status filter bar */}
-      <div className="flex flex-wrap items-center justify-end gap-4">
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor="history-status-filter"
-            className="text-xs font-semibold uppercase tracking-wider text-text-muted whitespace-nowrap"
-          >
-            Filter by status
-          </label>
-          <select
-            id="history-status-filter"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="h-10 border border-input bg-surface px-3 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent rounded-sm text-sm font-semibold text-text cursor-pointer min-w-[10rem] transition-colors"
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
+      {/* Error alert */}
+      {isError ? (
+        <div className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs font-semibold text-destructive" role="alert">
+          <Warning className="size-4 shrink-0" aria-hidden="true" />
+          <span>Failed to load evaluation history.</span>
         </div>
-      </div>
+      ) : null}
 
-      {/* Table card */}
-      <div className={CARD_STYLES.ledger}>
-        {/* Table meta bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4 bg-surface-subtle">
-          <p className="text-sm font-medium text-text">
-            {isLoading && !data
-              ? 'Loading records…'
-              : `${data?.total ?? 0} evaluation${(data?.total ?? 0) === 1 ? '' : 's'} found`}
-          </p>
-          <p className="text-xs text-text-muted font-semibold uppercase tracking-wider">
-            Human review is authoritative.
-          </p>
-        </div>
+      {/* Unified Table Container */}
+      <div className={TABLE_STYLES.wrapper}>
+        {/* Table Filter & Search Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="history-status-filter"
+              className="text-xs font-semibold uppercase tracking-wider text-text-muted whitespace-nowrap"
+            >
+              Status:
+            </label>
+            <select
+              id="history-status-filter"
+              value={status}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              className="h-8.5 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="p-6">
-          {/* Error state */}
-          {isError ? (
-            <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold">
-              <Warning className="size-4 shrink-0" aria-hidden="true" />
-              Failed to load evaluation history.
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="relative min-w-[12rem] sm:min-w-[16rem]">
+              <MagnifyingGlass
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                placeholder="Search by title or ID…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-label="Search evaluations"
+              />
             </div>
-          ) : null}
 
-          {/* Loading state */}
+            <span className="text-xs text-text-muted tabular-nums font-semibold whitespace-nowrap">
+              {isLoading && !data
+                ? 'Loading…'
+                : `${total} evaluation${total === 1 ? '' : 's'} found`}
+            </span>
+          </div>
+        </div>
+
+        {/* Table Body */}
+        <div className="overflow-x-auto">
           {isLoading && !data ? (
-            <div className="flex justify-center items-center py-12 text-text-muted font-medium text-sm gap-2">
-              <Spinner className="size-5 animate-spin text-primary" aria-hidden="true" />
+            <div className="flex justify-center items-center py-16 text-text-muted font-medium text-xs gap-2">
+              <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
               <span>Loading evaluation history…</span>
             </div>
-          ) : null}
-
-          {/* Empty state */}
-          {!isError && !isLoading && (!data || data.items.length === 0) ? (
-            <div className="grid gap-2 rounded-sm border border-dashed border-border bg-surface-subtle/50 px-6 py-12 text-center">
-              <h3 className="text-lg font-semibold text-text">No evaluations yet</h3>
-              <p className="text-sm text-text-muted">
-                Evaluations will appear here once you run one from the Documents inventory.
-              </p>
+          ) : !isError && (!data || data.items.length === 0) ? (
+            <div className="px-6 py-16 text-center text-sm text-text-muted">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <ClipboardText className="size-6 text-text-muted/60" aria-hidden="true" />
+                <p className="font-semibold text-text">No evaluations yet</p>
+                <p className="text-xs text-text-muted max-w-sm">
+                  Evaluations will appear here once you run one from the Documents inventory.
+                </p>
+              </div>
             </div>
-          ) : null}
-
-          {/* Table */}
-          {!isError && data && data.items.length > 0 ? (
-            <div className="overflow-x-auto rounded-sm border border-border">
-              <table className={TABLE_STYLES.table}>
-                <thead className={TABLE_STYLES.thead}>
-                  <tr>
-                    <th className={cn(TABLE_STYLES.th, 'min-w-[20rem]')}>
-                      Document / SLM
-                    </th>
-                    <th className={TABLE_STYLES.th}>Status</th>
-                    <th className={TABLE_STYLES.th}>Submitted</th>
-                    <th className={TABLE_STYLES.th}>Completed</th>
-                    <th className={cn(TABLE_STYLES.th, 'text-right')}>Action</th>
+          ) : (
+            <table className={TABLE_STYLES.table}>
+              <thead className={TABLE_STYLES.thead}>
+                <tr>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
+                    Document / SLM
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Status
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Submitted
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Completed
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={TABLE_STYLES.tbody}>
+                {filteredItems.map((record: HistoryEvaluationItem) => (
+                  <tr key={record.evaluation_id} className={TABLE_STYLES.tr}>
+                    <td className={TABLE_STYLES.td}>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-text line-clamp-1">
+                          {record.document_title ?? '—'}
+                        </span>
+                        <span className="font-mono text-[10px] text-text-muted mt-0.5">
+                          ID: {record.evaluation_id.slice(0, 18)}...
+                        </span>
+                      </div>
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Badge variant={getStatusVariant(record.status)} withDot>
+                        {record.status.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className={cn(TABLE_STYLES.tdData, 'text-xs text-text-muted tabular-nums')}>
+                      {formatDate(record.submitted_at)}
+                    </td>
+                    <td className={cn(TABLE_STYLES.tdData, 'text-xs text-text-muted tabular-nums')}>
+                      {record.completed_at ? formatDate(record.completed_at) : '—'}
+                    </td>
+                    <td className={cn(TABLE_STYLES.td, 'text-right')}>
+                      <Link
+                        to="/evaluations/$id"
+                        params={{ id: record.evaluation_id }}
+                        className={cn(
+                          BUTTON_STYLES.base,
+                          BUTTON_STYLES.variants.secondary,
+                          BUTTON_STYLES.sizes.sm,
+                          'text-xs h-7.5 px-3',
+                        )}
+                      >
+                        <span>View Scorecard</span>
+                        <CaretRight className="size-3" aria-hidden="true" />
+                      </Link>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className={TABLE_STYLES.tbody}>
-                  {data.items.map((record: HistoryEvaluationItem) => (
-                    <tr key={record.evaluation_id} className={TABLE_STYLES.tr}>
-                      <td className={TABLE_STYLES.td}>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="truncate max-w-[22rem] font-semibold text-text">
-                            {record.document_title ?? '—'}
-                          </span>
-                          <span className="text-[10px] tabular-nums font-bold text-text-muted uppercase tracking-wider">
-                            {record.evaluation_id}
-                          </span>
-                        </div>
-                      </td>
-                      <td className={TABLE_STYLES.td}>
-                        <Badge variant={getStatusVariant(record.status)}>
-                          {record.status.replace('_', ' ')}
-                        </Badge>
-                      </td>
-                      <td className={cn(TABLE_STYLES.tdData, 'text-text-muted font-medium')}>
-                        {formatDate(record.submitted_at)}
-                      </td>
-                      <td className={cn(TABLE_STYLES.tdData, 'text-text-muted font-medium')}>
-                        {record.completed_at ? formatDate(record.completed_at) : '—'}
-                      </td>
-                      <td className={cn(TABLE_STYLES.td, 'text-right')}>
-                        <Link
-                          to="/evaluations/$id"
-                          params={{ id: record.evaluation_id }}
-                          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle text-text px-3 rounded-sm text-xs font-semibold uppercase tracking-wider transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                        >
-                          <span>View</span>
-                          <ArrowSquareOut className="size-3 ml-1.5" aria-hidden="true" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {/* Compact Pagination Footer */}
+        {!isLoading && total > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border bg-surface-subtle px-4 sm:px-6 py-2.5 text-xs text-text-muted">
+            <div className="flex items-center gap-3">
+              <span className="tabular-nums font-medium">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} evaluations
+              </span>
+              <span className="text-border">|</span>
+              <div className="flex items-center gap-1.5">
+                <span>Show</span>
+                <select
+                  aria-label="Rows per page"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                  className="h-7 rounded-sm border border-input bg-surface px-1.5 text-xs font-semibold text-text focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+                <span>per page</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="h-7 px-2 text-xs"
+                aria-label="Previous page"
+              >
+                <CaretLeft className="size-3" aria-hidden="true" />
+                <span className="hidden sm:inline">Previous</span>
+              </Button>
+              <span className="px-2 font-medium tabular-nums text-text">
+                {page} / {totalPages}
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="h-7 px-2 text-xs"
+                aria-label="Next page"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <CaretRight className="size-3" aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Outlet />
