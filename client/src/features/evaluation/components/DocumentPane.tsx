@@ -1,6 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Spinner, WarningCircle, CaretLeft, CaretRight, Flag } from '@phosphor-icons/react';
+import {
+  CaretLeft,
+  CaretRight,
+  FileText,
+  Flag,
+  MagnifyingGlass,
+  Spinner,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
+import { Badge } from '@/shared/components/Badge';
+import { Button } from '@/shared/components/Button';
+import { cn } from '@/shared/components/utils';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import type { EvaluationFlagItem } from '../types';
 import { cleanJustification, formatScore } from '../utils/scoreHelpers';
@@ -51,8 +62,11 @@ export function DocumentPane({
 
   // Get unique page numbers in sorted order
   const availablePages = useMemo(() => {
-    if (!activeGroup) return [];
-    return Array.from(new Set(activeGroup.chunks.map((c) => c.pageNumber))).sort((a, b) => a - b);
+    if (!activeGroup?.chunks?.length) return [];
+    const pages = Array.from(new Set(activeGroup.chunks.map((c) => c.pageNumber))).sort(
+      (a, b) => a - b,
+    );
+    return pages;
   }, [activeGroup]);
 
   // Current page state
@@ -61,27 +75,24 @@ export function DocumentPane({
   // Synchronize current page when available pages change
   useEffect(() => {
     if (availablePages.length > 0 && !availablePages.includes(currentPage)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentPage(availablePages[0]);
     }
   }, [availablePages, currentPage]);
 
   // Filter chunks for current page
   const chunksOnPage = useMemo(() => {
-    if (!activeGroup) return [];
+    if (!activeGroup?.chunks) return [];
     return activeGroup.chunks.filter((c) => c.pageNumber === currentPage);
   }, [activeGroup, currentPage]);
 
   // Count flags per page for the current selected agent
   const pageFlagCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    if (!activeGroup || !selectedFlags) return counts;
     for (const flag of selectedFlags) {
-      if (flag.chunk_id) {
-        const chunk = chunkMap.get(flag.chunk_id);
-        if (chunk && chunk.documentId === activeGroup.documentId) {
-          counts.set(chunk.pageNumber, (counts.get(chunk.pageNumber) || 0) + 1);
-        }
+      if (!flag.chunk_id) continue;
+      const chunk = chunkMap.get(flag.chunk_id);
+      if (chunk && chunk.documentId === activeGroup?.documentId) {
+        counts.set(chunk.pageNumber, (counts.get(chunk.pageNumber) || 0) + 1);
       }
     }
     return counts;
@@ -93,85 +104,81 @@ export function DocumentPane({
   }, [selectedFlags]);
 
   const totalFlagsCount = selectedFlags.length;
-
-  // Sidebar flag index visibility
-  const [showFlagIndex, setShowFlagIndex] = useState<boolean>(false);
+  const currentPageFlagsCount = pageFlagCounts.get(currentPage) || 0;
 
   // Page navigation helpers
   const handlePrevPage = () => {
-    const idx = availablePages.indexOf(currentPage);
-    if (idx > 0) {
-      setCurrentPage(availablePages[idx - 1]);
+    const currentIndex = availablePages.indexOf(currentPage);
+    if (currentIndex > 0) {
+      setCurrentPage(availablePages[currentIndex - 1]);
     }
   };
 
   const handleNextPage = () => {
-    const idx = availablePages.indexOf(currentPage);
-    if (idx >= 0 && idx < availablePages.length - 1) {
-      setCurrentPage(availablePages[idx + 1]);
+    const currentIndex = availablePages.indexOf(currentPage);
+    if (currentIndex < availablePages.length - 1) {
+      setCurrentPage(availablePages[currentIndex + 1]);
     }
   };
 
   const handleFlagClick = (flag: EvaluationFlagItem) => {
     if (!flag.chunk_id) return;
-    const linkedChunk = chunkMap.get(flag.chunk_id);
-    if (!linkedChunk) return;
-
-    setCurrentPage(linkedChunk.pageNumber);
-
-    setTimeout(() => {
-      const el = window.document.getElementById(`chunk-${linkedChunk.chunkId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('bg-accent-soft');
-        setTimeout(() => {
-          el.classList.remove('bg-accent-soft');
-        }, 1500);
+    const chunk = chunkMap.get(flag.chunk_id);
+    if (chunk) {
+      if (chunk.pageNumber !== currentPage) {
+        setCurrentPage(chunk.pageNumber);
       }
-    }, 150);
+      setTimeout(() => {
+        const el = document.getElementById(`chunk-${flag.chunk_id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('bg-warning-soft/60');
+          setTimeout(() => {
+            el.classList.remove('bg-warning-soft/60');
+          }, 2000);
+        }
+      }, 200);
+    }
   };
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-canvas">
-      {/* Dynamic Header Toolbar */}
-      <div className="flex flex-col gap-3 border-b border-border bg-surface px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {documentTextGroups.length > 1 ? (
-              <>
-                <select
-                  value={activeGroupIndex}
-                  onChange={(e) => {
-                    setActiveGroupIndex(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="bg-transparent text-sm font-bold text-text outline-none cursor-pointer focus:ring-0"
-                >
-                  {documentTextGroups.map((group, idx) => (
-                    <option key={group.documentId} value={idx}>
-                      Document {group.documentId.slice(0, 8)}...
-                    </option>
-                  ))}
-                </select>
-                <span className="shrink-0 inline-flex items-center rounded-sm bg-surface-subtle px-2 py-0.5 text-[10px] font-medium text-text-muted border border-border">
-                  {selectedAgentLabel}
-                </span>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-2 text-xs font-bold text-text-muted uppercase tracking-wider select-none">
-                <span className="shrink-0 inline-flex items-center rounded-sm bg-primary-soft text-primary px-2.5 py-1 text-[10px] font-extrabold border border-primary/20 uppercase tracking-widest">
-                  {selectedAgentLabel}
-                </span>
-                <span>Ledger Preview</span>
-              </span>
-            )}
-          </div>
+    <section className="flex h-full min-h-0 flex-col border-r border-border bg-canvas">
+      {/* Top Document Reading Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5 shrink-0">
+        {/* Document Group / Agent Context */}
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="size-4 text-text-muted shrink-0" aria-hidden="true" />
+          {documentTextGroups.length > 1 ? (
+            <select
+              value={activeGroupIndex}
+              onChange={(e) => {
+                setActiveGroupIndex(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent text-xs font-semibold text-text outline-none cursor-pointer"
+            >
+              {documentTextGroups.map((group, idx) => (
+                <option key={group.documentId} value={idx}>
+                  Document {group.documentId.slice(0, 8)}...
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-xs font-semibold text-text truncate">
+              Document Reader
+            </span>
+          )}
+          <span className="text-border">|</span>
+          <span className="text-xs text-text-muted font-medium truncate">
+            {selectedAgentLabel} Evidence
+          </span>
         </div>
 
-        {/* Pager and Sidebar Controls */}
+        {/* Page Pager & Flags Pill */}
         {availablePages.length > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center border border-border rounded-sm bg-surface p-0.5">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Page Navigation */}
+            <div className="flex items-center rounded-sm border border-border bg-surface p-0.5">
               <button
                 type="button"
                 onClick={handlePrevPage}
@@ -179,20 +186,21 @@ export function DocumentPane({
                 className="inline-flex size-7 items-center justify-center text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                 aria-label="Previous Page"
               >
-                <CaretLeft className="size-4" />
+                <CaretLeft className="size-3.5" aria-hidden="true" />
               </button>
 
               <div className="px-2">
                 <select
                   value={currentPage}
                   onChange={(e) => setCurrentPage(Number(e.target.value))}
-                  className="bg-transparent text-xs font-semibold text-text outline-none cursor-pointer focus:ring-0 border-0 p-0"
+                  className="bg-transparent text-xs font-semibold text-text outline-none cursor-pointer border-0 p-0 tabular-nums"
+                  aria-label="Jump to page"
                 >
                   {availablePages.map((page) => {
                     const count = pageFlagCounts.get(page) || 0;
                     return (
                       <option key={page} value={page}>
-                        Page {page} of {availablePages.length} {count > 0 ? `(${count} ⚑)` : ''}
+                        Page {page} of {availablePages.length} {count > 0 ? `(${count} ⚠️)` : ''}
                       </option>
                     );
                   })}
@@ -206,273 +214,185 @@ export function DocumentPane({
                 className="inline-flex size-7 items-center justify-center text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
                 aria-label="Next Page"
               >
-                <CaretRight className="size-4" />
+                <CaretRight className="size-3.5" aria-hidden="true" />
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowFlagIndex(!showFlagIndex)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-3 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                showFlagIndex
-                  ? 'border-primary bg-primary-soft text-primary'
-                  : 'border-border bg-surface text-text-muted hover:bg-surface-subtle hover:text-text'
-              }`}
-            >
-              <Flag className={`size-3.5 ${showFlagIndex ? 'fill-current' : ''}`} />
-              Index {totalFlagsCount > 0 ? `(${totalFlagsCount})` : ''}
-            </button>
+            {/* Page Flag Pill */}
+            {currentPageFlagsCount > 0 ? (
+              <Badge variant="warning" withDot className="hidden sm:inline-flex">
+                {currentPageFlagsCount} {currentPageFlagsCount === 1 ? 'flag on page' : 'flags on page'}
+              </Badge>
+            ) : null}
           </div>
         )}
       </div>
 
-      {/* Main Workspace Split */}
-      <div className="flex flex-1 min-h-0 relative">
-        {/* Loading / Processing States overlay */}
+      {/* Reader Body Area */}
+      <div className="relative flex flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 justify-center">
+        {/* Loading / Submitting Overlay */}
         {isLoading || isResolvingEval || submitIsPending ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/70">
-            <div className="flex items-center gap-3 rounded-sm border border-border bg-surface px-5 py-4 text-xs font-bold text-text-muted uppercase tracking-wider shadow-sm">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/80">
+            <div className="flex items-center gap-2.5 rounded-sm border border-border bg-surface px-4 py-3 text-xs font-semibold text-text shadow-sm">
               <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-              {isResolvingEval
-                ? 'Checking for existing evaluation…'
-                : submitIsPending
-                  ? 'Submitting new evaluation…'
-                  : 'Loading SLM content...'}
+              <span>
+                {isResolvingEval
+                  ? 'Checking for existing evaluation…'
+                  : submitIsPending
+                    ? 'Submitting evaluation…'
+                    : 'Loading document text…'}
+              </span>
             </div>
           </div>
         ) : null}
 
-        {/* Reading Canvas Area */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 flex flex-col items-center">
+        {/* Content Container */}
+        <div className="w-full max-w-2xl space-y-6">
+          {/* Error alerts */}
           {!!error && (
-            <div className="w-full max-w-2xl rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold mb-6">
+            <div className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs font-semibold text-destructive" role="alert">
               {getErrorMessage(error, 'Unable to load the selected document.')}
             </div>
           )}
 
           {isResolveError && (
-            <div className="w-full max-w-2xl rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold mb-6">
-              <div className="flex items-start gap-3">
-                <WarningCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <div className="flex-1">
-                  <p className="font-semibold">
+            <div className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs text-destructive" role="alert">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <WarningCircle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="font-semibold">
                     {getErrorMessage(resolveError, 'Failed to start evaluation.')}
-                  </p>
-                  <button
-                    type="button"
-                    className="mt-2 inline-flex h-8 items-center justify-center border border-destructive/30 hover:bg-destructive/10 text-destructive px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
-                    onClick={() => refetchResolve()}
-                  >
-                    Retry
-                  </button>
+                  </span>
                 </div>
+                <Button type="button" variant="destructive" size="sm" onClick={() => refetchResolve()}>
+                  Retry
+                </Button>
               </div>
             </div>
           )}
 
           {submitIsError && (
-            <div className="w-full max-w-2xl rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold mb-6">
-              <div className="flex items-start gap-3">
-                <WarningCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                <div className="flex-1">
-                  <p className="font-semibold">
+            <div className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs text-destructive" role="alert">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  <WarningCircle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span className="font-semibold">
                     {getErrorMessage(submitError, 'Failed to start evaluation.')}
-                  </p>
-                  <button
-                    type="button"
-                    className="mt-2 inline-flex h-8 items-center justify-center border border-destructive/30 hover:bg-destructive/10 text-destructive px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
-                    onClick={handleRetrySubmit}
-                  >
-                    Retry
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!isLoading && !error && activeGroup && (
-            <div className="w-full max-w-2xl">
-              {/* Document-Wide Flags View (Show only on page 1) */}
-              {currentPage === (availablePages[0] || 1) && generalFlags.length > 0 && (
-                <div className="mb-6 rounded-sm border border-warning/30 bg-warning-soft p-4">
-                  <div className="flex items-center gap-2 text-xs font-bold text-warning uppercase tracking-wider">
-                    <WarningCircle className="size-4 text-warning" />
-                    General Document-Wide Flags
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {generalFlags.map((flag) => (
-                      <div
-                        key={flag.flag_id}
-                        className="border-t border-border pt-3 first:border-0 first:pt-0"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-warning border border-warning/30">
-                            Score {formatScore(flag.score)}/4
-                          </span>
-                          <span className="text-xs font-semibold text-text">
-                            {flag.criterion_text}
-                          </span>
-                        </div>
-                        {flag.justification && (
-                          <p className="mt-1.5 text-xs leading-relaxed text-text-muted bg-surface p-2 border border-border rounded-sm">
-                            {cleanJustification(flag.justification)}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* The Faculty Ledger sheet container */}
-              <div className="relative border border-border bg-surface p-8 md:p-12 shadow-none rounded-sm min-h-[600px] flex flex-col justify-between">
-                {/* Ledger Sheet Framing Details */}
-                <div className="absolute inset-x-0 top-0 h-1.5 bg-primary" />
-                <div className="absolute inset-x-8 top-3 flex items-center justify-between border-b border-border pb-2 text-[9px] font-bold text-text-muted uppercase tracking-widest select-none">
-                  <span>LSPU SCC Faculty Ledger</span>
-                  <span>
-                    Page {currentPage} of {availablePages.length}
                   </span>
                 </div>
-
-                {/* Page Content Chunks */}
-                <article className="mt-6 flex-1 space-y-8 text-sm leading-[1.6] text-text">
-                  {chunksOnPage.length > 0 ? (
-                    chunksOnPage.map((chunk) => {
-                      const chunkFlags = selectedFlags.filter((f) => f.chunk_id === chunk.chunkId);
-                      const hasFlags = chunkFlags.length > 0;
-                      return (
-                        <section
-                          key={chunk.chunkId}
-                          id={`chunk-${chunk.chunkId}`}
-                          className={`rounded-sm transition-all duration-300 ${
-                            hasFlags
-                              ? 'border-l-4 border-l-warning bg-warning-soft/30 px-4 py-3 space-y-4'
-                              : 'border-l-4 border-l-transparent px-4 py-1'
-                          }`}
-                        >
-                          {/* Chunk Text Content */}
-                          <div className="space-y-3 font-normal text-text">
-                            {chunk.text.split(/\n{2,}/).map((paragraph, paragraphIndex) => (
-                              <p key={`${chunk.chunkId}-${paragraphIndex}`}>{paragraph}</p>
-                            ))}
-                          </div>
-
-                          {/* Chunk Flags Inline details */}
-                          {hasFlags && (
-                            <div className="mt-4 pt-3 border-t border-warning/30 space-y-3">
-                              {chunkFlags.map((flag) => (
-                                <div
-                                  key={flag.flag_id}
-                                  className="rounded-sm border border-warning/30 bg-surface p-3 shadow-none"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Flag className="size-3.5 text-warning fill-current" />
-                                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-warning border border-warning/40">
-                                      Score {formatScore(flag.score)}/4
-                                    </span>
-                                    <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                                      {selectedAgentLabel} Violation
-                                    </span>
-                                  </div>
-                                  <h4 className="mt-2 text-xs font-bold leading-normal text-text">
-                                    {flag.criterion_text}
-                                  </h4>
-                                  {flag.justification && (
-                                    <p className="mt-1.5 text-xs leading-[1.5] text-text-muted bg-surface-subtle p-2 border border-border rounded-sm font-medium">
-                                      {cleanJustification(flag.justification)}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </section>
-                      );
-                    })
-                  ) : (
-                    <div className="flex h-64 flex-col items-center justify-center text-text-muted">
-                      <p className="text-sm font-semibold">Empty Page</p>
-                      <p className="text-xs">No text chunks extracted for page {currentPage}.</p>
-                    </div>
-                  )}
-                </article>
-
-                {/* Ledger Sheet Footer Details */}
-                <div className="mt-12 border-t border-border pt-3 flex items-center justify-between text-[9px] font-bold text-text-muted uppercase tracking-widest select-none">
-                  <span>Document ID: {activeGroup.documentId.slice(0, 8)}...</span>
-                  <span>ADVISORY REPORT — CONFIRM VIA SCORECARD</span>
-                </div>
+                <Button type="button" variant="destructive" size="sm" onClick={handleRetrySubmit}>
+                  Retry
+                </Button>
               </div>
             </div>
           )}
 
-          {!isLoading && !error && !activeGroup && (
-            <div className="w-full max-w-2xl rounded-sm border border-border bg-surface p-8 text-center text-text-muted">
-              <p className="font-semibold">No Content Available</p>
-              <p className="text-xs mt-1">No extracted SLM text is available for this document.</p>
+          {/* Document-Wide Flags (Page 1 Callout) */}
+          {!isLoading && !error && currentPage === (availablePages[0] || 1) && generalFlags.length > 0 && (
+            <div className="rounded-md border border-warning/30 bg-warning-soft/30 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-warning">
+                <WarningCircle className="size-4 text-warning" aria-hidden="true" />
+                <span>General Document-Wide Observations ({generalFlags.length})</span>
+              </div>
+              <div className="divide-y divide-warning/20">
+                {generalFlags.map((flag) => (
+                  <div key={flag.flag_id} className="pt-2.5 first:pt-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-text">
+                        {flag.criterion_text}
+                      </span>
+                      <Badge variant="warning">
+                        Score {formatScore(flag.score)}/4
+                      </Badge>
+                    </div>
+                    {flag.justification ? (
+                      <p className="mt-1 text-xs text-text-muted leading-relaxed">
+                        {cleanJustification(flag.justification)}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Structured Document Reading Canvas */}
+          {!isLoading && !error && activeGroup && (
+            <div className="rounded-md border border-border bg-surface p-6 sm:p-8 space-y-6 shadow-none">
+              {/* Reading Canvas Header */}
+              <div className="flex items-center justify-between border-b border-border pb-3 text-xs text-text-muted">
+                <span className="font-semibold text-text">
+                  Page {currentPage} of {availablePages.length}
+                </span>
+                <span className="text-[11px] font-medium tabular-nums">
+                  {chunksOnPage.length} {chunksOnPage.length === 1 ? 'content chunk' : 'content chunks'}
+                </span>
+              </div>
+
+              {/* Document Text Chunks */}
+              <div className="space-y-6 text-[14.5px] leading-[1.7] text-text font-normal">
+                {chunksOnPage.length > 0 ? (
+                  chunksOnPage.map((chunk) => {
+                    const chunkFlags = selectedFlags.filter((f) => f.chunk_id === chunk.chunkId);
+                    const hasFlags = chunkFlags.length > 0;
+
+                    return (
+                      <article
+                        key={chunk.chunkId}
+                        id={`chunk-${chunk.chunkId}`}
+                        className={cn(
+                          'rounded-sm p-3 transition-colors duration-300',
+                          hasFlags ? 'border border-warning/30 bg-warning-soft/10' : 'border-transparent',
+                        )}
+                      >
+                        {/* Chunk Body Paragraphs */}
+                        <div className="space-y-3">
+                          {chunk.text.split(/\n{2,}/).map((para, pIdx) => (
+                            <p key={`${chunk.chunkId}-${pIdx}`}>{para}</p>
+                          ))}
+                        </div>
+
+                        {/* Embedded Flag Callout */}
+                        {hasFlags && (
+                          <div className="mt-3.5 rounded-sm border border-warning/30 bg-surface p-3 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-warning">
+                              <WarningCircle className="size-3.5 text-warning" aria-hidden="true" />
+                              <span>Specialist Finding ({selectedAgentLabel})</span>
+                            </div>
+                            {chunkFlags.map((flag) => (
+                              <div key={flag.flag_id} className="text-xs space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-semibold text-text">
+                                    {flag.criterion_text}
+                                  </span>
+                                  <Badge variant="warning">
+                                    Score {formatScore(flag.score)}/4
+                                  </Badge>
+                                </div>
+                                {flag.justification ? (
+                                  <p className="text-text-muted leading-relaxed">
+                                    {cleanJustification(flag.justification)}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="py-12 text-center text-sm text-text-muted">
+                    <p className="font-semibold text-text">No text available on this page</p>
+                    <p className="text-xs text-text-muted mt-1">
+                      Navigate to other pages using the page selector above.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
-
-        {/* Right Collapsible Sidebar: Flag Index list */}
-        {showFlagIndex && (
-          <div className="w-80 border-l border-border bg-surface flex flex-col flex-shrink-0 animate-in slide-in-from-right duration-200">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-surface-subtle">
-              <span className="text-xs font-bold text-text uppercase tracking-wider">
-                {selectedAgentLabel} Flag Index
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowFlagIndex(false)}
-                className="text-xs font-semibold text-text-muted hover:text-text uppercase cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {totalFlagsCount > 0 ? (
-                selectedFlags.map((flag) => {
-                  const linkedChunk = flag.chunk_id ? chunkMap.get(flag.chunk_id) : null;
-                  return (
-                    <button
-                      key={flag.flag_id}
-                      onClick={() => handleFlagClick(flag)}
-                      className="w-full text-left rounded-sm border border-border bg-surface p-3 transition-colors hover:border-primary hover:bg-surface-subtle group focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <Flag className="size-3 text-warning fill-current" />
-                          <span className="rounded-full bg-warning-soft px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-warning border border-warning/30">
-                            Score {formatScore(flag.score)}/4
-                          </span>
-                        </div>
-                        {linkedChunk && (
-                          <span className="text-[10px] font-bold text-text-muted group-hover:text-primary">
-                            Page {linkedChunk.pageNumber}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-2 text-xs font-bold leading-normal text-text line-clamp-2">
-                        {flag.criterion_text}
-                      </p>
-                      {flag.justification && (
-                        <p className="mt-1 text-[10px] leading-relaxed text-text-muted line-clamp-2">
-                          {cleanJustification(flag.justification)}
-                        </p>
-                      )}
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="text-center text-xs text-text-muted py-8">
-                  No flags detected for this domain.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
