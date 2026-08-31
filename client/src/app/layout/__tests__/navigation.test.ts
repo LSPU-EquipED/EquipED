@@ -4,6 +4,7 @@ import {
   facultySecondaryNavItems,
   adminNavItems,
   getAriaCurrent,
+  getBreadcrumbs,
   getRouteTitle,
   getSidebarInertState,
   getSidebarLayoutClasses,
@@ -127,6 +128,35 @@ describe('getRouteTitle', () => {
 
   it('returns Curriculum Check for /alignment', () => {
     expect(getRouteTitle('/alignment')).toBe('Curriculum Check');
+  });
+});
+describe('getBreadcrumbs', () => {
+  it('returns Faculty Workspace > Overview for /dashboard', () => {
+    expect(getBreadcrumbs('/dashboard')).toEqual([
+      { label: 'Faculty Workspace' },
+      { label: 'Overview' },
+    ]);
+  });
+
+  it('returns Faculty Workspace > My SLMs for /documents', () => {
+    expect(getBreadcrumbs('/documents')).toEqual([
+      { label: 'Faculty Workspace', to: '/dashboard' },
+      { label: 'My SLMs' },
+    ]);
+  });
+
+  it('returns My SLMs > Evaluation Setup for /documents/doc-123/evaluation', () => {
+    expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
+      { label: 'My SLMs', to: '/documents' },
+      { label: 'Evaluation Setup' },
+    ]);
+  });
+
+  it('returns Administration > User Management for /admin/users', () => {
+    expect(getBreadcrumbs('/admin/users')).toEqual([
+      { label: 'Administration', to: '/admin' },
+      { label: 'User Management' },
+    ]);
   });
 });
 
