@@ -1,9 +1,9 @@
-import { useState, type PointerEvent } from 'react';
+import { useState } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useEvaluationPageState } from '../hooks/useEvaluationPageState';
 import { EvaluationHeader } from './EvaluationHeader';
 import { EvaluationSetup } from './EvaluationSetup';
-import { DocumentPane } from './DocumentPane';
+import { DocumentDossierPane } from './DocumentDossierPane';
 import { ScoreDashboard } from './ScoreDashboard';
 
 type AgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
@@ -17,8 +17,7 @@ const agents = [
 
 export function EvaluationInterface() {
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
-  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('itso');
-  const [leftPaneSize, setLeftPaneSize] = useState(48);
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>('sme');
 
   const {
     document,
@@ -41,8 +40,6 @@ export function EvaluationInterface() {
     isFailedWithResults,
     handleRetryEvaluation,
     handleRetrySubmit,
-    documentTextGroups,
-    chunkMap,
     isSetupRequired,
     effectiveProgram,
     detectedProgram,
@@ -52,30 +49,6 @@ export function EvaluationInterface() {
 
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const selectedFlags = results?.flags.filter((flag) => flag.agent_id === selectedAgentId) || [];
-
-  const handleDividerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    const container = event.currentTarget.parentElement;
-
-    if (!container) {
-      return;
-    }
-
-    const bounds = container.getBoundingClientRect();
-
-    const handlePointerMove = (moveEvent: globalThis.PointerEvent) => {
-      const nextSize = ((moveEvent.clientX - bounds.left) / bounds.width) * 100;
-      setLeftPaneSize(Math.min(64, Math.max(36, nextSize)));
-    };
-
-    const handlePointerUp = () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-  };
 
   return (
     <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas">
@@ -106,39 +79,16 @@ export function EvaluationInterface() {
           onRetrySubmit={handleRetrySubmit}
         />
       ) : (
-        <div
-          className="grid min-h-0 flex-1"
-          style={{
-            gridTemplateColumns: `minmax(24rem, ${leftPaneSize}fr) 0.25rem minmax(28rem, ${100 - leftPaneSize}fr)`,
-          }}
-        >
-          <DocumentPane
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[26rem_minmax(0,1fr)]">
+          {/* Left Column: SLM Module Dossier & Quoted Evidence */}
+          <DocumentDossierPane
             document={document}
-            isLoading={isLoadingDocument}
-            error={documentError}
-            isResolvingEval={isResolvingEval}
-            submitIsPending={!!submitEvaluation.isPending}
-            isResolveError={isResolveError}
-            resolveError={resolveError}
-            refetchResolve={refetchResolve}
-            submitIsError={!!submitEvaluation.isError}
-            submitError={submitEvaluation.error}
-            handleRetrySubmit={handleRetrySubmit}
-            documentTextGroups={documentTextGroups}
             selectedFlags={selectedFlags}
-            chunkMap={chunkMap}
             selectedAgentLabel={selectedAgent.name}
+            selectedAgentId={selectedAgentId}
           />
 
-          <button
-            type="button"
-            className="group relative min-h-0 cursor-col-resize bg-border outline-none transition-colors hover:bg-primary/20 focus-visible:ring-2 focus-visible:ring-ring"
-            onPointerDown={handleDividerPointerDown}
-            aria-label="Resize document and score panels"
-          >
-            <span className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2" />
-          </button>
-
+          {/* Right Column: Multi-Agent Score Dashboard */}
           <ScoreDashboard
             status={status}
             results={results}
