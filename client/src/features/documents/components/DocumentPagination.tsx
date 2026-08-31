@@ -1,3 +1,4 @@
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 
 interface DocumentPaginationProps {
@@ -16,11 +17,11 @@ export function DocumentPagination({
   totalPages,
 }: DocumentPaginationProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-subtle px-6 md:px-8 py-4">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border bg-surface-subtle px-4 sm:px-6 py-3">
       <div className="flex items-center gap-2">
         <label
           htmlFor="document-page-size"
-          className="text-xs text-text-muted font-bold uppercase tracking-wider"
+          className="text-xs text-text-muted font-semibold uppercase tracking-wider"
         >
           Show
         </label>
@@ -32,7 +33,7 @@ export function DocumentPagination({
             setPageSize(Number(e.target.value));
             setPage(1);
           }}
-          className="h-8 border border-input bg-surface px-2 focus:outline-none focus:ring-2 focus:ring-ring rounded-sm text-xs font-bold text-text cursor-pointer"
+          className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
         >
           <option value={10}>10 rows</option>
           <option value={25}>25 rows</option>
@@ -41,7 +42,7 @@ export function DocumentPagination({
       </div>
 
       <div
-        className="text-xs font-bold text-text-muted uppercase tracking-wider tabular-nums"
+        className="text-xs font-semibold text-text-muted uppercase tracking-wider tabular-nums"
         aria-live="polite"
       >
         Page {page} of {totalPages}
@@ -53,9 +54,10 @@ export function DocumentPagination({
           disabled={page === 1}
           aria-label="Previous page"
           onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface text-text px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-sm border border-border bg-surface px-2.5 text-xs font-semibold text-text transition-colors hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Previous
+          <CaretLeft className="size-3.5" aria-hidden="true" />
+          <span className="hidden sm:inline">Previous</span>
         </button>
 
         {Array.from({ length: totalPages }).map((_, idx) => {
@@ -68,7 +70,7 @@ export function DocumentPagination({
                 <span
                   key="dots-start"
                   aria-hidden="true"
-                  className="px-1 text-text-muted text-xs font-bold select-none"
+                  className="px-1 text-xs font-bold text-text-muted select-none"
                 >
                   ...
                 </span>
@@ -79,7 +81,7 @@ export function DocumentPagination({
                 <span
                   key="dots-end"
                   aria-hidden="true"
-                  className="px-1 text-text-muted text-xs font-bold select-none"
+                  className="px-1 text-xs font-bold text-text-muted select-none"
                 >
                   ...
                 </span>
@@ -96,9 +98,9 @@ export function DocumentPagination({
               aria-current={isCurrent ? 'page' : undefined}
               onClick={() => setPage(p)}
               className={cn(
-                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'inline-flex size-8 items-center justify-center rounded-sm text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 isCurrent
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'bg-primary text-primary-foreground font-bold'
                   : 'border border-border bg-surface hover:bg-surface-subtle text-text',
               )}
             >
@@ -112,9 +114,10 @@ export function DocumentPagination({
           disabled={page === totalPages}
           aria-label="Next page"
           onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface text-text px-3 rounded-sm text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 items-center justify-center gap-1 rounded-sm border border-border bg-surface px-2.5 text-xs font-semibold text-text transition-colors hover:bg-surface-subtle disabled:opacity-40 disabled:hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Next
+          <span className="hidden sm:inline">Next</span>
+          <CaretRight className="size-3.5" aria-hidden="true" />
         </button>
       </nav>
     </div>
