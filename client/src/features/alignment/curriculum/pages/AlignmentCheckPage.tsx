@@ -121,14 +121,7 @@ export function AlignmentCheckPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 px-6 py-7">
-      <div>
-        <h1 className="text-2xl font-bold text-text">Curriculum Alignment Check</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Check whether an SLM aligns with its course's curriculum map objectives.
-        </p>
-      </div>
-
+    <div className="flex h-full flex-col gap-5 px-4 sm:px-6 py-6 max-w-[108rem] mx-auto">
       <div className="flex flex-wrap items-end gap-4 rounded-md border border-border bg-surface p-4">
         <div className="min-w-64 flex-1">
           <label className="mb-1.5 block text-xs font-semibold text-text">

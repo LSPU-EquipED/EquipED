@@ -14,7 +14,6 @@ import {
   shouldNavigateToEvaluation,
 } from '@/features/upload/utils/uploadFlow';
 
-import { UploadHeader } from './UploadHeader';
 import { UploadIntakeFields } from './UploadIntakeFields';
 import { UploadDropzone } from './UploadDropzone';
 import { UploadSummaryLedger } from './UploadSummaryLedger';
@@ -161,44 +160,52 @@ export function UploadForm() {
       className="grid min-h-[calc(100vh-4rem)] w-full grid-cols-1 xl:grid-cols-[minmax(0,1fr)_30rem] bg-canvas"
     >
       <section className="flex min-h-[34rem] min-w-0 flex-col border-b xl:border-b-0 xl:border-r border-border bg-surface">
-        <UploadHeader title={title} />
-
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 max-w-4xl space-y-6">
-          <div className="space-y-1 border-l-2 border-primary pl-3">
-            <h3 className="text-lg font-semibold tracking-tight text-text">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold tracking-tight text-text">
               LSPU SCC Faculty Document Intake
-            </h3>
-            <p className="text-[11px] leading-relaxed text-text-muted font-semibold uppercase tracking-wider">
-              Laguna State Polytechnic University • Quality Assurance System
+            </h1>
+            <p className="text-xs text-text-muted font-normal">
+              Upload course learning modules for automated rubric compliance and syllabus verification.
             </p>
           </div>
 
-          <UploadIntakeFields title={title} setTitle={setTitle} />
+          {/* Step 1: File Dropzone */}
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              1. Select Course SLM PDF
+            </h2>
+            <UploadDropzone
+              file={file}
+              isDragging={isDragging}
+              validationError={validationError}
+              handleDragOver={handleDragOver}
+              handleDragLeave={handleDragLeave}
+              handleDrop={handleDrop}
+              handleFileChange={handleFileChange}
+              handleReset={handleReset}
+              fileInputRef={fileInputRef}
+            />
+          </div>
 
-          <UploadDropzone
-            file={file}
-            isDragging={isDragging}
-            validationError={validationError}
-            handleDragOver={handleDragOver}
-            handleDragLeave={handleDragLeave}
-            handleDrop={handleDrop}
-            handleFileChange={handleFileChange}
-            handleReset={handleReset}
-            fileInputRef={fileInputRef}
-          />
+          {/* Step 2: Document Metadata */}
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              2. Module Identification
+            </h2>
+            <UploadIntakeFields title={title} setTitle={setTitle} />
+          </div>
         </div>
 
-        <div className="flex min-h-14 flex-wrap items-center gap-3 border-t border-border px-4 py-3 text-xs text-text-muted font-semibold uppercase tracking-wider sm:px-6 bg-surface-subtle/40">
-          <span className="inline-flex items-center gap-2">
-            <GraduationCap className="size-4 text-text-muted" aria-hidden="true" />
-            Course and semester details are auto-detected from the document.
-          </span>
+        <div className="flex min-h-12 flex-wrap items-center gap-2 border-t border-border px-4 py-3 text-xs text-text-muted font-medium sm:px-6 bg-surface-subtle">
+          <GraduationCap className="size-4 text-text-muted shrink-0" aria-hidden="true" />
+          <span>Course code, semester, and academic program details are auto-detected from the document.</span>
         </div>
       </section>
 
       <aside className="flex min-h-[34rem] flex-col bg-surface-subtle">
-        <div className="border-b border-border px-4 py-7 sm:px-7 sm:py-8 bg-surface-subtle">
-          <h3 className="text-lg font-semibold tracking-tight text-text">
+        <div className="border-b border-border px-4 py-5 sm:px-6 sm:py-6 bg-surface-subtle">
+          <h3 className="text-base font-bold tracking-tight text-text">
             Welcome back, {user?.displayName?.split(' ')?.[0] ?? 'there'}.
           </h3>
           <p className="mt-1 text-xs text-text-muted font-medium leading-relaxed">
@@ -211,7 +218,6 @@ export function UploadForm() {
                   : 'Review the upload details, then upload the document to begin.'}
           </p>
         </div>
-
         <div className="grid gap-4 px-4 py-6 sm:px-7">
           <UploadSummaryLedger
             uploadResult={uploadResult}

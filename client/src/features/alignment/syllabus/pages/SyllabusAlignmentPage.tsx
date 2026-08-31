@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Warning, BookOpenText, CaretLeft, CaretRight, Spinner } from '@phosphor-icons/react';
+import {
+  Warning,
+  CaretLeft,
+  CaretRight,
+  MagnifyingGlass,
+  Spinner,
+} from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
@@ -35,7 +41,9 @@ function getLevelBadgeVariant(status: AlignmentProcessingStatus, level?: Alignme
 
 export function SyllabusAlignmentPage() {
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [search, setSearch] = useState('');
+  const pageSize = 10;
+
   const slms = useQuery({
     queryKey: ['syllabus-alignment-slms', page],
     queryFn: () => alignmentApi.listSlms(page, pageSize),
@@ -46,75 +54,120 @@ export function SyllabusAlignmentPage() {
         ? 3000
         : false,
   });
-  const totalPages = Math.max(1, Math.ceil((slms.data?.total ?? 0) / pageSize));
+
+  const total = slms.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const items = slms.data?.items ?? [];
+  const filteredItems = items.filter((item) => {
+    if (!search.trim()) return true;
+    const query = search.toLowerCase();
+    return (
+      item.title.toLowerCase().includes(query) ||
+      (item.course_title && item.course_title.toLowerCase().includes(query)) ||
+      (item.lesson_title && item.lesson_title.toLowerCase().includes(query)) ||
+      (item.program && item.program.toLowerCase().includes(query))
+    );
+  });
 
   return (
-    <section className="px-6 py-7">
-      <header className="border-b border-border pb-5">
-        <div className="flex items-center gap-3">
-          <BookOpenText className="size-6 text-primary" aria-hidden="true" />
-          <div>
-            <h1 className="text-2xl font-bold text-text">Syllabus Alignment</h1>
-            <p className="mt-1 text-sm text-text-muted">
-              Check whether substantial SLM topics are included in an approved syllabus.
-            </p>
-          </div>
+    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
+      {/* Loading state */}
+      {slms.isLoading && !slms.data && (
+        <div className="flex items-center justify-center gap-2 py-16 text-xs font-semibold text-text-muted">
+          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
+          <span>Loading SLM syllabus alignment records…</span>
         </div>
-      </header>
+      )}
 
-      {slms.isLoading && (
-        <div className="flex items-center gap-2 border-b border-border py-6 text-sm font-semibold text-text-muted">
-          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading SLM documents…
-        </div>
-      )}
+      {/* Error state */}
       {slms.isError && (
-        <div className="mt-5 flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft p-4 text-sm font-semibold text-destructive">
-          <Warning className="size-4" aria-hidden="true" />
-          {getErrorMessage(slms.error, 'Unable to load SLM documents.')}
+        <div className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-xs font-semibold text-destructive" role="alert">
+          <Warning className="size-4 shrink-0" aria-hidden="true" />
+          <span>{getErrorMessage(slms.error, 'Unable to load SLM documents.')}</span>
         </div>
       )}
-      {!slms.isLoading && !slms.isError && slms.data?.items.length === 0 && (
-        <p className="mt-5 rounded-sm border border-dashed border-border bg-surface p-6 text-center text-sm text-text-muted">
-          No SLM documents are available. Upload an SLM before starting syllabus alignment.
-        </p>
+
+      {/* Empty state */}
+      {!slms.isLoading && !slms.isError && items.length === 0 && (
+        <div className="rounded-md border border-dashed border-border bg-surface p-12 text-center">
+          <p className="font-semibold text-text">No SLM documents available</p>
+          <p className="text-xs text-text-muted mt-1">Upload course learning modules to begin syllabus alignment checks.</p>
+        </div>
       )}
-      {!!slms.data?.items.length && (
-        <div className={cn('mt-5', TABLE_STYLES.wrapper)}>
+
+      {/* Unified Table Container */}
+      {!slms.isLoading && !slms.isError && items.length > 0 && (
+        <div className={TABLE_STYLES.wrapper}>
+          {/* Table Search Toolbar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5">
+            <div className="relative min-w-[14rem] sm:min-w-[18rem]">
+              <MagnifyingGlass
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                placeholder="Search by SLM title, course, or program…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-label="Search syllabus alignments"
+              />
+            </div>
+
+            <span className="text-xs text-text-muted tabular-nums font-semibold">
+              {total} SLM module{total === 1 ? '' : 's'} on record
+            </span>
+          </div>
+
           <div className="overflow-x-auto">
             <table className={TABLE_STYLES.table}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th className={TABLE_STYLES.th}>SLM document</th>
-                  <th className={TABLE_STYLES.th}>Program / course</th>
-                  <th className={TABLE_STYLES.th}>Current alignment</th>
-                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Action</th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
+                    SLM Document / Module
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Program / Course
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Syllabus Alignment
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className={TABLE_STYLES.tbody}>
-                {slms.data.items.map((item) => (
+                {filteredItems.map((item) => (
                   <tr key={item.document_id} className={TABLE_STYLES.tr}>
                     <td className={TABLE_STYLES.td}>
-                      <p className="font-bold text-text">{item.title}</p>
-                      <p className="mt-0.5 text-xs text-text-muted">
-                        {item.lesson_title || item.course_title || 'No lesson title'}
-                      </p>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-text line-clamp-1">{item.title}</span>
+                        <span className="text-xs text-text-muted mt-0.5">
+                          {item.lesson_title || item.course_title || 'No lesson title'}
+                        </span>
+                      </div>
                     </td>
-                    <td className={cn(TABLE_STYLES.td, 'text-text-muted')}>
+                    <td className={cn(TABLE_STYLES.td, 'text-text-muted text-xs')}>
                       {[item.program, item.course_code].filter(Boolean).join(' · ') ||
                         'Not specified'}
                     </td>
                     <td className={TABLE_STYLES.td}>
                       {item.current_result ? (
-                        <div>
+                        <div className="flex flex-col gap-0.5">
                           <Badge variant={getLevelBadgeVariant(item.current_result.status, item.current_result.alignment_level)} withDot>
                             {statusLabel(item.current_result.status, item.current_result.alignment_level)}
                           </Badge>
-                          <p className="mt-1 text-xs text-text-muted">
-                            {item.current_result.syllabus_title}
-                          </p>
+                          {item.current_result.syllabus_title ? (
+                            <span className="text-[11px] text-text-muted truncate max-w-xs">
+                              {item.current_result.syllabus_title}
+                            </span>
+                          ) : null}
                         </div>
                       ) : (
-                        <span className="text-xs font-semibold text-text-muted">
+                        <span className="text-xs font-medium text-text-muted">
                           Not yet evaluated
                         </span>
                       )}
@@ -126,9 +179,10 @@ export function SyllabusAlignmentPage() {
                             <Link
                               to="/syllabus-alignment/$documentId"
                               params={{ documentId: item.document_id }}
-                              className={cn(BUTTON_STYLES.base, BUTTON_STYLES.variants.secondary, BUTTON_STYLES.sizes.sm)}
+                              className={cn(BUTTON_STYLES.base, BUTTON_STYLES.variants.secondary, BUTTON_STYLES.sizes.sm, 'text-xs h-7.5 px-3')}
                             >
-                              View Result
+                              <span>View Result</span>
+                              <CaretRight className="size-3" aria-hidden="true" />
                             </Link>
                           ) : ['QUEUED', 'RUNNING'].includes(item.current_result?.status ?? '') ? (
                             <Button
@@ -137,6 +191,7 @@ export function SyllabusAlignmentPage() {
                               size="sm"
                               disabled
                               isLoading
+                              className="text-xs h-7.5 px-3"
                             >
                               Running
                             </Button>
@@ -144,17 +199,15 @@ export function SyllabusAlignmentPage() {
                             <Link
                               to="/syllabus-alignment/$documentId"
                               params={{ documentId: item.document_id }}
-                              className={cn(BUTTON_STYLES.base, BUTTON_STYLES.variants.primary, BUTTON_STYLES.sizes.sm)}
+                              className={cn(BUTTON_STYLES.base, BUTTON_STYLES.variants.primary, BUTTON_STYLES.sizes.sm, 'text-xs h-7.5 px-3')}
                             >
-                              {item.current_result?.status === 'FAILED'
-                                  ? 'Retry'
-                                  : 'Evaluate'}
-                              <CaretRight className="size-3.5" aria-hidden="true" />
+                              <span>{item.current_result?.status === 'FAILED' ? 'Retry' : 'Evaluate'}</span>
+                              <CaretRight className="size-3" aria-hidden="true" />
                             </Link>
                           )}
                         </div>
                       ) : (
-                        <span className="text-xs font-semibold text-text-muted">
+                        <span className="text-xs font-medium text-text-muted">
                           Processing unavailable
                         </span>
                       )}
@@ -164,20 +217,23 @@ export function SyllabusAlignmentPage() {
               </tbody>
             </table>
           </div>
+
           {totalPages > 1 && (
-            <footer className="flex items-center justify-between border-t border-border bg-surface-subtle px-4 py-3">
-              <p className="text-xs font-semibold text-text-muted tabular-nums">
-                Page {page} of {totalPages} · {slms.data.total} SLM documents
-              </p>
-              <div className="flex gap-2">
+            <footer className="flex items-center justify-between border-t border-border bg-surface-subtle px-4 sm:px-6 py-2.5 text-xs text-text-muted">
+              <span className="tabular-nums font-medium">
+                Page {page} of {totalPages} · {total} SLM documents
+              </span>
+              <div className="flex gap-1.5">
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   onClick={() => setPage((value) => Math.max(1, value - 1))}
                   disabled={page === 1 || slms.isFetching}
+                  className="h-7 px-2 text-xs"
                 >
-                  <CaretLeft className="size-3.5" aria-hidden="true" /> Previous
+                  <CaretLeft className="size-3" aria-hidden="true" />
+                  <span>Previous</span>
                 </Button>
                 <Button
                   type="button"
@@ -185,8 +241,10 @@ export function SyllabusAlignmentPage() {
                   size="sm"
                   onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                   disabled={page === totalPages || slms.isFetching}
+                  className="h-7 px-2 text-xs"
                 >
-                  Next <CaretRight className="size-3.5" aria-hidden="true" />
+                  <span>Next</span>
+                  <CaretRight className="size-3" aria-hidden="true" />
                 </Button>
               </div>
             </footer>
