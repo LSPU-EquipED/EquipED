@@ -60,6 +60,14 @@ The backend SHALL expose a current-session endpoint that returns the authenticat
 - **WHEN** a request does not present a valid active session
 - **THEN** the system SHALL return an unauthenticated result without treating the request as a server error
 
+### Requirement: Public faculty registration
+
+The backend SHALL provide public faculty registration under `/api/v1/auth/registrations`. Registration SHALL require an `@lspu.edu.ph` email, faculty identity fields, and a password, and SHALL verify the email with a time-limited OTP before creating a user account. Verified accounts SHALL be created inactive with `pending` approval status and SHALL remain unable to authenticate until an administrator approves them.
+
+### Requirement: Account approval notifications
+
+The backend SHALL send an email to the registered LSPU address after OTP issuance and after an administrator approves or rejects the account. Email provider credentials SHALL remain server-side, and an approval action SHALL remain committed if notification delivery fails.
+
 ### Requirement: Initial admin bootstrap
 The backend SHALL provide a controlled path to establish the first administrative user without enabling open self-registration.
 

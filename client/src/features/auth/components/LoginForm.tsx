@@ -5,6 +5,7 @@ import { useLoginForm } from '../hooks/useLoginForm';
 import { ShieldWarning, ArrowRight, Spinner, Eye, EyeSlash } from '@phosphor-icons/react';
 import { BrandHero } from './BrandHero';
 import { ResetPasswordModal } from './ResetPasswordModal';
+import { Link } from '@tanstack/react-router';
 
 export function LoginForm() {
   const auth = useAuth();
@@ -235,6 +236,9 @@ export function LoginForm() {
                       </span>
                     )}
                   </button>
+                </div>
+                <div className="px-6 py-4 text-center text-xs font-semibold text-slate-500">
+                  Need an account? <Link to="/register" className="font-bold text-[#1b3b87] hover:underline">Sign Up</Link>
                 </div>
               </form>
             </div>

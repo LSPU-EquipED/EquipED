@@ -60,6 +60,16 @@ cd ..
 Configure `.env` with the development database URL, LLM settings, and any local
 OCR configuration before running the app. Do not commit credentials.
 
+For real registration emails, create and verify an approved sending domain in
+Resend, publish its SPF/DKIM (and recommended DMARC) DNS records, then set
+`EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM`, and `APP_PUBLIC_URL`.
+Keep `RESEND_API_KEY` server-side. The default `EMAIL_PROVIDER=console` is safe
+for local development and logs OTP messages instead of sending them. Gmail SMTP
+is also supported with
+`EMAIL_PROVIDER=smtp`, `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`,
+`SMTP_USERNAME`, a Google App Password in `SMTP_PASSWORD`, and
+`SMTP_STARTTLS=true`. Never use or commit the Gmail account password.
+
 Start the backend:
 
 ```bash

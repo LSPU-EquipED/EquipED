@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from .email_policy import normalize_lspu_email
 from .exceptions import InactiveUserError, InvalidCredentialsError
+from .models import AccountStatus, PendingRegistration, User, UserRole
 from .models import Session as AuthSession
-from .models import User, UserRole
 
 SCRYPT_PREFIX = "scrypt"
 SCRYPT_N = 2**14
@@ -139,9 +139,7 @@ def bootstrap_admin_if_configured(db: Session, settings: Settings) -> bool:
     if admin_exists is not None:
         return False
 
-    existing_user = db.scalar(
-        select(User).where(User.email == normalized_email)
-    )
+    existing_user = db.scalar(select(User).where(User.email == normalized_email))
     if existing_user is not None:
         return False
 
@@ -164,8 +162,8 @@ def authenticate_user(
     if user is None or not verify_password(password, user.password_hash):
         raise InvalidCredentialsError("Invalid email or password")
 
-    if not user.is_active:
-        raise InactiveUserError("User account is inactive")
+    if not user.is_active or user.account_status != AccountStatus.APPROVED:
+        raise InactiveUserError("User account is inactive or awaiting approval")
 
     session_token = secrets.token_urlsafe(32)
     session = AuthSession(
@@ -196,7 +194,12 @@ def get_authenticated_user_from_token(
         return None
 
     session = db.scalar(get_active_session_query(token))
-    if session is None or session.user is None or not session.user.is_active:
+    if (
+        session is None
+        or session.user is None
+        or not session.user.is_active
+        or session.user.account_status != AccountStatus.APPROVED
+    ):
         return None
 
     return build_authenticated_user(session.user)
@@ -213,6 +216,103 @@ def logout_session(db: Session, token: str | None) -> bool:
     session.revoked_at = datetime.now(UTC)
     db.commit()
     return True
+
+
+def _otp_hash(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+def start_registration(db: Session, *, payload, settings):
+    normalized_email = normalize_lspu_email(payload.email)
+    existing = db.scalar(select(User).where(User.email == normalized_email))
+    if existing is not None and existing.account_status != AccountStatus.REJECTED:
+        raise ValueError("An account with this email already exists")
+    previous = db.scalar(
+        select(PendingRegistration).where(PendingRegistration.email == normalized_email)
+    )
+    if previous is not None:
+        db.delete(previous)
+        db.flush()
+    registration_token = secrets.token_urlsafe(32)
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(UTC)
+    registration = PendingRegistration(
+        token_hash=hash_session_token(registration_token),
+        existing_user_id=existing.user_id if existing is not None else None,
+        name=payload.name.strip(),
+        email=normalized_email,
+        password_hash=hash_password(payload.password),
+        faculty_id=payload.faculty_id.strip(),
+        department=payload.department.strip(),
+        program=payload.program.strip(),
+        otp_hash=_otp_hash(otp),
+        otp_expires_at=now + timedelta(minutes=10),
+        last_sent_at=now,
+    )
+    db.add(registration)
+    db.commit()
+    return registration_token, registration, otp
+
+
+def verify_registration(db: Session, *, token: str, otp: str):
+    registration = db.scalar(
+        select(PendingRegistration).where(
+            PendingRegistration.token_hash == hash_session_token(token)
+        )
+    )
+    if registration is None:
+        raise ValueError("Registration is invalid or expired")
+    if _utc(registration.otp_expires_at) <= datetime.now(UTC):
+        raise ValueError("Verification code has expired")
+    if registration.otp_attempts >= 5:
+        raise ValueError("Too many verification attempts")
+    registration.otp_attempts += 1
+    if not hmac.compare_digest(registration.otp_hash, _otp_hash(otp)):
+        db.commit()
+        raise ValueError("Invalid verification code")
+    user = (
+        db.get(User, registration.existing_user_id)
+        if registration.existing_user_id
+        else None
+    )
+    if user is None:
+        if db.scalar(select(User).where(User.email == registration.email)) is not None:
+            raise ValueError("An account with this email already exists")
+        user = User(email=registration.email, role=UserRole.FACULTY)
+        db.add(user)
+    user.name = registration.name
+    user.password_hash = registration.password_hash
+    user.is_active = False
+    user.account_status = AccountStatus.PENDING
+    user.faculty_id = registration.faculty_id
+    user.department = registration.department
+    user.program = registration.program
+    db.delete(registration)
+    db.commit()
+    return user
+
+
+def resend_registration_otp(db: Session, *, token: str, settings):
+    registration = db.scalar(
+        select(PendingRegistration).where(
+            PendingRegistration.token_hash == hash_session_token(token)
+        )
+    )
+    if registration is None:
+        raise ValueError("Registration is invalid or expired")
+    if datetime.now(UTC) - _utc(registration.last_sent_at) < timedelta(seconds=60):
+        raise ValueError("Please wait before requesting another code")
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    registration.otp_hash = _otp_hash(otp)
+    registration.otp_expires_at = datetime.now(UTC) + timedelta(minutes=10)
+    registration.otp_attempts = 0
+    registration.last_sent_at = datetime.now(UTC)
+    db.commit()
+    return registration, otp
 
 
 __all__ = [

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from server.modules.auth.email_policy import normalize_lspu_email
-from server.modules.auth.models import User, UserRole
+from server.modules.auth.models import AccountStatus, User, UserRole
 from server.modules.auth.service import create_user as auth_create_user
 
 __all__ = [
@@ -53,6 +54,8 @@ def update_user(
     name: str | None = None,
     email: str | None = None,
     is_active: bool | None = None,
+    account_status: AccountStatus | None = None,
+    reviewed_by: uuid.UUID | None = None,
 ) -> User:
     """Update an existing user by ID. Only provided (non-None) fields are changed.
 
@@ -74,6 +77,14 @@ def update_user(
 
     if is_active is not None:
         user.is_active = is_active
+    if account_status is not None:
+        user.account_status = account_status
+        user.is_active = account_status == AccountStatus.APPROVED
+        user.reviewed_at = datetime.now(UTC)
+        user.reviewed_by = reviewed_by
+        user.approved_at = (
+            datetime.now(UTC) if account_status == AccountStatus.APPROVED else None
+        )
 
     db.flush()
     return user

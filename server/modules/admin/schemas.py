@@ -15,6 +15,7 @@ from pydantic import (
     field_validator,
 )
 from server.modules.auth.email_policy import MAX_EMAIL_LENGTH, normalize_lspu_email
+from server.modules.auth.models import AccountStatus
 from server.modules.evaluations.models import EvaluationStatus
 
 
@@ -96,11 +97,16 @@ class AdminUserUpdateRequest(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=300)
     email: str | None = Field(None, min_length=1, max_length=MAX_EMAIL_LENGTH)
     is_active: bool | None = None
+    account_status: AccountStatus | None = None
 
     @field_validator("email")
     @classmethod
     def validate_email(cls, value: str | None) -> str | None:
         return normalize_lspu_email(value) if value is not None else None
+
+
+class AdminUserApprovalRequest(BaseModel):
+    status: AccountStatus
 
 
 class AdminUserResponse(BaseModel):
@@ -111,6 +117,13 @@ class AdminUserResponse(BaseModel):
     email: str
     role: Literal["admin", "faculty"]
     is_active: bool
+    account_status: AccountStatus = AccountStatus.APPROVED
+    faculty_id: str | None = None
+    department: str | None = None
+    program: str | None = None
+    approved_at: datetime | None = None
+    reviewed_at: datetime | None = None
+    notification_warning: str | None = None
     created_at: datetime
 
     class Config:
@@ -275,6 +288,7 @@ __all__ = [
     "PreferenceLogListResponse",
     "AdminUserCreateRequest",
     "AdminUserUpdateRequest",
+    "AdminUserApprovalRequest",
     "AdminUserResponse",
     "AdminUserListResponse",
     "SystemSummaryResponse",

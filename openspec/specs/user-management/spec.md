@@ -11,6 +11,10 @@ The system MUST expose `GET /admin/users` that returns all registered users, acc
 - **When** they request `GET /admin/users`
 - **Then** the system returns a 200 response with all registered users including their roles and status
 
+### Requirement: Admin account approval
+
+The system MUST expose an administrator-only approval action that changes a verified faculty account between pending, approved, rejected, and suspended states. Approving an account SHALL activate it and send an approval email; rejecting it SHALL keep the record and send a rejection email.
+
 ### Requirement: Admin user creation
 The system MUST expose `POST /admin/users` that creates a new user with a specified name, email, password, and role, accessible only to administrators.
 

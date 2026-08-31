@@ -25,6 +25,10 @@ const LoginPage = lazyRouteComponent(
   () => import('../features/auth/pages/LoginPage'),
   'LoginPage'
 );
+const RegistrationPage = lazyRouteComponent(
+  () => import('../features/auth/pages/RegistrationPage'),
+  'RegistrationPage'
+);
 const UploadPage = lazyRouteComponent(
   () => import('../features/upload/pages/UploadPage'),
   'UploadPage'
@@ -127,6 +131,15 @@ const loginRoute = createRoute({
     }
   },
   component: LoginPage,
+});
+
+const registrationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'register',
+  beforeLoad: ({ context }) => {
+    if (context.auth.status === 'authenticated') throw redirect({ to: '/dashboard' });
+  },
+  component: RegistrationPage,
 });
 
 const shellRoute = createRoute({
@@ -315,6 +328,7 @@ const adminModelValidationRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  registrationRoute,
   shellRoute.addChildren([
     dashboardRoute,
     documentsRoute,

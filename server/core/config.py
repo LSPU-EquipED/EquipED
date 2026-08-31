@@ -63,6 +63,17 @@ class Settings:
     bootstrap_admin_email: str | None = None
     bootstrap_admin_name: str | None = None
     bootstrap_admin_password: str | None = None
+    email_provider: str = "console"
+    resend_api_key: str | None = None
+    email_from: str = "EquipED <no-reply@example.invalid>"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = True
+    smtp_timeout_seconds: int = 10
+    app_public_url: str = "http://localhost:5173"
+    session_cookie_secure: bool = False
 
     chroma_persist_directory: str = _resolve_chroma_path("chroma_data")
     chroma_host: str | None = None
@@ -222,6 +233,24 @@ def get_settings() -> Settings:
         parsed_session_ttl_hours = int(session_ttl_hours or "24")
     except ValueError as exc:
         raise ConfigurationError("SESSION_TTL_HOURS must be a valid integer") from exc
+
+    smtp_port = _env("SMTP_PORT", "587")
+    try:
+        parsed_smtp_port = int(smtp_port or "587")
+    except ValueError as exc:
+        raise ConfigurationError("SMTP_PORT must be a valid integer") from exc
+    if parsed_smtp_port < 1 or parsed_smtp_port > 65535:
+        raise ConfigurationError("SMTP_PORT must be between 1 and 65535")
+
+    smtp_timeout_seconds = _env("SMTP_TIMEOUT_SECONDS", "10")
+    try:
+        parsed_smtp_timeout_seconds = int(smtp_timeout_seconds or "10")
+    except ValueError as exc:
+        raise ConfigurationError(
+            "SMTP_TIMEOUT_SECONDS must be a valid integer"
+        ) from exc
+    if parsed_smtp_timeout_seconds < 1:
+        raise ConfigurationError("SMTP_TIMEOUT_SECONDS must be at least 1")
 
     llm_temperature = _env("LLM_TEMPERATURE", "0.2")
     try:
@@ -469,6 +498,21 @@ def get_settings() -> Settings:
         bootstrap_admin_email=_env("BOOTSTRAP_ADMIN_EMAIL"),
         bootstrap_admin_name=_env("BOOTSTRAP_ADMIN_NAME"),
         bootstrap_admin_password=_env("BOOTSTRAP_ADMIN_PASSWORD"),
+        email_provider=(
+            (_env("EMAIL_PROVIDER", "console") or "console").strip().lower()
+        ),
+        resend_api_key=_env("RESEND_API_KEY"),
+        email_from=_env("EMAIL_FROM", "EquipED <no-reply@example.invalid>")
+        or "EquipED <no-reply@example.invalid>",
+        smtp_host=_env("SMTP_HOST"),
+        smtp_port=parsed_smtp_port,
+        smtp_username=_env("SMTP_USERNAME"),
+        smtp_password=_env("SMTP_PASSWORD"),
+        smtp_starttls=_bool_env("SMTP_STARTTLS", True),
+        smtp_timeout_seconds=parsed_smtp_timeout_seconds,
+        app_public_url=_env("APP_PUBLIC_URL", "http://localhost:5173")
+        or "http://localhost:5173",
+        session_cookie_secure=_bool_env("SESSION_COOKIE_SECURE", False),
         chroma_persist_directory=_resolve_chroma_path(
             _env("CHROMA_PERSIST_DIRECTORY", "chroma_data") or "chroma_data",
         ),
@@ -556,6 +600,16 @@ def get_settings() -> Settings:
     if settings.cors_allow_credentials and "*" in settings.cors_origins:
         raise ConfigurationError(
             "CORS_ORIGINS cannot include '*' when credentials are enabled"
+        )
+
+    if settings.email_provider not in {"console", "resend", "smtp"}:
+        raise ConfigurationError("EMAIL_PROVIDER must be one of: console, resend, smtp")
+    if settings.email_provider == "smtp" and not all(
+        (settings.smtp_host, settings.smtp_username, settings.smtp_password)
+    ):
+        raise ConfigurationError(
+            "SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD must be set when "
+            "EMAIL_PROVIDER=smtp"
         )
 
     bootstrap_values = (

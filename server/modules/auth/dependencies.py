@@ -29,7 +29,9 @@ def require_authenticated_user(
 
 def require_admin(current_user=Depends(require_authenticated_user)):
     if getattr(current_user, "role", None) != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     return current_user
 
 

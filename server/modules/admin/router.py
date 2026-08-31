@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from server.core.config import get_settings
 from server.core.database import get_db_session
 from server.core.llm import probe_local_model_readiness
 from server.modules.admin.model_validation_service import (
@@ -23,6 +25,7 @@ from server.modules.admin.prompt_service import (
 )
 from server.modules.admin.schemas import (
     AdminEvaluationResponse,
+    AdminUserApprovalRequest,
     AdminUserCreateRequest,
     AdminUserListResponse,
     AdminUserResponse,
@@ -48,6 +51,8 @@ from server.modules.admin.user_service import (
     update_user,
 )
 from server.modules.auth.dependencies import require_admin
+from server.modules.auth.email import send_status_email
+from server.modules.auth.models import AccountStatus
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
@@ -57,6 +62,7 @@ from server.modules.feedback.service import list_preference_logs
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/prompts/{agent_id}", response_model=PromptVersionListResponse)
@@ -219,6 +225,12 @@ def get_users(
                 email=u.email,
                 role=u.role.value,
                 is_active=u.is_active,
+                account_status=u.account_status,
+                faculty_id=u.faculty_id,
+                department=u.department,
+                program=u.program,
+                approved_at=u.approved_at,
+                reviewed_at=u.reviewed_at,
                 created_at=u.created_at,
             )
             for u in users
@@ -275,6 +287,8 @@ def update_user_endpoint(
             name=body.name,
             email=body.email,
             is_active=body.is_active,
+            account_status=body.account_status,
+            reviewed_by=current_user.id,
         )
     except ValueError as e:
         msg = str(e)
@@ -291,7 +305,76 @@ def update_user_endpoint(
         email=updated.email,
         role=updated.role.value,
         is_active=updated.is_active,
+        account_status=updated.account_status,
+        faculty_id=updated.faculty_id,
+        department=updated.department,
+        program=updated.program,
+        approved_at=updated.approved_at,
+        reviewed_at=updated.reviewed_at,
         created_at=updated.created_at,
+    )
+
+
+@router.post("/users/{user_id}/approval", response_model=AdminUserResponse)
+def set_user_approval(
+    user_id: uuid.UUID,
+    body: AdminUserApprovalRequest,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db=Depends(get_db_session),
+    settings=Depends(get_settings),
+):
+    from server.modules.auth.models import User
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    status_value = body.status
+    if status_value not in {
+        AccountStatus.APPROVED,
+        AccountStatus.REJECTED,
+        AccountStatus.SUSPENDED,
+    }:
+        raise HTTPException(status_code=422, detail="Unsupported account status")
+    previous = user.account_status
+    notification_warning = None
+    try:
+        updated = update_user(
+            db, user_id, account_status=status_value, reviewed_by=current_user.id
+        )
+        db.commit()
+        if previous != status_value and status_value in {
+            AccountStatus.APPROVED,
+            AccountStatus.REJECTED,
+        }:
+            try:
+                send_status_email(
+                    settings=settings,
+                    to=updated.email,
+                    name=updated.name,
+                    approved=status_value == AccountStatus.APPROVED,
+                )
+            except Exception:
+                logger.exception("Account status email delivery failed")
+                notification_warning = (
+                    "Account updated, but the notification email could not be sent."
+                )
+    except Exception:
+        db.rollback()
+        raise
+    return AdminUserResponse(
+        user_id=updated.user_id,
+        name=updated.name,
+        email=updated.email,
+        role=updated.role.value,
+        is_active=updated.is_active,
+        account_status=updated.account_status,
+        faculty_id=updated.faculty_id,
+        department=updated.department,
+        program=updated.program,
+        approved_at=updated.approved_at,
+        reviewed_at=updated.reviewed_at,
+        created_at=updated.created_at,
+        notification_warning=notification_warning,
     )
 
 

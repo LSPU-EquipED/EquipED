@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { userManagementApi } from '../api/userManagement.api';
-import type { AdminUserCreateBody, AdminUserUpdateBody } from '../types';
+import type { AdminUserCreateBody, AdminUserResponse, AdminUserUpdateBody } from '../types';
 
 export function useAdminUsers() {
   return useQuery({
@@ -51,5 +51,13 @@ export function useHardDeleteUser() {
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
     },
+  });
+}
+
+export function useSetUserApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, accountStatus }: { userId: string; accountStatus: AdminUserResponse['account_status'] }) => userManagementApi.setApproval(userId, accountStatus),
+    onSettled: async () => { await queryClient.invalidateQueries({ queryKey: ['adminUsers'] }); },
   });
 }

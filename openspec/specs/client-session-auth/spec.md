@@ -15,6 +15,11 @@ The web client SHALL provide a public route for unauthenticated users to access 
 - **THEN** the client presents inputs for email and password and a submit action that targets the existing server auth flow
 
 ### Requirement: Web client authenticates using server-managed session cookies
+
+### Requirement: Public registration and approval states
+
+The web client SHALL provide public registration and OTP verification screens, followed by a waiting-for-admin-approval state. It SHALL provide clear approval and rejection messaging, including that approved users are notified by email, and SHALL not render protected application features for users whose backend account status is not approved.
+
 The web client SHALL authenticate against `/api/v1/auth/login` and maintain authenticated state through the server-managed session cookie.
 
 #### Scenario: Successful login establishes client auth state
