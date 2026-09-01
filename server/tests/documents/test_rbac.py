@@ -15,7 +15,7 @@ def test_faculty_cannot_upload_syllabus(
     faculty = create_user(
         db_session,
         name="Faculty RBAC Test",
-        email="faculty-rbac@example.com",
+        email="faculty-rbac@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -47,7 +47,7 @@ def test_faculty_cannot_upload_curriculum(
     faculty = create_user(
         db_session,
         name="Faculty Curriculum Test",
-        email="faculty-curr@example.com",
+        email="faculty-curr@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -78,7 +78,7 @@ def test_faculty_cannot_upload_rubric(
     faculty = create_user(
         db_session,
         name="Faculty Rubric Test",
-        email="faculty-rubric@example.com",
+        email="faculty-rubric@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -109,7 +109,7 @@ def test_admin_can_upload_syllabus(
     admin = create_user(
         db_session,
         name="Admin Upload Test",
-        email="admin-upload@example.com",
+        email="admin-upload@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -141,7 +141,7 @@ def test_faculty_can_upload_slm(
     faculty = create_user(
         db_session,
         name="Faculty SLM Test",
-        email="faculty-slm@example.com",
+        email="faculty-slm@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

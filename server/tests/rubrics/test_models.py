@@ -35,7 +35,7 @@ def test_admin_user(db_session):
     user = create_user(
         db_session,
         name="Admin Test",
-        email=f"admin_{uuid.uuid4().hex[:8]}@example.com",
+        email=f"admin_{uuid.uuid4().hex[:8]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )

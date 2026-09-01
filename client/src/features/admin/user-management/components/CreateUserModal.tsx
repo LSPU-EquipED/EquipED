@@ -6,6 +6,8 @@ import { INPUT_STYLES } from '@/shared/constants/theme';
 import { useCreateUser } from '../hooks/useAdminUsers';
 import type { AdminUserCreateBody } from '../types';
 
+const LSPU_EMAIL_PATTERN = /^[^\s@]+@lspu\.edu\.ph$/i;
+
 interface CreateUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,8 +33,10 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
 
     if (!formData.email.trim()) {
       nextErrors.email = 'Email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      nextErrors.email = 'Invalid email format.';
+    } else if (formData.email.trim().length > 40) {
+      nextErrors.email = 'Email must be 40 characters or fewer.';
+    } else if (!LSPU_EMAIL_PATTERN.test(formData.email.trim())) {
+      nextErrors.email = 'Please use your official @lspu.edu.ph email address.';
     }
 
     if (!formData.password) {
@@ -50,7 +54,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
     if (!validate()) return;
 
     try {
-      await createUser.mutateAsync(formData);
+      await createUser.mutateAsync({ ...formData, email: formData.email.trim().toLowerCase() });
       setFormData({ name: '', email: '', password: '', role: 'faculty' });
       onOpenChange(false);
     } catch {
@@ -129,6 +133,8 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
               <input
                 id="user-email"
                 type="email"
+                maxLength={40}
+                inputMode="email"
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 placeholder="juan@lspu.edu.ph"
@@ -138,9 +144,12 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                   errors.email && 'border-destructive focus-visible:ring-destructive',
                 )}
                 aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'user-email-error' : undefined}
               />
               {errors.email ? (
-                <p className="text-xs font-semibold text-destructive">{errors.email}</p>
+                <p id="user-email-error" className="text-xs font-semibold text-destructive">
+                  {errors.email}
+                </p>
               ) : null}
             </div>
 

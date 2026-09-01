@@ -536,7 +536,7 @@ def test_curriculum_background_ingestion_fails_closed_on_empty_page(
     admin = create_user(
         db_session,
         name="Admin Service Test",
-        email=f"admin_failclosed_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_failclosed_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -613,7 +613,7 @@ def test_background_ingestion_clears_stale_chunks_on_ocr_failure(
     admin = create_user(
         db_session,
         name="Admin Stale Chunk Test",
-        email=f"admin_stale_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_stale_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -704,7 +704,7 @@ def test_process_document_ingestion_expected_failure_persists_sanitized_warning(
     admin = create_user(
         db_session,
         name="Admin Warn Test",
-        email=f"admin_warn_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_warn_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -770,7 +770,7 @@ def test_process_document_ingestion_unexpected_failure_persists_generic_warning(
     admin = create_user(
         db_session,
         name="Admin Generic Test",
-        email=f"admin_generic_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_generic_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -829,7 +829,7 @@ def test_process_document_ingestion_successful_retry_clears_stale_warning(
     admin = create_user(
         db_session,
         name="Admin Retry Test",
-        email=f"admin_retry_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_retry_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -931,7 +931,7 @@ def test_process_document_ingestion_initial_failure_does_not_invoke_chroma(
     admin = create_user(
         db_session,
         name="Admin Initial Fail",
-        email=f"admin_init_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_init_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1003,7 +1003,7 @@ def test_process_document_ingestion_stale_prior_state_strict_cleanup_success(
     admin = create_user(
         db_session,
         name="Admin Stale Success",
-        email=f"admin_stale_ok_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_stale_ok_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1087,7 +1087,7 @@ def test_process_document_ingestion_stale_prior_state_missing_collection_converg
     admin = create_user(
         db_session,
         name="Admin Missing Coll",
-        email=f"admin_miss_coll_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_miss_coll_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1170,7 +1170,7 @@ def test_process_document_ingestion_strict_cleanup_exception_preserves_state(
     admin = create_user(
         db_session,
         name="Admin Cleanup Exc",
-        email=f"admin_clean_exc_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_clean_exc_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1318,7 +1318,7 @@ def test_persist_reference_stub_preserves_course_and_lesson_titles_db_and_memory
     admin = create_user(
         db_session,
         name="Admin Metadata Test",
-        email=f"admin_meta_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_meta_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1391,7 +1391,7 @@ def test_process_document_ingestion_db_write_failure_strict_cleanup_success(
     admin = create_user(
         db_session,
         name="Admin DB Write Fail Success",
-        email=f"admin_dbw_ok_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_dbw_ok_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1498,7 +1498,7 @@ def test_process_document_ingestion_db_write_fail_unverified_preserves_state(
     admin = create_user(
         db_session,
         name="Admin DB Write Fail Unverified",
-        email=f"admin_dbw_unver_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_dbw_unver_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )
@@ -1623,7 +1623,7 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
     admin = create_user(
         db_session,
         name="Admin Startup Recovery Discrim",
-        email=f"admin_discrim_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"admin_discrim_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="SecretPassword123!",
         role=UserRole.ADMIN,
     )

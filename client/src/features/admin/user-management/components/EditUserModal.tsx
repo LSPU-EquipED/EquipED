@@ -5,6 +5,8 @@ import { INPUT_STYLES } from '@/shared/constants/theme';
 import { useUpdateUser } from '../hooks/useAdminUsers';
 import type { AdminUserResponse, AdminUserUpdateBody } from '../types';
 
+const LSPU_EMAIL_PATTERN = /^[^\s@]+@lspu\.edu\.ph$/i;
+
 interface EditUserModalProps {
   user: AdminUserResponse | null;
   open: boolean;
@@ -32,8 +34,10 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
 
     if (!formData.email?.trim()) {
       nextErrors.email = 'Email is required.';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      nextErrors.email = 'Invalid email format.';
+    } else if (formData.email.trim().length > 40) {
+      nextErrors.email = 'Email must be 40 characters or fewer.';
+    } else if (!LSPU_EMAIL_PATTERN.test(formData.email.trim())) {
+      nextErrors.email = 'Please use your official @lspu.edu.ph email address.';
     }
 
     setErrors(nextErrors);
@@ -46,7 +50,10 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
     if (!validate()) return;
 
     try {
-      await updateUser.mutateAsync({ userId: user.user_id, body: formData });
+      await updateUser.mutateAsync({
+        userId: user.user_id,
+        body: { ...formData, email: formData.email?.trim().toLowerCase() },
+      });
       onOpenChange(false);
     } catch {
       // Error is handled by the mutation
@@ -71,9 +78,7 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
       >
         <div>
           <div className="flex items-center justify-between pb-4 border-b border-border">
-            <h3 className="text-base font-bold uppercase tracking-wider text-text">
-              Edit Account
-            </h3>
+            <h3 className="text-base font-bold uppercase tracking-wider text-text">Edit Account</h3>
             <button
               type="button"
               onClick={handleClose}
@@ -121,6 +126,8 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
               <input
                 id="edit-user-email"
                 type="email"
+                maxLength={40}
+                inputMode="email"
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 placeholder="juan@lspu.edu.ph"
@@ -130,9 +137,12 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
                   errors.email && 'border-destructive focus-visible:ring-destructive',
                 )}
                 aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'edit-user-email-error' : undefined}
               />
               {errors.email ? (
-                <p className="text-xs font-semibold text-destructive">{errors.email}</p>
+                <p id="edit-user-email-error" className="text-xs font-semibold text-destructive">
+                  {errors.email}
+                </p>
               ) : null}
             </div>
 

@@ -790,7 +790,7 @@ def test_cross_admin_access(
     create_user(
         db_session,
         name="Second Admin",
-        email="admin2@example.com",
+        email="admin2@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -817,7 +817,7 @@ def test_cross_admin_access(
     # Login as second admin
     login_resp = client.post(
         "/api/v1/auth/login",
-        json={"email": "admin2@example.com", "password": "password123"},
+        json={"email": "admin2@lspu.edu.ph", "password": "password123"},
     )
     assert login_resp.status_code == 200
     client.cookies.update(dict(login_resp.cookies))

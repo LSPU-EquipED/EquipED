@@ -61,14 +61,14 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     admin = create_user(
         session,
         name="Admin",
-        email="admin-orchestrator@example.com",
+        email="admin-orchestrator@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         session,
         name="Owner",
-        email="owner-orchestrator@example.com",
+        email="owner-orchestrator@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -243,7 +243,7 @@ def test_orchestrator_partial_without_curriculum_completes(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-partial-orch@example.com",
+        email="owner-partial-orch@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -375,7 +375,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-model-validation-failure@example.com",
+        email="owner-model-fail@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -466,7 +466,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-chunk-once@example.com",
+        email="owner-chunk-once@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -555,14 +555,14 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-completes@example.com",
+        email="admin-completes@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-layer3-empty@example.com",
+        email="owner-layer3-empty@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -653,14 +653,14 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-accidental-fail@example.com",
+        email="admin-accidental-fail@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-accidental-fail@example.com",
+        email="owner-accidental-fail@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -778,7 +778,7 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     owner = create_user(
         db_session,
         name="Owner Four Cases",
-        email="owner-four-cases@example.com",
+        email="owner-four-cases@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -904,7 +904,7 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     admin = create_user(
         db_session,
         name="Admin3",
-        email=f"admin-case3-{uuid4()}@example.com",
+        email=f"admin-case3-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -1022,7 +1022,7 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     owner = create_user(
         db_session,
         name="Owner Resume",
-        email="owner-resume@example.com",
+        email="owner-resume@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -1086,7 +1086,7 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     admin = create_user(
         db_session,
         name="AdminResume",
-        email=f"admin-resume-{uuid4()}@example.com",
+        email=f"admin-resume-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )

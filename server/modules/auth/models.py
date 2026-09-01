@@ -25,6 +25,13 @@ class UserRole(StrEnum):
     FACULTY = "faculty"
 
 
+class AccountStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -42,6 +49,28 @@ class User(Base):
         nullable=False,
     )
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    faculty_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    program: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    account_status: Mapped[AccountStatus] = mapped_column(
+        SqlEnum(
+            AccountStatus,
+            name="account_status",
+            values_callable=lambda values: [value.value for value in values],
+        ),
+        nullable=False,
+        default=AccountStatus.APPROVED,
+        server_default="approved",
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.user_id"), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
@@ -58,6 +87,40 @@ class User(Base):
     sessions: Mapped[list[Session]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+
+class PendingRegistration(Base):
+    __tablename__ = "pending_registrations"
+    __table_args__ = (UniqueConstraint("email", name="uq_pending_registrations_email"),)
+
+    registration_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    existing_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(300), nullable=False)
+    email: Mapped[str] = mapped_column(String(300), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    faculty_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    department: Mapped[str] = mapped_column(String(300), nullable=False)
+    program: Mapped[str] = mapped_column(String(100), nullable=False)
+    otp_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    otp_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    otp_attempts: Mapped[int] = mapped_column(
+        default=0, server_default="0", nullable=False
+    )
+    last_sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
@@ -88,4 +151,4 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
-__all__ = ["Session", "User", "UserRole"]
+__all__ = ["AccountStatus", "PendingRegistration", "Session", "User", "UserRole"]

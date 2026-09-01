@@ -22,14 +22,14 @@ def _job(db_session, *, partial: bool, curriculum: bool = False):
     admin = create_user(
         db_session,
         name="Admin",
-        email=f"admin-{uuid4()}@example.com",
+        email=f"admin-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Faculty",
-        email=f"faculty-{uuid4()}@example.com",
+        email=f"faculty-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

@@ -141,7 +141,7 @@ def _run_orchestrator_capture(
     owner = create_user(
         db_session,
         name="Owner",
-        email=f"owner-rm-{course_code or 'none'}@example.com",
+        email=f"owner-rm-{course_code or 'none'}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

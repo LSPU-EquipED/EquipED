@@ -23,7 +23,7 @@ def test_no_api_path_can_fake_completed(
     faculty = create_user(
         db_session,
         name="Faculty User",
-        email="faculty-eval@example.com",
+        email="faculty-eval@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -80,7 +80,7 @@ def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     faculty = create_user(
         db_session,
         name="Faculty User",
-        email="faculty-lifecycle@example.com",
+        email="faculty-lifecycle@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -206,14 +206,14 @@ def test_router_masks_foreign_access_for_all_roles(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-router@example.com",
+        email="owner-router@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email="other-router@example.com",
+        email="other-router@lspu.edu.ph",
         password="password456",
         role=UserRole.ADMIN,
     )
@@ -255,7 +255,7 @@ def test_results_partial_without_curriculum_returns_partial_reason(
     faculty = create_user(
         db_session,
         name="Faculty User",
-        email="faculty-results-partial@example.com",
+        email="faculty-results-partial@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -322,7 +322,7 @@ def test_latest_evaluations_endpoint_returns_latest_and_dedupes(
     faculty = create_user(
         db_session,
         name="Faculty Latest",
-        email="faculty-latest-route@example.com",
+        email="faculty-latest-route@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -397,7 +397,7 @@ def test_latest_evaluations_endpoint_empty_and_unknown(
     faculty = create_user(
         db_session,
         name="Faculty Empty",
-        email="faculty-empty-latest@example.com",
+        email="faculty-empty-latest@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -424,7 +424,7 @@ def test_latest_evaluations_endpoint_max_limit(client: TestClient, db_session) -
     faculty = create_user(
         db_session,
         name="Faculty Max",
-        email="faculty-max-latest@example.com",
+        email="faculty-max-latest@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -437,7 +437,7 @@ def test_latest_evaluations_endpoint_max_limit(client: TestClient, db_session) -
     assert login.status_code == 200
 
     # 101 distinct UUIDs -> 422
-    distinct_params = "&".join(f"document_id={uuid4()}" for _ in range(101))
+    distinct_params = "&".join(f"document_id={uuid4().hex[:6]}" for _ in range(101))
     resp_over = client.get(f"/api/v1/evaluations/latest?{distinct_params}")
     assert resp_over.status_code == 422
 
@@ -458,14 +458,14 @@ def test_latest_evaluations_endpoint_ownership_isolation(
     user1 = create_user(
         db_session,
         name="User One",
-        email="user1-latest@example.com",
+        email="user1-latest@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     user2 = create_user(
         db_session,
         name="User Two",
-        email="user2-latest@example.com",
+        email="user2-latest@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -498,7 +498,7 @@ def test_dynamic_evaluation_route_unaffected(client: TestClient, db_session) -> 
     faculty = create_user(
         db_session,
         name="Faculty Dynamic",
-        email="faculty-dynamic-check@example.com",
+        email="faculty-dynamic-check@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -556,14 +556,14 @@ def test_submit_evaluation_unready_curriculum_route_parameterized(
     admin = create_user(
         db_session,
         name="Admin Route",
-        email=f"admin-route-{uuid4()}@example.com",
+        email=f"admin-route-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     faculty = create_user(
         db_session,
         name="Faculty Route",
-        email=f"faculty-route-{uuid4()}@example.com",
+        email=f"faculty-route-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -656,14 +656,14 @@ def test_submit_evaluation_slm_404_masking_precedes_curriculum_validation(
     other_user = create_user(
         db_session,
         name="Other Faculty",
-        email="other-fac@example.com",
+        email="other-fac@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     faculty = create_user(
         db_session,
         name="Submitter Faculty",
-        email="submitter-fac@example.com",
+        email="submitter-fac@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

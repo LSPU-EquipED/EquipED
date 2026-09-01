@@ -21,7 +21,7 @@ def _setup_job(db_session):
     user = User(
         user_id=uid,
         name="Evaluator",
-        email=f"eval-{uid}@example.com",
+        email=f"eval-{uid}@lspu.edu.ph",
         password_hash="x",
         role=UserRole.ADMIN,
     )
@@ -460,4 +460,3 @@ def test_batch_corrections_timestamp_tie_determinism(db_session):
     assert batch[job1.evaluation_id][("itso", "itso-01")].score == 4
     assert batch[job2.evaluation_id][("sme", "A-01")].log_id == id2_higher
     assert batch[job2.evaluation_id][("sme", "A-01")].score == 3
-

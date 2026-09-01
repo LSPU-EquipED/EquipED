@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from './useAuth';
 
+const LSPU_EMAIL_PATTERN = /^[^\s@]+@lspu\.edu\.ph$/i;
+const MAX_EMAIL_LENGTH = 40;
+
 export function useLoginForm() {
   const auth = useAuth();
   const [email, setEmail] = useState(() => localStorage.getItem('remembered_email') || '');
@@ -13,7 +16,9 @@ export function useLoginForm() {
   const [passwordHint, setPasswordHint] = useState('');
 
   const handleEmailBlur = () => {
-    if (email && !email.toLowerCase().endsWith('@lspu.edu.ph')) {
+    if (email.trim().length > MAX_EMAIL_LENGTH) {
+      setEmailHint('Email must be 40 characters or fewer.');
+    } else if (email && !LSPU_EMAIL_PATTERN.test(email.trim())) {
       setEmailHint('Please use your official @lspu.edu.ph email address.');
     } else {
       setEmailHint('');
@@ -30,13 +35,22 @@ export function useLoginForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.length > MAX_EMAIL_LENGTH || !LSPU_EMAIL_PATTERN.test(normalizedEmail)) {
+      setEmailHint(
+        normalizedEmail.length > MAX_EMAIL_LENGTH
+          ? 'Email must be 40 characters or fewer.'
+          : 'Please use your official @lspu.edu.ph email address.',
+      );
+      return;
+    }
     auth.clearError();
     setIsSubmitting(true);
 
     try {
-      await auth.login({ email, password });
+      await auth.login({ email: normalizedEmail, password });
       if (rememberEmail) {
-        localStorage.setItem('remembered_email', email);
+        localStorage.setItem('remembered_email', normalizedEmail);
       } else {
         localStorage.removeItem('remembered_email');
       }

@@ -7,6 +7,7 @@ import {
   UserCheck,
   UserMinus,
   Warning,
+  X,
 } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
@@ -16,17 +17,18 @@ import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import {
   useAdminUsers,
-  useUpdateUser,
   useDeactivateUser,
   useHardDeleteUser,
+  useSetUserApproval,
 } from '../hooks/useAdminUsers';
 import type { AdminUserResponse } from '../types';
+import { getUserStatusBadge } from '../utils/userStatus';
 
 export function UserManagementPage() {
   const { data, isLoading, isError } = useAdminUsers();
-  const updateUser = useUpdateUser();
   const deactivateUser = useDeactivateUser();
   const hardDeleteUser = useHardDeleteUser();
+  const setApproval = useSetUserApproval();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -171,109 +173,178 @@ export function UserManagementPage() {
               </tr>
             </thead>
             <tbody className={TABLE_STYLES.tbody}>
-              {filteredUsers.map((user: AdminUserResponse) => (
-                <tr key={user.user_id} className={TABLE_STYLES.tr}>
-                  <td className="py-3 px-4 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(user.user_id)}
-                      onChange={() => toggleSelection(user.user_id)}
-                      className="size-4 cursor-pointer accent-primary"
-                      aria-label={`Select ${user.name}`}
-                    />
-                  </td>
-                  <td className={cn(TABLE_STYLES.td, 'font-semibold text-text')}>{user.name}</td>
-                  <td className={cn(TABLE_STYLES.td, 'text-text-muted font-medium')}>{user.email}</td>
-                  <td className={TABLE_STYLES.td}>
-                    <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
-                      {user.role}
-                    </Badge>
-                  </td>
-                  <td className={TABLE_STYLES.td}>
-                    <Badge variant={user.is_active ? 'success' : 'neutral'} withDot>
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </td>
-                  <td className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium')}>
-                    {new Date(user.created_at).toLocaleDateString()}
-                  </td>
-                  <td className={TABLE_STYLES.td}>
-                    <div className="flex items-center justify-center gap-2">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setIsEditModalOpen(true);
-                        }}
-                        className="text-xs uppercase tracking-wider font-semibold"
-                        aria-label={`Edit ${user.name}`}
-                      >
-                        <PencilSimple className="size-3.5" />
-                        Edit
-                      </Button>
-                      {user.is_active ? (
+              {filteredUsers.map((user: AdminUserResponse) => {
+                const status = getUserStatusBadge(user);
+
+                return (
+                  <tr key={user.user_id} className={TABLE_STYLES.tr}>
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(user.user_id)}
+                        onChange={() => toggleSelection(user.user_id)}
+                        className="size-4 cursor-pointer accent-primary"
+                        aria-label={`Select ${user.name}`}
+                      />
+                    </td>
+                    <td className={cn(TABLE_STYLES.td, 'font-semibold text-text')}>{user.name}</td>
+                    <td className={cn(TABLE_STYLES.td, 'text-text-muted font-medium')}>
+                      {user.email}
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
+                        {user.role}
+                      </Badge>
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Badge variant={status.variant} withDot>
+                        {status.label}
+                      </Badge>
+                    </td>
+                    <td
+                      className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium')}
+                    >
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <div className="flex items-center justify-center gap-2">
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="text-xs uppercase tracking-wider font-semibold"
+                          aria-label={`Edit ${user.name}`}
+                        >
+                          <PencilSimple className="size-3.5" />
+                          Edit
+                        </Button>
+                        {user.account_status === 'pending' || user.account_status === 'rejected' ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setApproval.mutate({
+                                userId: user.user_id,
+                                accountStatus: 'approved',
+                              });
+                            }}
+                            disabled={setApproval.isPending}
+                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Approve ${user.name}`}
+                          >
+                            <UserCheck className="size-3.5" />
+                            Approve
+                          </Button>
+                        ) : user.account_status === 'suspended' ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setApproval.mutate({
+                                userId: user.user_id,
+                                accountStatus: 'approved',
+                              });
+                            }}
+                            disabled={setApproval.isPending}
+                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Reapprove ${user.name}`}
+                          >
+                            <UserCheck className="size-3.5" />
+                            Reapprove
+                          </Button>
+                        ) : user.is_active ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Suspend ${user.name}? This will suspend the account. You can reapprove it later.`,
+                                )
+                              ) {
+                                setApproval.mutate({
+                                  userId: user.user_id,
+                                  accountStatus: 'suspended',
+                                });
+                              }
+                            }}
+                            disabled={setApproval.isPending}
+                            className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Suspend ${user.name}`}
+                          >
+                            <UserMinus className="size-3.5" />
+                            Suspend
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setApproval.mutate({
+                                userId: user.user_id,
+                                accountStatus: 'approved',
+                              });
+                            }}
+                            disabled={setApproval.isPending}
+                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Reapprove ${user.name}`}
+                          >
+                            <UserCheck className="size-3.5" />
+                            Reapprove
+                          </Button>
+                        )}
+                        {user.account_status === 'pending' && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setApproval.mutate({
+                                userId: user.user_id,
+                                accountStatus: 'rejected',
+                              });
+                            }}
+                            disabled={setApproval.isPending}
+                            className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Reject ${user.name}`}
+                          >
+                            <X className="size-3.5" />
+                            Reject
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="destructive"
                           size="sm"
                           onClick={() => {
                             if (
                               window.confirm(
-                                `Deactivate ${user.name}? This will deactivate the account. You can re-activate it later.`,
+                                `Delete ${user.name}? This will permanently delete the account and cannot be undone. Are you sure?`,
                               )
                             ) {
-                              deactivateUser.mutate(user.user_id);
+                              hardDeleteUser.mutate(user.user_id);
                             }
                           }}
-                          disabled={deactivateUser.isPending}
-                          className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
-                          aria-label={`Deactivate ${user.name}`}
+                          disabled={hardDeleteUser.isPending}
+                          className="text-xs uppercase tracking-wider font-semibold"
+                          aria-label={`Delete ${user.name}`}
                         >
-                          <UserMinus className="size-3.5" />
-                          Deactivate
+                          <Trash className="size-3.5" />
+                          Delete
                         </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          onClick={() => {
-                            updateUser.mutate({ userId: user.user_id, body: { is_active: true } });
-                          }}
-                          disabled={updateUser.isPending}
-                          className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
-                          aria-label={`Reactivate ${user.name}`}
-                        >
-                          <UserCheck className="size-3.5" />
-                          Reactivate
-                        </Button>
-                      )}
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Delete ${user.name}? This will permanently delete the account and cannot be undone. Are you sure?`,
-                            )
-                          ) {
-                            hardDeleteUser.mutate(user.user_id);
-                          }
-                        }}
-                        disabled={hardDeleteUser.isPending}
-                        className="text-xs uppercase tracking-wider font-semibold"
-                        aria-label={`Delete ${user.name}`}
-                      >
-                        <Trash className="size-3.5" />
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

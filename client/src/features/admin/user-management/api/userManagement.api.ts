@@ -30,4 +30,10 @@ export const userManagementApi = {
     requestJson<void>(`/admin/users/${userId}/permanent`, {
       method: 'DELETE',
     }),
+
+  setApproval: (userId: string, account_status: AdminUserResponse['account_status']) =>
+    requestJson<AdminUserResponse>(`/admin/users/${userId}/approval`, {
+      method: 'POST',
+      body: JSON.stringify({ status: account_status }),
+    }),
 };

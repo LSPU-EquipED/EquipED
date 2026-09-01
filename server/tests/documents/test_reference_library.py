@@ -113,14 +113,14 @@ class TestSharedReferenceAccess:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@ref.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@ref.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -143,14 +143,14 @@ class TestSharedReferenceAccess:
         fac1 = create_user(
             db_session,
             name="F1",
-            email="f1@slm.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         fac2 = create_user(
             db_session,
             name="F2",
-            email="f2@slm.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -169,7 +169,7 @@ class TestSharedReferenceAccess:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@slm2.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -188,14 +188,14 @@ class TestSharedReferenceAccess:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@list.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@list.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -238,14 +238,14 @@ class TestEvaluationSharedReferenceValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@eval.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@eval.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -290,14 +290,14 @@ class TestEvaluationSharedReferenceValidation:
         fac1 = create_user(
             db_session,
             name="F1",
-            email="f1@eval2.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         fac2 = create_user(
             db_session,
             name="F2",
-            email="f2@eval2.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -325,14 +325,14 @@ class TestEvaluationSharedReferenceValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@eval3.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@eval3.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -373,14 +373,14 @@ class TestAdminReferenceList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@reflist.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@reflist.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -421,7 +421,7 @@ class TestAdminReferenceList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@health.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -454,7 +454,7 @@ class TestAdminReferenceList:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@deny.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -469,7 +469,7 @@ class TestAdminReferenceList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@norb.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -501,7 +501,7 @@ class TestAdminReferenceList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@empty.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -521,14 +521,14 @@ class TestDocumentFileEndpoint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@file1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@file1.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -558,14 +558,14 @@ class TestDocumentFileEndpoint:
         fac1 = create_user(
             db_session,
             name="F1",
-            email="f1@slmfile.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         fac2 = create_user(
             db_session,
             name="F2",
-            email="f2@slmfile.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -594,7 +594,7 @@ class TestDocumentFileEndpoint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@missfile.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -760,7 +760,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@del1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -805,7 +805,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@unlinkerr.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -862,7 +862,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@verifyfail.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -915,7 +915,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@conflict.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -951,7 +951,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currdel.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -988,7 +988,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currvecfail.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1032,7 +1032,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@missdel.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1057,7 +1057,7 @@ class TestAdminDelete:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@denydel.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1074,7 +1074,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@noslmdelete.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1099,7 +1099,7 @@ class TestAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@norubdel.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1126,7 +1126,7 @@ class TestAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@rebuild1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1156,7 +1156,7 @@ class TestAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@nochunks.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1180,7 +1180,7 @@ class TestAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@badtype.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1203,7 +1203,7 @@ class TestAdminRebuild:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@denyrb.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1218,7 +1218,7 @@ class TestAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currb.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1247,7 +1247,7 @@ class TestAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@chromarb.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1299,14 +1299,14 @@ class TestCurriculumAccessRules:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currdet.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@currdet.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1331,14 +1331,14 @@ class TestCurriculumAccessRules:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currlist.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@currlist.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1372,14 +1372,14 @@ class TestCurriculumAccessRules:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@currfile.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@currfile.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1413,14 +1413,14 @@ class TestSLMOwnershipStrict:
         fac1 = create_user(
             db_session,
             name="F1",
-            email="f1@own.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         fac2 = create_user(
             db_session,
             name="F2",
-            email="f2@own.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1440,14 +1440,14 @@ class TestSLMOwnershipStrict:
         fac1 = create_user(
             db_session,
             name="F1",
-            email="f1@listown.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         fac2 = create_user(
             db_session,
             name="F2",
-            email="f2@listown.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )

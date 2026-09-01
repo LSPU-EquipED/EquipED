@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from server.core.config import get_settings
 from server.core.database import get_db_session
 from server.core.llm import probe_local_model_readiness
 from server.modules.admin.model_validation_service import (
@@ -23,6 +26,7 @@ from server.modules.admin.prompt_service import (
 )
 from server.modules.admin.schemas import (
     AdminEvaluationResponse,
+    AdminUserApprovalRequest,
     AdminUserCreateRequest,
     AdminUserListResponse,
     AdminUserResponse,
@@ -48,6 +52,8 @@ from server.modules.admin.user_service import (
     update_user,
 )
 from server.modules.auth.dependencies import require_admin
+from server.modules.auth.email import send_status_email
+from server.modules.auth.models import AccountStatus
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
@@ -57,6 +63,7 @@ from server.modules.feedback.service import list_preference_logs
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/prompts/{agent_id}", response_model=PromptVersionListResponse)
@@ -205,6 +212,44 @@ def get_preferences(
 # ---------------------------------------------------------------------------
 
 
+def _map_admin_user_response(
+    user: Any, *, notification_warning: str | None = None
+) -> AdminUserResponse:
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
+    return AdminUserResponse(
+        user_id=user.user_id,
+        name=user.name,
+        email=user.email,
+        role=role_value,
+        is_active=user.is_active,
+        account_status=user.account_status,
+        faculty_id=user.faculty_id,
+        department=user.department,
+        program=user.program,
+        approved_at=user.approved_at,
+        reviewed_at=user.reviewed_at,
+        notification_warning=notification_warning,
+        created_at=user.created_at,
+    )
+
+
+def _send_approval_status_notification(
+    settings: Any,
+    to_email: str,
+    user_name: str,
+    approved: bool,
+) -> None:
+    try:
+        send_status_email(
+            settings=settings,
+            to=to_email,
+            name=user_name,
+            approved=approved,
+        )
+    except Exception:
+        logger.warning("Account status notification delivery failed.")
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def get_users(
     current_user: AuthenticatedUser = Depends(require_admin),
@@ -212,17 +257,7 @@ def get_users(
 ):
     users = list_users(db)
     return AdminUserListResponse(
-        items=[
-            AdminUserResponse(
-                user_id=u.user_id,
-                name=u.name,
-                email=u.email,
-                role=u.role.value,
-                is_active=u.is_active,
-                created_at=u.created_at,
-            )
-            for u in users
-        ],
+        items=[_map_admin_user_response(u) for u in users],
         total=len(users),
     )
 
@@ -251,14 +286,7 @@ def create_user_endpoint(
         )
     db.commit()
 
-    return AdminUserResponse(
-        user_id=new_user.user_id,
-        name=new_user.name,
-        email=new_user.email,
-        role=new_user.role.value,
-        is_active=new_user.is_active,
-        created_at=new_user.created_at,
-    )
+    return _map_admin_user_response(new_user)
 
 
 @router.put("/users/{user_id}", response_model=AdminUserResponse)
@@ -275,6 +303,8 @@ def update_user_endpoint(
             name=body.name,
             email=body.email,
             is_active=body.is_active,
+            account_status=body.account_status,
+            reviewed_by=current_user.id,
         )
     except ValueError as e:
         msg = str(e)
@@ -285,14 +315,54 @@ def update_user_endpoint(
         raise
 
     db.commit()
-    return AdminUserResponse(
-        user_id=updated.user_id,
-        name=updated.name,
-        email=updated.email,
-        role=updated.role.value,
-        is_active=updated.is_active,
-        created_at=updated.created_at,
-    )
+    return _map_admin_user_response(updated)
+
+
+@router.post("/users/{user_id}/approval", response_model=AdminUserResponse)
+def set_user_approval(
+    user_id: uuid.UUID,
+    body: AdminUserApprovalRequest,
+    background_tasks: BackgroundTasks,
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db=Depends(get_db_session),
+    settings=Depends(get_settings),
+):
+    status_value = body.status
+    if status_value not in {
+        AccountStatus.APPROVED,
+        AccountStatus.REJECTED,
+        AccountStatus.SUSPENDED,
+    }:
+        raise HTTPException(status_code=422, detail="Unsupported account status")
+    try:
+        updated = update_user(
+            db, user_id, account_status=status_value, reviewed_by=current_user.id
+        )
+        db.commit()
+    except ValueError as e:
+        db.rollback()
+        msg = str(e)
+        if msg == "User not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        raise
+    except Exception:
+        db.rollback()
+        raise
+
+    previous = getattr(updated, "_previous_account_status", None)
+    if previous != status_value and status_value in {
+        AccountStatus.APPROVED,
+        AccountStatus.REJECTED,
+    }:
+        background_tasks.add_task(
+            _send_approval_status_notification,
+            settings,
+            updated.email,
+            updated.name,
+            status_value == AccountStatus.APPROVED,
+        )
+
+    return _map_admin_user_response(updated)
 
 
 @router.delete("/users/{user_id}", response_model=AdminUserResponse)
@@ -302,21 +372,14 @@ def deactivate_user_endpoint(
     db=Depends(get_db_session),
 ):
     try:
-        deactivated = deactivate_user(db, user_id)
+        deactivated = deactivate_user(db, user_id, reviewed_by=current_user.id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     db.commit()
-    return AdminUserResponse(
-        user_id=deactivated.user_id,
-        name=deactivated.name,
-        email=deactivated.email,
-        role=deactivated.role.value,
-        is_active=deactivated.is_active,
-        created_at=deactivated.created_at,
-    )
+    return _map_admin_user_response(deactivated)
 
 
 @router.delete("/users/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)

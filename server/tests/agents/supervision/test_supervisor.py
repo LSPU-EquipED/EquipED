@@ -243,7 +243,7 @@ def test_prepared_context_loads_authoritative_curriculum_text(
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-curr-text@example.com",
+        email="admin-curr-text@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -306,7 +306,7 @@ def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
     faculty = create_user(
         db_session,
         name="Faculty",
-        email="faculty-curr-unready@example.com",
+        email="faculty-curr-unready@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

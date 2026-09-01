@@ -179,9 +179,7 @@ def test_list_roadmaps_orders_by_program_then_version_desc(db_session) -> None:
 
 def test_get_roadmap_detail_orders_years_and_attaches_courses(db_session) -> None:
     roadmap = _make_roadmap(db_session, version_number=1)
-    y1 = _make_year(
-        db_session, roadmap, year_number=1, semester=1, label="First Year"
-    )
+    y1 = _make_year(db_session, roadmap, year_number=1, semester=1, label="First Year")
     _y2 = _make_year(
         db_session, roadmap, year_number=2, semester=None, label="Second Year"
     )
@@ -481,7 +479,7 @@ def test_list_roadmap_courses_raises_for_missing_roadmap(db_session) -> None:
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 
-def _login(client, db_session, email="faculty-roadmap@example.com"):
+def _login(client, db_session, email="faculty-roadmap@lspu.edu.ph"):
     user = create_user(
         db_session,
         name="Faculty User",

@@ -57,8 +57,14 @@ pnpm install
 cd ..
 ```
 
-Configure `.env` with the development database URL, LLM settings, and any local
-OCR configuration before running the app. Do not commit credentials.
+Configure `.env` with the development database URL, Gmail SMTP account, and
+local model endpoint before running the app. Add OCR settings only when scanned
+PDF support is required. Do not commit credentials.
+
+Registration and account-status emails use Gmail SMTP. Set `SMTP_USERNAME` and
+`EMAIL_FROM` to the sender account, then place a Google App Password—not the
+Gmail account password—in `SMTP_PASSWORD`. The application defaults already use
+`smtp.gmail.com:587` with STARTTLS.
 
 Start the backend:
 

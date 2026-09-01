@@ -25,14 +25,14 @@ def test_get_and_status_mask_foreign_jobs_as_404(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-job@example.com",
+        email="owner-job@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email="other-job@example.com",
+        email="other-job@lspu.edu.ph",
         password="password456",
         role=UserRole.ADMIN,
     )
@@ -68,14 +68,14 @@ def test_list_evaluations_is_scoped_per_user_for_all_roles(db_session, role) -> 
     owner = create_user(
         db_session,
         name="Owner",
-        email=f"owner-list-{role.value}@example.com",
+        email=f"owner-list-{role.value}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email=f"other-list-{role.value}@example.com",
+        email=f"other-list-{role.value}@lspu.edu.ph",
         password="password456",
         role=UserRole.FACULTY,
     )
@@ -121,7 +121,7 @@ def test_list_evaluations_includes_document_title(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-title@example.com",
+        email="owner-title@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -160,7 +160,7 @@ def test_list_evaluations_document_title_none_for_missing_document(db_session) -
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-missing-doc@example.com",
+        email="owner-missing-doc@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -192,7 +192,7 @@ def test_list_evaluations_filters_by_document_id(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-filter-doc@example.com",
+        email="owner-filter-doc@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -255,14 +255,14 @@ def test_list_evaluations_filter_by_document_id_respects_ownership(db_session) -
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-filter-own@example.com",
+        email="owner-filter-own@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email="other-filter-own@example.com",
+        email="other-filter-own@lspu.edu.ph",
         password="password456",
         role=UserRole.FACULTY,
     )
@@ -306,14 +306,14 @@ def test_get_is_scoped_per_user_for_all_roles(db_session, role) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email=f"owner-get-{role.value}@example.com",
+        email=f"owner-get-{role.value}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email=f"other-get-{role.value}@example.com",
+        email=f"other-get-{role.value}@lspu.edu.ph",
         password="password456",
         role=UserRole.FACULTY,
     )
@@ -344,7 +344,7 @@ def test_get_evaluation_status_includes_partial_fields(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-status-partial@example.com",
+        email="owner-status-partial@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -383,7 +383,7 @@ def test_get_evaluation_status_includes_partial_fields_when_false(db_session) ->
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-status-full@example.com",
+        email="owner-status-full@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -417,7 +417,7 @@ def test_get_latest_evaluations_returns_latest_per_document(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner Latest",
-        email="owner-latest@example.com",
+        email="owner-latest@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -497,7 +497,7 @@ def test_get_latest_evaluations_deterministic_tie_break(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner Tiebreak",
-        email="owner-tiebreak@example.com",
+        email="owner-tiebreak@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -537,14 +537,14 @@ def test_get_latest_evaluations_ownership_exclusion(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner Excl",
-        email="owner-excl@example.com",
+        email="owner-excl@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other Excl",
-        email="other-excl@example.com",
+        email="other-excl@lspu.edu.ph",
         password="password456",
         role=UserRole.FACULTY,
     )
@@ -591,7 +591,7 @@ def test_get_latest_evaluations_unknown_ids_and_empty(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner Unknown",
-        email="owner-unknown@example.com",
+        email="owner-unknown@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -610,7 +610,7 @@ def test_get_latest_evaluations_preserves_status_semantics(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner Semantics",
-        email="owner-semantics@example.com",
+        email="owner-semantics@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

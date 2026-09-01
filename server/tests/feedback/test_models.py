@@ -15,7 +15,7 @@ def test_preference_log_stores_agent_and_criterion_attribution(db_session):
     user = User(
         user_id=uuid4(),
         name="Admin",
-        email="admin@example.com",
+        email="admin@lspu.edu.ph",
         password_hash="x",
         role=UserRole.ADMIN,
     )
