@@ -115,8 +115,14 @@ const mockSmePublished: RubricSet = {
   ],
 };
 
+const mockSmeOlderPublished: RubricSet = {
+  ...mockSmePublished,
+  rubric_set_id: 'set-sme-pub-0',
+  version_number: 0,
+};
+
 const mockRevisionsData: RubricRevisionsResponse = {
-  revisions: [mockSmeDraft, mockSmePublished],
+  revisions: [mockSmeDraft, mockSmePublished, mockSmeOlderPublished],
   active_pointers: {
     sme: 'set-sme-pub-1',
     coordinator: 'set-coord-1',
@@ -292,5 +298,33 @@ describe('RubricTableEditor', () => {
       rubricSetId: 'set-sme-draft',
       activate: true,
     });
+  });
+
+  it('opens rollback modal and confirms revision activation', async () => {
+    activateRevisionMutateAsync.mockResolvedValueOnce({
+      agent_id: 'sme',
+      rubric_set_id: 'set-sme-pub-0',
+      updated_by: 'admin-1',
+      updated_at: '2026-09-02T10:00:00Z',
+    });
+    render(<RubricTableEditor />);
+
+    // Open History slide-over drawer
+    const historyBtn = screen.getByRole('button', { name: /history/i });
+    fireEvent.click(historyBtn);
+
+    // Look for Activate (Rollback) button on older published revision
+    const rollbackBtns = screen.getAllByRole('button', { name: /activate \(rollback\)/i });
+    expect(rollbackBtns.length).toBeGreaterThan(0);
+    fireEvent.click(rollbackBtns[0]);
+
+    // Expect Rollback Modal to be displayed
+    expect(screen.getByRole('dialog', { name: /rollback to revision v0/i })).toBeDefined();
+
+    // Confirm rollback
+    const confirmBtn = screen.getByRole('button', { name: /confirm rollback to v0/i });
+    fireEvent.click(confirmBtn);
+
+    expect(activateRevisionMutateAsync).toHaveBeenCalledWith('set-sme-pub-0');
   });
 });
