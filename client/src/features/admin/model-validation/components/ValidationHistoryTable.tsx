@@ -1,5 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { ClockCounterClockwise, FileText, Spinner, Warning } from '@phosphor-icons/react';
+import { Button } from '@/shared/components/Button';
+import { TABLE_STYLES } from '@/shared/constants/theme';
+import { cn } from '@/shared/components/utils';
 import type { ModelValidationListResponse } from '../types';
 import { HISTORY_COLSPAN } from '../utils/helpers';
 import { HistoryRow } from './ValidationDetail';
@@ -10,38 +14,60 @@ export function ValidationHistoryTable({
   history: UseQueryResult<ModelValidationListResponse>;
 }) {
   const [expandedValidationId, setExpandedValidationId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const items = history.data?.items ?? [];
+  const totalRecords = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
+  const startRecord = totalRecords > 0 ? (page - 1) * pageSize + 1 : 0;
+  const endRecord = Math.min(page * pageSize, totalRecords);
+
+  const paginatedItems = useMemo(
+    () => items.slice((page - 1) * pageSize, page * pageSize),
+    [items, page, pageSize],
+  );
 
   return (
-    <div className="overflow-hidden rounded-sm border border-border bg-surface">
-      <div className="border-b border-border bg-surface-subtle px-4 py-3">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text">
-          Validation history
-        </h2>
+    <div className={TABLE_STYLES.wrapper}>
+      {/* Table Header Strip */}
+      <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-5 py-3.5">
+        <div className="flex items-center gap-2">
+          <ClockCounterClockwise className="size-4 text-primary" aria-hidden="true" />
+          <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+            Validation History
+          </h2>
+        </div>
+        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+          {totalRecords} Recorded Runs
+        </span>
       </div>
+
+      {/* 7-Column Table Without Horizontal Scrolling */}
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-surface-subtle text-xs uppercase tracking-wider text-text-muted border-b border-border">
+        <table className={TABLE_STYLES.table}>
+          <thead className={TABLE_STYLES.thead}>
             <tr>
-              <th className="px-4 py-3">SLM</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Criteria</th>
-              <th className="px-4 py-3 text-right">Compared</th>
-              <th className="px-4 py-3 text-right">Exact</th>
-              <th className="px-4 py-3 text-right">Mean error</th>
-              <th className="px-4 py-3 text-right">Latency</th>
-              <th className="px-4 py-3 text-right">Perplexity</th>
-              <th className="px-4 py-3 text-right">Toxicity</th>
-              <th className="px-4 py-3 text-right">Action</th>
+              <th className={cn(TABLE_STYLES.th, 'w-auto min-w-[14rem]')}>SLM Document</th>
+              <th className={cn(TABLE_STYLES.th, 'w-28')}>Status</th>
+              <th className={cn(TABLE_STYLES.th, 'w-36 text-right')}>Accuracy (Exact)</th>
+              <th className={cn(TABLE_STYLES.th, 'w-28 text-right')}>Mean Error</th>
+              <th className={cn(TABLE_STYLES.th, 'w-28 text-right')}>Latency</th>
+              <th className={cn(TABLE_STYLES.th, 'w-28 text-right')}>Toxicity</th>
+              <th className={cn(TABLE_STYLES.th, 'w-36 text-right')}>Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody className={TABLE_STYLES.tbody}>
             {history.isLoading ? (
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-text-muted"
+                  className="px-4 py-12 text-center text-text-muted text-xs font-medium"
                 >
-                  Loading validation history…
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
+                    <span>Loading validation history…</span>
+                  </div>
                 </td>
               </tr>
             ) : null}
@@ -49,13 +75,16 @@ export function ValidationHistoryTable({
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-destructive"
+                  className="px-4 py-10 text-center font-semibold text-destructive text-xs bg-destructive-soft"
                 >
-                  Unable to load validation history.
+                  <div className="flex items-center justify-center gap-2">
+                    <Warning className="size-4 text-destructive" aria-hidden="true" />
+                    <span>Unable to load validation history.</span>
+                  </div>
                 </td>
               </tr>
             ) : null}
-            {history.data?.items.map((item) => {
+            {paginatedItems.map((item) => {
               const compared = item.criterion_scores.filter(
                 (score) => score.actual_score != null,
               );
@@ -80,19 +109,82 @@ export function ValidationHistoryTable({
                 />
               );
             })}
-            {!history.isLoading && !history.isError && history.data?.items.length === 0 ? (
+            {!history.isLoading && !history.isError && totalRecords === 0 ? (
               <tr>
                 <td
                   colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-8 text-center font-semibold text-text-muted"
+                  className="px-4 py-12 text-center text-text-muted text-xs space-y-1.5"
                 >
-                  No validation runs yet.
+                  <FileText className="size-8 text-text-muted/40 mx-auto" aria-hidden="true" />
+                  <p className="font-semibold text-text">No validation runs yet.</p>
+                  <p className="text-[11px] text-text-muted">
+                    Submit a benchmark evaluation in the New Benchmark Run tab to record accuracy results.
+                  </p>
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
+
+      {/* ── Pagination & Record Navigation Footer ─────────────────────── */}
+      {!history.isLoading && !history.isError && totalRecords > 0 ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border bg-surface px-5 py-3 text-xs text-text-muted">
+          <div className="flex flex-wrap items-center gap-4">
+            <span>
+              Showing{' '}
+              <strong className="font-semibold text-text tabular-nums">
+                {startRecord}–{endRecord}
+              </strong>{' '}
+              of <strong className="font-semibold text-text tabular-nums">{totalRecords}</strong> records
+            </span>
+
+            <div className="flex items-center gap-1.5 pl-3 border-l border-border">
+              <span className="text-[11px] text-text-muted font-medium">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                aria-label="Records per page"
+                className="h-7 border border-input bg-surface px-2 rounded-xs text-xs font-semibold text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="h-7 px-2.5 text-xs font-semibold"
+            >
+              Previous
+            </Button>
+            <span className="px-2 text-xs font-medium text-text">
+              Page <strong className="font-bold tabular-nums">{page}</strong> of{' '}
+              <strong className="font-bold tabular-nums">{totalPages}</strong>
+            </span>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="h-7 px-2.5 text-xs font-semibold"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

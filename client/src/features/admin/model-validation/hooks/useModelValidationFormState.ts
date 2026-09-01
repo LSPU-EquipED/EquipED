@@ -226,3 +226,5 @@ export function useModelValidationFormState() {
     handleStart,
   };
 }
+
+export type ModelValidationFormState = ReturnType<typeof useModelValidationFormState>;
