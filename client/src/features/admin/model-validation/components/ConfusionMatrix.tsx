@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import {
   calculateConfusionMatrixMetrics,
@@ -16,38 +17,38 @@ function CircularMetric({
   value: number | null;
   color: string;
 }) {
-  const radius = 42;
+  const radius = 26;
   const circumference = 2 * Math.PI * radius;
   const boundedValue = value == null ? 0 : Math.min(1, Math.max(0, value));
   const percentage = value == null ? null : boundedValue * 100;
 
   return (
-    <div className="flex min-w-0 items-center gap-3 border border-border bg-surface-subtle p-3 rounded-sm">
+    <div className="flex min-w-0 items-center gap-3.5 border border-border bg-surface p-3.5 rounded-sm shadow-none">
       <div
-        className="relative size-24 shrink-0"
+        className="relative size-16 shrink-0"
         role="img"
         aria-label={`${label}: ${percentage == null ? 'unavailable' : `${percentage.toFixed(1)} percent`}`}
       >
-        <svg className="size-24 -rotate-90" viewBox="0 0 100 100" aria-hidden="true">
-          <circle cx="50" cy="50" r={radius} fill="none" stroke="var(--border)" strokeWidth="8" />
+        <svg className="size-16 -rotate-90" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r={radius} fill="none" stroke="var(--border)" strokeWidth="6" />
           <circle
-            cx="50"
-            cy="50"
+            cx="32"
+            cy="32"
             r={radius}
             fill="none"
             stroke={color}
-            strokeWidth="8"
-            strokeLinecap="butt"
+            strokeWidth="6"
+            strokeLinecap="round"
             strokeDasharray={`${boundedValue * circumference} ${circumference}`}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-lg font-bold tabular-nums text-text">
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold tabular-nums text-text">
           {percentage == null ? '—' : `${percentage.toFixed(1)}%`}
         </span>
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-wider text-text">{label}</p>
-        <p className="mt-1 text-xs leading-relaxed text-text-muted">
+        <p className="text-xs font-bold text-text uppercase tracking-wider">{label}</p>
+        <p className="mt-0.5 text-[11px] leading-tight text-text-muted font-medium">
           {label === 'Accuracy' ? 'Exact score matches' : 'Macro average by score class'}
         </p>
       </div>
@@ -83,139 +84,181 @@ export function ConfusionMatrix({
   const selectedLabel = selectedAgent === 'all' ? 'All agents' : agentLabel(selectedAgent);
 
   return (
-    <div className="overflow-hidden rounded-sm border border-border bg-surface">
-      <div className="border-b border-border bg-surface-subtle px-4 py-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-text">
-          Score confusion matrix
-        </h2>
-        <p className="mt-1 text-xs text-text-muted">Expected class by predicted class</p>
+    <div className="overflow-hidden rounded-md border border-border bg-surface shadow-none">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface-subtle px-5 py-3.5">
+        <div>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+            Score confusion matrix
+          </h2>
+          <p className="mt-0.5 text-[11px] text-text-muted">
+            Expected 1–4 human benchmark class versus predicted multi-agent class
+          </p>
+        </div>
       </div>
-      <div className="overflow-x-auto p-4">
+
+      <div className="p-5 space-y-5">
         {isLoading ? (
-          <p className="py-16 text-center text-sm font-semibold text-text-muted">
+          <p className="py-16 text-center text-xs font-semibold text-text-muted uppercase tracking-wider">
             Loading confusion matrix…
           </p>
         ) : isError ? (
-          <p className="py-16 text-center text-sm font-semibold text-destructive">
+          <p className="py-16 text-center text-xs font-semibold text-destructive">
             Unable to load validation metrics.
           </p>
         ) : (
-          <div className="grid gap-5">
+          <div className="space-y-5">
+            {/* Filter Buttons */}
             <div
-              className="flex flex-wrap gap-2"
+              className="flex flex-wrap items-center gap-2"
               role="group"
               aria-label="Filter confusion matrix by evaluator"
             >
-              {[{ id: 'all', label: 'All agents' }, ...validationAgents].map((agent) => {
-                const isSelected = selectedAgent === agent.id;
-                return (
-                  <button
-                    key={agent.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedAgent(agent.id as 'all' | ValidationAgentId)}
-                    className={cn(
-                      'rounded-sm border px-3 py-2 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      isSelected
-                        ? 'border-primary bg-primary text-primary-foreground'
-                        : 'border-border bg-surface text-text hover:bg-surface-subtle',
-                    )}
-                  >
-                    {agent.label}
-                  </button>
-                );
-              })}
+              <span className="text-xs font-semibold text-text-muted mr-1">Evaluator:</span>
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-sm bg-surface-subtle p-1 border border-border">
+                {[{ id: 'all', label: 'All agents' }, ...validationAgents].map((agent) => {
+                  const isSelected = selectedAgent === agent.id;
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedAgent(agent.id as 'all' | ValidationAgentId)}
+                      className={cn(
+                        'rounded-xs px-3 py-1 text-xs font-semibold transition-colors cursor-pointer select-none',
+                        isSelected
+                          ? 'bg-surface text-primary border border-border/80 shadow-2xs font-bold'
+                          : 'text-text-muted hover:text-text border border-transparent',
+                      )}
+                    >
+                      {agent.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <p className="text-sm font-semibold text-text" aria-live="polite">
+
+            {/* Active Announcement */}
+            <p className="text-xs font-semibold text-text" aria-live="polite">
               Showing {selectedLabel} score agreement
             </p>
-            <div className="grid gap-3 md:grid-cols-3" aria-label="Confusion matrix metrics">
+
+            {/* 3 Macro Performance Meters */}
+            <div className="grid gap-3 sm:grid-cols-3" aria-label="Confusion matrix metrics">
               <CircularMetric label="Accuracy" value={metrics.accuracy} color="var(--primary)" />
               <CircularMetric label="Precision" value={metrics.precision} color="var(--success)" />
               <CircularMetric label="Recall" value={metrics.recall} color="var(--info)" />
             </div>
-            <p className="text-xs leading-relaxed text-text-muted">
+
+            <p className="text-[11px] text-text-muted">
               Precision and recall are macro averages across score classes with available samples.
             </p>
+
+            {/* Matrix Table or Missing Notice */}
             {isPerAgentBreakdownMissing ? (
               <div
                 role="status"
                 data-testid="per-agent-breakdown-unavailable"
-                className="rounded-sm border border-border bg-surface-subtle px-4 py-6 text-center"
+                className="rounded-sm border border-border bg-surface-subtle px-4 py-8 text-center space-y-2"
               >
-                <p className="text-sm font-bold uppercase tracking-wider text-text">
-                  Breakdown unavailable
-                </p>
-                <p className="mt-1 text-xs font-medium leading-relaxed text-text-muted">
+                <div className="flex items-center justify-center gap-2 text-warning">
+                  <WarningCircle className="size-5" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-text">
+                    Breakdown unavailable
+                  </p>
+                </div>
+                <p className="text-xs text-text-muted max-w-md mx-auto leading-relaxed">
                   {selectedLabel} has no recorded expected-vs-actual score pairs yet, so a
                   per-evaluator confusion matrix cannot be drawn. Run a validation against this
                   agent to populate it.
                 </p>
               </div>
             ) : (
-              <table
-                className="mx-auto border-collapse text-center"
-                aria-label="Score confusion matrix"
-              >
-                <thead>
-                  <tr>
-                    <th className="h-12 w-24 px-2 text-xs font-bold uppercase tracking-wider text-text-muted">
-                      Expected ↓
-                    </th>
-                    {labels.map((label) => (
-                      <th
-                        key={label}
-                        scope="col"
-                        className="h-12 min-w-20 border border-border bg-surface-subtle text-sm font-bold text-text"
-                      >
-                        Predicted {label}
+              <div className="overflow-x-auto py-2">
+                <table
+                  className="mx-auto border-collapse text-center"
+                  aria-label="Score confusion matrix"
+                >
+                  <thead>
+                    <tr>
+                      <th className="h-10 w-28 px-3 text-[11px] font-semibold uppercase tracking-wider text-text-muted border-b border-border">
+                        Expected ↓
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedMatrix.map((row, rowIndex) => (
-                    <tr key={labels[rowIndex]}>
-                      <th
-                        scope="row"
-                        className="h-20 border border-border bg-surface-subtle px-3 text-sm font-bold text-text"
-                      >
-                        Expected {labels[rowIndex]}
-                      </th>
-                      {row.map((count, columnIndex) => {
-                        const intensity = count / maximum;
-                        const diagonal = rowIndex === columnIndex;
-                        return (
-                          <td
-                            key={`${rowIndex}-${columnIndex}`}
-                            className="h-20 min-w-20 border border-border text-xl font-bold tabular-nums text-text"
-                            style={{
-                              backgroundColor: diagonal
-                                ? `rgba(47, 125, 50, ${0.08 + intensity * 0.48})`
-                                : `rgba(138, 90, 0, ${0.05 + intensity * 0.5})`,
-                            }}
-                            aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
-                          >
-                            {count}
-                          </td>
-                        );
-                      })}
+                      {labels.map((label) => (
+                        <th
+                          key={label}
+                          scope="col"
+                          className="h-10 min-w-[5.5rem] border border-border bg-surface-subtle text-xs font-bold text-text"
+                        >
+                          Predicted {label}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {displayedMatrix.map((row, rowIndex) => (
+                      <tr key={labels[rowIndex]}>
+                        <th
+                          scope="row"
+                          className="h-16 border border-border bg-surface-subtle px-3 text-xs font-bold text-text"
+                        >
+                          Expected {labels[rowIndex]}
+                        </th>
+                        {row.map((count, columnIndex) => {
+                          const intensity = count / maximum;
+                          const diagonal = rowIndex === columnIndex;
+                          return (
+                            <td
+                              key={`${rowIndex}-${columnIndex}`}
+                              className="h-16 min-w-[5.5rem] border border-border text-base sm:text-lg font-bold tabular-nums text-text transition-colors"
+                              style={{
+                                backgroundColor: diagonal
+                                  ? `rgba(47, 125, 50, ${0.08 + intensity * 0.42})`
+                                  : count > 0
+                                    ? `rgba(138, 90, 0, ${0.05 + intensity * 0.45})`
+                                    : 'transparent',
+                              }}
+                              aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
+                            >
+                              <div className="flex flex-col items-center justify-center">
+                                <span className={cn(count === 0 && 'text-text-muted/40 font-normal')}>
+                                  {count}
+                                </span>
+                                {count > 0 ? (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-text-muted/80">
+                                    {diagonal ? (
+                                      <>
+                                        <Check className="size-2.5 text-success" />
+                                        <span>match</span>
+                                      </>
+                                    ) : (
+                                      <span>diff</span>
+                                    )}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
       </div>
-      <div className="flex flex-wrap gap-4 border-t border-border px-4 py-3 text-xs font-semibold text-text-muted">
-        <span>
-          <span className="mr-1 inline-block size-3 border border-success bg-success/30" />
-          Agreement
+
+      {/* Footer Legend */}
+      <div className="flex flex-wrap items-center gap-5 border-t border-border px-5 py-3 text-xs font-semibold text-text-muted bg-surface-subtle">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-3 rounded-xs border border-success bg-success/30" />
+          Agreement (Diagonal)
         </span>
-        <span>
-          <span className="mr-1 inline-block size-3 border border-warning bg-warning/40" />
-          Mismatch
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block size-3 rounded-xs border border-warning bg-warning/40" />
+          Mismatch (Off-Diagonal)
         </span>
       </div>
     </div>
