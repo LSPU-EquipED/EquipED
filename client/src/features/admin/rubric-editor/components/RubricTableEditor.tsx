@@ -41,11 +41,13 @@ import {
   type StrategyConfig,
   type ValidationReport,
 } from '../types';
+import { ConfirmationModal } from './ConfirmationModal';
 import { CriterionModal } from './CriterionModal';
 import { DomainModal } from './DomainModal';
 import { MoveCriterionModal } from './MoveCriterionModal';
 import { PublishRevisionModal } from './PublishRevisionModal';
 import { RevisionHistoryPanel } from './RevisionHistoryPanel';
+import { RollbackRevisionModal } from './RollbackRevisionModal';
 import { ValidationReportCard } from './ValidationReportCard';
 
 function formatStrategyBadge(strategyConfig?: StrategyConfig | null): {
@@ -117,6 +119,25 @@ export function RubricTableEditor() {
 
   const [publishModalOpen, setPublishModalOpen] = useState<boolean>(false);
 
+  const [rollbackModal, setRollbackModal] = useState<{
+    isOpen: boolean;
+    targetRevision: RubricSet | null;
+  }>({ isOpen: false, targetRevision: null });
+
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    confirmLabel: 'Yes, Delete',
+    onConfirm: () => {},
+  });
+
   // Queries & Mutations
   const revisionsQuery = useRubricRevisions();
   const createDraftMutation = useCreateDraft();
@@ -177,17 +198,11 @@ export function RubricTableEditor() {
       Boolean(currentRevision.is_active));
 
   const hasDraftForAgent = agentRevisions.some((r) => r.status === 'draft');
-  const agentCaps = AGENT_STRATEABILITY_CAPABILITIES_FALLBACK(selectedAgent);
-
-  function AGENT_STRATEABILITY_CAPABILITIES_FALLBACK(agent: string) {
-    return (
-      AGENT_STRATEGY_CAPABILITIES[agent] ?? {
-        allowedStrategies: ['llm_rubric_guidance'],
-        maxCriteria: 20,
-        description: '',
-      }
-    );
-  }
+  const agentCaps = AGENT_STRATEGY_CAPABILITIES[selectedAgent] ?? {
+    allowedStrategies: ['llm_rubric_guidance'],
+    maxCriteria: 20,
+    description: '',
+  };
 
   // Atomic domain reorder (Up / Down)
   const handleMoveDomain = (domainIndex: number, direction: 'up' | 'down') => {
@@ -285,45 +300,71 @@ export function RubricTableEditor() {
     }
   };
 
-  // Delete Draft
-  const handleDeleteDraft = async (rubricSetId: string) => {
-    if (
-      !window.confirm(
-        'Are you sure you want to delete this draft revision? This action cannot be undone.',
-      )
-    ) {
-      return;
-    }
-    try {
-      await deleteDraftMutation.mutateAsync(rubricSetId);
-      setSelectedRevisionId(null);
-      setValidationReport(null);
-    } catch {
-      // Error handled by alert
-    }
+  // Delete Draft Request (with in-app confirmation modal)
+  const requestDeleteDraft = (rubricSetId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Draft Revision',
+      description:
+        'Are you sure you want to delete this draft revision? This action will permanently remove all unpublished criteria and domains. This cannot be undone.',
+      confirmLabel: 'Yes, Delete Draft',
+      onConfirm: async () => {
+        await deleteDraftMutation.mutateAsync(rubricSetId);
+        setSelectedRevisionId(null);
+        setValidationReport(null);
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // Delete Domain Request (with in-app confirmation modal)
+  const requestDeleteDomain = (domain: RubricDomain) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete Domain "${domain.code}"`,
+      description: `Are you sure you want to delete domain "${domain.title}" (${domain.code}) and its ${domain.criteria.length} criteria? This cannot be undone.`,
+      confirmLabel: 'Yes, Delete Domain',
+      onConfirm: () => {
+        deleteDomainMutation.mutate(domain.rubric_domain_id);
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // Delete Criterion Request (with in-app confirmation modal)
+  const requestDeleteCriterion = (criterion: RubricCriterion) => {
+    setConfirmModal({
+      isOpen: true,
+      title: `Delete Criterion "${criterion.criterion_code}"`,
+      description: `Are you sure you want to delete criterion "${criterion.criterion_code}: ${criterion.title}"? This cannot be undone.`,
+      confirmLabel: 'Yes, Delete Criterion',
+      onConfirm: () => {
+        deleteCriterionMutation.mutate(criterion.rubric_criterion_id);
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
+
+  // Retire Revision Request (with in-app confirmation modal)
+  const requestRetireRevision = (rubricSetId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Retire Published Revision',
+      description:
+        'Are you sure you want to retire this published revision? Retired revisions remain in audit history for compliance but cannot be reactivated.',
+      confirmLabel: 'Yes, Retire Revision',
+      onConfirm: async () => {
+        await retireRevisionMutation.mutateAsync(rubricSetId);
+        setSelectedRevisionId(rubricSetId);
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
   };
 
   // Activate Revision
   const handleActivateRevision = async (rubricSetId: string) => {
     try {
       await activateRevisionMutation.mutateAsync(rubricSetId);
-      setSelectedRevisionId(rubricSetId);
-    } catch {
-      // Error handled by alert
-    }
-  };
-
-  // Retire Revision
-  const handleRetireRevision = async (rubricSetId: string) => {
-    if (
-      !window.confirm(
-        'Are you sure you want to retire this published revision? Retired revisions cannot be reactivated.',
-      )
-    ) {
-      return;
-    }
-    try {
-      await retireRevisionMutation.mutateAsync(rubricSetId);
       setSelectedRevisionId(rubricSetId);
     } catch {
       // Error handled by alert
@@ -345,10 +386,10 @@ export function RubricTableEditor() {
   if (revisionsQuery.isLoading) {
     return (
       <div
-        className="flex items-center justify-center p-12 text-sm font-bold text-text-muted uppercase tracking-wider"
+        className="flex items-center justify-center p-16 text-xs font-semibold text-text-muted"
         role="status"
       >
-        Loading CID rubric revisions…
+        Loading rubric revisions…
       </div>
     );
   }
@@ -358,7 +399,7 @@ export function RubricTableEditor() {
       <div
         role="alert"
         aria-live="assertive"
-        className="rounded-sm border border-destructive/30 bg-destructive-soft p-5 text-sm font-bold text-destructive"
+        className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm font-semibold text-destructive"
       >
         {getRubricOperationError(revisionsQuery.error, 'Failed to load evaluation rubrics.')}
       </div>
@@ -366,10 +407,10 @@ export function RubricTableEditor() {
   }
 
   return (
-    <section className="grid gap-6">
-      {/* Top Navigation: Agent Selector Tabs */}
-      <div className="border-b border-border bg-surface">
-        <nav className="flex flex-wrap gap-1 px-4 pt-3" aria-label="Evaluation Form Agent Selector">
+    <section className="space-y-6">
+      {/* ── Top Navigation: Agent Selector Tabs ─────────────────────────── */}
+      <div className="rounded-md border border-border bg-surface shadow-none overflow-hidden">
+        <nav className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle" aria-label="Evaluation Form Agent Selector">
           {AGENT_ORDER.map((agentId) => {
             const isTabSelected = selectedAgent === agentId;
             const hasDraft = allRevisions.some(
@@ -387,9 +428,9 @@ export function RubricTableEditor() {
                   setSelectedRevisionId(null);
                   setValidationReport(null);
                 }}
-                className={`relative flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${
+                className={`relative flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-colors border-b-2 cursor-pointer select-none ${
                   isTabSelected
-                    ? 'border-primary text-primary bg-surface-subtle/50'
+                    ? 'border-primary text-primary bg-surface font-bold'
                     : 'border-transparent text-text-muted hover:text-text hover:border-border'
                 }`}
                 aria-selected={isTabSelected}
@@ -397,7 +438,7 @@ export function RubricTableEditor() {
               >
                 <span>{AGENT_LABELS[agentId]}</span>
                 {activeRev && (
-                  <span className="rounded-sm bg-surface-subtle px-1.5 py-0.5 text-[10px] font-semibold text-text-muted tabular-nums">
+                  <span className="rounded-xs bg-surface-subtle border border-border px-1.5 py-0.2 text-[10px] font-mono font-medium text-text-muted tabular-nums">
                     v{activeRev.version_number}
                   </span>
                 )}
@@ -412,6 +453,173 @@ export function RubricTableEditor() {
             );
           })}
         </nav>
+
+        {/* ── Header Toolbar: Selected Revision & Actions ───────────────── */}
+        <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-base sm:text-lg font-bold text-text tracking-tight">
+                {AGENT_LABELS[selectedAgent]} Evaluation Form
+              </h1>
+              {currentRevision && (
+                <span className="text-xs font-mono font-semibold text-text-muted tabular-nums">
+                  · v{currentRevision.version_number}
+                </span>
+              )}
+              {isActive && (
+                <span className="inline-flex items-center gap-1 rounded-sm bg-success-soft px-2 py-0.5 text-xs font-semibold text-success border border-success/25">
+                  <CheckCircle className="size-3.5" />
+                  Active Pointer
+                </span>
+              )}
+              {isDraft && (
+                <span className="inline-flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning border border-warning/25">
+                  Draft (Editable)
+                </span>
+              )}
+              {isPublished && (
+                <span className="inline-flex items-center gap-1 rounded-sm bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary border border-primary/25">
+                  <Lock className="size-3" />
+                  Published (Immutable)
+                </span>
+              )}
+              {isRetired && (
+                <span className="inline-flex items-center gap-1 rounded-sm bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-text-muted border border-border">
+                  Retired
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-text-muted leading-relaxed max-w-2xl">
+              {agentCaps.description}
+            </p>
+          </div>
+
+          {/* Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {isDraft ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleValidateDraft}
+                  disabled={validateDraftMutation.isPending}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  <CheckCircle className="size-4 text-text-muted" />
+                  <span>Validate</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPublishModalOpen(true)}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-colors"
+                >
+                  <span>Publish Revision</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDomainModal({ isOpen: true })}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-primary/40 bg-surface px-3 text-xs font-semibold text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-colors"
+                >
+                  <Plus className="size-4" />
+                  <span>Add Domain</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    currentRevision && requestDeleteDraft(currentRevision.rubric_set_id)
+                  }
+                  disabled={deleteDraftMutation.isPending}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-destructive/30 text-destructive hover:bg-destructive-soft px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  <Trash className="size-4" />
+                  <span>Delete Draft</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {!hasDraftForAgent && (
+                  <button
+                    type="button"
+                    onClick={handleCreateDraft}
+                    disabled={createDraftMutation.isPending}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 cursor-pointer transition-colors"
+                  >
+                    <Plus className="size-4" />
+                    <span>Create Editable Draft</span>
+                  </button>
+                )}
+                {isPublished && !isActive && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        currentRevision &&
+                        setRollbackModal({ isOpen: true, targetRevision: currentRevision })
+                      }
+                      disabled={activateRevisionMutation.isPending}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-success px-3.5 text-xs font-semibold text-white hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                      <Check className="size-4" />
+                      <span>Activate (Rollback)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        currentRevision && requestRetireRevision(currentRevision.rubric_set_id)
+                      }
+                      disabled={retireRevisionMutation.isPending}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 cursor-pointer transition-colors"
+                    >
+                      <span>Retire</span>
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* History Slide-over Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setShowHistorySidebar(true)}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-colors"
+            >
+              <ClockCounterClockwise className="size-4 text-text-muted" aria-hidden="true" />
+              <span>History</span>
+              <span className="rounded-xs bg-surface-subtle border border-border px-1.5 py-0.2 text-[10px] font-mono font-bold text-text-muted tabular-nums">
+                {agentRevisions.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Immutability / Notice Banner */}
+        {!isDraft && currentRevision && (
+          <div className="mx-5 mb-5 flex items-start gap-2.5 rounded-sm border border-border bg-surface-subtle p-3 text-xs text-text">
+            <Lock className="size-4 shrink-0 text-text-muted mt-0.5" />
+            <div>
+              <span className="font-semibold text-text">
+                {isPublished
+                  ? 'Published Revision (Read-Only)'
+                  : 'Retired Revision (Historical Reference)'}
+              </span>
+              <p className="mt-0.5 text-text-muted leading-relaxed">
+                {isPublished
+                  ? 'Published form revisions cannot be directly modified. Create a new draft to add, edit, delete, or reorder criteria.'
+                  : 'Retired revisions remain in database history for audit purposes and cannot be reactivated.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Validation Report Card */}
+        {validationReport && (
+          <div className="mx-5 mb-5">
+            <ValidationReportCard
+              report={validationReport}
+              onDismiss={() => setValidationReport(null)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Global Error Banner */}
@@ -425,500 +633,348 @@ export function RubricTableEditor() {
         </div>
       )}
 
-      {/* Layout Split: Form Editor + Revision History Sidebar */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
-        {/* Main Editor Section */}
-        <div className="grid gap-5">
-          {/* Header Card: Selected Revision Status & Action Toolbar */}
-          <div className="rounded-sm border border-border bg-surface p-5">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-base font-bold text-text tracking-tight">
-                    {AGENT_LABELS[selectedAgent]} Evaluation Form
-                  </h1>
-                  {currentRevision && (
-                    <span className="text-xs font-bold text-text-muted uppercase tracking-wider tabular-nums">
-                      · v{currentRevision.version_number}
-                    </span>
-                  )}
-                  {isActive && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-success-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-success border border-success/20">
-                      <CheckCircle className="size-3.5" />
-                      Active Pointer
-                    </span>
-                  )}
-                  {isDraft && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-warning-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-warning border border-warning/20">
-                      Draft (Editable)
-                    </span>
-                  )}
-                  {isPublished && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-primary-soft px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary border border-primary/20">
-                      <Lock className="size-3" />
-                      Published (Immutable)
-                    </span>
-                  )}
-                  {isRetired && (
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-surface-subtle px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-text-muted border border-border">
-                      Retired
-                    </span>
-                  )}
-                </div>
+      {/* ── Main Full-Width Form Ledger Domains and Criteria ────────────── */}
+      <div className="w-full space-y-6">
+        {currentRevision ? (
+          <div className="space-y-6">
+            {currentRevision.domains.map((domain, domainIndex) => {
+              const isFirstDomain = domainIndex === 0;
+              const isLastDomain = domainIndex === currentRevision.domains.length - 1;
 
-                <p className="mt-1 text-xs text-text-muted font-medium">{agentCaps?.description}</p>
-              </div>
-
-              {/* Action Toolbar */}
-              <div className="flex flex-wrap items-center gap-2">
-                {isDraft ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleValidateDraft}
-                      disabled={validateDraftMutation.isPending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                    >
-                      <CheckCircle className="size-4 text-text-muted" />
-                      Validate
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPublishModalOpen(true)}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      Publish Revision
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDomainModal({ isOpen: true })}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-primary bg-surface px-3 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Plus className="size-4" />
-                      Add Domain
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        currentRevision && handleDeleteDraft(currentRevision.rubric_set_id)
-                      }
-                      disabled={deleteDraftMutation.isPending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-destructive/30 text-destructive hover:bg-destructive-soft px-3 text-xs font-bold uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive disabled:opacity-50"
-                    >
-                      <Trash className="size-4" />
-                      Delete Draft
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {!hasDraftForAgent && (
-                      <button
-                        type="button"
-                        onClick={handleCreateDraft}
-                        disabled={createDraftMutation.isPending}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                      >
-                        <Plus className="size-4" />
-                        Create Editable Draft
-                      </button>
-                    )}
-                    {isPublished && !isActive && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            currentRevision && handleActivateRevision(currentRevision.rubric_set_id)
-                          }
-                          disabled={activateRevisionMutation.isPending}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-success px-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success disabled:opacity-50"
-                        >
-                          <Check className="size-4" />
-                          Activate (Rollback)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            currentRevision && handleRetireRevision(currentRevision.rubric_set_id)
-                          }
-                          disabled={retireRevisionMutation.isPending}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                        >
-                          Retire
-                        </button>
-                      </>
-                    )}
-                  </>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setShowHistorySidebar((prev) => !prev)}
-                  className="lg:hidden inline-flex h-9 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              return (
+                <section
+                  key={domain.rubric_domain_id}
+                  className="rounded-md border border-border bg-surface shadow-none overflow-hidden"
+                  aria-label={`Domain ${domain.code}: ${domain.title}`}
                 >
-                  <ClockCounterClockwise className="size-4" />
-                  History
-                </button>
-              </div>
-            </div>
+                  {/* Domain Header Band */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-subtle px-5 py-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="inline-flex items-center justify-center rounded-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 font-mono text-xs font-bold">
+                        {domain.code}
+                      </span>
+                      <h2 className="text-sm font-bold text-text tracking-tight">
+                        {domain.title}
+                      </h2>
+                      <span className="text-xs text-text-muted font-normal tabular-nums">
+                        · {domain.criteria.length} criteria
+                      </span>
+                    </div>
 
-            {/* Immutability / Notice Banner */}
-            {!isDraft && currentRevision && (
-              <div className="mt-4 flex items-start gap-2.5 rounded-sm border border-border bg-surface-subtle p-3 text-xs text-text">
-                <Lock className="size-4 shrink-0 text-text-muted mt-0.5" />
-                <div>
-                  <span className="font-bold text-text">
-                    {isPublished
-                      ? 'Published Revision (Read-Only)'
-                      : 'Retired Revision (Historical Reference)'}
-                  </span>
-                  <p className="mt-0.5 text-text-muted">
-                    {isPublished
-                      ? 'Published form revisions cannot be directly modified. Create a new draft to add, edit, delete, or reorder criteria.'
-                      : 'Retired revisions remain in database history for audit purposes and cannot be reactivated.'}
-                  </p>
-                </div>
-              </div>
-            )}
+                    {/* Domain Action Buttons */}
+                    {isDraft && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleMoveDomain(domainIndex, 'up')}
+                          disabled={isFirstDomain || reorderTreeMutation.isPending}
+                          className="inline-flex size-7 items-center justify-center rounded-xs border border-border bg-surface text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                          aria-label={`Move ${domain.code} domain up`}
+                          title="Move Domain Up"
+                        >
+                          <ArrowUp className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMoveDomain(domainIndex, 'down')}
+                          disabled={isLastDomain || reorderTreeMutation.isPending}
+                          className="inline-flex size-7 items-center justify-center rounded-xs border border-border bg-surface text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                          aria-label={`Move ${domain.code} domain down`}
+                          title="Move Domain Down"
+                        >
+                          <ArrowDown className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDomainModal({ isOpen: true, domain })}
+                          className="inline-flex size-7 items-center justify-center rounded-xs border border-border bg-surface text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                          aria-label={`Edit ${domain.code} domain`}
+                          title="Edit Domain"
+                        >
+                          <PencilSimple className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteDomain(domain)}
+                          className="inline-flex size-7 items-center justify-center rounded-xs border border-transparent text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive cursor-pointer"
+                          aria-label={`Delete ${domain.code} domain`}
+                          title="Delete Domain"
+                        >
+                          <Trash className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCriterionModal({
+                              isOpen: true,
+                              domainId: domain.rubric_domain_id,
+                              domainTitle: domain.title,
+                            })
+                          }
+                          className="ml-2 inline-flex h-7 items-center justify-center gap-1 rounded-sm bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-colors"
+                        >
+                          <Plus className="size-3" />
+                          <span>Add Criterion</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-            {/* Validation Report Card */}
-            {validationReport && (
-              <div className="mt-4">
-                <ValidationReportCard
-                  report={validationReport}
-                  onDismiss={() => setValidationReport(null)}
-                />
+                  {/* Full-Width Criteria Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse border-spacing-0">
+                      <thead className="bg-surface text-xs font-semibold text-text-muted border-b border-border">
+                        <tr>
+                          {isDraft && <th className="py-2.5 px-3 w-16 text-center">Order</th>}
+                          <th className="py-2.5 px-4 w-32">Criterion ID</th>
+                          <th className="py-2.5 px-4 min-w-[16rem]">Title & description</th>
+                          <th className="py-2.5 px-4 min-w-[14rem]">Scoring strategy</th>
+                          <th className="py-2.5 px-4 min-w-[14rem]">Scoring rule</th>
+                          {isDraft && <th className="py-2.5 px-4 w-28 text-right">Actions</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-xs">
+                        {domain.criteria.map((criterion, critIndex) => {
+                          const isFirstCrit = critIndex === 0;
+                          const isLastCrit = critIndex === domain.criteria.length - 1;
+                          const strategyBadge = formatStrategyBadge(criterion.strategy_config);
+
+                          return (
+                            <tr
+                              key={criterion.rubric_criterion_id}
+                              className="hover:bg-surface-subtle/50 transition-colors"
+                            >
+                              {/* Order Controls */}
+                              {isDraft && (
+                                <td className="py-3 px-3 text-center align-top">
+                                  <div className="flex items-center justify-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveCriterion(domain, critIndex, 'up')}
+                                      disabled={isFirstCrit || reorderTreeMutation.isPending}
+                                      className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                      aria-label={`Move ${criterion.criterion_code} criterion up`}
+                                      title="Move Up"
+                                    >
+                                      <ArrowUp className="size-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleMoveCriterion(domain, critIndex, 'down')
+                                      }
+                                      disabled={isLastCrit || reorderTreeMutation.isPending}
+                                      className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                                      aria-label={`Move ${criterion.criterion_code} criterion down`}
+                                      title="Move Down"
+                                    >
+                                      <ArrowDown className="size-3" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+
+                              {/* Criterion Code Input (Read-only for test/accessibility compat) */}
+                              <td className="py-3 px-4 align-top">
+                                <input
+                                  type="text"
+                                  value={criterion.criterion_code}
+                                  readOnly
+                                  className="w-full border border-border/70 bg-surface-subtle/80 px-2 py-1 rounded-xs text-xs font-mono font-bold text-text cursor-default select-all focus:outline-none"
+                                  aria-label={`${domain.code} criterion ID`}
+                                />
+                              </td>
+
+                              {/* Entry (Title & Description) */}
+                              <td className="py-3 px-4 align-top">
+                                <p className="font-semibold text-text text-sm">{criterion.title}</p>
+                                <p className="mt-1 text-xs text-text-muted leading-relaxed max-w-xl">
+                                  {criterion.description}
+                                </p>
+                              </td>
+
+                              {/* Strategy & Config */}
+                              <td className="py-3 px-4 align-top">
+                                <div className="space-y-1">
+                                  <span className="inline-block rounded-xs bg-primary-soft border border-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">
+                                    {strategyBadge.label}
+                                  </span>
+                                  <p className="text-[11px] text-text-muted font-mono tabular-nums leading-tight">
+                                    {strategyBadge.detail}
+                                  </p>
+                                </div>
+                              </td>
+
+                              {/* Scoring Rule */}
+                              <td className="py-3 px-4 align-top">
+                                {criterion.scoring_rule ? (
+                                  <p className="text-xs text-text leading-relaxed">
+                                    {criterion.scoring_rule}
+                                  </p>
+                                ) : (
+                                  <span className="text-xs text-text-muted italic">No rule summary</span>
+                                )}
+                              </td>
+
+                              {/* Draft Actions */}
+                              {isDraft && (
+                                <td className="py-3 px-4 text-right align-top">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCriterionModal({
+                                          isOpen: true,
+                                          domainId: domain.rubric_domain_id,
+                                          domainTitle: domain.title,
+                                          criterion,
+                                        })
+                                      }
+                                      className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                                      aria-label={`Edit ${criterion.criterion_code} row`}
+                                      title="Edit Criterion"
+                                    >
+                                      <PencilSimple className="size-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setMoveModal({
+                                          isOpen: true,
+                                          criterion,
+                                          currentDomainId: domain.rubric_domain_id,
+                                        })
+                                      }
+                                      className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                                      aria-label={`Move ${criterion.criterion_code} to another domain`}
+                                      title="Move Criterion"
+                                    >
+                                      <ArrowsLeftRight className="size-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestDeleteCriterion(criterion)}
+                                      className="inline-flex size-7 items-center justify-center rounded-xs text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive cursor-pointer"
+                                      aria-label={`Delete ${criterion.criterion_code} row`}
+                                      title="Delete Criterion"
+                                    >
+                                      <Trash className="size-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+
+                        {domain.criteria.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={isDraft ? 6 : 4}
+                              className="py-8 text-center text-xs font-semibold text-text-muted bg-surface-subtle/20"
+                            >
+                              No criteria in this domain. Click &quot;Add Criterion&quot; to create one.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
+
+            {currentRevision.domains.length === 0 && (
+              <div className="rounded-md border border-border bg-surface p-12 text-center shadow-none">
+                <p className="text-sm font-semibold text-text">No domains in this form.</p>
+                {isDraft && (
+                  <button
+                    type="button"
+                    onClick={() => setDomainModal({ isOpen: true })}
+                    className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                  >
+                    <Plus className="size-4" />
+                    <span>Add First Domain</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
-
-          {/* Form Ledger Domains and Criteria */}
-          {currentRevision ? (
-            <div className="grid gap-5">
-              {currentRevision.domains.map((domain, domainIndex) => {
-                const isFirstDomain = domainIndex === 0;
-                const isLastDomain = domainIndex === currentRevision.domains.length - 1;
-
-                return (
-                  <section
-                    key={domain.rubric_domain_id}
-                    className="rounded-sm border border-border bg-surface p-5 shadow-2xs"
-                    aria-label={`Domain ${domain.code}: ${domain.title}`}
-                  >
-                    {/* Domain Header */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-sm bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground uppercase tracking-wider">
-                          {domain.code}
-                        </span>
-                        <h2 className="text-sm font-bold text-text tracking-tight">
-                          {domain.title}
-                        </h2>
-                        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider tabular-nums">
-                          ({domain.criteria.length} criteria)
-                        </span>
-                      </div>
-
-                      {/* Domain Action Buttons */}
-                      {isDraft && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveDomain(domainIndex, 'up')}
-                            disabled={isFirstDomain || reorderTreeMutation.isPending}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
-                            aria-label={`Move ${domain.code} domain up`}
-                            title="Move Domain Up"
-                          >
-                            <ArrowUp className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveDomain(domainIndex, 'down')}
-                            disabled={isLastDomain || reorderTreeMutation.isPending}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed"
-                            aria-label={`Move ${domain.code} domain down`}
-                            title="Move Domain Down"
-                          >
-                            <ArrowDown className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDomainModal({ isOpen: true, domain })}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-border text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            aria-label={`Edit ${domain.code} domain`}
-                            title="Edit Domain"
-                          >
-                            <PencilSimple className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Delete domain "${domain.title}" and its ${domain.criteria.length} criteria?`,
-                                )
-                              ) {
-                                deleteDomainMutation.mutate(domain.rubric_domain_id);
-                              }
-                            }}
-                            className="inline-flex size-8 items-center justify-center rounded-sm border border-transparent text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
-                            aria-label={`Delete ${domain.code} domain`}
-                            title="Delete Domain"
-                          >
-                            <Trash className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCriterionModal({
-                                isOpen: true,
-                                domainId: domain.rubric_domain_id,
-                                domainTitle: domain.title,
-                              })
-                            }
-                            className="ml-2 inline-flex h-8 items-center justify-center gap-1 rounded-sm bg-primary px-2.5 text-[11px] font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            <Plus className="size-3.5" />
-                            Add Criterion
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Criteria Table */}
-                    <div className="mt-3 overflow-x-auto rounded-sm border border-border">
-                      <table className="w-full text-left border-collapse border-spacing-0">
-                        <thead className="bg-surface-subtle text-[11px] uppercase tracking-wider font-bold text-text-muted border-b border-border">
-                          <tr>
-                            {isDraft && <th className="py-2.5 px-3 w-16 text-center">Order</th>}
-                            <th className="py-2.5 px-3 w-28">Criterion ID</th>
-                            <th className="py-2.5 px-4 min-w-[14rem]">Entry</th>
-                            <th className="py-2.5 px-4 min-w-[12rem]">Strategy / Config</th>
-                            <th className="py-2.5 px-4 min-w-[12rem]">Scoring rule</th>
-                            {isDraft && <th className="py-2.5 px-3 w-28 text-right">Actions</th>}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border text-xs">
-                          {domain.criteria.map((criterion, critIndex) => {
-                            const isFirstCrit = critIndex === 0;
-                            const isLastCrit = critIndex === domain.criteria.length - 1;
-                            const strategyBadge = formatStrategyBadge(criterion.strategy_config);
-
-                            return (
-                              <tr
-                                key={criterion.rubric_criterion_id}
-                                className="hover:bg-surface-subtle/50 transition-colors"
-                              >
-                                {/* Order Controls */}
-                                {isDraft && (
-                                  <td className="py-2.5 px-3 text-center align-top">
-                                    <div className="flex items-center justify-center gap-0.5">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleMoveCriterion(domain, critIndex, 'up')}
-                                        disabled={isFirstCrit || reorderTreeMutation.isPending}
-                                        className="inline-flex size-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed"
-                                        aria-label={`Move ${criterion.criterion_code} criterion up`}
-                                        title="Move Up"
-                                      >
-                                        <ArrowUp className="size-3" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleMoveCriterion(domain, critIndex, 'down')
-                                        }
-                                        disabled={isLastCrit || reorderTreeMutation.isPending}
-                                        className="inline-flex size-6 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed"
-                                        aria-label={`Move ${criterion.criterion_code} criterion down`}
-                                        title="Move Down"
-                                      >
-                                        <ArrowDown className="size-3" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                )}
-
-                                {/* Code */}
-                                <td className="py-2.5 px-3 align-top">
-                                  <input
-                                    type="text"
-                                    value={criterion.criterion_code}
-                                    readOnly
-                                    className="w-full border border-transparent bg-transparent rounded-sm text-xs font-bold text-text"
-                                    aria-label={`${domain.code} criterion ID`}
-                                  />
-                                </td>
-
-                                {/* Entry (Title & Description) */}
-                                <td className="py-2.5 px-4 align-top">
-                                  <p className="font-bold text-text">{criterion.title}</p>
-                                  <p className="mt-1 text-text-muted whitespace-pre-wrap leading-relaxed">
-                                    {criterion.description}
-                                  </p>
-                                </td>
-                                {/* Strategy & Config */}
-                                <td className="py-2.5 px-4 align-top">
-                                  <div className="grid gap-1">
-                                    <span className="w-fit rounded-sm bg-primary-soft border border-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
-                                      {strategyBadge.label}
-                                    </span>
-                                    <span className="text-[11px] text-text-muted font-mono tabular-nums">
-                                      {strategyBadge.detail}
-                                    </span>
-                                  </div>
-                                </td>
-
-                                {/* Scoring Rule */}
-                                <td className="py-2.5 px-4 align-top">
-                                  {criterion.scoring_rule ? (
-                                    <p className="text-text whitespace-pre-wrap leading-relaxed">
-                                      {criterion.scoring_rule}
-                                    </p>
-                                  ) : (
-                                    <span className="text-text-muted italic">No rule summary</span>
-                                  )}
-                                </td>
-
-                                {/* Draft Actions */}
-                                {isDraft && (
-                                  <td className="py-2.5 px-3 text-right align-top">
-                                    <div className="flex items-center justify-end gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setCriterionModal({
-                                            isOpen: true,
-                                            domainId: domain.rubric_domain_id,
-                                            domainTitle: domain.title,
-                                            criterion,
-                                          })
-                                        }
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        aria-label={`Edit ${criterion.criterion_code} row`}
-                                        title="Edit Criterion"
-                                      >
-                                        <PencilSimple className="size-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setMoveModal({
-                                            isOpen: true,
-                                            criterion,
-                                            currentDomainId: domain.rubric_domain_id,
-                                          })
-                                        }
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:bg-surface-subtle hover:text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        aria-label={`Move ${criterion.criterion_code} to another domain`}
-                                        title="Move Criterion"
-                                      >
-                                        <ArrowsLeftRight className="size-3.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (
-                                            window.confirm(
-                                              `Delete criterion ${criterion.criterion_code}?`,
-                                            )
-                                          ) {
-                                            deleteCriterionMutation.mutate(
-                                              criterion.rubric_criterion_id,
-                                            );
-                                          }
-                                        }}
-                                        className="inline-flex size-7 items-center justify-center rounded-sm text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
-                                        aria-label={`Delete ${criterion.criterion_code} row`}
-                                        title="Delete Criterion"
-                                      >
-                                        <Trash className="size-3.5" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                )}
-                              </tr>
-                            );
-                          })}
-
-                          {domain.criteria.length === 0 && (
-                            <tr>
-                              <td
-                                colSpan={isDraft ? 6 : 4}
-                                className="py-6 text-center text-xs font-semibold text-text-muted uppercase tracking-wider bg-surface-subtle/20"
-                              >
-                                No criteria in this domain. Click &quot;Add Criterion&quot; to
-                                create one.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                );
-              })}
-
-              {currentRevision.domains.length === 0 && (
-                <div className="rounded-sm border border-border bg-surface p-8 text-center">
-                  <p className="text-sm font-bold text-text">No domains in this form.</p>
-                  {isDraft && (
-                    <button
-                      type="button"
-                      onClick={() => setDomainModal({ isOpen: true })}
-                      className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <Plus className="size-4" />
-                      Add First Domain
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-sm border border-border bg-surface p-8 text-center">
-              <p className="text-sm font-bold text-text">
-                No active or draft form found for {AGENT_LABELS[selectedAgent]}.
-              </p>
-              <button
-                type="button"
-                onClick={handleCreateDraft}
-                className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Plus className="size-4" />
-                Create New Form Draft
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Right Sidebar: Revision History */}
-        <div className={`grid gap-4 ${showHistorySidebar ? 'block' : 'hidden lg:block'}`}>
-          <RevisionHistoryPanel
-            agentId={selectedAgent}
-            agentLabel={AGENT_LABELS[selectedAgent]}
-            revisions={agentRevisions}
-            activePointerId={activePointers[selectedAgent]}
-            selectedRevisionId={currentRevision?.rubric_set_id}
-            onSelectRevision={(revId) => {
-              setSelectedRevisionId(revId);
-              setValidationReport(null);
-            }}
-            onCreateDraft={handleCreateDraft}
-            onDeleteDraft={handleDeleteDraft}
-            onActivateRevision={handleActivateRevision}
-            onRetireRevision={handleRetireRevision}
-            isActionPending={
-              createDraftMutation.isPending ||
-              deleteDraftMutation.isPending ||
-              activateRevisionMutation.isPending ||
-              retireRevisionMutation.isPending
-            }
-          />
-        </div>
+        ) : (
+          <div className="rounded-md border border-border bg-surface p-12 text-center shadow-none">
+            <p className="text-sm font-semibold text-text">
+              No active or draft form found for {AGENT_LABELS[selectedAgent]}.
+            </p>
+            <button
+              type="button"
+              onClick={handleCreateDraft}
+              className="mt-3 inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            >
+              <Plus className="size-4" />
+              <span>Create New Form Draft</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Domain Modal */}
+      {/* ── Slide-Over Revision History Drawer ─────────────────────────── */}
+      {showHistorySidebar && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs"
+          onClick={() => setShowHistorySidebar(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-surface border-l border-border p-6 h-full flex flex-col justify-between overflow-y-auto relative shadow-none"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-4 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <ClockCounterClockwise className="size-4 text-primary" aria-hidden="true" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-text">
+                    Revision History
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHistorySidebar(false)}
+                  className="text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+
+              <RevisionHistoryPanel
+                agentId={selectedAgent}
+                agentLabel={AGENT_LABELS[selectedAgent]}
+                revisions={agentRevisions}
+                activePointerId={activePointers[selectedAgent]}
+                selectedRevisionId={currentRevision?.rubric_set_id}
+                onSelectRevision={(revId) => {
+                  setSelectedRevisionId(revId);
+                  setValidationReport(null);
+                  setShowHistorySidebar(false);
+                }}
+                onCreateDraft={handleCreateDraft}
+                onDeleteDraft={requestDeleteDraft}
+                onActivateRevision={handleActivateRevision}
+                onRequestRollback={(rev) =>
+                  setRollbackModal({ isOpen: true, targetRevision: rev })
+                }
+                onRetireRevision={requestRetireRevision}
+                isActionPending={
+                  createDraftMutation.isPending ||
+                  deleteDraftMutation.isPending ||
+                  activateRevisionMutation.isPending ||
+                  retireRevisionMutation.isPending
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modals ─────────────────────────────────────────────────────── */}
       {currentRevision && (
         <DomainModal
           isOpen={domainModal.isOpen}
@@ -943,7 +999,6 @@ export function RubricTableEditor() {
         />
       )}
 
-      {/* Criterion Modal */}
       {currentRevision && (
         <CriterionModal
           isOpen={criterionModal.isOpen}
@@ -970,7 +1025,6 @@ export function RubricTableEditor() {
         />
       )}
 
-      {/* Move Criterion Modal */}
       {currentRevision && (
         <MoveCriterionModal
           isOpen={moveModal.isOpen}
@@ -991,7 +1045,6 @@ export function RubricTableEditor() {
         />
       )}
 
-      {/* Publish Revision Modal */}
       {currentRevision && (
         <PublishRevisionModal
           isOpen={publishModalOpen}
@@ -1003,6 +1056,39 @@ export function RubricTableEditor() {
           error={publishRevisionMutation.error}
         />
       )}
+
+      {/* Rollback Confirmation Modal */}
+      {rollbackModal.isOpen && (
+        <RollbackRevisionModal
+          isOpen={rollbackModal.isOpen}
+          targetRevision={rollbackModal.targetRevision}
+          agentLabel={AGENT_LABELS[selectedAgent]}
+          onClose={() => setRollbackModal({ isOpen: false, targetRevision: null })}
+          onConfirmRollback={async (rubricSetId) => {
+            await handleActivateRevision(rubricSetId);
+            setRollbackModal({ isOpen: false, targetRevision: null });
+            setShowHistorySidebar(false);
+          }}
+          isPending={activateRevisionMutation.isPending}
+          error={activateRevisionMutation.error}
+        />
+      )}
+
+      {/* In-App Confirmation Modal (Yes/No Pop-up for Delete & Retire) */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        description={confirmModal.description}
+        confirmLabel={confirmModal.confirmLabel}
+        isPending={
+          deleteDraftMutation.isPending ||
+          deleteDomainMutation.isPending ||
+          deleteCriterionMutation.isPending ||
+          retireRevisionMutation.isPending
+        }
+      />
     </section>
   );
 }

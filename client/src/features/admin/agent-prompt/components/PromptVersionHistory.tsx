@@ -1,4 +1,4 @@
-import { ArrowCounterClockwise, Spinner } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, ClockCounterClockwise, GitCommit, Spinner } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { usePromptVersions } from '../hooks/usePromptVersions';
@@ -6,75 +6,135 @@ import type { PromptVersionItem } from '../types';
 
 interface PromptVersionHistoryProps {
   agentId: string;
+  agentLabel: string;
   onSelectVersion?: (version: PromptVersionItem) => void;
+  onRevertVersion?: (version: PromptVersionItem) => void;
 }
 
-export function PromptVersionHistory({ agentId, onSelectVersion }: PromptVersionHistoryProps) {
+export function PromptVersionHistory({
+  agentId,
+  agentLabel,
+  onSelectVersion,
+  onRevertVersion,
+}: PromptVersionHistoryProps) {
   const { data, isLoading, isError } = usePromptVersions(agentId);
+  const versions = data?.versions ?? [];
 
   return (
-    <div className="rounded-md border border-border bg-surface overflow-hidden">
-      <div className="border-b border-border p-6 bg-surface-subtle">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text">
-          Version History
-        </h2>
-        <p className="text-xs text-text-muted font-semibold mt-1 uppercase tracking-wider">
-          Prompt revisions for {agentId}
-        </p>
+    <div className="rounded-md border border-border bg-surface overflow-hidden shadow-none flex flex-col h-full">
+      {/* Header */}
+      <div className="border-b border-border p-4 sm:p-5 bg-surface-subtle flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <ClockCounterClockwise className="size-4 text-primary" aria-hidden="true" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+              Version History
+            </h2>
+          </div>
+          <p className="text-[11px] text-text-muted mt-0.5 font-medium">
+            Directives for {agentLabel}
+          </p>
+        </div>
+        <span className="text-[11px] font-mono font-semibold text-text-muted rounded-xs bg-surface border border-border px-2 py-0.5 tabular-nums">
+          {versions.length} revisions
+        </span>
       </div>
-      <div className="p-6 grid gap-3 max-h-[700px] overflow-y-auto">
+
+      {/* History List */}
+      <div className="p-4 sm:p-5 space-y-3.5 max-h-[44rem] overflow-y-auto flex-1">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-xs font-semibold text-text-muted uppercase tracking-wider py-4">
-            <Spinner className="size-4 animate-spin" /> Loading versions...
+          <div className="flex items-center justify-center gap-2 text-xs font-medium text-text-muted py-10">
+            <Spinner className="size-4 animate-spin text-primary" />
+            <span>Loading prompt revisions…</span>
           </div>
         ) : isError ? (
-          <p className="text-xs font-semibold text-destructive uppercase tracking-wider py-4">
-            Failed to load versions.
+          <p className="text-xs font-semibold text-destructive py-8 text-center bg-destructive-soft rounded-sm p-3">
+            Failed to load prompt version history.
           </p>
-        ) : !data?.versions.length ? (
-          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider py-4">
-            No versions yet.
-          </p>
+        ) : versions.length === 0 ? (
+          <div className="py-12 text-center text-text-muted space-y-1">
+            <GitCommit className="size-6 text-text-muted/40 mx-auto" aria-hidden="true" />
+            <p className="text-xs font-semibold text-text">No prompt revisions yet.</p>
+            <p className="text-[11px] text-text-muted">Save the first directive to record version 1.</p>
+          </div>
         ) : (
-          data.versions.map((version) => (
-            <div
-              key={version.version_id}
-              className="rounded-sm border border-border p-4 text-xs bg-surface-subtle/40 space-y-2"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <strong className="font-bold text-text tabular-nums">v{version.version_number}</strong>
-                  <Badge variant={version.is_active ? 'success' : 'neutral'} withDot>
-                    {version.is_active ? 'Active' : 'Archived'}
-                  </Badge>
+          versions.map((version) => {
+            const isActive = version.is_active;
+
+            return (
+              <div
+                key={version.version_id}
+                className={`rounded-sm border p-4 text-xs space-y-2.5 transition-colors ${
+                  isActive
+                    ? 'border-primary/40 bg-primary-soft/20 shadow-2xs'
+                    : 'border-border bg-surface hover:border-border-strong'
+                }`}
+              >
+                {/* Title & Status Bar */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-text text-xs tabular-nums">
+                      v{version.version_number}
+                    </span>
+                    <Badge variant={isActive ? 'success' : 'neutral'} withDot>
+                      {isActive ? 'Active' : 'Archived'}
+                    </Badge>
+                  </div>
+
+                  {/* Actions for Archived Versions */}
+                  {!isActive ? (
+                    <div className="flex items-center gap-1.5">
+                      {onSelectVersion && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onSelectVersion(version)}
+                          className="h-6.5 px-2 text-[11px] font-semibold"
+                          title="Load text into editor for editing"
+                        >
+                          <span>Load</span>
+                        </Button>
+                      )}
+                      {onRevertVersion && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onRevertVersion(version)}
+                          className="h-6.5 px-2 text-[11px] font-semibold text-primary hover:text-primary-strong gap-1"
+                          title="Rollback active prompt to this version"
+                        >
+                          <ArrowCounterClockwise className="size-3" />
+                          <span>Revert</span>
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-success font-semibold">Live in Evaluations</span>
+                  )}
                 </div>
-                {onSelectVersion ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onSelectVersion(version)}
-                    className="h-7 px-2 text-xs font-semibold text-primary hover:text-primary-strong"
-                    title="Load this prompt into editor"
-                  >
-                    <ArrowCounterClockwise className="size-3 mr-1" />
-                    Load
-                  </Button>
-                ) : null}
-              </div>
-              <p className="whitespace-pre-wrap text-text font-medium leading-relaxed max-h-36 overflow-y-auto font-mono text-[11px] bg-surface p-2 rounded-xs border border-border">
-                {version.prompt_text}
-              </p>
-              {version.motivation ? (
-                <p className="text-xs text-text-muted italic">
-                  Motivation: {version.motivation}
+
+                {/* Prompt Preview Snippet */}
+                <p className="whitespace-pre-wrap text-text font-mono text-[11px] leading-relaxed max-h-24 overflow-y-auto bg-surface p-2.5 rounded-xs border border-border/80">
+                  {version.prompt_text}
                 </p>
-              ) : null}
-              <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider tabular-nums pt-1 border-t border-border/50">
-                {version.updated_by || 'System'} · {new Date(version.created_at).toLocaleString()}
-              </p>
-            </div>
-          ))
+
+                {/* Motivation / Changelog */}
+                {version.motivation ? (
+                  <p className="text-[11px] text-text-muted leading-relaxed italic border-l-2 border-primary/30 pl-2">
+                    &ldquo;{version.motivation}&rdquo;
+                  </p>
+                ) : null}
+
+                {/* Attribution & Date */}
+                <div className="flex items-center justify-between text-[10px] font-medium text-text-muted tabular-nums pt-1 border-t border-border/60">
+                  <span>Author: {version.updated_by || 'System'}</span>
+                  <span>{new Date(version.created_at).toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>
