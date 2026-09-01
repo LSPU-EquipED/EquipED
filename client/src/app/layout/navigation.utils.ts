@@ -58,20 +58,43 @@ export const facultyNavGroups: readonly NavGroup[] = [
   },
 ] as const;
 
-export const facultySecondaryNavItems: readonly NavItem[] = [
-  { to: '/evaluation-map', label: 'Evaluation Map', icon: GitFork, exact: false },
-] as const;
+export const facultySecondaryNavItems: readonly NavItem[] = [] as const;
 
-export const adminNavItems: readonly NavItem[] = [
-  { to: '/admin', label: 'Dashboard', icon: SquaresFour, exact: true },
-  { to: '/admin/users', label: 'Users', icon: Users, exact: true },
-  { to: '/admin/ingest', label: 'Ingest', icon: UploadSimple, exact: true },
-  { to: '/admin/references', label: 'References', icon: Books, exact: true },
-  { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
-  { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
-  { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
-  { to: '/admin/prompts', label: 'Prompts', icon: Gear, exact: false },
-  { to: '/admin/preferences', label: 'Logs', icon: BookOpen, exact: true },
+export const adminNavGroups: readonly NavGroup[] = [
+  {
+    id: 'overview',
+    label: 'OVERVIEW',
+    items: [
+      { to: '/admin', label: 'Dashboard', icon: SquaresFour, exact: true },
+    ],
+  },
+  {
+    id: 'operations',
+    label: 'OPERATIONS',
+    items: [
+      { to: '/admin/users', label: 'User Management', icon: Users, exact: true },
+      { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
+    ],
+  },
+  {
+    id: 'knowledge-base',
+    label: 'KNOWLEDGE BASE',
+    items: [
+      { to: '/admin/ingest', label: 'Reference Ingestion', icon: UploadSimple, exact: true },
+      { to: '/admin/references', label: 'Reference Library', icon: Books, exact: true },
+      { to: '/admin/rubrics', label: 'Rubric Editor', icon: ClipboardText, exact: true },
+    ],
+  },
+  {
+    id: 'model-governance',
+    label: 'MODEL GOVERNANCE',
+    items: [
+      { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
+      { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
+      { to: '/admin/prompts', label: 'Agent Prompts', icon: Gear, exact: false },
+      { to: '/admin/preferences', label: 'Preference Logs', icon: BookOpen, exact: true },
+    ],
+  },
 ] as const;
 
 export function isNavigationActive(
@@ -210,8 +233,8 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
 
   if (cleanPath === '/evaluation-map') {
     return [
-      { label: 'Institutional Reference' },
-      { label: userRole === 'admin' ? 'Knowledge Map' : 'Evaluation Map' },
+      { label: 'Administration', to: '/admin' },
+      { label: 'Knowledge Map' },
     ];
   }
 
@@ -294,8 +317,7 @@ export function getRouteTitle(routeId?: string, userRole?: string): string {
     return 'Scorecard';
   }
   if (routeId.includes('/evaluations')) return 'Evaluations';
-  if (routeId.includes('/evaluation-map'))
-    return userRole === 'admin' ? 'Knowledge Map' : 'Evaluation Map';
+  if (routeId.includes('/evaluation-map')) return 'Knowledge Map';
   if (routeId.includes('/syllabus-alignment') && routeId.includes('/report'))
     return 'Syllabus Alignment Report';
   if (
