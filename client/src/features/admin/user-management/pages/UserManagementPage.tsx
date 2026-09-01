@@ -1,20 +1,10 @@
 import { useState, useMemo } from 'react';
-import {
-  MagnifyingGlass,
-  PencilSimple,
-  Plus,
-  Trash,
-  UserCheck,
-  UserMinus,
-  Warning,
-  X,
-} from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { INPUT_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
+import { TABLE_STYLES } from '@/shared/constants/theme';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
+import { UserFiltersToolbar, type RoleFilter, type StatusFilter } from '../components/UserFiltersToolbar';
+import { UserMetricsBar, type UserCounts } from '../components/UserMetricsBar';
+import { UserTable } from '../components/UserTable';
 import {
   useAdminUsers,
   useDeactivateUser,
@@ -22,334 +12,113 @@ import {
   useSetUserApproval,
 } from '../hooks/useAdminUsers';
 import type { AdminUserResponse } from '../types';
-import { getUserStatusBadge } from '../utils/userStatus';
 
 export function UserManagementPage() {
   const { data, isLoading, isError } = useAdminUsers();
   const deactivateUser = useDeactivateUser();
   const hardDeleteUser = useHardDeleteUser();
   const setApproval = useSetUserApproval();
+
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUserResponse | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const filteredUsers = useMemo(() => {
-    const items = data?.items;
-    if (!items) return [];
-    if (!searchQuery.trim()) return items;
-    const query = searchQuery.toLowerCase();
-    return items.filter(
-      (user: AdminUserResponse) =>
-        user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query),
-    );
-  }, [data, searchQuery]);
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
-  const allSelected =
-    filteredUsers.length > 0 && filteredUsers.every((user) => selectedIds.has(user.user_id));
-  const someSelected = filteredUsers.some((user) => selectedIds.has(user.user_id)) && !allSelected;
+  const counts: UserCounts = useMemo(() => ({
+    all: items.length,
+    pending: items.filter((u) => u.account_status === 'pending').length,
+    approved: items.filter((u) => u.account_status === 'approved').length,
+    suspended: items.filter((u) => u.account_status === 'suspended').length,
+    rejected: items.filter((u) => u.account_status === 'rejected').length,
+  }), [items]);
+
+  const filteredUsers = useMemo(() => {
+    let result = items;
+    if (statusFilter !== 'all') result = result.filter((u) => u.account_status === statusFilter);
+    if (roleFilter !== 'all') result = result.filter((u) => u.role === roleFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
+    }
+    return result;
+  }, [items, statusFilter, roleFilter, searchQuery]);
 
   const toggleSelection = (userId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(userId)) {
-        next.delete(userId);
-      } else {
-        next.add(userId);
-      }
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (allSelected) {
+    if (filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.has(u.user_id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredUsers.map((user) => user.user_id)));
+      setSelectedIds(new Set(filteredUsers.map((u) => u.user_id)));
     }
   };
 
   const handleBulkDeactivate = () => {
     if (selectedIds.size === 0) return;
-    if (
-      !window.confirm(
-        `Deactivate ${selectedIds.size} user(s)? This will deactivate their accounts. You can re-activate them later.`,
-      )
-    ) {
-      return;
-    }
-
-    for (const userId of selectedIds) {
-      deactivateUser.mutate(userId);
-    }
+    if (!window.confirm(`Deactivate ${selectedIds.size} user(s)? This will deactivate their accounts. You can re-activate them later.`)) return;
+    for (const userId of selectedIds) deactivateUser.mutate(userId);
     setSelectedIds(new Set());
   };
 
-  return (
-    <section className="grid gap-6">
-      <div className="flex items-center justify-end gap-3">
-        {selectedIds.size > 0 ? (
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleBulkDeactivate}
-            disabled={deactivateUser.isPending}
-            className="text-xs font-semibold uppercase tracking-wider"
-          >
-            <UserMinus className="size-4" />
-            Deactivate {selectedIds.size}
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="primary"
-          className="text-xs font-semibold uppercase tracking-wider"
-          onClick={() => setIsCreateModalOpen(true)}
-        >
-          <Plus className="size-4" />
-          Create Faculty
-        </Button>
-      </div>
+  const handleSuspend = (user: AdminUserResponse) => {
+    if (window.confirm(`Suspend ${user.name}? This will suspend the account. You can reapprove it later.`)) {
+      setApproval.mutate({ userId: user.user_id, accountStatus: 'suspended' });
+    }
+  };
 
-      <div className="relative">
-        <MagnifyingGlass className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-        <input
-          type="text"
-          className={cn(
-            INPUT_STYLES.base,
-            'pl-9 pr-4 font-medium text-text placeholder:text-text-muted',
-          )}
-          placeholder="Search by name or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+  const handleDelete = (user: AdminUserResponse) => {
+    if (window.confirm(`Delete ${user.name}? This will permanently delete the account and cannot be undone. Are you sure?`)) {
+      hardDeleteUser.mutate(user.user_id);
+    }
+  };
+
+  return (
+    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
+      <UserMetricsBar counts={counts} />
+      <div className={TABLE_STYLES.wrapper}>
+        <UserFiltersToolbar
+          counts={counts}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          roleFilter={roleFilter}
+          onRoleFilterChange={setRoleFilter}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          selectedCount={selectedIds.size}
+          onBulkDeactivate={handleBulkDeactivate}
+          isDeactivating={deactivateUser.isPending}
+          onCreateFaculty={() => setIsCreateModalOpen(true)}
+        />
+        <UserTable
+          users={filteredUsers}
+          isLoading={isLoading}
+          isError={isError}
+          hasActiveFilters={Boolean(searchQuery.trim() || statusFilter !== 'all' || roleFilter !== 'all')}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelection}
+          onToggleSelectAll={toggleSelectAll}
+          onEdit={(user) => { setSelectedUser(user); setIsEditModalOpen(true); }}
+          onApprove={(userId) => setApproval.mutate({ userId, accountStatus: 'approved' })}
+          onReapprove={(userId) => setApproval.mutate({ userId, accountStatus: 'approved' })}
+          onSuspend={handleSuspend}
+          onReject={(userId) => setApproval.mutate({ userId, accountStatus: 'rejected' })}
+          onDelete={handleDelete}
+          isApprovalPending={setApproval.isPending}
+          isDeletePending={hardDeleteUser.isPending}
         />
       </div>
-
-      <div className={TABLE_STYLES.wrapper}>
-        {isLoading ? (
-          <div className="space-y-2.5 p-5">
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-          </div>
-        ) : isError ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-destructive font-semibold">
-            <Warning className="size-5" />
-            <span>Failed to load users.</span>
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="py-12 text-center text-text-muted font-medium text-sm">
-            {searchQuery.trim() ? (
-              <p>No users match your search.</p>
-            ) : (
-              <p>No users registered yet.</p>
-            )}
-          </div>
-        ) : (
-          <table className={TABLE_STYLES.table}>
-            <thead className={TABLE_STYLES.thead}>
-              <tr>
-                <th className="py-3 px-4 w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(el) => {
-                      if (el) el.indeterminate = someSelected;
-                    }}
-                    onChange={toggleSelectAll}
-                    className="size-4 cursor-pointer accent-primary"
-                    aria-label="Select all users"
-                  />
-                </th>
-                <th className={TABLE_STYLES.th}>Name</th>
-                <th className={TABLE_STYLES.th}>Email</th>
-                <th className={TABLE_STYLES.th}>Role</th>
-                <th className={TABLE_STYLES.th}>Status</th>
-                <th className={cn(TABLE_STYLES.th, 'text-right')}>Registered</th>
-                <th className={cn(TABLE_STYLES.th, 'text-center')}>Actions</th>
-              </tr>
-            </thead>
-            <tbody className={TABLE_STYLES.tbody}>
-              {filteredUsers.map((user: AdminUserResponse) => {
-                const status = getUserStatusBadge(user);
-
-                return (
-                  <tr key={user.user_id} className={TABLE_STYLES.tr}>
-                    <td className="py-3 px-4 text-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(user.user_id)}
-                        onChange={() => toggleSelection(user.user_id)}
-                        className="size-4 cursor-pointer accent-primary"
-                        aria-label={`Select ${user.name}`}
-                      />
-                    </td>
-                    <td className={cn(TABLE_STYLES.td, 'font-semibold text-text')}>{user.name}</td>
-                    <td className={cn(TABLE_STYLES.td, 'text-text-muted font-medium')}>
-                      {user.email}
-                    </td>
-                    <td className={TABLE_STYLES.td}>
-                      <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
-                        {user.role}
-                      </Badge>
-                    </td>
-                    <td className={TABLE_STYLES.td}>
-                      <Badge variant={status.variant} withDot>
-                        {status.label}
-                      </Badge>
-                    </td>
-                    <td
-                      className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium')}
-                    >
-                      {new Date(user.created_at).toLocaleDateString()}
-                    </td>
-                    <td className={TABLE_STYLES.td}>
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="text-xs uppercase tracking-wider font-semibold"
-                          aria-label={`Edit ${user.name}`}
-                        >
-                          <PencilSimple className="size-3.5" />
-                          Edit
-                        </Button>
-                        {user.account_status === 'pending' || user.account_status === 'rejected' ? (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              setApproval.mutate({
-                                userId: user.user_id,
-                                accountStatus: 'approved',
-                              });
-                            }}
-                            disabled={setApproval.isPending}
-                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Approve ${user.name}`}
-                          >
-                            <UserCheck className="size-3.5" />
-                            Approve
-                          </Button>
-                        ) : user.account_status === 'suspended' ? (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              setApproval.mutate({
-                                userId: user.user_id,
-                                accountStatus: 'approved',
-                              });
-                            }}
-                            disabled={setApproval.isPending}
-                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Reapprove ${user.name}`}
-                          >
-                            <UserCheck className="size-3.5" />
-                            Reapprove
-                          </Button>
-                        ) : user.is_active ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Suspend ${user.name}? This will suspend the account. You can reapprove it later.`,
-                                )
-                              ) {
-                                setApproval.mutate({
-                                  userId: user.user_id,
-                                  accountStatus: 'suspended',
-                                });
-                              }
-                            }}
-                            disabled={setApproval.isPending}
-                            className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Suspend ${user.name}`}
-                          >
-                            <UserMinus className="size-3.5" />
-                            Suspend
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                              setApproval.mutate({
-                                userId: user.user_id,
-                                accountStatus: 'approved',
-                              });
-                            }}
-                            disabled={setApproval.isPending}
-                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Reapprove ${user.name}`}
-                          >
-                            <UserCheck className="size-3.5" />
-                            Reapprove
-                          </Button>
-                        )}
-                        {user.account_status === 'pending' && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setApproval.mutate({
-                                userId: user.user_id,
-                                accountStatus: 'rejected',
-                              });
-                            }}
-                            disabled={setApproval.isPending}
-                            className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Reject ${user.name}`}
-                          >
-                            <X className="size-3.5" />
-                            Reject
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `Delete ${user.name}? This will permanently delete the account and cannot be undone. Are you sure?`,
-                              )
-                            ) {
-                              hardDeleteUser.mutate(user.user_id);
-                            }
-                          }}
-                          disabled={hardDeleteUser.isPending}
-                          className="text-xs uppercase tracking-wider font-semibold"
-                          aria-label={`Delete ${user.name}`}
-                        >
-                          <Trash className="size-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
       <CreateUserModal open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
       <EditUserModal user={selectedUser} open={isEditModalOpen} onOpenChange={setIsEditModalOpen} />
     </section>

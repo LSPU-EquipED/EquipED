@@ -1,225 +1,121 @@
 import { useState } from 'react';
-import { CaretDown, CaretRight, FileText, Spinner } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
+import { BookOpen, FileText, ShieldCheck, Spinner, Warning } from '@phosphor-icons/react';
+import { TABLE_STYLES } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
-import { TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
 import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
 import type { PreferenceLogItem } from '../types';
-
-function getActionVariant(action: string): StatusVariant {
-  const normalized = action.toUpperCase();
-  if (normalized === 'EDIT' || normalized === 'EDITED' || normalized === 'UPDATE') {
-    return 'accent';
-  }
-  if (normalized === 'ACCEPT' || normalized === 'ACCEPTED' || normalized === 'APPROVE') {
-    return 'success';
-  }
-  if (normalized === 'REJECT' || normalized === 'REJECTED' || normalized === 'DELETE') {
-    return 'destructive';
-  }
-  return 'neutral';
-}
+import { PreferenceLogFilters } from './PreferenceLogFilters';
+import { PreferenceLogRow } from './PreferenceLogRow';
+import { PreferenceLogPagination } from './PreferenceLogPagination';
 
 export function PreferenceLogTable() {
-  const { data, isLoading, isError } = usePreferenceLogs();
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
+
+  const { data, isLoading, isError } = usePreferenceLogs({
+    action: actionFilter !== 'all' ? actionFilter : undefined,
+    page,
+    page_size: pageSize,
+  });
 
   const toggleExpand = (logId: string) => {
     setExpandedLogIds((prev) => {
       const next = new Set(prev);
-      if (next.has(logId)) {
-        next.delete(logId);
-      } else {
-        next.add(logId);
-      }
+      if (next.has(logId)) next.delete(logId);
+      else next.add(logId);
       return next;
     });
   };
 
+  const totalRecords = data?.total ?? data?.items?.length ?? 0;
+
   return (
-    <section className="grid gap-4">
+    <section className="space-y-5">
+      <PreferenceLogFilters
+        actionFilter={actionFilter}
+        onFilterChange={(filterId) => {
+          setActionFilter(filterId);
+          setPage(1);
+        }}
+        totalRecords={totalRecords}
+      />
+
       <div className={TABLE_STYLES.wrapper}>
+        <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <BookOpen className="size-4 text-primary" aria-hidden="true" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-text">
+              Reviewer Preference & Override Audit Log
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+            <ShieldCheck className="size-3.5 text-primary" />
+            <span>Authoritative Human Governance</span>
+          </div>
+        </div>
+
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-text-muted font-medium text-sm">
-            <Spinner className="size-5 animate-spin" /> Loading preference logs...
+          <div className="flex flex-col items-center justify-center gap-2.5 py-16 text-text-muted font-medium text-sm">
+            <Spinner className="size-5 animate-spin text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wider">
+              Loading preference audit logs…
+            </span>
           </div>
         ) : isError ? (
-          <div className="py-10 text-center text-destructive font-semibold text-sm">
-            Failed to load preference logs.
+          <div className="flex items-center justify-center py-12 px-4 text-destructive font-semibold text-sm gap-2.5 bg-destructive-soft">
+            <Warning className="size-5 text-destructive shrink-0" aria-hidden="true" />
+            <span>Failed to load preference logs from server.</span>
           </div>
         ) : !data?.items.length ? (
-          <div className="py-10 text-center text-text-muted font-medium text-sm">
-            No preference logs yet.
+          <div className="py-16 text-center text-text-muted space-y-1.5">
+            <FileText className="size-8 text-text-muted/40 mx-auto" aria-hidden="true" />
+            <p className="text-sm font-semibold text-text">No preference audit logs recorded yet.</p>
+            <p className="text-xs text-text-muted max-w-sm mx-auto">
+              Faculty score overrides and justification edits submitted during interactive evaluations will automatically appear here.
+            </p>
           </div>
         ) : (
-          <table className={TABLE_STYLES.table}>
-            <thead className={TABLE_STYLES.thead}>
-              <tr>
-                <th className="py-3 px-4 w-10 text-center" />
-                <th className={TABLE_STYLES.th}>User ID</th>
-                <th className={TABLE_STYLES.th}>Action</th>
-                <th className={TABLE_STYLES.th}>Evaluation ID</th>
-                <th className={TABLE_STYLES.th}>Details / Score</th>
-                <th className={cn(TABLE_STYLES.th, 'text-right')}>Created</th>
-              </tr>
-            </thead>
-            <tbody className={TABLE_STYLES.tbody}>
-              {data.items.map((log: PreferenceLogItem) => {
-                const isExpanded = expandedLogIds.has(log.log_id);
-                const hasDetails = !!log.edited_json || !!log.notes;
-                const score =
-                  log.edited_json && typeof log.edited_json === 'object' && 'score' in log.edited_json
-                    ? log.edited_json.score
-                    : null;
-
-                return (
-                  <LogRow
+          <div className="overflow-x-auto">
+            <table className={TABLE_STYLES.table}>
+              <thead className={TABLE_STYLES.thead}>
+                <tr>
+                  <th className="py-3 px-3 w-10 text-center" />
+                  <th className={cn(TABLE_STYLES.th, 'w-48')}>Reviewer User ID</th>
+                  <th className={cn(TABLE_STYLES.th, 'w-32')}>Action</th>
+                  <th className={cn(TABLE_STYLES.th, 'w-48')}>Evaluation ID</th>
+                  <th className={cn(TABLE_STYLES.th, 'w-auto')}>Details / Score</th>
+                  <th className={cn(TABLE_STYLES.th, 'w-48 text-right')}>Logged Timestamp</th>
+                </tr>
+              </thead>
+              <tbody className={TABLE_STYLES.tbody}>
+                {data.items.map((log: PreferenceLogItem) => (
+                  <PreferenceLogRow
                     key={log.log_id}
                     log={log}
-                    isExpanded={isExpanded}
-                    hasDetails={hasDetails}
-                    score={score}
+                    isExpanded={expandedLogIds.has(log.log_id)}
                     onToggle={() => toggleExpand(log.log_id)}
                   />
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
+
+        {!isLoading && !isError && data && data.items.length > 0 && totalRecords > 0 ? (
+          <PreferenceLogPagination
+            page={page}
+            pageSize={pageSize}
+            totalRecords={totalRecords}
+            onPageChange={setPage}
+            onPageSizeChange={(newPageSize) => {
+              setPageSize(newPageSize);
+              setPage(1);
+            }}
+          />
+        ) : null}
       </div>
     </section>
-  );
-}
-
-interface LogRowProps {
-  log: PreferenceLogItem;
-  isExpanded: boolean;
-  hasDetails: boolean;
-  score: unknown;
-  onToggle: () => void;
-}
-
-function LogRow({ log, isExpanded, hasDetails, score, onToggle }: LogRowProps) {
-  const justification =
-    log.edited_json && typeof log.edited_json === 'object' && 'justification' in log.edited_json
-      ? String(log.edited_json.justification)
-      : null;
-
-  return (
-    <>
-      <tr className={cn(TABLE_STYLES.tr, isExpanded && 'bg-surface-subtle/50')}>
-        <td className="py-3 px-4 text-center">
-          {hasDetails ? (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted hover:text-text hover:bg-surface-subtle cursor-pointer transition-colors"
-              aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
-            >
-              {isExpanded ? (
-                <CaretDown className="size-4" />
-              ) : (
-                <CaretRight className="size-4" />
-              )}
-            </button>
-          ) : null}
-        </td>
-        <td className={cn(TABLE_STYLES.tdData, 'font-mono text-xs text-text')}>
-          {log.user_id}
-        </td>
-        <td className={TABLE_STYLES.td}>
-          <Badge variant={getActionVariant(log.action)}>
-            {log.action}
-          </Badge>
-        </td>
-        <td className={cn(TABLE_STYLES.tdData, 'font-mono text-xs text-text')}>
-          {log.evaluation_id}
-        </td>
-        <td className={TABLE_STYLES.td}>
-          <div className="flex items-center gap-2">
-            {score !== null && score !== undefined ? (
-              <Badge variant="accent" className="tabular-nums font-semibold">
-                Score: {String(score)}
-              </Badge>
-            ) : null}
-            {hasDetails ? (
-              <button
-                type="button"
-                onClick={onToggle}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
-              >
-                <FileText className="size-3.5" />
-                <span>{isExpanded ? 'Hide Diff' : 'View Diff'}</span>
-              </button>
-            ) : (
-              <span className="text-xs text-text-muted">—</span>
-            )}
-          </div>
-        </td>
-        <td className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium text-xs')}>
-          {new Date(log.created_at).toLocaleString()}
-        </td>
-      </tr>
-      {isExpanded && hasDetails ? (
-        <tr className="bg-surface-subtle/30">
-          <td colSpan={6} className="px-6 py-4 border-b border-border">
-            <div className="rounded-md border border-border bg-surface p-4 space-y-3">
-              <div className="flex items-center justify-between border-b border-border pb-2">
-                <span className="text-xs font-semibold uppercase tracking-wider text-text">
-                  Preference Correction Diff
-                </span>
-                <span className="text-xs font-mono text-text-muted tabular-nums">
-                  Log ID: {log.log_id}
-                </span>
-              </div>
-
-              {score !== null && score !== undefined ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Corrected Criterion Score:
-                  </span>
-                  <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-xs bg-accent-soft text-accent-foreground border border-accent/30 text-xs font-bold tabular-nums">
-                    {String(score)}
-                  </span>
-                </div>
-              ) : null}
-
-              {justification ? (
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Reviewer Justification:
-                  </span>
-                  <p className="text-xs font-medium text-text bg-surface-subtle p-3 rounded-xs border border-border leading-relaxed whitespace-pre-wrap">
-                    {justification}
-                  </p>
-                </div>
-              ) : null}
-
-              {log.notes ? (
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Reviewer Notes:
-                  </span>
-                  <p className="text-xs font-medium text-text bg-surface-subtle p-3 rounded-xs border border-border leading-relaxed whitespace-pre-wrap">
-                    {log.notes}
-                  </p>
-                </div>
-              ) : null}
-
-              {log.edited_json && (!score && !justification) ? (
-                <div className="space-y-1">
-                  <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
-                    Edited Payload:
-                  </span>
-                  <pre className="text-xs font-mono text-text bg-surface-subtle p-3 rounded-xs border border-border overflow-x-auto leading-relaxed">
-                    {JSON.stringify(log.edited_json, null, 2)}
-                  </pre>
-                </div>
-              ) : null}
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
   );
 }
