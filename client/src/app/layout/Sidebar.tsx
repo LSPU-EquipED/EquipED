@@ -1,15 +1,11 @@
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
-import {
-  SidebarSimple,
-  UploadSimple,
-  X,
-} from '@phosphor-icons/react';
+import { SidebarSimple, X } from '@phosphor-icons/react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { cn } from '@/shared/components/utils';
 import {
-  adminNavItems,
+  adminNavGroups,
   facultyNavGroups,
   facultySecondaryNavItems,
   getAriaCurrent,
@@ -51,6 +47,7 @@ function NavLink({
   return (
     <Link
       to={item.to}
+      activeOptions={{ exact: item.exact }}
       onClick={onNavigate}
       className={baseClass}
       aria-current={getAriaCurrent(isActive)}
@@ -142,15 +139,11 @@ export function Sidebar({
   }, [isMobile, mobileOpen, onMobileClose]);
 
   const isAdmin = user?.role === 'admin';
-  const isRubricsActive = isNavigationActive(pathname, '/admin/rubrics', true);
-
   const { inert, ariaHidden } = getSidebarInertState(isMobile, mobileOpen);
-
   const handleItemNavigate = () => {
     onNavigate?.();
     onMobileClose?.();
   };
-
   return (
     <aside
       ref={asideRef}
@@ -207,14 +200,12 @@ export function Sidebar({
             <nav aria-label="Faculty Navigation" className="grid gap-3 px-3">
               {facultyNavGroups.map((group, groupIdx) => (
                 <div key={group.id} className="grid gap-1">
-                  {collapsed ? (
-                    groupIdx > 0 ? (
-                      <div
-                        className="hidden md:block my-1 border-t border-border mx-1"
-                        role="separator"
-                        aria-hidden="true"
-                      />
-                    ) : null
+                  {collapsed && groupIdx > 0 ? (
+                    <div
+                      className="hidden md:block my-1 border-t border-border mx-1"
+                      role="separator"
+                      aria-hidden="true"
+                    />
                   ) : null}
                   <div
                     className={cn(
@@ -237,60 +228,56 @@ export function Sidebar({
               ))}
             </nav>
 
-            <div className="mx-3 my-3 border-t border-border" role="separator" aria-hidden="true" />
+            {facultySecondaryNavItems.length > 0 ? (
+              <>
+                <div className="mx-3 my-3 border-t border-border" role="separator" aria-hidden="true" />
 
-            {/* Secondary Faculty Navigation */}
-            <nav aria-label="Secondary Navigation" className="grid gap-1 px-3">
-              {facultySecondaryNavItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  item={item}
-                  collapsed={collapsed}
-                  pathname={pathname}
-                  onNavigate={handleItemNavigate}
-                />
-              ))}
-            </nav>
+                {/* Secondary Faculty Navigation */}
+                <nav aria-label="Secondary Navigation" className="grid gap-1 px-3">
+                  {facultySecondaryNavItems.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      item={item}
+                      collapsed={collapsed}
+                      pathname={pathname}
+                      onNavigate={handleItemNavigate}
+                    />
+                  ))}
+                </nav>
+              </>
+            ) : null}
           </>
         ) : (
-          <>
-            {/* Admin Navigation */}
-            <nav aria-label="Admin Navigation" className="grid gap-1 px-3">
-              {adminNavItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  item={item}
-                  collapsed={collapsed}
-                  pathname={pathname}
-                  onNavigate={handleItemNavigate}
-                />
-              ))}
-            </nav>
-
-            <div className="mx-3 my-4 border-t border-border" role="separator" aria-hidden="true" />
-
-            <nav aria-label="Secondary" className="grid gap-1 px-3">
-              <Link
-                to="/admin/rubrics"
-                onClick={handleItemNavigate}
-                aria-current={getAriaCurrent(isRubricsActive)}
-                className={cn(
-                  'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isRubricsActive
-                    ? 'font-semibold text-primary bg-primary-soft border-l-2 border-primary'
-                    : 'font-medium text-text-muted hover:bg-surface-subtle hover:text-text',
-                  collapsed
-                    ? 'md:justify-center md:px-0 max-md:gap-3 max-md:pl-3 max-md:pr-3'
-                    : 'gap-3 pl-3 pr-3',
-                )}
-                title={collapsed ? 'Rubrics' : undefined}
-                aria-label={collapsed ? 'Rubrics' : undefined}
-              >
-                <UploadSimple className="size-4 shrink-0" aria-hidden="true" />
-                <span className={cn('truncate', collapsed && 'md:hidden')}>Rubrics</span>
-              </Link>
-            </nav>
-          </>
+          <nav aria-label="Admin Navigation" className="grid gap-3 px-3">
+            {adminNavGroups.map((group, groupIdx) => (
+              <div key={group.id} className="grid gap-1">
+                {collapsed && groupIdx > 0 ? (
+                  <div
+                    className="hidden md:block my-1 border-t border-border mx-1"
+                    role="separator"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                <div
+                  className={cn(
+                    'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
+                    collapsed && 'md:hidden',
+                  )}
+                >
+                  {group.label}
+                </div>
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    item={item}
+                    collapsed={collapsed}
+                    pathname={pathname}
+                    onNavigate={handleItemNavigate}
+                  />
+                ))}
+              </div>
+            ))}
+          </nav>
         )}
       </div>
 

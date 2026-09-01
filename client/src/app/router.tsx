@@ -43,7 +43,7 @@ const ScorecardPage = lazyRouteComponent(
   'ScorecardPage',
 );
 const MonitoringPage = lazyRouteComponent(
-  () => import('../features/matrix/pages/MonitoringPage'),
+  () => import('../features/admin/monitoring-matrix/pages/MonitoringPage'),
   'MonitoringPage',
 );
 const AlignmentCheckPage = lazyRouteComponent(
@@ -63,7 +63,7 @@ const SyllabusAlignmentReportPage = lazyRouteComponent(
   'SyllabusAlignmentReportPage',
 );
 const EvaluationMapPage = lazyRouteComponent(
-  () => import('../features/evaluation-map/pages/EvaluationMapPage'),
+  () => import('../features/admin/evaluation-map/pages/EvaluationMapPage'),
   'EvaluationMapPage',
 );
 
@@ -194,6 +194,7 @@ const evaluationsRoute = createRoute({
 const evaluationMapRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluation-map',
+  beforeLoad: requireRole(['admin']),
   component: EvaluationMapPage,
 });
 

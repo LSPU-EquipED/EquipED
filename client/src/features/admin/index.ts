@@ -6,3 +6,5 @@ export { AgentPromptPage } from './agent-prompt/pages/AgentPromptPage';
 export { PreferenceLogPage } from './preference-log/pages/PreferenceLogPage';
 export { RubricEditorPage } from './rubric-editor/pages/RubricEditorPage';
 export { ModelValidationPage } from './model-validation/pages/ModelValidationPage';
+export { MonitoringPage } from './monitoring-matrix/pages/MonitoringPage';
+export { EvaluationMapPage } from './evaluation-map/pages/EvaluationMapPage';
