@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowsClockwise, Scales, Spinner, UploadSimple } from '@phosphor-icons/react';
+import {
+  ArrowsClockwise,
+  MagnifyingGlass,
+  Scales,
+  Spinner,
+  UploadSimple,
+} from '@phosphor-icons/react';
+import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
+import { cn } from '@/shared/components/utils';
 import {
   getReferenceFileUrl,
   getReferenceOperationError,
@@ -16,11 +24,22 @@ export function PolicyLibraryTab() {
   const deletePolicy = useDeletePolicy();
   const rebuildPolicy = useRebuildPolicyEmbeddings();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const items = useMemo(() => data?.items ?? [], [data?.items]);
   const activeMutationId = deletePolicy.variables ?? rebuildPolicy.variables ?? null;
   const pendingDeleteId = deletePolicy.isPending ? deletePolicy.variables : null;
   const pendingRebuildId = rebuildPolicy.isPending ? rebuildPolicy.variables : null;
+
+  const filteredItems = useMemo(() => {
+    if (!search.trim()) return items;
+    const q = search.toLowerCase();
+    return items.filter(
+      (item) =>
+        item.title.toLowerCase().includes(q) ||
+        (item.policyArea && item.policyArea.toLowerCase().includes(q)),
+    );
+  }, [items, search]);
 
   const handlePreview = (documentId: string) => {
     window.open(getReferenceFileUrl(documentId), '_blank', 'noopener,noreferrer');
@@ -57,78 +76,120 @@ export function PolicyLibraryTab() {
       : null;
 
   return (
-    <>
-      <div className="flex items-center justify-end">
+    <div className="space-y-4">
+      {/* ── Table Toolbar ────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-[12rem] sm:min-w-[18rem]">
+            <MagnifyingGlass
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
+              aria-hidden="true"
+            />
+            <input
+              type="text"
+              placeholder="Search policy manuals…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs font-medium text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Search policies"
+            />
+          </div>
+          <span className="text-xs text-text-muted tabular-nums font-medium whitespace-nowrap">
+            {items.length} polic{items.length === 1 ? 'y' : 'ies'} on record
+          </span>
+        </div>
+
         <button
           type="button"
           onClick={() => refetch()}
           disabled={isLoading}
-          className="inline-flex h-8 items-center gap-2 border border-border bg-surface px-3 text-xs font-semibold uppercase tracking-wide text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm"
+          className="inline-flex h-8 items-center gap-1.5 border border-border bg-surface px-3 text-xs font-semibold text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm cursor-pointer shrink-0 self-end sm:self-auto"
           aria-label="Refresh policy list"
         >
           {isLoading ? (
-            <Spinner className="size-4 animate-spin" />
+            <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
           ) : (
-            <ArrowsClockwise className="size-4" />
+            <ArrowsClockwise className="size-3.5" aria-hidden="true" />
           )}
-          Refresh
+          <span>Refresh</span>
         </button>
       </div>
 
+      {/* ── Table Error Alert ────────────────────────────────────────── */}
       {tableError ? (
-        <div className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive">
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-xs font-semibold text-destructive"
+        >
           {tableError}
         </div>
       ) : null}
 
-      <div className="border border-border bg-surface rounded-sm overflow-hidden">
+      {/* ── Unified Ledger Table ─────────────────────────────────────── */}
+      <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
-          <div className="space-y-2.5 p-5">
+          <div className="space-y-2.5 p-6">
             <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
             <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
             <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
           </div>
         ) : isError ? (
-          <div className="py-12 text-center">
-            <p className="text-sm font-semibold text-destructive">
+          <div className="py-16 text-center space-y-2">
+            <p className="text-xs font-semibold text-destructive">
               {getReferenceOperationError(error)}
             </p>
-            <p className="mt-1 text-xs font-medium text-text-muted">
+            <p className="text-[11px] text-text-muted">
               Please try refreshing the page.
             </p>
           </div>
         ) : items.length === 0 ? (
-          <div className="py-12 text-center">
-            <Scales className="mx-auto size-8 text-text-muted" aria-hidden="true" />
-            <p className="mt-3 text-sm font-semibold text-text">No policy documents found.</p>
-            <p className="mt-1 text-xs font-medium text-text-muted">
-              Upload a policy PDF with a recognized area to start the ITSO evidence library.
-            </p>
+          <div className="py-16 text-center space-y-3">
+            <Scales className="mx-auto size-8 text-text-muted/60" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-bold text-text">No policy documents found</p>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Ingest official policy PDFs to support ITSO intellectual property evaluations.
+              </p>
+            </div>
             <Link
               to="/admin/ingest"
-              className="mt-4 inline-flex h-10 items-center gap-2 bg-primary px-4 text-sm font-semibold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+              className={cn(
+                BUTTON_STYLES.base,
+                BUTTON_STYLES.variants.primary,
+                BUTTON_STYLES.sizes.sm,
+                'text-xs h-8 px-3 inline-flex items-center gap-1.5',
+              )}
             >
-              <UploadSimple className="size-4" />
-              Upload policy
+              <UploadSimple className="size-3.5" aria-hidden="true" />
+              <span>Ingest policy</span>
             </Link>
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="py-16 text-center space-y-2">
+            <Scales className="mx-auto size-8 text-text-muted/60" aria-hidden="true" />
+            <p className="text-xs font-bold text-text">No matching policies found</p>
+            <p className="text-[11px] text-text-muted">
+              Try adjusting your search query.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse border-spacing-0">
-              <thead className="bg-surface-subtle text-text-muted uppercase text-[11px] tracking-wider font-semibold border-b border-border">
+            <table className={TABLE_STYLES.table}>
+              <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Title</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Policy area</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Status</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">File</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Chunks</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Chroma</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted">Uploaded</th>
-                  <th className="py-3 px-4 font-semibold text-text-muted text-right">Actions</th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[16rem]')}>Title</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Policy area</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Status</th>
+                  <th scope="col" className={TABLE_STYLES.th}>File</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Chunks</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Chroma</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Uploaded</th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {items.map((item) => (
+              <tbody className={TABLE_STYLES.tbody}>
+                {filteredItems.map((item) => (
                   <PolicyRow
                     key={item.documentId}
                     item={item}
@@ -154,6 +215,6 @@ export function PolicyLibraryTab() {
           onCancel={() => setConfirmDeleteId(null)}
         />
       ) : null}
-    </>
+    </div>
   );
 }
