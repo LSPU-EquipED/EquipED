@@ -8,14 +8,26 @@ import { AdminUploadPage } from '../AdminUploadPage';
 
 const mockUploadDocument = vi.fn();
 const mockResetData = vi.fn();
+let mockErrorMessage: string | null = null;
 
 vi.mock('../../hooks/useAdminUpload', () => ({
-  useAdminUpload: () => ({
-    uploadDocument: mockUploadDocument,
-    isLoading: false,
-    errorMessage: null,
-    setData: mockResetData,
-  }),
+  useAdminUpload: () => {
+    const [, forceUpdate] = React.useState(0);
+    return {
+      uploadDocument: async (...args: unknown[]) => {
+        try {
+          return await mockUploadDocument(...args);
+        } catch (err) {
+          mockErrorMessage = err instanceof Error ? err.message : String(err);
+          forceUpdate((n) => n + 1);
+          throw err;
+        }
+      },
+      isLoading: false,
+      errorMessage: mockErrorMessage,
+      setData: mockResetData,
+    };
+  },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -41,6 +53,7 @@ describe('AdminUploadPage', () => {
 
   afterEach(() => {
     cleanup();
+    mockErrorMessage = null;
     vi.clearAllMocks();
   });
 
@@ -97,7 +110,7 @@ describe('AdminUploadPage', () => {
   });
 
   it('displays first processing warning when background ingestion fails', async () => {
-    mockUploadDocument.mockResolvedValueOnce({
+    mockUploadDocument.mockResolvedValue({
       documentId: 'doc-fail-1',
       title: 'Failed Curriculum',
       sourceType: 'curriculum',
@@ -126,7 +139,7 @@ describe('AdminUploadPage', () => {
       chunks: [],
     };
 
-    const getDocSpy = vi.spyOn(documentsApi, 'getDocument').mockResolvedValueOnce(mockFailedDoc);
+    const getDocSpy = vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockFailedDoc);
 
     render(<AdminUploadPage />);
 
@@ -157,7 +170,7 @@ describe('AdminUploadPage', () => {
   });
 
   it('displays truthful generic fallback error when background ingestion fails without warnings', async () => {
-    mockUploadDocument.mockResolvedValueOnce({
+    mockUploadDocument.mockResolvedValue({
       documentId: 'doc-fail-2',
       title: 'Failed Syllabus',
       sourceType: 'syllabus',
@@ -185,7 +198,7 @@ describe('AdminUploadPage', () => {
       chunks: [],
     };
 
-    const getDocSpy = vi.spyOn(documentsApi, 'getDocument').mockResolvedValueOnce(mockFailedDoc);
+    const getDocSpy = vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockFailedDoc);
 
     render(<AdminUploadPage />);
 
@@ -205,5 +218,25 @@ describe('AdminUploadPage', () => {
     expect(screen.getByText('Failed')).toBeDefined();
 
     getDocSpy.mockRestore();
+  });
+
+  it('displays immediate failure alert when uploadDocument rejects before background task', async () => {
+    mockUploadDocument.mockRejectedValue(new Error('File upload rejected: storage quota exceeded.'));
+
+    render(<AdminUploadPage />);
+
+    const file = new File(['dummy content'], 'syllabus.pdf', { type: 'application/pdf' });
+    const fileInput = screen.getByLabelText(/Drop a PDF here/i);
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    const submitBtn = screen.getByRole('button', { name: /Ingest document/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('File upload rejected: storage quota exceeded.')).toBeDefined();
+    });
+
+    const alertBox = screen.getByRole('alert');
+    expect(alertBox.getAttribute('aria-live')).toBe('assertive');
   });
 });
