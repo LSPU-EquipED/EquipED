@@ -11,8 +11,8 @@ export function isPolicyArea(value: string | null | undefined): value is PolicyA
   return value !== null && value !== undefined && value in policyAreaLabelMap;
 }
 export function processingStatusClass(status: string): string {
-  if (status === 'PROCESSED') return 'bg-success text-white';
-  if (status === 'FAILED') return 'bg-destructive text-white';
+  if (status === 'PROCESSED') return 'bg-success-soft text-success border border-success/20';
+  if (status === 'FAILED') return 'bg-destructive-soft text-destructive border border-destructive/20';
   return 'bg-warning-soft text-warning border border-warning/20';
 }
 
