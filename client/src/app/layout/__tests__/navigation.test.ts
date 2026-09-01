@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminNavGroups,
   facultyNavGroups,
   facultySecondaryNavItems,
-  adminNavItems,
   getAriaCurrent,
   getBreadcrumbs,
   getRouteTitle,
@@ -37,7 +37,7 @@ describe('isNavigationActive', () => {
   });
 });
 
-describe('facultyNavGroups structure', () => {
+describe('navigation group structure', () => {
   it('defines the required faculty grouped hierarchy', () => {
     expect(facultyNavGroups).toHaveLength(3);
 
@@ -68,27 +68,29 @@ describe('facultyNavGroups structure', () => {
     });
   });
 
-  it('defines secondary Evaluation Map for faculty', () => {
-    expect(facultySecondaryNavItems).toHaveLength(1);
-    expect(facultySecondaryNavItems[0]).toMatchObject({
-      to: '/evaluation-map',
-      label: 'Evaluation Map',
-      exact: false,
-    });
+  it('leaves faculty secondary nav empty after moving Evaluation Map to admin', () => {
+    expect(facultySecondaryNavItems).toHaveLength(0);
   });
 
-  it('preserves admin nav items unchanged', () => {
-    const labels = adminNavItems.map((item) => item.label);
-    expect(labels).toEqual([
-      'Dashboard',
-      'Users',
-      'Ingest',
-      'References',
-      'Monitoring Matrix',
-      'Knowledge Map',
-      'Model Validation',
-      'Prompts',
-      'Logs',
+  it('organizes admin navigation by responsibility without losing routes', () => {
+    expect(adminNavGroups.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: 'overview', label: 'OVERVIEW' },
+      { id: 'operations', label: 'OPERATIONS' },
+      { id: 'knowledge-base', label: 'KNOWLEDGE BASE' },
+      { id: 'model-governance', label: 'MODEL GOVERNANCE' },
+    ]);
+
+    expect(adminNavGroups.flatMap((group) => group.items).map(({ to, label }) => ({ to, label }))).toEqual([
+      { to: '/admin', label: 'Dashboard' },
+      { to: '/admin/users', label: 'User Management' },
+      { to: '/matrix', label: 'Monitoring Matrix' },
+      { to: '/admin/ingest', label: 'Reference Ingestion' },
+      { to: '/admin/references', label: 'Reference Library' },
+      { to: '/admin/rubrics', label: 'Rubric Editor' },
+      { to: '/evaluation-map', label: 'Knowledge Map' },
+      { to: '/admin/model-validation', label: 'Model Validation' },
+      { to: '/admin/prompts', label: 'Agent Prompts' },
+      { to: '/admin/preferences', label: 'Preference Logs' },
     ]);
   });
 });
@@ -118,12 +120,8 @@ describe('getRouteTitle', () => {
     expect(getRouteTitle('/evaluations/eval-1')).toBe('Scorecard');
   });
 
-  it('returns Evaluation Map for faculty on /evaluation-map', () => {
-    expect(getRouteTitle('/evaluation-map', 'faculty')).toBe('Evaluation Map');
-  });
-
-  it('returns Knowledge Map for admin on /evaluation-map', () => {
-    expect(getRouteTitle('/evaluation-map', 'admin')).toBe('Knowledge Map');
+  it('returns Knowledge Map for /evaluation-map', () => {
+    expect(getRouteTitle('/evaluation-map')).toBe('Knowledge Map');
   });
 
   it('returns Curriculum Check for /alignment', () => {
