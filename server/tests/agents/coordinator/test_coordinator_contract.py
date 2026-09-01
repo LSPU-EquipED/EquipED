@@ -324,7 +324,16 @@ def test_roadmap_note_counts_toward_complete_prompt_budget(monkeypatch):
     assert overflow_client.calls == []
 
 
-def test_production_shaped_payload_fits_default_budget_and_calls_llm(caplog):
+def test_production_shaped_payload_fits_default_budget_and_calls_llm(
+    caplog, monkeypatch
+):
+    from server.core.config import get_settings
+
+    monkeypatch.setenv("AGENT_TOTAL_PROMPT_BUDGET_CHARS", "32000")
+    monkeypatch.setenv("AGENT_PROMPT_BUDGET_CHARS", "5000")
+    get_settings.cache_clear()
+    monkeypatch.setattr(extraction, "get_settings", get_settings)
+
     # Production full evaluation has ~8,740 chars SLM + ~10,190 chars curriculum
     # + fixed prompt/roadmap (~19.5k total).
     slm_text = ("Course Module Concept Overview and Content Section. " * 170)[:8740]

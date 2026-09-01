@@ -612,6 +612,25 @@ def get_settings() -> Settings:
             "EMAIL_PROVIDER=smtp"
         )
 
+    if settings.environment != "development":
+        if settings.email_provider == "console":
+            raise ConfigurationError(
+                "EMAIL_PROVIDER=console is not allowed in production"
+            )
+        if not settings.session_cookie_secure:
+            raise ConfigurationError(
+                "SESSION_COOKIE_SECURE must be true outside development"
+            )
+        if not settings.app_public_url.lower().startswith("https://"):
+            raise ConfigurationError(
+                "APP_PUBLIC_URL must use HTTPS outside development"
+            )
+        if settings.email_provider == "smtp" and not settings.smtp_starttls:
+            raise ConfigurationError(
+                "SMTP_STARTTLS must be true outside development when "
+                "EMAIL_PROVIDER=smtp"
+            )
+
     bootstrap_values = (
         settings.bootstrap_admin_email,
         settings.bootstrap_admin_name,

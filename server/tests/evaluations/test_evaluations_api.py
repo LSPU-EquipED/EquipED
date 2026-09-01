@@ -99,7 +99,7 @@ def test_faculty_results_returns_allowlisted_presentation_and_no_private_keys(
     faculty = create_user(
         db_session,
         name="Faculty One",
-        email="fac1@example.com",
+        email="fac1@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -236,7 +236,7 @@ def test_faculty_results_canonical_snapshot_order_reconstruction(
     faculty = create_user(
         db_session,
         name="Faculty Canonical",
-        email="fac-order@example.com",
+        email="fac-order@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -292,7 +292,7 @@ def test_faculty_results_identity_and_snapshot_hash(client: TestClient, db_sessi
     faculty = create_user(
         db_session,
         name="Faculty Hash",
-        email="fac-hash@example.com",
+        email="fac-hash@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -335,7 +335,7 @@ def test_faculty_results_partial_evaluation_scheduled_forms_only(
     faculty = create_user(
         db_session,
         name="Faculty Partial",
-        email="fac-part@example.com",
+        email="fac-part@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -379,7 +379,7 @@ def test_faculty_results_coherent_legacy_returns_200_with_exact_label(
     faculty = create_user(
         db_session,
         name="Faculty Legacy",
-        email="fac-legacy@example.com",
+        email="fac-legacy@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -448,7 +448,7 @@ def test_faculty_results_legacy_marker_true_with_zero_results_fails_integrity(
     faculty = create_user(
         db_session,
         name="Faculty Empty Legacy",
-        email="fac-empty-leg@example.com",
+        email="fac-empty-leg@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -472,7 +472,7 @@ def test_faculty_results_zero_results_allowed_in_preprocessing_state(
     faculty = create_user(
         db_session,
         name="Faculty Preprocessing",
-        email="fac-pre@example.com",
+        email="fac-pre@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -530,7 +530,7 @@ def test_faculty_results_failed_agent_renders_error_with_form(
     faculty = create_user(
         db_session,
         name="Faculty Failed Agent",
-        email="fac-fail-agent@example.com",
+        email="fac-fail-agent@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -575,7 +575,7 @@ def test_faculty_results_corrupted_mixed_bindings_fails_closed(
     faculty = create_user(
         db_session,
         name="Faculty Corrupt",
-        email="fac-corrupt@example.com",
+        email="fac-corrupt@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -735,14 +735,14 @@ def test_faculty_results_non_owner_returns_404_ownership_masking(
     owner = create_user(
         db_session,
         name="Owner User",
-        email="owner@example.com",
+        email="owner@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other_user = create_user(
         db_session,
         name="Other Faculty",
-        email="other@example.com",
+        email="other@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

@@ -57,7 +57,15 @@ export function useHardDeleteUser() {
 export function useSetUserApproval() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, accountStatus }: { userId: string; accountStatus: AdminUserResponse['account_status'] }) => userManagementApi.setApproval(userId, accountStatus),
-    onSettled: async () => { await queryClient.invalidateQueries({ queryKey: ['adminUsers'] }); },
+    mutationFn: ({
+      userId,
+      accountStatus,
+    }: {
+      userId: string;
+      accountStatus: AdminUserResponse['account_status'];
+    }) => userManagementApi.setApproval(userId, accountStatus),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+    },
   });
 }

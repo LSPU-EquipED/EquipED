@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.config import get_settings
@@ -211,6 +212,44 @@ def get_preferences(
 # ---------------------------------------------------------------------------
 
 
+def _map_admin_user_response(
+    user: Any, *, notification_warning: str | None = None
+) -> AdminUserResponse:
+    role_value = user.role.value if hasattr(user.role, "value") else str(user.role)
+    return AdminUserResponse(
+        user_id=user.user_id,
+        name=user.name,
+        email=user.email,
+        role=role_value,
+        is_active=user.is_active,
+        account_status=user.account_status,
+        faculty_id=user.faculty_id,
+        department=user.department,
+        program=user.program,
+        approved_at=user.approved_at,
+        reviewed_at=user.reviewed_at,
+        notification_warning=notification_warning,
+        created_at=user.created_at,
+    )
+
+
+def _send_approval_status_notification(
+    settings: Any,
+    to_email: str,
+    user_name: str,
+    approved: bool,
+) -> None:
+    try:
+        send_status_email(
+            settings=settings,
+            to=to_email,
+            name=user_name,
+            approved=approved,
+        )
+    except Exception:
+        logger.warning("Account status notification delivery failed.")
+
+
 @router.get("/users", response_model=AdminUserListResponse)
 def get_users(
     current_user: AuthenticatedUser = Depends(require_admin),
@@ -218,23 +257,7 @@ def get_users(
 ):
     users = list_users(db)
     return AdminUserListResponse(
-        items=[
-            AdminUserResponse(
-                user_id=u.user_id,
-                name=u.name,
-                email=u.email,
-                role=u.role.value,
-                is_active=u.is_active,
-                account_status=u.account_status,
-                faculty_id=u.faculty_id,
-                department=u.department,
-                program=u.program,
-                approved_at=u.approved_at,
-                reviewed_at=u.reviewed_at,
-                created_at=u.created_at,
-            )
-            for u in users
-        ],
+        items=[_map_admin_user_response(u) for u in users],
         total=len(users),
     )
 
@@ -263,14 +286,7 @@ def create_user_endpoint(
         )
     db.commit()
 
-    return AdminUserResponse(
-        user_id=new_user.user_id,
-        name=new_user.name,
-        email=new_user.email,
-        role=new_user.role.value,
-        is_active=new_user.is_active,
-        created_at=new_user.created_at,
-    )
+    return _map_admin_user_response(new_user)
 
 
 @router.put("/users/{user_id}", response_model=AdminUserResponse)
@@ -299,35 +315,18 @@ def update_user_endpoint(
         raise
 
     db.commit()
-    return AdminUserResponse(
-        user_id=updated.user_id,
-        name=updated.name,
-        email=updated.email,
-        role=updated.role.value,
-        is_active=updated.is_active,
-        account_status=updated.account_status,
-        faculty_id=updated.faculty_id,
-        department=updated.department,
-        program=updated.program,
-        approved_at=updated.approved_at,
-        reviewed_at=updated.reviewed_at,
-        created_at=updated.created_at,
-    )
+    return _map_admin_user_response(updated)
 
 
 @router.post("/users/{user_id}/approval", response_model=AdminUserResponse)
 def set_user_approval(
     user_id: uuid.UUID,
     body: AdminUserApprovalRequest,
+    background_tasks: BackgroundTasks,
     current_user: AuthenticatedUser = Depends(require_admin),
     db=Depends(get_db_session),
     settings=Depends(get_settings),
 ):
-    from server.modules.auth.models import User
-
-    user = db.query(User).filter(User.user_id == user_id).first()
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
     status_value = body.status
     if status_value not in {
         AccountStatus.APPROVED,
@@ -335,47 +334,35 @@ def set_user_approval(
         AccountStatus.SUSPENDED,
     }:
         raise HTTPException(status_code=422, detail="Unsupported account status")
-    previous = user.account_status
-    notification_warning = None
     try:
         updated = update_user(
             db, user_id, account_status=status_value, reviewed_by=current_user.id
         )
         db.commit()
-        if previous != status_value and status_value in {
-            AccountStatus.APPROVED,
-            AccountStatus.REJECTED,
-        }:
-            try:
-                send_status_email(
-                    settings=settings,
-                    to=updated.email,
-                    name=updated.name,
-                    approved=status_value == AccountStatus.APPROVED,
-                )
-            except Exception:
-                logger.exception("Account status email delivery failed")
-                notification_warning = (
-                    "Account updated, but the notification email could not be sent."
-                )
+    except ValueError as e:
+        db.rollback()
+        msg = str(e)
+        if msg == "User not found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=msg)
+        raise
     except Exception:
         db.rollback()
         raise
-    return AdminUserResponse(
-        user_id=updated.user_id,
-        name=updated.name,
-        email=updated.email,
-        role=updated.role.value,
-        is_active=updated.is_active,
-        account_status=updated.account_status,
-        faculty_id=updated.faculty_id,
-        department=updated.department,
-        program=updated.program,
-        approved_at=updated.approved_at,
-        reviewed_at=updated.reviewed_at,
-        created_at=updated.created_at,
-        notification_warning=notification_warning,
-    )
+
+    previous = getattr(updated, "_previous_account_status", None)
+    if previous != status_value and status_value in {
+        AccountStatus.APPROVED,
+        AccountStatus.REJECTED,
+    }:
+        background_tasks.add_task(
+            _send_approval_status_notification,
+            settings,
+            updated.email,
+            updated.name,
+            status_value == AccountStatus.APPROVED,
+        )
+
+    return _map_admin_user_response(updated)
 
 
 @router.delete("/users/{user_id}", response_model=AdminUserResponse)
@@ -385,21 +372,14 @@ def deactivate_user_endpoint(
     db=Depends(get_db_session),
 ):
     try:
-        deactivated = deactivate_user(db, user_id)
+        deactivated = deactivate_user(db, user_id, reviewed_by=current_user.id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
     db.commit()
-    return AdminUserResponse(
-        user_id=deactivated.user_id,
-        name=deactivated.name,
-        email=deactivated.email,
-        role=deactivated.role.value,
-        is_active=deactivated.is_active,
-        created_at=deactivated.created_at,
-    )
+    return _map_admin_user_response(deactivated)
 
 
 @router.delete("/users/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)

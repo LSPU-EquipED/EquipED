@@ -82,7 +82,7 @@ class AdminUserCreateRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=300)
     email: str = Field(..., min_length=1, max_length=MAX_EMAIL_LENGTH)
-    password: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=8, max_length=256)
     role: Literal["admin", "faculty"] = Field(default="faculty")
 
     @field_validator("email")

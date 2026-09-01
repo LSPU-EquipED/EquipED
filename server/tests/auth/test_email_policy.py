@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from server.modules.auth.email_policy import normalize_lspu_email
 
 

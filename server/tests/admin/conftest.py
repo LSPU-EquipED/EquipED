@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server.modules.auth.models import UserRole
-from server.modules.auth.service import create_user
+from server.modules.auth.models import UserRole  # noqa: E402
+from server.modules.auth.service import create_user  # noqa: E402
 
 
 def _auth(client: TestClient, cookies: dict[str, str] | None) -> None:

@@ -149,7 +149,7 @@ def test_single_alembic_head_and_down_revision():
     script_dir = ScriptDirectory.from_config(config)
     heads = script_dir.get_heads()
     assert len(heads) == 1
-    assert heads[0] == "20260829_0006"
+    assert heads[0] == "20260830_0002"
 
     rev_0004 = script_dir.get_revision(TARGET_REVISION)
     assert rev_0004 is not None

@@ -32,7 +32,7 @@ def _create_evaluation_job(session) -> uuid.UUID:
     user = create_user(
         session,
         name="Test User",
-        email=f"user-{uuid.uuid4().hex[:8]}@example.com",
+        email=f"user-{uuid.uuid4().hex[:8]}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

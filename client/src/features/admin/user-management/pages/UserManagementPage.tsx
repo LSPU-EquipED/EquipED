@@ -12,38 +12,20 @@ import {
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
-import { INPUT_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
+import { INPUT_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import {
   useAdminUsers,
-  useUpdateUser,
   useDeactivateUser,
   useHardDeleteUser,
   useSetUserApproval,
 } from '../hooks/useAdminUsers';
 import type { AdminUserResponse } from '../types';
-
-function getUserStatusBadge(user: AdminUserResponse): { label: string; variant: StatusVariant } {
-  if (user.account_status === 'pending') {
-    return { label: 'Pending approval', variant: 'warning' };
-  }
-  if (user.account_status === 'rejected') {
-    return { label: 'Rejected', variant: 'destructive' };
-  }
-  if (user.account_status === 'approved') {
-    return user.is_active
-      ? { label: 'Active', variant: 'success' }
-      : { label: 'Inactive', variant: 'neutral' };
-  }
-  return user.is_active
-    ? { label: 'Active', variant: 'success' }
-    : { label: 'Inactive', variant: 'neutral' };
-}
+import { getUserStatusBadge } from '../utils/userStatus';
 
 export function UserManagementPage() {
   const { data, isLoading, isError } = useAdminUsers();
-  const updateUser = useUpdateUser();
   const deactivateUser = useDeactivateUser();
   const hardDeleteUser = useHardDeleteUser();
   const setApproval = useSetUserApproval();
@@ -258,6 +240,24 @@ export function UserManagementPage() {
                             <UserCheck className="size-3.5" />
                             Approve
                           </Button>
+                        ) : user.account_status === 'suspended' ? (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setApproval.mutate({
+                                userId: user.user_id,
+                                accountStatus: 'approved',
+                              });
+                            }}
+                            disabled={setApproval.isPending}
+                            className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
+                            aria-label={`Reapprove ${user.name}`}
+                          >
+                            <UserCheck className="size-3.5" />
+                            Reapprove
+                          </Button>
                         ) : user.is_active ? (
                           <Button
                             type="button"
@@ -266,18 +266,21 @@ export function UserManagementPage() {
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Deactivate ${user.name}? This will deactivate the account. You can re-activate it later.`,
+                                  `Suspend ${user.name}? This will suspend the account. You can reapprove it later.`,
                                 )
                               ) {
-                                deactivateUser.mutate(user.user_id);
+                                setApproval.mutate({
+                                  userId: user.user_id,
+                                  accountStatus: 'suspended',
+                                });
                               }
                             }}
-                            disabled={deactivateUser.isPending}
+                            disabled={setApproval.isPending}
                             className="border-destructive/30 text-destructive hover:bg-destructive-soft hover:text-destructive text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Deactivate ${user.name}`}
+                            aria-label={`Suspend ${user.name}`}
                           >
                             <UserMinus className="size-3.5" />
-                            Deactivate
+                            Suspend
                           </Button>
                         ) : (
                           <Button
@@ -285,17 +288,17 @@ export function UserManagementPage() {
                             variant="primary"
                             size="sm"
                             onClick={() => {
-                              updateUser.mutate({
+                              setApproval.mutate({
                                 userId: user.user_id,
-                                body: { is_active: true },
+                                accountStatus: 'approved',
                               });
                             }}
-                            disabled={updateUser.isPending}
+                            disabled={setApproval.isPending}
                             className="bg-success hover:bg-success/90 text-success-foreground text-xs uppercase tracking-wider font-semibold"
-                            aria-label={`Reactivate ${user.name}`}
+                            aria-label={`Reapprove ${user.name}`}
                           >
                             <UserCheck className="size-3.5" />
-                            Reactivate
+                            Reapprove
                           </Button>
                         )}
                         {user.account_status === 'pending' && (

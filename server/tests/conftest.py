@@ -27,12 +27,14 @@ from server.core.database import (  # noqa: E402
 )
 from server.core.embedding import get_embedding_model  # noqa: E402
 from server.db.metadata import import_model_modules  # noqa: E402
+from server.modules.auth.limiter import reset_auth_limiters  # noqa: E402
 from server.modules.auth.models import UserRole  # noqa: E402
 from server.modules.auth.service import create_user  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def isolate_database_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    reset_auth_limiters()
     monkeypatch.setenv("DATABASE_URL", "")
     get_settings.cache_clear()
     get_engine.cache_clear()
@@ -42,6 +44,7 @@ def isolate_database_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     try:
         yield
     finally:
+        reset_auth_limiters()
         get_settings.cache_clear()
         get_engine.cache_clear()
         get_session_factory.cache_clear()

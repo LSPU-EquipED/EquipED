@@ -224,9 +224,7 @@ def test_active_start_is_idempotent_and_terminal_rerun_replaces_result(
     assert current is not None
     assert current.alignment_id == first.alignment_id
     stored_count = (
-        db_session.query(SyllabusAlignmentRun)
-        .filter_by(slm_document_id=slm_id)
-        .count()
+        db_session.query(SyllabusAlignmentRun).filter_by(slm_document_id=slm_id).count()
     )
     assert stored_count == 1
 
@@ -291,7 +289,7 @@ def test_standalone_routes_are_owner_scoped_and_do_not_require_evaluation(
     faculty = create_user(
         db_session,
         name="Alignment Faculty",
-        email="alignment-faculty@example.com",
+        email="alignment-faculty@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -337,9 +335,10 @@ def test_standalone_routes_are_owner_scoped_and_do_not_require_evaluation(
 
     listed = client.get("/api/v1/syllabus-alignments/slms")
     assert listed.status_code == 200
-    assert listed.json()["items"][0]["current_result"]["alignment_id"] == payload[
-        "alignment_id"
-    ]
+    assert (
+        listed.json()["items"][0]["current_result"]["alignment_id"]
+        == payload["alignment_id"]
+    )
 
     current = client.get(
         "/api/v1/syllabus-alignments/current",
@@ -348,16 +347,14 @@ def test_standalone_routes_are_owner_scoped_and_do_not_require_evaluation(
     assert current.status_code == 200
     assert current.json()["alignment_id"] == payload["alignment_id"]
 
-    detail = client.get(
-        f"/api/v1/syllabus-alignments/{payload['alignment_id']}"
-    )
+    detail = client.get(f"/api/v1/syllabus-alignments/{payload['alignment_id']}")
     assert detail.status_code == 200
 
     client.post("/api/v1/auth/logout")
     other = create_user(
         db_session,
         name="Other Faculty",
-        email="other-alignment@example.com",
+        email="other-alignment@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

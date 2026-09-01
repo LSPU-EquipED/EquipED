@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "20260830_0001"
-down_revision = "20260829_0003"
+down_revision = "20260829_0006"
 branch_labels = None
 depends_on = None
 
@@ -21,11 +22,15 @@ def upgrade() -> None:
     users = sa.Table("users", metadata, autoload_with=bind)
     sessions = sa.Table("sessions", metadata, autoload_with=bind)
 
-    matching_users = bind.execute(
-        sa.select(users.c.user_id, users.c.email).where(
-            sa.func.lower(users.c.email).like(f"%{OLD_DOMAIN}")
+    matching_users = (
+        bind.execute(
+            sa.select(users.c.user_id, users.c.email).where(
+                sa.func.lower(users.c.email).like(f"%{OLD_DOMAIN}")
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
 
     planned_updates = {
         row["user_id"]: row["email"].strip().lower()[: -len(OLD_DOMAIN)] + NEW_DOMAIN
@@ -37,7 +42,9 @@ def upgrade() -> None:
 
     target_emails = set(planned_updates.values())
     if len(target_emails) != len(planned_updates):
-        raise RuntimeError("Cannot migrate account emails because target addresses collide")
+        raise RuntimeError(
+            "Cannot migrate account emails because target addresses collide"
+        )
     existing_targets = {
         email.strip().lower()
         for email in bind.execute(

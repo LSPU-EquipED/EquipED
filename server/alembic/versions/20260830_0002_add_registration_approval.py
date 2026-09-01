@@ -19,29 +19,32 @@ def upgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
         account_status.create(bind, checkfirst=True)
-    op.add_column(
-        "users", sa.Column("faculty_id", sa.String(length=100), nullable=True)
-    )
-    op.add_column(
-        "users", sa.Column("department", sa.String(length=300), nullable=True)
-    )
-    op.add_column("users", sa.Column("program", sa.String(length=100), nullable=True))
-    op.add_column(
-        "users",
-        sa.Column(
-            "account_status", account_status, nullable=False, server_default="approved"
-        ),
-    )
-    op.add_column(
-        "users", sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True)
-    )
-    op.add_column(
-        "users", sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True)
-    )
-    op.add_column("users", sa.Column("reviewed_by", sa.Uuid(), nullable=True))
-    op.create_foreign_key(
-        "fk_users_reviewed_by", "users", "users", ["reviewed_by"], ["user_id"]
-    )
+    with op.batch_alter_table("users") as batch_op:
+        batch_op.add_column(
+            sa.Column("faculty_id", sa.String(length=100), nullable=True)
+        )
+        batch_op.add_column(
+            sa.Column("department", sa.String(length=300), nullable=True)
+        )
+        batch_op.add_column(sa.Column("program", sa.String(length=100), nullable=True))
+        batch_op.add_column(
+            sa.Column(
+                "account_status",
+                account_status,
+                nullable=False,
+                server_default="approved",
+            )
+        )
+        batch_op.add_column(
+            sa.Column("approved_at", sa.DateTime(timezone=True), nullable=True)
+        )
+        batch_op.add_column(
+            sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True)
+        )
+        batch_op.add_column(sa.Column("reviewed_by", sa.Uuid(), nullable=True))
+        batch_op.create_foreign_key(
+            "fk_users_reviewed_by", "users", ["reviewed_by"], ["user_id"]
+        )
     op.create_table(
         "pending_registrations",
         sa.Column("registration_id", sa.Uuid(), primary_key=True),
@@ -73,17 +76,18 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("pending_registrations")
-    op.drop_constraint("fk_users_reviewed_by", "users", type_="foreignkey")
-    for column in (
-        "reviewed_by",
-        "reviewed_at",
-        "approved_at",
-        "account_status",
-        "program",
-        "department",
-        "faculty_id",
-    ):
-        op.drop_column("users", column)
+    with op.batch_alter_table("users") as batch_op:
+        batch_op.drop_constraint("fk_users_reviewed_by", type_="foreignkey")
+        for column in (
+            "reviewed_by",
+            "reviewed_at",
+            "approved_at",
+            "account_status",
+            "program",
+            "department",
+            "faculty_id",
+        ):
+            batch_op.drop_column(column)
     bind = op.get_bind()
     if bind.dialect.name == "postgresql":
         sa.Enum(name="account_status").drop(bind, checkfirst=True)

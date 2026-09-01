@@ -15,7 +15,7 @@ from server.modules.curriculum.models import Course
 from server.modules.documents.models import Document
 
 
-def _login(client, db_session, email="faculty@example.com"):
+def _login(client, db_session, email="faculty@lspu.edu.ph"):
     user = create_user(
         db_session,
         name="Faculty User",
@@ -207,9 +207,8 @@ def test_run_check_returns_429_when_slot_is_saturated(
         alignment_curriculum.router.get_settings,
         None,
     )
-    client.app.dependency_overrides[
-        alignment_curriculum.router.get_settings
-    ] = lambda: base_settings
+    get_settings_dep = alignment_curriculum.router.get_settings
+    client.app.dependency_overrides[get_settings_dep] = lambda: base_settings
 
     started = threading.Event()
     release = threading.Event()

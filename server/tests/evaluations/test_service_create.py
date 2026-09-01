@@ -27,7 +27,7 @@ def test_create_evaluation_partial_persists_submitted_job_for_owned_docs(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-submit@example.com",
+        email="owner-submit@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -78,14 +78,14 @@ def test_create_evaluation_full_persists_submitted_job_with_curriculum(
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-full@example.com",
+        email="admin-full@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-full@example.com",
+        email="owner-full@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -136,7 +136,7 @@ def test_create_evaluation_accepts_canonical_programs(
     owner = create_user(
         db_session,
         name="Program Owner",
-        email=f"{submitted_program.lower()}-program@example.com",
+        email=f"{submitted_program.lower()}-program@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -168,7 +168,7 @@ def test_create_evaluation_rejects_bsit_and_unsupported_programs_on_write(
     owner = create_user(
         db_session,
         name="Unsupported Program Owner",
-        email=f"unsupported-{submitted_program.lower()}@example.com",
+        email=f"unsupported-{submitted_program.lower()}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -192,7 +192,7 @@ def test_create_evaluation_without_syllabus_succeeds(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-no-syllabus@example.com",
+        email="owner-no-syllabus@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -226,7 +226,7 @@ def test_create_evaluation_rejects_missing_curriculum_when_partial_false(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-no-curr-full@example.com",
+        email="owner-no-curr-full@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -254,14 +254,14 @@ def test_create_evaluation_rejects_conflicting_curriculum_and_partial_true(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-conflict@example.com",
+        email="owner-conflict@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-conflict@example.com",
+        email="admin-conflict@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -292,7 +292,7 @@ def test_create_evaluation_requires_confirmed_program(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-no-program@example.com",
+        email="owner-no-program@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -334,14 +334,14 @@ def test_create_evaluation_rejects_unready_curriculum(db_session, monkeypatch) -
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-unready@example.com",
+        email="admin-unready@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-unready@example.com",
+        email="owner-unready@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -380,14 +380,14 @@ def test_create_evaluation_rejects_non_admin_curriculum(
     faculty_uploader = create_user(
         db_session,
         name="Faculty Uploader",
-        email="faculty-curr-uploader@example.com",
+        email="faculty-curr-uploader@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-non-admin-curr@example.com",
+        email="owner-non-admin-curr@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -426,14 +426,14 @@ def test_create_evaluation_rejects_program_mismatched_curriculum(
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-mismatch@example.com",
+        email="admin-mismatch@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-mismatch@example.com",
+        email="owner-mismatch@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -493,14 +493,14 @@ def test_create_evaluation_unready_curriculum_parameterized(
     admin = create_user(
         db_session,
         name="Admin Param",
-        email=f"admin-{uuid4()}@example.com",
+        email=f"admin-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     faculty = create_user(
         db_session,
         name="Faculty Param",
-        email=f"faculty-{uuid4()}@example.com",
+        email=f"faculty-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -583,7 +583,7 @@ def test_create_evaluation_rejects_ineligible_documents(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-ineligible@example.com",
+        email="owner-ineligible@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -620,7 +620,7 @@ def test_create_evaluation_rejects_documents_without_embedding_readiness(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-embedding@example.com",
+        email="owner-embedding@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -654,14 +654,14 @@ def test_create_evaluation_masks_foreign_documents_as_404(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-foreign@example.com",
+        email="owner-foreign@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email="other-foreign@example.com",
+        email="other-foreign@lspu.edu.ph",
         password="password456",
         role=UserRole.FACULTY,
     )
@@ -689,7 +689,7 @@ def test_create_evaluation_masks_owned_non_slm_as_404(db_session) -> None:
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-nonslm@example.com",
+        email="owner-nonslm@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -719,14 +719,14 @@ def test_create_evaluation_masks_shared_non_slm_as_404(db_session) -> None:
     admin = create_user(
         db_session,
         name="Admin",
-        email="admin-shared-nonslm@example.com",
+        email="admin-shared-nonslm@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
     faculty = create_user(
         db_session,
         name="Faculty",
-        email="faculty-shared-nonslm@example.com",
+        email="faculty-shared-nonslm@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
@@ -762,14 +762,14 @@ def test_create_evaluation_primary_document_masking_precedes_program_validation(
     owner = create_user(
         db_session,
         name="Owner",
-        email=f"owner-order-{invalid_program.lower()}@example.com",
+        email=f"owner-order-{invalid_program.lower()}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
     other = create_user(
         db_session,
         name="Other",
-        email=f"other-order-{invalid_program.lower()}@example.com",
+        email=f"other-order-{invalid_program.lower()}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

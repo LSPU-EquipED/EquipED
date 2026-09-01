@@ -166,7 +166,7 @@ class TestPolicyAreaValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polarea1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -195,7 +195,7 @@ class TestPolicyAreaValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polarea2.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -225,7 +225,7 @@ class TestPolicyAreaValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polarea3.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -260,7 +260,7 @@ class TestPolicyAreaValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polpersist.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -283,7 +283,7 @@ class TestPolicyAreaValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polnull.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -306,7 +306,7 @@ class TestPolicyChunkMetadata:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@chunksec.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -342,7 +342,7 @@ class TestPolicyChunkMetadata:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@nullchunk.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -405,14 +405,14 @@ class TestPolicyAdminList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polylist1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@polylist1.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -452,7 +452,7 @@ class TestPolicyAdminList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polyhealth.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -482,7 +482,7 @@ class TestPolicyAdminList:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@denypol.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -497,7 +497,7 @@ class TestPolicyAdminList:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@emptypol.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -517,7 +517,7 @@ class TestPolicyAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@poldel1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -556,7 +556,7 @@ class TestPolicyAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@poldelmiss.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -582,7 +582,7 @@ class TestPolicyAdminDelete:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@denypoldel.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -599,7 +599,7 @@ class TestPolicyAdminDelete:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@badpoldel.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -622,7 +622,7 @@ class TestPolicyAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polyreb1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -656,7 +656,7 @@ class TestPolicyAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polynochunks.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -679,7 +679,7 @@ class TestPolicyAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polybadtype.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -702,7 +702,7 @@ class TestPolicyAdminRebuild:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@denypolyrb.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -719,7 +719,7 @@ class TestPolicyAdminRebuild:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polychromarb.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -853,14 +853,14 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@poladmin1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@poladmin1.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -883,7 +883,7 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@poladmin2.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -908,14 +908,14 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@pollist_admin1.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@pollist_admin1.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -944,7 +944,7 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@pollist_admin2.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -973,14 +973,14 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polprev_adm.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@polprev_fac.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -1009,7 +1009,7 @@ class TestPolicyAccessAdminOnly:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@polprev_adm2.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1046,7 +1046,7 @@ class TestPolicyAreaConstraint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@constraint_valids@test.com",
+            email="aconstraint_valids@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1071,7 +1071,7 @@ class TestPolicyAreaConstraint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@constraint_bad@test.com",
+            email="aconstraint_bad@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1099,7 +1099,7 @@ class TestPolicyAreaConstraint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@constraint_nullpol@test.com",
+            email="aconstraint_nullpol@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1127,7 +1127,7 @@ class TestPolicyAreaConstraint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@constraint_nonpol@test.com",
+            email="aconstraint_nonpol@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1160,7 +1160,7 @@ class TestInvalidPolicyAreaRejected:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@badarea@test.com",
+            email="abadarea@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1197,7 +1197,7 @@ class TestDocumentChunkPolicyArea:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@chunkpa@test.com",
+            email="achunkpa@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1246,7 +1246,7 @@ class TestDocumentChunkPolicyArea:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@nonpolchunk@test.com",
+            email="anonpolchunk@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1293,7 +1293,7 @@ class TestDocumentChunkPolicyArea:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@backfill@test.com",
+            email="abackfill@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1411,7 +1411,7 @@ class TestPolicyDeleteOrdering:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@delorder@test.com",
+            email="adelorder@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -1445,7 +1445,7 @@ class TestPolicyDeleteOrdering:
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@delorder2@test.com",
+            email="adelorder2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )

@@ -15,93 +15,90 @@ import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
 // Lazy Feature Pages
 const FacultyHomePage = lazyRouteComponent(
   () => import('../features/home/pages/FacultyHomePage'),
-  'FacultyHomePage'
+  'FacultyHomePage',
 );
 const DocumentsPage = lazyRouteComponent(
   () => import('../features/documents/pages/DocumentsPage'),
-  'DocumentsPage'
+  'DocumentsPage',
 );
-const LoginPage = lazyRouteComponent(
-  () => import('../features/auth/pages/LoginPage'),
-  'LoginPage'
-);
+const LoginPage = lazyRouteComponent(() => import('../features/auth/pages/LoginPage'), 'LoginPage');
 const RegistrationPage = lazyRouteComponent(
   () => import('../features/auth/pages/RegistrationPage'),
-  'RegistrationPage'
+  'RegistrationPage',
 );
 const UploadPage = lazyRouteComponent(
   () => import('../features/upload/pages/UploadPage'),
-  'UploadPage'
+  'UploadPage',
 );
 const HistoryPage = lazyRouteComponent(
   () => import('../features/history/pages/HistoryPage'),
-  'HistoryPage'
+  'HistoryPage',
 );
 const EvaluationInterfacePage = lazyRouteComponent(
   () => import('../features/evaluation/pages/EvaluationInterfacePage'),
-  'EvaluationInterfacePage'
+  'EvaluationInterfacePage',
 );
 const ScorecardPage = lazyRouteComponent(
   () => import('../features/evaluation/pages/ScorecardPage'),
-  'ScorecardPage'
+  'ScorecardPage',
 );
 const MonitoringPage = lazyRouteComponent(
   () => import('../features/matrix/pages/MonitoringPage'),
-  'MonitoringPage'
+  'MonitoringPage',
 );
 const AlignmentCheckPage = lazyRouteComponent(
   () => import('../features/alignment/curriculum/pages/AlignmentCheckPage'),
-  'AlignmentCheckPage'
+  'AlignmentCheckPage',
 );
 const SyllabusAlignmentPage = lazyRouteComponent(
   () => import('../features/alignment/syllabus/pages/SyllabusAlignmentPage'),
-  'SyllabusAlignmentPage'
+  'SyllabusAlignmentPage',
 );
 const SyllabusAlignmentWorkspacePage = lazyRouteComponent(
   () => import('../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage'),
-  'SyllabusAlignmentWorkspacePage'
+  'SyllabusAlignmentWorkspacePage',
 );
 const SyllabusAlignmentReportPage = lazyRouteComponent(
   () => import('../features/alignment/syllabus/pages/SyllabusAlignmentReportPage'),
-  'SyllabusAlignmentReportPage'
+  'SyllabusAlignmentReportPage',
 );
 const EvaluationMapPage = lazyRouteComponent(
   () => import('../features/evaluation-map/pages/EvaluationMapPage'),
-  'EvaluationMapPage'
+  'EvaluationMapPage',
 );
 
 // Lazy Admin Pages
 const AdminHomePage = lazyRouteComponent(
   () => import('../features/admin/home/pages/AdminHomePage'),
-  'AdminHomePage'
+  'AdminHomePage',
 );
 const UserManagementPage = lazyRouteComponent(
   () => import('../features/admin/user-management/pages/UserManagementPage'),
-  'UserManagementPage'
+  'UserManagementPage',
 );
 const AdminUploadPage = lazyRouteComponent(
   () => import('../features/admin/reference-ingestion/pages/AdminUploadPage'),
-  'AdminUploadPage'
+  'AdminUploadPage',
 );
 const ReferenceLibraryPage = lazyRouteComponent(
   () => import('../features/admin/reference-library/pages/ReferenceLibraryPage'),
-  'ReferenceLibraryPage'
+  'ReferenceLibraryPage',
 );
 const AgentPromptPage = lazyRouteComponent(
   () => import('../features/admin/agent-prompt/pages/AgentPromptPage'),
-  'AgentPromptPage'
+  'AgentPromptPage',
 );
 const PreferenceLogPage = lazyRouteComponent(
   () => import('../features/admin/preference-log/pages/PreferenceLogPage'),
-  'PreferenceLogPage'
+  'PreferenceLogPage',
 );
 const RubricEditorPage = lazyRouteComponent(
   () => import('../features/admin/rubric-editor/pages/RubricEditorPage'),
-  'RubricEditorPage'
+  'RubricEditorPage',
 );
 const ModelValidationPage = lazyRouteComponent(
   () => import('../features/admin/model-validation/pages/ModelValidationPage'),
-  'ModelValidationPage'
+  'ModelValidationPage',
 );
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({

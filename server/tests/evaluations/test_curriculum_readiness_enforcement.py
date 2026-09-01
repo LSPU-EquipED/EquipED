@@ -34,7 +34,7 @@ def _create_test_environment(
     admin = create_user(
         db_session,
         name="Admin User",
-        email=f"admin-{uuid4()}@example.com",
+        email=f"admin-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.ADMIN,
     )
@@ -43,14 +43,14 @@ def _create_test_environment(
         uploader = create_user(
             db_session,
             name="Faculty Uploader",
-            email=f"faculty-{uuid4()}@example.com",
+            email=f"faculty-{uuid4().hex[:6]}@lspu.edu.ph",
             password="password123",
             role=curriculum_uploader_role,
         )
     faculty_user = create_user(
         db_session,
         name="Faculty Submitter",
-        email=f"submitter-{uuid4()}@example.com",
+        email=f"submitter-{uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

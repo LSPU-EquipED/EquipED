@@ -19,7 +19,7 @@ def _login(client: TestClient, db_session, role: UserRole):
     user = create_user(
         db_session,
         name=f"Test {role.value}",
-        email=f"user_{uuid.uuid4().hex[:6]}@example.com",
+        email=f"user_{uuid.uuid4().hex[:6]}@lspu.edu.ph",
         password="password123",
         role=role,
     )
@@ -448,7 +448,7 @@ def test_recovery_requeues_interrupted_curriculum_retired_job(
     owner = create_user(
         db_session,
         name="Owner",
-        email="owner-recovery-retired@example.com",
+        email="owner-recovery-retired@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )

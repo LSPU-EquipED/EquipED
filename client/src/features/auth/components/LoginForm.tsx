@@ -113,10 +113,15 @@ export function LoginForm() {
                       onBlur={handleEmailBlur}
                       required
                       aria-invalid={Boolean(emailHint)}
-                      aria-describedby={emailHint ? 'login-email-hint' : auth.error ? 'login-error' : undefined}
+                      aria-describedby={
+                        emailHint ? 'login-email-hint' : auth.error ? 'login-error' : undefined
+                      }
                     />
                     {emailHint && (
-                      <p id="login-email-hint" className="text-[11px] font-semibold text-[#b91c1c] px-2 pt-1 transition-all">
+                      <p
+                        id="login-email-hint"
+                        className="text-[11px] font-semibold text-[#b91c1c] px-2 pt-1 transition-all"
+                      >
                         {emailHint}
                       </p>
                     )}
@@ -238,7 +243,10 @@ export function LoginForm() {
                   </button>
                 </div>
                 <div className="px-6 py-4 text-center text-xs font-semibold text-slate-500">
-                  Need an account? <Link to="/register" className="font-bold text-[#1b3b87] hover:underline">Sign Up</Link>
+                  Need an account?{' '}
+                  <Link to="/register" className="font-bold text-[#1b3b87] hover:underline">
+                    Sign Up
+                  </Link>
                 </div>
               </form>
             </div>

@@ -80,7 +80,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@upload_bscs.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -105,7 +105,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@upload_bsit.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -129,7 +129,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@reject_bsit.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -152,7 +152,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@no_prog.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -174,7 +174,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@unsupp_prog.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -196,7 +196,7 @@ class TestCurriculumUploadValidation:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@curr_denied.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -218,7 +218,7 @@ class TestCurriculumUploadValidation:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@rubric_denied.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -545,7 +545,7 @@ class TestCurriculumReadinessService:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@ready_curr.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -571,7 +571,7 @@ class TestCurriculumReadinessService:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@legacy_curr.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -598,7 +598,7 @@ class TestCurriculumReadinessService:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@stale_chroma.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -630,7 +630,7 @@ class TestCurriculumReadinessService:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@no_chunks.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -656,7 +656,7 @@ class TestCurriculumReadinessService:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@mismatch.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -683,21 +683,21 @@ class TestCurriculumSuggestionEndpoint:
         faculty1 = create_user(
             db_session,
             name="Faculty 1",
-            email="f1@sugg.com",
+            email="f1@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         faculty2 = create_user(
             db_session,
             name="Faculty 2",
-            email="f2@sugg.com",
+            email="f2@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
         admin = create_user(
             db_session,
             name="Admin",
-            email="a@sugg.com",
+            email="a@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
@@ -743,7 +743,7 @@ class TestCurriculumSuggestionEndpoint:
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="f@prog_val.com",
+            email="f@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -766,14 +766,14 @@ class TestCurriculumSuggestionEndpoint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@sugg_lists.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@sugg_lists.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )
@@ -836,14 +836,14 @@ class TestCurriculumSuggestionEndpoint:
         admin = create_user(
             db_session,
             name="Admin",
-            email="admin@excl_fac.com",
+            email="admin@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.ADMIN,
         )
         faculty = create_user(
             db_session,
             name="Faculty",
-            email="faculty@excl_fac.com",
+            email="faculty@lspu.edu.ph",
             password=_TEST_PASSWORD,
             role=UserRole.FACULTY,
         )

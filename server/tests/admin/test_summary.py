@@ -5,16 +5,15 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server.modules.auth.models import UserRole
-from server.modules.auth.service import create_user
-from server.tests.admin.conftest import _auth
+from server.modules.auth.models import UserRole  # noqa: E402
+from server.modules.auth.service import create_user  # noqa: E402
+from server.tests.admin.conftest import _auth  # noqa: E402
 
 
 def test_admin_summary_requires_admin(client: TestClient, auth_cookies_faculty) -> None:
@@ -33,7 +32,7 @@ def test_admin_summary_returns_counts(
     create_user(
         db_session,
         name="Summary Faculty",
-        email="summary-faculty@test.com",
+        email="summary-faculty@lspu.edu.ph",
         password="password123",
         role=UserRole.FACULTY,
     )
