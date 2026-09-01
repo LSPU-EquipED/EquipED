@@ -76,7 +76,7 @@ export type ValidationAgentId = (typeof validationAgents)[number]['id'];
 export const agentLabel = (id: string) =>
   validationAgents.find((agent) => agent.id === id)?.label ?? id.toUpperCase();
 
-export const HISTORY_COLSPAN = 10;
+export const HISTORY_COLSPAN = 7;
 
 export function statusClass(status: ModelValidationItem['status']) {
   if (status === 'COMPLETED') return 'bg-success text-white';

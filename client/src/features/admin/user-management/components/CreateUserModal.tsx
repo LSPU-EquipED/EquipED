@@ -43,6 +43,8 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
       nextErrors.password = 'Password is required.';
     } else if (formData.password.length < 8) {
       nextErrors.password = 'Password must be at least 8 characters.';
+    } else if (formData.password.length > 256) {
+      nextErrors.password = 'Password must be 256 characters or fewer.';
     }
 
     setErrors(nextErrors);
@@ -164,6 +166,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 <input
                   id="user-password"
                   type={showPassword ? 'text' : 'password'}
+                  maxLength={256}
                   value={formData.password}
                   onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                   placeholder="At least 8 characters"
