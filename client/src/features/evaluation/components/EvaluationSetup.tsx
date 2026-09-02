@@ -19,6 +19,7 @@ import {
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { BUTTON_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import type { ClientDocument, CurriculumSuggestionItem } from '@/shared/types/documents';
 
@@ -154,10 +155,12 @@ export function EvaluationSetup({
         {isLoadingDocument ? (
           <div
             role="status"
-            className="flex items-center gap-3 rounded-sm border border-border bg-surface p-4 text-xs font-semibold text-text-muted"
+            aria-label="Loading SLM metadata"
+            className="space-y-3 rounded-sm border border-border bg-surface p-4"
           >
-            <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-            <span>Loading SLM metadata…</span>
+            <Skeleton className="h-3 w-40" />
+            <Skeleton className="h-5 w-3/4 max-w-md" />
+            <Skeleton className="h-3 w-1/2 max-w-xs" />
           </div>
         ) : null}
 
@@ -372,10 +375,12 @@ export function EvaluationSetup({
             {isLoadingCurricula ? (
               <div
                 role="status"
-                className="flex items-center gap-3 rounded-sm border border-border bg-surface p-4 text-xs font-semibold text-text-muted"
+                aria-label="Loading curriculum references"
+                className="space-y-3 rounded-sm border border-border bg-surface p-4"
               >
-                <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-                <span>Loading curriculum references for {selectedProgram}…</span>
+                <Skeleton className="h-3 w-48 max-w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
               </div>
             ) : null}
 
