@@ -48,7 +48,7 @@ describe('EvaluationHistoryTable Component', () => {
     } as unknown as UseQueryResult<HistoryListResponse, Error>);
 
     renderTable();
-    expect(screen.getByText('Loading evaluation history…')).toBeDefined();
+    expect(screen.getByRole('status', { name: 'Loading evaluation history' })).toBeDefined();
   });
 
   it('renders empty state when no records exist', () => {
