@@ -227,8 +227,11 @@ export const AGENT_STRATEGY_CAPABILITIES: Record<
       'Supports LLM rubric guidance with evidence extraction for intellectual property and privacy compliance.',
   },
   coordinator: {
-    allowedStrategies: ['curriculum_alignment'],
-    maxCriteria: 1,
-    description: 'Supports exactly 1 criterion for curriculum objective alignment scoring.',
+    allowedStrategies: ['curriculum_alignment', 'llm_rubric_guidance', 'count_band', 'ratio_band'],
+    allowedCountModes: ['minimum_count'],
+    allowedRatioModes: ['coverage_percentage'],
+    maxCriteria: 10,
+    description:
+      'Scores all 10 criteria independently through a curriculum-alignment lens: curriculum objective alignment plus LLM guidance, count thresholds (minimum), and coverage ratios.',
   },
 };
