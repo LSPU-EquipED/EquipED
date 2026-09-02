@@ -19,6 +19,7 @@ from server.modules.rubrics.repository import (
     get_active_form_definition,
 )
 from server.scripts.seed_rubrics import (
+    build_coordinator_v3_rubric_set,
     seed_coordinator_v3_if_needed,
     seed_rubric_set,
 )
@@ -510,3 +511,70 @@ def test_seed_coordinator_v3_existing_validation_and_activation_handling(db_sess
     # 4. Already pointing to v3 is a no-op
     res = seed_coordinator_v3_if_needed(db_session)
     assert res.rubric_set_id == created.rubric_set_id
+
+
+def test_seed_coordinator_v3_preserves_admin_repointed_activation(db_session):
+    """Admin repointed the coordinator activation to another valid published
+    revision -> the seed must not stomp it."""
+    created = seed_coordinator_v3_if_needed(db_session)
+    db_session.commit()
+
+    # A second valid published 10-criterion coordinator revision (v4).
+    v4_set = build_coordinator_v3_rubric_set(
+        db_session,
+        version_number=4,
+        name="Coordinator Rubric v4",
+    )
+    db_session.flush()
+
+    admin_actor = uuid.uuid4()
+    act = (
+        db_session.query(RubricAgentActivation)
+        .filter_by(agent_id="coordinator")
+        .one()
+    )
+    act.rubric_set_id = v4_set.rubric_set_id
+    act.updated_by = admin_actor
+    db_session.commit()
+
+    seed_coordinator_v3_if_needed(db_session)
+
+    refreshed = (
+        db_session.query(RubricAgentActivation)
+        .filter_by(agent_id="coordinator")
+        .one()
+    )
+    assert refreshed.rubric_set_id == v4_set.rubric_set_id
+    assert refreshed.updated_by == admin_actor
+    assert created.rubric_set_id != v4_set.rubric_set_id
+
+
+def test_seed_coordinator_v3_fails_closed_when_activation_points_at_retired(
+    db_session,
+):
+    """Activation pointing at a non-published coordinator set fails closed."""
+    payload = json.loads(RUBRIC_JSON.read_text(encoding="utf-8"))
+    coord_payload = next(
+        s for s in payload["rubric_sets"] if s["agent_id"] == "coordinator"
+    )
+    seed_rubric_set(db_session, coord_payload)  # coordinator v1 -> retired
+    retired_v1 = (
+        db_session.query(RubricSet)
+        .filter_by(agent_id="coordinator", version_number=1)
+        .one()
+    )
+    assert retired_v1.status == "retired"
+
+    seed_coordinator_v3_if_needed(db_session)
+    db_session.commit()
+
+    act = (
+        db_session.query(RubricAgentActivation)
+        .filter_by(agent_id="coordinator")
+        .one()
+    )
+    act.rubric_set_id = retired_v1.rubric_set_id
+    db_session.commit()
+
+    with pytest.raises(ValueError, match="invalid status 'retired'"):
+        seed_coordinator_v3_if_needed(db_session)

@@ -783,6 +783,73 @@ def _validate_coordinator_revision(session: Any, rubric_set_id: uuid.UUID) -> No
         )
 
 
+def build_coordinator_v3_rubric_set(
+    session: Any,
+    *,
+    version_number: int,
+    name: str,
+    status: str = "published",
+) -> RubricSet:
+    """Persist a published Coordinator rubric set with the canonical 10 criteria.
+
+    Shared by the v3 seed create-path and by tests that need a second valid
+    Coordinator revision. Does not touch activation.
+    """
+    now = datetime.now(UTC)
+    rubric_set = RubricSet(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="coordinator",
+        name=name,
+        version_number=version_number,
+        status=status,
+        adapter_key="coordinator",
+        adapter_version=2,
+        published_at=now if status == "published" else None,
+        published_by=None,
+        created_by=None,
+        created_at=now,
+    )
+    session.add(rubric_set)
+    session.flush()
+
+    for domain_spec in _COORDINATOR_V3_DOMAINS:
+        domain = RubricDomain(
+            rubric_domain_id=uuid.uuid4(),
+            rubric_set_id=rubric_set.rubric_set_id,
+            code=str(domain_spec["code"]),
+            title=str(domain_spec["title"]),
+            display_order=int(domain_spec["display_order"]),
+        )
+        session.add(domain)
+        session.flush()
+
+        for crit_spec in domain_spec["criteria"]:
+            code = str(crit_spec["criterion_code"])
+            desc = str(crit_spec["description"])
+            strat, cfg = _resolve_criterion_strategy("coordinator", code, desc, {})
+            if strat is None or cfg is None:
+                raise ValueError(
+                    f"Coordinator criterion {code} could not resolve a "
+                    "scoring strategy"
+                )
+            session.add(
+                RubricCriterion(
+                    rubric_criterion_id=uuid.uuid4(),
+                    rubric_domain_id=domain.rubric_domain_id,
+                    criterion_code=code,
+                    title=str(crit_spec["title"]),
+                    description=desc,
+                    scoring_rule=None,
+                    scoring_strategy=strat,
+                    strategy_config=cfg,
+                    display_order=int(crit_spec["display_order"]),
+                )
+            )
+        session.flush()
+
+    return rubric_set
+
+
 def seed_coordinator_v3_if_needed(session: Any) -> RubricSet | None:
     """Create and activate Coordinator Revision 3 (10 criteria) if not present."""
     existing_v3 = (
@@ -840,58 +907,11 @@ def seed_coordinator_v3_if_needed(session: Any) -> RubricSet | None:
             # preserve admin choice, do not override
         return existing_v3
 
-    now = datetime.now(UTC)
-    v3_set = RubricSet(
-        rubric_set_id=uuid.uuid4(),
-        agent_id="coordinator",
-        name="Coordinator Rubric v3",
+    v3_set = build_coordinator_v3_rubric_set(
+        session,
         version_number=3,
-        status="published",
-        adapter_key="coordinator",
-        adapter_version=2,
-        published_at=now,
-        published_by=None,
-        created_by=None,
-        created_at=now,
+        name="Coordinator Rubric v3",
     )
-    session.add(v3_set)
-    session.flush()
-
-    for domain_spec in _COORDINATOR_V3_DOMAINS:
-        domain = RubricDomain(
-            rubric_domain_id=uuid.uuid4(),
-            rubric_set_id=v3_set.rubric_set_id,
-            code=str(domain_spec["code"]),
-            title=str(domain_spec["title"]),
-            display_order=int(domain_spec["display_order"]),
-        )
-        session.add(domain)
-        session.flush()
-
-        for crit_spec in domain_spec["criteria"]:
-            code = str(crit_spec["criterion_code"])
-            desc = str(crit_spec["description"])
-            strat, cfg = _resolve_criterion_strategy("coordinator", code, desc, {})
-            if strat is None or cfg is None:
-                raise ValueError(
-                    f"Coordinator v3 criterion {code} could not resolve a "
-                    "scoring strategy"
-                )
-            session.add(
-                RubricCriterion(
-                    rubric_criterion_id=uuid.uuid4(),
-                    rubric_domain_id=domain.rubric_domain_id,
-                    criterion_code=code,
-                    title=str(crit_spec["title"]),
-                    description=desc,
-                    scoring_rule=None,
-                    scoring_strategy=strat,
-                    strategy_config=cfg,
-                    display_order=int(crit_spec["display_order"]),
-                )
-            )
-        session.flush()
-
     _validate_coordinator_revision(session, v3_set.rubric_set_id)
 
     activate_revision(
