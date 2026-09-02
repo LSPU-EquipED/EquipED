@@ -680,7 +680,7 @@ def seed_coordinator_v2_if_needed(session: Any) -> RubricSet | None:
         version_number=2,
         status="published",
         adapter_key="coordinator",
-        adapter_version=1,
+        adapter_version=2,
         published_at=now,
         published_by=None,
         created_by=None,

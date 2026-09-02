@@ -342,7 +342,7 @@ def _full_coordinator_form() -> FormDefinition:
         name="Coordinator Revision 2",
         version_number=2,
         adapter_key="coordinator",
-        adapter_version=1,
+        adapter_version=2,
         domains=(domain,),
     )
 
@@ -375,8 +375,11 @@ def test_manifest_constants_properties() -> None:
         COORDINATOR_MANIFEST_V1.prompt_budget_setting
         == "agent_total_prompt_budget_chars"
     )
-    assert COORDINATOR_MANIFEST_V1.allowed_criterion_codes == ("A-05",)
-    assert COORDINATOR_MANIFEST_V1.max_criteria == 1
+    assert COORDINATOR_MANIFEST_V1.allowed_criterion_codes == (
+        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
+        "A-01", "A-02", "A-03", "A-04", "A-05",
+    )
+    assert COORDINATOR_MANIFEST_V1.max_criteria == 10
 
 
 def test_manifest_invariant_rejections() -> None:
@@ -1136,3 +1139,32 @@ def test_no_duplicate_public_manifest_registry_remains():
     assert not hasattr(snap, "MANIFEST_BY_AGENT")
     assert not hasattr(snap, "get_manifest")
     assert not hasattr(pkg, "get_manifest")
+
+
+# ---------------------------------------------------------------------------
+# Coordinator Manifest V1 Full Capability Tests
+# ---------------------------------------------------------------------------
+
+
+def test_coordinator_manifest_supports_ten_criteria_and_four_strategies():
+    """Verify coordinator manifest expanded to 10 criteria and 4 strategies."""
+    CODES = (
+        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
+        "A-01", "A-02", "A-03", "A-04", "A-05",
+    )
+    m = get_agent_manifest("coordinator")
+    assert m.adapter_version == 2
+    assert m.min_criteria == 1
+    assert m.max_criteria == 10
+    assert set(m.allowed_criterion_codes) == set(CODES)
+    assert set(m.supported_strategies) == {
+        "curriculum_alignment",
+        "llm_rubric_guidance",
+        "count_band",
+        "ratio_band",
+    }
+    shapes = {c.measurement_shape for c in m.capabilities}
+    assert "curriculum_alignment" in shapes
+    assert "grounded_instances" in shapes
+    assert "qualifying_units" in shapes
+    assert "grounded_score" in shapes

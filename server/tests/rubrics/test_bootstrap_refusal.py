@@ -464,7 +464,7 @@ def test_seed_coordinator_v2_existing_validation_and_activation_handling(db_sess
         version_number=2,
         status="draft",
         adapter_key="coordinator",
-        adapter_version=1,
+        adapter_version=2,
         created_at=now,
     )
     db_session.add(v2_draft)
@@ -532,7 +532,7 @@ def test_seed_coordinator_v2_existing_validation_and_activation_handling(db_sess
         version_number=3,
         status="published",
         adapter_key="coordinator",
-        adapter_version=1,
+        adapter_version=2,
         published_at=now,
         created_at=now,
     )
