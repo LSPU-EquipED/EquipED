@@ -21,7 +21,9 @@ from server.modules.rubrics.contracts import (
 CURRICULUM = "Curriculum topic: photosynthesis converts light to chemical energy."
 
 
-def make_criterion(code: str, *, strategy: str) -> CriterionDefinition:
+def make_criterion(
+    code: str, *, strategy: str, scoring_rule: str | None = None
+) -> CriterionDefinition:
     """Local builder standing in for the absent shared test helper."""
     if strategy == "ratio_band":
         config = RatioBandConfig(
@@ -46,6 +48,7 @@ def make_criterion(code: str, *, strategy: str) -> CriterionDefinition:
         criterion_code=code,
         title=f"{code} title",
         description=f"{code} description",
+        scoring_rule=scoring_rule,
         display_order=0,
         strategy_config=config,
     )
@@ -90,6 +93,30 @@ def test_preamble_carries_output_contract_rules():
     )
     assert "exactly one object per criterion" in prompt
     assert "verbatim substring of the source text" in prompt
+    assert "single JSON object with 'summary' and 'criterion_measurements'" in prompt
+    assert "Do NOT calculate or return final numeric scores" in prompt
+
+
+def test_stored_scoring_rule_is_injected_into_the_criterion_block():
+    env = (
+        make_criterion(
+            "OP-02",
+            strategy="count_band",
+            scoring_rule="Count interactive elements; 4+ -> 4, 2-3 -> 3.",
+        ),
+    )
+    prompt, _ = build_envelope_prompt_and_source(
+        env, "doc text", CURRICULUM, prompt_budget=32000
+    )
+    assert "Scoring Rule: Count interactive elements; 4+ -> 4, 2-3 -> 3." in prompt
+
+
+def test_missing_scoring_rule_omits_the_line():
+    env = (make_criterion("OP-02", strategy="count_band"),)
+    prompt, _ = build_envelope_prompt_and_source(
+        env, "doc text", CURRICULUM, prompt_budget=32000
+    )
+    assert "Scoring Rule:" not in prompt
 
 
 def test_oversized_source_is_downsampled():

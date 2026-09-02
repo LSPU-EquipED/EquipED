@@ -42,6 +42,12 @@ def test_seed_coordinator_v3_creates_and_activates_ten_criteria(db_session):
     a05 = next(c for c in crits if c.criterion_code == "A-05")
     assert a05.scoring_strategy == "curriculum_alignment"
 
+    # Every criterion is backfilled with an editable default scoring rule.
+    assert all(c.scoring_rule and c.scoring_rule.strip() for c in crits)
+    assert "curriculum" in a05.scoring_rule.lower()
+    op02 = next(c for c in crits if c.criterion_code == "OP-02")
+    assert "interactive elements" in op02.scoring_rule
+
     activation = (
         db_session.query(RubricAgentActivation)
         .filter_by(agent_id="coordinator")

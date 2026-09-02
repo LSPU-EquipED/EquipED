@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from server.core.database import get_session_factory
+from server.modules.agents.coordinator.scoring_rules import COORDINATOR_SCORING_RULES
 from server.modules.rubrics.contracts import (
     CriterionDefinition,
     DomainDefinition,
@@ -839,7 +840,7 @@ def build_coordinator_v3_rubric_set(
                     criterion_code=code,
                     title=str(crit_spec["title"]),
                     description=desc,
-                    scoring_rule=None,
+                    scoring_rule=COORDINATOR_SCORING_RULES.get(code),
                     scoring_strategy=strat,
                     strategy_config=cfg,
                     display_order=int(crit_spec["display_order"]),

@@ -201,6 +201,19 @@ def test_upgrade_activates_coordinator_v3(tmp_path):
             )
         ).scalar_one()
         assert strat == "curriculum_alignment"
+
+        rules = conn.execute(
+            text(
+                "SELECT c.criterion_code, c.scoring_rule FROM rubric_criteria c "
+                "JOIN rubric_domains d ON d.rubric_domain_id = c.rubric_domain_id "
+                "JOIN rubric_sets rs ON rs.rubric_set_id = d.rubric_set_id "
+                "WHERE rs.agent_id = 'coordinator' AND rs.version_number = 3"
+            )
+        ).all()
+        assert len(rules) == 10
+        assert all(rule and rule.strip() for _code, rule in rules)
+        a05_rule = next(rule for code, rule in rules if code == "A-05")
+        assert "curriculum" in a05_rule.lower()
     engine.dispose()
 
 
