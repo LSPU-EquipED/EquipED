@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react';
-
+import { X } from '@phosphor-icons/react';
 interface ResetPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
 export function ResetPasswordModal({ isOpen, onClose }: ResetPasswordModalProps) {
   const modalRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,33 +56,58 @@ export function ResetPasswordModal({ isOpen, onClose }: ResetPasswordModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
       role="dialog"
       aria-modal="true"
       aria-labelledby="reset-dialog-title"
     >
       <div
         ref={modalRef}
-        className="w-full max-w-md bg-white border border-slate-200 p-6 sm:p-8 rounded-none shadow-none relative"
+        className="w-full max-w-md bg-white border border-slate-200 p-6 sm:p-7 rounded-sm shadow-xl relative animate-in fade-in zoom-in-95 duration-150"
       >
-        <h3
-          id="reset-dialog-title"
-          className="text-lg font-bold text-slate-900 mb-3 uppercase tracking-wider"
-        >
-          Password Reset Request
-        </h3>
-        <p className="text-sm text-slate-600 leading-relaxed mb-6 font-medium">
-          Password resets must be requested directly through the LSPU IT Support Office (ITSO).
-          Please visit their office or contact them via official channels to recover your
-          credentials.
-        </p>
-        <button
-          type="button"
-          className="w-full h-12 rounded-none bg-[#1b3b87] hover:bg-[#1b3b87]/90 text-white font-bold text-[13px] tracking-[0.1em] uppercase transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#1b3b87]"
-          onClick={onClose}
-        >
-          Close
-        </button>
+        {/* Modal Header */}
+        <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-200">
+          <div>
+            <h3
+              id="reset-dialog-title"
+              className="text-base font-bold text-slate-900 tracking-tight"
+            >
+              Password Reset Protocol
+            </h3>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Institutional Account Recovery Procedure
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-sm transition-colors flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+            aria-label="Close dialog"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Modal Content */}
+        <div className="py-4 space-y-3.5 text-sm text-slate-600 leading-relaxed">
+          <p>
+            To preserve faculty evaluation audit integrity, direct self-service password resets are restricted. Password resets must be verified through the Campus Institutional Administrator.
+          </p>
+          <p className="text-xs text-slate-500 pt-3 border-t border-slate-100">
+            Please contact your Department Chair or College Dean's Office via official university channels to request credential recovery.
+          </p>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="pt-3.5 border-t border-slate-200 flex justify-end">
+          <button
+            type="button"
+            className="h-10 px-5 rounded-sm bg-[#1b3b87] hover:bg-[#142f70] active:bg-[#0f2354] text-white font-bold text-xs tracking-[0.08em] uppercase transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+            onClick={onClose}
+          >
+            I Understand
+          </button>
+        </div>
       </div>
     </div>
   );
