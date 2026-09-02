@@ -5,11 +5,17 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from server.core.config import get_settings
 from server.core.llm import get_llm_model_name
 from server.modules.agents.coordinator.execution import execute_envelope
+from server.modules.agents.coordinator.prompt import REPAIR_SUFFIX
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.rubrics.contracts import CountBandConfig, CriterionDefinition
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    CurriculumAlignmentConfig,
+)
 from server.tests.agents.helpers import SequencedFakeClient
 
 SOURCE = (
@@ -89,6 +95,45 @@ def test_execute_envelope_repairs_once_then_succeeds() -> None:
 
     assert repair_occurred is True
     assert scores[0].score == 3
+
+
+def test_execute_envelope_bounds_large_curriculum_context() -> None:
+    crit = CriterionDefinition(
+        rubric_criterion_id=uuid.uuid4(),
+        criterion_code="A-05",
+        title="A-05 title",
+        description="A-05 description",
+        display_order=0,
+        strategy_config=CurriculumAlignmentConfig(),
+    )
+    payload = {
+        "summary": "Coordinator evaluation summary.",
+        "criterion_measurements": [
+            {
+                "criterion_id": "A-05",
+                "criterion_title": crit.title,
+                "alignments": [
+                    {
+                        "objective_text": "Activity one is a quiz",
+                        "is_aligned": False,
+                        "assessment_excerpt": None,
+                    }
+                ],
+            }
+        ],
+    }
+    huge_curriculum = "Curriculum topic sentence. " * 1600  # ~43k chars
+    assert len(huge_curriculum) > 40000
+    client = _client([payload])
+
+    scores, prompt_text, _parsed, repaired = execute_envelope(
+        0, (crit,), client, SOURCE, huge_curriculum, temperature=0.0
+    )
+
+    assert repaired is False
+    assert scores[0].criterion_id == "A-05"
+    budget = get_settings().agent_total_prompt_budget_chars
+    assert len(prompt_text) + len(REPAIR_SUFFIX) <= budget
 
 
 def test_execute_envelope_second_failure_raises() -> None:

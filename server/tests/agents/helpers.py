@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -33,8 +34,6 @@ def _make_dummy_snapshot(
     evaluation_id: Any | None = None,
 ) -> EvaluationFormSnapshotDTO:
     """Create a minimal valid EvaluationFormSnapshotDTO matching agent manifest."""
-    import uuid
-
     eval_id = evaluation_id or uuid.uuid4()
     set_id = uuid.uuid4()
 
@@ -132,8 +131,6 @@ def make_coordinator_snapshot(
     ``server/scripts/seed_rubrics.py::_COORDINATOR_STRATEGY_CONFIGS``. Returns
     ``(snapshot_dto, {criterion_code: criterion_title})``.
     """
-    import uuid
-
     eval_id = evaluation_id or uuid.uuid4()
     titles = {code: f"{code} Criterion" for code in _COORDINATOR_CONFIGS}
 
@@ -161,7 +158,7 @@ def make_coordinator_snapshot(
             DomainDefinition(
                 rubric_domain_id=uuid.uuid4(),
                 code="OP",
-                title="Objective Provisions",
+                title="Organization & Presentation",
                 display_order=0,
                 criteria=_criteria(["OP-01", "OP-02", "OP-03", "OP-04", "OP-05"]),
             ),

@@ -83,6 +83,15 @@ def test_preamble_and_repair_reservation():
     assert len(prompt) + len(REPAIR_SUFFIX) <= 32000
 
 
+def test_preamble_carries_output_contract_rules():
+    env = (make_criterion("A-05", strategy="curriculum_alignment"),)
+    prompt, _ = build_envelope_prompt_and_source(
+        env, "doc text", CURRICULUM, prompt_budget=32000
+    )
+    assert "exactly one object per criterion" in prompt
+    assert "verbatim substring of the source text" in prompt
+
+
 def test_oversized_source_is_downsampled():
     env = (make_criterion("OP-01", strategy="ratio_band"),)
     big = "sentence. " * 20000

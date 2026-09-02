@@ -25,8 +25,15 @@ from .response import (
     parse_and_validate_envelope_response,
 )
 from .scoring import score_envelope
+from .slicing import downsample
 
 logger = logging.getLogger(__name__)
+
+# A large curriculum document is injected verbatim into the A-envelope prompt
+# and charged against ``agent_total_prompt_budget_chars`` (32000). Bound it so a
+# long curriculum can neither push ``available_for_source`` to zero (failing the
+# whole 10-criterion result) nor starve the SLM slice the A criteria read.
+_CURRICULUM_BUDGET_CHARS = 12000
 
 
 def execute_envelope(
@@ -43,6 +50,11 @@ def execute_envelope(
     """Execute one Coordinator envelope call with one repair on validation failure."""
     settings = get_settings()
     prompt_budget = settings.agent_total_prompt_budget_chars
+
+    if len(curriculum_context) > _CURRICULUM_BUDGET_CHARS:
+        curriculum_context = downsample(
+            curriculum_context, budget=_CURRICULUM_BUDGET_CHARS
+        )
 
     prompt, source_packet = build_envelope_prompt_and_source(
         criteria,

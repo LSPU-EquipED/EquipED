@@ -1,8 +1,7 @@
 """Scoring and measurement transformation for Coordinator criteria.
 
-Copy-adapted from ``server/modules/agents/sme/scoring.py``. Task 8 lands this as a
-bare copy (no ``sme`` import); Task 9 adds ``score_curriculum_alignment`` plus its
-dispatch branch.
+Copy-adapted from ``server/modules/agents/sme/scoring.py`` (no ``sme`` import);
+adds ``score_curriculum_alignment`` for A-05.
 """
 
 from __future__ import annotations

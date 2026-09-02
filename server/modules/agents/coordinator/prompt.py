@@ -27,7 +27,14 @@ COORDINATOR_PREAMBLE = (
     "Expert does, but from a curriculum-alignment perspective: your role is to\n"
     "confirm the material serves the confirmed course curriculum. For the\n"
     "curriculum-alignment criterion you are given a CURRICULUM CONTEXT block —\n"
-    "every alignment claim you make about it must quote it verbatim."
+    "every alignment claim you make about it must quote it verbatim.\n"
+    "- Ground all extractions: every evidence and excerpt MUST be an exact, "
+    "verbatim substring of the source text.\n"
+    "- Return a single JSON object with 'summary' and 'criterion_measurements'.\n"
+    "- 'criterion_measurements' must contain exactly one object per criterion, "
+    "in the exact order listed below.\n"
+    "- Do NOT calculate or return final numeric scores for count or ratio "
+    "strategies; emit only the required measurement structure."
 )
 
 

@@ -104,14 +104,6 @@ def _seed_active_forms(
                 "guidance": "ITSO compliance guidance",
             },
         },
-        "coordinator": {
-            "code": "A-05",
-            "scoring_strategy": "curriculum_alignment",
-            "config": {
-                "strategy": "curriculum_alignment",
-                "guidance": "Curriculum alignment guidance",
-            },
-        },
     }
     now = datetime.now(UTC)
     result = {}
@@ -155,8 +147,72 @@ def _seed_active_forms(
         db_session.add(criterion)
         db_session.flush()
         result[agent_id] = (rubric_set, [criterion])
+
+    result["coordinator"] = _seed_active_coordinator_v3(db_session, now)
     db_session.commit()
     return result
+
+
+_COORDINATOR_V3_DOMAINS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "OP",
+        "Organization & Presentation",
+        ("OP-01", "OP-02", "OP-03", "OP-04", "OP-05"),
+    ),
+    ("A", "Assessment", ("A-01", "A-02", "A-03", "A-04", "A-05")),
+)
+
+
+def _seed_active_coordinator_v3(
+    db_session, now
+) -> tuple[RubricSet, list[RubricCriterion]]:
+    """Seed + activate the 10-criterion Coordinator Rubric v3 (adapter_version 2)."""
+    from server.scripts.seed_rubrics import _COORDINATOR_STRATEGY_CONFIGS
+
+    rubric_set = RubricSet(
+        agent_id="coordinator",
+        name="Coordinator Rubric v3",
+        version_number=3,
+        status="published",
+        adapter_key="coordinator",
+        adapter_version=2,
+        published_at=now,
+    )
+    db_session.add(rubric_set)
+    db_session.flush()
+    db_session.add(
+        RubricAgentActivation(
+            agent_id="coordinator",
+            rubric_set_id=rubric_set.rubric_set_id,
+            updated_by=None,
+            updated_at=now,
+        )
+    )
+    crits: list[RubricCriterion] = []
+    for order, (dcode, dtitle, ccodes) in enumerate(_COORDINATOR_V3_DOMAINS, start=1):
+        domain = RubricDomain(
+            rubric_set_id=rubric_set.rubric_set_id,
+            code=dcode,
+            title=dtitle,
+            display_order=order,
+        )
+        db_session.add(domain)
+        db_session.flush()
+        for c_order, ccode in enumerate(ccodes, start=1):
+            cfg = _COORDINATOR_STRATEGY_CONFIGS[ccode]
+            criterion = RubricCriterion(
+                rubric_domain_id=domain.rubric_domain_id,
+                criterion_code=ccode,
+                title=f"Coordinator {ccode}",
+                description=f"Coordinator criterion {ccode}",
+                scoring_strategy=cfg["strategy"],
+                strategy_config=cfg,
+                display_order=c_order,
+            )
+            db_session.add(criterion)
+            db_session.flush()
+            crits.append(criterion)
+    return rubric_set, crits
 
 
 def test_get_catalog_returns_all_four_bindings_without_strategy_leak(
@@ -169,7 +225,8 @@ def test_get_catalog_returns_all_four_bindings_without_strategy_leak(
     resp = client.get("/api/v1/admin/model-validations/criteria")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total_criteria"] == 4
+    # sme/gad/itso 1 each + 10 Coordinator v3 criteria.
+    assert data["total_criteria"] == 13
     assert len(data["agents"]) == 4
 
     agent_map = {a["agent_id"]: a for a in data["agents"]}
@@ -177,23 +234,24 @@ def test_get_catalog_returns_all_four_bindings_without_strategy_leak(
 
     for agent_id, (rubric_set, criteria) in seeded.items():
         agent_dto = agent_map[agent_id]
+        is_coordinator = agent_id == "coordinator"
         assert agent_dto["rubric_set_id"] == str(rubric_set.rubric_set_id)
-        assert agent_dto["rubric_version"] == 1
-        assert len(agent_dto["domains"]) == 1
-        assert len(agent_dto["criteria"]) == 1
+        assert agent_dto["rubric_version"] == (3 if is_coordinator else 1)
+        assert len(agent_dto["domains"]) == (2 if is_coordinator else 1)
+        assert len(agent_dto["criteria"]) == len(criteria)
 
-        crit_dto = agent_dto["criteria"][0]
-        crit_obj = criteria[0]
-        assert crit_dto["rubric_criterion_id"] == str(crit_obj.rubric_criterion_id)
-        assert crit_dto["criterion_code"] == crit_obj.criterion_code
-        assert crit_dto["title"] == crit_obj.title
-        assert crit_dto["description"] == crit_obj.description
-        assert crit_dto["display_order"] == crit_obj.display_order
+        crit_dtos = {c["rubric_criterion_id"]: c for c in agent_dto["criteria"]}
+        for crit_obj in criteria:
+            crit_dto = crit_dtos[str(crit_obj.rubric_criterion_id)]
+            assert crit_dto["criterion_code"] == crit_obj.criterion_code
+            assert crit_dto["title"] == crit_obj.title
+            assert crit_dto["description"] == crit_obj.description
+            assert crit_dto["display_order"] == crit_obj.display_order
 
-        # Strict assertion: NO strategy configuration or scoring rules are leaked
-        assert "strategy_config" not in crit_dto
-        assert "scoring_strategy" not in crit_dto
-        assert "scoring_rule" not in crit_dto
+            # Strict assertion: NO strategy configuration or scoring rules leaked
+            assert "strategy_config" not in crit_dto
+            assert "scoring_strategy" not in crit_dto
+            assert "scoring_rule" not in crit_dto
 
 
 def test_partial_validation_submission_and_snapshot_persistence(
@@ -253,10 +311,11 @@ def test_full_validation_submission_with_curriculum(
         {
             "agent_id": agent_id,
             "rubric_set_id": str(seeded[agent_id][0].rubric_set_id),
-            "rubric_criterion_id": str(seeded[agent_id][1][0].rubric_criterion_id),
+            "rubric_criterion_id": str(crit.rubric_criterion_id),
             "expected_score": 4,
         }
         for agent_id in ("sme", "coordinator", "gad", "itso")
+        for crit in seeded[agent_id][1]
     ]
 
     resp = client.post(
@@ -278,7 +337,8 @@ def test_full_validation_submission_with_curriculum(
         "gad",
         "itso",
     }
-    assert len(data["criterion_scores"]) == 4
+    # sme/gad/itso 1 each + 10 Coordinator v3 criteria.
+    assert len(data["criterion_scores"]) == 13
 
 
 def test_stale_catalog_echo_rejected_under_lock(

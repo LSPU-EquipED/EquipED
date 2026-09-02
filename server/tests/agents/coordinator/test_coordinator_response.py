@@ -97,6 +97,28 @@ def test_objective_text_not_in_source_rejected():
         parse_and_validate_envelope_response(raw, (crit,), SOURCE, CURRICULUM)
 
 
+def test_duplicate_objective_text_rejected():
+    crit = make_criterion("A-05", strategy="curriculum_alignment")
+    raw = _wrap([{
+        "criterion_id": "A-05",
+        "criterion_title": crit.title,
+        "alignments": [
+            {
+                "objective_text": "Objective: explain photosynthesis.",
+                "is_aligned": False,
+                "assessment_excerpt": None,
+            },
+            {
+                "objective_text": "Objective: explain photosynthesis.",
+                "is_aligned": False,
+                "assessment_excerpt": None,
+            },
+        ],
+    }])
+    with pytest.raises(AgentExecutionError, match="duplicate objective_text"):
+        parse_and_validate_envelope_response(raw, (crit,), SOURCE, CURRICULUM)
+
+
 def test_non_curriculum_criteria_still_validated_like_sme():
     crit = make_criterion("OP-02", strategy="count_band")
     raw = _wrap([{

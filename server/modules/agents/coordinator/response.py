@@ -194,7 +194,11 @@ def build_envelope_schema(criteria: tuple[CriterionDefinition, ...]) -> dict[str
         "additionalProperties": False,
         "required": ["summary", "criterion_measurements"],
         "properties": {
-            "summary": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": COORD_TEXT_MAX,
+            },
             "criterion_measurements": {
                 "type": "array",
                 "minItems": len(criteria),
@@ -281,10 +285,11 @@ def parse_and_validate_envelope_response(
         not isinstance(summary, str)
         or not summary.strip()
         or summary != summary.strip()
-        or len(summary) > 2000
+        or len(summary) > COORD_TEXT_MAX
     ):
         raise AgentExecutionError(
-            "Coordinator response requires non-empty summary string (max 2000 chars)"
+            "Coordinator response requires non-empty summary string "
+            f"(max {COORD_TEXT_MAX} chars)"
         )
 
     measurements = parsed.get("criterion_measurements")
@@ -626,6 +631,7 @@ def parse_and_validate_envelope_response(
                 "reasoning",
             }
             rejected = 0
+            seen_objectives: set[str] = set()
             for row_idx, row in enumerate(alignments):
                 if not isinstance(row, (dict, OrderedDict)):
                     raise AgentExecutionError(
@@ -662,6 +668,13 @@ def parse_and_validate_envelope_response(
                         f"Coordinator '{cid}' objective_text is not an exact "
                         "substring of source text"
                     )
+                norm_objective = " ".join(objective_text.split()).casefold()
+                if norm_objective in seen_objectives:
+                    raise AgentExecutionError(
+                        f"Measurement '{cid}' alignment[{row_idx}] contains a "
+                        "duplicate objective_text"
+                    )
+                seen_objectives.add(norm_objective)
                 is_aligned = row.get("is_aligned")
                 if not isinstance(is_aligned, bool):
                     raise AgentExecutionError(

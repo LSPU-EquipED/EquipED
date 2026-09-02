@@ -1,9 +1,9 @@
 """Program coordinator domain agent.
 
 Under the published Revision 2 adapter, Coordinator scores ALL ten rubric
-criteria (five Objective Provisions ``OP-*`` and five Assessment ``A-*``)
-independently, from a curriculum-alignment perspective. It never inherits or
-merges Subject Matter Expert (SME) scores.
+criteria (five Organization and Presentation ``OP-*`` and five Assessment
+``A-*``) independently, from a curriculum-alignment perspective. It never
+inherits or merges Subject Matter Expert (SME) scores.
 
 Entry point:
 - ``run()`` -- called by ``Supervisor`` in parallel with every other agent.

@@ -307,6 +307,9 @@ def upgrade() -> None:
     else:
         target_type, target_param = _bind_uuid(is_postgres, existing_v3)
 
+    # One-shot migration: unconditionally repoint coordinator activation to v3.
+    # (Unlike seed_coordinator_v3_if_needed, which preserves an admin's manual
+    # activation choice, the migration is the deploy's single source of truth.)
     _point_activation(bind, target_type, target_param, now)
 
 

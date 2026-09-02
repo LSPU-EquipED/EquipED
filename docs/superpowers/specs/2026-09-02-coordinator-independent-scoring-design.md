@@ -129,7 +129,7 @@ dispatch.py
 | `response.py` | new | Copy-adapted from `sme/response.py`. Add `curriculum_alignment` schema branch, parsing to `CurriculumAlignmentMeasurement`, and the groundedness demotion pass. Coordinator-labelled error categories. |
 | `scoring.py` | new | Copy-adapted from `sme/scoring.py`. 9 criteria delegate to `rubrics/strategies/calculators.py` unchanged. Add `score_curriculum_alignment()` porting `curriculum.py::compute` (distinct aligned objectives -> `ratio_band(scale="moderate")`, 80/50/20). |
 | `execution.py` | new | Copy-adapted from `sme/execution.py`. Repair-once; second failure raises. Coordinator telemetry labels and prompt-budget setting. |
-| `summary.py` | deleted | Replaced by copied `build_improvement_summary`. |
+| `summary.py` | kept | Rewritten with a Coordinator-local deterministic `build_alignment_summary` (no `sme` import). |
 | `extraction.py` | deleted | Retired fact-extraction path. |
 | `curriculum.py` | deleted | `compute` logic ported into `scoring.py`; `format_roadmap_note` moved into `agent.py`. |
 | `__init__.py` | unchanged | Still exports `Coordinator`. |
@@ -274,5 +274,19 @@ Update:
    `uv run --project server python -m server.scripts.seed_rubrics` to
    activate v3 where the migration path is not used.
 3. New evaluations pick up the 10-criterion Coordinator snapshot
-   automatically once v3 is the active revision. Existing evaluations
-   keep their frozen v2 snapshots and are unaffected.
+   automatically once v3 is the active revision.
+4. **The manifest `adapter_version` bump (1 → 2) breaks live re-validation
+   of frozen Coordinator v2 snapshots.** `manifests.py` checks
+   `adapter_version` against the *current* manifest, so any evaluation
+   still in-flight or resumable across the deploy that holds a frozen v2
+   Coordinator snapshot (adapter_version 1) will fail live re-validation at
+   synthesis/recovery (`snapshots.py::verify_snapshot_row`) and must be
+   **restarted, not resumed**. Rollout precondition: **drain all in-flight
+   evaluations before running `alembic upgrade head` in each
+   environment.** After the migration, Coordinator v2 is retained only as
+   historical metadata and is no longer a valid active revision.
+
+Deferred alternative (NOT implemented in Phase A): make snapshot
+re-validation check `adapter_version` against the version recorded in the
+snapshot payload rather than the current manifest, which would preserve
+cross-deploy resumability.
