@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import {
   getReferenceFileUrl,
   getReferenceOperationError,
@@ -218,11 +219,23 @@ export function ReferenceLibraryTab() {
       {/* ── Unified Ledger Table ─────────────────────────────────────── */}
       <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
-          <div className="space-y-2.5 p-6">
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading reference library"
+            columns={[
+              { label: 'Title', headerClassName: 'min-w-[16rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Type', skeletonClassName: 'h-5 w-20' },
+              { label: 'Program', skeletonClassName: 'h-4 w-20' },
+              { label: 'Course code', skeletonClassName: 'h-4 w-20' },
+              { label: 'Sem / AY', skeletonClassName: 'h-4 w-20' },
+              { label: 'Lesson', skeletonClassName: 'h-4 w-16' },
+              { label: 'Status', skeletonClassName: 'h-5 w-20' },
+              { label: 'File', skeletonClassName: 'h-4 w-24' },
+              { label: 'Chunks', skeletonClassName: 'h-4 w-12' },
+              { label: 'Chroma', skeletonClassName: 'h-4 w-12' },
+              { label: 'Uploaded', skeletonClassName: 'h-4 w-24' },
+              { label: 'Actions', headerClassName: 'text-right', skeletonClassName: 'h-8 w-16 ml-auto' },
+            ]}
+          />
         ) : isError ? (
           <div className="py-16 text-center space-y-2">
             <p className="text-xs font-semibold text-destructive">

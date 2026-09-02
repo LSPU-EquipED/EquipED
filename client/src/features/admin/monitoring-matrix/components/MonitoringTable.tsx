@@ -5,14 +5,15 @@ import {
   FileText,
   FolderOpen,
   ShieldCheck,
-  Spinner,
   User,
   Warning,
 } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { TABLE_STYLES } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
 import type { MonitoringMatrixRow } from '../types';
 import {
@@ -90,7 +91,7 @@ export function MonitoringTable() {
               Evaluated Modules
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {metrics.total}
+              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.total}
             </p>
           </div>
         </div>
@@ -105,7 +106,7 @@ export function MonitoringTable() {
               Accredited Quality Rate
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {metrics.passRate}%
+              {isLoading ? <Skeleton className="h-7 w-16" /> : metrics.passRate + '%'}
             </p>
           </div>
         </div>
@@ -120,7 +121,7 @@ export function MonitoringTable() {
               Flagged for Audit
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {metrics.flaggedCount}
+              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.flaggedCount}
             </p>
           </div>
         </div>
@@ -135,7 +136,7 @@ export function MonitoringTable() {
               Total Issue Flags
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {metrics.totalFlags}
+              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.totalFlags}
             </p>
           </div>
         </div>
@@ -153,12 +154,17 @@ export function MonitoringTable() {
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="flex flex-col justify-center items-center py-16 text-text-muted font-medium text-sm gap-3">
-            <Spinner className="size-6 animate-spin text-primary" aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Loading monitoring matrix data…
-            </span>
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading monitoring matrix"
+            columns={[
+              { label: 'SLM Title', headerClassName: 'min-w-[18rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Program', skeletonClassName: 'h-5 w-20' },
+              { label: 'Status', skeletonClassName: 'h-5 w-24' },
+              { label: 'Form Revision', skeletonClassName: 'h-4 w-20' },
+              { label: 'Rating', skeletonClassName: 'h-4 w-16' },
+              { label: 'Last Updated', headerClassName: 'text-right', skeletonClassName: 'h-4 w-28 ml-auto' },
+            ]}
+          />
         ) : null}
 
         {/* Error State */}

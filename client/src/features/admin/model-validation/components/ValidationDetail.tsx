@@ -5,13 +5,13 @@ import {
   CheckCircle,
   FilePdf,
   ShieldWarning,
-  Spinner,
   Warning,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { cn } from '@/shared/components/utils';
 import {
   useModelValidationDetail,
@@ -330,13 +330,15 @@ export function ValidationDetail({
       ) : null}
 
       {detailQuery.isLoading ? (
-        <p
+        <div
           role="status"
-          className="flex items-center gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2 text-xs font-semibold uppercase tracking-wider text-text-muted"
+          aria-label="Loading criterion detail"
+          className="space-y-3 rounded-sm border border-border bg-surface-subtle px-3 py-3"
         >
-          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-          Loading criterion detail…
-        </p>
+          <Skeleton className="h-3 w-40" />
+          <Skeleton className="h-4 w-full max-w-2xl" />
+          <Skeleton className="h-4 w-4/5 max-w-xl" />
+        </div>
       ) : null}
 
       {detailQuery.isError ? (
@@ -496,9 +498,8 @@ export function ValidationDetail({
               {evaluation.status}
             </span>
           ) : evaluationQuery.isLoading ? (
-            <span className="inline-flex items-center gap-2 text-xs font-semibold text-text-muted">
-              <Spinner className="size-3 animate-spin text-primary" aria-hidden="true" />
-              Loading evaluation status…
+            <span role="status" aria-label="Loading evaluation status" className="inline-flex">
+              <Skeleton className="h-3 w-28" />
             </span>
           ) : null}
         </div>

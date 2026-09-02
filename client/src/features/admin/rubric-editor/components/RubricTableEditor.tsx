@@ -11,6 +11,7 @@ import {
   Plus,
   Trash,
 } from '@phosphor-icons/react';
+import { Skeleton } from '@/shared/components/Skeleton';
 import {
   getRubricOperationError,
   getValidationReportFromError,
@@ -382,14 +383,30 @@ export function RubricTableEditor() {
     reorderTreeMutation.error ||
     deleteDomainMutation.error ||
     deleteCriterionMutation.error;
-
   if (revisionsQuery.isLoading) {
     return (
-      <div
-        className="flex items-center justify-center p-16 text-xs font-semibold text-text-muted"
-        role="status"
-      >
-        Loading rubric revisions…
+      <div role="status" aria-label="Loading rubric revisions" aria-busy="true" className="space-y-6">
+        <div className="overflow-hidden rounded-md border border-border bg-surface">
+          <div className="flex flex-wrap gap-2 border-b border-border bg-surface-subtle px-4 py-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-8 w-28" />
+            ))}
+          </div>
+          <div className="space-y-3 p-5">
+            <Skeleton className="h-6 w-64 max-w-full" />
+            <Skeleton className="h-3 w-2/3 max-w-xl" />
+          </div>
+        </div>
+        <div className="space-y-4 rounded-md border border-border bg-surface p-5">
+          <Skeleton className="h-4 w-48" />
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="grid grid-cols-[minmax(0,1fr)_8rem_7rem] items-center gap-4 border-b border-border-subtle pb-3">
+              <Skeleton className="h-4 w-full max-w-md" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

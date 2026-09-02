@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { BookOpen, FileText, ShieldCheck, Spinner, Warning } from '@phosphor-icons/react';
+import { BookOpen, FileText, ShieldCheck, Warning } from '@phosphor-icons/react';
 import { TABLE_STYLES } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
 import type { PreferenceLogItem } from '../types';
 import { PreferenceLogFilters } from './PreferenceLogFilters';
@@ -57,12 +58,17 @@ export function PreferenceLogTable() {
         </div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center gap-2.5 py-16 text-text-muted font-medium text-sm">
-            <Spinner className="size-5 animate-spin text-primary" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Loading preference audit logs…
-            </span>
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading preference audit logs"
+            columns={[
+              { label: 'Expand', headerClassName: 'w-10', cellClassName: 'w-10', skeletonClassName: 'size-4' },
+              { label: 'Reviewer User ID', headerClassName: 'w-48', skeletonClassName: 'h-4 w-32' },
+              { label: 'Action', headerClassName: 'w-32', skeletonClassName: 'h-5 w-24' },
+              { label: 'Evaluation ID', headerClassName: 'w-48', skeletonClassName: 'h-4 w-32' },
+              { label: 'Details / Score', skeletonClassName: 'h-4 w-48' },
+              { label: 'Logged Timestamp', headerClassName: 'w-48 text-right', skeletonClassName: 'h-4 w-28 ml-auto' },
+            ]}
+          />
         ) : isError ? (
           <div className="flex items-center justify-center py-12 px-4 text-destructive font-semibold text-sm gap-2.5 bg-destructive-soft">
             <Warning className="size-5 text-destructive shrink-0" aria-hidden="true" />
