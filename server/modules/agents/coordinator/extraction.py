@@ -101,6 +101,48 @@ def _parse_strict_json(raw: str) -> dict[str, Any]:
         raise ValueError(f"expected JSON object, got {type(parsed).__name__}")
     return parsed
 
+def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
+    """Locate excerpt in source, tolerating whitespace, quotes, dashes, and bullet variations."""
+    if excerpt in source:
+        return excerpt
+    trans = str.maketrans({
+        "“": '"', "”": '"', "‘": "'", "’": "'", "—": "-", "–": "-", "\xa0": " "
+    })
+    c_source = source.translate(trans)
+    c_excerpt = excerpt.translate(trans)
+
+    words = c_excerpt.split()
+    if not words:
+        return None
+    pattern_simple = r"\s+".join(re.escape(w) for w in words)
+    match_simple = re.search(pattern_simple, c_source, flags=re.IGNORECASE)
+    if match_simple:
+        return source[match_simple.start() : match_simple.end()]
+
+    token_words = re.findall(r"\b\w+\b", c_excerpt)
+    if token_words and len(token_words) >= 2:
+        pattern_words = r"[\s\W_]+".join(re.escape(w) for w in token_words)
+        match_words = re.search(pattern_words, c_source, flags=re.IGNORECASE)
+        if match_words:
+            start, end = match_words.start(), match_words.end()
+            if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                end += 1
+            return source[start:end]
+
+    if ":" in c_excerpt:
+        sub = c_excerpt.split(":", 1)[1].strip()
+        sub_tokens = re.findall(r"\b\w+\b", sub)
+        if sub_tokens and len(sub_tokens) >= 2:
+            pattern_sub = r"[\s\W_]+".join(re.escape(w) for w in sub_tokens)
+            match_sub = re.search(pattern_sub, c_source, flags=re.IGNORECASE)
+            if match_sub:
+                start, end = match_sub.start(), match_sub.end()
+                if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                    end += 1
+                return source[start:end]
+
+    return None
+
 
 def extract(
     client: RunLLMClient,
@@ -278,13 +320,15 @@ serve as an alignment target, or be quoted as curriculum evidence.
             raise ValueError("invalid Coordinator objective")
         raw_text = item["text"]
         trimmed_text = raw_text.strip()
+        matched_text = _find_verbatim_substring(trimmed_text, slm_text) if trimmed_text else None
         if (
             not trimmed_text
-            or raw_text != trimmed_text
             or len(trimmed_text) > COORDINATOR_TEXT_MAX
-            or trimmed_text not in slm_text
+            or matched_text is None
         ):
+            logger.warning("COORDINATOR_UNMATCHED_OBJECTIVE: %r", trimmed_text)
             raise ValueError("invalid Coordinator objective text grounding or length")
+        trimmed_text = matched_text
 
         collapsed = " ".join(trimmed_text.split()).casefold()
         if collapsed in normalized_texts:

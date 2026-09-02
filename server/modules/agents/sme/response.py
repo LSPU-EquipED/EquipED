@@ -19,6 +19,73 @@ from .slicing import GAP_MARKER
 
 SME_TEXT_MAX = 2000
 
+def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
+    """Locate excerpt in source, tolerating whitespace, quotes, dashes, and bullet variations."""
+    if excerpt in source:
+        return excerpt
+    trans = str.maketrans({
+        "“": '"', "”": '"', "‘": "'", "’": "'", "—": "-", "–": "-", "\xa0": " "
+    })
+    c_source = source.translate(trans)
+    c_excerpt = excerpt.translate(trans)
+
+    words = c_excerpt.split()
+    if not words:
+        return None
+    pattern_simple = r"\s+".join(re.escape(w) for w in words)
+    match_simple = re.search(pattern_simple, c_source, flags=re.IGNORECASE)
+    if match_simple:
+        return source[match_simple.start() : match_simple.end()]
+
+    token_words = re.findall(r"\b\w+\b", c_excerpt)
+    if not token_words:
+        return None
+
+    if len(token_words) >= 2:
+        pattern_words = r"[\s\W_]+".join(re.escape(w) for w in token_words)
+        match_words = re.search(pattern_words, c_source, flags=re.IGNORECASE)
+        if match_words:
+            start, end = match_words.start(), match_words.end()
+            if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                end += 1
+            return source[start:end]
+
+    if len(token_words) == 1:
+        pattern_one = r"\b" + re.escape(token_words[0]) + r"\b"
+        match_one = re.search(pattern_one, c_source, flags=re.IGNORECASE)
+        if match_one:
+            return source[match_one.start() : match_one.end()]
+
+    if ":" in c_excerpt:
+        sub = c_excerpt.split(":", 1)[1].strip()
+        sub_tokens = re.findall(r"\b\w+\b", sub)
+        if sub_tokens:
+            p_sub = (
+                r"\b" + re.escape(sub_tokens[0]) + r"\b"
+                if len(sub_tokens) == 1
+                else r"[\s\W_]+".join(re.escape(w) for w in sub_tokens)
+            )
+            match_sub = re.search(p_sub, c_source, flags=re.IGNORECASE)
+            if match_sub:
+                start, end = match_sub.start(), match_sub.end()
+                if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                    end += 1
+                return source[start:end]
+
+    if len(token_words) >= 4:
+        for window_size in range(len(token_words) - 1, 2, -1):
+            for i in range(len(token_words) - window_size + 1):
+                sub_tokens = token_words[i : i + window_size]
+                p_window = r"[\s\W_]+".join(re.escape(w) for w in sub_tokens)
+                m_window = re.search(p_window, c_source, flags=re.IGNORECASE)
+                if m_window:
+                    start, end = m_window.start(), m_window.end()
+                    if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                        end += 1
+                    return source[start:end]
+
+    return None
+
 
 def _optional_string_schema(max_length: int) -> dict[str, Any]:
     return {
@@ -271,12 +338,7 @@ def parse_and_validate_envelope_response(
                 f"expected '{crit.criterion_code}'"
             )
 
-        title = m.get("criterion_title")
-        if title != crit.title:
-            raise AgentExecutionError(
-                f"Measurement at index {idx} has criterion_title '{title}', "
-                f"expected '{crit.title}'"
-            )
+        m["criterion_title"] = crit.title
 
         config = crit.strategy_config
         if isinstance(config, LlmRubricGuidanceConfig):
@@ -313,11 +375,14 @@ def parse_and_validate_envelope_response(
                     f"Measurement '{cid}' requires non-empty string 'evidence' "
                     f"(max {SME_TEXT_MAX} chars)"
                 )
-            if GAP_MARKER.strip() in evidence or evidence not in source_packet:
+            matched_ev = _find_verbatim_substring(evidence, source_packet)
+            if matched_ev is None or GAP_MARKER.strip() in matched_ev:
                 raise AgentExecutionError(
                     f"Measurement '{cid}' evidence is not an exact substring of "
                     "source text"
                 )
+            m["evidence"] = matched_ev
+            evidence = matched_ev
             reasoning = m.get("reasoning")
             if reasoning is not None and not _is_strict_optional_text(
                 reasoning, SME_TEXT_MAX
@@ -366,11 +431,14 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' instance[{inst_idx}] requires "
                         "non-empty string 'excerpt'"
                     )
-                if GAP_MARKER.strip() in excerpt or excerpt not in source_packet:
+                matched_excerpt = _find_verbatim_substring(excerpt, source_packet)
+                if matched_excerpt is None or GAP_MARKER.strip() in matched_excerpt:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' instance[{inst_idx}] excerpt is not "
                         "an exact substring of source text"
                     )
+                inst["excerpt"] = matched_excerpt
+                excerpt = matched_excerpt
                 norm_excerpt = " ".join(excerpt.split()).casefold()
                 if norm_excerpt in seen_excerpts:
                     raise AgentExecutionError(
@@ -498,11 +566,14 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' unit[{unit_idx}] requires non-empty "
                         f"string 'evidence'"
                     )
-                if GAP_MARKER.strip() in evidence or evidence not in source_packet:
+                matched_ev = _find_verbatim_substring(evidence, source_packet)
+                if matched_ev is None or GAP_MARKER.strip() in matched_ev:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' unit[{unit_idx}] evidence is not "
                         "an exact substring of source text"
                     )
+                unit["evidence"] = matched_ev
+                evidence = matched_ev
                 norm_ev = " ".join(evidence.split()).casefold()
                 if norm_ev in seen_evidences:
                     raise AgentExecutionError(
