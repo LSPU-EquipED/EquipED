@@ -11,6 +11,7 @@ import {
 import { getErrorMessage } from '@/shared/api/http';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { cn } from '@/shared/components/utils';
 import type { ClientDocument, ClientDocumentChunk } from '@/shared/types/documents';
 import type { EvaluationFlagItem } from '../types';
@@ -38,6 +39,27 @@ type DocumentPaneProps = {
   chunkMap: Map<string, ClientDocumentChunk>;
   selectedAgentLabel: string;
 };
+
+function DocumentPaneSkeleton() {
+  return (
+    <div className="w-full max-w-2xl space-y-6" role="status" aria-label="Loading document text">
+      <div className="space-y-3 rounded-sm border border-border bg-surface p-5">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-6 w-3/4 max-w-lg" />
+        <Skeleton className="h-3 w-1/2 max-w-sm" />
+      </div>
+      <div className="space-y-4 rounded-sm border border-border bg-surface p-5 sm:p-6">
+        <Skeleton className="h-4 w-48" />
+        {Array.from({ length: 9 }).map((_, index) => (
+          <Skeleton
+            key={index}
+            className={cn('h-3', index % 4 === 3 ? 'w-2/3' : 'w-full')}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function DocumentPane({
   document: _document,
@@ -232,17 +254,17 @@ export function DocumentPane({
       <div className="relative flex flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 md:p-8 justify-center">
         {/* Loading / Submitting Overlay */}
         {isLoading || isResolvingEval || submitIsPending ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/80">
-            <div className="flex items-center gap-2.5 rounded-sm border border-border bg-surface px-4 py-3 text-xs font-semibold text-text shadow-sm">
-              <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-              <span>
-                {isResolvingEval
-                  ? 'Checking for existing evaluation…'
-                  : submitIsPending
-                    ? 'Submitting evaluation…'
-                    : 'Loading document text…'}
-              </span>
-            </div>
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface/80 p-4">
+            {isResolvingEval || submitIsPending ? (
+              <div className="flex items-center gap-2.5 rounded-sm border border-border bg-surface px-4 py-3 text-xs font-semibold text-text shadow-sm">
+                <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
+                <span>
+                  {isResolvingEval ? 'Checking for existing evaluation…' : 'Submitting evaluation…'}
+                </span>
+              </div>
+            ) : (
+              <DocumentPaneSkeleton />
+            )}
           </div>
         ) : null}
 

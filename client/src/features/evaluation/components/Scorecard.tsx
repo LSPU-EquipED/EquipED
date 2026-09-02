@@ -10,12 +10,12 @@ import {
   Lightbulb,
   Scales,
   ShieldCheck,
-  Spinner,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
@@ -57,6 +57,68 @@ const DOMAIN_ICONS: Record<string, typeof Lightbulb> = {
   gad: Scales,
   itso: ShieldCheck,
 };
+
+function ScorecardSkeleton() {
+  return (
+    <section
+      className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas"
+      role="status"
+      aria-label="Loading evaluation scorecard"
+    >
+      <header className="flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-4 w-48 max-w-[45vw]" />
+        </div>
+        <Skeleton className="h-8 w-28" />
+      </header>
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[26rem_minmax(0,1fr)]">
+        <aside className="hidden space-y-5 border-r border-border bg-surface p-5 lg:block">
+          <div className="space-y-3 rounded-md border border-border bg-surface-subtle p-4">
+            <Skeleton className="h-2.5 w-36" />
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-2.5 w-28" />
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-12 w-full" />
+            ))}
+          </div>
+        </aside>
+        <main className="min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-4xl space-y-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="space-y-2">
+                <Skeleton className="h-2.5 w-28" />
+                <Skeleton className="h-6 w-64 max-w-[60vw]" />
+              </div>
+              <Skeleton className="size-10 rounded-sm" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="space-y-3 border border-border p-4">
+                  <Skeleton className="h-2.5 w-28" />
+                  <Skeleton className="h-7 w-20" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4 border border-border p-5">
+              <Skeleton className="h-4 w-48" />
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="grid grid-cols-[minmax(0,1fr)_8rem] gap-4">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-20 ml-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+  );
+}
 
 export function Scorecard() {
   const { id } = useParams({ strict: false }) as { id?: string };
@@ -110,14 +172,7 @@ export function Scorecard() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-canvas">
-        <div className="flex flex-col items-center gap-3 text-text-muted border border-border bg-surface p-8 rounded-md max-w-sm text-center">
-          <Spinner className="size-7 animate-spin text-primary" aria-hidden="true" />
-          <p className="text-xs font-bold uppercase tracking-wider text-text">Loading Evaluation Scorecard…</p>
-        </div>
-      </div>
-    );
+    return <ScorecardSkeleton />;
   }
 
   if (isError || !evaluation) {
