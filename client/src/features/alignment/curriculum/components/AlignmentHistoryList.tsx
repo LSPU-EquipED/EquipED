@@ -4,9 +4,10 @@
 // (meta bar + status-badge table) so the two history views feel
 // consistent, but this is its own implementation.
 import { useEffect, useState } from 'react';
-import { Warning, ArrowSquareOut, Spinner, Trash } from '@phosphor-icons/react';
+import { Warning, ArrowSquareOut, Trash } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { cn } from '@/shared/components/utils';
 import { TABLE_STYLES } from '@/shared/constants/theme';
 import { getErrorMessage } from '@/shared/api/http';
@@ -77,10 +78,16 @@ export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
         ) : null}
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-sm font-semibold text-text-muted">
-            <Spinner className="size-5 animate-spin text-primary" />
-            <span>Loading check history…</span>
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading alignment check history"
+            columns={[
+              { label: 'Document / Course', skeletonClassName: 'h-5 w-full max-w-72' },
+              { label: 'Status', skeletonClassName: 'h-5 w-20' },
+              { label: 'Run at', skeletonClassName: 'h-4 w-28' },
+              { label: 'Action', skeletonClassName: 'h-8 w-24 ml-auto' },
+            ]}
+            rows={6}
+          />
         ) : null}
 
         {!isError && !isLoading && items.length === 0 ? (

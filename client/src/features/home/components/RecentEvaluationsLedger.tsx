@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowRight, ArrowSquareOut, ClipboardText } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import type { HomeEvaluationItem } from '../types';
 import { formatDateOnly, getEvaluationStatusBadge } from '../utils/homeData';
@@ -34,11 +35,16 @@ export function RecentEvaluationsLedger({
       {/* Content */}
       <div className="flex-1">
         {isLoading ? (
-          <div className="p-5 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-12 animate-pulse rounded-sm bg-surface-subtle" />
-            ))}
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading recent evaluations"
+            columns={[
+              { label: 'Document / Evaluation', skeletonClassName: 'h-5 w-full max-w-56' },
+              { label: 'Status', skeletonClassName: 'h-5 w-20' },
+              { label: 'Submitted', skeletonClassName: 'h-4 w-24' },
+              { label: 'Action', skeletonClassName: 'h-8 w-16 ml-auto' },
+            ]}
+            rows={3}
+          />
         ) : evaluations.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center">
             <ClipboardText className="size-8 text-text-muted/40 mb-2" aria-hidden="true" />

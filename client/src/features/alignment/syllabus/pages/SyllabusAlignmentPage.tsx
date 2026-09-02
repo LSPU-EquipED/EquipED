@@ -6,12 +6,12 @@ import {
   CaretLeft,
   CaretRight,
   MagnifyingGlass,
-  Spinner,
 } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
 import { alignmentApi } from '../api/syllabusAlignment.api';
 import type { AlignmentLevel, AlignmentProcessingStatus } from '../types';
@@ -74,10 +74,16 @@ export function SyllabusAlignmentPage() {
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
       {/* Loading state */}
       {slms.isLoading && !slms.data && (
-        <div className="flex items-center justify-center gap-2 py-16 text-xs font-semibold text-text-muted">
-          <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-          <span>Loading SLM syllabus alignment records…</span>
-        </div>
+        <TableSkeleton
+          ariaLabel="Loading SLM syllabus alignment records"
+          columns={[
+            { label: 'SLM Document / Module', skeletonClassName: 'h-5 w-full max-w-72' },
+            { label: 'Program / Course', skeletonClassName: 'h-4 w-36' },
+            { label: 'Syllabus Alignment', skeletonClassName: 'h-5 w-32' },
+            { label: 'Action', skeletonClassName: 'h-8 w-24 ml-auto' },
+          ]}
+          rows={8}
+        />
       )}
 
       {/* Error state */}

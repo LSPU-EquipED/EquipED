@@ -10,6 +10,7 @@ import {
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/Button';
 import { BUTTON_STYLES } from '@/shared/constants/theme';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { useFacultyHome } from '../hooks/useFacultyHome';
 import {
   isActiveEvaluationStatus,
@@ -100,7 +101,7 @@ export function FacultyHome() {
       ) : null}
 
       {/* Metric Ledger Strip (Single Unified Bar) */}
-      <div className="rounded-md border border-border bg-surface shadow-none divide-y sm:divide-y-0 sm:divide-x divide-border grid grid-cols-2 sm:grid-cols-4">
+      <div aria-busy={isLoading} className="rounded-md border border-border bg-surface shadow-none divide-y sm:divide-y-0 sm:divide-x divide-border grid grid-cols-2 sm:grid-cols-4">
         {/* Total Modules */}
         <div className="p-4 sm:p-4.5 flex items-center gap-3.5">
           <div className="flex size-9 sm:size-10 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
@@ -111,7 +112,7 @@ export function FacultyHome() {
               Total Modules
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {totalModules}
+              {isLoading ? <Skeleton className="h-7 w-12" /> : totalModules}
             </p>
           </div>
         </div>
@@ -126,7 +127,7 @@ export function FacultyHome() {
               Completed Reviews
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {completedReviews}
+              {isLoading ? <Skeleton className="h-7 w-12" /> : completedReviews}
             </p>
           </div>
         </div>
@@ -141,7 +142,7 @@ export function FacultyHome() {
               In Progress
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {inProgressCount}
+              {isLoading ? <Skeleton className="h-7 w-12" /> : inProgressCount}
             </p>
           </div>
         </div>
@@ -156,7 +157,7 @@ export function FacultyHome() {
               Action Required
             </p>
             <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {actionRequiredCount}
+              {isLoading ? <Skeleton className="h-7 w-12" /> : actionRequiredCount}
             </p>
           </div>
         </div>

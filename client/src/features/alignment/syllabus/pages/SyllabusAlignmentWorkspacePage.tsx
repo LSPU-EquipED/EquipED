@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowLeft, CaretLeft, CaretRight, Spinner } from '@phosphor-icons/react';
+import { ArrowLeft, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
+import { cn } from '@/shared/components/utils';
 import { documentsApi } from '@/shared/api/documents.api';
 import { getErrorMessage } from '@/shared/api/http';
 import type { ClientDocumentChunk } from '@/shared/types/documents';
@@ -89,7 +91,11 @@ export function SyllabusAlignmentWorkspacePage() {
               Advisory syllabus alignment
             </p>
             <h1 className="truncate text-lg font-bold text-text">
-              {documentQuery.data?.title ?? 'Loading SLM…'}
+              {documentQuery.isLoading ? (
+                <Skeleton className="mt-1 h-5 w-56 max-w-[60vw]" />
+              ) : (
+                documentQuery.data?.title
+              )}
             </h1>
           </div>
         </div>
@@ -128,9 +134,14 @@ export function SyllabusAlignmentWorkspacePage() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
             {documentQuery.isLoading && (
-              <p className="flex items-center gap-2 text-sm text-text-muted">
-                <Spinner className="size-4 animate-spin text-primary" /> Loading content…
-              </p>
+              <div role="status" aria-label="Loading SLM content" className="space-y-4">
+                <Skeleton className="h-4 w-40" />
+                <div className="space-y-3 rounded-sm border border-border bg-surface p-8">
+                  {Array.from({ length: 12 }).map((_, index) => (
+                    <Skeleton key={index} className={cn('h-3', index % 5 === 4 ? 'w-2/3' : 'w-full')} />
+                  ))}
+                </div>
+              </div>
             )}
             {documentQuery.isError && (
               <p className="text-sm font-semibold text-destructive">
