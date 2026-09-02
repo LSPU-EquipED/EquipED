@@ -2,6 +2,7 @@ import { CaretRight, Spinner } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { MouseEvent } from 'react';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { LatestEvaluationItem } from '@/shared/types/evaluations';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
@@ -172,80 +173,52 @@ export function DocumentTable({
 
 export function DocumentTableSkeleton() {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse border-spacing-0">
-        <thead className="border-b border-border bg-surface-subtle">
-          <tr>
-            <th
-              scope="col"
-              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
-            >
-              Status
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[35%] min-w-[18rem]"
-            >
-              Name
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[25%] min-w-[14rem]"
-            >
-              Course
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
-            >
-              Program
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
-            >
-              Type
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
-            >
-              Uploaded
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted text-right w-12"
-            >
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-surface">
-          {Array.from({ length: 5 }).map((_, idx) => (
-            <tr key={idx} className="animate-pulse">
-              <td className="py-4 px-6 w-36">
-                <div className="h-5 w-16 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-[35%] min-w-[18rem]">
-                <div className="h-4 w-48 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-[25%] min-w-[14rem]">
-                <div className="h-4 w-36 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-28">
-                <div className="h-4 w-12 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-28">
-                <div className="h-4 w-12 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-36">
-                <div className="h-4 w-20 bg-surface-subtle border border-border/40 rounded-sm" />
-              </td>
-              <td className="py-4 px-4 w-12" />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <TableSkeleton
+      ariaLabel="Loading document inventory"
+      columns={[
+        {
+          label: 'Status',
+          headerClassName: 'w-36',
+          cellClassName: 'w-36',
+          skeletonClassName: 'h-5 w-16',
+        },
+        {
+          label: 'Name',
+          headerClassName: 'w-[35%] min-w-[18rem]',
+          cellClassName: 'w-[35%] min-w-[18rem]',
+          skeletonClassName: 'h-4 w-48',
+        },
+        {
+          label: 'Course',
+          headerClassName: 'w-[25%] min-w-[14rem]',
+          cellClassName: 'w-[25%] min-w-[14rem]',
+          skeletonClassName: 'h-4 w-36',
+        },
+        {
+          label: 'Program',
+          headerClassName: 'w-28',
+          cellClassName: 'w-28',
+          skeletonClassName: 'h-4 w-12',
+        },
+        {
+          label: 'Type',
+          headerClassName: 'w-28',
+          cellClassName: 'w-28',
+          skeletonClassName: 'h-4 w-12',
+        },
+        {
+          label: 'Uploaded',
+          headerClassName: 'w-36',
+          cellClassName: 'w-36',
+          skeletonClassName: 'h-4 w-20',
+        },
+        {
+          label: 'Actions',
+          headerClassName: 'w-12 text-right',
+          cellClassName: 'w-12',
+          skeletonClassName: 'h-4 w-8 ml-auto',
+        },
+      ]}
+    />
   );
 }

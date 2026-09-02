@@ -6,7 +6,6 @@ import {
   ClipboardText,
   FileText,
   MagnifyingGlass,
-  Spinner,
   Warning,
 } from '@phosphor-icons/react';
 import { useEvaluationHistory } from '../hooks/useEvaluationHistory';
@@ -15,7 +14,7 @@ import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
-
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
   { value: 'COMPLETED', label: 'Completed' },
@@ -137,10 +136,34 @@ export function EvaluationHistoryTable() {
         {/* Table Body */}
         <div className="overflow-x-auto">
           {isLoading && !data ? (
-            <div className="flex justify-center items-center py-16 text-text-muted font-medium text-xs gap-2">
-              <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-              <span>Loading evaluation history…</span>
-            </div>
+            <TableSkeleton
+              ariaLabel="Loading evaluation history"
+              columns={[
+                {
+                  label: 'Document / SLM',
+                  headerClassName: 'min-w-[18rem]',
+                  cellClassName: 'min-w-[18rem]',
+                  skeletonClassName: 'h-4 w-56',
+                },
+                {
+                  label: 'Status',
+                  skeletonClassName: 'h-5 w-24',
+                },
+                {
+                  label: 'Submitted',
+                  skeletonClassName: 'h-4 w-28',
+                },
+                {
+                  label: 'Completed',
+                  skeletonClassName: 'h-4 w-28',
+                },
+                {
+                  label: 'Action',
+                  headerClassName: 'text-right',
+                  skeletonClassName: 'ml-auto h-7 w-24',
+                },
+              ]}
+            />
           ) : !isError && (!data || data.items.length === 0) ? (
             <div className="px-6 py-16 text-center text-sm text-text-muted">
               <div className="flex flex-col items-center justify-center gap-2">

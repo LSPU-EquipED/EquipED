@@ -14,6 +14,7 @@ import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
+import { Skeleton } from '@/shared/components/Skeleton';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { LatestEvaluationItem } from '@/shared/types/evaluations';
 import type { AttentionItem, HomeEvaluationItem } from '../types';
@@ -278,14 +279,28 @@ export function FacultyOperationalLedger({
             </thead>
             <tbody className={TABLE_STYLES.tbody}>
               {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm text-text-muted">
-                    <div className="flex items-center justify-center gap-2 font-medium">
-                      <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-                      <span>Loading operational ledger…</span>
-                    </div>
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index}>
+                    <td className={TABLE_STYLES.td}>
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-56 max-w-full" />
+                        <Skeleton className="h-3 w-36 max-w-full" />
+                      </div>
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Skeleton className="h-4 w-16" />
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Skeleton className="h-5 w-24" />
+                    </td>
+                    <td className={TABLE_STYLES.td}>
+                      <Skeleton className="h-5 w-28" />
+                    </td>
+                    <td className={cn(TABLE_STYLES.td, 'text-right')}>
+                      <Skeleton className="ml-auto h-8 w-24" />
+                    </td>
+                  </tr>
+                ))
               ) : paginatedDocuments.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-sm text-text-muted">
@@ -334,7 +349,6 @@ export function FacultyOperationalLedger({
                           <span className="text-xs text-text-muted">—</span>
                         )}
                       </td>
-
                       {/* Ingestion Status */}
                       <td className={TABLE_STYLES.td}>
                         <span
@@ -350,7 +364,7 @@ export function FacultyOperationalLedger({
                       {/* Latest Evaluation Status */}
                       <td className={TABLE_STYLES.td}>
                         {latestEvalsState.isLoading && !evalItem ? (
-                          <span className="text-xs text-text-muted">Loading…</span>
+                          <Skeleton className="h-5 w-24" />
                         ) : isEvaluating ? (
                           <div className="flex items-center gap-1.5 text-xs text-info font-medium">
                             <Spinner className="size-3.5 animate-spin" aria-hidden="true" />

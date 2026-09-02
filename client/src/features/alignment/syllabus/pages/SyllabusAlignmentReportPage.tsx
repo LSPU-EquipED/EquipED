@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
-import { ArrowLeft, PencilSimple, Spinner } from '@phosphor-icons/react';
+import { ArrowLeft, PencilSimple } from '@phosphor-icons/react';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { cn } from '@/shared/components/utils';
 import { BUTTON_STYLES, CARD_STYLES } from '@/shared/constants/theme';
 import { alignmentApi } from '../api/syllabusAlignment.api';
@@ -56,9 +57,29 @@ export function SyllabusAlignmentReportPage() {
         </header>
 
         {current.isLoading ? (
-          <p className="flex items-center gap-2 p-5 text-sm font-semibold text-text-muted">
-            <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" /> Loading report…
-          </p>
+          <div
+            className="space-y-5 p-5"
+            role="status"
+            aria-label="Loading syllabus alignment report"
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="space-y-2 rounded-sm border border-border bg-surface-subtle p-4">
+                  <Skeleton className="h-2.5 w-24" />
+                  <Skeleton className="h-7 w-20" />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4 rounded-sm border border-border p-5">
+              <Skeleton className="h-4 w-44" />
+              {Array.from({ length: 7 }).map((_, index) => (
+                <div key={index} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-24 sm:ml-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : current.isError ? (
           <p className="p-5 text-sm font-semibold text-destructive">The alignment report could not be loaded.</p>
         ) : (

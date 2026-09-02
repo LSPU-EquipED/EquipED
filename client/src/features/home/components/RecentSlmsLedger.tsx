@@ -3,6 +3,7 @@ import { ArrowRight, FileText, PlayCircle, Spinner } from '@phosphor-icons/react
 import type { ClientDocument } from '@/shared/types/documents';
 import type { LatestEvaluationItem } from '@/shared/types/evaluations';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDateOnly } from '../utils/homeData';
@@ -40,11 +41,17 @@ export function RecentSlmsLedger({
       {/* Content */}
       <div className="flex-1">
         {isLoading ? (
-          <div className="p-5 space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-12 animate-pulse rounded-sm bg-surface-subtle" />
-            ))}
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading recent SLMs"
+            columns={[
+              { label: 'Title', skeletonClassName: 'h-5 w-full max-w-56' },
+              { label: 'Program', skeletonClassName: 'h-4 w-24' },
+              { label: 'Status', skeletonClassName: 'h-5 w-20' },
+              { label: 'Uploaded', skeletonClassName: 'h-4 w-24' },
+              { label: 'Action', skeletonClassName: 'h-8 w-16 ml-auto' },
+            ]}
+            rows={3}
+          />
         ) : documents.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center">
             <FileText className="size-8 text-text-muted/40 mb-2" aria-hidden="true" />

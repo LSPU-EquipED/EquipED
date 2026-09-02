@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@/shared/api/documents.api';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { cn } from '@/shared/components/utils';
 import { AlignmentResultsTable } from '../components/AlignmentResultsTable';
 import { AlignmentHistoryList } from '../components/AlignmentHistoryList';
@@ -232,8 +233,34 @@ export function AlignmentCheckPage() {
           </button>
 
           {activeCheck.isLoading ? (
-            <div className="flex flex-1 items-center justify-center">
-              <Spinner className="size-8 animate-spin text-primary" />
+            <div
+              className="flex flex-1 flex-col gap-4 overflow-hidden"
+              role="status"
+              aria-label="Loading curriculum alignment result"
+            >
+              <Skeleton className="h-12 w-full" />
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="space-y-2 rounded-sm border border-border bg-surface p-3">
+                    <Skeleton className="h-2.5 w-20" />
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                ))}
+              </div>
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+                <div className="space-y-4 rounded-md border border-border bg-surface p-5">
+                  <Skeleton className="h-3 w-32" />
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <Skeleton key={index} className="h-3 w-full" />
+                  ))}
+                </div>
+                <div className="space-y-4 rounded-md border border-border bg-surface p-4">
+                  <Skeleton className="h-3 w-24" />
+                  {Array.from({ length: 7 }).map((_, index) => (
+                    <Skeleton key={index} className="h-10 w-full" />
+                  ))}
+                </div>
+              </div>
             </div>
           ) : null}
 
