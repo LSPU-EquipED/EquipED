@@ -226,7 +226,7 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
 
   if (cleanPath === '/matrix') {
     return [
-      { label: 'Institutional Admin', to: userRole === 'admin' ? '/admin' : '/dashboard' },
+      { label: 'Administration', to: userRole === 'admin' ? '/admin' : '/dashboard' },
       { label: 'Monitoring Matrix' },
     ];
   }
@@ -280,7 +280,7 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
     ];
   }
 
-  if (cleanPath === '/admin/prompts') {
+  if (cleanPath === '/admin/prompts' || cleanPath.startsWith('/admin/prompts/')) {
     return [
       { label: 'Administration', to: '/admin' },
       { label: 'Agent Prompts' },

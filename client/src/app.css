@@ -185,6 +185,28 @@ body {
   }
 }
 
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    105deg,
+    var(--surface-subtle) 0%,
+    var(--surface-subtle) 38%,
+    #e9eef6 50%,
+    var(--surface-subtle) 62%,
+    var(--surface-subtle) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
