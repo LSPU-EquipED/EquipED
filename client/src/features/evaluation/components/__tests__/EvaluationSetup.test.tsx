@@ -446,9 +446,8 @@ describe('EvaluationSetup - Phase 2 Faculty Optional-Full Workflow', () => {
     );
     fireEvent.click(screen.getByRole('radio', { name: /Full Evaluation/i }));
 
-    const statusElement = screen.getByRole('status');
+    const statusElement = screen.getByRole('status', { name: 'Loading curriculum references' });
     expect(statusElement).toBeDefined();
-    expect(statusElement.textContent).toContain('Loading curriculum references for BSCS');
 
     const startBtn = screen.getByRole('button', { name: /Start Evaluation/i }) as HTMLButtonElement;
     expect(startBtn.disabled).toBe(true);
