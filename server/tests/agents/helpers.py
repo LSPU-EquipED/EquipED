@@ -39,11 +39,10 @@ def _make_dummy_snapshot(
     set_id = uuid.uuid4()
 
     if agent_id == "coordinator":
-        crit_code = "A-05"
-        strategy_config = CurriculumAlignmentConfig(
-            guidance="Verify curriculum alignment."
-        )
-    elif agent_id == "gad":
+        snapshot, _titles = make_coordinator_snapshot(eval_id)
+        return snapshot
+
+    if agent_id == "gad":
         crit_code = "GAD-01"
         strategy_config = CountBandConfig(
             mode="maximum_count",

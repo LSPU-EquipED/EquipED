@@ -220,8 +220,19 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
             .filter_by(agent_result_id=coord_result.agent_result_id)
             .all()
         )
-        assert len(coord_scores) == 1
-        assert coord_scores[0].criterion_id == "A-05"
+        assert len(coord_scores) == 10
+        assert {s.criterion_id for s in coord_scores} == {
+            "OP-01",
+            "OP-02",
+            "OP-03",
+            "OP-04",
+            "OP-05",
+            "A-01",
+            "A-02",
+            "A-03",
+            "A-04",
+            "A-05",
+        }
     assert captured_context == {
         "reference_document_ids": {
             "syllabus": syllabus_id,

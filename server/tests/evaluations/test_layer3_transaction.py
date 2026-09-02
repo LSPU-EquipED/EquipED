@@ -120,7 +120,7 @@ def test_layer3_commit_failure_rolls_back_all_rows():
         calls += 1
         writer.flush()
         assert writer.query(AgentResult).count() == 4
-        assert writer.query(StoredScore).count() == 21
+        assert writer.query(StoredScore).count() == 30
         assert (
             writer.query(EvaluationFlag)
             .filter(EvaluationFlag.chunk_id.isnot(None))
@@ -170,7 +170,7 @@ def test_layer3_success_persists_rows_and_transitions():
     assert len(persisted_results) == 4
     for r in persisted_results:
         assert r.form_snapshot_id is not None
-    assert observer.query(StoredScore).count() == 21
+    assert observer.query(StoredScore).count() == 30
     assert (
         observer.query(EvaluationFlag)
         .filter(EvaluationFlag.chunk_id.isnot(None))
