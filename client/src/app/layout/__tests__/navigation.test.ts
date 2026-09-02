@@ -156,6 +156,27 @@ describe('getBreadcrumbs', () => {
       { label: 'User Management' },
     ]);
   });
+
+  it('returns Administration > Agent Prompts for /admin/prompts', () => {
+    expect(getBreadcrumbs('/admin/prompts')).toEqual([
+      { label: 'Administration', to: '/admin' },
+      { label: 'Agent Prompts' },
+    ]);
+  });
+
+  it('returns Administration > Agent Prompts for /admin/prompts/coordinator', () => {
+    expect(getBreadcrumbs('/admin/prompts/coordinator')).toEqual([
+      { label: 'Administration', to: '/admin' },
+      { label: 'Agent Prompts' },
+    ]);
+  });
+
+  it('returns Administration > Agent Prompts for /admin/prompts/sme', () => {
+    expect(getBreadcrumbs('/admin/prompts/sme')).toEqual([
+      { label: 'Administration', to: '/admin' },
+      { label: 'Agent Prompts' },
+    ]);
+  });
 });
 
 describe('getAriaCurrent', () => {
