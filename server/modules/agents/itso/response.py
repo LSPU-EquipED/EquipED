@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 from collections.abc import Iterable
 from typing import Any
 
@@ -15,6 +18,73 @@ from ..exceptions import AgentExecutionError
 def _failure(category: str, value: Any) -> AgentExecutionError:
     reference = hashlib.sha256(str(value).encode()).hexdigest()[:16]
     return AgentExecutionError(f"{category} (reference: {reference})")
+
+def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
+    """Locate excerpt in source, tolerating whitespace, quotes, dashes, and bullet variations."""
+    if excerpt in source:
+        return excerpt
+    trans = str.maketrans({
+        "“": '"', "”": '"', "‘": "'", "’": "'", "—": "-", "–": "-", "\xa0": " "
+    })
+    c_source = source.translate(trans)
+    c_excerpt = excerpt.translate(trans)
+
+    words = c_excerpt.split()
+    if not words:
+        return None
+    pattern_simple = r"\s+".join(re.escape(w) for w in words)
+    match_simple = re.search(pattern_simple, c_source, flags=re.IGNORECASE)
+    if match_simple:
+        return source[match_simple.start() : match_simple.end()]
+
+    token_words = re.findall(r"\b\w+\b", c_excerpt)
+    if not token_words:
+        return None
+
+    if len(token_words) >= 2:
+        pattern_words = r"[\s\W_]+".join(re.escape(w) for w in token_words)
+        match_words = re.search(pattern_words, c_source, flags=re.IGNORECASE)
+        if match_words:
+            start, end = match_words.start(), match_words.end()
+            if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                end += 1
+            return source[start:end]
+
+    if len(token_words) == 1:
+        pattern_one = r"\b" + re.escape(token_words[0]) + r"\b"
+        match_one = re.search(pattern_one, c_source, flags=re.IGNORECASE)
+        if match_one:
+            return source[match_one.start() : match_one.end()]
+
+    if ":" in c_excerpt:
+        sub = c_excerpt.split(":", 1)[1].strip()
+        sub_tokens = re.findall(r"\b\w+\b", sub)
+        if sub_tokens:
+            p_sub = (
+                r"\b" + re.escape(sub_tokens[0]) + r"\b"
+                if len(sub_tokens) == 1
+                else r"[\s\W_]+".join(re.escape(w) for w in sub_tokens)
+            )
+            match_sub = re.search(p_sub, c_source, flags=re.IGNORECASE)
+            if match_sub:
+                start, end = match_sub.start(), match_sub.end()
+                if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                    end += 1
+                return source[start:end]
+
+    if len(token_words) >= 4:
+        for window_size in range(len(token_words) - 1, 2, -1):
+            for i in range(len(token_words) - window_size + 1):
+                sub_tokens = token_words[i : i + window_size]
+                p_window = r"[\s\W_]+".join(re.escape(w) for w in sub_tokens)
+                m_window = re.search(p_window, c_source, flags=re.IGNORECASE)
+                if m_window:
+                    start, end = m_window.start(), m_window.end()
+                    if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                        end += 1
+                    return source[start:end]
+
+    return None
 
 
 ITSO_RESPONSE_SCHEMA_VERSION = "itso-response-v1"
@@ -557,12 +627,24 @@ def _normalize_evidence(
         if not chunk_ids:
             raise _failure("ITSOInvalidEvidence", "evidence_without_chunk_id")
         if packed_chunk_map is not None:
+            resolved_normalized: list[str] = []
             for ev in normalized:
-                if not any(
-                    ev in packed_chunk_map.get(cid, "")
-                    for cid in chunk_ids
-                    if cid in packed_chunk_map
-                ):
+                matched_chunk_ev = None
+                for cid in chunk_ids:
+                    if cid in packed_chunk_map:
+                        matched = _find_verbatim_substring(ev, packed_chunk_map[cid])
+                        if matched:
+                            matched_chunk_ev = matched
+                            break
+                if not matched_chunk_ev:
+                    for cid, text in packed_chunk_map.items():
+                        matched = _find_verbatim_substring(ev, text)
+                        if matched:
+                            matched_chunk_ev = matched
+                            break
+                if not matched_chunk_ev:
+                    logger.warning("ITSO_UNMATCHED_EVIDENCE: %r (chunk_ids=%r)", ev, chunk_ids)
                     raise _failure("ITSOInvalidEvidence", "ungrounded_evidence")
-
+                resolved_normalized.append(matched_chunk_ev)
+            normalized = resolved_normalized
     return tuple(normalized)

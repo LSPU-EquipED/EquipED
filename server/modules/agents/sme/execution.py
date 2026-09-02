@@ -90,7 +90,17 @@ def execute_envelope(
             type(validation_error).__name__,
             error_reference(validation_error),
         )
-        repair_prompt = prompt + REPAIR_SUFFIX
+        repair_msg = str(validation_error).strip()
+        if len(repair_msg) > 120:
+            repair_msg = repair_msg[:117] + "..."
+        repair_suffix = (
+            f"\n\nVALIDATOR_FAILURE category=SME_INVALID detail: {repair_msg}. "
+            "If no matching instances exist in the source text, set instances to []. "
+            "Regenerate ONLY the complete JSON response; do not include commentary."
+        )
+        repair_prompt = prompt + repair_suffix
+        if len(repair_prompt) > prompt_budget:
+            repair_prompt = prompt + REPAIR_SUFFIX
         if len(repair_prompt) > prompt_budget:
             raise AgentExecutionError(
                 "SME repair prompt exceeds total prompt budget"
