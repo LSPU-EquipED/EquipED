@@ -12,6 +12,7 @@ from typing import Any
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
+    CurriculumAlignmentConfig,
     GroundedInstance,
     GroundedInstanceMeasurement,
     GroundedScoreMeasurement,
@@ -28,6 +29,49 @@ from server.modules.rubrics.strategies.calculators import (
 
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError
+from .bands import ratio_band
+
+
+def score_curriculum_alignment(
+    criterion: CriterionDefinition,
+    measurement_dict: dict[str, Any],
+) -> CriterionScore:
+    """Score an A-05 curriculum-alignment measurement as a coverage ratio."""
+    rows = measurement_dict.get("alignments", [])
+    total = len(rows)
+    aligned_rows = [r for r in rows if r.get("is_aligned") is True]
+    aligned = len(aligned_rows)
+    rejected = int(measurement_dict.get("_grounding_rejected_count", 0))
+    band = ratio_band(aligned, total, scale="moderate")
+
+    if total == 0:
+        justification = (
+            "Curriculum alignment: no objectives found in the SLM. Score 1."
+        )
+    else:
+        pct = band.pct if band.pct is not None else 0.0
+        rejected_note = (
+            f" ({rejected} unsupported claim(s) rejected)" if rejected > 0 else ""
+        )
+        justification = (
+            f"Curriculum alignment: {aligned}/{total} objective(s) aligned "
+            f"({pct:.1f}%){rejected_note}. Score {band.band}."
+        )
+
+    evidence = tuple(
+        str(r["assessment_excerpt"])
+        for r in aligned_rows
+        if r.get("assessment_excerpt")
+    )[:8]
+
+    return CriterionScore(
+        criterion_id=criterion.criterion_code,
+        criterion_title=criterion.title,
+        score=band.band,
+        justification=justification,
+        chunk_ids=(),
+        evidence=evidence,
+    )
 
 
 def score_criterion_measurement(
@@ -36,6 +80,9 @@ def score_criterion_measurement(
 ) -> CriterionScore:
     """Deterministically score a validated measurement dict using pure calculators."""
     config = criterion.strategy_config
+
+    if isinstance(config, CurriculumAlignmentConfig):
+        return score_curriculum_alignment(criterion, measurement_dict)
 
     if isinstance(config, LlmRubricGuidanceConfig):
         measurement = GroundedScoreMeasurement(
@@ -160,4 +207,8 @@ def score_envelope(
     )
 
 
-__all__ = ["score_criterion_measurement", "score_envelope"]
+__all__ = [
+    "score_criterion_measurement",
+    "score_curriculum_alignment",
+    "score_envelope",
+]
