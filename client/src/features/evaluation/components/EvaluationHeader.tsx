@@ -1,5 +1,5 @@
-import { Clock, FileText, DownloadSimple, Eye, WarningCircle } from '@phosphor-icons/react';
-import { useNavigate } from '@tanstack/react-router';
+import { ArrowLeft, Clock, FileText, DownloadSimple, Eye, WarningCircle } from '@phosphor-icons/react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { ClientDocument } from '@/shared/types/documents';
 import {
@@ -118,33 +118,50 @@ export function EvaluationHeader({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle text-text px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
-          disabled={!hasResults || !isTerminal}
-          onClick={() => setShowExportModal(true)}
-          title={
-            !hasResults || !isTerminal
-              ? !isTerminal
-                ? 'Available once evaluation completes'
-                : 'No results to export'
-              : undefined
-          }
-        >
-          <DownloadSimple className="size-3.5 mr-1.5" aria-hidden="true" />
-          Export GAD Form
-        </button>
+        {!evaluationId ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-info/30 bg-info-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-info select-none">
+              Pre-Flight Intake
+            </span>
+            <Link
+              to="/documents"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ArrowLeft className="size-3.5 text-text-muted" aria-hidden="true" />
+              <span>Back to SLMs</span>
+            </Link>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="inline-flex h-8 items-center justify-center border border-border bg-surface hover:bg-surface-subtle text-text px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
+              disabled={!hasResults || !isTerminal}
+              onClick={() => setShowExportModal(true)}
+              title={
+                !hasResults || !isTerminal
+                  ? !isTerminal
+                    ? 'Available once evaluation completes'
+                    : 'No results to export'
+                  : undefined
+              }
+            >
+              <DownloadSimple className="size-3.5 mr-1.5" aria-hidden="true" />
+              Export GAD Form
+            </button>
 
-        <button
-          type="button"
-          className="inline-flex h-8 items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
-          disabled={!isTerminal || !evaluationId}
-          onClick={handleViewFullReport}
-          title={!isTerminal ? 'Available once evaluation completes' : undefined}
-        >
-          <Eye className="size-3.5 mr-1.5" aria-hidden="true" />
-          Full Report
-        </button>
+            <button
+              type="button"
+              className="inline-flex h-8 items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-3 rounded-sm text-xs font-bold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none cursor-pointer"
+              disabled={!isTerminal || !evaluationId}
+              onClick={handleViewFullReport}
+              title={!isTerminal ? 'Available once evaluation completes' : undefined}
+            >
+              <Eye className="size-3.5 mr-1.5" aria-hidden="true" />
+              Full Report
+            </button>
+          </>
+        )}
         {showExportModal && (
           <div
             className="fixed inset-0 z-50 flex justify-end bg-foreground/40"
