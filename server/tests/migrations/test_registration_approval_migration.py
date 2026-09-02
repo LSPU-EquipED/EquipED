@@ -150,7 +150,7 @@ def test_lineage_chain_and_single_head():
     assert rev_0002 is not None
     assert rev_0002.down_revision == EMAIL_REV
 
-    assert script.get_heads() == [APPROVAL_REV]
+    assert script.get_heads() == ["20260902_0001"]
 
 
 def test_upgrade_and_downgrade_on_sqlite(tmp_path: Path):
