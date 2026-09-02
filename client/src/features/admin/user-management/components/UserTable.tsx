@@ -1,6 +1,7 @@
 import { Warning } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { TABLE_STYLES } from '@/shared/constants/theme';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import type { AdminUserResponse } from '../types';
 import { UserTableRow } from './UserTableRow';
 
@@ -44,11 +45,17 @@ export function UserTable({
 
   if (isLoading) {
     return (
-      <div className="space-y-2.5 p-6">
-        <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-        <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-        <div className="animate-pulse bg-surface-subtle h-8 w-full rounded-sm" />
-      </div>
+      <TableSkeleton
+        ariaLabel="Loading user directory"
+        columns={[
+          { label: 'Select', headerClassName: 'w-10 text-center', cellClassName: 'w-10', skeletonClassName: 'size-4' },
+          { label: 'User / Faculty', headerClassName: 'min-w-[16rem]', cellClassName: 'min-w-[16rem]', skeletonClassName: 'h-4 w-48' },
+          { label: 'Role', skeletonClassName: 'h-5 w-20' },
+          { label: 'Status', skeletonClassName: 'h-5 w-24' },
+          { label: 'Registered', headerClassName: 'text-right', skeletonClassName: 'h-4 w-24 ml-auto' },
+          { label: 'Actions', headerClassName: 'text-right min-w-[16rem]', skeletonClassName: 'h-8 w-32 ml-auto' },
+        ]}
+      />
     );
   }
 

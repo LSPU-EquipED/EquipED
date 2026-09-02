@@ -6,6 +6,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
+import { Skeleton } from '@/shared/components/Skeleton';
 import type { SystemSummaryResponse } from '../types';
 
 interface SummaryItemProps {
@@ -50,7 +51,10 @@ function SummaryItem({
 
       <div className="mt-3">
         {isLoading ? (
-          <div className="animate-pulse bg-surface-subtle h-8 w-16 rounded-sm" />
+          <div className="space-y-2" role="status" aria-label="Loading metric">
+            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-2.5 w-32 max-w-full" />
+          </div>
         ) : isError ? (
           <p className="text-xs font-semibold text-destructive">Failed to load</p>
         ) : (

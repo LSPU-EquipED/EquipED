@@ -7,6 +7,7 @@ import {
 import { Badge } from '@/shared/components/Badge';
 import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
+import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import type { MonitoringMatrixRow } from '../types';
 
 function getStatusVariant(status: string): StatusVariant {
@@ -65,11 +66,17 @@ export function AdminRecentActivityTable({
 
       <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
-          <div className="space-y-3 p-6">
-            <div className="animate-pulse bg-surface-subtle h-9 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-9 w-full rounded-sm" />
-            <div className="animate-pulse bg-surface-subtle h-9 w-full rounded-sm" />
-          </div>
+          <TableSkeleton
+            ariaLabel="Loading recent evaluation activity"
+            columns={[
+              { label: 'SLM Document / Module', headerClassName: 'min-w-[18rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Program', skeletonClassName: 'h-4 w-20' },
+              { label: 'Status', skeletonClassName: 'h-5 w-24' },
+              { label: 'Synthesized Score', headerClassName: 'text-right', skeletonClassName: 'h-4 w-16 ml-auto' },
+              { label: 'Flags', headerClassName: 'text-right', skeletonClassName: 'h-5 w-8 ml-auto' },
+              { label: 'Updated', headerClassName: 'text-right', skeletonClassName: 'h-4 w-28 ml-auto' },
+            ]}
+          />
         ) : isError ? (
           <div className="py-16 text-center space-y-2">
             <Warning className="size-6 text-destructive mx-auto" aria-hidden="true" />

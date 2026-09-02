@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { ClockCounterClockwise, FileText, Spinner, Warning } from '@phosphor-icons/react';
+import { ClockCounterClockwise, FileText, Warning } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { TABLE_STYLES } from '@/shared/constants/theme';
 import { cn } from '@/shared/components/utils';
 import type { ModelValidationListResponse } from '../types';
@@ -44,7 +45,12 @@ export function ValidationHistoryTable({
       </div>
 
       {/* 7-Column Table Without Horizontal Scrolling */}
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto"
+        role={history.isLoading ? 'status' : undefined}
+        aria-label={history.isLoading ? 'Loading validation history' : undefined}
+        aria-busy={history.isLoading}
+      >
         <table className={TABLE_STYLES.table}>
           <thead className={TABLE_STYLES.thead}>
             <tr>
@@ -58,19 +64,22 @@ export function ValidationHistoryTable({
             </tr>
           </thead>
           <tbody className={TABLE_STYLES.tbody}>
-            {history.isLoading ? (
-              <tr>
-                <td
-                  colSpan={HISTORY_COLSPAN}
-                  className="px-4 py-12 text-center text-text-muted text-xs font-medium"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <Spinner className="size-4 animate-spin text-primary" aria-hidden="true" />
-                    <span>Loading validation history…</span>
-                  </div>
-                </td>
-              </tr>
-            ) : null}
+            {history.isLoading
+              ? Array.from({ length: 5 }).map((_, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {Array.from({ length: 7 }).map((__, columnIndex) => (
+                      <td key={columnIndex} className={TABLE_STYLES.td}>
+                        <Skeleton
+                          className={cn(
+                            columnIndex === 0 ? 'h-5 w-full max-w-64' : 'h-4 w-20',
+                            columnIndex === 6 && 'ml-auto',
+                          )}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : null}
             {history.isError ? (
               <tr>
                 <td

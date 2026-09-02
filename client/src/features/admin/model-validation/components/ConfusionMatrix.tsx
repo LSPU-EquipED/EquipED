@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
+import { Skeleton } from '@/shared/components/Skeleton';
 import {
   calculateConfusionMatrixMetrics,
   emptyConfusionMatrix,
@@ -99,9 +100,30 @@ export function ConfusionMatrix({
 
       <div className="p-5 space-y-5">
         {isLoading ? (
-          <p className="py-16 text-center text-xs font-semibold text-text-muted uppercase tracking-wider">
-            Loading confusion matrix…
-          </p>
+          <div role="status" aria-label="Loading confusion matrix" className="space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="flex items-center gap-3.5 rounded-sm border border-border bg-surface p-3.5">
+                  <Skeleton className="size-16 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-2.5 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-3 rounded-sm border border-border p-4">
+              <Skeleton className="h-3 w-40" />
+              {Array.from({ length: 5 }).map((_, index) => (
+                <Skeleton key={index} className="h-9 w-full" />
+              ))}
+            </div>
+          </div>
         ) : isError ? (
           <p className="py-16 text-center text-xs font-semibold text-destructive">
             Unable to load validation metrics.

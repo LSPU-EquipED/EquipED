@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { ProgramSelector } from '@/shared/components/ProgramSelector';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
 import { cn } from '@/shared/components/utils';
@@ -378,7 +379,14 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
               {/* Criteria Panels per Agent */}
               <div className="p-5">
                 {criterionCatalog.isLoading ? (
-                  <p className="text-sm font-semibold text-text-muted py-8 text-center">Loading active criteria…</p>
+                  <div role="status" aria-label="Loading active rubric criteria" className="space-y-3">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <div key={index} className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
+                        <Skeleton className="h-3 w-2/3" />
+                        <Skeleton className="h-3 w-full" />
+                      </div>
+                    ))}
+                  </div>
                 ) : criterionCatalog.isError ? (
                   <div className="rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm font-semibold text-destructive">
                     <p>Unable to load the active rubric criteria.</p>

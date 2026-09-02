@@ -1,6 +1,7 @@
-import { ArrowCounterClockwise, ClockCounterClockwise, GitCommit, Spinner } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, ClockCounterClockwise, GitCommit } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
+import { Skeleton } from '@/shared/components/Skeleton';
 import { usePromptVersions } from '../hooks/usePromptVersions';
 import type { PromptVersionItem } from '../types';
 
@@ -43,9 +44,17 @@ export function PromptVersionHistory({
       {/* History List */}
       <div className="p-4 sm:p-5 space-y-3.5 max-h-[44rem] overflow-y-auto flex-1">
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 text-xs font-medium text-text-muted py-10">
-            <Spinner className="size-4 animate-spin text-primary" />
-            <span>Loading prompt revisions…</span>
+          <div role="status" aria-label="Loading prompt revisions" className="space-y-3.5">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="space-y-3 rounded-sm border border-border bg-surface p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-16" />
+                </div>
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-4/5" />
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <p className="text-xs font-semibold text-destructive py-8 text-center bg-destructive-soft rounded-sm p-3">

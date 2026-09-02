@@ -1,6 +1,6 @@
 import { Clock, UserCheck, UserMinus, Users, type Icon } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
-
+import { Skeleton } from '@/shared/components/Skeleton';
 export interface UserCounts {
   all: number;
   pending: number;
@@ -15,14 +15,15 @@ interface MetricItemProps {
   sublabel: string;
   icon: Icon;
   variant?: 'default' | 'warning' | 'destructive';
+  isLoading: boolean;
 }
-
 function MetricItem({
   label,
   value,
   sublabel,
   icon: IconComponent,
   variant = 'default',
+  isLoading,
 }: MetricItemProps) {
   const isWarning = variant === 'warning' && value > 0;
   const isDestructive = variant === 'destructive' && value > 0;
@@ -55,33 +56,34 @@ function MetricItem({
             isDestructive ? 'text-destructive' : isWarning ? 'text-warning' : 'text-text',
           )}
         >
-          {value.toLocaleString()}
+          {isLoading ? <Skeleton className="h-8 w-16" /> : value.toLocaleString()}
         </p>
         <p className="text-[11px] text-text-muted mt-0.5 font-medium">{sublabel}</p>
       </div>
     </div>
   );
 }
-
 interface UserMetricsBarProps {
   counts: UserCounts;
+  isLoading: boolean;
 }
-
-export function UserMetricsBar({ counts }: UserMetricsBarProps) {
+export function UserMetricsBar({ counts, isLoading }: UserMetricsBarProps) {
   return (
-    <div className="border border-border bg-surface rounded-md overflow-hidden shadow-none">
+    <div aria-busy={isLoading} className="border border-border bg-surface rounded-md overflow-hidden shadow-none">
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
         <MetricItem
           label="Total Users"
           value={counts.all}
           sublabel="Registered accounts"
           icon={Users}
+          isLoading={isLoading}
         />
         <MetricItem
           label="Active Faculty"
           value={counts.approved}
           sublabel="Authorized educators"
           icon={UserCheck}
+          isLoading={isLoading}
         />
         <MetricItem
           label="Pending Approvals"
@@ -89,6 +91,7 @@ export function UserMetricsBar({ counts }: UserMetricsBarProps) {
           sublabel={counts.pending > 0 ? 'Requires admin review' : 'No pending requests'}
           icon={Clock}
           variant="warning"
+          isLoading={isLoading}
         />
         <MetricItem
           label="Suspended Accounts"
@@ -96,6 +99,7 @@ export function UserMetricsBar({ counts }: UserMetricsBarProps) {
           sublabel={counts.suspended > 0 ? 'Access restricted' : 'All accounts in good standing'}
           icon={UserMinus}
           variant="destructive"
+          isLoading={isLoading}
         />
       </div>
     </div>
