@@ -21,7 +21,7 @@ from server.modules.rubrics.service import (
     get_active_rubric_descriptions,
     get_active_rubric_scoring_rules,
 )
-from server.scripts.seed_rubrics import seed_coordinator_v2_if_needed, seed_domain
+from server.scripts.seed_rubrics import seed_coordinator_v3_if_needed, seed_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 RUBRIC_JSON = ROOT / "data" / "rubrics" / "rubrics.json"
@@ -71,7 +71,7 @@ def _seed_from_json(db_session) -> None:
                 actor_id=None,
                 is_system=True,
             )
-    seed_coordinator_v2_if_needed(db_session)
+    seed_coordinator_v3_if_needed(db_session)
     db_session.commit()
 
 
@@ -80,7 +80,7 @@ def test_active_rubric_context_returns_all_rows_per_agent(db_session) -> None:
 
     expected = {
         "sme": (15, 1),
-        "coordinator": (5, 2),
+        "coordinator": (15, 3),
         "gad": (9, 1),
         "itso": (9, 1),
     }

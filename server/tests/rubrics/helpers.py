@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from server.modules.rubrics.models import RubricAgentActivation, RubricSet
-from server.scripts.seed_rubrics import seed_coordinator_v2_if_needed, seed_domain
+from server.scripts.seed_rubrics import seed_coordinator_v3_if_needed, seed_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 RUBRIC_JSON = ROOT / "data" / "rubrics" / "rubrics.json"
@@ -70,7 +70,7 @@ def seed_all_rubrics(session) -> None:
                 activation.rubric_set_id = rubric_set.rubric_set_id
                 activation.updated_at = now
 
-    seed_coordinator_v2_if_needed(session)
+    seed_coordinator_v3_if_needed(session)
     session.flush()
 
 
