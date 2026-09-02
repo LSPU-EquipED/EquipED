@@ -75,6 +75,7 @@ PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
         "fallback_calls",
         "provider_seconds_ms",
         "trim_count",
+        "grounding_rejected_count",
     }
 )
 
@@ -134,6 +135,7 @@ _PROVENANCE_TYPES: dict[str, type | tuple[type, type]] = {
     "fallback_calls": int,
     "provider_seconds_ms": int,
     "trim_count": int,
+    "grounding_rejected_count": int,
 }
 
 # Bounded string/list value caps per key.
@@ -175,6 +177,7 @@ _BOUNDED_INTEGER_KEYS = frozenset(
         "fallback_calls",
         "provider_seconds_ms",
         "trim_count",
+        "grounding_rejected_count",
     }
 )
 
