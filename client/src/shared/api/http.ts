@@ -121,7 +121,7 @@ export async function requestJson<TResponse>(
   return payload as TResponse;
 }
 
-export function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
+export function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
   if (error instanceof ApiError) {
     return error.detail ?? error.message;
   }

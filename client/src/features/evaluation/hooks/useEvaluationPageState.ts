@@ -146,27 +146,6 @@ export function useEvaluationPageState(documentId?: string) {
     submitEvaluation.reset();
   }, [submitEvaluation]);
 
-  // Results query
-  const {
-    data: results,
-    refetch: refetchResults,
-    isError: isResultsError,
-    error: resultsError,
-  } = useQuery({
-    queryKey: ['evaluation-results', evaluationId],
-    queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
-    enabled: !!evaluationId,
-    refetchInterval: (query) => {
-      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)
-        ?.evaluation_status;
-      if (evalStatus === 'COMPLETED' || evalStatus === 'FAILED') {
-        return false;
-      }
-      return 3000;
-    },
-    retry: 1,
-  });
-
   // Status query
   const { data: status } = useQuery<EvaluationStatusResponse>({
     queryKey: ['evaluation-status', evaluationId],
@@ -182,25 +161,51 @@ export function useEvaluationPageState(documentId?: string) {
     },
   });
 
+  const isTerminal = status?.status === 'COMPLETED' || status?.status === 'FAILED';
+
+  // Results query
+  const {
+    data: results,
+    refetch: refetchResults,
+    isError: isResultsError,
+    error: resultsError,
+  } = useQuery({
+    queryKey: ['evaluation-results', evaluationId],
+    queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
+    enabled: !!evaluationId && isTerminal,
+    refetchInterval: (query) => {
+      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)
+        ?.evaluation_status;
+      if (evalStatus === 'COMPLETED' || evalStatus === 'FAILED') {
+        return false;
+      }
+      return 3000;
+    },
+    retry: 1,
+  });
   // Status change -> refetch results
   useEffect(() => {
-    if (status?.status === 'COMPLETED' || status?.status === 'FAILED') {
+    if (status?.status === 'COMPLETED') {
       void refetchResults();
+      void queryClient.invalidateQueries({ queryKey: ['history'] });
+      void queryClient.invalidateQueries({ queryKey: ['evaluations'] });
+    } else if (status?.status === 'FAILED') {
       void queryClient.invalidateQueries({ queryKey: ['history'] });
       void queryClient.invalidateQueries({ queryKey: ['evaluations'] });
     }
   }, [status?.status, refetchResults, queryClient]);
 
-  // Derived state
-  const isTerminal = status?.status === 'COMPLETED' || status?.status === 'FAILED';
   const hasResults = !!results && Object.keys(results.domain_scores).length > 0;
   const isInProgress = (!!evaluationId && !isTerminal) || !!submitEvaluation.isPending;
   const isFailedWithResults = status?.status === 'FAILED' && hasResults;
 
   // Stale-cache recovery: if downstream queries fail for a terminal eval,
   // clear the cached id and re-resolve once.
+  // Do NOT evict known failed evaluations (status === 'FAILED'), so the user stays on the
+  // workspace to review the failure banner/error details and explicitly click retry.
   useEffect(() => {
     if (!isResultsError || !isTerminal || !evaluationId) return;
+    if (status?.status === 'FAILED') return;
     if (hasRecoveredRef.current) return;
 
     hasRecoveredRef.current = true;
@@ -210,7 +215,7 @@ export function useEvaluationPageState(documentId?: string) {
     void queryClient.invalidateQueries({
       queryKey: ['resolve-evaluation', documentId],
     });
-  }, [isResultsError, isTerminal, evaluationId, storageKey, queryClient, documentId]);
+  }, [isResultsError, isTerminal, evaluationId, storageKey, queryClient, documentId, status?.status]);
 
   const handleRetryEvaluation = useCallback(() => {
     if (storageKey) {
@@ -218,8 +223,13 @@ export function useEvaluationPageState(documentId?: string) {
     }
     hasRecoveredRef.current = false;
     submitEvaluation.reset();
+    if (evaluationId) {
+      queryClient.removeQueries({ queryKey: ['evaluation-status', evaluationId] });
+      queryClient.removeQueries({ queryKey: ['evaluation-results', evaluationId] });
+    }
+    queryClient.setQueryData(['resolve-evaluation', documentId], null);
     void refetchResolve();
-  }, [storageKey, refetchResolve, submitEvaluation]);
+  }, [storageKey, refetchResolve, submitEvaluation, evaluationId, queryClient, documentId]);
 
   const isSetupRequired = useMemo(() => {
     return !!documentId && !evaluationId && !isResolvingEval && !isLoadingDocument && !!document;
