@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from server.modules.agents.runtime.prompts import (
+    AgentPrompt,
+    build_diagnostic_repair_prompt,
+)
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     RatioBandConfig,
@@ -24,13 +28,17 @@ def build_combined_prompt(
     form_snapshot: EvaluationFormSnapshotDTO,
     prompt_version: str | None = None,
     gad_managed_prompt: str | None = None,
-) -> str:
+) -> AgentPrompt:
     """Build one combined fact-only extraction prompt strictly from snapshot criteria.
 
     ``form_snapshot`` provides the frozen criteria definitions and strategy configs.
     ``gad_managed_prompt`` is the active managed GAD prompt text. When provided
     it is embedded as the primary instruction framing.
     ``packed_chunks`` are UNTRUSTED DATA provided for analysis only.
+
+    Returns a role-separated :class:`AgentPrompt`: system holds evaluator
+    instructions, managed prompt, criteria definitions, and required JSON
+    payload structure; user holds the untrusted document chunks.
     """
     if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
         raise TypeError("form_snapshot must be an EvaluationFormSnapshotDTO instance")
@@ -55,6 +63,9 @@ def build_combined_prompt(
 
     if gad_managed_prompt:
         instruction_parts.append(gad_managed_prompt)
+
+    if prompt_version is not None:
+        instruction_parts.append(f"PROMPT VERSION: {prompt_version}")
 
     instruction_parts.append(
         "FACT-ONLY EXTRACTION INSTRUCTIONS:\n"
@@ -110,44 +121,35 @@ def build_combined_prompt(
         "'grade', or any numeric score fields.\n"
         "- All 'instance_count', 'female_count', 'male_count' must be "
         "non-negative integers.\n"
-        "- All summaries must be non-empty strings (1-2 sentences)."
+        "- All summaries must be non-empty strings (1-2 sentences).\n"
+        f"REQUIRED JSON OUTPUT STRUCTURE: a single JSON object with "
+        f"{len(section_keys)} keys ({keys_formatted}), each mapping to its "
+        "per-criterion object described above."
     )
 
-    instructions = "\n\n".join(instruction_parts)
+    system_instruction = "\n\n".join(instruction_parts)
 
-    payload: dict[str, Any] = {
-        "agent": "gad",
-        "prompt_version": prompt_version,
-        "document_chunks": packed_chunks,
-        "instructions": [instructions],
-    }
+    packed_chunks_json = json.dumps(packed_chunks, ensure_ascii=False)
+    user_context = f"=== UNTRUSTED DOCUMENT CHUNKS ===\n{packed_chunks_json}"
 
-    return json.dumps(payload, ensure_ascii=False)
+    return AgentPrompt(
+        system_instruction=system_instruction,
+        user_context=user_context,
+    )
 
 
 # ---------------------------------------------------------------------------
 # 3.1 — Whole-envelope fact-only repair prompt (SAME frozen context)
 # ---------------------------------------------------------------------------
 
-_REPAIR_COMBINED_TEMPLATE = (
-    "{full_context}\n\n"
-    "Your previous GAD extraction response was incomplete or malformed. "
-    "Review the error below, then return a COMPLETE corrected JSON object "
-    "with all required sections. "
-    "Follow the same fact-only extraction rules as above.\n\n"
-    "Do NOT change factual content beyond what is needed to fix the error. "
-    "Do NOT add numeric score fields.\n\n"
-    "Error: {error}\n\n"
-    "Return ONLY the complete corrected JSON object."
-)
-
 
 def build_combined_repair_prompt(
     *,
-    full_prompt_context: str,
-    partial_response: str = "",
+    base_prompt: AgentPrompt,
     error_detail: str,
-) -> str:
+    partial_response: str = "",
+    total_budget: int = 32000,
+) -> AgentPrompt:
     """Build a whole-envelope repair prompt that includes the SAME frozen context.
 
     The repair receives the identical packed chunks and fact-only instructions
@@ -156,9 +158,10 @@ def build_combined_repair_prompt(
     The model never sees a reduced or altered context.
     """
     del partial_response
-    return _REPAIR_COMBINED_TEMPLATE.format(
-        full_context=full_prompt_context,
-        error=error_detail[:500],
+    if not isinstance(base_prompt, AgentPrompt):
+        raise TypeError("base_prompt must be an AgentPrompt instance")
+    return build_diagnostic_repair_prompt(
+        base_prompt, error_detail, total_budget=total_budget
     )
 
 

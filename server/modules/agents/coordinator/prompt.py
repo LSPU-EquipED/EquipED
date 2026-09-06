@@ -13,8 +13,8 @@ from server.modules.rubrics.contracts import (
     RatioBandConfig,
 )
 
-from ..exceptions import AgentExecutionError
-from ..runtime.slicing import GAP_MARKER, downsample_source_text
+from ..runtime.prompts import AgentPrompt, PromptEnvelopeBuilder
+from ..runtime.slicing import GAP_MARKER
 
 REPAIR_SUFFIX = (
     "\n\nVALIDATOR_FAILURE category=COORDINATOR_INVALID path=criterion_measurements. "
@@ -27,24 +27,6 @@ REPAIR_SUFFIX = (
     "Duplicate ratio units must use one consistent qualifies boolean. "
     "Do not include commentary."
 )
-
-
-def build_repair_suffix(validation_error: BaseException | str) -> str:
-    """Build a diagnostic repair suffix naming the exact validation failure."""
-    detail = str(validation_error).strip()
-    if len(detail) > 500:
-        detail = detail[:497] + "..."
-    return (
-        f"\n\nVALIDATOR_FAILURE category=COORDINATOR_INVALID: {detail}\n"
-        "Regenerate ONLY the complete JSON response matching the required schema, "
-        "criteria order, and exact field set: no extra or missing fields. "
-        "Evidence, excerpts, and objective_text MUST each be an exact verbatim "
-        "substring of the SOURCE TEXT; assessment_excerpt MUST be an exact verbatim "
-        "substring of the CURRICULUM CONTEXT. "
-        "Emit each repeated identical fact only once. "
-        "Duplicate ratio units must use one consistent qualifies boolean. "
-        "Do not include commentary."
-    )
 
 
 COORDINATOR_PREAMBLE = (
@@ -181,46 +163,11 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
     return {"criterion_id": criterion.criterion_code}
 
 
-def build_envelope_prompt(
-    criteria: tuple[CriterionDefinition, ...],
-    source_text: str,
-    curriculum_context: str,
-    prompt_preamble: str | None = None,
-) -> str:
-    criteria_blocks = "\n\n".join(_criterion_prompt_block(c) for c in criteria)
-    example = {
-        "summary": "Brief summary of evaluation findings for these criteria.",
-        "criterion_measurements": [_example_measurement(c) for c in criteria],
-    }
-    example_json = json.dumps(example, indent=2, ensure_ascii=False)
-
-    instructions = [
-        "=== EVALUATOR INSTRUCTIONS ===",
-        COORDINATOR_PREAMBLE,
-        "CRITERIA TO EVALUATE:",
-        criteria_blocks,
-        "REQUIRED JSON OUTPUT STRUCTURE:",
-        example_json,
-        "=== END EVALUATOR INSTRUCTIONS ===",
-        "",
-        "=== UNTRUSTED SOURCE TEXT ===",
-        source_text,
-        "=== END SOURCE TEXT ===",
-    ]
-
-    if any(isinstance(c.strategy_config, CurriculumAlignmentConfig) for c in criteria):
-        instructions.extend(
-            [
-                "=== CURRICULUM CONTEXT ===",
-                curriculum_context,
-                "=== END CURRICULUM CONTEXT ===",
-            ]
-        )
-
-    body = "\n\n".join(instructions)
-    if prompt_preamble and prompt_preamble.strip():
-        return prompt_preamble.strip() + "\n\n" + body
-    return body
+_GAP_MARKER_WARNING = (
+    "The source text may contain '[...]' markers where document sections were "
+    "omitted to fit the budget; do NOT quote across a '[...]' marker and do NOT "
+    "fabricate text to fill omitted sections."
+)
 
 
 def build_envelope_prompt_and_source(
@@ -229,34 +176,37 @@ def build_envelope_prompt_and_source(
     curriculum_context: str,
     prompt_budget: int,
     prompt_preamble: str | None = None,
-) -> tuple[str, str]:
-    """Construct prompt reserving REPAIR_SUFFIX and downsampling source text."""
-    template_without_source = build_envelope_prompt(
-        criteria,
-        source_text="",
-        curriculum_context=curriculum_context,
-        prompt_preamble=prompt_preamble,
-    )
-    available_for_source = (
-        prompt_budget - len(template_without_source) - len(REPAIR_SUFFIX)
-    )
-    if available_for_source <= 0:
-        raise AgentExecutionError(
-            "Coordinator prompt instructions exceed total prompt budget"
-        )
+) -> tuple[AgentPrompt, str]:
+    """Construct role-separated prompt reserving repair budget.
 
-    source_packet = downsample_source_text(
-        canonical_source_text, budget=available_for_source, windows=6
+    The system instruction carries the evaluator preamble, criterion blocks,
+    JSON schema example, and gap-marker warning. The user context carries the
+    downsampled untrusted source text plus the curriculum context for
+    curriculum-alignment envelopes.
+    """
+    criteria_blocks = "\n\n".join(_criterion_prompt_block(c) for c in criteria)
+    example = {
+        "summary": "Brief summary of evaluation findings for these criteria.",
+        "criterion_measurements": [_example_measurement(c) for c in criteria],
+    }
+    example_json = json.dumps(example, indent=2, ensure_ascii=False)
+    builder = PromptEnvelopeBuilder(
+        evaluator_preamble=COORDINATOR_PREAMBLE,
+        criteria_blocks=criteria_blocks,
+        example_json=example_json,
+        total_budget=prompt_budget,
+        reserved_repair_chars=600,
+        gap_marker_warning=_GAP_MARKER_WARNING,
     )
-    prompt = build_envelope_prompt(
-        criteria,
-        source_text=source_packet,
-        curriculum_context=curriculum_context,
-        prompt_preamble=prompt_preamble,
+    has_curriculum = any(
+        isinstance(c.strategy_config, CurriculumAlignmentConfig) for c in criteria
     )
-    if len(prompt) + len(REPAIR_SUFFIX) > prompt_budget:
-        raise AgentExecutionError("Coordinator prompt exceeds total prompt budget")
-
+    prompt, source_packet = builder.build(
+        canonical_source_text,
+        reference_context=curriculum_context if has_curriculum else None,
+        reference_heading="CURRICULUM CONTEXT",
+        managed_prompt=prompt_preamble,
+    )
     return prompt, source_packet
 
 
@@ -264,7 +214,5 @@ __all__ = [
     "COORDINATOR_PREAMBLE",
     "GAP_MARKER",
     "REPAIR_SUFFIX",
-    "build_envelope_prompt",
     "build_envelope_prompt_and_source",
-    "build_repair_suffix",
 ]

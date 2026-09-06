@@ -61,12 +61,11 @@ class AgentDispatcher:
         )
         logger.warning(
             "[EVAL_TIMING] agent=%s | status=failed | seconds=%.3f | "
-            "category=%s | reference=%s | error=%r",
+            "category=%s | reference=%s",
             agent_name,
             elapsed,
             category,
             reference,
-            exc,
         )
         telemetry = (
             error_telemetry

@@ -15,6 +15,7 @@ from server.modules.agents.sme.prompt import (
     REPAIR_SUFFIX,
     build_envelope_prompt_and_source,
 )
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.sme.response import (
     build_envelope_schema,
     parse_and_validate_envelope_response,
@@ -858,6 +859,33 @@ def test_prompt_budgeting_and_source_downsampling_true_tail() -> None:
     assert "TRUE TAIL END." in source_packet
     assert "HEAD START" in source_packet
     assert "\n\n[...]\n\n" in source_packet
+
+
+def test_envelope_prompt_is_role_separated() -> None:
+    c1 = _make_criterion(
+        "A-01",
+        "Criterion A",
+        CountBandConfig(
+            mode="minimum_count", threshold_4=3, threshold_3=2, threshold_2=1
+        ),
+    )
+    prompt, packet = build_envelope_prompt_and_source(
+        (c1,),
+        canonical_source_text="Some SLM source text.",
+        prompt_budget=15000,
+    )
+    assert isinstance(prompt, AgentPrompt)
+    assert prompt.messages[0].role == "system"
+    assert prompt.messages[1].role == "user"
+    assert "Subject Matter Expert" in prompt.system_instruction
+    assert "CRITERION: A-01" in prompt.system_instruction
+    assert "[...]" in prompt.system_instruction
+    assert "=== UNTRUSTED SOURCE TEXT ===" in prompt.user_context
+    assert packet in prompt.user_context
+    assert (
+        prompt.render_flat()
+        == f"{prompt.system_instruction}\n\n{prompt.user_context}"
+    )
 
 
 def test_snapshot_precheck_validations() -> None:

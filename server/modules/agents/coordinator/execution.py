@@ -19,12 +19,9 @@ from server.modules.rubrics.contracts import CriterionDefinition
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..runtime.llm import RunLLMClient, error_reference
+from ..runtime.prompts import AgentPrompt, build_diagnostic_repair_prompt
 from ..runtime.slicing import downsample_source_text
-from .prompt import (
-    REPAIR_SUFFIX,
-    build_envelope_prompt_and_source,
-    build_repair_suffix,
-)
+from .prompt import build_envelope_prompt_and_source
 from .response import (
     build_envelope_schema,
     parse_and_validate_envelope_response,
@@ -50,7 +47,7 @@ def execute_envelope(
     prompt_preamble: str | None = None,
     temperature: float | None = None,
     deadline: float | None = None,
-) -> tuple[tuple[CriterionScore, ...], str, dict[str, Any], bool]:
+) -> tuple[tuple[CriterionScore, ...], AgentPrompt, dict[str, Any], bool]:
     """Execute one Coordinator envelope call with one repair on validation failure."""
     settings = get_settings()
     prompt_budget = settings.agent_total_prompt_budget_chars
@@ -116,13 +113,9 @@ def execute_envelope(
             type(validation_error).__name__,
             error_reference(validation_error),
         )
-        repair_prompt = prompt + build_repair_suffix(validation_error)
-        if len(repair_prompt) > prompt_budget:
-            repair_prompt = prompt + REPAIR_SUFFIX
-        if len(repair_prompt) > prompt_budget:
-            raise AgentExecutionError(
-                "Coordinator repair prompt exceeds total prompt budget"
-            ) from validation_error
+        repair_prompt = build_diagnostic_repair_prompt(
+            prompt, validation_error, total_budget=prompt_budget
+        )
 
         repaired_completion = client.generate_result(
             repair_prompt,

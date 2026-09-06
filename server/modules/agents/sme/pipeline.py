@@ -196,7 +196,7 @@ class EngineScoredAgent:
 
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
-            scores, prompt_text, response_dict, repair_occurred = execute_envelope(
+            scores, prompt, response_dict, repair_occurred = execute_envelope(
                 idx,
                 env_criteria,
                 client,
@@ -204,7 +204,7 @@ class EngineScoredAgent:
                 prompt_preamble=prompt_preamble,
             )
             all_scores.extend(scores)
-            envelope_prompts[env_key] = prompt_text
+            envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = response_dict
             if repair_occurred:
                 any_repair_occurred = True

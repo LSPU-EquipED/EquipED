@@ -181,13 +181,7 @@ class GADScoredAgent:
         if len(combined_prompt) > repair_safe_budget:
             raise AgentExecutionError("GAD fixed prompt overhead exceeds budget")
 
-        try:
-            final_payload = json.loads(combined_prompt)
-            frozen_chunks: list[dict[str, Any]] = final_payload.get(
-                "document_chunks", packed_chunks
-            )
-        except (json.JSONDecodeError, TypeError):
-            frozen_chunks = packed_chunks
+        frozen_chunks: list[dict[str, Any]] = [dict(c) for c in packed_chunks]
 
         # One combined extraction call
         t0 = time.perf_counter()
@@ -258,9 +252,9 @@ class GADScoredAgent:
             # Primary was truncated — trigger whole-envelope repair with empty raw
             logger.warning("GAD primary output was truncated, attempting repair")
             repair_prompt = prompt.build_combined_repair_prompt(
-                full_prompt_context=combined_prompt,
-                partial_response="",
+                base_prompt=combined_prompt,
                 error_detail="category=AgentLLMError; path=truncation",
+                total_budget=total_budget,
             )
             if len(repair_prompt) > total_budget:
                 elapsed = time.perf_counter() - start
@@ -345,11 +339,11 @@ class GADScoredAgent:
                     error_reference(exc),
                 )
                 repair_prompt = prompt.build_combined_repair_prompt(
-                    full_prompt_context=combined_prompt,
-                    partial_response="",
+                    base_prompt=combined_prompt,
                     error_detail=(
                         f"category={type(exc).__name__}; path={error_reference(exc)}"
                     ),
+                    total_budget=total_budget,
                 )
                 if len(repair_prompt) > total_budget:
                     elapsed = time.perf_counter() - start
@@ -525,7 +519,7 @@ class GADScoredAgent:
             token_count=token_count,
             prompt_version_id=prompt_version_id,
             success=True,
-            prompt_text=combined_prompt,
+            prompt_text=combined_prompt.render_flat(),
             raw_response=json.dumps(combined, ensure_ascii=False),
             provenance=merged_provenance if merged_provenance else None,
             metadata={
