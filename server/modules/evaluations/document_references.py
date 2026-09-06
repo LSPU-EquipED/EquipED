@@ -28,7 +28,8 @@ def count_document_references(document_id, db: Any | None = None) -> int:
     return (
         db.query(EvaluationJob)
         .filter(
-            (EvaluationJob.syllabus_id == document_id)
+            (EvaluationJob.document_id == document_id)
+            | (EvaluationJob.syllabus_id == document_id)
             | (EvaluationJob.curriculum_id == document_id)
         )
         .count()
