@@ -5,6 +5,7 @@ Revises: 20260830_0002
 Create Date: 2026-09-02
 """
 
+import json
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +18,8 @@ revision = "20260902_0001"
 down_revision = "20260830_0002"
 branch_labels = None
 depends_on = None
+
+_MIGRATION_V3_SET_ID = uuid.uuid5(uuid.NAMESPACE_URL, "equiped:coordinator-rubric:v3")
 
 # Verbatim data — migrations must not import app code that can change.
 # Must stay identical to seed_coordinator_v3_if_needed in
@@ -55,8 +58,7 @@ _CRITERIA: tuple[tuple[str, str, int, str, str, str, dict[str, Any]], ...] = (
         "OP",
         2,
         "Interactivity",
-        "Material is interactive in each lesson which makes life-long "
-        "learning easier.",
+        "Material is interactive in each lesson which makes life-long learning easier.",
         "count_band",
         {
             "strategy": "count_band",
@@ -271,11 +273,68 @@ def _coordinator_set_id(bind: Any, version_number: int) -> Any | None:
     return row[0] if row is not None else None
 
 
+def _validate_existing_v3(bind: Any, is_postgres: bool, set_id: Any) -> None:
+    set_type, set_param = _bind_uuid(is_postgres, set_id)
+    metadata = bind.execute(
+        sa.text(
+            "SELECT name, status, adapter_key, adapter_version FROM rubric_sets "
+            "WHERE rubric_set_id = :sid"
+        ).bindparams(sa.bindparam("sid", type_=set_type)),
+        {"sid": set_param},
+    ).one()
+    if tuple(metadata) != (
+        "Coordinator Rubric v3",
+        "published",
+        "coordinator",
+        2,
+    ):
+        raise RuntimeError("Existing Coordinator Rubric v3 metadata is not canonical")
+
+    domains = bind.execute(
+        sa.text(
+            "SELECT code, title, display_order FROM rubric_domains "
+            "WHERE rubric_set_id = :sid ORDER BY display_order"
+        ).bindparams(sa.bindparam("sid", type_=set_type)),
+        {"sid": set_param},
+    ).all()
+    if [tuple(row) for row in domains] != list(_DOMAINS):
+        raise RuntimeError("Existing Coordinator Rubric v3 domains are not canonical")
+
+    rows = bind.execute(
+        sa.text(
+            "SELECT c.criterion_code, d.code, c.display_order, c.title, "
+            "c.description, c.scoring_strategy, c.strategy_config, c.scoring_rule "
+            "FROM rubric_criteria c JOIN rubric_domains d "
+            "ON d.rubric_domain_id = c.rubric_domain_id "
+            "WHERE d.rubric_set_id = :sid "
+            "ORDER BY d.display_order, c.display_order"
+        ).bindparams(sa.bindparam("sid", type_=set_type)),
+        {"sid": set_param},
+    ).all()
+    actual = []
+    for row in rows:
+        config = json.loads(row[6]) if isinstance(row[6], str) else row[6]
+        actual.append((*tuple(row[:6]), config, row[7]))
+    expected = [
+        (
+            code,
+            domain,
+            order,
+            title,
+            description,
+            strategy,
+            config,
+            _SCORING_RULES[code],
+        )
+        for code, domain, order, title, description, strategy, config in _CRITERIA
+    ]
+    if actual != expected:
+        raise RuntimeError("Existing Coordinator Rubric v3 criteria are not canonical")
+
+
 def _point_activation(bind: Any, set_type: Any, set_param: Any, now: datetime) -> None:
     exists = bind.execute(
-        sa.text(
-            "SELECT 1 FROM rubric_agent_activations WHERE agent_id = 'coordinator'"
-        )
+        sa.text("SELECT 1 FROM rubric_agent_activations WHERE agent_id = 'coordinator'")
     ).fetchone()
     if exists is not None:
         bind.execute(
@@ -303,80 +362,77 @@ def upgrade() -> None:
     now = datetime.now(UTC)
 
     existing_v3 = _coordinator_set_id(bind, 3)
+    if existing_v3 is not None:
+        _validate_existing_v3(bind, is_postgres, existing_v3)
+        target_type, target_param = _bind_uuid(is_postgres, existing_v3)
+        _point_activation(bind, target_type, target_param, now)
+        return
 
-    if existing_v3 is None:
-        set_id = uuid.uuid4()
-        set_type, set_param = _bind_uuid(is_postgres, set_id)
+    set_id = _MIGRATION_V3_SET_ID
+    set_type, set_param = _bind_uuid(is_postgres, set_id)
+    bind.execute(
+        sa.text(
+            "INSERT INTO rubric_sets (rubric_set_id, agent_id, name, "
+            "version_number, status, adapter_key, adapter_version, "
+            "published_at, created_at) VALUES (:sid, 'coordinator', "
+            "'Coordinator Rubric v3', 3, 'published', 'coordinator', 2, "
+            ":now, :now)"
+        ).bindparams(sa.bindparam("sid", type_=set_type)),
+        {"sid": set_param, "now": now},
+    )
+    domain_params: dict[str, tuple[Any, Any]] = {}
+    for code, title, order in _DOMAINS:
+        dtype, dparam = _bind_uuid(is_postgres, uuid.uuid4())
+        domain_params[code] = (dtype, dparam)
         bind.execute(
             sa.text(
-                "INSERT INTO rubric_sets (rubric_set_id, agent_id, name, "
-                "version_number, status, adapter_key, adapter_version, "
-                "published_at, created_at) VALUES (:sid, 'coordinator', "
-                "'Coordinator Rubric v3', 3, 'published', 'coordinator', 2, "
-                ":now, :now)"
-            ).bindparams(sa.bindparam("sid", type_=set_type)),
-            {"sid": set_param, "now": now},
+                "INSERT INTO rubric_domains (rubric_domain_id, "
+                "rubric_set_id, code, title, display_order) "
+                "VALUES (:did, :sid, :code, :title, :order)"
+            ).bindparams(
+                sa.bindparam("did", type_=dtype),
+                sa.bindparam("sid", type_=set_type),
+            ),
+            {
+                "did": dparam,
+                "sid": set_param,
+                "code": code,
+                "title": title,
+                "order": order,
+            },
         )
 
-        domain_params: dict[str, tuple[Any, Any]] = {}
-        for code, title, order in _DOMAINS:
-            dtype, dparam = _bind_uuid(is_postgres, uuid.uuid4())
-            domain_params[code] = (dtype, dparam)
-            bind.execute(
-                sa.text(
-                    "INSERT INTO rubric_domains (rubric_domain_id, "
-                    "rubric_set_id, code, title, display_order) "
-                    "VALUES (:did, :sid, :code, :title, :order)"
-                ).bindparams(
-                    sa.bindparam("did", type_=dtype),
-                    sa.bindparam("sid", type_=set_type),
-                ),
-                {
-                    "did": dparam,
-                    "sid": set_param,
-                    "code": code,
-                    "title": title,
-                    "order": order,
-                },
-            )
+    for code, dom, order, title, desc, strat, cfg in _CRITERIA:
+        dtype, dparam = domain_params[dom]
+        ctype, cparam = _bind_uuid(is_postgres, uuid.uuid4())
+        bind.execute(
+            sa.text(
+                "INSERT INTO rubric_criteria (rubric_criterion_id, "
+                "rubric_domain_id, criterion_code, title, description, "
+                "scoring_rule, scoring_strategy, strategy_config, "
+                "display_order) VALUES (:cid, :did, :code, :title, :desc, "
+                ":rule, :strat, :cfg, :order)"
+            ).bindparams(
+                sa.bindparam("cid", type_=ctype),
+                sa.bindparam("did", type_=dtype),
+                sa.bindparam("rule", type_=sa.String),
+                sa.bindparam("strat", type_=sa.String),
+                sa.bindparam("cfg", type_=sa.JSON),
+            ),
+            {
+                "cid": cparam,
+                "did": dparam,
+                "code": code,
+                "title": title,
+                "desc": desc,
+                "rule": _SCORING_RULES[code],
+                "strat": strat,
+                "cfg": cfg,
+                "order": order,
+            },
+        )
 
-        for code, dom, order, title, desc, strat, cfg in _CRITERIA:
-            dtype, dparam = domain_params[dom]
-            ctype, cparam = _bind_uuid(is_postgres, uuid.uuid4())
-            bind.execute(
-                sa.text(
-                    "INSERT INTO rubric_criteria (rubric_criterion_id, "
-                    "rubric_domain_id, criterion_code, title, description, "
-                    "scoring_rule, scoring_strategy, strategy_config, "
-                    "display_order) VALUES (:cid, :did, :code, :title, :desc, "
-                    ":rule, :strat, :cfg, :order)"
-                ).bindparams(
-                    sa.bindparam("cid", type_=ctype),
-                    sa.bindparam("did", type_=dtype),
-                    sa.bindparam("rule", type_=sa.String),
-                    sa.bindparam("strat", type_=sa.String),
-                    sa.bindparam("cfg", type_=sa.JSON),
-                ),
-                {
-                    "cid": cparam,
-                    "did": dparam,
-                    "code": code,
-                    "title": title,
-                    "desc": desc,
-                    "rule": _SCORING_RULES[code],
-                    "strat": strat,
-                    "cfg": cfg,
-                    "order": order,
-                },
-            )
-        target_type, target_param = set_type, set_param
-    else:
-        target_type, target_param = _bind_uuid(is_postgres, existing_v3)
-
-    # One-shot migration: unconditionally repoint coordinator activation to v3.
-    # (Unlike seed_coordinator_v3_if_needed, which preserves an admin's manual
-    # activation choice, the migration is the deploy's single source of truth.)
-    _point_activation(bind, target_type, target_param, now)
+    _point_activation(bind, set_type, set_param, now)
 
 
 def downgrade() -> None:
@@ -384,16 +440,16 @@ def downgrade() -> None:
     is_postgres = bind.dialect.name == "postgresql"
     now = datetime.now(UTC)
 
-    fallback = _coordinator_set_id(bind, 2)
-    if fallback is None:
-        row = bind.execute(
-            sa.text(
-                "SELECT rubric_set_id FROM rubric_sets "
-                "WHERE agent_id = 'coordinator' AND version_number <> 3 "
-                "ORDER BY version_number DESC"
-            )
-        ).fetchone()
-        fallback = row[0] if row is not None else None
+    row = bind.execute(
+        sa.text(
+            "SELECT rubric_set_id FROM rubric_sets "
+            "WHERE agent_id = 'coordinator' AND version_number <> 3 "
+            "AND status = 'published' "
+            "ORDER BY CASE WHEN version_number = 2 THEN 0 ELSE 1 END, "
+            "version_number DESC"
+        )
+    ).fetchone()
+    fallback = row[0] if row is not None else None
 
     if fallback is not None:
         ftype, fparam = _bind_uuid(is_postgres, fallback)
@@ -401,10 +457,13 @@ def downgrade() -> None:
     else:
         bind.execute(
             sa.text(
-                "DELETE FROM rubric_agent_activations "
-                "WHERE agent_id = 'coordinator'"
+                "DELETE FROM rubric_agent_activations WHERE agent_id = 'coordinator'"
             )
         )
+
+    existing_v3 = _coordinator_set_id(bind, 3)
+    if existing_v3 is None or str(existing_v3) != str(_MIGRATION_V3_SET_ID):
+        return
 
     bind.execute(
         sa.text(

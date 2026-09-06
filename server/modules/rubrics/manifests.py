@@ -72,6 +72,7 @@ class AgentCapabilityManifest(FrozenContractModel):
     max_criteria: int = Field(..., ge=1)
     default_prompt_budget_chars: int = Field(..., gt=0)
     allowed_criterion_codes: tuple[str, ...] | None = None
+    required_criterion_strategies: tuple[tuple[str, str], ...] = ()
 
     @field_validator(
         "supported_strategies",
@@ -80,6 +81,7 @@ class AgentCapabilityManifest(FrozenContractModel):
         "capabilities",
         "supported_measurement_shapes",
         "allowed_criterion_codes",
+        "required_criterion_strategies",
         mode="before",
     )
     @classmethod
@@ -116,12 +118,29 @@ class AgentCapabilityManifest(FrozenContractModel):
             set(self.supported_measurement_shapes)
         ):
             raise ValueError("supported_measurement_shapes must not contain duplicates")
-
         if self.allowed_criterion_codes is not None:
             if len(self.allowed_criterion_codes) != len(
                 set(self.allowed_criterion_codes)
             ):
                 raise ValueError("allowed_criterion_codes must not contain duplicates")
+
+        required_codes: set[str] = set()
+        for code, strategy in self.required_criterion_strategies:
+            if code in required_codes:
+                raise ValueError(
+                    "required_criterion_strategies must not contain duplicate codes"
+                )
+            required_codes.add(code)
+            if (
+                self.allowed_criterion_codes is not None
+                and code not in self.allowed_criterion_codes
+            ):
+                raise ValueError(
+                    f"Required criterion code '{code}' is not in "
+                    "allowed_criterion_codes"
+                )
+            if strategy not in self.supported_strategies:
+                raise ValueError(f"Required strategy '{strategy}' is not supported")
 
         seen_pairs: set[tuple[str, str | None]] = set()
         capability_shapes: set[str] = set()
@@ -283,6 +302,27 @@ ITSO_MANIFEST_V1 = AgentCapabilityManifest(
 COORDINATOR_MANIFEST_V1 = AgentCapabilityManifest(
     agent_id="coordinator",
     adapter_key="coordinator",
+    adapter_version=1,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=("curriculum_alignment",),
+    capabilities=(
+        StrategyCapability(
+            strategy="curriculum_alignment",
+            mode=None,
+            measurement_shape="curriculum_alignment",
+        ),
+    ),
+    supported_measurement_shapes=("curriculum_alignment",),
+    min_criteria=1,
+    max_criteria=1,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=("A-05",),
+    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
+)
+
+COORDINATOR_MANIFEST_V2 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
     adapter_version=2,
     prompt_budget_setting="agent_total_prompt_budget_chars",
     supported_strategies=(
@@ -321,13 +361,22 @@ COORDINATOR_MANIFEST_V1 = AgentCapabilityManifest(
         "grounded_instances",
         "qualifying_units",
     ),
-    min_criteria=1,
+    min_criteria=10,
     max_criteria=10,
     default_prompt_budget_chars=32000,
     allowed_criterion_codes=(
-        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
-        "A-01", "A-02", "A-03", "A-04", "A-05",
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
     ),
+    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
 )
 
 AGENT_MANIFEST_REGISTRY_V1: MappingProxyType[str, AgentCapabilityManifest] = (
@@ -336,17 +385,38 @@ AGENT_MANIFEST_REGISTRY_V1: MappingProxyType[str, AgentCapabilityManifest] = (
             "sme": SME_MANIFEST_V1,
             "gad": GAD_MANIFEST_V1,
             "itso": ITSO_MANIFEST_V1,
-            "coordinator": COORDINATOR_MANIFEST_V1,
+            "coordinator": COORDINATOR_MANIFEST_V2,
         }
     )
 )
 
+AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
+    tuple[str, int], AgentCapabilityManifest
+] = MappingProxyType(
+    {
+        ("sme", 1): SME_MANIFEST_V1,
+        ("gad", 1): GAD_MANIFEST_V1,
+        ("itso", 1): ITSO_MANIFEST_V1,
+        ("coordinator", 1): COORDINATOR_MANIFEST_V1,
+        ("coordinator", 2): COORDINATOR_MANIFEST_V2,
+    }
+)
 
-def get_agent_manifest(agent_id: str) -> AgentCapabilityManifest:
-    """Lookup capability manifest for an agent ID or raise bounded ValueError."""
-    manifest = AGENT_MANIFEST_REGISTRY_V1.get(agent_id)
+
+def get_agent_manifest(
+    agent_id: str, adapter_version: int | None = None
+) -> AgentCapabilityManifest:
+    """Lookup the current or an exact historical agent manifest."""
+    manifest = (
+        AGENT_MANIFEST_REGISTRY_V1.get(agent_id)
+        if adapter_version is None
+        else AGENT_MANIFEST_VERSION_REGISTRY.get((agent_id, adapter_version))
+    )
     if manifest is None:
-        raise ValueError(f"Unknown agent capability manifest for '{agent_id}'")
+        suffix = (
+            "" if adapter_version is None else f" adapter version {adapter_version}"
+        )
+        raise ValueError(f"Unknown agent capability manifest for '{agent_id}'{suffix}")
     return manifest
 
 
@@ -473,7 +543,7 @@ def validate_form(
     seen_criterion_codes_casefolded: dict[str, str] = {}
 
     total_criteria = 0
-
+    required_strategies = dict(manifest.required_criterion_strategies)
     for d_idx, domain in enumerate(form.domains):
         d_path = f"domains[{d_idx}]"
         if domain.rubric_domain_id in seen_domain_ids:
@@ -627,7 +697,18 @@ def validate_form(
                             ),
                         )
                     )
-
+            required_strategy = required_strategies.get(criterion.criterion_code)
+            if required_strategy is not None and strategy != required_strategy:
+                issues.append(
+                    ValidationIssue(
+                        path=f"{c_path}.strategy_config.strategy",
+                        code="REQUIRED_CRITERION_STRATEGY_MISMATCH",
+                        message=(
+                            f"Criterion '{criterion.criterion_code}' must use strategy "
+                            f"'{required_strategy}', got '{strategy}'"
+                        ),
+                    )
+                )
     # 3. Criteria count bounds
     if total_criteria < manifest.min_criteria or total_criteria > manifest.max_criteria:
         issues.append(
@@ -686,7 +767,9 @@ def validate_form(
 
 __all__ = [
     "AGENT_MANIFEST_REGISTRY_V1",
+    "AGENT_MANIFEST_VERSION_REGISTRY",
     "COORDINATOR_MANIFEST_V1",
+    "COORDINATOR_MANIFEST_V2",
     "GAD_MANIFEST_V1",
     "ITSO_MANIFEST_V1",
     "SME_MANIFEST_V1",

@@ -270,7 +270,7 @@ def verify_evaluation_form_snapshot(
         )
 
     try:
-        manifest = get_agent_manifest(agent_id)
+        manifest = get_agent_manifest(agent_id, adapter_version)
     except ValueError as exc:
         raise SnapshotIntegrityError(
             f"Unknown agent capability manifest for '{agent_id}'"
