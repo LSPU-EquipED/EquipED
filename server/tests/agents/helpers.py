@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -19,6 +20,8 @@ from server.modules.rubrics.contracts import (
     DomainDefinition,
     FormDefinition,
     LlmRubricGuidanceConfig,
+    RatioBandConfig,
+    ShortSampleConfig,
 )
 from server.modules.rubrics.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
@@ -31,17 +34,14 @@ def _make_dummy_snapshot(
     evaluation_id: Any | None = None,
 ) -> EvaluationFormSnapshotDTO:
     """Create a minimal valid EvaluationFormSnapshotDTO matching agent manifest."""
-    import uuid
-
     eval_id = evaluation_id or uuid.uuid4()
     set_id = uuid.uuid4()
 
     if agent_id == "coordinator":
-        crit_code = "A-05"
-        strategy_config = CurriculumAlignmentConfig(
-            guidance="Verify curriculum alignment."
-        )
-    elif agent_id == "gad":
+        snapshot, _titles = make_coordinator_snapshot(eval_id)
+        return snapshot
+
+    if agent_id == "gad":
         crit_code = "GAD-01"
         strategy_config = CountBandConfig(
             mode="maximum_count",
@@ -82,6 +82,96 @@ def _make_dummy_snapshot(
         domains=(dom,),
     )
     return build_evaluation_form_snapshot(eval_id, form)
+
+
+_COORDINATOR_RATIO = RatioBandConfig(
+    mode="coverage_percentage",
+    threshold_4=80.0,
+    threshold_3=50.0,
+    threshold_2=20.0,
+)
+_COORDINATOR_CONFIGS: dict[str, Any] = {
+    "OP-01": RatioBandConfig(
+        mode="coverage_percentage",
+        threshold_4=80.0,
+        threshold_3=50.0,
+        threshold_2=20.0,
+        short_sample=ShortSampleConfig(
+            min_units=4, max_issues_4=0, max_issues_3=1, max_issues_2=2
+        ),
+    ),
+    "OP-02": CountBandConfig(
+        mode="minimum_count", threshold_4=4, threshold_3=2, threshold_2=1
+    ),
+    "OP-03": _COORDINATOR_RATIO,
+    "OP-04": _COORDINATOR_RATIO,
+    "OP-05": CountBandConfig(
+        mode="minimum_count", threshold_4=3, threshold_3=2, threshold_2=1
+    ),
+    "A-01": _COORDINATOR_RATIO,
+    "A-02": CountBandConfig(
+        mode="minimum_count", threshold_4=5, threshold_3=3, threshold_2=2
+    ),
+    "A-03": CountBandConfig(
+        mode="minimum_count", threshold_4=4, threshold_3=2, threshold_2=1
+    ),
+    "A-04": CountBandConfig(
+        mode="minimum_count", threshold_4=3, threshold_3=2, threshold_2=1
+    ),
+    "A-05": CurriculumAlignmentConfig(),
+}
+
+
+def make_coordinator_snapshot(
+    evaluation_id: Any | None = None,
+) -> tuple[EvaluationFormSnapshotDTO, dict[str, str]]:
+    """Build a 10-criterion adapter_version-2 Coordinator snapshot.
+
+    Two domains (OP: OP-01..05, A: A-01..05) with strategy configs matching
+    ``server/scripts/seed_rubrics.py::_COORDINATOR_STRATEGY_CONFIGS``. Returns
+    ``(snapshot_dto, {criterion_code: criterion_title})``.
+    """
+    eval_id = evaluation_id or uuid.uuid4()
+    titles = {code: f"{code} Criterion" for code in _COORDINATOR_CONFIGS}
+
+    def _criteria(codes: list[str]) -> tuple[CriterionDefinition, ...]:
+        return tuple(
+            CriterionDefinition(
+                rubric_criterion_id=uuid.uuid4(),
+                criterion_code=code,
+                title=titles[code],
+                description=f"Description for {code}",
+                display_order=idx,
+                strategy_config=_COORDINATOR_CONFIGS[code],
+            )
+            for idx, code in enumerate(codes)
+        )
+
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="coordinator",
+        adapter_key="coordinator",
+        adapter_version=2,
+        version_number=1,
+        name="Coordinator Form",
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="OP",
+                title="Organization & Presentation",
+                display_order=0,
+                criteria=_criteria(["OP-01", "OP-02", "OP-03", "OP-04", "OP-05"]),
+            ),
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="A",
+                title="Assessment",
+                display_order=1,
+                criteria=_criteria(["A-01", "A-02", "A-03", "A-04", "A-05"]),
+            ),
+        ),
+    )
+    return build_evaluation_form_snapshot(eval_id, form), titles
 
 
 class SequencedFakeClient:

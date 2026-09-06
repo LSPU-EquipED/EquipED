@@ -163,8 +163,10 @@ def test_valid_full_evaluation_persistence_sets_snapshot_fk(db_session) -> None:
         .filter(StoredScore.agent_result_id == by_agent["coordinator"].agent_result_id)
         .all()
     )
-    assert len(coord_scores) == 1
-    assert coord_scores[0].criterion_id == "A-05"
+    assert len(coord_scores) == 10
+    assert {s.criterion_id for s in coord_scores} == set(
+        SEEDED_FIXTURE_CRITERION_CODES["coordinator"]
+    )
 
 
 def test_valid_partial_evaluation_persistence_sets_snapshot_fk(db_session) -> None:
@@ -1286,9 +1288,18 @@ def test_persisted_malformed_noncanonical_duplicate_chunk_ids_rejected_on_recove
         verify_ownership=lambda db: None,
     )
 
+    sme_result = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=job.evaluation_id, agent_name="sme")
+        .one()
+    )
     sme_score = (
         db_session.query(StoredScore)
-        .filter_by(evaluation_id=job.evaluation_id, criterion_id="OP-01")
+        .filter_by(
+            evaluation_id=job.evaluation_id,
+            criterion_id="OP-01",
+            agent_result_id=sme_result.agent_result_id,
+        )
         .one()
     )
 

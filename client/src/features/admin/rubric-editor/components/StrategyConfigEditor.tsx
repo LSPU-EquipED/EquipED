@@ -10,14 +10,15 @@ import {
 import {
   DEFAULT_COUNT_MAX_CONFIG,
   DEFAULT_COUNT_MIN_CONFIG,
-  DEFAULT_CURRICULUM_CONFIG,
-  DEFAULT_LLM_CONFIG,
   DEFAULT_RATIO_COVERAGE_CONFIG,
   DEFAULT_RATIO_DIFF_CONFIG,
+  getDefaultStrategyConfig,
+  getRequiredStrategy,
 } from '../utils';
 
 interface StrategyConfigEditorProps {
   agentId: string;
+  criterionCode?: string;
   value: StrategyConfig;
   onChange: (config: StrategyConfig) => void;
   disabled?: boolean;
@@ -25,6 +26,7 @@ interface StrategyConfigEditorProps {
 
 export function StrategyConfigEditor({
   agentId,
+  criterionCode = '',
   value,
   onChange,
   disabled = false,
@@ -34,35 +36,15 @@ export function StrategyConfigEditor({
     maxCriteria: 20,
     description: '',
   };
-
+  const requiredStrategy = getRequiredStrategy(agentId, criterionCode);
+  const allowedStrategies = requiredStrategy ? [requiredStrategy] : agentCaps.allowedStrategies;
   const hasDescriptors =
     value.strategy === 'llm_rubric_guidance' && Boolean(value.level_descriptors?.length);
 
   const hasShortSample = value.strategy === 'ratio_band' && Boolean(value.short_sample);
 
   const handleStrategyChange = (newStrategy: ScoringStrategy) => {
-    switch (newStrategy) {
-      case 'llm_rubric_guidance':
-        onChange(DEFAULT_LLM_CONFIG);
-        break;
-      case 'count_band':
-        onChange(
-          agentCaps.allowedCountModes?.includes('maximum_count')
-            ? DEFAULT_COUNT_MAX_CONFIG
-            : DEFAULT_COUNT_MIN_CONFIG,
-        );
-        break;
-      case 'ratio_band':
-        onChange(
-          agentCaps.allowedRatioModes?.includes('absolute_difference')
-            ? DEFAULT_RATIO_DIFF_CONFIG
-            : DEFAULT_RATIO_COVERAGE_CONFIG,
-        );
-        break;
-      case 'curriculum_alignment':
-        onChange(DEFAULT_CURRICULUM_CONFIG);
-        break;
-    }
+    onChange(getDefaultStrategyConfig(newStrategy, agentId));
   };
 
   return (
@@ -80,7 +62,7 @@ export function StrategyConfigEditor({
           </p>
         </div>
 
-        {agentCaps.allowedStrategies.length > 1 ? (
+        {allowedStrategies.length > 1 ? (
           <select
             id="strategy-select"
             value={value.strategy}
@@ -88,7 +70,7 @@ export function StrategyConfigEditor({
             disabled={disabled}
             className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
-            {agentCaps.allowedStrategies.map((strat) => (
+            {allowedStrategies.map((strat) => (
               <option key={strat} value={strat}>
                 {strat === 'llm_rubric_guidance' && 'LLM Rubric Guidance'}
                 {strat === 'count_band' && 'Count Band (Discrete Count)'}
@@ -567,29 +549,29 @@ export function StrategyConfigEditor({
       {/* Curriculum Alignment Form */}
       {value.strategy === 'curriculum_alignment' && (
         <div className="grid gap-3">
-            <label
-              htmlFor="curriculum-guidance"
-              className="block text-xs font-bold uppercase tracking-wider text-text"
-            >
-              Curriculum Alignment Guidance (Optional)
-            </label>
-            <p className="text-[11px] text-text-muted mb-1">
-              Instructions for comparing module learning objectives with syllabus roadmap items.
-            </p>
-            <textarea
-              id="curriculum-guidance"
-              rows={3}
-              value={value.guidance ?? ''}
-              onChange={(e) =>
-                onChange({
-                  ...value,
-                  guidance: e.target.value.trim() ? e.target.value : null,
-                })
-              }
-              disabled={disabled}
-              placeholder="Optional alignment scoring guidance..."
-              className="w-full rounded-sm border border-input bg-surface p-2.5 text-xs font-medium text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-            />
+          <label
+            htmlFor="curriculum-guidance"
+            className="block text-xs font-bold uppercase tracking-wider text-text"
+          >
+            Curriculum Alignment Guidance (Optional)
+          </label>
+          <p className="text-[11px] text-text-muted mb-1">
+            Instructions for comparing module learning objectives with syllabus roadmap items.
+          </p>
+          <textarea
+            id="curriculum-guidance"
+            rows={3}
+            value={value.guidance ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                guidance: e.target.value.trim() ? e.target.value : null,
+              })
+            }
+            disabled={disabled}
+            placeholder="Optional alignment scoring guidance..."
+            className="w-full rounded-sm border border-input bg-surface p-2.5 text-xs font-medium text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+          />
         </div>
       )}
     </div>

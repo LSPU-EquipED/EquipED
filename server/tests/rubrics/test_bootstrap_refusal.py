@@ -19,7 +19,8 @@ from server.modules.rubrics.repository import (
     get_active_form_definition,
 )
 from server.scripts.seed_rubrics import (
-    seed_coordinator_v2_if_needed,
+    build_coordinator_v3_rubric_set,
+    seed_coordinator_v3_if_needed,
     seed_rubric_set,
 )
 
@@ -32,7 +33,7 @@ def test_fresh_seed_populates_published_and_activations(db_session):
     payload = json.loads(RUBRIC_JSON.read_text(encoding="utf-8"))
     for rubric_set_data in payload["rubric_sets"]:
         seed_rubric_set(db_session, rubric_set_data)
-    seed_coordinator_v2_if_needed(db_session)
+    seed_coordinator_v3_if_needed(db_session)
     db_session.commit()
 
     # SME v1 published and active
@@ -42,7 +43,7 @@ def test_fresh_seed_populates_published_and_activations(db_session):
     assert sme_form.adapter_key == "sme"
     assert sme_form.adapter_version == 1
 
-    # Coordinator v1 retired, Coordinator v2 published and active
+    # Coordinator v1 retired, Coordinator v3 published and active
     coord_v1 = (
         db_session.query(RubricSet)
         .filter_by(agent_id="coordinator", version_number=1)
@@ -52,13 +53,25 @@ def test_fresh_seed_populates_published_and_activations(db_session):
 
     coord_form = get_active_form_definition(db_session, "coordinator")
     assert coord_form is not None
-    assert coord_form.version_number == 2
-    assert len(coord_form.domains[0].criteria) == 1
-    assert coord_form.domains[0].criteria[0].criterion_code == "A-05"
-    assert (
-        coord_form.domains[0].criteria[0].strategy_config.strategy
-        == "curriculum_alignment"
+    assert coord_form.version_number == 3
+    assert coord_form.adapter_version == 2
+    all_codes = {c.criterion_code for d in coord_form.domains for c in d.criteria}
+    assert all_codes == {
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+    }
+    a05 = next(
+        c for d in coord_form.domains for c in d.criteria if c.criterion_code == "A-05"
     )
+    assert a05.strategy_config.strategy == "curriculum_alignment"
 
     # GAD v1 published and active
     gad_form = get_active_form_definition(db_session, "gad")
@@ -447,137 +460,116 @@ def test_seed_deployed_low_prompt_budget_rejects_seed(db_session, monkeypatch):
     with pytest.raises(ValueError, match="exceeds prompt budget 10"):
         seed_rubric_set(db_session, sme_payload)
 
-    # 2. seed_coordinator_v2_if_needed fails
+    # 2. seed_coordinator_v3_if_needed fails
     with pytest.raises(ValueError, match="exceeds prompt budget 10"):
-        seed_coordinator_v2_if_needed(db_session)
+        seed_coordinator_v3_if_needed(db_session)
 
 
-def test_seed_coordinator_v2_existing_validation_and_activation_handling(db_session):
-    """Test existing coordinator v2 validation, pointer repair, and preservation."""
+def test_seed_coordinator_v3_existing_validation_and_activation_handling(db_session):
+    """Existing coordinator v3 status guard, missing-activation repair, no-op."""
     now = datetime.now(UTC)
 
-    # 1. Existing v2 with invalid status (draft) fails closed
-    v2_draft = RubricSet(
-        rubric_set_id=uuid.uuid4(),
-        agent_id="coordinator",
-        name="Coordinator Rubric v2",
-        version_number=2,
-        status="draft",
-        adapter_key="coordinator",
-        adapter_version=1,
-        created_at=now,
-    )
-    db_session.add(v2_draft)
-    db_session.flush()
-
-    with pytest.raises(ValueError, match="invalid status 'draft'"):
-        seed_coordinator_v2_if_needed(db_session)
-
-    # Fix status to published and add valid domain/criterion
-    v2_draft.status = "published"
-    v2_draft.published_at = now
-    db_session.flush()
-
-    dom = RubricDomain(
-        rubric_domain_id=uuid.uuid4(),
-        rubric_set_id=v2_draft.rubric_set_id,
-        code="A",
-        title="Assessment",
-        display_order=1,
-    )
-    db_session.add(dom)
-    db_session.flush()
-
-    crit = RubricCriterion(
-        rubric_criterion_id=uuid.uuid4(),
-        rubric_domain_id=dom.rubric_domain_id,
-        criterion_code="A-05",
-        title="Curriculum Alignment",
-        description="Eval curriculum alignment.",
-        scoring_rule="Rule.",
-        scoring_strategy="curriculum_alignment",
-        strategy_config={"strategy": "curriculum_alignment"},
-        display_order=1,
-    )
-    db_session.add(crit)
-    db_session.commit()
-
-    # 2. Missing activation repaired only to valid v2
-    assert (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one_or_none()
-        is None
-    )
-    res = seed_coordinator_v2_if_needed(db_session)
-    assert res is not None
-    act = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one_or_none()
-    )
-    assert act is not None
-    assert act.rubric_set_id == v2_draft.rubric_set_id
-    assert act.updated_by is None
-
-    # 3. Already pointing to v2 is a no-op
-    res2 = seed_coordinator_v2_if_needed(db_session)
-    assert res2.rubric_set_id == v2_draft.rubric_set_id
-
-    # 4. Admin points coordinator activation to a different valid revision (v3)
-    v3_set = RubricSet(
+    # 1. Existing v3 with invalid status (draft) fails closed
+    v3_draft = RubricSet(
         rubric_set_id=uuid.uuid4(),
         agent_id="coordinator",
         name="Coordinator Rubric v3",
         version_number=3,
-        status="published",
+        status="draft",
         adapter_key="coordinator",
-        adapter_version=1,
-        published_at=now,
+        adapter_version=2,
         created_at=now,
     )
-    db_session.add(v3_set)
+    db_session.add(v3_draft)
     db_session.flush()
 
-    dom3 = RubricDomain(
-        rubric_domain_id=uuid.uuid4(),
-        rubric_set_id=v3_set.rubric_set_id,
-        code="A",
-        title="Assessment",
-        display_order=1,
-    )
-    db_session.add(dom3)
+    with pytest.raises(ValueError, match="invalid status 'draft'"):
+        seed_coordinator_v3_if_needed(db_session)
+
+    # Drop the malformed stub so the create path can build a real v3
+    db_session.delete(v3_draft)
     db_session.flush()
 
-    crit3 = RubricCriterion(
-        rubric_criterion_id=uuid.uuid4(),
-        rubric_domain_id=dom3.rubric_domain_id,
-        criterion_code="A-05",
-        title="Curriculum Alignment v3",
-        description="Eval curriculum alignment v3.",
-        scoring_rule="Rule v3.",
-        scoring_strategy="curriculum_alignment",
-        strategy_config={"strategy": "curriculum_alignment"},
-        display_order=1,
+    # 2. Fresh create path builds and activates the real v3
+    created = seed_coordinator_v3_if_needed(db_session)
+    db_session.commit()
+    act = (
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
-    db_session.add(crit3)
+    assert act.rubric_set_id == created.rubric_set_id
+    assert act.updated_by is None
+
+    # 3. Missing activation is repaired back to the existing valid v3
+    db_session.delete(act)
+    db_session.commit()
+    seed_coordinator_v3_if_needed(db_session)
+    repaired = (
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
+    )
+    assert repaired.rubric_set_id == created.rubric_set_id
+    assert repaired.updated_by is None
+
+    # 4. Already pointing to v3 is a no-op
+    res = seed_coordinator_v3_if_needed(db_session)
+    assert res.rubric_set_id == created.rubric_set_id
+
+
+def test_seed_coordinator_v3_preserves_admin_repointed_activation(db_session):
+    """Admin repointed the coordinator activation to another valid published
+    revision -> the seed must not stomp it."""
+    created = seed_coordinator_v3_if_needed(db_session)
+    db_session.commit()
+
+    # A second valid published 10-criterion coordinator revision (v4).
+    v4_set = build_coordinator_v3_rubric_set(
+        db_session,
+        version_number=4,
+        name="Coordinator Rubric v4",
+    )
+    db_session.flush()
 
     admin_actor = uuid.uuid4()
-    act.rubric_set_id = v3_set.rubric_set_id
+    act = (
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
+    )
+    act.rubric_set_id = v4_set.rubric_set_id
     act.updated_by = admin_actor
     db_session.commit()
 
-    # seed_coordinator_v2_if_needed preserves admin choice
-    seed_coordinator_v2_if_needed(db_session)
-    refreshed_act = (
+    seed_coordinator_v3_if_needed(db_session)
+
+    refreshed = (
         db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
-    assert refreshed_act.rubric_set_id == v3_set.rubric_set_id
-    assert refreshed_act.updated_by == admin_actor
+    assert refreshed.rubric_set_id == v4_set.rubric_set_id
+    assert refreshed.updated_by == admin_actor
+    assert created.rubric_set_id != v4_set.rubric_set_id
 
-    # 5. Activation pointing to malformed/retired target fails closed
-    v3_set.status = "retired"
+
+def test_seed_coordinator_v3_fails_closed_when_activation_points_at_retired(
+    db_session,
+):
+    """Activation pointing at a non-published coordinator set fails closed."""
+    payload = json.loads(RUBRIC_JSON.read_text(encoding="utf-8"))
+    coord_payload = next(
+        s for s in payload["rubric_sets"] if s["agent_id"] == "coordinator"
+    )
+    seed_rubric_set(db_session, coord_payload)  # coordinator v1 -> retired
+    retired_v1 = (
+        db_session.query(RubricSet)
+        .filter_by(agent_id="coordinator", version_number=1)
+        .one()
+    )
+    assert retired_v1.status == "retired"
+
+    seed_coordinator_v3_if_needed(db_session)
+    db_session.commit()
+
+    act = (
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
+    )
+    act.rubric_set_id = retired_v1.rubric_set_id
     db_session.commit()
 
     with pytest.raises(ValueError, match="invalid status 'retired'"):
-        seed_coordinator_v2_if_needed(db_session)
+        seed_coordinator_v3_if_needed(db_session)

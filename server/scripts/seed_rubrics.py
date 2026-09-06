@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from server.core.database import get_session_factory
+from server.modules.agents.coordinator.scoring_rules import COORDINATOR_SCORING_RULES
 from server.modules.rubrics.contracts import (
     CriterionDefinition,
     DomainDefinition,
@@ -132,6 +133,81 @@ SME_STRATEGY_CONFIGS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Coordinator v3 mirrors SME's per-criterion count/ratio configs for the nine
+# shared OP/A criteria; A-05 is the grounded curriculum_alignment strategy.
+_COORDINATOR_STRATEGY_CONFIGS: dict[str, dict[str, Any]] = {
+    "OP-01": {
+        "strategy": "ratio_band",
+        "mode": "coverage_percentage",
+        "threshold_4": 80.0,
+        "threshold_3": 50.0,
+        "threshold_2": 20.0,
+        "short_sample": {
+            "min_units": 4,
+            "max_issues_4": 0,
+            "max_issues_3": 1,
+            "max_issues_2": 2,
+        },
+    },
+    "OP-02": {
+        "strategy": "count_band",
+        "mode": "minimum_count",
+        "threshold_4": 4,
+        "threshold_3": 2,
+        "threshold_2": 1,
+    },
+    "OP-03": {
+        "strategy": "ratio_band",
+        "mode": "coverage_percentage",
+        "threshold_4": 80.0,
+        "threshold_3": 50.0,
+        "threshold_2": 20.0,
+    },
+    "OP-04": {
+        "strategy": "ratio_band",
+        "mode": "coverage_percentage",
+        "threshold_4": 80.0,
+        "threshold_3": 50.0,
+        "threshold_2": 20.0,
+    },
+    "OP-05": {
+        "strategy": "count_band",
+        "mode": "minimum_count",
+        "threshold_4": 3,
+        "threshold_3": 2,
+        "threshold_2": 1,
+    },
+    "A-01": {
+        "strategy": "ratio_band",
+        "mode": "coverage_percentage",
+        "threshold_4": 80.0,
+        "threshold_3": 50.0,
+        "threshold_2": 20.0,
+    },
+    "A-02": {
+        "strategy": "count_band",
+        "mode": "minimum_count",
+        "threshold_4": 5,
+        "threshold_3": 3,
+        "threshold_2": 2,
+    },
+    "A-03": {
+        "strategy": "count_band",
+        "mode": "minimum_count",
+        "threshold_4": 4,
+        "threshold_3": 2,
+        "threshold_2": 1,
+    },
+    "A-04": {
+        "strategy": "count_band",
+        "mode": "minimum_count",
+        "threshold_4": 3,
+        "threshold_3": 2,
+        "threshold_2": 1,
+    },
+    "A-05": {"strategy": "curriculum_alignment"},
+}
+
 GAD_STRATEGY_CONFIGS: dict[str, dict[str, Any]] = {
     "GAD-01": {
         "strategy": "count_band",
@@ -214,9 +290,10 @@ def _resolve_criterion_strategy(
         guidance = description or criterion_code
         cfg = {"strategy": "llm_rubric_guidance", "guidance": guidance}
         return "llm_rubric_guidance", cfg
-    elif agent_id == "coordinator" and criterion_code == "A-05":
-        cfg = {"strategy": "curriculum_alignment"}
-        return "curriculum_alignment", cfg
+    elif agent_id == "coordinator":
+        cfg = _COORDINATOR_STRATEGY_CONFIGS.get(criterion_code)
+        if cfg:
+            return cfg["strategy"], cfg
 
     return None, None
 
@@ -467,7 +544,7 @@ def main() -> int:
     try:
         for rubric_set_data in rubric_sets:
             seed_rubric_set(session, rubric_set_data)
-        seed_coordinator_v2_if_needed(session)
+        seed_coordinator_v3_if_needed(session)
         session.commit()
     finally:
         session.close()
@@ -589,30 +666,205 @@ def seed_domain(
     return domain
 
 
-def seed_coordinator_v2_if_needed(session: Any) -> RubricSet | None:
-    """Create and activate Coordinator Revision 2 (A-05) if not present."""
-    existing_v2 = (
+# Canonical Coordinator Rubric v3 form: OP domain then A domain, five criteria
+# each. Titles/descriptions mirror the retired coordinator v1 metadata, except
+# A-05 which becomes the grounded curriculum-alignment criterion.
+_COORDINATOR_V3_DOMAINS: list[dict[str, Any]] = [
+    {
+        "code": "OP",
+        "title": "Organization & Presentation",
+        "display_order": 1,
+        "criteria": [
+            {
+                "criterion_code": "OP-01",
+                "title": "Topic Coherence",
+                "description": "Topics are coherent from Unit to Chapter.",
+                "display_order": 1,
+            },
+            {
+                "criterion_code": "OP-02",
+                "title": "Interactivity",
+                "description": (
+                    "Material is interactive in each lesson which makes "
+                    "life-long learning easier."
+                ),
+                "display_order": 2,
+            },
+            {
+                "criterion_code": "OP-03",
+                "title": "Clear Directions",
+                "description": (
+                    "Directions are clear and complete enough for students "
+                    "to perform required tasks."
+                ),
+                "display_order": 3,
+            },
+            {
+                "criterion_code": "OP-04",
+                "title": "Accurate Sections",
+                "description": (
+                    "Paragraphs and sections have clear and accurate "
+                    "information."
+                ),
+                "display_order": 4,
+            },
+            {
+                "criterion_code": "OP-05",
+                "title": "Enhancement Activities",
+                "description": "Enhancement activities for students are provided.",
+                "display_order": 5,
+            },
+        ],
+    },
+    {
+        "code": "A",
+        "title": "Assessment",
+        "display_order": 2,
+        "criteria": [
+            {
+                "criterion_code": "A-01",
+                "title": "Learner Transformation",
+                "description": "Students are engaged in transforming what they learn.",
+                "display_order": 1,
+            },
+            {
+                "criterion_code": "A-02",
+                "title": "Varied Assessment Tools",
+                "description": (
+                    "Teachers can easily assess students' progress by using "
+                    "varied assessment tools."
+                ),
+                "display_order": 2,
+            },
+            {
+                "criterion_code": "A-03",
+                "title": "Progress Monitoring",
+                "description": (
+                    "The material keeps an on-going record of students' "
+                    "progress and allows the teacher to monitor student "
+                    "performance."
+                ),
+                "display_order": 3,
+            },
+            {
+                "criterion_code": "A-04",
+                "title": "Prescriptive Feedback",
+                "description": (
+                    "Positive, meaningful feedback, and prescriptive guides "
+                    "for interventions are provided."
+                ),
+                "display_order": 4,
+            },
+            {
+                "criterion_code": "A-05",
+                "title": "Curriculum Alignment",
+                "description": (
+                    "Evaluate alignment between the student learning "
+                    "material's stated objectives and the confirmed course "
+                    "curriculum/syllabus topics."
+                ),
+                "display_order": 5,
+            },
+        ],
+    },
+]
+
+
+def _validate_coordinator_revision(session: Any, rubric_set_id: uuid.UUID) -> None:
+    """Load and manifest-validate a persisted coordinator revision, or raise."""
+    form_def = get_form_definition_by_id(session, rubric_set_id)
+    if form_def is None:
+        raise LookupError(f"Failed to load form definition for {rubric_set_id}")
+    report = validate_form_definition(form_def)
+    if not report.is_valid:
+        error_msgs = "; ".join(f"{i.path}: {i.message}" for i in report.errors)
+        raise ValueError(
+            f"Coordinator revision {rubric_set_id} failed manifest "
+            f"validation: {error_msgs}"
+        )
+
+
+def build_coordinator_v3_rubric_set(
+    session: Any,
+    *,
+    version_number: int,
+    name: str,
+    status: str = "published",
+) -> RubricSet:
+    """Persist a published Coordinator rubric set with the canonical 10 criteria.
+
+    Shared by the v3 seed create-path and by tests that need a second valid
+    Coordinator revision. Does not touch activation.
+    """
+    now = datetime.now(UTC)
+    rubric_set = RubricSet(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="coordinator",
+        name=name,
+        version_number=version_number,
+        status=status,
+        adapter_key="coordinator",
+        adapter_version=2,
+        published_at=now if status == "published" else None,
+        published_by=None,
+        created_by=None,
+        created_at=now,
+    )
+    session.add(rubric_set)
+    session.flush()
+
+    for domain_spec in _COORDINATOR_V3_DOMAINS:
+        domain = RubricDomain(
+            rubric_domain_id=uuid.uuid4(),
+            rubric_set_id=rubric_set.rubric_set_id,
+            code=str(domain_spec["code"]),
+            title=str(domain_spec["title"]),
+            display_order=int(domain_spec["display_order"]),
+        )
+        session.add(domain)
+        session.flush()
+
+        for crit_spec in domain_spec["criteria"]:
+            code = str(crit_spec["criterion_code"])
+            desc = str(crit_spec["description"])
+            strat, cfg = _resolve_criterion_strategy("coordinator", code, desc, {})
+            if strat is None or cfg is None:
+                raise ValueError(
+                    f"Coordinator criterion {code} could not resolve a "
+                    "scoring strategy"
+                )
+            session.add(
+                RubricCriterion(
+                    rubric_criterion_id=uuid.uuid4(),
+                    rubric_domain_id=domain.rubric_domain_id,
+                    criterion_code=code,
+                    title=str(crit_spec["title"]),
+                    description=desc,
+                    scoring_rule=COORDINATOR_SCORING_RULES.get(code),
+                    scoring_strategy=strat,
+                    strategy_config=cfg,
+                    display_order=int(crit_spec["display_order"]),
+                )
+            )
+        session.flush()
+
+    return rubric_set
+
+
+def seed_coordinator_v3_if_needed(session: Any) -> RubricSet | None:
+    """Create and activate Coordinator Revision 3 (10 criteria) if not present."""
+    existing_v3 = (
         session.query(RubricSet)
-        .filter_by(agent_id="coordinator", version_number=2)
+        .filter_by(agent_id="coordinator", version_number=3)
         .one_or_none()
     )
-    if existing_v2 is not None:
-        if existing_v2.status != "published":
+    if existing_v3 is not None:
+        if existing_v3.status != "published":
             raise ValueError(
-                f"Existing Coordinator v2 has invalid status '{existing_v2.status}'; "
-                "must be 'published'"
+                f"Existing Coordinator v3 has invalid status "
+                f"'{existing_v3.status}'; must be 'published'"
             )
-        form_def = get_form_definition_by_id(session, existing_v2.rubric_set_id)
-        if form_def is None:
-            raise LookupError(
-                f"Failed to load form definition for {existing_v2.rubric_set_id}"
-            )
-        report = validate_form_definition(form_def)
-        if not report.is_valid:
-            error_msgs = "; ".join(f"{i.path}: {i.message}" for i in report.errors)
-            raise ValueError(
-                f"Existing Coordinator v2 failed manifest validation: {error_msgs}"
-            )
+        _validate_coordinator_revision(session, existing_v3.rubric_set_id)
 
         activation = (
             session.query(RubricAgentActivation)
@@ -623,12 +875,12 @@ def seed_coordinator_v2_if_needed(session: Any) -> RubricSet | None:
             activate_revision(
                 session,
                 "coordinator",
-                existing_v2.rubric_set_id,
+                existing_v3.rubric_set_id,
                 actor_id=None,
                 is_system=True,
             )
             session.flush()
-        elif activation.rubric_set_id == existing_v2.rubric_set_id:
+        elif activation.rubric_set_id == existing_v3.rubric_set_id:
             pass
         else:
             active_target = (
@@ -652,90 +904,27 @@ def seed_coordinator_v2_if_needed(session: Any) -> RubricSet | None:
                     f"{active_target.rubric_set_id} with invalid status "
                     f"'{active_target.status}'"
                 )
-            target_form_def = get_form_definition_by_id(
-                session, active_target.rubric_set_id
-            )
-            if target_form_def is None:
-                raise LookupError(
-                    "Failed to load form definition for active rubric set "
-                    f"{active_target.rubric_set_id}"
-                )
-            target_report = validate_form_definition(target_form_def)
-            if not target_report.is_valid:
-                error_msgs = "; ".join(
-                    f"{i.path}: {i.message}" for i in target_report.errors
-                )
-                raise ValueError(
-                    "Coordinator active revision failed manifest validation: "
-                    f"{error_msgs}"
-                )
+            _validate_coordinator_revision(session, active_target.rubric_set_id)
             # preserve admin choice, do not override
-        return existing_v2
+        return existing_v3
 
-    now = datetime.now(UTC)
-    v2_set = RubricSet(
-        rubric_set_id=uuid.uuid4(),
-        agent_id="coordinator",
-        name="Coordinator Rubric v2",
-        version_number=2,
-        status="published",
-        adapter_key="coordinator",
-        adapter_version=1,
-        published_at=now,
-        published_by=None,
-        created_by=None,
-        created_at=now,
+    v3_set = build_coordinator_v3_rubric_set(
+        session,
+        version_number=3,
+        name="Coordinator Rubric v3",
     )
-    session.add(v2_set)
-    session.flush()
-
-    v2_domain = RubricDomain(
-        rubric_domain_id=uuid.uuid4(),
-        rubric_set_id=v2_set.rubric_set_id,
-        code="A",
-        title="Assessment",
-        display_order=1,
-    )
-    session.add(v2_domain)
-    session.flush()
-
-    v2_criterion = RubricCriterion(
-        rubric_criterion_id=uuid.uuid4(),
-        rubric_domain_id=v2_domain.rubric_domain_id,
-        criterion_code="A-05",
-        title="Curriculum Alignment",
-        description=(
-            "Evaluate alignment between student learning material and "
-            "confirmed course curriculum/syllabus topics."
-        ),
-        scoring_rule=(
-            "Grounded curriculum alignment scoring for course syllabus topics."
-        ),
-        scoring_strategy="curriculum_alignment",
-        strategy_config={"strategy": "curriculum_alignment"},
-        display_order=1,
-    )
-    session.add(v2_criterion)
-    session.flush()
-
-    form_def = get_form_definition_by_id(session, v2_set.rubric_set_id)
-    if form_def is None:
-        raise LookupError(f"Failed to load form definition for {v2_set.rubric_set_id}")
-    report = validate_form_definition(form_def)
-    if not report.is_valid:
-        error_msgs = "; ".join(f"{i.path}: {i.message}" for i in report.errors)
-        raise ValueError(f"Coordinator v2 failed manifest validation: {error_msgs}")
+    _validate_coordinator_revision(session, v3_set.rubric_set_id)
 
     activate_revision(
         session,
         "coordinator",
-        v2_set.rubric_set_id,
+        v3_set.rubric_set_id,
         actor_id=None,
         is_system=True,
     )
 
     session.flush()
-    return v2_set
+    return v3_set
 
 
 if __name__ == "__main__":

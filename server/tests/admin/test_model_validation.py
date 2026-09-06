@@ -106,7 +106,6 @@ def _seed_active_rubrics(
         "sme": "SME-1",
         "gad": "GAD-1",
         "itso": "ITSO-1",
-        "coordinator": "A-05",
     }
     configs = {
         "sme": {
@@ -127,20 +126,18 @@ def _seed_active_rubrics(
             "strategy": "llm_rubric_guidance",
             "guidance": "ITSO guidance",
         },
-        "coordinator": {
-            "strategy": "curriculum_alignment",
-            "guidance": "Coordinator guidance",
-        },
     }
     now = datetime.now(UTC)
     for agent_id in ("sme", "gad", "itso", "coordinator"):
+        is_coordinator = agent_id == "coordinator"
         rubric_set = RubricSet(
             agent_id=agent_id,
             name=f"{agent_id} validation rubric",
-            version_number=1,
+            # Coordinator Rubric v3 == adapter_version 2, 10 criteria.
+            version_number=3 if is_coordinator else 1,
             status="published",
             adapter_key=agent_id,
-            adapter_version=1,
+            adapter_version=2 if is_coordinator else 1,
             published_at=now,
         )
         db_session.add(rubric_set)
@@ -153,6 +150,19 @@ def _seed_active_rubrics(
                 updated_at=now,
             )
         )
+        if is_coordinator:
+            crits = _seed_coordinator_v3_criteria(db_session, rubric_set, now)
+            if agent_id in target_agents:
+                expected_scores.extend(
+                    {
+                        "agent_id": agent_id,
+                        "rubric_set_id": str(rubric_set.rubric_set_id),
+                        "rubric_criterion_id": str(crit.rubric_criterion_id),
+                        "expected_score": scores[agent_id],
+                    }
+                    for crit in crits
+                )
+            continue
         domain = RubricDomain(
             rubric_set_id=rubric_set.rubric_set_id,
             code=f"{agent_id}-domain",
@@ -183,6 +193,49 @@ def _seed_active_rubrics(
             )
     db_session.commit()
     return expected_scores
+
+
+_COORDINATOR_V3_DOMAINS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    (
+        "OP",
+        "Organization & Presentation",
+        ("OP-01", "OP-02", "OP-03", "OP-04", "OP-05"),
+    ),
+    ("A", "Assessment", ("A-01", "A-02", "A-03", "A-04", "A-05")),
+)
+
+
+def _seed_coordinator_v3_criteria(
+    db_session, rubric_set, now
+) -> list[RubricCriterion]:
+    """Seed the 10-criterion Coordinator Rubric v3 (OP + A domains)."""
+    from server.scripts.seed_rubrics import _COORDINATOR_STRATEGY_CONFIGS
+
+    crits: list[RubricCriterion] = []
+    for order, (dcode, dtitle, ccodes) in enumerate(_COORDINATOR_V3_DOMAINS, start=1):
+        domain = RubricDomain(
+            rubric_set_id=rubric_set.rubric_set_id,
+            code=dcode,
+            title=dtitle,
+            display_order=order,
+        )
+        db_session.add(domain)
+        db_session.flush()
+        for c_order, ccode in enumerate(ccodes, start=1):
+            cfg = _COORDINATOR_STRATEGY_CONFIGS[ccode]
+            criterion = RubricCriterion(
+                rubric_domain_id=domain.rubric_domain_id,
+                criterion_code=ccode,
+                title=f"Coordinator {ccode}",
+                description=f"Expected coordinator behavior for {ccode}",
+                scoring_strategy=cfg["strategy"],
+                strategy_config=cfg,
+                display_order=c_order,
+            )
+            db_session.add(criterion)
+            db_session.flush()
+            crits.append(criterion)
+    return crits
 
 
 def _setup_validation(
@@ -312,7 +365,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_response = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_response.status_code == 200
-    assert criteria_response.json()["total_criteria"] == 4
+    # 1 each for sme/gad/itso + 10 for the Coordinator v3 rubric.
+    assert criteria_response.json()["total_criteria"] == 13
 
     # Regression check: higher version published rubric is ignored if not activated.
     sme_v2 = RubricSet(
@@ -355,7 +409,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_resp_v2 = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_resp_v2.status_code == 200
-    assert criteria_resp_v2.json()["total_criteria"] == 4
+    assert criteria_resp_v2.json()["total_criteria"] == 13
     sme_group = next(
         g for g in criteria_resp_v2.json()["agents"] if g["agent_id"] == "sme"
     )
@@ -650,7 +704,8 @@ def test_validation_full_requires_curriculum_and_all_four_agents(
     data = resp_full.json()
     assert data["partial_without_curriculum"] is False
     assert len(data["bound_forms"]) == 4
-    assert len(data["criterion_scores"]) == 4
+    # sme/gad/itso 1 each + 10 Coordinator v3 criteria.
+    assert len(data["criterion_scores"]) == 13
 
 
 def test_validation_explicit_partial_without_curriculum(

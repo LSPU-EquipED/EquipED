@@ -33,9 +33,9 @@ from .models import (
 
 
 def validate_form_definition(form: FormDefinition) -> ValidationReport:
-    """Validate a FormDefinition against manifest and deployed budget setting."""
+    """Validate against the form's own adapter_version manifest."""
     agent_id = form.agent_id
-    manifest = get_agent_manifest(agent_id)
+    manifest = get_agent_manifest(agent_id, form.adapter_version)
 
     setting_name = manifest.prompt_budget_setting
     settings = get_settings()

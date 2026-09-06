@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
+    CurriculumAlignmentConfig,
     DomainDefinition,
     FormDefinition,
     LlmRubricGuidanceConfig,
@@ -637,6 +638,40 @@ def test_hash_tamper_rejected():
             snapshot_hash=fake_hash,
             snapshot_payload=dto.snapshot_payload.model_dump(mode="json"),
         )
+
+
+def test_historical_coordinator_adapter_v1_snapshot_remains_readable():
+    eval_id = uuid.uuid4()
+    criterion = _sample_criterion(
+        code="A-05",
+        strategy_config=CurriculumAlignmentConfig(
+            guidance="Evaluate syllabus objective alignment."
+        ),
+    )
+    form = _sample_form(
+        agent_id="coordinator",
+        name="Historical Coordinator Form",
+        adapter_key="coordinator",
+        adapter_version=1,
+        domains=(_sample_domain(criteria=(criterion,)),),
+    )
+    dto = build_evaluation_form_snapshot(eval_id, form)
+
+    verified = verify_evaluation_form_snapshot(
+        snapshot_id=dto.snapshot_id,
+        evaluation_id=eval_id,
+        agent_id="coordinator",
+        rubric_set_id=form.rubric_set_id,
+        adapter_key="coordinator",
+        adapter_version=1,
+        snapshot_hash=dto.snapshot_hash,
+        snapshot_payload=dto.snapshot_payload.model_dump(mode="json"),
+    )
+
+    assert verified == dto
+    # Central validator resolves the form's own adapter_version (v1 here),
+    # so a historical v1 form stays valid even though current is v2.
+    assert validate_form_definition(form).is_valid
 
 
 # ---------------------------------------------------------------------------

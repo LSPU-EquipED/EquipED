@@ -23,9 +23,11 @@ from server.tests.rubrics.conftest import _auth
 from server.tests.rubrics.test_rubrics import _seed_from_json
 
 
-def _criterion(db_session, agent_id: str, code: str) -> RubricCriterion:
-    """Fetch one criterion by agent + code."""
-    return (
+def _criterion(
+    db_session, agent_id: str, code: str, *, status: str | None = None
+) -> RubricCriterion:
+    """Fetch one criterion by agent + code (optionally scoped to a set status)."""
+    query = (
         db_session.query(RubricCriterion)
         .join(
             RubricDomain,
@@ -33,8 +35,10 @@ def _criterion(db_session, agent_id: str, code: str) -> RubricCriterion:
         )
         .join(RubricSet, RubricDomain.rubric_set_id == RubricSet.rubric_set_id)
         .filter(RubricSet.agent_id == agent_id, RubricCriterion.criterion_code == code)
-        .one()
     )
+    if status is not None:
+        query = query.filter(RubricSet.status == status)
+    return query.one()
 
 
 def _create_draft_tree(
@@ -240,7 +244,7 @@ def test_update_criterion_on_retired_set_raises_rubric_conflict_error(
 ) -> None:
     _seed_from_json(db_session)
     # Coordinator v1 is retired
-    retired_criterion = _criterion(db_session, "coordinator", "OP-01")
+    retired_criterion = _criterion(db_session, "coordinator", "OP-01", status="retired")
     old_desc = retired_criterion.description
 
     with pytest.raises(RubricConflictError):
@@ -464,7 +468,7 @@ def test_patch_retired_criterion_returns_409_and_leaves_db_unchanged(
     client: TestClient, auth_cookies_admin, db_session
 ) -> None:
     _seed_from_json(db_session)
-    retired_criterion = _criterion(db_session, "coordinator", "OP-01")
+    retired_criterion = _criterion(db_session, "coordinator", "OP-01", status="retired")
     old_desc = retired_criterion.description
 
     _auth(client, auth_cookies_admin)

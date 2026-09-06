@@ -66,13 +66,22 @@ The system SHALL evaluate criteria using an allowlisted set of registered typed 
 - **THEN** the system SHALL reject the configuration with a structured validation error and prevent publication
 
 ### Requirement: Agent capability manifests and pure form validation
-The system SHALL require each draft form revision to pass pure structural validation against its target agent capability manifest via `validate_form(form, manifest)` before it can be published or activated. The system SHALL enforce four immutable capability manifests without plugin registries or inheritance:
+The system SHALL require each draft form revision to pass pure structural validation against its target agent capability manifest via `validate_form(form, manifest)` before it can be published or activated. The system SHALL enforce explicit immutable versioned capability manifests without plugin registries or inheritance:
 - **SME Manifest v1**: Allows `llm_rubric_guidance`, `count_band` in `minimum_count` mode, and `ratio_band`; requires 1–20 unique criteria; measurement input shapes are score/evidence, grounded instance list, or grounded qualifying/total units. Ratio config supports `coverage_percentage` and optional short-sample override.
 - **GAD Manifest v1**: Allows `count_band` in `maximum_count` mode for grounded adverse-instance lists and `ratio_band` for paired female/male counts using `absolute_difference` mode; requires 1–10 unique criteria. Revision 1 SHALL preserve GAD-01 maximum-count thresholds 0/1/3 for scores 4/3/2 and GAD-03/04/05 thresholds 0/2/5, with larger counts scoring 1.
 - **ITSO Manifest v1**: Allows `llm_rubric_guidance`; requires 1–10 unique criteria.
-- **Coordinator Manifest v1**: Allows exactly 1 criterion with `curriculum_alignment` (A-05); expansion to multi-criterion Coordinator forms requires a new adapter manifest version.
+- **Coordinator Manifest v1**: Allows exactly one A-05 criterion using `curriculum_alignment`. Historical revision-2 snapshots bound to adapter v1 SHALL remain executable through the current Coordinator pipeline.
+- **Coordinator Manifest v2**: Requires exactly the ten criterion codes OP-01 through OP-05 and A-01 through A-05. It allows `curriculum_alignment`, `llm_rubric_guidance`, `count_band` in `minimum_count` mode, and `ratio_band` in `coverage_percentage` mode; A-05 SHALL use `curriculum_alignment`.
 
-SME, GAD, and ITSO adapter v1 SHALL accept genuinely new criterion codes when the configured strategy maps to an existing supported measurement shape. The criterion's snapshot-bound title, description, scoring rule, guidance, thresholds, domain, and display order SHALL define its bounded extraction and scoring contract; runtime execution SHALL NOT require a code-specific plugin or executable formula. Criterion codes SHALL be globally unique case-insensitively within a form. A criterion requiring a new measurement shape, or any Coordinator expansion beyond A-05, SHALL require a new adapter version.
+SME, GAD, and ITSO adapter v1 SHALL accept genuinely new criterion codes when the configured strategy maps to an existing supported measurement shape. The criterion's snapshot-bound title, description, scoring rule, guidance, thresholds, domain, and display order SHALL define its bounded extraction and scoring contract; runtime execution SHALL NOT require a code-specific plugin or executable formula. Criterion codes SHALL be globally unique case-insensitively within a form. A criterion requiring a new measurement shape, or a future Coordinator contract outside its deployed v1 or v2 manifest, SHALL require a new adapter version.
+
+#### Scenario: Historical Coordinator adapter-v1 snapshot resumes
+- **WHEN** recovery dispatches a valid frozen Coordinator adapter-v1 snapshot containing the single A-05 curriculum-alignment criterion
+- **THEN** the current Coordinator execution pipeline SHALL evaluate that snapshot without restoring retired legacy scoring or transport modules
+
+#### Scenario: Coordinator adapter-v2 draft satisfies exact form contract
+- **WHEN** an admin validates a Coordinator adapter-v2 draft containing exactly OP-01 through OP-05 and A-01 through A-05 with A-05 configured for curriculum alignment
+- **THEN** the system SHALL accept the form when all remaining strategy configurations and prompt budgets conform to Coordinator Manifest v2
 
 #### Scenario: Draft revision passes agent capability manifest validation
 - **WHEN** an admin validates a draft revision whose structure and strategy types conform to the agent capability manifest and prompt budget
