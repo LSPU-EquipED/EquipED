@@ -135,7 +135,7 @@ class RunLLMClient:
 
     def generate_result(
         self,
-        prompt: str,
+        prompt: Any,
         *,
         temperature: float,
         max_new_tokens: int,

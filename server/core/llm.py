@@ -346,9 +346,24 @@ class LocalLLMClient:
         end = deadline or time.monotonic() + (
             self.request_timeout or settings.llm_request_timeout_seconds
         )
+        if hasattr(prompt, "messages"):
+            messages = [{"role": m.role, "content": m.content} for m in prompt.messages]
+        elif isinstance(prompt, (list, tuple)):
+            messages = [
+                {
+                    "role": getattr(m, "role", None) or m.get("role", "user"),
+                    "content": getattr(m, "content", None) or m.get("content", str(m)),
+                }
+                if isinstance(m, dict) or hasattr(m, "role")
+                else {"role": "user", "content": str(m)}
+                for m in prompt
+            ]
+        else:
+            messages = [{"role": "user", "content": str(prompt)}]
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "response_format": {"type": contract.mode},
             "temperature": temperature,
             "max_tokens": max_new_tokens,
