@@ -13,7 +13,7 @@ type CriterionDraft = {
 };
 
 type AgentReviewModalProps = {
-  readonly agentName: 'itso' | 'sme';
+  readonly agentName: string;
   readonly evaluationId: string;
   readonly criteria: readonly CriterionScoreItem[];
   readonly onClose: () => void;
@@ -93,7 +93,7 @@ export function AgentReviewModal({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const mutation = useSubmitCriterionFeedback(evaluationId);
-  const agentLabel = agentName === 'itso' ? 'ITSO' : 'SME';
+  const agentLabel = agentName.toUpperCase();
 
   function updateDraft(criterionId: string, patch: Partial<CriterionDraft>) {
     setDrafts((prev) => ({ ...prev, [criterionId]: { ...prev[criterionId], ...patch } }));
