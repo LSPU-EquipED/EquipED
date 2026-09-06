@@ -204,7 +204,6 @@ export function RubricTableEditor() {
     maxCriteria: 20,
     description: '',
   };
-
   // Atomic domain reorder (Up / Down)
   const handleMoveDomain = (domainIndex: number, direction: 'up' | 'down') => {
     if (!currentRevision || !isDraft) return;
@@ -385,7 +384,12 @@ export function RubricTableEditor() {
     deleteCriterionMutation.error;
   if (revisionsQuery.isLoading) {
     return (
-      <div role="status" aria-label="Loading rubric revisions" aria-busy="true" className="space-y-6">
+      <div
+        role="status"
+        aria-label="Loading rubric revisions"
+        aria-busy="true"
+        className="space-y-6"
+      >
         <div className="overflow-hidden rounded-md border border-border bg-surface">
           <div className="flex flex-wrap gap-2 border-b border-border bg-surface-subtle px-4 py-3">
             {Array.from({ length: 4 }).map((_, index) => (
@@ -400,7 +404,10 @@ export function RubricTableEditor() {
         <div className="space-y-4 rounded-md border border-border bg-surface p-5">
           <Skeleton className="h-4 w-48" />
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="grid grid-cols-[minmax(0,1fr)_8rem_7rem] items-center gap-4 border-b border-border-subtle pb-3">
+            <div
+              key={index}
+              className="grid grid-cols-[minmax(0,1fr)_8rem_7rem] items-center gap-4 border-b border-border-subtle pb-3"
+            >
               <Skeleton className="h-4 w-full max-w-md" />
               <Skeleton className="h-4 w-24" />
               <Skeleton className="h-8 w-20" />
@@ -427,7 +434,10 @@ export function RubricTableEditor() {
     <section className="space-y-6">
       {/* ── Top Navigation: Agent Selector Tabs ─────────────────────────── */}
       <div className="rounded-md border border-border bg-surface shadow-none overflow-hidden">
-        <nav className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle" aria-label="Evaluation Form Agent Selector">
+        <nav
+          className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle"
+          aria-label="Evaluation Form Agent Selector"
+        >
           {AGENT_ORDER.map((agentId) => {
             const isTabSelected = selectedAgent === agentId;
             const hasDraft = allRevisions.some(
@@ -670,9 +680,7 @@ export function RubricTableEditor() {
                       <span className="inline-flex items-center justify-center rounded-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 font-mono text-xs font-bold">
                         {domain.code}
                       </span>
-                      <h2 className="text-sm font-bold text-text tracking-tight">
-                        {domain.title}
-                      </h2>
+                      <h2 className="text-sm font-bold text-text tracking-tight">{domain.title}</h2>
                       <span className="text-xs text-text-muted font-normal tabular-nums">
                         · {domain.criteria.length} criteria
                       </span>
@@ -713,7 +721,7 @@ export function RubricTableEditor() {
                         <button
                           type="button"
                           onClick={() => requestDeleteDomain(domain)}
-                          className="inline-flex size-7 items-center justify-center rounded-xs border border-transparent text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive cursor-pointer"
+                          className="inline-flex size-7 items-center justify-center rounded-xs border border-transparent text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                           aria-label={`Delete ${domain.code} domain`}
                           title="Delete Domain"
                         >
@@ -728,7 +736,7 @@ export function RubricTableEditor() {
                               domainTitle: domain.title,
                             })
                           }
-                          className="ml-2 inline-flex h-7 items-center justify-center gap-1 rounded-sm bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer transition-colors"
+                          className="ml-2 inline-flex h-7 items-center justify-center gap-1 rounded-sm bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
                         >
                           <Plus className="size-3" />
                           <span>Add Criterion</span>
@@ -777,9 +785,7 @@ export function RubricTableEditor() {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        handleMoveCriterion(domain, critIndex, 'down')
-                                      }
+                                      onClick={() => handleMoveCriterion(domain, critIndex, 'down')}
                                       disabled={isLastCrit || reorderTreeMutation.isPending}
                                       className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
                                       aria-label={`Move ${criterion.criterion_code} criterion down`}
@@ -829,7 +835,9 @@ export function RubricTableEditor() {
                                     {criterion.scoring_rule}
                                   </p>
                                 ) : (
-                                  <span className="text-xs text-text-muted italic">No rule summary</span>
+                                  <span className="text-xs text-text-muted italic">
+                                    No rule summary
+                                  </span>
                                 )}
                               </td>
 
@@ -871,7 +879,7 @@ export function RubricTableEditor() {
                                     <button
                                       type="button"
                                       onClick={() => requestDeleteCriterion(criterion)}
-                                      className="inline-flex size-7 items-center justify-center rounded-xs text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive cursor-pointer"
+                                      className="inline-flex size-7 items-center justify-center rounded-xs text-destructive hover:bg-destructive-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                                       aria-label={`Delete ${criterion.criterion_code} row`}
                                       title="Delete Criterion"
                                     >
@@ -890,7 +898,8 @@ export function RubricTableEditor() {
                               colSpan={isDraft ? 6 : 4}
                               className="py-8 text-center text-xs font-semibold text-text-muted bg-surface-subtle/20"
                             >
-                              No criteria in this domain. Click &quot;Add Criterion&quot; to create one.
+                              No criteria in this domain. Click &quot;Add Criterion&quot; to create
+                              one.
                             </td>
                           </tr>
                         )}
@@ -975,9 +984,7 @@ export function RubricTableEditor() {
                 onCreateDraft={handleCreateDraft}
                 onDeleteDraft={requestDeleteDraft}
                 onActivateRevision={handleActivateRevision}
-                onRequestRollback={(rev) =>
-                  setRollbackModal({ isOpen: true, targetRevision: rev })
-                }
+                onRequestRollback={(rev) => setRollbackModal({ isOpen: true, targetRevision: rev })}
                 onRetireRevision={requestRetireRevision}
                 isActionPending={
                   createDraftMutation.isPending ||

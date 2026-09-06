@@ -200,6 +200,7 @@ export const AGENT_STRATEGY_CAPABILITIES: Record<
     allowedStrategies: ScoringStrategy[];
     allowedCountModes?: CountBandMode[];
     allowedRatioModes?: RatioBandMode[];
+    requiredStrategiesByCriterion?: Partial<Record<string, ScoringStrategy>>;
     maxCriteria: number;
     description: string;
   }
@@ -230,6 +231,7 @@ export const AGENT_STRATEGY_CAPABILITIES: Record<
     allowedStrategies: ['curriculum_alignment', 'llm_rubric_guidance', 'count_band', 'ratio_band'],
     allowedCountModes: ['minimum_count'],
     allowedRatioModes: ['coverage_percentage'],
+    requiredStrategiesByCriterion: { 'A-05': 'curriculum_alignment' },
     maxCriteria: 10,
     description:
       'Scores all 10 criteria independently through a curriculum-alignment lens: curriculum objective alignment plus LLM guidance, count thresholds (minimum), and coverage ratios.',

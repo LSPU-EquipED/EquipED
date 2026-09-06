@@ -3,7 +3,11 @@ import { Spinner, X } from '@phosphor-icons/react';
 import { StrategyConfigEditor } from './StrategyConfigEditor';
 import { getRubricOperationError } from '../hooks/useRubrics';
 import type { RubricCriterion, StrategyConfig } from '../types';
-import { getDefaultStrategyConfigForAgent } from '../utils';
+import {
+  getDefaultStrategyConfigForAgent,
+  getRequiredStrategy,
+  normalizeRequiredStrategyConfig,
+} from '../utils';
 
 interface CriterionModalProps {
   isOpen: boolean;
@@ -37,10 +41,19 @@ function CriterionModalContent({
   const [title, setTitle] = useState(criterion?.title ?? '');
   const [description, setDescription] = useState(criterion?.description ?? '');
   const [scoringRule, setScoringRule] = useState(criterion?.scoring_rule ?? '');
-  const [strategyConfig, setStrategyConfig] = useState<StrategyConfig>(
-    criterion?.strategy_config ?? getDefaultStrategyConfigForAgent(agentId),
+  const [strategyConfig, setStrategyConfig] = useState<StrategyConfig>(() =>
+    normalizeRequiredStrategyConfig(
+      agentId,
+      criterion?.criterion_code ?? '',
+      criterion?.strategy_config ?? getDefaultStrategyConfigForAgent(agentId),
+    ),
   );
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleCriterionCodeChange = (value: string) => {
+    setCriterionCode(value);
+    setStrategyConfig((current) => normalizeRequiredStrategyConfig(agentId, value, current));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +66,11 @@ function CriterionModalContent({
 
     if (!cleanCode) {
       setLocalError('Criterion ID is required (e.g. OP-01, GAD-02).');
+      return;
+    }
+    const requiredStrategy = getRequiredStrategy(agentId, cleanCode);
+    if (requiredStrategy && strategyConfig.strategy !== requiredStrategy) {
+      setLocalError('This criterion must use its required scoring strategy.');
       return;
     }
     if (!cleanTitle) {
@@ -138,7 +156,7 @@ function CriterionModalContent({
                 id="criterion-code"
                 type="text"
                 value={criterionCode}
-                onChange={(e) => setCriterionCode(e.target.value)}
+                onChange={(e) => handleCriterionCodeChange(e.target.value)}
                 disabled={isPending}
                 placeholder="e.g. OP-01"
                 maxLength={50}
@@ -207,6 +225,7 @@ function CriterionModalContent({
           {/* Strategy Editor */}
           <StrategyConfigEditor
             agentId={agentId}
+            criterionCode={criterionCode}
             value={strategyConfig}
             onChange={setStrategyConfig}
             disabled={isPending}
