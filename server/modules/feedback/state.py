@@ -54,12 +54,10 @@ def get_effective_criterion_corrections_batch(
         names = [n.lower() for n in agent_names]
         query = query.filter(func.lower(PreferenceLog.agent_name).in_(names))
 
-    logs: list[PreferenceLog] = (
-        query.order_by(
-            PreferenceLog.created_at.desc(),
-            PreferenceLog.log_id.desc(),
-        ).all()
-    )
+    logs: list[PreferenceLog] = query.order_by(
+        PreferenceLog.created_at.desc(),
+        PreferenceLog.log_id.desc(),
+    ).all()
 
     latest_by_eval_and_key: dict[tuple[uuid.UUID, str, str], PreferenceLog] = {}
     for log in logs:

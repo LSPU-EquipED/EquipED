@@ -92,9 +92,7 @@ def create_criterion_feedback(
         )
 
     edited_json = (
-        {"score": score, "justification": justification}
-        if action == "EDIT"
-        else None
+        {"score": score, "justification": justification} if action == "EDIT" else None
     )
 
     log = PreferenceLog(

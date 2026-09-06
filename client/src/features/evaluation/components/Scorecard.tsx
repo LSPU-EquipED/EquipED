@@ -125,7 +125,7 @@ export function Scorecard() {
   const [selectedDomainId, setSelectedDomainId] = useState<string>('sme');
 
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
-  const [reviewModalAgent, setReviewModalAgent] = useState<'itso' | 'sme' | null>(null);
+  const [reviewModalAgent, setReviewModalAgent] = useState<string | null>(null);
 
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
@@ -426,17 +426,15 @@ export function Scorecard() {
                   <span className="text-xs font-bold text-text tabular-nums">
                     Subtotal: {formatScore(activeDomainData.subtotal)} / {formatScore(activeDomainData.max_score || 4)}
                   </span>
-                  {(effectiveDomainId === 'itso' || effectiveDomainId === 'sme') && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setReviewModalAgent(effectiveDomainId as 'itso' | 'sme')}
-                      className="text-xs h-7.5 px-2.5"
-                    >
-                      Review Scores
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setReviewModalAgent(effectiveDomainId)}
+                    className="text-xs h-7.5 px-2.5"
+                  >
+                    Review Scores
+                  </Button>
                 </div>
               </div>
 
