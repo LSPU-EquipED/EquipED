@@ -18,6 +18,7 @@ from server.modules.rubrics.contracts import (
 from server.modules.rubrics.manifests import (
     AGENT_MANIFEST_REGISTRY_V1,
     COORDINATOR_MANIFEST_V1,
+    COORDINATOR_MANIFEST_V2,
     GAD_MANIFEST_V1,
     ITSO_MANIFEST_V1,
     SME_MANIFEST_V1,
@@ -320,27 +321,42 @@ def _full_itso_form() -> FormDefinition:
 
 
 def _full_coordinator_form() -> FormDefinition:
-    """Complete Revision 2 form for Program Coordinator (A-05 alignment)."""
-    c_a05 = _make_criterion(
+    """Complete independent-scoring Coordinator form."""
+    codes = (
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
         "A-05",
-        "Objective Alignment",
-        CurriculumAlignmentConfig(guidance="Evaluate syllabus objective alignment."),
-        display_order=0,
     )
-
+    criteria = tuple(
+        _make_criterion(
+            code,
+            f"Criterion {code}",
+            CurriculumAlignmentConfig(guidance="Evaluate syllabus alignment.")
+            if code == "A-05"
+            else LlmRubricGuidanceConfig(guidance=f"Evaluate {code}."),
+            display_order=index,
+        )
+        for index, code in enumerate(codes)
+    )
     domain = DomainDefinition(
         rubric_domain_id=uuid.uuid4(),
-        code="CURR_ALIGN",
-        title="Curriculum Alignment",
+        code="COORD",
+        title="Coordinator Evaluation",
         display_order=0,
-        criteria=(c_a05,),
+        criteria=criteria,
     )
-
     return FormDefinition(
         rubric_set_id=uuid.uuid4(),
         agent_id="coordinator",
-        name="Coordinator Revision 2",
-        version_number=2,
+        name="Coordinator Revision 3",
+        version_number=3,
         adapter_key="coordinator",
         adapter_version=2,
         domains=(domain,),
@@ -371,19 +387,38 @@ def test_manifest_constants_properties() -> None:
     assert ITSO_MANIFEST_V1.supported_strategies == ("llm_rubric_guidance",)
 
     assert COORDINATOR_MANIFEST_V1.agent_id == "coordinator"
+    assert COORDINATOR_MANIFEST_V1.adapter_version == 1
+    assert COORDINATOR_MANIFEST_V1.allowed_criterion_codes == ("A-05",)
+    assert COORDINATOR_MANIFEST_V1.max_criteria == 1
+
+    assert COORDINATOR_MANIFEST_V2.adapter_version == 2
     assert (
-        COORDINATOR_MANIFEST_V1.prompt_budget_setting
+        COORDINATOR_MANIFEST_V2.prompt_budget_setting
         == "agent_total_prompt_budget_chars"
     )
-    assert COORDINATOR_MANIFEST_V1.allowed_criterion_codes == (
-        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
-        "A-01", "A-02", "A-03", "A-04", "A-05",
+    assert COORDINATOR_MANIFEST_V2.allowed_criterion_codes == (
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
     )
-    assert COORDINATOR_MANIFEST_V1.max_criteria == 10
+    assert COORDINATOR_MANIFEST_V2.min_criteria == 10
+    assert COORDINATOR_MANIFEST_V2.max_criteria == 10
+    assert COORDINATOR_MANIFEST_V2.required_criterion_strategies == (
+        ("A-05", "curriculum_alignment"),
+    )
+    assert AGENT_MANIFEST_REGISTRY_V1["coordinator"] is COORDINATOR_MANIFEST_V2
+    assert get_agent_manifest("coordinator", 1) is COORDINATOR_MANIFEST_V1
+    assert get_agent_manifest("coordinator", 2) is COORDINATOR_MANIFEST_V2
 
 
 def test_manifest_invariant_rejections() -> None:
-    # min_criteria > max_criteria
     with pytest.raises(ValueError, match="min_criteria .* cannot exceed max_criteria"):
         AgentCapabilityManifest(
             agent_id="test",
@@ -404,7 +439,6 @@ def test_manifest_invariant_rejections() -> None:
             max_criteria=2,
             default_prompt_budget_chars=1000,
         )
-
     # Missing capability mapping for a supported strategy
     with pytest.raises(ValueError, match="Missing capability mapping"):
         AgentCapabilityManifest(
@@ -539,10 +573,48 @@ def test_full_revision1_forms_pass_manifest_validation() -> None:
     assert len(itso_report.errors) == 0
     assert itso_report.criteria_count == 5
 
-    coord_report = validate_form(_full_coordinator_form(), COORDINATOR_MANIFEST_V1)
+    coord_report = validate_form(_full_coordinator_form(), COORDINATOR_MANIFEST_V2)
     assert coord_report.is_valid
     assert len(coord_report.errors) == 0
-    assert coord_report.criteria_count == 1
+    assert coord_report.criteria_count == 10
+
+
+def test_coordinator_v2_requires_exactly_ten_criteria() -> None:
+    form = _full_coordinator_form()
+    domain = form.domains[0].model_copy(
+        update={"criteria": form.domains[0].criteria[:-1]}
+    )
+    report = validate_form(
+        form.model_copy(update={"domains": (domain,)}),
+        COORDINATOR_MANIFEST_V2,
+    )
+
+    assert not report.is_valid
+    assert any(i.code == "CRITERIA_COUNT_OUT_OF_BOUNDS" for i in report.errors)
+
+
+def test_coordinator_v2_requires_curriculum_strategy_for_a05() -> None:
+    form = _full_coordinator_form()
+    criteria = tuple(
+        criterion.model_copy(
+            update={
+                "strategy_config": LlmRubricGuidanceConfig(
+                    guidance="Incorrect strategy for A-05."
+                )
+            }
+        )
+        if criterion.criterion_code == "A-05"
+        else criterion
+        for criterion in form.domains[0].criteria
+    )
+    domain = form.domains[0].model_copy(update={"criteria": criteria})
+    report = validate_form(
+        form.model_copy(update={"domains": (domain,)}),
+        COORDINATOR_MANIFEST_V2,
+    )
+
+    assert not report.is_valid
+    assert any(i.code == "REQUIRED_CRITERION_STRATEGY_MISMATCH" for i in report.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -1111,7 +1183,7 @@ def test_agent_manifest_registry_v1_coverage_and_immutability():
     assert AGENT_MANIFEST_REGISTRY_V1["sme"] == SME_MANIFEST_V1
     assert AGENT_MANIFEST_REGISTRY_V1["gad"] == GAD_MANIFEST_V1
     assert AGENT_MANIFEST_REGISTRY_V1["itso"] == ITSO_MANIFEST_V1
-    assert AGENT_MANIFEST_REGISTRY_V1["coordinator"] == COORDINATOR_MANIFEST_V1
+    assert AGENT_MANIFEST_REGISTRY_V1["coordinator"] == COORDINATOR_MANIFEST_V2
 
     # Immutable mapping proxy prevents mutation
     with pytest.raises(TypeError):
@@ -1122,7 +1194,7 @@ def test_get_agent_manifest_success_and_unknown_failure():
     assert get_agent_manifest("sme") == SME_MANIFEST_V1
     assert get_agent_manifest("gad") == GAD_MANIFEST_V1
     assert get_agent_manifest("itso") == ITSO_MANIFEST_V1
-    assert get_agent_manifest("coordinator") == COORDINATOR_MANIFEST_V1
+    assert get_agent_manifest("coordinator") == COORDINATOR_MANIFEST_V2
 
     with pytest.raises(
         ValueError, match="Unknown agent capability manifest for 'unknown'"
@@ -1142,19 +1214,27 @@ def test_no_duplicate_public_manifest_registry_remains():
 
 
 # ---------------------------------------------------------------------------
-# Coordinator Manifest V1 Full Capability Tests
+# Coordinator Manifest V2 Full Capability Tests
 # ---------------------------------------------------------------------------
 
 
 def test_coordinator_manifest_supports_ten_criteria_and_four_strategies():
     """Verify coordinator manifest expanded to 10 criteria and 4 strategies."""
     CODES = (
-        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
-        "A-01", "A-02", "A-03", "A-04", "A-05",
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
     )
     m = get_agent_manifest("coordinator")
     assert m.adapter_version == 2
-    assert m.min_criteria == 1
+    assert m.min_criteria == 10
     assert m.max_criteria == 10
     assert set(m.allowed_criterion_codes) == set(CODES)
     assert set(m.supported_strategies) == {

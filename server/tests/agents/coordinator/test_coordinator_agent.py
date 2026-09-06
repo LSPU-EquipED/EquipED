@@ -10,6 +10,13 @@ from server.core.llm import get_llm_model_name
 from server.modules.agents.coordinator.agent import Coordinator
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import RunLLMClient
+from server.modules.rubrics.contracts import (
+    CriterionDefinition,
+    CurriculumAlignmentConfig,
+    DomainDefinition,
+    FormDefinition,
+)
+from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snapshot
 from server.tests.agents.helpers import SequencedFakeClient, make_coordinator_snapshot
 
 TEN = (
@@ -53,8 +60,7 @@ def _measurement(code: str, titles: dict[str, str]) -> dict:
     return {
         "criterion_id": code,
         "criterion_title": title,
-        "total_units": [{"unit_id": "u1", "evidence": "Answer key provided."}],
-        "qualifying_unit_ids": ["u1"],
+        "total_units": [{"evidence": "Answer key provided.", "qualifies": True}],
         "has_measurable_content": True,
     }
 
@@ -92,7 +98,8 @@ def test_run_scores_all_ten_criteria_in_snapshot_order():
     client = _client(
         [
             _envelope_response(TEN[:5], titles),
-            _envelope_response(TEN[5:], titles),
+            _envelope_response(TEN[5:9], titles),
+            _envelope_response(TEN[9:], titles),
         ]
     )
     result = _run(client, snap)
@@ -101,13 +108,54 @@ def test_run_scores_all_ten_criteria_in_snapshot_order():
     assert tuple(s.criterion_id for s in result.criterion_scores) == TEN
     assert result.subtotal == sum(s.score for s in result.criterion_scores) / 10
     assert result.summary
-    assert result.metadata["group_prompts"].keys() == {"envelope_0", "envelope_1"}
-    assert result.metadata["group_responses"]["envelope_1"]
+    assert result.metadata["group_prompts"].keys() == {
+        "envelope_0",
+        "envelope_1",
+        "envelope_2",
+    }
+    assert result.metadata["group_responses"]["envelope_2"]
     assert "_grounding_rejected_count" not in json.dumps(
         result.metadata["group_responses"]
     )
-    assert result.provenance["grouped_calls"] == 2
+    assert result.provenance["grouped_calls"] == 3
     assert "grounding_rejected_count" in result.provenance
+
+
+def test_run_resumes_historical_adapter_one_a05_snapshot():
+    criterion = CriterionDefinition(
+        rubric_criterion_id=uuid.uuid4(),
+        criterion_code="A-05",
+        title="Curriculum Alignment",
+        description="Evaluate learning-objective alignment.",
+        display_order=0,
+        strategy_config=CurriculumAlignmentConfig(),
+    )
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="coordinator",
+        name="Historical Coordinator Form",
+        version_number=2,
+        adapter_key="coordinator",
+        adapter_version=1,
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="A",
+                title="Assessment",
+                display_order=0,
+                criteria=(criterion,),
+            ),
+        ),
+    )
+    snapshot = build_evaluation_form_snapshot(uuid.uuid4(), form)
+    result = _run(
+        _client([_envelope_response(("A-05",), {"A-05": criterion.title})]),
+        snapshot,
+    )
+
+    assert result.success is True
+    assert tuple(score.criterion_id for score in result.criterion_scores) == ("A-05",)
+    assert result.provenance["grouped_calls"] == 1
 
 
 def test_run_without_curriculum_context_fails():

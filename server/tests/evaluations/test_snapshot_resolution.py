@@ -13,6 +13,7 @@ from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.rubrics import (
+    CurriculumAlignmentConfig,
     EvaluationFormSnapshot,
     RubricAgentActivation,
     RubricSet,
@@ -21,6 +22,11 @@ from server.modules.rubrics import (
     load_active_form_definitions,
     load_verified_evaluation_snapshots,
     resolve_or_reuse_evaluation_snapshots,
+)
+from server.modules.rubrics.contracts import (
+    CriterionDefinition,
+    DomainDefinition,
+    FormDefinition,
 )
 from sqlalchemy import event
 
@@ -62,6 +68,70 @@ def _create_evaluation_job(session) -> uuid.UUID:
     )
     session.commit()
     return eval_id
+
+
+def test_historical_coordinator_v1_snapshot_loads_from_database(db_session) -> None:
+    _seed_all_rubrics(db_session)
+    eval_id = _create_evaluation_job(db_session)
+    set_id = uuid.uuid4()
+    now = datetime.now(UTC)
+    db_session.add(
+        RubricSet(
+            rubric_set_id=set_id,
+            agent_id="coordinator",
+            name="Coordinator Rubric v2",
+            version_number=2,
+            status="retired",
+            adapter_key="coordinator",
+            adapter_version=1,
+            published_at=now,
+            retired_at=now,
+        )
+    )
+    form = FormDefinition(
+        rubric_set_id=set_id,
+        agent_id="coordinator",
+        name="Coordinator Rubric v2",
+        version_number=2,
+        adapter_key="coordinator",
+        adapter_version=1,
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="A",
+                title="Assessment",
+                display_order=0,
+                criteria=(
+                    CriterionDefinition(
+                        rubric_criterion_id=uuid.uuid4(),
+                        criterion_code="A-05",
+                        title="Curriculum Alignment",
+                        description="Evaluate syllabus objective alignment.",
+                        display_order=0,
+                        strategy_config=CurriculumAlignmentConfig(),
+                    ),
+                ),
+            ),
+        ),
+    )
+    dto = build_evaluation_form_snapshot(eval_id, form)
+    db_session.add(
+        EvaluationFormSnapshot(
+            snapshot_id=dto.snapshot_id,
+            evaluation_id=dto.evaluation_id,
+            agent_id=dto.agent_id,
+            rubric_set_id=dto.rubric_set_id,
+            snapshot_payload=dto.snapshot_payload.model_dump(mode="json"),
+            snapshot_hash=dto.snapshot_hash,
+            adapter_key=dto.adapter_key,
+            adapter_version=dto.adapter_version,
+        )
+    )
+    db_session.commit()
+
+    loaded = load_verified_evaluation_snapshots(db_session, eval_id, ("coordinator",))
+
+    assert loaded == (dto,)
 
 
 # ---------------------------------------------------------------------------

@@ -49,9 +49,7 @@ def test_seed_coordinator_v3_creates_and_activates_ten_criteria(db_session):
     assert "interactive elements" in op02.scoring_rule
 
     activation = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     assert activation.rubric_set_id == result.rubric_set_id
 

@@ -55,16 +55,21 @@ def test_fresh_seed_populates_published_and_activations(db_session):
     assert coord_form is not None
     assert coord_form.version_number == 3
     assert coord_form.adapter_version == 2
-    all_codes = {
-        c.criterion_code for d in coord_form.domains for c in d.criteria
-    }
+    all_codes = {c.criterion_code for d in coord_form.domains for c in d.criteria}
     assert all_codes == {
-        "OP-01", "OP-02", "OP-03", "OP-04", "OP-05",
-        "A-01", "A-02", "A-03", "A-04", "A-05",
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
     }
     a05 = next(
-        c for d in coord_form.domains for c in d.criteria
-        if c.criterion_code == "A-05"
+        c for d in coord_form.domains for c in d.criteria if c.criterion_code == "A-05"
     )
     assert a05.strategy_config.strategy == "curriculum_alignment"
 
@@ -489,9 +494,7 @@ def test_seed_coordinator_v3_existing_validation_and_activation_handling(db_sess
     created = seed_coordinator_v3_if_needed(db_session)
     db_session.commit()
     act = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     assert act.rubric_set_id == created.rubric_set_id
     assert act.updated_by is None
@@ -501,9 +504,7 @@ def test_seed_coordinator_v3_existing_validation_and_activation_handling(db_sess
     db_session.commit()
     seed_coordinator_v3_if_needed(db_session)
     repaired = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     assert repaired.rubric_set_id == created.rubric_set_id
     assert repaired.updated_by is None
@@ -529,9 +530,7 @@ def test_seed_coordinator_v3_preserves_admin_repointed_activation(db_session):
 
     admin_actor = uuid.uuid4()
     act = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     act.rubric_set_id = v4_set.rubric_set_id
     act.updated_by = admin_actor
@@ -540,9 +539,7 @@ def test_seed_coordinator_v3_preserves_admin_repointed_activation(db_session):
     seed_coordinator_v3_if_needed(db_session)
 
     refreshed = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     assert refreshed.rubric_set_id == v4_set.rubric_set_id
     assert refreshed.updated_by == admin_actor
@@ -569,9 +566,7 @@ def test_seed_coordinator_v3_fails_closed_when_activation_points_at_retired(
     db_session.commit()
 
     act = (
-        db_session.query(RubricAgentActivation)
-        .filter_by(agent_id="coordinator")
-        .one()
+        db_session.query(RubricAgentActivation).filter_by(agent_id="coordinator").one()
     )
     act.rubric_set_id = retired_v1.rubric_set_id
     db_session.commit()

@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 from alembic.command import downgrade, upgrade
 from alembic.config import Config
 from sqlalchemy import create_engine, text
@@ -114,7 +115,7 @@ def _seed_minimal(conn, *, seed_v3: bool = False) -> None:
             "INSERT INTO rubric_criteria VALUES "
             "('coord-v2-c','coord-v2-d','A-05','Curriculum Alignment','desc',"
             "'rule','curriculum_alignment',"
-            "'{\"strategy\": \"curriculum_alignment\"}',1)"
+            '\'{"strategy": "curriculum_alignment"}\',1)'
         )
     )
     conn.execute(
@@ -142,7 +143,7 @@ def _seed_minimal(conn, *, seed_v3: bool = False) -> None:
                 "INSERT INTO rubric_criteria VALUES "
                 "('coord-v3-c','coord-v3-d','A-05','Curriculum Alignment','desc',"
                 "NULL,'curriculum_alignment',"
-                "'{\"strategy\": \"curriculum_alignment\"}',5)"
+                '\'{"strategy": "curriculum_alignment"}\',5)'
             )
         )
         conn.execute(
@@ -246,13 +247,42 @@ def test_downgrade_restores_coordinator_v2(tmp_path):
     engine.dispose()
 
 
-def test_upgrade_idempotent_when_v3_exists(tmp_path):
-    url = f"sqlite+pysqlite:///{tmp_path / 'coord_v3_idem.db'}"
+def test_downgrade_does_not_activate_retired_fallback(tmp_path):
+    url = f"sqlite+pysqlite:///{tmp_path / 'coord_v3_no_fallback.db'}"
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        _seed_minimal(conn)
+
+    _run(upgrade, _config(url), REV)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE rubric_sets SET status = 'retired' "
+                "WHERE agent_id = 'coordinator' AND version_number = 2"
+            )
+        )
+
+    _run(downgrade, _config(url), DOWN)
+
+    with engine.connect() as conn:
+        activation_count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM rubric_agent_activations "
+                "WHERE agent_id = 'coordinator'"
+            )
+        ).scalar_one()
+        assert activation_count == 0
+    engine.dispose()
+
+
+def test_upgrade_refuses_preexisting_coordinator_v3(tmp_path):
+    url = f"sqlite+pysqlite:///{tmp_path / 'coord_v3_collision.db'}"
     engine = create_engine(url)
     with engine.begin() as conn:
         _seed_minimal(conn, seed_v3=True)
 
-    _run(upgrade, _config(url), REV)
+    with pytest.raises(RuntimeError, match="not canonical"):
+        _run(upgrade, _config(url), REV)
 
     with engine.connect() as conn:
         count = conn.execute(
@@ -264,4 +294,74 @@ def test_upgrade_idempotent_when_v3_exists(tmp_path):
         assert count == 1
         row = _active_coordinator(conn)
         assert row.version_number == 3
+        scoring_rule = conn.execute(
+            text(
+                "SELECT scoring_rule FROM rubric_criteria "
+                "WHERE rubric_criterion_id = 'coord-v3-c'"
+            )
+        ).scalar_one()
+        assert scoring_rule is None
+        revision = conn.execute(
+            text("SELECT version_num FROM alembic_version")
+        ).scalar_one()
+        assert revision == DOWN
+    engine.dispose()
+
+
+def test_upgrade_reuses_canonical_v3_and_downgrade_preserves_it(tmp_path):
+    url = f"sqlite+pysqlite:///{tmp_path / 'coord_v3_preexisting.db'}"
+    engine = create_engine(url)
+    with engine.begin() as conn:
+        _seed_minimal(conn)
+
+    _run(upgrade, _config(url), REV)
+    preexisting_id = "11111111-1111-4111-8111-111111111111"
+    with engine.begin() as conn:
+        migration_id = conn.execute(
+            text(
+                "SELECT rubric_set_id FROM rubric_sets "
+                "WHERE agent_id = 'coordinator' AND version_number = 3"
+            )
+        ).scalar_one()
+        conn.execute(
+            text(
+                "UPDATE rubric_domains SET rubric_set_id = :new "
+                "WHERE rubric_set_id = :old"
+            ),
+            {"new": preexisting_id, "old": migration_id},
+        )
+        conn.execute(
+            text(
+                "UPDATE rubric_agent_activations SET rubric_set_id = :new "
+                "WHERE rubric_set_id = :old"
+            ),
+            {"new": preexisting_id, "old": migration_id},
+        )
+        conn.execute(
+            text(
+                "UPDATE rubric_sets SET rubric_set_id = :new WHERE rubric_set_id = :old"
+            ),
+            {"new": preexisting_id, "old": migration_id},
+        )
+        conn.execute(
+            text("UPDATE alembic_version SET version_num = :revision"),
+            {"revision": DOWN},
+        )
+
+    _run(upgrade, _config(url), REV)
+    with engine.connect() as conn:
+        assert _active_coordinator(conn).version_number == 3
+        assert _v3_codes(conn) == _EXPECTED_CODES
+
+    _run(downgrade, _config(url), DOWN)
+    with engine.connect() as conn:
+        assert _active_coordinator(conn).version_number == 2
+        assert _v3_codes(conn) == _EXPECTED_CODES
+        count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM rubric_sets WHERE rubric_set_id = :rubric_set_id"
+            ),
+            {"rubric_set_id": preexisting_id},
+        ).scalar_one()
+        assert count == 1
     engine.dispose()

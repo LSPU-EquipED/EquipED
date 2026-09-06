@@ -132,3 +132,14 @@ def test_instructions_exceeding_budget_raise():
     env = (make_criterion("A-01", strategy="ratio_band"),)
     with pytest.raises(AgentExecutionError):
         build_envelope_prompt_and_source(env, "doc", CURRICULUM, prompt_budget=200)
+
+
+def test_ratio_prompt_uses_qualifies_flags_without_linkage_ids():
+    env = (make_criterion("OP-01", strategy="ratio_band"),)
+    prompt, _ = build_envelope_prompt_and_source(
+        env, "doc text", CURRICULUM, prompt_budget=32000
+    )
+    assert "qualifies" in prompt
+    assert "Do NOT emit unit_id" in prompt
+    assert '"unit_id"' not in prompt
+    assert '"qualifying_unit_ids"' not in prompt
