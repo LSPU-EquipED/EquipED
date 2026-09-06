@@ -1,13 +1,25 @@
-"""Deterministic domain packing for Coordinator evaluation envelopes.
+"""Deterministic resource-affinity packing for Coordinator envelopes.
 
-Preserves snapshot domain and criterion order, packing into at most 3
-nonempty primary extraction envelopes.
+Splits the frozen snapshot into at most 3 envelopes by resource affinity
+so Assessment criteria are never starved of prompt budget:
+
+- Envelope 0: OP domain criteria (``OP-01..OP-05``) -- needs SLM source only.
+- Envelope 1: SLM assessment criteria (``A-01..A-04``) -- needs SLM source
+  only (no curriculum context).
+- Envelope 2: Curriculum alignment criteria (``A-05``) -- needs SLM
+  objectives + curriculum context.
+
+Forms without OP/A resource structure (single domain or <= 3 domains
+without a curriculum collision) preserve contiguous domain ordering with at
+most 3 envelopes. The historical adapter-v1 form (single ``A-05``
+criterion) yields exactly 1 envelope ``((A-05,),)``.
 """
 
 from __future__ import annotations
 
 from server.modules.rubrics.contracts import (
     CriterionDefinition,
+    CurriculumAlignmentConfig,
     DomainDefinition,
     LlmRubricGuidanceConfig,
 )
@@ -27,19 +39,61 @@ def domain_weight(domain: DomainDefinition) -> int:
     return max(w, 1)
 
 
+def _is_curriculum_criterion(criterion: CriterionDefinition) -> bool:
+    return criterion.criterion_code == "A-05" or isinstance(
+        criterion.strategy_config, CurriculumAlignmentConfig
+    )
+
+
+def _is_op_criterion(criterion: CriterionDefinition) -> bool:
+    return criterion.criterion_code.startswith("OP-") and not _is_curriculum_criterion(
+        criterion
+    )
+
+
+def _is_assessment_criterion(criterion: CriterionDefinition) -> bool:
+    return criterion.criterion_code.startswith("A-") and not _is_curriculum_criterion(
+        criterion
+    )
+
+
 def pack_domains(
     domains: tuple[DomainDefinition, ...] | list[DomainDefinition],
 ) -> tuple[tuple[CriterionDefinition, ...], ...]:
-    """Pack domains into at most 3 nonempty contiguous envelopes.
+    """Pack domains into at most 3 nonempty resource-affinity envelopes.
 
-    - Non-empty domains are preserved in their exact snapshot order.
-    - If non-empty domains <= 3: each domain forms one envelope (1..3 envelopes).
-    - If non-empty domains > 3: partition domains into exactly 3 contiguous
-      slices, minimizing maximum domain-weight load.
+    - Historical adapter-v1 (single ``A-05`` criterion): 1 envelope.
+    - When every criterion is classifiable as OP / A-assessment /
+      curriculum (``A-05``): return the non-empty buckets in OP, assessment,
+      curriculum order (1..3 envelopes). For the canonical OP + A form this
+      is exactly ``((OP-01..OP-05,), (A-01..A-04,), (A-05,))``.
+    - Otherwise: preserve contiguous domain ordering, max 3 envelopes --
+      one envelope per domain when <= 3 non-empty domains, else partition
+      into exactly 3 contiguous slices minimizing maximum domain-weight load.
     """
     non_empty = [d for d in domains if len(d.criteria) > 0]
     if not non_empty:
         raise AgentExecutionError("Coordinator snapshot contains no criteria")
+
+    all_criteria: list[CriterionDefinition] = [c for d in non_empty for c in d.criteria]
+    if len(all_criteria) == 1 and all_criteria[0].criterion_code == "A-05":
+        return ((all_criteria[0],),)
+
+    if all(
+        _is_op_criterion(c)
+        or _is_assessment_criterion(c)
+        or _is_curriculum_criterion(c)
+        for c in all_criteria
+    ):
+        op_group = tuple(c for c in all_criteria if _is_op_criterion(c))
+        assess_group = tuple(c for c in all_criteria if _is_assessment_criterion(c))
+        curriculum_group = tuple(c for c in all_criteria if _is_curriculum_criterion(c))
+        envelopes = tuple(
+            g for g in (op_group, assess_group, curriculum_group) if len(g) > 0
+        )
+        if envelopes:
+            assert len(envelopes) <= 3
+            return envelopes
 
     n = len(non_empty)
     if n <= 3:

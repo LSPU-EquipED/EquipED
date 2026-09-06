@@ -19,13 +19,17 @@ from server.modules.rubrics.contracts import CriterionDefinition
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..runtime.llm import RunLLMClient, error_reference
-from .prompt import REPAIR_SUFFIX, build_envelope_prompt_and_source
+from ..runtime.slicing import downsample_source_text
+from .prompt import (
+    REPAIR_SUFFIX,
+    build_envelope_prompt_and_source,
+    build_repair_suffix,
+)
 from .response import (
     build_envelope_schema,
     parse_and_validate_envelope_response,
 )
 from .scoring import score_envelope
-from .slicing import downsample
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +55,17 @@ def execute_envelope(
     settings = get_settings()
     prompt_budget = settings.agent_total_prompt_budget_chars
 
-    if len(curriculum_context) > _CURRICULUM_BUDGET_CHARS:
-        curriculum_context = downsample(
-            curriculum_context, budget=_CURRICULUM_BUDGET_CHARS
+    raw_curriculum_context = curriculum_context
+    prompt_curriculum_context = curriculum_context
+    if len(prompt_curriculum_context) > _CURRICULUM_BUDGET_CHARS:
+        prompt_curriculum_context = downsample_source_text(
+            prompt_curriculum_context, budget=_CURRICULUM_BUDGET_CHARS
         )
 
     prompt, source_packet = build_envelope_prompt_and_source(
         criteria,
         canonical_source_text=canonical_source_text,
-        curriculum_context=curriculum_context,
+        curriculum_context=prompt_curriculum_context,
         prompt_budget=prompt_budget,
         prompt_preamble=prompt_preamble,
     )
@@ -93,7 +99,7 @@ def execute_envelope(
         )
         try:
             parsed = parse_and_validate_envelope_response(
-                completion.content, criteria, source_packet, curriculum_context
+                completion.content, criteria, source_packet, raw_curriculum_context
             )
         except AgentExecutionError as exc:
             validation_error = exc
@@ -110,7 +116,9 @@ def execute_envelope(
             type(validation_error).__name__,
             error_reference(validation_error),
         )
-        repair_prompt = prompt + REPAIR_SUFFIX
+        repair_prompt = prompt + build_repair_suffix(validation_error)
+        if len(repair_prompt) > prompt_budget:
+            repair_prompt = prompt + REPAIR_SUFFIX
         if len(repair_prompt) > prompt_budget:
             raise AgentExecutionError(
                 "Coordinator repair prompt exceeds total prompt budget"
@@ -124,14 +132,15 @@ def execute_envelope(
             response_contract=contract,
         )
         parsed = parse_and_validate_envelope_response(
-            repaired_completion.content, criteria, source_packet, curriculum_context
+            repaired_completion.content,
+            criteria,
+            source_packet,
+            raw_curriculum_context,
         )
         repair_occurred = True
 
     if parsed is None:
-        raise AgentExecutionError(
-            "Coordinator response validation produced no result"
-        )
+        raise AgentExecutionError("Coordinator response validation produced no result")
     scores = score_envelope(criteria, parsed)
     return scores, prompt, parsed, repair_occurred
 

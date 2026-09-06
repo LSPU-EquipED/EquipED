@@ -44,9 +44,7 @@ def score_curriculum_alignment(
     band = ratio_band(aligned, total, scale="moderate")
 
     if total == 0:
-        justification = (
-            "Curriculum alignment: no objectives found in the SLM. Score 1."
-        )
+        justification = "Curriculum alignment: no objectives found in the SLM. Score 1."
     else:
         pct = band.pct if band.pct is not None else 0.0
         rejected_note = (

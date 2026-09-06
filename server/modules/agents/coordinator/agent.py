@@ -1,17 +1,16 @@
 """Program coordinator domain agent.
 
-Under the published Revision 2 adapter, Coordinator scores ALL ten rubric
-criteria (five Organization and Presentation ``OP-*`` and five Assessment
-``A-*``) independently, from a curriculum-alignment perspective. It never
-inherits or merges Subject Matter Expert (SME) scores.
+Adapter v2 scores all ten rubric criteria (five Organization and Presentation
+OP-* and five Assessment A-*). Recovery also executes historical adapter-v1
+snapshots containing the single A-05 criterion through this same pipeline.
+Coordinator always scores independently and never inherits or merges Subject
+Matter Expert (SME) scores.
 
 Entry point:
-- ``run()`` -- called by ``Supervisor`` in parallel with every other agent.
-  Packs the frozen snapshot domains into at most three grouped LLM calls
-  (:func:`pack_domains`), extracts grounded measurements per criterion
-  (:func:`execute_envelope`), scores each measurement deterministically, and
-  returns a ten-criterion :class:`AgentEvaluationResult` whose subtotal is the
-  mean of the ten criterion scores.
+- run() -- called by Supervisor in parallel with every other agent. It packs
+  frozen snapshot domains into at most three grouped LLM calls, extracts
+  grounded measurements per criterion, scores each measurement
+  deterministically, and returns a snapshot-shaped AgentEvaluationResult.
 """
 
 from __future__ import annotations
@@ -22,10 +21,8 @@ import uuid
 from typing import Any
 
 from server.core.llm import get_llm_model_name
-from server.modules.rubrics.contracts import (
-    CurriculumAlignmentConfig,
-    DomainDefinition,
-)
+from server.modules.rubrics.contracts import DomainDefinition
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AgentEvaluationResult, CriterionScore
@@ -71,7 +68,7 @@ def _validate_coordinator_snapshot(
     evaluation_id: uuid.UUID,
     agent_name: str,
 ) -> tuple[DomainDefinition, ...]:
-    """Validate Revision-2 snapshot invariants and return its domains."""
+    """Validate the snapshot against its exact Coordinator adapter contract."""
     if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
         raise AgentExecutionError(
             "Coordinator requires a valid EvaluationFormSnapshotDTO"
@@ -86,30 +83,27 @@ def _validate_coordinator_snapshot(
             f"Snapshot evaluation_id '{form_snapshot.evaluation_id}' does not "
             f"match '{evaluation_id}'"
         )
-    if (
-        form_snapshot.adapter_key != agent_name
-        or form_snapshot.adapter_version != 2
-    ):
+    if form_snapshot.adapter_key != agent_name:
         raise AgentExecutionError(
             f"Invalid snapshot adapter key '{form_snapshot.adapter_key}' or "
             f"version {form_snapshot.adapter_version}"
         )
-    domains = form_snapshot.form.domains
-    codes = [c.criterion_code for d in domains for c in d.criteria]
-    if len(codes) != 10 or len(set(codes)) != 10:
+    try:
+        manifest = get_agent_manifest(agent_name, form_snapshot.adapter_version)
+    except ValueError as exc:
         raise AgentExecutionError(
-            f"Coordinator snapshot must contain exactly 10 unique criteria, "
-            f"found {len(codes)}"
+            f"Unsupported Coordinator adapter version {form_snapshot.adapter_version}"
+        ) from exc
+    report = validate_form(form_snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
         )
-    a05 = next(
-        (c for d in domains for c in d.criteria if c.criterion_code == "A-05"),
-        None,
-    )
-    if a05 is None or not isinstance(a05.strategy_config, CurriculumAlignmentConfig):
         raise AgentExecutionError(
-            "Coordinator snapshot criterion A-05 must use CurriculumAlignmentConfig"
+            f"Coordinator snapshot violates adapter {form_snapshot.adapter_version}: "
+            f"{codes}"
         )
-    return domains
+    return form_snapshot.form.domains
 
 
 class Coordinator:
@@ -150,7 +144,7 @@ class Coordinator:
         curriculum_context: str | None = None,
         **kwargs: Any,
     ) -> AgentEvaluationResult:
-        """Score all ten Coordinator criteria via grouped measurement extraction."""
+        """Score the frozen Coordinator form via grouped measurement extraction."""
         del kwargs, prompt_version_id, context_text
         domains = _validate_coordinator_snapshot(
             form_snapshot, evaluation_id, self.agent_name
@@ -224,8 +218,7 @@ class Coordinator:
         expected = tuple(c.criterion_code for d in domains for c in d.criteria)
         if tuple(s.criterion_id for s in criterion_scores) != expected:
             raise AgentExecutionError(
-                "Coordinator scored criterion order does not match the frozen "
-                "snapshot"
+                "Coordinator scored criterion order does not match the frozen snapshot"
             )
         subtotal = sum(s.score for s in criterion_scores) / len(criterion_scores)
         total_seconds = time.perf_counter() - start

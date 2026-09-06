@@ -16,9 +16,15 @@ from server.modules.rubrics.contracts import (
 )
 
 from ..exceptions import AgentExecutionError
-from .slicing import GAP_MARKER
+from ..runtime.grounding import find_verbatim_substring
+from ..runtime.slicing import GAP_MARKER
 
 COORD_TEXT_MAX = 2000
+
+
+def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
+    """Tolerant verbatim lookup bounded to COORD_TEXT_MAX (shared helper)."""
+    return find_verbatim_substring(excerpt, source, max_chars=COORD_TEXT_MAX)
 
 
 def _optional_string_schema(max_length: int) -> dict[str, Any]:
@@ -106,7 +112,6 @@ def _criterion_schema(criterion: CriterionDefinition) -> dict[str, Any]:
                 "criterion_id",
                 "criterion_title",
                 "total_units",
-                "qualifying_unit_ids",
                 "has_measurable_content",
             ],
             "properties": {
@@ -118,27 +123,18 @@ def _criterion_schema(criterion: CriterionDefinition) -> dict[str, Any]:
                     "items": {
                         "type": "object",
                         "additionalProperties": False,
-                        "required": ["unit_id", "evidence"],
+                        "required": ["evidence", "qualifies"],
                         "properties": {
-                            "unit_id": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 50,
-                            },
                             "evidence": {
                                 "type": "string",
                                 "minLength": 1,
                                 "maxLength": COORD_TEXT_MAX,
                             },
+                            "qualifies": {"type": "boolean"},
                             "label": _optional_string_schema(200),
                             "location": _optional_string_schema(100),
                         },
                     },
-                },
-                "qualifying_unit_ids": {
-                    "type": "array",
-                    "maxItems": 64,
-                    "items": {"type": "string", "minLength": 1, "maxLength": 50},
                 },
                 "has_measurable_content": {"type": "boolean"},
                 "summary": _optional_string_schema(COORD_TEXT_MAX),
@@ -361,11 +357,13 @@ def parse_and_validate_envelope_response(
                     f"Measurement '{cid}' requires non-empty string 'evidence' "
                     f"(max {COORD_TEXT_MAX} chars)"
                 )
-            if GAP_MARKER.strip() in evidence or evidence not in source_packet:
+            matched_evidence = _find_verbatim_substring(evidence, source_packet)
+            if matched_evidence is None or GAP_MARKER.strip() in matched_evidence:
                 raise AgentExecutionError(
                     f"Measurement '{cid}' evidence is not an exact substring of "
                     "source text"
                 )
+            m["evidence"] = matched_evidence
             reasoning = m.get("reasoning")
             if reasoning is not None and not _is_strict_optional_text(
                 reasoning, COORD_TEXT_MAX
@@ -390,7 +388,15 @@ def parse_and_validate_envelope_response(
                     "(max 64 items)"
                 )
             allowed_inst_keys = {"excerpt", "explanation", "location"}
+            # Fact-set normalization: model list outputs represent fact sets, so
+            # exact semantic duplicates are canonically deduped (keep-first) after
+            # full validation/grounding instead of failing the whole envelope.
+            # Identity is the normalized canonical excerpt only: optional
+            # location is ungrounded annotation and must not influence scoring
+            # identity, while a differing explanation alone is annotation and
+            # keeps first. First-row annotations are preserved.
             seen_excerpts: set[str] = set()
+            canonical_instances: list[dict[str, Any]] = []
             for inst_idx, inst in enumerate(instances):
                 if not isinstance(inst, (dict, OrderedDict)):
                     raise AgentExecutionError(
@@ -414,17 +420,12 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' instance[{inst_idx}] requires "
                         "non-empty string 'excerpt'"
                     )
-                if GAP_MARKER.strip() in excerpt or excerpt not in source_packet:
+                matched_excerpt = _find_verbatim_substring(excerpt, source_packet)
+                if matched_excerpt is None or GAP_MARKER.strip() in matched_excerpt:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' instance[{inst_idx}] excerpt is not "
                         "an exact substring of source text"
                     )
-                norm_excerpt = " ".join(excerpt.split()).casefold()
-                if norm_excerpt in seen_excerpts:
-                    raise AgentExecutionError(
-                        f"Measurement '{cid}' contains duplicate instance excerpt"
-                    )
-                seen_excerpts.add(norm_excerpt)
                 explanation = inst.get("explanation")
                 if explanation is not None and not _is_strict_optional_text(
                     explanation, COORD_TEXT_MAX
@@ -439,6 +440,17 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' instance[{inst_idx}] location "
                         "must be string <= 100 chars"
                     )
+                norm_excerpt = " ".join(matched_excerpt.split()).casefold()
+                if norm_excerpt in seen_excerpts:
+                    continue
+                seen_excerpts.add(norm_excerpt)
+                canonical_inst: dict[str, Any] = {"excerpt": matched_excerpt}
+                if explanation is not None:
+                    canonical_inst["explanation"] = explanation
+                if loc is not None:
+                    canonical_inst["location"] = loc
+                canonical_instances.append(canonical_inst)
+            m["instances"] = canonical_instances
             count_summary = m.get("summary")
             if count_summary is not None and not _is_strict_optional_text(
                 count_summary, COORD_TEXT_MAX
@@ -454,7 +466,6 @@ def parse_and_validate_envelope_response(
                 "criterion_id",
                 "criterion_title",
                 "total_units",
-                "qualifying_unit_ids",
                 "has_measurable_content",
                 "summary",
             }
@@ -462,7 +473,6 @@ def parse_and_validate_envelope_response(
                 "criterion_id",
                 "criterion_title",
                 "total_units",
-                "qualifying_unit_ids",
                 "has_measurable_content",
             }
             missing_req = required_keys - set(m)
@@ -490,21 +500,22 @@ def parse_and_validate_envelope_response(
                     "(max 64 items)"
                 )
 
-            qualifying_ids = m.get("qualifying_unit_ids")
-            if not isinstance(qualifying_ids, list) or len(qualifying_ids) > 64:
-                raise AgentExecutionError(
-                    f"Measurement '{cid}' field 'qualifying_unit_ids' must be a list"
-                )
-
-            if not has_measurable and (len(total_units) > 0 or len(qualifying_ids) > 0):
+            if not has_measurable and len(total_units) > 0:
                 raise AgentExecutionError(
                     f"Measurement '{cid}' has_measurable_content=False requires "
-                    "empty total_units and qualifying_unit_ids"
+                    "empty total_units"
                 )
 
-            allowed_unit_keys = {"unit_id", "evidence", "label", "location"}
-            seen_uids: set[str] = set()
-            seen_evidences: set[str] = set()
+            allowed_unit_keys = {"evidence", "qualifies", "label", "location"}
+            # Fact-set normalization: ratio units dedupe by normalized canonical
+            # evidence only. Optional label/location are ungrounded annotations
+            # and must not influence scoring identity; first-row annotations
+            # are preserved. Same evidence with the same qualifies flag is
+            # redundant (keep-first); opposite qualifies flags contradict and
+            # must fail the envelope.
+            seen_evidences: dict[str, bool] = {}
+            canonical_units: list[dict[str, Any]] = []
+            qualifying_unit_ids: list[str] = []
 
             for unit_idx, unit in enumerate(total_units):
                 if not isinstance(unit, (dict, OrderedDict)):
@@ -517,24 +528,11 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' unit[{unit_idx}] has unexpected keys: "
                         f"{sorted(unit_extra)}"
                     )
-                uid = unit.get("unit_id")
-                if (
-                    not isinstance(uid, str)
-                    or not uid.strip()
-                    or uid != uid.strip()
-                    or len(uid) > 50
-                ):
+                if "evidence" not in unit or "qualifies" not in unit:
                     raise AgentExecutionError(
-                        f"Measurement '{cid}' unit[{unit_idx}] requires non-empty "
-                        "string 'unit_id'"
+                        f"Measurement '{cid}' unit[{unit_idx}] requires "
+                        "'evidence' and 'qualifies'"
                     )
-                if uid in seen_uids:
-                    raise AgentExecutionError(
-                        f"Measurement '{cid}' has duplicate unit_id '{uid}' "
-                        "in total_units"
-                    )
-                seen_uids.add(uid)
-
                 evidence = unit.get("evidence")
                 if (
                     not isinstance(evidence, str)
@@ -546,19 +544,18 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' unit[{unit_idx}] requires non-empty "
                         f"string 'evidence'"
                     )
-                if GAP_MARKER.strip() in evidence or evidence not in source_packet:
+                matched_evidence = _find_verbatim_substring(evidence, source_packet)
+                if matched_evidence is None or GAP_MARKER.strip() in matched_evidence:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' unit[{unit_idx}] evidence is not "
                         "an exact substring of source text"
                     )
-                norm_ev = " ".join(evidence.split()).casefold()
-                if norm_ev in seen_evidences:
+                qualifies = unit.get("qualifies")
+                if not isinstance(qualifies, bool):
                     raise AgentExecutionError(
-                        f"Measurement '{cid}' contains duplicate unit evidence "
-                        "in total_units"
+                        f"Measurement '{cid}' unit[{unit_idx}] field 'qualifies' "
+                        "must be a boolean"
                     )
-                seen_evidences.add(norm_ev)
-
                 label = unit.get("label")
                 if label is not None and not _is_strict_optional_text(label, 200):
                     raise AgentExecutionError(
@@ -571,30 +568,30 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' unit[{unit_idx}] location must be a "
                         "nonblank, trimmed string <= 100 chars"
                     )
+                norm_ev = " ".join(matched_evidence.split()).casefold()
+                if norm_ev in seen_evidences:
+                    if seen_evidences[norm_ev] is not qualifies:
+                        raise AgentExecutionError(
+                            f"Measurement '{cid}' contains conflicting qualifies "
+                            "for duplicate unit in total_units"
+                        )
+                    continue
+                seen_evidences[norm_ev] = qualifies
+                unit_id = f"u{len(canonical_units) + 1}"
+                canonical_unit: dict[str, Any] = {
+                    "unit_id": unit_id,
+                    "evidence": matched_evidence,
+                }
+                if label is not None:
+                    canonical_unit["label"] = label
+                if location is not None:
+                    canonical_unit["location"] = location
+                canonical_units.append(canonical_unit)
+                if qualifies is True:
+                    qualifying_unit_ids.append(unit_id)
 
-            seen_qids: set[str] = set()
-            for qid in qualifying_ids:
-                if (
-                    not isinstance(qid, str)
-                    or not qid.strip()
-                    or qid != qid.strip()
-                    or len(qid) > 50
-                ):
-                    raise AgentExecutionError(
-                        f"Measurement '{cid}' qualifying_unit_ids must contain "
-                        "non-empty strings"
-                    )
-                if qid in seen_qids:
-                    raise AgentExecutionError(
-                        f"Measurement '{cid}' contains duplicate qualifying_unit_id "
-                        f"'{qid}'"
-                    )
-                if qid not in seen_uids:
-                    raise AgentExecutionError(
-                        f"Measurement '{cid}' qualifying_unit_id '{qid}' does not "
-                        "exist in total_units"
-                    )
-                seen_qids.add(qid)
+            m["total_units"] = canonical_units
+            m["qualifying_unit_ids"] = qualifying_unit_ids
 
             ratio_summary = m.get("summary")
             if ratio_summary is not None and not _is_strict_optional_text(
@@ -660,15 +657,16 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' alignment[{row_idx}] requires "
                         "non-empty string 'objective_text'"
                     )
-                if (
-                    GAP_MARKER.strip() in objective_text
-                    or objective_text not in source_packet
-                ):
+                matched_objective = _find_verbatim_substring(
+                    objective_text, source_packet
+                )
+                if matched_objective is None or GAP_MARKER.strip() in matched_objective:
                     raise AgentExecutionError(
                         f"Coordinator '{cid}' objective_text is not an exact "
                         "substring of source text"
                     )
-                norm_objective = " ".join(objective_text.split()).casefold()
+                row["objective_text"] = matched_objective
+                norm_objective = " ".join(matched_objective.split()).casefold()
                 if norm_objective in seen_objectives:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' alignment[{row_idx}] contains a "
@@ -698,12 +696,16 @@ def parse_and_validate_envelope_response(
                         "'reasoning' must be a string"
                     )
                 if is_aligned is True:
+                    matched_assessment = (
+                        _find_verbatim_substring(excerpt, curriculum_context)
+                        if isinstance(excerpt, str) and excerpt.strip()
+                        else None
+                    )
                     if (
-                        isinstance(excerpt, str)
-                        and excerpt.strip()
-                        and excerpt.strip() in curriculum_context
+                        matched_assessment is not None
+                        and GAP_MARKER.strip() not in matched_assessment
                     ):
-                        pass
+                        row["assessment_excerpt"] = matched_assessment
                     else:
                         row["is_aligned"] = False
                         row["assessment_excerpt"] = None
@@ -719,7 +721,6 @@ def parse_and_validate_envelope_response(
                     f"trimmed string (max {COORD_TEXT_MAX} chars)"
                 )
             m["_grounding_rejected_count"] = rejected
-
         validated_measurements.append(dict(m))
 
     return {

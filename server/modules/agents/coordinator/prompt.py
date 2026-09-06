@@ -14,12 +14,38 @@ from server.modules.rubrics.contracts import (
 )
 
 from ..exceptions import AgentExecutionError
-from .slicing import downsample
+from ..runtime.slicing import GAP_MARKER, downsample_source_text
 
 REPAIR_SUFFIX = (
     "\n\nVALIDATOR_FAILURE category=COORDINATOR_INVALID path=criterion_measurements. "
-    "Regenerate ONLY the complete JSON response; do not include commentary."
+    "Regenerate ONLY the complete JSON response matching the required schema, "
+    "criteria order, and exact field set: no extra or missing fields. "
+    "Evidence, excerpts, and objective_text MUST each be an exact verbatim "
+    "substring of the SOURCE TEXT; assessment_excerpt MUST be an exact verbatim "
+    "substring of the CURRICULUM CONTEXT. "
+    "Emit each repeated identical fact only once. "
+    "Duplicate ratio units must use one consistent qualifies boolean. "
+    "Do not include commentary."
 )
+
+
+def build_repair_suffix(validation_error: BaseException | str) -> str:
+    """Build a diagnostic repair suffix naming the exact validation failure."""
+    detail = str(validation_error).strip()
+    if len(detail) > 500:
+        detail = detail[:497] + "..."
+    return (
+        f"\n\nVALIDATOR_FAILURE category=COORDINATOR_INVALID: {detail}\n"
+        "Regenerate ONLY the complete JSON response matching the required schema, "
+        "criteria order, and exact field set: no extra or missing fields. "
+        "Evidence, excerpts, and objective_text MUST each be an exact verbatim "
+        "substring of the SOURCE TEXT; assessment_excerpt MUST be an exact verbatim "
+        "substring of the CURRICULUM CONTEXT. "
+        "Emit each repeated identical fact only once. "
+        "Duplicate ratio units must use one consistent qualifies boolean. "
+        "Do not include commentary."
+    )
+
 
 COORDINATOR_PREAMBLE = (
     "You are the Program Coordinator evaluation agent for Student Learning\n"
@@ -30,6 +56,9 @@ COORDINATOR_PREAMBLE = (
     "every alignment claim you make about it must quote it verbatim.\n"
     "- Ground all extractions: every evidence and excerpt MUST be an exact, "
     "verbatim substring of the source text.\n"
+    "- The source text may contain '[...]' markers where document sections were "
+    "omitted to fit the budget; do NOT quote across a '[...]' marker and do NOT "
+    "fabricate text to fill omitted sections.\n"
     "- Return a single JSON object with 'summary' and 'criterion_measurements'.\n"
     "- 'criterion_measurements' must contain exactly one object per criterion, "
     "in the exact order listed below.\n"
@@ -69,10 +98,13 @@ def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
     elif isinstance(config, RatioBandConfig):
         lines.append("Strategy: Qualifying Coverage Ratio")
         lines.append(
-            "Instructions: Extract all units from the source text into total_units. "
-            "For each unit, assign a unique unit_id and provide an exact verbatim "
-            "evidence quote substring from the source text. List the unit_ids of "
-            "all qualifying units in qualifying_unit_ids. Set has_measurable_content "
+            "Instructions: Extract all units from the source text into total_units "
+            "in document order. For each unit, provide an exact verbatim evidence "
+            "quote substring from the source text and a qualifies boolean (true "
+            "for qualifying units, false otherwise). You may include an optional "
+            "label and location per unit. Do NOT emit unit_id or "
+            "qualifying_unit_ids; units are linked by document order. "
+            "Set has_measurable_content "
             "to true (or false if the document has no relevant content to measure). "
             "Do NOT assign a score."
         )
@@ -122,12 +154,11 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
             "criterion_title": criterion.title,
             "total_units": [
                 {
-                    "unit_id": "u1",
                     "evidence": "Exact verbatim quote from the source text for unit 1.",
+                    "qualifies": True,
                     "label": "Unit 1 label",
                 }
             ],
-            "qualifying_unit_ids": ["u1"],
             "has_measurable_content": True,
             "summary": "Overview of evaluated units.",
         }
@@ -142,9 +173,7 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
                     "assessment_excerpt": (
                         "Exact verbatim span from the curriculum context."
                     ),
-                    "reasoning": (
-                        "Why the curriculum span addresses this objective."
-                    ),
+                    "reasoning": ("Why the curriculum span addresses this objective."),
                 }
             ],
             "summary": "Overview of objective-curriculum alignment.",
@@ -216,13 +245,9 @@ def build_envelope_prompt_and_source(
             "Coordinator prompt instructions exceed total prompt budget"
         )
 
-    source_packet = downsample(
+    source_packet = downsample_source_text(
         canonical_source_text, budget=available_for_source, windows=6
     )
-    # slicing.downsample joins windows with GAP_MARKER and can slightly exceed
-    # the byte budget; clamp so the assembled prompt stays within prompt_budget.
-    if len(source_packet) > available_for_source:
-        source_packet = source_packet[:available_for_source]
     prompt = build_envelope_prompt(
         criteria,
         source_text=source_packet,
@@ -236,7 +261,10 @@ def build_envelope_prompt_and_source(
 
 
 __all__ = [
+    "COORDINATOR_PREAMBLE",
+    "GAP_MARKER",
     "REPAIR_SUFFIX",
     "build_envelope_prompt",
     "build_envelope_prompt_and_source",
+    "build_repair_suffix",
 ]
