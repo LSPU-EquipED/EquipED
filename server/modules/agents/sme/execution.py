@@ -13,7 +13,8 @@ from server.modules.rubrics.contracts import CriterionDefinition
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..runtime.llm import RunLLMClient, error_reference
-from .prompt import REPAIR_SUFFIX, build_envelope_prompt_and_source
+from ..runtime.prompts import AgentPrompt, build_diagnostic_repair_prompt
+from .prompt import build_envelope_prompt_and_source
 from .response import (
     build_envelope_schema,
     parse_and_validate_envelope_response,
@@ -32,7 +33,7 @@ def execute_envelope(
     prompt_preamble: str | None = None,
     temperature: float | None = None,
     deadline: float | None = None,
-) -> tuple[tuple[CriterionScore, ...], str, dict[str, Any], bool]:
+) -> tuple[tuple[CriterionScore, ...], AgentPrompt, dict[str, Any], bool]:
     """Execute a single SME envelope call with one repair on validation failure."""
     settings = get_settings()
     prompt_budget = settings.sme_total_prompt_budget_chars
@@ -90,21 +91,9 @@ def execute_envelope(
             type(validation_error).__name__,
             error_reference(validation_error),
         )
-        repair_msg = str(validation_error).strip()
-        if len(repair_msg) > 120:
-            repair_msg = repair_msg[:117] + "..."
-        repair_suffix = (
-            f"\n\nVALIDATOR_FAILURE category=SME_INVALID detail: {repair_msg}. "
-            "If no matching instances exist in the source text, set instances to []. "
-            "Regenerate ONLY the complete JSON response; do not include commentary."
+        repair_prompt = build_diagnostic_repair_prompt(
+            prompt, validation_error, total_budget=prompt_budget
         )
-        repair_prompt = prompt + repair_suffix
-        if len(repair_prompt) > prompt_budget:
-            repair_prompt = prompt + REPAIR_SUFFIX
-        if len(repair_prompt) > prompt_budget:
-            raise AgentExecutionError(
-                "SME repair prompt exceeds total prompt budget"
-            ) from validation_error
 
         repaired_completion = client.generate_result(
             repair_prompt,

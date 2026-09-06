@@ -12,43 +12,12 @@ from server.modules.rubrics.contracts import (
     RatioBandConfig,
 )
 
-from ..exceptions import AgentExecutionError
-from .slicing import GAP_MARKER
+from ..runtime.prompts import AgentPrompt, PromptEnvelopeBuilder
 
 REPAIR_SUFFIX = (
     "\n\nVALIDATOR_FAILURE category=SME_INVALID path=criterion_measurements. "
     "Regenerate ONLY the complete JSON response; do not include commentary."
 )
-
-
-def downsample_source_text(text: str, budget: int, windows: int = 6) -> str:
-    """Sample evenly-spaced windows spanning the entire document.
-
-    Ensures the final length is strictly <= budget and the last window is
-    anchored to the true tail of the document.
-    """
-    if len(text) <= budget:
-        return text
-    if budget <= len(GAP_MARKER):
-        raise AgentExecutionError("SME source budget cannot mark omitted content")
-
-    total_gaps_len = (windows - 1) * len(GAP_MARKER)
-    if budget <= total_gaps_len + windows:
-        raise AgentExecutionError("SME source budget cannot mark omitted content")
-
-    chunk_size = max(1, (budget - total_gaps_len) // windows)
-    chunks: list[str] = []
-    for i in range(windows):
-        if i == windows - 1:
-            start = max(0, len(text) - chunk_size)  # True tail
-        else:
-            start = (i * len(text)) // windows
-        chunks.append(text[start : start + chunk_size])
-
-    sampled = GAP_MARKER.join(chunks)
-    if len(sampled) > budget:
-        sampled = sampled[:budget]
-    return sampled
 
 
 def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
@@ -144,49 +113,26 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
     return {"criterion_id": criterion.criterion_code}
 
 
-def build_envelope_prompt(
-    criteria: tuple[CriterionDefinition, ...],
-    source_text: str,
-    prompt_preamble: str | None = None,
-) -> str:
-    criteria_blocks = "\n\n".join(_criterion_prompt_block(c) for c in criteria)
-    example = {
-        "summary": "Brief summary of evaluation findings for these criteria.",
-        "criterion_measurements": [_example_measurement(c) for c in criteria],
-    }
-    example_json = json.dumps(example, indent=2, ensure_ascii=False)
+SME_PREAMBLE = (
+    "You are the Subject Matter Expert (SME) evaluation agent for Student "
+    "Learning Materials (SLM).\n"
+    "Evaluate the criteria below strictly and impartially against the "
+    "provided UNTRUSTED source text.\n"
+    "- Ground all extractions: every evidence and excerpt MUST be an exact, "
+    "verbatim substring of the source text.\n"
+    "- Return a single JSON object with 'summary' and "
+    "'criterion_measurements'.\n"
+    "- 'criterion_measurements' must contain exactly one object per "
+    "criterion in the exact order listed below.\n"
+    "- Do NOT calculate or return final numeric scores for count or ratio "
+    "strategies; emit only the required measurement structure."
+)
 
-    instructions = [
-        "=== EVALUATOR INSTRUCTIONS ===",
-        (
-            "You are the Subject Matter Expert (SME) evaluation agent for Student "
-            "Learning Materials (SLM).\n"
-            "Evaluate the criteria below strictly and impartially against the "
-            "provided UNTRUSTED source text.\n"
-            "- Ground all extractions: every evidence and excerpt MUST be an exact, "
-            "verbatim substring of the source text.\n"
-            "- Return a single JSON object with 'summary' and "
-            "'criterion_measurements'.\n"
-            "- 'criterion_measurements' must contain exactly one object per "
-            "criterion in the exact order listed below.\n"
-            "- Do NOT calculate or return final numeric scores for count or ratio "
-            "strategies; emit only the required measurement structure."
-        ),
-        "CRITERIA TO EVALUATE:",
-        criteria_blocks,
-        "REQUIRED JSON OUTPUT STRUCTURE:",
-        example_json,
-        "=== END EVALUATOR INSTRUCTIONS ===",
-        "",
-        "=== UNTRUSTED SOURCE TEXT ===",
-        source_text,
-        "=== END SOURCE TEXT ===",
-    ]
-
-    body = "\n\n".join(instructions)
-    if prompt_preamble and prompt_preamble.strip():
-        return prompt_preamble.strip() + "\n\n" + body
-    return body
+_GAP_MARKER_WARNING = (
+    "The source text may contain '[...]' markers where document sections were "
+    "omitted to fit the budget; do NOT quote across a '[...]' marker and do NOT "
+    "fabricate text to fill omitted sections."
+)
 
 
 def build_envelope_prompt_and_source(
@@ -194,32 +140,36 @@ def build_envelope_prompt_and_source(
     canonical_source_text: str,
     prompt_budget: int,
     prompt_preamble: str | None = None,
-) -> tuple[str, str]:
-    """Construct prompt reserving REPAIR_SUFFIX and downsampling source text."""
-    template_without_source = build_envelope_prompt(
-        criteria, source_text="", prompt_preamble=prompt_preamble
-    )
-    available_for_source = (
-        prompt_budget - len(template_without_source) - len(REPAIR_SUFFIX)
-    )
-    if available_for_source <= 0:
-        raise AgentExecutionError("SME prompt instructions exceed total prompt budget")
+) -> tuple[AgentPrompt, str]:
+    """Construct role-separated prompt reserving repair budget.
 
-    source_packet = downsample_source_text(
-        canonical_source_text, budget=available_for_source, windows=6
+    The system instruction carries the SME preamble, criterion blocks, JSON
+    schema example, and gap-marker warning. The user context carries the
+    downsampled untrusted source text.
+    """
+    criteria_blocks = "\n\n".join(_criterion_prompt_block(c) for c in criteria)
+    example = {
+        "summary": "Brief summary of evaluation findings for these criteria.",
+        "criterion_measurements": [_example_measurement(c) for c in criteria],
+    }
+    example_json = json.dumps(example, indent=2, ensure_ascii=False)
+    builder = PromptEnvelopeBuilder(
+        evaluator_preamble=SME_PREAMBLE,
+        criteria_blocks=criteria_blocks,
+        example_json=example_json,
+        total_budget=prompt_budget,
+        reserved_repair_chars=600,
+        gap_marker_warning=_GAP_MARKER_WARNING,
     )
-    prompt = build_envelope_prompt(
-        criteria, source_text=source_packet, prompt_preamble=prompt_preamble
+    prompt, source_packet = builder.build(
+        canonical_source_text,
+        managed_prompt=prompt_preamble,
     )
-    if len(prompt) + len(REPAIR_SUFFIX) > prompt_budget:
-        raise AgentExecutionError("SME prompt exceeds total prompt budget")
-
     return prompt, source_packet
 
 
 __all__ = [
     "REPAIR_SUFFIX",
-    "build_envelope_prompt",
+    "SME_PREAMBLE",
     "build_envelope_prompt_and_source",
-    "downsample_source_text",
 ]
