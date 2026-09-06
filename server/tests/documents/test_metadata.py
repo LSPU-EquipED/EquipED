@@ -315,10 +315,6 @@ class TestDetectionNonBlocking:
             "server.modules.documents.service.detect_metadata", _raise_on_detect
         )
         monkeypatch.setattr(
-            "server.modules.documents.service._refresh_tfidf_if_needed",
-            lambda _: None,
-        )
-        monkeypatch.setattr(
             "server.modules.documents.service.prepare_slm_package",
             _fake_prepare_slm_package,
         )

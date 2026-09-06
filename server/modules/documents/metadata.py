@@ -33,6 +33,7 @@ def canonicalize_supported_program(value: str | None) -> str | None:
         return "BSCS"
     return None
 
+
 # Academic year patterns: "2025-2026", "2025 – 2026", "AY 2025", "SY 2025-2026"
 _ACADEMIC_YEAR_PATTERN = re.compile(
     r"\b(?:SY\s*)?(20\d{2})\s*[–-]\s*(20\d{2})\b"

@@ -17,14 +17,9 @@ class InfrastructureUnavailableError(CoreError):
     """Raised when an infrastructure singleton cannot be created."""
 
 
-class ReadinessError(CoreError):
-    """Raised when readiness checks fail."""
-
-
 __all__ = [
     "CoreError",
     "ConfigurationError",
     "DependencyUnavailableError",
     "InfrastructureUnavailableError",
-    "ReadinessError",
 ]

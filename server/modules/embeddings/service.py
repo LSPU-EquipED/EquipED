@@ -107,12 +107,6 @@ def embed_and_store_chunks(chunks: list[Any], batch_size: int = 32) -> int:
     return upserted
 
 
-def embed_document_chunks(chunks: list[Any], batch_size: int = 32) -> int:
-    """Compatibility wrapper for document-layer callers."""
-
-    return embed_and_store_chunks(chunks, batch_size=batch_size)
-
-
 def delete_chroma_vectors(document_id: str, source_type: str) -> bool:
     """Delete all Chroma vectors for a given document_id and source_type.
 
@@ -192,7 +186,6 @@ def check_chroma_availability(document_id: str, source_type: str) -> bool:
 __all__ = [
     "EmbeddingChunk",
     "embed_and_store_chunks",
-    "embed_document_chunks",
     "delete_chroma_vectors",
     "delete_chroma_vectors_strict",
     "check_chroma_availability",

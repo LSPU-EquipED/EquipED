@@ -109,7 +109,6 @@ class Settings:
     llm_model_coord: str | None = None
     llm_model_gad: str | None = None
     llm_model_itso: str | None = None
-    agent_debug_rubric_context: bool = False
 
     embedding_model_name: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
@@ -544,7 +543,6 @@ def get_settings() -> Settings:
         llm_model_coord=_env("LLM_MODEL_COORD"),
         llm_model_gad=_env("LLM_MODEL_GAD"),
         llm_model_itso=_env("LLM_MODEL_ITSO"),
-        agent_debug_rubric_context=_bool_env("AGENT_DEBUG_RUBRIC_CONTEXT", False),
         agent_max_chunks=parsed_agent_max_chunks,
         agent_max_excerpt_chars=parsed_agent_max_excerpt_chars,
         agent_prompt_budget_chars=parsed_agent_prompt_budget_chars,

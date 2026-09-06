@@ -68,11 +68,6 @@ class LoginResponse(AuthStateResponse):
     user: AuthUserResponse
 
 
-class BootstrapAdminResponse(BaseModel):
-    created: bool
-    email: str | None = None
-
-
 __all__ = [
     "RegistrationRequest",
     "RegistrationStartedResponse",
@@ -80,7 +75,6 @@ __all__ = [
     "RegistrationVerifyRequest",
     "AuthStateResponse",
     "AuthUserResponse",
-    "BootstrapAdminResponse",
     "LoginRequest",
     "LoginResponse",
 ]
