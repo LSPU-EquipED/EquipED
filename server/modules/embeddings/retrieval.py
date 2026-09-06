@@ -41,9 +41,14 @@ def retrieve_context(
 
     try:
         model = get_embedding_model()
-        query_embedding = model.encode([query_text], show_progress_bar=False).tolist()[0]
+        query_embedding = model.encode([query_text], show_progress_bar=False).tolist()[
+            0
+        ]
         return _query_collection(
-            collection_name, query_embedding, n_results, document_id_filter,
+            collection_name,
+            query_embedding,
+            n_results,
+            document_id_filter,
         )
     except Exception as exc:
         # Phase 1: fall back to empty so the evaluation pipeline keeps moving.
@@ -76,7 +81,10 @@ def retrieve_context_with_embedding(
 
     try:
         return _query_collection(
-            collection_name, query_embedding, n_results, document_id_filter,
+            collection_name,
+            query_embedding,
+            n_results,
+            document_id_filter,
         )
     except Exception as exc:
         # Phase 1: fall back to empty so the evaluation pipeline keeps moving.

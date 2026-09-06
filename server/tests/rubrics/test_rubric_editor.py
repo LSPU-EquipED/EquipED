@@ -17,7 +17,7 @@ from server.modules.rubrics.models import (
 from server.modules.rubrics.service import (
     get_rubric_sets_for_editor,
     update_criterion,
-    update_domain_title,
+    update_domain,
 )
 from server.tests.rubrics.conftest import _auth
 from server.tests.rubrics.test_rubrics import _seed_from_json
@@ -270,12 +270,12 @@ def test_update_criterion_missing_id_raises_lookup_error(db_session) -> None:
         update_criterion(db_session, uuid.uuid4(), description="y", scoring_rule=None)
 
 
-def test_update_domain_title_persists_on_draft(db_session) -> None:
+def test_update_domain_persists_on_draft(db_session) -> None:
     _seed_from_json(db_session)
     draft_set, draft_domain, _ = _create_draft_tree(db_session)
     assert draft_set.status == "draft"
 
-    update_domain_title(db_session, draft_domain.rubric_domain_id, title="Organization")
+    update_domain(db_session, draft_domain.rubric_domain_id, title="Organization")
     db_session.commit()
 
     refreshed = (
@@ -286,7 +286,7 @@ def test_update_domain_title_persists_on_draft(db_session) -> None:
     assert refreshed.title == "Organization"
 
 
-def test_update_domain_title_on_published_raises_rubric_conflict_error(
+def test_update_domain_on_published_raises_rubric_conflict_error(
     db_session,
 ) -> None:
     _seed_from_json(db_session)
@@ -299,7 +299,7 @@ def test_update_domain_title_on_published_raises_rubric_conflict_error(
     old_title = domain.title
 
     with pytest.raises(RubricConflictError):
-        update_domain_title(db_session, domain.rubric_domain_id, title="Mutated Title")
+        update_domain(db_session, domain.rubric_domain_id, title="Mutated Title")
     db_session.rollback()
 
     refreshed = (
@@ -310,7 +310,7 @@ def test_update_domain_title_on_published_raises_rubric_conflict_error(
     assert refreshed.title == old_title
 
 
-def test_update_domain_title_on_retired_raises_rubric_conflict_error(
+def test_update_domain_on_retired_raises_rubric_conflict_error(
     db_session,
 ) -> None:
     _seed_from_json(db_session)
@@ -327,7 +327,7 @@ def test_update_domain_title_on_retired_raises_rubric_conflict_error(
     old_title = retired_domain.title
 
     with pytest.raises(RubricConflictError):
-        update_domain_title(
+        update_domain(
             db_session, retired_domain.rubric_domain_id, title="Mutated Retired Title"
         )
     db_session.rollback()

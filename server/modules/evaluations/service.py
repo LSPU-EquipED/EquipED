@@ -608,22 +608,6 @@ def seconds_until_stale_evaluation_execution(
     )
 
 
-def verify_layer3_ownership(
-    db: Any, evaluation_id: uuid.UUID, execution_token: uuid.UUID
-) -> bool:
-    return (
-        db.execute(
-            select(EvaluationJob.evaluation_id).where(
-                EvaluationJob.evaluation_id == evaluation_id,
-                EvaluationJob.status == EvaluationStatus.EVALUATING.value,
-                EvaluationJob.admission_slot == 1,
-                EvaluationJob.execution_token == execution_token,
-            )
-        ).scalar_one_or_none()
-        is not None
-    )
-
-
 def get_latest_evaluations(
     document_ids: list[uuid.UUID],
     current_user_id: uuid.UUID,
@@ -729,7 +713,6 @@ __all__ = [
     "heartbeat_evaluation_execution",
     "recover_stale_evaluation_execution",
     "seconds_until_stale_evaluation_execution",
-    "verify_layer3_ownership",
     "admission_schema_ready",
     "_validate_evaluation_target",
 ]

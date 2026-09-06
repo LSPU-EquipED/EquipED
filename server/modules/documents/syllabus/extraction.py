@@ -213,9 +213,7 @@ def _matches_signature(
     return _signatures_match(signature, expected)
 
 
-def _signatures_match(
-    actual: _TableSignature, expected: _TableSignature
-) -> bool:
+def _signatures_match(actual: _TableSignature, expected: _TableSignature) -> bool:
     if (
         actual.column_count != expected.column_count
         or actual.target_column != expected.target_column

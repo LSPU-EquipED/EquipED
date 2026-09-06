@@ -490,10 +490,6 @@ def test_existing_documents_are_not_auto_reprocessed(
         "server.modules.documents.service.ingest_document",
         fake_ingest_document,
     )
-    monkeypatch.setattr(
-        "server.modules.documents.service._refresh_tfidf_if_needed",
-        lambda _: None,
-    )
 
     upload = UploadFile(filename="new.pdf", file=BytesIO(b"%PDF-1.4\nnew"))
     result = create_document(

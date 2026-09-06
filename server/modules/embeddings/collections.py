@@ -31,7 +31,9 @@ def resolve_collection_name(source_type: str) -> str:
     try:
         return SOURCE_TYPE_TO_COLLECTION[source_type]
     except KeyError as exc:
-        raise ValueError(f"Unsupported source_type for embeddings: {source_type}") from exc
+        raise ValueError(
+            f"Unsupported source_type for embeddings: {source_type}"
+        ) from exc
 
 
 __all__ = [

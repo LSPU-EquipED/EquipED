@@ -19,13 +19,17 @@ from .slicing import GAP_MARKER
 
 SME_TEXT_MAX = 2000
 
+
 def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
-    """Locate excerpt in source, tolerating whitespace, quotes, dashes, and bullet variations."""
+    """Locate excerpt in source.
+
+    Tolerates whitespace, quotes, dashes, and bullet variations.
+    """
     if excerpt in source:
         return excerpt
-    trans = str.maketrans({
-        "“": '"', "”": '"', "‘": "'", "’": "'", "—": "-", "–": "-", "\xa0": " "
-    })
+    trans = str.maketrans(
+        {"“": '"', "”": '"', "‘": "'", "’": "'", "—": "-", "–": "-", "\xa0": " "}
+    )
     c_source = source.translate(trans)
     c_excerpt = excerpt.translate(trans)
 
@@ -46,7 +50,11 @@ def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
         match_words = re.search(pattern_words, c_source, flags=re.IGNORECASE)
         if match_words:
             start, end = match_words.start(), match_words.end()
-            if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+            if (
+                end < len(source)
+                and source[end] in ".?!;:"
+                and excerpt.rstrip().endswith(source[end])
+            ):
                 end += 1
             return source[start:end]
 
@@ -68,7 +76,11 @@ def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
             match_sub = re.search(p_sub, c_source, flags=re.IGNORECASE)
             if match_sub:
                 start, end = match_sub.start(), match_sub.end()
-                if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                if (
+                    end < len(source)
+                    and source[end] in ".?!;:"
+                    and excerpt.rstrip().endswith(source[end])
+                ):
                     end += 1
                 return source[start:end]
 
@@ -80,7 +92,11 @@ def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
                 m_window = re.search(p_window, c_source, flags=re.IGNORECASE)
                 if m_window:
                     start, end = m_window.start(), m_window.end()
-                    if end < len(source) and source[end] in ".?!;:" and excerpt.rstrip().endswith(source[end]):
+                    if (
+                        end < len(source)
+                        and source[end] in ".?!;:"
+                        and excerpt.rstrip().endswith(source[end])
+                    ):
                         end += 1
                     return source[start:end]
 

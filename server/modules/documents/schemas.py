@@ -197,11 +197,6 @@ class DocumentListResponse(BaseModel):
     stats: DocumentListStats
 
 
-class TFIDFWeight(BaseModel):
-    term: str
-    idf_weight: float
-
-
 class ReferenceLibraryItem(BaseModel):
     """Lightweight reference item with computed health for the admin library."""
 
@@ -286,7 +281,6 @@ __all__ = [
     "DocumentListItem",
     "DocumentListStats",
     "DocumentListResponse",
-    "TFIDFWeight",
     "ReferenceLibraryItem",
     "ReferenceLibraryResponse",
     "ReferenceDeleteResponse",

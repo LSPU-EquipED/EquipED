@@ -119,11 +119,7 @@ def _policy_sub_chunk(text: str) -> list[str]:
     if not normalized:
         return []
 
-    sentences = [
-        s.strip()
-        for s in re.split(r"(?<=[.!?])\s+", normalized)
-        if s.strip()
-    ]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", normalized) if s.strip()]
     if not sentences:
         return [normalized]
 
@@ -143,7 +139,7 @@ def _policy_sub_chunk(text: str) -> list[str]:
             # Hard-split the oversized sentence
             words = sentence.split()
             for start in range(0, len(words), _POLICY_TARGET_CHUNK_TOKENS):
-                part = " ".join(words[start:start + _POLICY_TARGET_CHUNK_TOKENS])
+                part = " ".join(words[start : start + _POLICY_TARGET_CHUNK_TOKENS])
                 chunks.append(part)
             continue
 

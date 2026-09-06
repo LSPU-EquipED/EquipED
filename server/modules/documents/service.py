@@ -40,11 +40,8 @@ from .schemas import (
     DocumentUploadResponse,
 )
 from .slm import prepare_slm_package
-from .slm.tfidf import compute_tfidf_corpus
 
 logger = logging.getLogger(__name__)
-
-_MEM_TFIDF: dict[str, float] = {}
 
 # Restricted source types that only admins can upload
 _ADMIN_ONLY_SOURCE_TYPES = {
@@ -316,8 +313,6 @@ def _process_uploaded_document(
         if runtime_db is not None:
             runtime_db.rollback()
         raise
-
-    _refresh_tfidf_if_needed(source_type)
 
     return DocumentUploadResponse(
         document_id=doc_id,
@@ -661,8 +656,6 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
             exc_info=True,
         )
 
-    _refresh_tfidf_if_needed(source_type)
-
 
 def _validate_upload(
     file: UploadFile,
@@ -767,19 +760,6 @@ def embed_document_chunks(document_id: uuid.UUID) -> int:
     finally:
         if session is not None:
             session.close()
-
-
-def _refresh_tfidf_if_needed(source_type: str) -> None:
-    if source_type != "slm":
-        return
-
-    slm_chunks: list[Any] = []
-    for document_id, metadata in persistence._MEM_DOCUMENTS.items():
-        if metadata.source_type == "slm":
-            slm_chunks.extend(persistence._MEM_CHUNKS.get(document_id, []))
-
-    _MEM_TFIDF.clear()
-    _MEM_TFIDF.update(compute_tfidf_corpus(slm_chunks))
 
 
 def _sanitize_error(raw_message: str) -> str:

@@ -188,7 +188,6 @@ def _patch_settings() -> dict[str, Any]:
         "agent_prompt_budget_chars": 5000,
         "agent_small_doc_threshold": 6,
         "agent_total_prompt_budget_chars": 8000,
-        "agent_debug_rubric_context": False,
     }
 
     def get_agent_temperature(_self: Any, agent_name: str) -> float:

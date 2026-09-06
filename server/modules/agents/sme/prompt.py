@@ -45,20 +45,21 @@ def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
         lines.append("Strategy: Grounded Count")
         lines.append(
             "Instructions: Extract all distinct, genuine matching instances from "
-            "the source text. For each instance found, 'excerpt' must be an exact verbatim "
-            "quote substring from the source text. If NO matching instances exist in "
-            "the document, set 'instances' to an empty list []. Do NOT fabricate or "
-            "describe an excerpt. Do NOT assign a score."
+            "the source text. For each instance found, 'excerpt' must be an exact "
+            "verbatim quote substring from the source text. If NO matching "
+            "instances exist in the document, set 'instances' to an empty list []. "
+            "Do NOT fabricate or describe an excerpt. Do NOT assign a score."
         )
     elif isinstance(config, RatioBandConfig):
         lines.append("Strategy: Qualifying Coverage Ratio")
         lines.append(
             "Instructions: Extract all units from the source text into total_units. "
-            "For each unit, assign a distinct unique unit_id (e.g. \"u1\", \"u2\", \"u3\") "
-            "and provide an exact verbatim evidence quote substring from the source text. List the unit_ids of "
-            "all qualifying units in qualifying_unit_ids. Set has_measurable_content "
-            "to true whenever total_units is not empty (set to false ONLY if the "
-            "document has no content to measure, in which case total_units and "
+            'For each unit, assign a distinct unique unit_id (e.g. "u1", "u2") '
+            "and provide an exact verbatim evidence quote substring from the "
+            "source text. List the unit_ids of all qualifying units in "
+            "qualifying_unit_ids. Set has_measurable_content to true whenever "
+            "total_units is not empty (set to false ONLY if the document has no "
+            "content to measure, in which case total_units and "
             "qualifying_unit_ids must both be empty []). Do NOT assign a score."
         )
 

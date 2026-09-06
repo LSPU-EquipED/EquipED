@@ -38,7 +38,6 @@ from server.modules.evaluations.service import (
     heartbeat_evaluation_execution,
     recover_stale_evaluation_execution,
     transition_evaluation_status,
-    verify_layer3_ownership,
 )
 from server.modules.synthesis.models import AgentResult
 from sqlalchemy import create_engine, update
@@ -657,20 +656,6 @@ def test_stale_recovery_respects_fresh_heartbeat_and_requeues_stale() -> None:
             session.get(EvaluationJob, fresh.evaluation_id).execution_token
             == fresh_token
         )
-    finally:
-        session.close()
-
-
-def test_layer3_verification_is_owned_only() -> None:
-    SessionLocal = _make_session_factory()
-    session = SessionLocal()
-    try:
-        job = _make_job(session, status=EvaluationStatus.EVALUATING)
-        token = uuid4()
-        job.admission_slot, job.execution_token = 1, token
-        session.commit()
-        assert verify_layer3_ownership(session, job.evaluation_id, token) is True
-        assert verify_layer3_ownership(session, job.evaluation_id, uuid4()) is False
     finally:
         session.close()
 
