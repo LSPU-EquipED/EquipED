@@ -196,7 +196,7 @@ class Coordinator:
 
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
-            scores, prompt_text, parsed, repaired = execute_envelope(
+            scores, prompt, parsed, repaired = execute_envelope(
                 idx,
                 env_criteria,
                 adapter,
@@ -205,7 +205,7 @@ class Coordinator:
                 prompt_preamble=roadmap_note,
             )
             all_scores.extend(scores)
-            envelope_prompts[env_key] = prompt_text
+            envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = parsed
             any_repair = any_repair or repaired
             for m in parsed.get("criterion_measurements", []):
