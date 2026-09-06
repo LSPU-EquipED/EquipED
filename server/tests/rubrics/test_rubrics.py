@@ -17,8 +17,6 @@ from server.modules.rubrics.repository import activate_revision
 from server.modules.rubrics.service import (
     _get_active_rubric_set,
     get_active_rubric_context,
-    get_active_rubric_criteria,
-    get_active_rubric_descriptions,
     get_active_rubric_scoring_rules,
 )
 from server.scripts.seed_rubrics import seed_coordinator_v3_if_needed, seed_domain
@@ -193,10 +191,7 @@ def test_absent_activation_fails_closed(db_session) -> None:
 
     assert _get_active_rubric_set(db_session, "sme") is None
     assert get_active_rubric_context("sme", db=db_session) == []
-    assert get_active_rubric_criteria("sme", db=db_session) == {}
-    assert get_active_rubric_descriptions("sme", db=db_session) == {}
     assert get_active_rubric_scoring_rules("sme", db=db_session) == {}
-
 
 def test_invalid_activation_draft_or_retired_fails_closed(db_session) -> None:
     """When activation points to draft or retired set, queries fail closed."""

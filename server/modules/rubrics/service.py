@@ -31,15 +31,6 @@ from .schemas import DomainReorderItem
 _UNSET: Any = object()
 
 
-def resolve_rubric_agent_id(source_type: str) -> str:
-    """Map a rubric source type to the matching rubric agent_id."""
-    if source_type == "rubric_coord":
-        return "coordinator"
-    if source_type.startswith("rubric_"):
-        return source_type.removeprefix("rubric_")
-    return source_type
-
-
 def _get_active_rubric_set(session: Any, agent_id: str) -> RubricSet | None:
     """Resolve active rubric set for an agent via activation pointer (sole authority).
 
@@ -118,70 +109,6 @@ def get_active_rubric_context(agent_id: str, db: Any | None = None) -> list[str]
                     f"Description: {criterion.description}"
                 )
         return context
-    finally:
-        if close_session:
-            session.close()
-
-
-def get_active_rubric_criteria(agent_id: str, db: Any | None = None) -> dict[str, str]:
-    """Return ``{criterion_code: title}`` for the active rubric set."""
-    session = db or get_session_factory()()
-    close_session = db is None
-    try:
-        rubric_set = _get_active_rubric_set(session, agent_id)
-        if rubric_set is None:
-            return {}
-
-        criteria = (
-            session.query(RubricCriterion)
-            .join(
-                RubricDomain,
-                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
-            )
-            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
-            .order_by(
-                RubricDomain.display_order.asc(),
-                RubricDomain.code.asc(),
-                RubricCriterion.display_order.asc(),
-                RubricCriterion.criterion_code.asc(),
-            )
-            .all()
-        )
-        return {criterion.criterion_code: criterion.title for criterion in criteria}
-    finally:
-        if close_session:
-            session.close()
-
-
-def get_active_rubric_descriptions(
-    agent_id: str, db: Any | None = None
-) -> dict[str, str]:
-    """Return ``{criterion_code: description}`` for the active rubric set."""
-    session = db or get_session_factory()()
-    close_session = db is None
-    try:
-        rubric_set = _get_active_rubric_set(session, agent_id)
-        if rubric_set is None:
-            return {}
-
-        criteria = (
-            session.query(RubricCriterion)
-            .join(
-                RubricDomain,
-                RubricCriterion.rubric_domain_id == RubricDomain.rubric_domain_id,
-            )
-            .filter(RubricDomain.rubric_set_id == rubric_set.rubric_set_id)
-            .order_by(
-                RubricDomain.display_order.asc(),
-                RubricDomain.code.asc(),
-                RubricCriterion.display_order.asc(),
-                RubricCriterion.criterion_code.asc(),
-            )
-            .all()
-        )
-        return {
-            criterion.criterion_code: criterion.description for criterion in criteria
-        }
     finally:
         if close_session:
             session.close()
@@ -716,16 +643,6 @@ def update_domain(
     return domain
 
 
-def update_domain_title(
-    db: Any,
-    domain_id: uuid.UUID,
-    *,
-    title: str,
-) -> RubricDomain:
-    """Update a domain's title in a draft rubric set."""
-    return update_domain(db, domain_id, title=title)
-
-
 def delete_domain(db: Any, domain_id: uuid.UUID) -> None:
     """Delete a domain and its child criteria from a draft rubric set."""
     row = (
@@ -1145,8 +1062,6 @@ __all__ = [
     "delete_domain",
     "delete_draft",
     "get_active_rubric_context",
-    "get_active_rubric_criteria",
-    "get_active_rubric_descriptions",
     "get_active_rubric_scoring_rules",
     "get_all_revisions",
     "get_revision_by_id",
@@ -1154,10 +1069,8 @@ __all__ = [
     "move_criterion",
     "publish_revision",
     "reorder_rubric_tree",
-    "resolve_rubric_agent_id",
     "retire_revision_by_id",
     "update_criterion",
     "update_domain",
-    "update_domain_title",
     "validate_draft_revision",
 ]

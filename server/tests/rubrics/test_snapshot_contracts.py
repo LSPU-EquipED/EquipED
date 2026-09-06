@@ -26,8 +26,6 @@ from server.modules.rubrics.snapshot_contracts import (
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
     compute_snapshot_hash,
-    extract_criterion_codes,
-    extract_criterion_codes_set,
     serialize_snapshot_payload,
     verify_evaluation_form_snapshot,
 )
@@ -773,14 +771,6 @@ def test_criterion_code_extraction_exact():
 
     expected_codes = ("CRIT-01", "CRIT-02", "CRIT-03")
     expected_set = frozenset({"CRIT-01", "CRIT-02", "CRIT-03"})
-
-    assert extract_criterion_codes(form) == expected_codes
-    assert extract_criterion_codes(dto.payload) == expected_codes
-    assert extract_criterion_codes(dto) == expected_codes
-
-    assert extract_criterion_codes_set(form) == expected_set
-    assert extract_criterion_codes_set(dto.payload) == expected_set
-    assert extract_criterion_codes_set(dto) == expected_set
 
     assert dto.criterion_codes == expected_codes
     assert dto.criterion_codes_set == expected_set

@@ -47,8 +47,6 @@ from .snapshot_contracts import (
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
     compute_snapshot_hash,
-    extract_criterion_codes,
-    extract_criterion_codes_set,
     serialize_snapshot_payload,
     verify_evaluation_form_snapshot,
 )
@@ -85,8 +83,6 @@ __all__ = [
     "compute_snapshot_hash",
     "create_draft_from_active",
     "delete_draft_revision",
-    "extract_criterion_codes",
-    "extract_criterion_codes_set",
     "get_active_form_definition",
     "get_active_rubric_context",
     "get_agent_manifest",

@@ -312,44 +312,12 @@ def verify_evaluation_form_snapshot(
         ) from exc
 
 
-def extract_criterion_codes(
-    form_or_payload_or_dto: (
-        FormDefinition | EvaluationFormSnapshotPayload | EvaluationFormSnapshotDTO
-    ),
-) -> tuple[str, ...]:
-    """Extract ordered tuple of criterion codes from a form, payload, or DTO."""
-    if isinstance(form_or_payload_or_dto, FormDefinition):
-        return tuple(
-            criterion.criterion_code
-            for domain in form_or_payload_or_dto.domains
-            for criterion in domain.criteria
-        )
-    return form_or_payload_or_dto.criterion_codes
-
-
-def extract_criterion_codes_set(
-    form_or_payload_or_dto: (
-        FormDefinition | EvaluationFormSnapshotPayload | EvaluationFormSnapshotDTO
-    ),
-) -> frozenset[str]:
-    """Extract frozenset of criterion codes from a form, payload, or snapshot DTO."""
-    if isinstance(form_or_payload_or_dto, FormDefinition):
-        return frozenset(
-            criterion.criterion_code
-            for domain in form_or_payload_or_dto.domains
-            for criterion in domain.criteria
-        )
-    return form_or_payload_or_dto.criterion_codes_set
-
-
 __all__ = [
     "EvaluationFormSnapshotDTO",
     "EvaluationFormSnapshotPayload",
     "SnapshotIntegrityError",
     "build_evaluation_form_snapshot",
     "compute_snapshot_hash",
-    "extract_criterion_codes",
-    "extract_criterion_codes_set",
     "serialize_snapshot_payload",
     "verify_evaluation_form_snapshot",
 ]
