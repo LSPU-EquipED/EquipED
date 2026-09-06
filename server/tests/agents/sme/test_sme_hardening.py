@@ -97,7 +97,7 @@ def test_prompt_version_and_id_are_passed_and_preserved():
     )
 
     assert result.prompt_version_id == PROMPT_ID
-    assert captured_prompt and captured_prompt[0].startswith(PREAMBLE + "\n\n")
+    assert captured_prompt and PREAMBLE in captured_prompt[0].system_instruction
 
 
 def test_sme_uses_canonical_text_only():

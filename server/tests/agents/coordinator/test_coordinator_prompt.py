@@ -9,6 +9,7 @@ from server.modules.agents.coordinator.prompt import (
     REPAIR_SUFFIX,
     build_envelope_prompt_and_source,
 )
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.rubrics.contracts import (
     CountBandConfig,
@@ -67,9 +68,9 @@ def test_curriculum_block_only_present_for_a05_envelope():
     # The delimited context block is injected only for the A-05 envelope.
     # (The Coordinator preamble mentions the phrase in both, so assert on the
     # block delimiter rather than the bare substring.)
-    assert "=== CURRICULUM CONTEXT ===" not in op_prompt
-    assert "=== CURRICULUM CONTEXT ===" in a_prompt
-    assert CURRICULUM in a_prompt
+    assert "=== CURRICULUM CONTEXT ===" not in op_prompt.render_flat()
+    assert "=== CURRICULUM CONTEXT ===" in a_prompt.user_context
+    assert CURRICULUM in a_prompt.user_context
 
 
 def test_preamble_and_repair_reservation():
@@ -81,8 +82,8 @@ def test_preamble_and_repair_reservation():
         prompt_budget=32000,
         prompt_preamble="Program roadmap context (advisory): Course code: CHEM1",
     )
-    assert "Program Coordinator evaluation agent" in prompt
-    assert "Program roadmap context (advisory)" in prompt
+    assert "Program Coordinator evaluation agent" in prompt.system_instruction
+    assert "Program roadmap context (advisory)" in prompt.system_instruction
     assert len(prompt) + len(REPAIR_SUFFIX) <= 32000
 
 
@@ -91,10 +92,10 @@ def test_preamble_carries_output_contract_rules():
     prompt, _ = build_envelope_prompt_and_source(
         env, "doc text", CURRICULUM, prompt_budget=32000
     )
-    assert "exactly one object per criterion" in prompt
-    assert "verbatim substring of the source text" in prompt
-    assert "single JSON object with 'summary' and 'criterion_measurements'" in prompt
-    assert "Do NOT calculate or return final numeric scores" in prompt
+    assert "exactly one object per criterion" in prompt.system_instruction
+    assert "verbatim substring of the source text" in prompt.system_instruction
+    assert "single JSON object with 'summary' and 'criterion_measurements'" in prompt.system_instruction
+    assert "Do NOT calculate or return final numeric scores" in prompt.system_instruction
 
 
 def test_stored_scoring_rule_is_injected_into_the_criterion_block():
@@ -108,7 +109,7 @@ def test_stored_scoring_rule_is_injected_into_the_criterion_block():
     prompt, _ = build_envelope_prompt_and_source(
         env, "doc text", CURRICULUM, prompt_budget=32000
     )
-    assert "Scoring Rule: Count interactive elements; 4+ -> 4, 2-3 -> 3." in prompt
+    assert "Scoring Rule: Count interactive elements; 4+ -> 4, 2-3 -> 3." in prompt.system_instruction
 
 
 def test_missing_scoring_rule_omits_the_line():
@@ -116,7 +117,7 @@ def test_missing_scoring_rule_omits_the_line():
     prompt, _ = build_envelope_prompt_and_source(
         env, "doc text", CURRICULUM, prompt_budget=32000
     )
-    assert "Scoring Rule:" not in prompt
+    assert "Scoring Rule:" not in prompt.system_instruction
 
 
 def test_oversized_source_is_downsampled():
@@ -139,7 +140,31 @@ def test_ratio_prompt_uses_qualifies_flags_without_linkage_ids():
     prompt, _ = build_envelope_prompt_and_source(
         env, "doc text", CURRICULUM, prompt_budget=32000
     )
-    assert "qualifies" in prompt
-    assert "Do NOT emit unit_id" in prompt
-    assert '"unit_id"' not in prompt
-    assert '"qualifying_unit_ids"' not in prompt
+    assert "qualifies" in prompt.system_instruction
+    assert "Do NOT emit unit_id" in prompt.system_instruction
+    assert '"unit_id"' not in prompt.system_instruction
+    assert '"qualifying_unit_ids"' not in prompt.system_instruction
+
+
+def test_prompt_is_role_separated_into_system_and_user_turns():
+    env = (make_criterion("A-05", strategy="curriculum_alignment"),)
+    prompt, packet = build_envelope_prompt_and_source(
+        env, "doc text", CURRICULUM, prompt_budget=32000
+    )
+    assert isinstance(prompt, AgentPrompt)
+    assert prompt.messages[0].role == "system"
+    assert prompt.messages[1].role == "user"
+    # Static instructions live in the system turn ...
+    assert "Program Coordinator evaluation agent" in prompt.system_instruction
+    assert "CRITERION: A-05" in prompt.system_instruction
+    assert "[...]" in prompt.system_instruction
+    # ... untrusted source and curriculum live in the user turn.
+    assert "=== UNTRUSTED SOURCE TEXT ===" in prompt.user_context
+    assert packet in prompt.user_context
+    assert "=== CURRICULUM CONTEXT ===" in prompt.user_context
+    assert CURRICULUM in prompt.user_context
+    assert CURRICULUM not in prompt.system_instruction
+    assert (
+        prompt.render_flat()
+        == f"{prompt.system_instruction}\n\n{prompt.user_context}"
+    )

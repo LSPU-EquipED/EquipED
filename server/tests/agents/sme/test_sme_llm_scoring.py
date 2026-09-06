@@ -7,6 +7,7 @@ import uuid
 
 from server.core.llm import CompletionResult
 from server.modules.agents.sme.agent import SME
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -87,9 +88,9 @@ def _make_snapshot(eval_id: uuid.UUID):
 class MockLLM:
     def __init__(self, payloads: list[str]) -> None:
         self.payloads = list(payloads)
-        self.prompts: list[str] = []
+        self.prompts: list = []
 
-    def generate_result(self, prompt: str, **kwargs: object) -> CompletionResult:
+    def generate_result(self, prompt, **kwargs: object) -> CompletionResult:
         self.prompts.append(prompt)
         return CompletionResult(
             content=self.payloads.pop(0),
@@ -198,4 +199,13 @@ def test_group_prompts_are_the_exact_prompts_sent():
         canonical_source_text=_CANONICAL,
     )
 
-    assert set(result.metadata["group_prompts"].values()) == set(client.prompts)
+    assert set(result.metadata["group_prompts"].values()) == {
+        prompt.render_flat() for prompt in client.prompts
+    }
+    assert all(isinstance(prompt, AgentPrompt) for prompt in client.prompts)
+    assert all(prompt.messages[0].role == "system" for prompt in client.prompts)
+    assert all(prompt.messages[1].role == "user" for prompt in client.prompts)
+    assert all(
+        "=== UNTRUSTED SOURCE TEXT ===" in prompt.user_context
+        for prompt in client.prompts
+    )

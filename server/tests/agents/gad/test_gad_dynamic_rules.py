@@ -22,8 +22,8 @@ from server.tests.agents.gad.conftest import (
 _CHUNKS = [{"chunk_id": "c1", "text": "Sample learning material text."}]
 
 
-def _instructions(prompt: str) -> str:
-    return "\n".join(json.loads(prompt)["instructions"])
+def _instructions(prompt) -> str:
+    return prompt.system_instruction
 
 
 def test_seed_json_matches_revision_1_fixture_constant() -> None:
@@ -161,9 +161,9 @@ class _SequenceLLM:
     def __init__(self) -> None:
         self.prompts: list[dict] = []
 
-    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+    def generate(self, prompt, *, temperature: float, max_new_tokens: int) -> str:
         del temperature, max_new_tokens
-        self.prompts.append(json.loads(prompt))
+        self.prompts.append(prompt)
         return json.dumps(_FIVE_SECTION_RESPONSE)
 
     def generate_result(
@@ -205,7 +205,7 @@ def _run_gad_with_snapshot(criteria: tuple[CriterionDefinition, ...]) -> str:
         chunk_infos=_DOC_CHUNKS,
         form_snapshot=snap,
     )
-    return "\n".join(fake.prompts[0]["instructions"])
+    return fake.prompts[0].system_instruction
 
 
 def test_snapshot_rule_reaches_the_extraction_prompt() -> None:

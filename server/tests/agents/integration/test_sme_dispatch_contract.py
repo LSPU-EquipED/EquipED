@@ -108,7 +108,14 @@ def test_dispatch_passes_immutable_prompt_to_sme(monkeypatch):
     assert len(result) == 1 and result[0].success
     assert result[0].prompt_version_id == snapshot.version_id
     assert client.calls >= 1
-    assert all(prompt.startswith(_MANAGED_PROMPT) for prompt in client.prompts)
+    assert all(
+        (
+            prompt.system_instruction
+            if hasattr(prompt, "system_instruction")
+            else str(prompt)
+        ).startswith(_MANAGED_PROMPT)
+        for prompt in client.prompts
+    )
     assert len(dispatched_kwargs) == 1
     assert "db" not in dispatched_kwargs[0]
     assert "session" not in dispatched_kwargs[0]

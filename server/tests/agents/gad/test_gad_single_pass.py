@@ -62,7 +62,7 @@ pytestmark = [
 class _TypedResultMixin:
     def generate_result(
         self,
-        prompt: str,
+        prompt,
         *,
         temperature: float,
         max_new_tokens: int,
@@ -561,8 +561,7 @@ class TestBuildCombinedPrompt:
             prompt_version="v1",
             gad_managed_prompt=None,
         )
-        payload = json.loads(prompt)
-        instructions = "\n".join(payload["instructions"])
+        instructions = prompt.system_instruction
         assert "EVALUATOR INSTRUCTIONS" in instructions
         assert "UNTRUSTED DATA" in instructions
         assert "gad-01" in instructions.lower()
@@ -570,6 +569,7 @@ class TestBuildCombinedPrompt:
         assert "gad-03" in instructions.lower()
         assert "gad-04" in instructions.lower()
         assert "gad-05" in instructions.lower()
+        assert "=== UNTRUSTED DOCUMENT CHUNKS ===" in prompt.user_context
 
     def test_empty_chunks_does_not_crash(self) -> None:
         prompt = build_combined_prompt(
@@ -577,8 +577,8 @@ class TestBuildCombinedPrompt:
             form_snapshot=self.snap,
             prompt_version="v1",
         )
-        payload = json.loads(prompt)
-        assert payload["document_chunks"] == []
+        assert "=== UNTRUSTED DOCUMENT CHUNKS ===" in prompt.user_context
+        assert "[]" in prompt.user_context
 
     def test_empty_prompt_version(self) -> None:
         prompt = build_combined_prompt(
@@ -586,8 +586,7 @@ class TestBuildCombinedPrompt:
             form_snapshot=self.snap,
             prompt_version="",
         )
-        payload = json.loads(prompt)
-        assert payload["prompt_version"] == ""
+        assert "PROMPT VERSION: " in prompt.system_instruction
 
     def test_none_prompt_version(self) -> None:
         prompt = build_combined_prompt(
@@ -595,8 +594,7 @@ class TestBuildCombinedPrompt:
             form_snapshot=self.snap,
             prompt_version=None,
         )
-        payload = json.loads(prompt)
-        assert payload["prompt_version"] is None
+        assert "PROMPT VERSION" not in prompt.system_instruction
 
     def test_prompt_contains_max_instances_reference(self) -> None:
         prompt = build_combined_prompt(
@@ -604,8 +602,7 @@ class TestBuildCombinedPrompt:
             form_snapshot=self.snap,
             prompt_version="v1",
         )
-        payload = json.loads(prompt)
-        instructions = "\n".join(payload["instructions"])
+        instructions = prompt.system_instruction
         assert str(MAX_INSTANCES_PER_CRITERION) in instructions
 
     def test_no_score_fields_in_instructions(self) -> None:
@@ -615,22 +612,21 @@ class TestBuildCombinedPrompt:
             form_snapshot=self.snap,
             prompt_version="v1",
         )
-        payload = json.loads(prompt)
-        instructions = "\n".join(payload["instructions"])
+        instructions = prompt.system_instruction
         assert "score:" not in instructions.lower()
 
-    def test_serializes_as_json(self) -> None:
+    def test_role_separation(self) -> None:
         prompt = build_combined_prompt(
             packed_chunks=_SAMPLE_CHUNKS,
             form_snapshot=self.snap,
             prompt_version="v1",
         )
-        parsed = json.loads(prompt)
-        assert isinstance(parsed, dict)
-        assert "agent" in parsed
-        assert parsed["agent"] == "gad"
-        assert "instructions" in parsed
-        assert "document_chunks" in parsed
+        assert prompt.system_instruction
+        assert "=== UNTRUSTED DOCUMENT CHUNKS ===" in prompt.user_context
+        assert len(prompt.messages) == 2
+        assert prompt.messages[0].role == "system"
+        assert prompt.messages[1].role == "user"
+        assert prompt.render_flat()
 
 
 # ===========================================================================
@@ -837,73 +833,86 @@ class TestScoreFromCombined:
 _REPAIR_CONTEXT = "Extract facts from the provided chunks. Return a JSON object."
 
 
+def _base_prompt():
+    from server.modules.agents.runtime.prompts import AgentPrompt
+
+    return AgentPrompt(
+        system_instruction=_REPAIR_CONTEXT,
+        user_context="=== UNTRUSTED DOCUMENT CHUNKS ===\n[]",
+    )
+
+
 class TestBuildCombinedRepairPrompt:
     def test_includes_error_detail(self) -> None:
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response='{"gad-01": {"instance_count": 0}}',
             error_detail="Missing required sections: gad-02, gad-03, gad-04, gad-05",
         )
-        assert "Missing required sections" in prompt
-        assert "gad-02" in prompt
-        assert "Extract facts" in prompt
+        flat = prompt.render_flat()
+        assert "Missing required sections" in flat
+        assert "gad-02" in flat
+        assert "Extract facts" in flat
 
     def test_does_not_include_partial_response(self) -> None:
         partial = '{"gad-01": {"instance_count": 0, "instances": [], "summary": "ok."}'
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response=partial,
             error_detail="Malformed JSON",
         )
-        assert partial not in prompt
-        assert '"summary": "ok."' not in prompt
+        flat = prompt.render_flat()
+        assert partial not in flat
+        assert '"summary": "ok."' not in flat
 
     def test_omits_long_partial(self) -> None:
         partial = "x" * 5000
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response=partial,
             error_detail="Error detail",
         )
         assert len(prompt) < 5500  # truncated + template overhead
-        assert partial not in prompt
+        assert partial not in prompt.render_flat()
 
     def test_truncates_long_error(self) -> None:
         error = "x" * 1000
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response="{}",
             error_detail=error,
         )
+        flat = prompt.render_flat()
         # Error is truncated to 500 chars
-        assert "x" * 500 in prompt
-        assert "x" * 501 not in prompt
+        assert "x" * 500 in flat
+        assert "x" * 501 not in flat
 
     def test_empty_partial_still_works(self) -> None:
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response="",
             error_detail="Some error",
         )
-        assert "Some error" in prompt
-        assert "Extract facts" in prompt
+        flat = prompt.render_flat()
+        assert "Some error" in flat
+        assert "Extract facts" in flat
 
     def test_none_partial_is_empty_string(self) -> None:
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response="",
             error_detail="Err",
         )
         assert prompt is not None
-        assert "Err" in prompt
+        assert "Err" in prompt.render_flat()
 
     def test_includes_context(self) -> None:
         prompt = build_combined_repair_prompt(
-            full_prompt_context=_REPAIR_CONTEXT,
+            base_prompt=_base_prompt(),
             partial_response="{}",
             error_detail="Missing required sections",
         )
-        assert _REPAIR_CONTEXT in prompt
+        assert _REPAIR_CONTEXT in prompt.render_flat()
 
 
 # ===========================================================================
@@ -922,7 +931,7 @@ class _TrackingLLM(_TypedResultMixin):
         self.temperatures: list[float] = []
         self.call_count = 0
 
-    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+    def generate(self, prompt, *, temperature: float, max_new_tokens: int) -> str:
         del max_new_tokens
         self.prompts.append(prompt)
         self.temperatures.append(temperature)

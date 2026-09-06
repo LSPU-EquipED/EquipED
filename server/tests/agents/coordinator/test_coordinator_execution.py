@@ -9,6 +9,7 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_model_name
 from server.modules.agents.coordinator.execution import execute_envelope
 from server.modules.agents.coordinator.prompt import REPAIR_SUFFIX
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import RunLLMClient
 from server.modules.agents.runtime.slicing import GAP_MARKER, downsample_source_text
@@ -84,7 +85,7 @@ def test_execute_envelope_success_first_try() -> None:
     assert scores[0].criterion_id == "OP-02"
     assert scores[0].score == 3
     assert "criterion_measurements" in parsed
-    assert isinstance(prompt_text, str) and prompt_text
+    assert isinstance(prompt_text, AgentPrompt) and len(prompt_text) > 0
 
 
 def test_execute_envelope_repairs_once_then_succeeds() -> None:
@@ -239,9 +240,9 @@ class _RecordingFake(SequencedFakeClient):
 
     def __init__(self, payloads: list[dict | None]) -> None:
         super().__init__(payloads)
-        self.prompts: list[str] = []
+        self.prompts: list = []
 
-    def generate(self, prompt: str, **kwargs: object) -> str:
+    def generate(self, prompt, **kwargs: object) -> str:
         self.prompts.append(prompt)
         return super().generate(prompt, **kwargs)
 
@@ -321,15 +322,13 @@ def test_execute_envelope_ratio_conflict_repairs_with_static_guidance() -> None:
     assert fake.calls == 2
     assert len(fake.prompts) == 2
     repair_prompt = fake.prompts[1]
-    assert repair_prompt.startswith(fake.prompts[0])
-    assert "VALIDATOR_FAILURE category=COORDINATOR_INVALID" in repair_prompt
-    assert "consistent qualifies" in repair_prompt
-    assert "only once" in repair_prompt
-    assert "substring of the SOURCE TEXT" in repair_prompt
-    assert "substring of the CURRICULUM CONTEXT" in repair_prompt
-    assert raw_marker not in repair_prompt
+    assert isinstance(repair_prompt, AgentPrompt)
+    assert repair_prompt.system_instruction == fake.prompts[0].system_instruction
+    assert repair_prompt.user_context.startswith(fake.prompts[0].user_context)
+    assert "VALIDATION FAILURE" in repair_prompt.user_context
+    assert raw_marker not in repair_prompt.render_flat()
     # Diagnostic suffix names the exact validation failure for the model.
-    assert "conflicting qualifies" in repair_prompt
+    assert "conflicting qualifies" in repair_prompt.user_context
     assert len(scores) == 1
     assert scores[0].score == 4
     measurement = parsed["criterion_measurements"][0]
@@ -371,9 +370,9 @@ def test_long_document_multiunit_a01_succeeds_with_full_envelope_budget() -> Non
     assert repair_occurred is False
     assert len(prompt_text) + len(REPAIR_SUFFIX) <= budget
     # Both head and tail units survive downsampling with full envelope budget.
-    assert head_sentence in prompt_text
-    assert tail_sentence in prompt_text
-    assert GAP_MARKER in prompt_text
+    assert head_sentence in prompt_text.user_context
+    assert tail_sentence in prompt_text.user_context
+    assert GAP_MARKER in prompt_text.user_context
     measurement = parsed["criterion_measurements"][0]
     assert [u["unit_id"] for u in measurement["total_units"]] == ["u1", "u2"]
     assert measurement["qualifying_unit_ids"] == ["u1"]

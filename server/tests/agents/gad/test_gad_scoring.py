@@ -52,9 +52,9 @@ class _SequenceLLM:
         self.prompts: list[dict[str, object]] = []
         self.temperatures: list[float] = []
 
-    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+    def generate(self, prompt, *, temperature: float, max_new_tokens: int) -> str:
         del max_new_tokens
-        self.prompts.append(json.loads(prompt))
+        self.prompts.append(prompt)
         self.temperatures.append(temperature)
         if not self.responses:
             raise AssertionError("GAD made more LLM calls than expected")
@@ -62,7 +62,7 @@ class _SequenceLLM:
 
     def generate_result(
         self,
-        prompt: str,
+        prompt,
         *,
         temperature: float,
         max_new_tokens: int,
@@ -85,7 +85,7 @@ class _SequenceLLM:
 class _TypedResultMixin:
     def generate_result(
         self,
-        prompt: str,
+        prompt,
         *,
         temperature: float,
         max_new_tokens: int,
@@ -340,11 +340,11 @@ def test_build_combined_prompt_has_all_criteria() -> None:
         form_snapshot=snap,
         prompt_version="test-v1",
     )
-    payload = json.loads(prompt)
-    assert payload["agent"] == "gad"
-    assert payload["prompt_version"] == "test-v1"
-    assert len(payload["document_chunks"]) == len(_SAMPLE_CHUNKS)
-    instructions = "\n".join(payload["instructions"])
+    assert "test-v1" in prompt.system_instruction
+    assert "=== UNTRUSTED DOCUMENT CHUNKS ===" in prompt.user_context
+    for chunk in _SAMPLE_CHUNKS:
+        assert chunk["chunk_id"] in prompt.user_context
+    instructions = prompt.system_instruction
     assert "UNTRUSTED DATA" in instructions
     for cid in ("GAD-01", "GAD-02", "GAD-03", "GAD-04", "GAD-05"):
         assert cid in instructions
@@ -359,8 +359,7 @@ def test_build_combined_prompt_includes_managed_text() -> None:
         prompt_version="v1",
         gad_managed_prompt=managed,
     )
-    payload = json.loads(prompt)
-    instructions = "\n".join(payload["instructions"])
+    instructions = prompt.system_instruction
     assert managed in instructions
 
 
@@ -371,8 +370,7 @@ def test_build_combined_prompt_no_score_fields() -> None:
         form_snapshot=snap,
         prompt_version="v1",
     )
-    payload = json.loads(prompt)
-    instructions = "\n".join(payload["instructions"])
+    instructions = prompt.system_instruction
     assert "criterion_scores" not in instructions.lower()
 
 
@@ -838,7 +836,7 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
         model = "test"
         prompts: list[str] = []
 
-        def generate(self, prompt: str, **kw) -> str:
+        def generate(self, prompt, **kw) -> str:
             self.prompts.append(prompt)
             if len(self.prompts) == 1:
                 return json.dumps(
@@ -877,15 +875,17 @@ def test_same_frozen_chunks_used_for_initial_and_repair() -> None:
 
     import json as _json
 
-    initial_chunks = _json.loads(llm.prompts[0]).get("document_chunks", [])
-    repair_raw = llm.prompts[1]
-    json_boundary = repair_raw.find("\n\nYour previous GAD")
-    if json_boundary >= 0:
-        repair_json = repair_raw[:json_boundary]
-    else:
-        repair_json = repair_raw
-    repair_chunks = _json.loads(repair_json).get("document_chunks", [])
+    def _chunks_of(agent_prompt) -> list:
+        marker = "=== UNTRUSTED DOCUMENT CHUNKS ===\n"
+        flat = agent_prompt.user_context
+        assert marker in flat
+        after = flat.split(marker, 1)[1]
+        # Repair prompts append a diagnostic suffix; strip it before JSON parsing.
+        after = after.split("\n\n=== VALIDATION FAILURE ===", 1)[0]
+        return _json.loads(after)
 
+    initial_chunks = _chunks_of(llm.prompts[0])
+    repair_chunks = _chunks_of(llm.prompts[1])
     assert len(initial_chunks) == len(repair_chunks)
     initial_ids = [c["chunk_id"] for c in initial_chunks]
     repair_ids = [c["chunk_id"] for c in repair_chunks]
@@ -976,8 +976,7 @@ def test_dynamic_subset_of_criteria() -> None:
     assert [s.criterion_id for s in result.criterion_scores] == ["GAD-01", "GAD-02"]
     assert result.subtotal == 4.0
 
-    prompt_payload = fake.prompts[0]
-    prompt_text = "\n".join(prompt_payload["instructions"])
+    prompt_text = fake.prompts[0].system_instruction
     assert "GAD-01" in prompt_text
     assert "GAD-02" in prompt_text
     assert "GAD-03" not in prompt_text
