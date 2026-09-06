@@ -369,13 +369,18 @@ SME_CRITERION_FALLBACKS: dict[str, dict[str, Any]] = {
 }
 
 
+FIXTURE_SME_GROUP_CODES: dict[str, tuple[str, ...]] = {
+    "assessment_alignment": ("A-02", "A-05"),
+    "task_execution": ("A-01", "A-03", "OP-02", "OP-03", "OP-05"),
+    "document_wide": ("OP-01", "OP-04", "A-04"),
+}
+
+
 def sme_group_payloads(
     score: int = 3, *, titles: dict[str, str] | None = None
 ) -> dict[str, str]:
     """One valid grouped-scoring JSON response per group, all criteria scored
     ``score``."""
-    from server.modules.agents.sme import groups
-
     titles = titles or SME_GROUP_TITLES
     return {
         group_name: json.dumps(
@@ -393,7 +398,7 @@ def sme_group_payloads(
                 ],
             }
         )
-        for group_name, codes in groups.GROUP_CODES.items()
+        for group_name, codes in FIXTURE_SME_GROUP_CODES.items()
     }
 
 
