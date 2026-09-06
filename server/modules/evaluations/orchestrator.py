@@ -641,11 +641,12 @@ def drain_evaluation_queue(
                     lease_session.close()
                 if wait_seconds is None:
                     return
+                sleep_timeout = max(min(wait_seconds, 1.0), 0.1)
                 if stop_event is not None:
-                    if stop_event.wait(timeout=min(wait_seconds, 1.0)):
+                    if stop_event.wait(timeout=sleep_timeout):
                         return
-                elif wait_seconds > 0:
-                    time.sleep(min(wait_seconds, 1.0))
+                else:
+                    time.sleep(sleep_timeout)
                 recovery_session = db_session_factory()
                 try:
                     cutoff = datetime.now(UTC) - timedelta(

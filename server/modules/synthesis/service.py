@@ -58,6 +58,7 @@ from server.modules.synthesis.schemas import (
     EvaluationResultsResponse,
     MatrixListResponse,
     MatrixRowItem,
+    score_to_adjectival,
 )
 from sqlalchemy import func, or_
 
@@ -1108,6 +1109,9 @@ def get_monitoring_matrix(
                 document_title=doc.title if doc else None,
                 evaluation_status=row.evaluation_status,
                 synthesized_score=float(row.synthesized_score)
+                if row.synthesized_score is not None
+                else None,
+                adjectival_rating=score_to_adjectival(float(row.synthesized_score))
                 if row.synthesized_score is not None
                 else None,
                 domain_scores=row.domain_scores_json,
