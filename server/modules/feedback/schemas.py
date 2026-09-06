@@ -6,23 +6,15 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+ValidAgentName = Literal["sme", "coordinator", "gad", "itso"]
 
 
 class CriterionFeedbackCreate(BaseModel):
-    """Request body for POST /feedback/{evaluation_id}/criteria/{criterion_id}.
+    """Request body for POST /feedback/{evaluation_id}/criteria/{criterion_id}."""
 
-    ``agent_name`` is restricted to agents whose score+justification come
-    from a single LLM generation and can therefore produce a coherent DPO
-    pair: "itso" (one call scores all 5 criteria) and "sme" (3 grouped
-    calls score all 10 criteria -- see
-    docs/superpowers/specs/2026-08-13-sme-dpo-scoring-design.md).
-    Coordinator and GAD are not included: Coordinator's non-A-05 scores
-    are copied from SME (corrections against those belong to "sme"), and
-    GAD's score is still code-computed from extracted facts.
-    """
-
-    agent_name: Literal["itso", "sme"]
+    agent_name: ValidAgentName
     action: Literal["ACCEPT", "REJECT", "EDIT"]
     score: int | None = Field(default=None, ge=1, le=4)
     justification: str | None = Field(default=None, min_length=1, max_length=2000)
@@ -30,11 +22,18 @@ class CriterionFeedbackCreate(BaseModel):
 
     @model_validator(mode="after")
     def _edit_requires_score_and_justification(self) -> CriterionFeedbackCreate:
-        if self.action == "EDIT" and (self.score is None or not self.justification):
-            raise ValueError(
-                "EDIT actions require both 'score' and 'justification' so the "
-                "correction is internally consistent."
-            )
+        if self.action == "EDIT":
+            if self.score is None or not self.justification:
+                raise ValueError(
+                    "EDIT actions require both 'score' and 'justification' so the "
+                    "correction is internally consistent."
+                )
+        else:
+            if self.score is not None:
+                raise ValueError(
+                    f"{self.action} actions forbid 'score'; "
+                    "only EDIT may carry a corrected score."
+                )
         return self
 
 
@@ -49,8 +48,7 @@ class CriterionFeedbackResponse(BaseModel):
     notes: str | None = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-__all__ = ["CriterionFeedbackCreate", "CriterionFeedbackResponse"]
+__all__ = ["CriterionFeedbackCreate", "CriterionFeedbackResponse", "ValidAgentName"]

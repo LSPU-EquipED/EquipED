@@ -145,7 +145,7 @@ class Coordinator:
         **kwargs: Any,
     ) -> AgentEvaluationResult:
         """Score the frozen Coordinator form via grouped measurement extraction."""
-        del kwargs, prompt_version_id, context_text
+        del kwargs, context_text
         domains = _validate_coordinator_snapshot(
             form_snapshot, evaluation_id, self.agent_name
         )
@@ -256,7 +256,7 @@ class Coordinator:
             model_name=actual_model,
             processing_seconds=total_seconds,
             token_count=len(full_text.split()),
-            prompt_version_id=None,
+            prompt_version_id=prompt_version_id,
             success=True,
             metadata={
                 "group_prompts": envelope_prompts,

@@ -748,9 +748,9 @@ def get_evaluation_results(
     )
     flags = db.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).all()
 
-    # Latest reviewer correction per (agent, criterion) for reviewable agents
-    # (itso, sme).
-    reviewable_agents = ("itso", "sme")
+    # Latest reviewer correction per (agent, criterion) for reviewable agents.
+    # Human review is authoritative across all four domain agents.
+    reviewable_agents = ("sme", "coordinator", "gad", "itso")
     corrections = get_effective_criterion_corrections(
         db,
         evaluation_id,
