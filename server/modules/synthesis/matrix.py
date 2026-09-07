@@ -100,11 +100,17 @@ def upsert_monitoring_matrix(
     feedback_status: str = "NO_FEEDBACK",
 ) -> MonitoringMatrix:
     doc = db.get(Document, document_id)
+    program = doc.program if doc and doc.program else None
+    if not program and evaluation_id:
+        from server.modules.evaluations.models import EvaluationJob
+        job = db.get(EvaluationJob, evaluation_id)
+        if job and job.confirmed_program:
+            program = job.confirmed_program
     row = MonitoringMatrix(
         document_id=document_id,
         evaluation_id=evaluation_id,
         faculty_name=None,
-        program=doc.program if doc else None,
+        program=program,
         evaluation_status=evaluation_status,
         synthesized_score=synthesized_score,
         domain_scores_json=domain_scores,
@@ -121,6 +127,8 @@ def upsert_monitoring_matrix(
         existing = db.query(MonitoringMatrix).filter_by(document_id=document_id).one()
         existing.evaluation_id = evaluation_id
         existing.evaluation_status = evaluation_status
+        if program is not None and (existing.program is None or existing.program == ""):
+            existing.program = program
         if synthesized_score is not None:
             existing.synthesized_score = synthesized_score
         if domain_scores is not None:

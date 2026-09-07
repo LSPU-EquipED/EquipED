@@ -228,7 +228,7 @@ def _process_uploaded_document(
     if chunk_data:
         try:
             full_text = " ".join(chunk.text for chunk in chunk_data)
-            detected_metadata = detect_metadata(full_text)
+            detected_metadata = detect_metadata(full_text, title=title)
         except Exception:
             logger.warning(
                 "Metadata detection failed during preprocessing",
@@ -518,7 +518,7 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
         file_path = document.file_path
         source_type = document.source_type
         program = document.program
-
+        doc_title = document.title
         existing_chunks = (
             session.query(DocumentChunk)
             .filter(DocumentChunk.document_id == document_id)
@@ -574,7 +574,7 @@ def process_document_ingestion(document_id: uuid.UUID) -> None:
     if chunk_data:
         try:
             full_text = " ".join(chunk.text for chunk in chunk_data)
-            detected_metadata = detect_metadata(full_text)
+            detected_metadata = detect_metadata(full_text, title=doc_title)
         except Exception:
             logger.warning(
                 "Metadata detection failed during background ingestion",

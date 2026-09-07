@@ -52,17 +52,26 @@ _LESSON_TITLE_PATTERN = re.compile(
 )
 
 
-def detect_metadata(text: str) -> dict[str, str | None]:
-    """Extract program, academic_year, course_code, lesson_title from document text.
+def detect_metadata(text: str, title: str | None = None) -> dict[str, str | None]:
+    """Extract program, academic_year, course_code, lesson_title from text and title.
 
     Only scans the first ~6000 characters (first 2-3 pages) to reduce
-    false positives from body text.
+    false positives from body text. If program or course_code is not found
+    in body text, falls back to the document title.
     """
     head = text[:_DETECTION_LIMIT]
+    detected_prog = _detect_program(head)
+    detected_cc = _detect_course_code(head)
+    if title:
+        if not detected_prog:
+            detected_prog = _detect_program(title)
+        if not detected_cc:
+            detected_cc = _detect_course_code(title)
+
     return {
-        "program": _detect_program(head),
+        "program": detected_prog,
         "academic_year": _detect_academic_year(head),
-        "course_code": _detect_course_code(head),
+        "course_code": detected_cc,
         "lesson_title": _detect_lesson_title(head),
     }
 
