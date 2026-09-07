@@ -2,7 +2,6 @@ import { useRef, useState, type ChangeEvent, type FormEvent, type DragEvent } fr
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, GraduationCap, Spinner } from '@phosphor-icons/react';
-import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import { Button } from '@/shared/components/Button';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
@@ -27,13 +26,16 @@ const sourceTypeLabels: Record<string, string> = {
 function titleFromFilename(filename: string): string {
   return filename.replace(/\.pdf$/i, '');
 }
+interface UploadFormProps {
+  user?: { displayName?: string } | null;
+}
 
-export function UploadForm() {
+export function UploadForm({ user }: UploadFormProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useUploadDocument();
   const [title, setTitle] = useState('');
+  const [program, setProgram] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<DocumentUploadResponse | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -120,6 +122,7 @@ export function UploadForm() {
         file,
         sourceType,
         title,
+        program: program || undefined,
       });
       setUploadResult(result);
 
@@ -193,7 +196,12 @@ export function UploadForm() {
             <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
               2. Module Identification
             </h2>
-            <UploadIntakeFields title={title} setTitle={setTitle} />
+            <UploadIntakeFields
+              title={title}
+              setTitle={setTitle}
+              program={program}
+              setProgram={setProgram}
+            />
           </div>
         </div>
 
