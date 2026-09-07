@@ -174,9 +174,7 @@ export function useEvaluationPageState(documentId?: string) {
     queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
     enabled: !!evaluationId && isTerminal,
     refetchInterval: (query) => {
-      const evalStatus = (query.state.data as { evaluation_status?: string } | undefined)
-        ?.evaluation_status;
-      if (evalStatus === 'COMPLETED' || evalStatus === 'FAILED') {
+      if (query.state.data?.domain_scores) {
         return false;
       }
       return 3000;

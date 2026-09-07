@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   BookOpen,
   CaretDown,
@@ -21,7 +21,6 @@ import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
-import { FeedbackPanel } from './FeedbackPanel';
 import {
   formatScore,
   agentShortLabel,
@@ -162,13 +161,11 @@ export function ScoreDashboard({
 }: ScoreDashboardProps) {
   const navigate = useNavigate();
 
-  // Option A: Manual toggle state for criteria rows (reset on domain switch)
-  const [manuallyToggled, setManuallyToggled] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    setManuallyToggled({});
-  }, [selectedAgentId]);
-
+  // Option A: Manual toggle state for criteria rows keyed by agent (no cascading render effect)
+  const [toggledCriteriaByAgent, setToggledCriteriaByAgent] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
+  const manuallyToggled = toggledCriteriaByAgent[selectedAgentId] ?? {};
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
   const domainScore = results?.domain_scores[selectedAgentId];
   const isPartial = Boolean(results?.is_partial || status?.partial_without_curriculum);
@@ -230,9 +227,12 @@ export function ScoreDashboard({
   };
 
   const toggleCriterion = (criterionId: string, currentState: boolean) => {
-    setManuallyToggled((prev) => ({
+    setToggledCriteriaByAgent((prev) => ({
       ...prev,
-      [criterionId]: !currentState,
+      [selectedAgentId]: {
+        ...(prev[selectedAgentId] ?? {}),
+        [criterionId]: !currentState,
+      },
     }));
   };
 
@@ -675,10 +675,6 @@ export function ScoreDashboard({
           </div>
         </div>
 
-        {/* Hidden FeedbackPanel for test harness compatibility */}
-        <div className="hidden" aria-hidden="true">
-          <FeedbackPanel criteria={selectedScore.feedbackCriteria} />
-        </div>
 
         {/* Next Steps Card */}
         {isTerminal && evaluationId ? (

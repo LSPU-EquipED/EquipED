@@ -19,11 +19,7 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }));
 
-vi.mock('@/features/auth/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { displayName: 'Dr. Santos', role: 'faculty' },
-  }),
-}));
+const mockUser = { displayName: 'Dr. Santos', role: 'faculty' };
 
 let mockHookState = {
   isLoading: false,
@@ -53,7 +49,7 @@ describe('UploadForm', () => {
   });
 
   it('renders intake fields, dropzone, and pre-upload ledger with disabled submit when empty', () => {
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     expect(screen.getByText('LSPU SCC Faculty Document Intake')).toBeDefined();
     expect(screen.getByText('Welcome back, Dr..')).toBeDefined();
@@ -65,7 +61,7 @@ describe('UploadForm', () => {
   });
 
   it('rejects non-PDF files selected via file picker and announces validation error accessibly', async () => {
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const docxFile = new File(['dummy content'], 'module_notes.docx', {
@@ -86,7 +82,7 @@ describe('UploadForm', () => {
   });
 
   it('rejects non-PDF files dropped via drag and drop and announces validation error', () => {
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const label = document.querySelector('label[for="pdf-file"]') as HTMLLabelElement;
     const pngFile = new File(['image data'], 'diagram.png', { type: 'image/png' });
@@ -104,7 +100,7 @@ describe('UploadForm', () => {
   });
 
   it('accepts valid PDF file, clears validation error, and auto-populates title', () => {
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf binary data'], 'Data_Structures_Module.pdf', {
@@ -139,7 +135,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(processedResponse);
 
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'Operating_Systems.pdf', { type: 'application/pdf' });
@@ -174,7 +170,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(pendingResponse);
 
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'Web_Development.pdf', { type: 'application/pdf' });
@@ -228,7 +224,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(processingResponse);
 
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'AI_Fundamentals.pdf', { type: 'application/pdf' });
@@ -260,7 +256,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(cleanupResponse);
 
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'Cloud_Computing.pdf', { type: 'application/pdf' });
@@ -293,7 +289,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(failedResponse);
 
-    render(<UploadForm />);
+    render(<UploadForm user={mockUser} />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'Corrupted_File.pdf', { type: 'application/pdf' });

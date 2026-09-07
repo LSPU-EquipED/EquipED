@@ -35,8 +35,15 @@ from .models import (
 def validate_form_definition(form: FormDefinition) -> ValidationReport:
     """Validate against the form's own adapter_version manifest."""
     agent_id = form.agent_id
-    manifest = get_agent_manifest(agent_id, form.adapter_version)
-
+    try:
+        manifest = get_agent_manifest(agent_id, form.adapter_version)
+    except ValueError:
+        # Fall back to base agent manifest so validate_form can emit
+        # the structured ADAPTER_VERSION_MISMATCH ValidationReport instead of crashing
+        try:
+            manifest = get_agent_manifest(agent_id)
+        except ValueError:
+            raise
     setting_name = manifest.prompt_budget_setting
     settings = get_settings()
     budget_val = getattr(settings, setting_name, None)

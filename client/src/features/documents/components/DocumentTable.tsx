@@ -136,7 +136,16 @@ export function DocumentTable({
                   )}
                 </td>
                 <td className="py-3.5 px-4 text-sm text-text-muted font-medium w-[25%] min-w-[14rem]">
-                  <span className="block truncate">{document.courseTitle ?? '—'}</span>
+                  <span
+                    className="block truncate"
+                    title={[document.courseCode, document.courseTitle].filter(Boolean).join(' — ') || undefined}
+                  >
+                    {document.courseCode
+                      ? document.courseTitle
+                        ? `${document.courseCode} — ${document.courseTitle}`
+                        : document.courseCode
+                      : document.courseTitle ?? '—'}
+                  </span>
                 </td>
                 <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap w-28">
                   {document.program ?? '—'}

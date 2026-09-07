@@ -82,7 +82,6 @@ def create_evaluation(
         expected_source_type="slm",
         user_role=submitted_by_role,
     )
-
     if not (req.confirmed_program and req.confirmed_program.strip()):
         raise InvalidEvaluationTargetError(
             "confirmed_program is required for evaluation submission."
@@ -94,6 +93,8 @@ def create_evaluation(
             "Unsupported confirmed_program on write. Only BSCS and BSInfoTech "
             "are supported; BSIT is not accepted on submission."
         )
+    if document.program is None:
+        document.program = confirmed_prog
 
     if req.curriculum_id is not None and req.partial_without_curriculum:
         raise InvalidEvaluationTargetError(

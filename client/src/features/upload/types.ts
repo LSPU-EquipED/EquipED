@@ -4,6 +4,7 @@ export type UploadDocumentInput = {
   file: File;
   sourceType: DocumentSourceType;
   title: string;
+  program?: string;
 };
 
 export type UploadDocumentResult = DocumentUploadResponse;

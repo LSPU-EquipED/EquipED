@@ -10,6 +10,7 @@ import { AppShell } from './layout/AppShell';
 import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
 import { requireRole } from '../features/auth/guards/RoleGuard';
+import { useAuth } from '../features/auth/hooks/useAuth';
 import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
 
 // Lazy Feature Pages
@@ -164,6 +165,15 @@ const documentsRoute = createRoute({
   component: DocumentsPage,
 });
 
+function UploadRouteView() {
+  const { user } = useAuth();
+  return (
+    <div className="px-6 py-7">
+      <UploadPage user={user} />
+    </div>
+  );
+}
+
 const uploadRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'upload',
@@ -173,11 +183,7 @@ const uploadRoute = createRoute({
       throw redirect({ to: access.redirectTo });
     }
   },
-  component: () => (
-    <div className="px-6 py-7">
-      <UploadPage />
-    </div>
-  ),
+  component: UploadRouteView,
 });
 
 const evaluationsRoute = createRoute({
