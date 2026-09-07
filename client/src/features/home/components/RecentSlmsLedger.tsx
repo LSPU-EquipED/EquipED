@@ -84,9 +84,9 @@ export function RecentSlmsLedger({
                         <div className="truncate" title={doc.title}>
                           {doc.title}
                         </div>
-                        {doc.courseTitle && (
+                        {(doc.courseCode || doc.courseTitle) && (
                           <div className="text-[11px] font-normal text-text-muted truncate">
-                            {doc.courseTitle}
+                            {[doc.courseCode, doc.courseTitle].filter(Boolean).join(' • ')}
                           </div>
                         )}
                       </td>

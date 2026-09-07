@@ -336,7 +336,9 @@ export function FacultyOperationalLedger({
                         <div className="flex flex-col">
                           <span className="font-semibold text-text line-clamp-1">{doc.title}</span>
                           <span className="text-xs text-text-muted mt-0.5">
-                            {doc.lessonTitle || doc.courseTitle || 'No lesson title'}
+                            {doc.lessonTitle ||
+                              [doc.courseCode, doc.courseTitle].filter(Boolean).join(' — ') ||
+                              'No lesson title'}
                           </span>
                         </div>
                       </td>
