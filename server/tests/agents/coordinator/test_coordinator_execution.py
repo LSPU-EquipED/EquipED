@@ -9,9 +9,9 @@ from server.core.config import get_settings
 from server.core.llm import get_llm_model_name
 from server.modules.agents.coordinator.execution import execute_envelope
 from server.modules.agents.coordinator.prompt import REPAIR_SUFFIX
-from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.runtime.llm import RunLLMClient
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.runtime.slicing import GAP_MARKER, downsample_source_text
 from server.modules.rubrics.contracts import (
     CountBandConfig,

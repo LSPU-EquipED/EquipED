@@ -6,8 +6,8 @@ import json
 import uuid
 
 from server.core.llm import CompletionResult
-from server.modules.agents.sme.agent import SME
 from server.modules.agents.runtime.prompts import AgentPrompt
+from server.modules.agents.sme.agent import SME
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
