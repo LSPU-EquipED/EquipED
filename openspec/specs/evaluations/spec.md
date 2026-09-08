@@ -6,54 +6,45 @@ Define the evaluation job contract for the current phase, including Layer 3 exec
 ## Requirements
 
 ### Requirement: Evaluation jobs progress into Layer 3
-The system SHALL support evaluation job submission, pre-agent processing, and execution of the Layer 3 multi-agent evaluation boundary. Layer 3 agent execution SHALL run agents in parallel using a thread pool, with each agent assigned a distinct LLM model to avoid rate-limit contention.
+The system SHALL support targeted single-agent evaluation job submission, pre-agent processing, and execution of the Layer 3 specialist evaluation boundary. Layer 3 agent execution SHALL execute strictly the scheduled `target_agent` (`sme`, `coordinator`, `gad`, or `itso`), dispatching only the chosen agent.
 
 #### Scenario: Evaluation job is accepted and begins processing
-- **WHEN** an authenticated user submits a new evaluation request for a document they own
-- **THEN** the system SHALL create an evaluation job in `SUBMITTED` state and continue into the pre-agent processing stages
+- **WHEN** an authenticated user submits a new evaluation request for a document they own specifying a valid `target_agent` in `("sme", "coordinator", "gad", "itso")`
+- **THEN** the system SHALL create an evaluation job in `SUBMITTED` state recording `target_agent` and continue into the pre-agent processing stages
 
 #### Scenario: Layer 3 execution starts after pre-agent processing
 - **WHEN** an evaluation job completes the pre-agent stages
-- **THEN** the system SHALL enter Layer 3 multi-agent evaluation, run all agents in parallel via `ThreadPoolExecutor`, and record progress without claiming the job is complete
+- **THEN** the system SHALL enter Layer 3 evaluation, execute only the targeted agent specified by `target_agent`, and record progress without claiming the job is complete
 
 #### Scenario: Parallel agent execution completes
-- **WHEN** all parallel agent futures complete (success or failure)
-- **THEN** the system SHALL collect all results and proceed to persistence
-- **AND** a single agent failure SHALL NOT prevent other agents from completing
+- **WHEN** the targeted agent execution completes (success or failure)
+- **THEN** the system SHALL collect its result and proceed to persistence
 
 #### Scenario: Inter-agent pacing delays are removed
-- **WHEN** agents run in parallel with distinct models
+- **WHEN** an agent executes independently
 - **THEN** the system SHALL NOT apply inter-agent sleep delays between agent executions
-- **AND** pacing delays SHALL only be used as a fallback when all agents share the same model
 
 ### Requirement: Precomputed context is shared across parallel agents
-The supervisor SHALL pre-compute rubric form snapshots and reference context sequentially on the orchestrator thread before dispatching agents in parallel. Snapshot creation SHALL support two explicit paths:
-1. Normal evaluations SHALL resolve complete structured form snapshots for all scheduled agents from `rubric_agent_activations` in a single database transaction coordinated with the `EVALUATING` transition and persist them into `evaluation_form_snapshots` with `UNIQUE(evaluation_id, agent_id)`.
-2. Model Validation evaluations SHALL reuse the standard `evaluation_form_snapshots` precreated during benchmark submission and SHALL NEVER reread `rubric_agent_activations` during preparation or recovery.
-
-If any scheduled agent snapshot is missing, partial, duplicate, wrong-agent, hash-mismatched, or invalid, preparation SHALL fail closed before worker dispatch. All parallel agents SHALL receive the same read-only precomputed context and recursively immutable frozen form snapshot DTOs in memory, and SHALL NOT perform worker-side database queries for rubric or form definitions.
-
-Dynamic domain and criterion display order SHALL be reconstructed directly from verified immutable snapshots. Persisted `CriterionScore.criterion_id` values SHALL match exact snapshot `criterion_code` values; missing, duplicate, or extra scores SHALL fail closed.
+The supervisor SHALL resolve the rubric form snapshot strictly for the specified `target_agent` from `rubric_agent_activations` in a single database transaction coordinated with the `EVALUATING` transition and persist it into `evaluation_form_snapshots` with `UNIQUE(evaluation_id, agent_id)`.
 
 #### Scenario: Precomputed context and form snapshots are resolved before dispatch
-- **WHEN** Layer 3 parallel execution begins for a normal evaluation
-- **THEN** the supervisor SHALL resolve and persist complete immutable form snapshots with verified canonical hashes for each active agent on the main thread in a single transaction coordinated with the EVALUATING transition
-- **AND** all agents SHALL receive the precomputed reference context and frozen form snapshot DTOs without worker-side database lookups
+- **WHEN** Layer 3 execution begins for a single-agent evaluation
+- **THEN** the supervisor SHALL resolve and persist the complete immutable form snapshot with verified canonical hash strictly for the `target_agent` on the main thread in a single transaction coordinated with the EVALUATING transition
+- **AND** the agent SHALL receive its precomputed context and frozen form snapshot DTO without worker-side database lookups
 
 #### Scenario: Supervisor reuses precreated snapshots without rereading activations
-- **WHEN** Layer 3 parallel execution begins for an evaluation with precreated standard snapshots (such as a Model Validation benchmark run)
+- **WHEN** Layer 3 execution begins for an evaluation with precreated standard snapshots (such as a Model Validation benchmark run)
 - **THEN** the supervisor SHALL load and verify the existing `evaluation_form_snapshots` bound to the evaluation job
 - **AND** SHALL NOT reread `rubric_agent_activations` or alter bound criteria even if active form pointers or revisions have since changed or been retired
 
 #### Scenario: Precomputed context is shared across parallel agents
-- **WHEN** Layer 3 parallel execution begins
-- **THEN** the supervisor SHALL pre-compute rubric and reference context sequentially before dispatching agents in parallel
-- **AND** all agents SHALL receive the same read-only precomputed context
+- **WHEN** Layer 3 execution begins
+- **THEN** the supervisor SHALL pre-compute rubric and reference context sequentially before dispatching the targeted agent
+- **AND** the targeted agent SHALL receive the read-only precomputed context
 
 #### Scenario: Missing or invalid form snapshot fails preparation
 - **WHEN** an evaluation job is preparing and an active form snapshot cannot be resolved or fails adapter validation
 - **THEN** the job SHALL transition to `FAILED` before worker dispatch and record the snapshot resolution failure
-
 ### Requirement: Evaluation outputs are persisted before stopping
 The system SHALL persist Layer 3 outputs and associate them with the owning evaluation job, document owner, and exact `evaluation_form_snapshots` records via `form_snapshot_id`. The referenced snapshot evaluation ID and agent identity SHALL match the agent result record. `CriterionScore.criterion_id` SHALL retain its existing meaning as the snapshot's human-readable `criterion_code`; the system SHALL validate the exact criterion-code set against the bound snapshot while retaining rubric criterion UUIDs inside immutable snapshot metadata. Missing, duplicate, or extra criterion scores SHALL fail closed.
 
@@ -192,41 +183,18 @@ The system SHALL retain bounded per-agent runtime provenance needed to explain a
 - **THEN** the system SHALL continue to return the historical result successfully
 - **AND** SHALL represent unavailable provenance as absent rather than inventing it
 
-### Requirement: New evaluations require explicit confirmed curriculum intent
-The system SHALL require an explicit confirmed canonical program write value (`BSCS` or `BSInfoTech`) and one of two non-conflicting intents: full intent with a matching ready curriculum ID and explicit `partial_without_curriculum=false`, or partial intent with no curriculum ID and explicit `partial_without_curriculum=true`. `BSIT` SHALL remain a read alias only and SHALL be rejected on evaluation writes. It SHALL reject missing or conflicting combinations without creating a job. The target lookup SHALL validate missing/foreign/non-SLM ownership with the same masked response before program and curriculum validation. Full curriculum validation SHALL use the documents-owned curriculum-readiness service rather than SQL flags alone.
+### Requirement: Explicit evaluation modes and confirmed program
+Evaluation submission SHALL require an explicit `confirmed_program` in `("BSCS", "BSInfoTech")` and an explicit `target_agent` in `("sme", "coordinator", "gad", "itso")`.
+- When `target_agent` is `"coordinator"`, the submission SHALL require an authoritative `curriculum_id` or an existing linked curriculum reference on the document.
+- When `target_agent` is `"sme"`, `"gad"`, or `"itso"`, the submission SHALL NOT require curriculum references and SHALL execute immediately on the SLM document text.
 
-#### Scenario: Full request is valid
-- **WHEN** faculty submits their processed SLM with confirmed BSCS or BSInfoTech program, a ready curriculum for the same program, and partial intent disabled
-- **THEN** the system SHALL create a full evaluation linked to that curriculum
+#### Scenario: Targeted submission for non-coordinator agent succeeds without curriculum
+- **WHEN** an authenticated user submits an evaluation with `target_agent` as `"gad"`, `"sme"`, or `"itso"` without specifying a `curriculum_id`
+- **THEN** the system SHALL accept the evaluation, schedule only that agent, and execute immediately without partial-mode warnings or curriculum validation errors
 
-#### Scenario: Partial request is valid
-- **WHEN** faculty submits their processed SLM with confirmed program, no curriculum ID, and explicit partial intent
-- **THEN** the system SHALL create a no-curriculum partial evaluation
-
-#### Scenario: Request combines curriculum and partial intent
-- **WHEN** a request includes a curriculum ID and sets partial intent true
-- **THEN** the system SHALL reject the conflicting request without creating an evaluation
-
-#### Scenario: Partial flag is omitted
-- **WHEN** a caller omits `partial_without_curriculum`
-- **THEN** the system SHALL reject the request rather than infer intent
-
-#### Scenario: Legacy program alias is submitted
-- **WHEN** a caller submits `BSIT` as confirmed program on a new evaluation
-- **THEN** the system SHALL reject the write and require `BSInfoTech`
-
-#### Scenario: Curriculum program mismatches confirmed program
-- **WHEN** a full request selects a curriculum whose canonical program differs from the confirmed program
-- **THEN** the system SHALL reject the request with a clear validation error
-
-#### Scenario: Curriculum is not ready
-- **WHEN** a full request selects a curriculum that is failed, unprocessed, missing chunks, or missing required local vectors
-- **THEN** the system SHALL reject the request without creating an evaluation
-
-#### Scenario: Curriculum lacks administrator provenance
-- **WHEN** a full request selects a legacy curriculum row not uploaded by an administrator
-- **THEN** the system SHALL reject the request without creating an evaluation
-
+#### Scenario: Coordinator submission without curriculum fails closed
+- **WHEN** an authenticated user submits an evaluation with `target_agent` as `"coordinator"` but the SLM lacks a linked curriculum reference and no valid `curriculum_id` is supplied
+- **THEN** the system SHALL reject the submission with HTTP 422 Unprocessable Entity stating that curriculum context is required for Program Coordinator evaluation
 ### Requirement: Full intent executes Coordinator honestly
 A full-intent evaluation SHALL schedule Coordinator with authoritative curriculum text loaded before worker dispatch, SHALL retain full synthesis weights only when required outputs succeed, and SHALL terminate `FAILED` rather than automatically degrade to partial if curriculum or Coordinator becomes unavailable. A partial-intent evaluation SHALL exclude Coordinator before dispatch and SHALL complete as `COMPLETED_PARTIAL` only when every scheduled partial agent succeeds.
 
