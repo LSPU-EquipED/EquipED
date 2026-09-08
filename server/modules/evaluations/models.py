@@ -61,6 +61,7 @@ class EvaluationJob(Base):
         Index("idx_jobs_document_id", "document_id"),
         Index("idx_jobs_status", "status"),
         Index("idx_jobs_admission_fifo", "status", "submitted_at", "evaluation_id"),
+        Index("idx_jobs_doc_target_agent", "document_id", "target_agent"),
         sa.CheckConstraint(
             "admission_slot IS NULL OR admission_slot = 1",
             name="ck_evaluation_admission_slot",
@@ -117,6 +118,9 @@ class EvaluationJob(Base):
         sa.Boolean, nullable=False, default=False
     )
     partial_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Targeted single-agent evaluation: which specialist this job executes.
+    # Historical multi-agent bundle rows are backfilled with 'all'.
+    target_agent: Mapped[str] = mapped_column(String(32), nullable=False, default="all")
     confirmed_program: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_pre_snapshot_legacy: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, default=False
