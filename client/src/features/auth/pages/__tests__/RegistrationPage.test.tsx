@@ -59,6 +59,8 @@ describe('RegistrationPage Component', () => {
   it('submits registration intake and transitions to email verification state', async () => {
     vi.mocked(registrationApi.start).mockResolvedValueOnce({
       registration_token: 'token-abc-123',
+      email: 'maria.santos@lspu.edu.ph',
+      message: 'Verification code sent',
     });
 
     render(<RegistrationPage />);

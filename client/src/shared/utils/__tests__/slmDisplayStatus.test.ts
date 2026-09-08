@@ -72,7 +72,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Evaluating');
     expect(status.actionType).toBe('view_progress');
     expect(status.actionLabel).toBe('View Progress');
-    expect(status.actionUrl).toBe('/documents/doc-123/evaluation');
+    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
     expect(status.isClickable).toBe(true);
     expect(status.showSpinner).toBe(true);
 
@@ -101,7 +101,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Evaluation Failed');
     expect(status.actionType).toBe('inspect_failure');
     expect(status.actionLabel).toBe('Inspect Evaluation');
-    expect(status.actionUrl).toBe('/documents/doc-123/evaluation');
+    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
     expect(status.isClickable).toBe(true);
   });
 
@@ -117,7 +117,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Evaluated');
     expect(status.actionType).toBe('view_results');
     expect(status.actionLabel).toBe('Open Evaluation');
-    expect(status.actionUrl).toBe('/documents/doc-123/evaluation');
+    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
     expect(status.isClickable).toBe(true);
 
     const partialEval: LatestEvaluationItem = {
@@ -127,7 +127,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     const partialStatus = getSlmDisplayStatus(baseDoc, partialEval, { isSuccess: true });
     expect(partialStatus.badgeLabel).toBe('Evaluated');
     expect(partialStatus.actionLabel).toBe('Open Evaluation');
-    expect(partialStatus.actionUrl).toBe('/documents/doc-123/evaluation');
+    expect(partialStatus.actionUrl).toBe('/specialists/sme/doc-123');
   });
 
   it('Precedence 6: returns Ready to Evaluate and links to workspace when processed with no eval after batch loads', () => {
@@ -135,7 +135,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Ready to Evaluate');
     expect(status.actionType).toBe('start_evaluation');
     expect(status.actionLabel).toBe('Evaluate');
-    expect(status.actionUrl).toBe('/documents/doc-123/evaluation');
+    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
     expect(status.isClickable).toBe(true);
     expect(status.showSpinner).toBe(false);
   });

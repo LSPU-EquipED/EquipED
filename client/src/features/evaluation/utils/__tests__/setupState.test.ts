@@ -1,13 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { EvaluationListItem } from '../../types';
 import {
   buildEvaluationSubmitPayload,
-  canStartEvaluation,
+  buildTargetedEvaluationSubmitPayload,
   normalizeProgram,
-  resolveExistingEvaluation,
 } from '../setupState';
-
-type ResolveItem = Pick<EvaluationListItem, 'evaluation_id' | 'status' | 'submitted_at'>;
 
 describe('normalizeProgram - Canonical Constant Normalization', () => {
   it('canonicalizes BSCS variants to exact BSCS', () => {
@@ -28,422 +24,120 @@ describe('normalizeProgram - Canonical Constant Normalization', () => {
   });
 });
 
-describe('canStartEvaluation - Pure Decision Gates', () => {
-  describe('Full Evaluation Mode', () => {
-    it('allows start when program is confirmed and a ready curriculum is explicitly selected', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSInfoTech',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123', 'curr-456'],
-          isSubmitting: false,
-        }),
-      ).toBe(true);
-    });
-
-    it('blocks start when selected curriculum ID is not in readyCurriculumIds', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSInfoTech',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-stale-999',
-          readyCurriculumIds: ['curr-123', 'curr-456'],
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when curriculum is not selected (no auto-selection allowed)', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: null,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: '',
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when program is not confirmed even if curriculum is selected', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: false,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when program is an unsupported non-empty string (e.g. BSIS)', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSIS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('allows start when program is a supported alias like BSIT', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSIT',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isSubmitting: false,
-        }),
-      ).toBe(true);
-    });
-
-    it('blocks start when curricula suggestions are currently loading', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isLoadingCurricula: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when curricula suggestions resulted in an error', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isCurriculaError: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when existing evaluation resolver resulted in an error', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isResolveError: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start while submission is pending', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'full',
-          selectedCurriculumId: 'curr-123',
-          readyCurriculumIds: ['curr-123'],
-          isSubmitting: true,
-        }),
-      ).toBe(false);
-    });
-  });
-
-  describe('Partial Evaluation Mode', () => {
-    it('allows start when program is confirmed and partial terms are acknowledged', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSInfoTech',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(true);
-    });
-
-    it('blocks start when partial terms are not acknowledged', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSInfoTech',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: false,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when resolver resulted in an error', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSInfoTech',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isResolveError: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when program is not confirmed even if partial is acknowledged', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: false,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start when program is an unsupported non-empty string (e.g. BSIS)', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSIS',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('allows start when program is a supported alias like BSIT', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSIT',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(true);
-    });
-
-    it('blocks start when program is empty', () => {
-      expect(
-        canStartEvaluation({
-          program: '',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('blocks start while submission is pending', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: 'partial',
-          partialAcknowledged: true,
-          isSubmitting: true,
-        }),
-      ).toBe(false);
-    });
-  });
-
-  describe('Unselected / Null Mode', () => {
-    it('blocks start when no mode has been selected', () => {
-      expect(
-        canStartEvaluation({
-          program: 'BSCS',
-          programConfirmed: true,
-          mode: null,
-          selectedCurriculumId: 'curr-123',
-          partialAcknowledged: true,
-          isSubmitting: false,
-        }),
-      ).toBe(false);
-    });
-  });
-});
-
-describe('buildEvaluationSubmitPayload - Exact Payload Generation & Canonical Constants', () => {
-  it('builds exact full evaluation payload for BSCS', () => {
+describe('buildEvaluationSubmitPayload - Single-Agent Evaluation Submissions', () => {
+  it('builds valid SME submission payload without curriculum', () => {
     const payload = buildEvaluationSubmitPayload({
-      documentId: 'doc-abc-123',
-      program: '  bscs  ',
-      mode: 'full',
-      curriculumId: 'curr-xyz-789',
-    });
-
-    expect(payload).toEqual({
-      document_id: 'doc-abc-123',
-      curriculum_id: 'curr-xyz-789',
-      confirmed_program: 'BSCS',
-      partial_without_curriculum: false,
-    });
-  });
-
-  it('builds exact full evaluation payload for BSInfoTech (never uppercase BSINFOTECH)', () => {
-    const payload = buildEvaluationSubmitPayload({
-      documentId: 'doc-abc-123',
-      program: 'bsinfotech',
-      mode: 'full',
-      curriculumId: 'curr-it-001',
-    });
-
-    expect(payload).toEqual({
-      document_id: 'doc-abc-123',
-      curriculum_id: 'curr-it-001',
-      confirmed_program: 'BSInfoTech',
-      partial_without_curriculum: false,
-    });
-  });
-
-  it('builds exact full evaluation payload for BSIT alias (canonicalized to BSInfoTech)', () => {
-    const payload = buildEvaluationSubmitPayload({
-      documentId: 'doc-abc-123',
-      program: 'BSIT',
-      mode: 'full',
-      curriculumId: 'curr-it-001',
-    });
-
-    expect(payload).toEqual({
-      document_id: 'doc-abc-123',
-      curriculum_id: 'curr-it-001',
-      confirmed_program: 'BSInfoTech',
-      partial_without_curriculum: false,
-    });
-  });
-
-  it('rejects unsupported programs on full evaluation write', () => {
-    expect(() =>
-      buildEvaluationSubmitPayload({
-        documentId: 'doc-abc-123',
-        program: 'BSIS',
-        mode: 'full',
-        curriculumId: 'curr-123',
-      }),
-    ).toThrow(/Invalid program 'BSIS'/);
-  });
-
-  it('rejects unsupported programs on partial evaluation write', () => {
-    expect(() =>
-      buildEvaluationSubmitPayload({
-        documentId: 'doc-abc-123',
-        program: 'BSIS',
-        mode: 'partial',
-      }),
-    ).toThrow(/Invalid program 'BSIS'/);
-  });
-
-  it('rejects empty program string on payload build', () => {
-    expect(() =>
-      buildEvaluationSubmitPayload({
-        documentId: 'doc-abc-123',
-        program: '',
-        mode: 'partial',
-      }),
-    ).toThrow(/Invalid program ''/);
-  });
-
-  it('builds exact partial evaluation payload for BSInfoTech (never uppercase BSINFOTECH)', () => {
-    const payload = buildEvaluationSubmitPayload({
-      documentId: 'doc-abc-123',
-      program: 'BSIT',
-      mode: 'partial',
-    });
-
-    expect(payload).toEqual({
-      document_id: 'doc-abc-123',
-      confirmed_program: 'BSInfoTech',
-      partial_without_curriculum: true,
-    });
-  });
-
-  it('builds exact partial evaluation payload for BSCS', () => {
-    const payload = buildEvaluationSubmitPayload({
-      documentId: 'doc-abc-123',
+      documentId: 'doc-slm-1',
       program: 'BSCS',
-      mode: 'partial',
+      targetAgent: 'sme',
     });
 
     expect(payload).toEqual({
-      document_id: 'doc-abc-123',
+      document_id: 'doc-slm-1',
+      target_agent: 'sme',
       confirmed_program: 'BSCS',
-      partial_without_curriculum: true,
+      partial_without_curriculum: false,
     });
   });
 
-  it('throws an error if full evaluation mode is requested without a curriculumId', () => {
+  it('builds valid GAD submission payload without curriculum', () => {
+    const payload = buildEvaluationSubmitPayload({
+      documentId: 'doc-slm-2',
+      program: 'BSInfoTech',
+      targetAgent: 'gad',
+    });
+
+    expect(payload).toEqual({
+      document_id: 'doc-slm-2',
+      target_agent: 'gad',
+      confirmed_program: 'BSInfoTech',
+      partial_without_curriculum: false,
+    });
+  });
+
+  it('builds valid ITSO submission payload without curriculum', () => {
+    const payload = buildEvaluationSubmitPayload({
+      documentId: 'doc-slm-3',
+      program: 'BSCS',
+      targetAgent: 'itso',
+    });
+
+    expect(payload).toEqual({
+      document_id: 'doc-slm-3',
+      target_agent: 'itso',
+      confirmed_program: 'BSCS',
+      partial_without_curriculum: false,
+    });
+  });
+
+  it('builds valid Coordinator submission payload with curriculum context', () => {
+    const payload = buildEvaluationSubmitPayload({
+      documentId: 'doc-slm-4',
+      program: 'BSCS',
+      targetAgent: 'coordinator',
+      curriculumId: 'curr-ready-1',
+    });
+
+    expect(payload).toEqual({
+      document_id: 'doc-slm-4',
+      curriculum_id: 'curr-ready-1',
+      target_agent: 'coordinator',
+      confirmed_program: 'BSCS',
+      partial_without_curriculum: false,
+    });
+  });
+
+  it('normalizes alias BSIT to canonical BSInfoTech on submission writes', () => {
+    const payload = buildEvaluationSubmitPayload({
+      documentId: 'doc-slm-5',
+      program: 'BSIT',
+      targetAgent: 'gad',
+    });
+
+    expect(payload.confirmed_program).toBe('BSInfoTech');
+  });
+
+  it('throws when Coordinator evaluation lacks curriculum context', () => {
     expect(() =>
       buildEvaluationSubmitPayload({
-        documentId: 'doc-abc-123',
+        documentId: 'doc-slm-6',
         program: 'BSCS',
-        mode: 'full',
-        curriculumId: null,
+        targetAgent: 'coordinator',
       }),
-    ).toThrow('Curriculum ID is required for full evaluation');
-  });
-});
+    ).toThrow('Curriculum context is required for Program Coordinator evaluation');
 
-describe('resolveExistingEvaluation', () => {
-  const baseItems: ResolveItem[] = [
-    {
-      evaluation_id: 'failed-old',
-      status: 'FAILED',
-      submitted_at: '2026-01-02T00:00:00Z',
-    },
-    {
-      evaluation_id: 'completed',
-      status: 'COMPLETED',
-      submitted_at: '2026-01-01T00:00:00Z',
-    },
-  ];
-
-  it('reuses the most recent non-failed evaluation', () => {
-    expect(
-      resolveExistingEvaluation([
-        ...baseItems,
-        {
-          evaluation_id: 'running-new',
-          status: 'EVALUATING',
-          submitted_at: '2026-01-03T00:00:00Z',
-        },
-      ]),
-    ).toBe('running-new');
+    expect(() =>
+      buildEvaluationSubmitPayload({
+        documentId: 'doc-slm-6',
+        program: 'BSCS',
+        targetAgent: 'coordinator',
+        curriculumId: '   ',
+      }),
+    ).toThrow('Curriculum context is required for Program Coordinator evaluation');
   });
 
-  it('falls back to an older completed evaluation when the newest failed', () => {
-    expect(resolveExistingEvaluation(baseItems)).toBe('completed');
+  it('throws on unsupported program write', () => {
+    expect(() =>
+      buildEvaluationSubmitPayload({
+        documentId: 'doc-slm-7',
+        program: 'BSIS',
+        targetAgent: 'sme',
+      }),
+    ).toThrow("Invalid program 'BSIS'");
   });
 
-  it('returns null when only failed evaluations exist', () => {
-    expect(resolveExistingEvaluation([baseItems[0]])).toBeNull();
-  });
+  it('buildTargetedEvaluationSubmitPayload alias matches exactly', () => {
+    const p1 = buildEvaluationSubmitPayload({
+      documentId: 'doc-1',
+      program: 'BSCS',
+      targetAgent: 'sme',
+    });
+    const p2 = buildTargetedEvaluationSubmitPayload({
+      documentId: 'doc-1',
+      program: 'BSCS',
+      targetAgent: 'sme',
+    });
 
-  it('returns null when no evaluations exist', () => {
-    expect(resolveExistingEvaluation([])).toBeNull();
+    expect(p1).toEqual(p2);
   });
 });

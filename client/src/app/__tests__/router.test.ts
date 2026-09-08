@@ -19,6 +19,8 @@ describe('appRouter configuration and route splitting', () => {
     expect(flatRoutes['/shell/evaluations']).toBeDefined();
     expect(flatRoutes['/shell/evaluation-map']).toBeDefined();
     expect(flatRoutes['/shell/documents/$documentId/evaluation']).toBeDefined();
+    expect(flatRoutes['/shell/specialists/$agentId']).toBeDefined();
+    expect(flatRoutes['/shell/specialists/$agentId/$documentId']).toBeDefined();
     expect(flatRoutes['/shell/evaluations/$id']).toBeDefined();
     expect(flatRoutes['/shell/syllabus-alignment']).toBeDefined();
     expect(flatRoutes['/shell/syllabus-alignment/$documentId']).toBeDefined();

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,9 +10,28 @@ import * as useEvaluationHistoryModule from '../../hooks/useEvaluationHistory';
 import type { HistoryListResponse } from '../../types';
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: ComponentPropsWithoutRef<'a'> & { children?: ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
+  Link: ({
+    to,
+    params,
+    children,
+    ...props
+  }: {
+    to?: string;
+    params?: Record<string, string>;
+    children?: ReactNode;
+  } & ComponentPropsWithoutRef<'a'>) => {
+    let href = to || props.href || '#';
+    if (params && to) {
+      Object.entries(params).forEach(([key, val]) => {
+        href = href.replace(`$${key}`, val);
+      });
+    }
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
   Outlet: () => null,
 }));
 
@@ -105,6 +124,74 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByText('1 evaluation found')).toBeDefined();
   });
 
+  it('renders role badge and accessible scorecard action for targeted evaluations', () => {
+    const mockData: HistoryListResponse = {
+      items: [
+        {
+          evaluation_id: 'eval-targeted-1234',
+          document_id: 'doc-1',
+          document_title: 'Operating Systems SLM',
+          syllabus_id: 'syl-1',
+          curriculum_id: 'curr-1',
+          status: 'COMPLETED',
+          target_agent: 'sme',
+          submitted_at: '2026-08-20T10:00:00Z',
+          completed_at: '2026-08-20T10:05:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    };
+
+    vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: mockData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    expect(screen.getByText('SME')).toBeDefined();
+    expect(screen.queryByRole('link', { name: /workspace/i })).toBeNull();
+    expect(screen.getByRole('link', { name: /View audit scorecard for Operating Systems SLM/i })).toBeDefined();
+  });
+
+  it('triggers history query with selected target_agent when role filter is changed', () => {
+    const useHistorySpy = vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 10 },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+    const roleTab = screen.getByRole('tab', { name: /Gender & Development/i });
+    fireEvent.click(roleTab);
+    expect(useHistorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target_agent: 'gad',
+      }),
+    );
+  });
+
+  it('triggers history query with selected status when status filter is changed', () => {
+    const useHistorySpy = vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 10 },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    const statusSelect = screen.getByLabelText(/Status:/i);
+    fireEvent.change(statusSelect, { target: { value: 'FAILED' } });
+
+    expect(useHistorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'FAILED',
+      }),
+    );
+  });
   it('history feature never imports from other features (strict feature boundary)', () => {
     const historyDir = path.resolve(__dirname, '../..');
     expect(path.basename(historyDir)).toBe('history');
