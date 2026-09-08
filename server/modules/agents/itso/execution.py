@@ -209,13 +209,16 @@ def execute(
                 repair_msg = repair_msg[:117] + "..."
             dynamic_suffix = (
                 f"\n\nVALIDATOR_FAILURE category=ITSO_INVALID detail: {repair_msg}. "
-                "Regenerate ONLY the complete JSON response with EXACT verbatim evidence substrings; do not include commentary."
+                "Regenerate ONLY the complete JSON response with EXACT verbatim "
+                "evidence substrings; do not include commentary."
             )
             repair_prompt = prompt + dynamic_suffix
             if len(repair_prompt) > total_budget:
                 repair_prompt = prompt + repair_suffix
             if len(repair_prompt) > total_budget:
-                raise AgentExecutionError("ITSO repair prompt exceeds total budget") from exc
+                raise AgentExecutionError(
+                    "ITSO repair prompt exceeds total budget"
+                ) from exc
             with timer.measure("llm_repair"):
                 repaired_result = adapter.generate_result(
                     repair_prompt,

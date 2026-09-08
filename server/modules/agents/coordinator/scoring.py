@@ -28,7 +28,7 @@ from server.modules.rubrics.strategies.calculators import (
 
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError
-from .bands import ratio_band
+from ..runtime.bands import ratio_band
 
 
 def score_curriculum_alignment(

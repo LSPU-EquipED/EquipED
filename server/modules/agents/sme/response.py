@@ -16,7 +16,7 @@ from server.modules.rubrics.contracts import (
 
 from ..exceptions import AgentExecutionError
 from ..runtime.grounding import find_verbatim_substring
-from .slicing import GAP_MARKER
+from ..runtime.slicing import GAP_MARKER
 
 SME_TEXT_MAX = 2000
 
