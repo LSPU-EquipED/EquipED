@@ -5,7 +5,7 @@ import React from 'react';
 import { DocumentDashboard } from '../DocumentDashboard';
 
 // Mock dependencies
-const mockUseDocumentDashboard = vi.fn();
+const mockUseSlmStorage = vi.fn();
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
@@ -25,8 +25,8 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }));
 
-vi.mock('../../hooks/useDocumentDashboard', () => ({
-  useDocumentDashboard: () => mockUseDocumentDashboard(),
+vi.mock('../../hooks/useSlmStorage', () => ({
+  useSlmStorage: () => mockUseSlmStorage(),
 }));
 
 function renderWithClient(ui: React.ReactElement) {
@@ -42,16 +42,27 @@ function renderWithClient(ui: React.ReactElement) {
   );
 }
 
-describe('DocumentDashboard', () => {
-  const defaultDashboardState = {
+describe('DocumentDashboard - SLM Storage Repository', () => {
+  const defaultStorageState = {
     search: '',
     setSearch: vi.fn(),
+    programFilter: 'ALL',
+    setProgramFilter: vi.fn(),
     statusFilter: 'all',
     setStatusFilter: vi.fn(),
     page: 1,
     setPage: vi.fn(),
     pageSize: 10,
     setPageSize: vi.fn(),
+    total: 2,
+    totalPages: 1,
+    metrics: {
+      totalModules: 2,
+      totalIndexedPages: 45,
+      bscsCount: 1,
+      bsInfoTechCount: 1,
+      ocrVerifiedCount: 1,
+    },
     stats: { total: 2, ready: 1, processing: 1, failed: 0 },
     documents: [
       {
@@ -62,6 +73,8 @@ describe('DocumentDashboard', () => {
         sourceType: 'slm',
         uploadedAt: '2026-08-15T10:00:00Z',
         processingStatus: 'PROCESSED',
+        pageCount: 25,
+        hasOcrPages: true,
       },
       {
         documentId: 'doc-2',
@@ -71,79 +84,58 @@ describe('DocumentDashboard', () => {
         sourceType: 'slm',
         uploadedAt: '2026-08-16T11:00:00Z',
         processingStatus: 'PENDING',
+        pageCount: 20,
+        hasOcrPages: false,
       },
     ],
-    paginatedDocuments: [
-      {
-        documentId: 'doc-1',
-        title: 'Network Systems Module',
-        courseTitle: 'IT 201',
-        program: 'BSInfoTech',
-        sourceType: 'slm',
-        uploadedAt: '2026-08-15T10:00:00Z',
-        processingStatus: 'PROCESSED',
-      },
-      {
-        documentId: 'doc-2',
-        title: 'Database Admin Module',
-        courseTitle: 'IT 202',
-        program: 'BSInfoTech',
-        sourceType: 'slm',
-        uploadedAt: '2026-08-16T11:00:00Z',
-        processingStatus: 'PENDING',
-      },
-    ],
-    totalPages: 1,
     error: null,
     isLoading: false,
-    isTableReady: true,
-    data: { items: [], total: 2 },
+    inspectingDoc: null,
+    setInspectingDoc: vi.fn(),
+    isUploadOpen: false,
+    setIsUploadOpen: vi.fn(),
+    evaluatingTarget: null,
+    setEvaluatingTarget: vi.fn(),
+    handleUploadComplete: vi.fn(),
   };
 
-  it('renders document repository table wrapper and filters', () => {
-    mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
+  it('renders SLM storage metrics strip and table', () => {
+    mockUseSlmStorage.mockReturnValue(defaultStorageState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('Status');
+    expect(markup).toContain('Course Modules');
+    expect(markup).toContain('Indexed Content');
     expect(markup).toContain('Network Systems Module');
-  });
-
-  it('renders flash success banner with accessible contrast colors', () => {
-    mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
-    const markup = renderWithClient(<DocumentDashboard />);
-
-    expect(markup).toContain('Document uploaded successfully and is now available in My SLMs.');
-    expect(markup).toContain('text-success');
-    expect(markup).toContain('border-success/30');
-    expect(markup).toContain('bg-success-soft');
-    expect(markup).not.toContain('#3b963e');
-  });
-
-  it('renders exactly one in-page Upload SLM action in DocumentActionBar', () => {
-    mockUseDocumentDashboard.mockReturnValue(defaultDashboardState);
-    const markup = renderWithClient(<DocumentDashboard />);
-
-    // Count occurrences of href="/upload" in the page
-    const uploadMatches = markup.match(/href="\/upload"/g);
-    expect(uploadMatches).toHaveLength(1);
     expect(markup).toContain('Upload SLM');
   });
 
-  it('renders empty-state guidance pointing to the action bar without duplicate upload buttons', () => {
-    mockUseDocumentDashboard.mockReturnValue({
-      ...defaultDashboardState,
+  it('renders flash success banner with accessible contrast colors', () => {
+    mockUseSlmStorage.mockReturnValue(defaultStorageState);
+    const markup = renderWithClient(<DocumentDashboard />);
+
+    expect(markup).toContain('Document uploaded successfully and is now indexed in SLM Storage.');
+    expect(markup).toContain('text-success');
+    expect(markup).toContain('border-success/30');
+    expect(markup).toContain('bg-success-soft');
+  });
+
+  it('renders empty state guidance when no modules exist in storage', () => {
+    mockUseSlmStorage.mockReturnValue({
+      ...defaultStorageState,
+      total: 0,
+      metrics: {
+        totalModules: 0,
+        totalIndexedPages: 0,
+        bscsCount: 0,
+        bsInfoTechCount: 0,
+        ocrVerifiedCount: 0,
+      },
       stats: { total: 0, ready: 0, processing: 0, failed: 0 },
       documents: [],
-      paginatedDocuments: [],
-      data: { items: [], total: 0 },
     });
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain(
-      'No SLMs uploaded yet. Use the Upload SLM button above to add course learning materials.',
-    );
-    // Still exactly one Upload SLM button in the entire page (in DocumentActionBar)
-    const uploadMatches = markup.match(/href="\/upload"/g);
-    expect(uploadMatches).toHaveLength(1);
+    expect(markup).toContain('No SLMs in Storage Yet');
+    expect(markup).toContain('Upload course learning modules in PDF format');
   });
 });
