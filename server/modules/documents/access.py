@@ -413,12 +413,17 @@ def stream_document_file(
 
     if not _is_document_accessible(row, current_user_id, current_user_role):
         raise DocumentNotFoundError(f"Document {document_id} not found")
+    if row.file_path:
+        local_p = Path(row.file_path)
+        if local_p.is_file():
+            return local_p
 
-    file_path = Path(row.file_path) if row.file_path else None
-    if file_path is None or not file_path.exists():
-        raise DocumentNotFoundError(f"Document file {document_id} not found")
+    try:
+        from .paths import resolve_document_pdf_path
 
-    return file_path
+        return resolve_document_pdf_path(row.file_path or f"{document_id}.pdf")
+    except Exception:
+        raise DocumentNotFoundError(f"Document file {document_id} not found") from None
 
 
 def _chunk_responses(chunks: list[Any]) -> list[DocumentChunkResponse]:

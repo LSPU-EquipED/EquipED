@@ -298,11 +298,22 @@ def _process_uploaded_document(
         evaluation_readiness=evaluation_readiness,
     )
 
+    storage_ref = str(target_path)
+    if target_path.exists() and status != "FAILED":
+        try:
+            from server.core.storage import get_storage_backend
+
+            storage = get_storage_backend()
+            with target_path.open("rb") as f:
+                storage_ref = storage.upload_file(f"{doc_id}.pdf", f)
+        except Exception as exc:
+            logger.warning("Failed to upload %s to storage backend: %s", doc_id, exc)
+
     try:
         persistence._persist_document(
             runtime_db,
             response,
-            str(target_path),
+            storage_ref,
             uploaded_by,
             commit=False,
         )
@@ -378,10 +389,19 @@ def _persist_reference_stub(
     if runtime_db is None and get_settings().database_configured:
         runtime_session = get_session_factory()()
         runtime_db = runtime_session
+    storage_ref = str(target_path)
+    if target_path.exists():
+        try:
+            from server.core.storage import get_storage_backend
+
+            storage = get_storage_backend()
+            with target_path.open("rb") as f:
+                storage_ref = storage.upload_file(f"{doc_id}.pdf", f)
+        except Exception as exc:
+            logger.warning("Failed to upload %s to storage backend: %s", doc_id, exc)
+
     try:
-        persistence._persist_document(
-            runtime_db, response, str(target_path), uploaded_by
-        )
+        persistence._persist_document(runtime_db, response, storage_ref, uploaded_by)
     finally:
         if runtime_session is not None:
             runtime_session.close()
