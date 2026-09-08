@@ -1,6 +1,7 @@
 # Agent and local tooling
 .gemini/
 .omg/
+.omp/
 .opencode/
 .antigravitycli/
 .slim/

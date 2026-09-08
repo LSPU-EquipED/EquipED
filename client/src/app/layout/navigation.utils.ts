@@ -6,15 +6,17 @@ import {
   FolderOpen,
   Gear,
   GitFork,
+  GraduationCap,
   type Icon,
+  Lightbulb,
   ListChecks,
   Scan,
   Shield,
+  ShieldCheck,
   SquaresFour,
   UploadSimple,
   Users,
 } from '@phosphor-icons/react';
-
 export interface NavItem {
   to: string;
   label: string;
@@ -41,19 +43,29 @@ export const facultyNavGroups: readonly NavGroup[] = [
     ],
   },
   {
-    id: 'workspace',
-    label: 'WORKSPACE',
+    id: 'storage',
+    label: 'SLM REPOSITORY',
     items: [
-      { to: '/documents', label: 'My SLMs', icon: FolderOpen, exact: false },
-      { to: '/evaluations', label: 'Evaluations', icon: ClipboardText, exact: false },
+      { to: '/documents', label: 'SLM Storage', icon: FolderOpen, exact: false },
+    ],
+  },
+  {
+    id: 'specialists',
+    label: 'EVALUATION SPECIALISTS',
+    items: [
+      { to: '/specialists/sme', label: 'Subject Matter Expert', icon: GraduationCap, exact: false },
+      { to: '/specialists/coordinator', label: 'Program Coordinator', icon: ListChecks, exact: false },
+      { to: '/specialists/gad', label: 'Gender & Development', icon: ShieldCheck, exact: false },
+      { to: '/specialists/itso', label: 'Innovation & IP (ITSO)', icon: Lightbulb, exact: false },
     ],
   },
   {
     id: 'alignment',
-    label: 'ALIGNMENT',
+    label: 'ALIGNMENT & AUDIT',
     items: [
       { to: '/syllabus-alignment', label: 'Syllabus Alignment', icon: ListChecks, exact: false },
       { to: '/alignment', label: 'Curriculum Check', icon: BookOpenText, exact: false },
+      { to: '/evaluations', label: 'Evaluation History', icon: ClipboardText, exact: true },
     ],
   },
 ] as const;
@@ -156,15 +168,15 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
 
   if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) {
     return [
-      { label: 'My SLMs', to: '/documents' },
-      { label: 'Evaluation Setup' },
+      { label: 'SLM Storage', to: '/documents' },
+      { label: 'Specialist Review' },
     ];
   }
 
-  if (cleanPath === '/documents') {
+  if (cleanPath === '/documents' || cleanPath === '/storage') {
     return [
       { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'My SLMs' },
+      { label: 'SLM Storage' },
     ];
   }
 
@@ -182,6 +194,34 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
     ];
   }
 
+  if (cleanPath.startsWith('/specialists/sme')) {
+    return [
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Subject Matter Expert' },
+    ];
+  }
+
+  if (cleanPath.startsWith('/specialists/coordinator')) {
+    return [
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Program Coordinator' },
+    ];
+  }
+
+  if (cleanPath.startsWith('/specialists/gad')) {
+    return [
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Gender & Development' },
+    ];
+  }
+
+  if (cleanPath.startsWith('/specialists/itso')) {
+    return [
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Innovation & IP (ITSO)' },
+    ];
+  }
+
   if (cleanPath.startsWith('/evaluations/') && cleanPath !== '/evaluations') {
     return [
       { label: 'Evaluations', to: '/evaluations' },
@@ -192,7 +232,7 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
   if (cleanPath === '/evaluations') {
     return [
       { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Evaluations' },
+      { label: 'Evaluation History' },
     ];
   }
 
@@ -304,19 +344,15 @@ export function getRouteTitle(routeId?: string, userRole?: string): string {
 
   if (routeId.includes('/dashboard')) return 'Home';
   if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
-    return 'Evaluation Interface';
+    return 'Specialist Review';
   if (routeId.includes('/documents')) return 'My SLMs';
   if (routeId.includes('/upload')) return 'Upload SLM';
   if (routeId.includes('/evaluations') && routeId.includes('/report'))
     return 'Evaluation Report';
-  if (
-    routeId.includes('/evaluations/$id') ||
-    (routeId.startsWith('/evaluations/') && routeId !== '/evaluations') ||
-    (routeId.includes('/evaluations/') && !routeId.endsWith('/evaluations'))
-  ) {
-    return 'Scorecard';
-  }
-  if (routeId.includes('/evaluations')) return 'Evaluations';
+  if (routeId.includes('/evaluations/$id')) return 'Scorecard';
+  if (/^\/evaluations\/[^/]+$/.test(routeId)) return 'Scorecard';
+  if (routeId.includes('/specialists')) return 'Specialist Review';
+  if (routeId.includes('/evaluations')) return 'Evaluation History';
   if (routeId.includes('/evaluation-map')) return 'Knowledge Map';
   if (routeId.includes('/syllabus-alignment') && routeId.includes('/report'))
     return 'Syllabus Alignment Report';

@@ -1,11 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { historyApi } from '../api/history.api';
+import { historyApi, type HistoryQueryParams } from '../api/history.api';
 
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED']);
 
-export function useEvaluationHistory(
-  params: { status?: string; page?: number; page_size?: number } = {},
-) {
+export function useEvaluationHistory(params: HistoryQueryParams = {}) {
   return useQuery({
     queryKey: ['history', params],
     queryFn: () => historyApi.getHistory(params),

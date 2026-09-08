@@ -1,4 +1,4 @@
-import type { ChangeEvent, DragEvent, RefObject } from 'react';
+import type { ChangeEvent, DragEvent, Ref } from 'react';
 import { UploadSimple } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
@@ -7,7 +7,7 @@ interface ReferenceFileDropzoneStepProps {
   title: string;
   onTitleChange: (title: string) => void;
   file: File | null;
-  fileInputRef: RefObject<HTMLInputElement | null>;
+  fileInputRef: Ref<HTMLInputElement>;
   isDragging: boolean;
   onDragOver: (event: DragEvent<HTMLLabelElement>) => void;
   onDragLeave: () => void;

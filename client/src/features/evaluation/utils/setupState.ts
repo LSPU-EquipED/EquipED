@@ -1,94 +1,32 @@
 import { isLspuSccProgram, normalizeProgram } from '@/shared/constants/programs';
-import type { EvaluationListItem, EvaluationSubmitRequest } from '../types';
-
-/**
- * Pure decision helpers for evaluation setup (Full and Partial modes). Kept free
- * of hooks so the confirmation, mode selection, and payload generation rules are unit-testable.
- */
-
-export type EvaluationMode = 'full' | 'partial';
+import { isTargetAgent, type TargetAgent } from '@/shared/types/evaluations';
+import type { EvaluationSubmitRequest } from '../types';
 
 export { normalizeProgram };
 
-export interface CanStartEvaluationParams {
+export interface EvaluationSubmitParams {
+  documentId: string;
   program: string;
-  programConfirmed: boolean;
-  mode: EvaluationMode | null;
-  selectedCurriculumId?: string | null;
-  readyCurriculumIds?: string[];
-  partialAcknowledged?: boolean;
-  isLoadingCurricula?: boolean;
-  isCurriculaError?: boolean;
-  isResolveError?: boolean;
-  isSubmitting: boolean;
+  targetAgent: TargetAgent;
+  curriculumId?: string | null;
 }
 
 /**
- * The start action stays locked until the faculty user has explicitly
- * confirmed the program (a detected program is only a suggestion), chosen
- * a valid evaluation mode, and satisfied that mode's explicit prerequisites.
- *
- * Full Evaluation requires:
- * - existing evaluation resolver succeeded (no resolver failure)
- * - supported and confirmed program (e.g. BSCS, BSInfoTech)
- * - explicit selection of a currently ready curriculum (no auto-selection)
- * - curriculum suggestions not currently loading or in error
- * - no active submission in progress
- *
- * Partial Evaluation requires:
- * - existing evaluation resolver succeeded (no resolver failure)
- * - supported and confirmed program (e.g. BSCS, BSInfoTech)
- * - explicit acknowledgement of partial review terms (no coordinator)
- * - no active submission in progress
- */
-export function canStartEvaluation({
-  program,
-  programConfirmed,
-  mode,
-  selectedCurriculumId,
-  readyCurriculumIds,
-  partialAcknowledged,
-  isLoadingCurricula = false,
-  isCurriculaError = false,
-  isResolveError = false,
-  isSubmitting,
-}: CanStartEvaluationParams): boolean {
-  if (isSubmitting || isResolveError) return false;
-  if (!program || !isLspuSccProgram(program) || !programConfirmed) {
-    return false;
-  }
-
-  if (mode === 'full') {
-    if (isLoadingCurricula || isCurriculaError) return false;
-    if (!selectedCurriculumId || selectedCurriculumId.trim().length === 0) return false;
-    if (readyCurriculumIds && !readyCurriculumIds.includes(selectedCurriculumId.trim())) {
-      return false;
-    }
-    return true;
-  }
-
-  if (mode === 'partial') {
-    return Boolean(partialAcknowledged);
-  }
-
-  return false;
-}
-
-/**
- * Builds the exact typed submission payload for full or partial evaluation.
- * Enforces supported-program writes and normalizes alias reads to canonical constants (BSInfoTech, BSCS).
+ * Builds the submission payload for a targeted single-agent evaluation.
+ * Enforces canonical program validation and Coordinator curriculum prerequisites.
+ * GAD, ITSO, and SME evaluate SLM document text directly with zero curriculum gating.
  */
 export function buildEvaluationSubmitPayload({
   documentId,
   program,
-  mode,
+  targetAgent,
   curriculumId,
-}: {
-  documentId: string;
-  program: string;
-  mode: EvaluationMode;
-  curriculumId?: string | null;
-}): EvaluationSubmitRequest {
+}: EvaluationSubmitParams): EvaluationSubmitRequest {
+  if (!isTargetAgent(targetAgent)) {
+    throw new Error(
+      `Invalid target agent '${targetAgent}'. Must be one of 'sme', 'coordinator', 'gad', or 'itso'.`,
+    );
+  }
   if (!program || !isLspuSccProgram(program)) {
     throw new Error(
       `Invalid program '${program}'. Must be a supported LSPU SCC program ('BSCS' or 'BSInfoTech').`,
@@ -97,13 +35,14 @@ export function buildEvaluationSubmitPayload({
 
   const confirmed_program = normalizeProgram(program);
 
-  if (mode === 'full') {
+  if (targetAgent === 'coordinator') {
     if (!curriculumId || curriculumId.trim().length === 0) {
-      throw new Error('Curriculum ID is required for full evaluation');
+      throw new Error('Curriculum context is required for Program Coordinator evaluation');
     }
     return {
       document_id: documentId,
       curriculum_id: curriculumId.trim(),
+      target_agent: targetAgent,
       confirmed_program,
       partial_without_curriculum: false,
     };
@@ -111,24 +50,11 @@ export function buildEvaluationSubmitPayload({
 
   return {
     document_id: documentId,
+    target_agent: targetAgent,
     confirmed_program,
-    partial_without_curriculum: true,
+    partial_without_curriculum: false,
   };
 }
 
-/**
- * Reuse an existing evaluation for the SLM: the most recent non-failed job
- * wins. When only failed jobs exist (or none), the user returns to setup.
- */
-export function resolveExistingEvaluation(
-  items: Pick<EvaluationListItem, 'evaluation_id' | 'status' | 'submitted_at'>[],
-): string | null {
-  const nonFailed = items
-    .filter((item) => item.status !== 'FAILED')
-    .sort(
-      (left, right) =>
-        new Date(right.submitted_at).getTime() - new Date(left.submitted_at).getTime(),
-    );
-
-  return nonFailed.length > 0 ? nonFailed[0].evaluation_id : null;
-}
+/** Backward-compatible export alias. */
+export const buildTargetedEvaluationSubmitPayload = buildEvaluationSubmitPayload;

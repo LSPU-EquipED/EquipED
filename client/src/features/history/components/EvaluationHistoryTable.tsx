@@ -8,6 +8,7 @@ import {
   MagnifyingGlass,
   Warning,
 } from '@phosphor-icons/react';
+import { TARGET_AGENT_META, isTargetAgent } from '@/shared/types/evaluations';
 import { useEvaluationHistory } from '../hooks/useEvaluationHistory';
 import type { HistoryEvaluationItem } from '../types';
 import { Badge } from '@/shared/components/Badge';
@@ -19,8 +20,17 @@ const STATUS_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'FAILED', label: 'Failed' },
+  { value: 'SYNTHESIZING', label: 'Synthesizing' },
   { value: 'EVALUATING', label: 'Evaluating' },
+  { value: 'PREPROCESSING', label: 'Preprocessing' },
   { value: 'SUBMITTED', label: 'Submitted' },
+] as const;
+
+const ROLE_TABS = [
+  { id: 'sme', label: 'Subject Matter Expert' },
+  { id: 'coordinator', label: 'Program Coordinator' },
+  { id: 'gad', label: 'Gender & Development' },
+  { id: 'itso', label: 'Innovation & IP (ITSO)' },
 ] as const;
 
 function getStatusVariant(status: string): StatusVariant {
@@ -44,16 +54,17 @@ function formatDate(value: string) {
 
 export function EvaluationHistoryTable() {
   const [status, setStatus] = useState('all');
+  const [role, setRole] = useState<string>('sme');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const { data, isLoading, isError } = useEvaluationHistory({
     status: status !== 'all' ? status : undefined,
+    target_agent: role,
     page,
     page_size: pageSize,
   });
-
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -74,6 +85,15 @@ export function EvaluationHistoryTable() {
     setPage(1);
   };
 
+  const hasActiveFilters =
+    status !== 'all' || role !== 'sme' || search.trim().length > 0;
+
+  const resetFilters = () => {
+    setStatus('all');
+    setRole('sme');
+    setSearch('');
+    setPage(1);
+  };
   return (
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
       {/* Error alert */}
@@ -86,8 +106,39 @@ export function EvaluationHistoryTable() {
 
       {/* Unified Table Container */}
       <div className={TABLE_STYLES.wrapper}>
-        {/* Table Filter & Search Toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-3">
+        {/* Role Tabs Strip */}
+        <div
+          className="flex flex-wrap items-center gap-1 border-b border-border bg-surface-subtle px-4 sm:px-6 py-2"
+          role="tablist"
+          aria-label="Filter evaluations by specialist role"
+        >
+          {ROLE_TABS.map((tab) => {
+            const isActive = role === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => {
+                  setRole(tab.id);
+                  setPage(1);
+                }}
+                className={cn(
+                  'rounded-xs px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer select-none',
+                  isActive
+                    ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                    : 'text-text-muted hover:text-text hover:bg-surface',
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sub-Toolbar: Status Filter & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5">
           <div className="flex items-center gap-2">
             <label
               htmlFor="history-status-filter"
@@ -99,7 +150,7 @@ export function EvaluationHistoryTable() {
               id="history-status-filter"
               value={status}
               onChange={(e) => handleStatusChange(e.target.value)}
-              className="h-8.5 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
+              className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -107,6 +158,16 @@ export function EvaluationHistoryTable() {
                 </option>
               ))}
             </select>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-xs font-semibold text-primary hover:underline cursor-pointer ml-1"
+              >
+                Reset
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -120,7 +181,7 @@ export function EvaluationHistoryTable() {
                 placeholder="Search by title or ID…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-8 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
                 aria-label="Search evaluations"
               />
             </div>
@@ -146,6 +207,10 @@ export function EvaluationHistoryTable() {
                   skeletonClassName: 'h-4 w-56',
                 },
                 {
+                  label: 'Role',
+                  skeletonClassName: 'h-5 w-16',
+                },
+                {
                   label: 'Status',
                   skeletonClassName: 'h-5 w-24',
                 },
@@ -168,10 +233,23 @@ export function EvaluationHistoryTable() {
             <div className="px-6 py-16 text-center text-sm text-text-muted">
               <div className="flex flex-col items-center justify-center gap-2">
                 <ClipboardText className="size-6 text-text-muted/60" aria-hidden="true" />
-                <p className="font-semibold text-text">No evaluations yet</p>
-                <p className="text-xs text-text-muted max-w-sm">
-                  Evaluations will appear here once you run one from the Documents inventory.
+                <p className="font-semibold text-text">
+                  {hasActiveFilters ? 'No evaluations match your filters' : 'No evaluations yet'}
                 </p>
+                <p className="text-xs text-text-muted max-w-sm">
+                  {hasActiveFilters
+                    ? 'Try resetting your role or status filter to see other evaluation runs.'
+                    : 'Evaluations will appear here once you run one from SLM Storage or the specialist workspaces.'}
+                </p>
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -180,6 +258,9 @@ export function EvaluationHistoryTable() {
                 <tr>
                   <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
                     Document / SLM
+                  </th>
+                  <th scope="col" className={TABLE_STYLES.th}>
+                    Role
                   </th>
                   <th scope="col" className={TABLE_STYLES.th}>
                     Status
@@ -209,6 +290,17 @@ export function EvaluationHistoryTable() {
                       </div>
                     </td>
                     <td className={TABLE_STYLES.td}>
+                      {isTargetAgent(record.target_agent) ? (
+                        <Badge variant="info">
+                          {TARGET_AGENT_META[record.target_agent].shortLabel}
+                        </Badge>
+                      ) : (
+                        <Badge variant="neutral">
+                          {record.target_agent === 'all' ? 'All Domains' : (record.target_agent ?? '—')}
+                        </Badge>
+                      )}
+                    </td>
+                    <td className={TABLE_STYLES.td}>
                       <Badge variant={getStatusVariant(record.status)} withDot>
                         {record.status.replace('_', ' ')}
                       </Badge>
@@ -223,15 +315,15 @@ export function EvaluationHistoryTable() {
                       <Link
                         to="/evaluations/$id"
                         params={{ id: record.evaluation_id }}
+                        aria-label={`View audit scorecard for ${record.document_title || record.evaluation_id}`}
                         className={cn(
                           BUTTON_STYLES.base,
                           BUTTON_STYLES.variants.secondary,
                           BUTTON_STYLES.sizes.sm,
-                          'text-xs h-7.5 px-3',
+                          'text-xs h-7 px-2.5',
                         )}
                       >
-                        <span>View Scorecard</span>
-                        <CaretRight className="size-3" aria-hidden="true" />
+                        <span>Scorecard</span>
                       </Link>
                     </td>
                   </tr>
