@@ -310,6 +310,16 @@ def create_model_validation(
             db=db,
             with_commit=False,
         )
+        # Model-validation benchmarks remain historical multi-agent bundles.
+        _bench_job = db.get(EvaluationJob, evaluation.evaluation_id)
+        if _bench_job is not None:
+            _bench_job.target_agent = "all"
+            _bench_job.partial_without_curriculum = bool(is_partial)
+            _bench_job.partial_reason = (
+                "Curriculum reference not provided; Coordinator review skipped."
+                if is_partial
+                else None
+            )
         # Persist the FK parent before adding snapshots and benchmark children.
         db.flush()
 

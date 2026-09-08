@@ -5,7 +5,7 @@ Evaluations endpoints. Job submission, listing, details, and status polling with
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -82,18 +82,30 @@ def list_evals(
     page: int = 1,
     page_size: int = 20,
     document_id: UUID | None = None,
+    target_agent: Literal["sme", "coordinator", "gad", "itso", "all"] | None = Query(
+        default=None
+    ),
+    status: Literal["SUBMITTED", "PREPROCESSING", "EVALUATING", "SYNTHESIZING", "COMPLETED", "FAILED"] | None = Query(
+        default=None
+    ),
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationListResponse:
-    return list_evaluations(
-        page,
-        page_size,
-        current_user.id,
-        current_user.role.value,
-        db=db,
-        document_id=document_id,
-    )
-
+    try:
+        return list_evaluations(
+            page,
+            page_size,
+            current_user.id,
+            current_user.role.value,
+            db=db,
+            document_id=document_id,
+            target_agent=target_agent,
+            status=status,
+        )
+    except InvalidEvaluationTargetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
 
 @router.get("/latest", response_model=LatestEvaluationsResponse)
 def get_latest_evals(
