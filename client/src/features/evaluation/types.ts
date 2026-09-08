@@ -1,3 +1,9 @@
+import type { TargetAgent } from '@/shared/types/evaluations';
+
+export type { TargetAgent };
+
+export type TargetAgentOrLegacy = TargetAgent | 'all';
+
 export type EvaluationStatus =
   | 'SUBMITTED'
   | 'PREPROCESSING'
@@ -10,8 +16,14 @@ export interface EvaluationSubmitRequest {
   document_id: string;
   syllabus_id?: string | null;
   curriculum_id?: string | null;
-  partial_without_curriculum: boolean;
+  /** Target specialist agent for this evaluation job. Required. */
+  target_agent: TargetAgent;
   confirmed_program: string;
+  /**
+   * Retained for backend compatibility: the API still accepts and returns
+   * this field (defaulting to false). New submissions always send false.
+   */
+  partial_without_curriculum?: boolean;
 }
 
 export type CriterionReviewerCorrection = {
@@ -93,6 +105,8 @@ export interface EvaluationResponse {
   document_id: string;
   syllabus_id?: string | null;
   curriculum_id?: string | null;
+  /** Target specialist agent. Legacy bundle jobs report 'all'. */
+  target_agent?: TargetAgentOrLegacy;
   status: EvaluationStatus;
   error_message?: string;
   partial_without_curriculum?: boolean;
@@ -106,6 +120,8 @@ export interface EvaluationResponse {
 export interface EvaluationStatusResponse {
   evaluation_id: string;
   status: EvaluationStatus;
+  /** Target specialist agent. Legacy bundle jobs report 'all'. */
+  target_agent?: TargetAgentOrLegacy;
   error_message?: string;
   partial_without_curriculum?: boolean;
   partial_reason?: string | null;
@@ -119,6 +135,8 @@ export interface EvaluationListItem {
   document_title?: string | null;
   syllabus_id?: string | null;
   curriculum_id?: string | null;
+  /** Target specialist agent. Legacy bundle jobs report 'all'. */
+  target_agent?: TargetAgentOrLegacy;
   status: EvaluationStatus;
   partial_without_curriculum?: boolean;
   partial_reason?: string | null;

@@ -17,6 +17,7 @@ import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
+import { isTargetAgent, TARGET_AGENT_META } from '@/shared/types/evaluations';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import {
@@ -200,6 +201,10 @@ export function Scorecard() {
     }
     return a.criterion_id.localeCompare(b.criterion_id, undefined, { numeric: true });
   });
+  const singleAgentMeta = isTargetAgent(evaluation.target_agent)
+    ? TARGET_AGENT_META[evaluation.target_agent]
+    : null;
+  const isSingleAgentRun = singleAgentMeta !== null;
 
   return (
     <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas">
@@ -213,7 +218,11 @@ export function Scorecard() {
           <h1 className="text-sm font-bold text-text truncate max-w-md" title={results?.document_title || evaluation.document_id}>
             {results?.document_title || evaluation.document_id}
           </h1>
-          {isPartial ? (
+          {isTargetAgent(evaluation.target_agent) ? (
+            <Badge variant="info">
+              {TARGET_AGENT_META[evaluation.target_agent].shortLabel} Evaluation
+            </Badge>
+          ) : isPartial ? (
             <Badge variant="warning" withDot>
               Partial Review
             </Badge>
@@ -227,44 +236,244 @@ export function Scorecard() {
         </div>
       </header>
 
-      {/* 2-Column Side-by-Side Assessment Workspace */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[26rem_minmax(0,1fr)]">
-        {/* LEFT COLUMN: Executive Dossier & 4-Domain Matrix (~38% width) */}
+      {isSingleAgentRun && singleAgentMeta ? (
+        /* Full-Width Single-Domain Specialist Dossier */
+        <main
+          aria-label="Specialist Evaluation Dossier"
+          className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-6 md:p-8 max-w-[80rem] w-full mx-auto space-y-6"
+        >
+          {activeDomainData ? (
+            <div className="space-y-6">
+              {/* Scorecard Hero Summary Card */}
+              <div className="rounded-md border border-border bg-surface p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-none">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-text-muted">
+                      {singleAgentMeta.fullName} Review
+                    </span>
+                    {activeDomainData.version != null ? (
+                      <Badge variant="neutral">Revision {activeDomainData.version}</Badge>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-2xl font-bold text-text tabular-nums">
+                      {formatScore(activeDomainData.subtotal)} / {formatScore(activeDomainData.max_score || 4)}
+                    </span>
+                    {activeDomainData.adjectival_rating ? (
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-xs px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
+                          getAdjectivalRatingClasses(activeDomainData.adjectival_rating),
+                        )}
+                      >
+                        {activeDomainData.adjectival_rating}
+                      </span>
+                    ) : null}
+                    <span className="text-xs text-text-muted tabular-nums font-semibold">
+                      ({monitoringPercentage(activeDomainData.subtotal, activeDomainData.max_score || 4)}% Accreditation Compliance)
+                    </span>
+                  </div>
+                  <p className="text-xs text-text-muted mt-1 leading-relaxed max-w-2xl">
+                    {activeDomainData.summary || singleAgentMeta.requirement}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setReviewModalAgent(effectiveDomainId)}
+                    className="text-xs h-8 px-3 font-semibold"
+                  >
+                    <span>Review & Correct Scores</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Criteria & Verbatim Evidence Table */}
+              <div className="rounded-md border border-border bg-surface overflow-hidden shadow-none">
+                <div className="border-b border-border bg-surface-subtle px-5 py-3 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-text">
+                    Criteria Breakdown ({sortedCriteria.length} Criteria)
+                  </span>
+                  <span className="text-[11px] text-text-muted tabular-nums">
+                    Submitted: {new Date(evaluation.submitted_at).toLocaleDateString()}
+                    {evaluation.completed_at ? ` · Completed: ${new Date(evaluation.completed_at).toLocaleDateString()}` : ''}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-border bg-surface">
+                  {sortedCriteria.map((criterion, idx) => {
+                    const isUngrounded = Boolean(criterion.is_ungrounded);
+                    const isPassing = criterion.score >= 3.0;
+
+                    return (
+                      <div
+                        key={`${effectiveDomainId}-${criterion.criterion_id || idx}`}
+                        className="p-4 sm:p-6 space-y-3 hover:bg-surface-subtle/30 transition-colors"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <span className="font-mono text-xs font-bold text-primary shrink-0 whitespace-nowrap bg-primary-soft/50 border border-primary/20 px-1.5 py-0.5 rounded-xs mt-0.5">
+                              {criterion.criterion_id}
+                            </span>
+                            <div className="min-w-0">
+                              <span className="font-bold text-text text-sm block leading-snug">
+                                {criterion.criterion_text}
+                              </span>
+                              {criterion.description ? (
+                                <p className="text-xs text-text-muted mt-1 leading-relaxed">
+                                  {criterion.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isUngrounded ? (
+                              <Badge variant="warning">Ungrounded</Badge>
+                            ) : null}
+                            <span
+                              className={cn(
+                                'inline-flex items-center rounded-xs px-2.5 py-0.5 text-xs font-bold tabular-nums border',
+                                isPassing
+                                  ? 'bg-success-soft text-success border-success/30'
+                                  : 'bg-warning-soft text-warning border-warning/30',
+                              )}
+                            >
+                              Score {formatScore(criterion.score)} / 4
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quoted Evidence & Findings Callout */}
+                        {criterion.justification || criterion.evidence ? (
+                          <div className="rounded-sm border border-border bg-surface-subtle p-3.5 space-y-2 text-xs">
+                            {criterion.evidence ? (
+                              <div className="space-y-1">
+                                <span className="font-bold text-[10px] uppercase tracking-wider text-text-muted block">
+                                  Quoted SLM Evidence
+                                </span>
+                                <blockquote className="border-l-2 border-primary/40 pl-2.5 font-mono text-[11px] text-text leading-relaxed">
+                                  &ldquo;{criterion.evidence}&rdquo;
+                                </blockquote>
+                              </div>
+                            ) : null}
+                            {criterion.justification ? (
+                              <div className="space-y-1">
+                                <span className="font-bold text-[10px] uppercase tracking-wider text-text-muted block">
+                                  Specialist Finding
+                                </span>
+                                <p className="text-text-muted leading-relaxed font-sans">
+                                  {cleanJustification(criterion.justification)}
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {/* Reviewer Correction Callout if Present */}
+                        {criterion.reviewer_correction ? (
+                          <div className="rounded-sm border border-info/30 bg-info-soft/20 p-3 text-xs space-y-1">
+                            <span className="font-bold text-info block text-[10px] uppercase">
+                              Authoritative CID Human Override Applied
+                            </span>
+                            <p className="text-text font-medium">
+                              Override Score: {criterion.reviewer_correction.score} / 4
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Authoritative Human Review & Sign-Off */}
+              <div className="rounded-md border border-border bg-surface p-5 sm:p-6 space-y-3 shadow-none">
+                <div className="border-b border-border pb-2.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-text">
+                    Authoritative Faculty Review & Sign-Off
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Automated evaluation findings are advisory. CID faculty evaluators maintain final authoritative determination.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 text-xs">
+                  <div className="border-t border-border pt-1.5 text-text font-medium">
+                    CID Evaluator / Reviewer Signature
+                  </div>
+                  <div className="border-t border-border pt-1.5 text-text font-medium">
+                    Date Completed & Verified
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border border-border bg-surface p-8 text-center text-text-muted text-xs">
+              No criteria recorded for this evaluation.
+            </div>
+          )}
+        </main>
+      ) : (
+        /* 2-Column Side-by-Side Assessment Workspace (Historical 4-Agent Bundles) */
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[26rem_minmax(0,1fr)]">
         <aside
           aria-label="Executive Dossier & Review Domains"
           className="flex flex-col h-full min-h-0 border-r border-border bg-surface overflow-y-auto p-4 sm:p-5 space-y-4"
         >
           {/* Overall Verdict Card */}
           {results ? (
-            (() => {
-              const display = overallScoreDisplay({
-                overallScore: results.overall_score,
-                synthesizedScore: results.synthesized_score,
-              });
-              return (
-                <div className="rounded-md border border-border bg-surface-subtle p-4 space-y-2">
+            availableDomains.length < 4 && isTargetAgent(evaluation.target_agent) ? (
+              <div className="rounded-md border border-border bg-surface-subtle p-4 space-y-2">
+                <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
-                    Overall Assessment Verdict
+                    Accreditation Progress
                   </span>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'inline-flex items-center rounded-xs px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
-                        getAdjectivalRatingClasses(results.adjectival_rating ?? undefined),
-                      )}
-                    >
-                      {results.adjectival_rating}
-                    </span>
-                    <span className="text-sm font-bold text-text tabular-nums">
-                      ★ {display.canonicalText}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-text-muted tabular-nums block">
-                    {display.monitoringText} monitoring percentage
+                  <Badge variant="info">In Progress</Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-text tabular-nums">
+                    {availableDomains.length} / 4 Domains Evaluated
                   </span>
                 </div>
-              );
-            })()
+                <span className="text-[11px] text-text-muted block">
+                  Composite score finalizes once all 4 specialist domains are evaluated.
+                </span>
+              </div>
+            ) : (
+              (() => {
+                const display = overallScoreDisplay({
+                  overallScore: results.overall_score,
+                  synthesizedScore: results.synthesized_score,
+                });
+                return (
+                  <div className="rounded-md border border-border bg-surface-subtle p-4 space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted block">
+                      Overall Assessment Verdict
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-xs px-2.5 py-1 text-xs font-bold uppercase tracking-wider',
+                          getAdjectivalRatingClasses(results.adjectival_rating ?? undefined),
+                        )}
+                      >
+                        {results.adjectival_rating}
+                      </span>
+                      <span className="text-sm font-bold text-text tabular-nums">
+                        ★ {display.canonicalText}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-text-muted tabular-nums block">
+                      {display.monitoringText} monitoring percentage
+                    </span>
+                  </div>
+                );
+              })()
+            )
           ) : null}
 
           {/* Legacy notice */}
@@ -275,7 +484,7 @@ export function Scorecard() {
           )}
 
           {/* Partial Notice */}
-          {isPartial && (
+          {isPartial && !isTargetAgent(evaluation.target_agent) && (
             <div className="rounded-sm border border-warning/30 bg-warning-soft p-3 text-xs text-warning leading-relaxed">
               <strong>Partial Review: </strong>
               {partialReason ||
@@ -314,8 +523,27 @@ export function Scorecard() {
                   );
                 }
 
-                if (!domainData) return null;
-
+                if (!domainData) {
+                  return (
+                    <div
+                      key={`${domain}-nav-pending`}
+                      className="rounded-sm border border-dashed border-border bg-surface-subtle/30 p-3 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex size-7 items-center justify-center rounded-xs shrink-0 bg-surface text-text-muted border border-border">
+                          <Icon className="size-4" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-text-muted block truncate">
+                            {agentLabels[domain]?.split(' ')[0] || domain}
+                          </span>
+                          <span className="text-[10px] text-text-muted font-mono">Not evaluated</span>
+                        </div>
+                      </div>
+                      <Badge variant="neutral">Pending</Badge>
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={domain}
@@ -541,8 +769,8 @@ export function Scorecard() {
             </div>
           )}
         </main>
-      </div>
-
+        </div>
+      )}
       {/* Review Scores Modal */}
       {reviewModalAgent && id && (
         <AgentReviewModal

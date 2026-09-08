@@ -12,6 +12,7 @@ import type { AppRouterContext } from './runtime';
 import { requireRole } from '../features/auth/guards/RoleGuard';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
+import { isTargetAgent } from '@/shared/types/evaluations';
 
 // Lazy Feature Pages
 const FacultyHomePage = lazyRouteComponent(
@@ -35,13 +36,13 @@ const HistoryPage = lazyRouteComponent(
   () => import('../features/history/pages/HistoryPage'),
   'HistoryPage',
 );
-const EvaluationInterfacePage = lazyRouteComponent(
-  () => import('../features/evaluation/pages/EvaluationInterfacePage'),
-  'EvaluationInterfacePage',
-);
 const ScorecardPage = lazyRouteComponent(
   () => import('../features/evaluation/pages/ScorecardPage'),
   'ScorecardPage',
+);
+const SpecialistScoreboardPage = lazyRouteComponent(
+  () => import('../features/evaluation/pages/SpecialistScoreboardPage'),
+  'SpecialistScoreboardPage',
 );
 const MonitoringPage = lazyRouteComponent(
   () => import('../features/admin/monitoring-matrix/pages/MonitoringPage'),
@@ -207,8 +208,31 @@ const evaluationMapRoute = createRoute({
 const documentEvaluationRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'documents/$documentId/evaluation',
+  beforeLoad: ({ context, params, search }) => {
+    requireRole(['faculty'])({ context });
+    const searchRecord = search as Record<string, unknown> | undefined;
+    const rawTarget = searchRecord?.target_agent;
+    const target =
+      typeof rawTarget === 'string' && isTargetAgent(rawTarget) ? rawTarget : 'sme';
+    throw redirect({
+      to: '/specialists/$agentId/$documentId',
+      params: { agentId: target, documentId: params.documentId },
+    });
+  },
+});
+
+const specialistScoreboardDocRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'specialists/$agentId/$documentId',
   beforeLoad: requireRole(['faculty']),
-  component: EvaluationInterfacePage,
+  component: SpecialistScoreboardPage,
+});
+
+const specialistScoreboardRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'specialists/$agentId',
+  beforeLoad: requireRole(['faculty']),
+  component: SpecialistScoreboardPage,
 });
 
 const evaluationDetailRoute = createRoute({
@@ -218,6 +242,13 @@ const evaluationDetailRoute = createRoute({
   component: ScorecardPage,
 });
 
+const storageRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'storage',
+  beforeLoad: () => {
+    throw redirect({ to: '/documents' });
+  },
+});
 const syllabusAlignmentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'syllabus-alignment',
@@ -340,6 +371,9 @@ const routeTree = rootRoute.addChildren([
     evaluationsRoute,
     evaluationMapRoute,
     documentEvaluationRoute,
+    storageRoute,
+    specialistScoreboardDocRoute,
+    specialistScoreboardRoute,
     evaluationDetailRoute,
     syllabusAlignmentRoute,
     syllabusAlignmentWorkspaceRoute,

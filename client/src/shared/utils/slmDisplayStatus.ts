@@ -140,7 +140,7 @@ export function getSlmDisplayStatus(
         isClickable: true,
         actionType: 'view_progress',
         actionLabel: 'View Progress',
-        actionUrl: `/documents/${documentId}/evaluation`,
+        actionUrl: `/specialists/sme/${documentId}`,
         ariaLabel: `View evaluation progress for ${title}`,
       };
     }
@@ -154,7 +154,7 @@ export function getSlmDisplayStatus(
         isClickable: true,
         actionType: 'inspect_failure',
         actionLabel: 'Inspect Evaluation',
-        actionUrl: `/documents/${documentId}/evaluation`,
+        actionUrl: `/specialists/sme/${documentId}`,
         ariaLabel: `Inspect evaluation for ${title}`,
       };
     }
@@ -168,13 +168,13 @@ export function getSlmDisplayStatus(
         isClickable: true,
         actionType: 'view_results',
         actionLabel: 'Open Evaluation',
-        actionUrl: `/documents/${documentId}/evaluation`,
+        actionUrl: `/specialists/sme/${documentId}`,
         ariaLabel: `Open evaluation for ${title}`,
       };
     }
   }
 
-  // Precedence 6: Processed + no eval after successful batch response => Ready to Evaluate -> /documents/$documentId/evaluation
+  // Precedence 6: Processed + no eval after successful batch response => Ready to Evaluate -> /specialists/sme/$documentId
   return {
     badgeLabel: 'Ready to Evaluate',
     badgeClass: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
@@ -182,7 +182,7 @@ export function getSlmDisplayStatus(
     isClickable: true,
     actionType: 'start_evaluation',
     actionLabel: 'Evaluate',
-    actionUrl: `/documents/${documentId}/evaluation`,
+    actionUrl: `/specialists/sme/${documentId}`,
     ariaLabel: `Start evaluation for ${title}`,
   };
 }

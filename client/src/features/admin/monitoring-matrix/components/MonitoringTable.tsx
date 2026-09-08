@@ -17,9 +17,14 @@ import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
 import type { MonitoringMatrixRow } from '../types';
 import {
+  domainShortLabel,
+  formatDomainScore,
+  formatProgressStatus,
   formatRevisionContext,
+  getCompletedDomainCount,
   getRatingVariant,
   getStatusVariant,
+  TARGET_DOMAIN_ORDER,
 } from '../utils';
 import { MatrixFilters } from './MatrixFilters';
 
@@ -244,9 +249,36 @@ export function MonitoringTable() {
 
                       {/* Evaluation Status */}
                       <td className={TABLE_STYLES.td}>
-                        <Badge variant={getStatusVariant(row.evaluation_status)} withDot>
-                          {row.evaluation_status.replace(/_/g, ' ')}
-                        </Badge>
+                        <div className="flex flex-col gap-1.5">
+                          <Badge variant={getStatusVariant(row.evaluation_status)} withDot>
+                            {formatProgressStatus(row.evaluation_status, row.domain_scores)}
+                          </Badge>
+                          <div
+                            className="flex flex-wrap items-center gap-1"
+                            aria-label={`Domain completion: ${getCompletedDomainCount(row.domain_scores)} of 4 domains evaluated`}
+                          >
+                            {TARGET_DOMAIN_ORDER.map((domainId) => {
+                              const block = row.domain_scores?.[domainId];
+                              return block ? (
+                                <span
+                                  key={domainId}
+                                  title={`${domainShortLabel(domainId)} evaluated: ${formatDomainScore(block.subtotal)} / ${formatDomainScore(block.max_score)}`}
+                                  className="inline-flex items-center rounded-xs border border-success/25 bg-success-soft px-1.5 py-0.2 text-[10px] font-bold tabular-nums text-success"
+                                >
+                                  {domainShortLabel(domainId)} {formatDomainScore(block.subtotal)}
+                                </span>
+                              ) : (
+                                <span
+                                  key={domainId}
+                                  title={`${domainShortLabel(domainId)} pending evaluation`}
+                                  className="inline-flex items-center rounded-xs border border-dashed border-border bg-surface-subtle px-1.5 py-0.2 text-[10px] font-semibold text-text-muted"
+                                >
+                                  {domainShortLabel(domainId)} Pending
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Form Revision */}
