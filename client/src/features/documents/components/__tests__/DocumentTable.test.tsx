@@ -102,8 +102,8 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Ready to Evaluate');
-    // Both title link and action link target /documents/doc-1/evaluation
-    expect(markup).toContain('href="/documents/doc-1/evaluation"');
+    // Title link and action link target the specialist workspace directly
+    expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).toContain('aria-label="Start evaluation for Data Structures SLM"');
   });
 
@@ -128,8 +128,7 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluated');
-    expect(markup.match(/href="\/documents\/doc-1\/evaluation"/g)).toHaveLength(2);
-    expect(markup).toContain('aria-label="Open evaluation for Data Structures SLM"');
+    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
     expect(markup).not.toContain('href="/evaluations/eval-done-1"');
   });
 
@@ -153,8 +152,7 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluating');
-    expect(markup.match(/href="\/documents\/doc-1\/evaluation"/g)).toHaveLength(2);
-    expect(markup).not.toContain('href="/evaluations/eval-active-1"');
+    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="View evaluation progress for Data Structures SLM"');
   });
 
@@ -179,8 +177,7 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluation Failed');
-    expect(markup.match(/href="\/documents\/doc-1\/evaluation"/g)).toHaveLength(2);
-    expect(markup).not.toContain('href="/evaluations/eval-fail-1"');
+    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="Inspect evaluation for Data Structures SLM"');
   });
 
@@ -196,7 +193,7 @@ describe('DocumentTable', () => {
 
     expect(markup).toContain('Checking Status');
     expect(markup).not.toContain('Ready to Evaluate');
-    expect(markup).not.toContain('href="/documents/doc-1/evaluation"');
+    expect(markup).not.toContain('href="/specialists/sme/doc-1"');
   });
 
   it('renders Status Unavailable when latest evaluation query fails', () => {
@@ -224,8 +221,8 @@ describe('DocumentTable', () => {
 
     expect(markup).toContain('Processing');
     expect(markup).toContain('Upload Failed');
-    expect(markup).not.toContain('href="/documents/doc-2/evaluation"');
-    expect(markup).not.toContain('href="/documents/doc-3/evaluation"');
+    expect(markup).not.toContain('href="/specialists/sme/doc-2"');
+    expect(markup).not.toContain('href="/specialists/sme/doc-3"');
   });
 
   it('renders scope="col" on skeleton headers as well', () => {
@@ -235,5 +232,20 @@ describe('DocumentTable', () => {
     for (const th of thMatches) {
       expect(th).toContain('scope="col"');
     }
+  });
+
+  it('serves clean storage records with dossier inspection and without evaluate action dropdown', () => {
+    const markup = renderToStaticMarkup(
+      <DocumentTable
+        documents={sampleDocuments}
+        flashId={null}
+        latestEvalsState={{ isSuccess: true }}
+        onInspect={() => {}}
+      />,
+    );
+
+    expect(markup).toContain('Inspect Data Structures SLM dossier');
+    expect(markup).not.toContain('Evaluate as SME');
+    expect(markup).not.toContain('Evaluate as Coordinator');
   });
 });

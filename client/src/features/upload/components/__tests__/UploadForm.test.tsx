@@ -150,8 +150,8 @@ describe('UploadForm', () => {
 
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['documents'] });
     expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/documents/$documentId/evaluation',
-      params: { documentId: 'doc-ready-99' },
+      to: '/specialists/$agentId/$documentId',
+      params: { agentId: 'sme', documentId: 'doc-ready-99' },
     });
   });
 

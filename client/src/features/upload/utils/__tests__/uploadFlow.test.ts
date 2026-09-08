@@ -121,6 +121,6 @@ describe('isPdfFile', () => {
 
 describe('evaluationRouteForDocument', () => {
   it('builds the evaluation route for the uploaded document', () => {
-    expect(evaluationRouteForDocument('doc-123')).toBe('/documents/doc-123/evaluation');
+    expect(evaluationRouteForDocument('doc-123')).toBe('/specialists/sme/doc-123');
   });
 });
