@@ -9,6 +9,7 @@ vi.mock('../../hooks/useFacultyHome', () => ({
 }));
 
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,
@@ -39,6 +40,9 @@ describe('FacultyHome', () => {
     isLoading: false,
     isError: false,
     error: null,
+    stats: { total: 1, ready: 1, processing: 0, failed: 0 },
+    evaluatingTarget: null,
+    setEvaluatingTarget: vi.fn(),
     homeData: {
       recentIssues: [],
       activeEvaluation: null,
@@ -111,64 +115,45 @@ describe('FacultyHome', () => {
     expect(markup).toContain('href="/upload"');
   });
 
-  it('renders the unified metric ledger strip with total modules and completed reviews', () => {
+  it('renders the academic launchpads and unified metric ledger strip', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
+    // Launchpads
+    expect(markup).toContain('SLM Storage Repository');
+    expect(markup).toContain('Curriculum Alignment');
+    expect(markup).toContain('Syllabus Alignment');
+    expect(markup).toContain('Evaluation History');
+
+    // Metrics
     expect(markup).toContain('Total Modules');
-    expect(markup).toContain('Completed Reviews');
-    expect(markup).toContain('In Progress');
+    expect(markup).toContain('Ready for Review');
+    expect(markup).toContain('In Ingestion');
     expect(markup).toContain('Action Required');
   });
 
-  it('renders operational module ledger with document details and action links', () => {
+  it('renders operational ledger with recent evaluations and view scorecard links', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('All Course Modules');
+    expect(markup).toContain('Recent Evaluations');
     expect(markup).toContain('Operating Systems Module');
-    expect(markup).toContain('BSCS');
-    expect(markup).toContain('Ready');
-    expect(markup).toContain('Completed (Partial)');
-    expect(markup).toContain('Open Evaluation');
-    expect(markup).toContain('href="/documents/doc-1/evaluation"');
+    expect(markup).toContain('Completed');
+    expect(markup).toContain('View Scorecard');
+    expect(markup).toContain('href="/evaluations/eval-1"');
   });
 
-  it('renders empty state guidance when no documents are uploaded yet', () => {
+  it('renders empty state guidance when no evaluations exist yet', () => {
     mockUseFacultyHome.mockReturnValue({
       ...defaultHomeState,
-      documents: [],
+      evaluations: [],
       homeData: {
         ...defaultHomeState.homeData,
-        recentSlms: [],
+        recentEvaluations: [],
       },
     });
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('No SLMs uploaded yet');
-    expect(markup).toContain('Use the Upload SLM action above to add course learning materials.');
-  });
-
-  it('renders Start Evaluation button for ready documents without evaluation', () => {
-    mockUseFacultyHome.mockReturnValue({
-      ...defaultHomeState,
-      documents: [
-        {
-          documentId: 'doc-2',
-          title: 'Algorithms Module 2',
-          program: 'BSCS',
-          sourceType: 'slm',
-          uploadedAt: '2026-08-21T10:00:00Z',
-          processingStatus: 'PROCESSED',
-        },
-      ],
-      latestEvalsByDocId: {},
-    });
-    const markup = renderToStaticMarkup(<FacultyHome />);
-
-    expect(markup).toContain('Algorithms Module 2');
-    expect(markup).toContain('Ready to Evaluate');
-    expect(markup).toContain('Start Evaluation');
-    expect(markup).toContain('href="/documents/doc-2/evaluation"');
+    expect(markup).toContain('No evaluations on record');
   });
 });
