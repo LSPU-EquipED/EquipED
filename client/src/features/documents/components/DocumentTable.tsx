@@ -1,18 +1,32 @@
-import { CaretRight, Spinner } from '@phosphor-icons/react';
+import { CaretRight, FileText, Spinner } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { MouseEvent } from 'react';
 import { cn } from '@/shared/components/utils';
 import { TableSkeleton } from '@/shared/components/TableSkeleton';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import { TARGET_AGENTS, TARGET_AGENT_META } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@/shared/types/evaluations';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDate, sourceTypeLabels } from '../utils/document.utils';
+
+export type DocumentEvaluateHandler = (
+  document: ClientDocument,
+  targetAgent: TargetAgent,
+) => void;
 
 interface DocumentTableProps {
   documents: ClientDocument[];
   flashId: string | null;
   latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
   latestEvalsState?: SlmStatusQueryState;
+  /**
+   * Optional targeted-evaluation trigger. When omitted, role actions
+   * navigate to the evaluation workspace with `?target_agent=` so the
+   * workspace renders the confirmation modal for that role.
+   */
+  onEvaluate?: DocumentEvaluateHandler;
+  onInspect?: (document: ClientDocument) => void;
 }
 
 export function DocumentTable({
@@ -20,6 +34,8 @@ export function DocumentTable({
   flashId,
   latestEvalsByDocId = {},
   latestEvalsState = {},
+  onEvaluate,
+  onInspect,
 }: DocumentTableProps) {
   const navigate = useNavigate();
 
@@ -81,7 +97,7 @@ export function DocumentTable({
             const primaryUrl = display.actionUrl;
 
             const handleRowClick = (e: MouseEvent<HTMLTableRowElement>) => {
-              if ((e.target as HTMLElement).closest('a, button')) {
+              if ((e.target as HTMLElement).closest('a, button, details')) {
                 return;
               }
               const selection = window.getSelection();
@@ -157,19 +173,32 @@ export function DocumentTable({
                   {formatDate(document.uploadedAt)}
                 </td>
                 <td className="py-3.5 px-6 md:px-8 text-right w-12">
-                  {display.isClickable && display.actionUrl ? (
-                    <Link
-                      to={display.actionUrl}
-                      aria-label={display.ariaLabel}
-                      title={display.actionLabel}
-                      className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <CaretRight
-                        className="size-4 text-text-muted group-hover:text-text transition-colors"
-                        aria-hidden="true"
-                      />
-                    </Link>
-                  ) : null}
+                  <div className="flex items-center justify-end gap-1">
+                    {onInspect ? (
+                      <button
+                        type="button"
+                        aria-label={`Inspect ${document.title} dossier`}
+                        title="Inspect file dossier"
+                        onClick={() => onInspect(document)}
+                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors cursor-pointer"
+                      >
+                        <FileText className="size-3.5" aria-hidden="true" />
+                      </button>
+                    ) : null}
+                    {display.isClickable && display.actionUrl ? (
+                      <Link
+                        to={display.actionUrl}
+                        aria-label={display.ariaLabel}
+                        title={display.actionLabel}
+                        className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <CaretRight
+                          className="size-4 text-text-muted group-hover:text-text transition-colors"
+                          aria-hidden="true"
+                        />
+                      </Link>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );
