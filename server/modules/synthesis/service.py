@@ -65,6 +65,24 @@ from sqlalchemy import func, or_
 logger = logging.getLogger(__name__)
 
 
+def _scheduled_ids_for_job(job: Any) -> tuple[str, ...]:
+    """Resolve scheduled agents preferring targeted single-agent."""
+    target = getattr(job, "target_agent", None)
+    if target in ("sme", "coordinator", "gad", "itso"):
+        return scheduled_agent_ids(target_agent=target)
+    if target == "all":
+        return scheduled_agent_ids(
+            partial_without_curriculum=bool(
+                getattr(job, "partial_without_curriculum", False)
+            )
+        )
+    return scheduled_agent_ids(
+        partial_without_curriculum=bool(
+            getattr(job, "partial_without_curriculum", False)
+        )
+    )
+
+
 def _reviewer_correction_payload(
     correction: EffectiveCriterionCorrection | None,
 ) -> dict[str, Any] | None:
@@ -102,9 +120,7 @@ def persist_agent_outputs(
             "AgentResult rows already exist for evaluation"
         )
 
-    scheduled_ids = scheduled_agent_ids(
-        partial_without_curriculum=job.partial_without_curriculum
-    )
+    scheduled_ids = _scheduled_ids_for_job(job)
     try:
         verified_snapshots = load_verified_evaluation_snapshots(
             db, evaluation_id, scheduled_ids
@@ -321,9 +337,7 @@ def load_verified_persisted_agent_results(
     if job.document_id != document_id:
         raise EvaluationResultIntegrityError("Evaluation job document_id mismatch")
 
-    scheduled_ids = scheduled_agent_ids(
-        partial_without_curriculum=bool(job.partial_without_curriculum)
-    )
+    scheduled_ids = _scheduled_ids_for_job(job)
     try:
         verified_snapshots = load_verified_evaluation_snapshots(
             db, evaluation_id, scheduled_ids
@@ -758,10 +772,12 @@ def get_evaluation_results(
         agent_names=reviewable_agents,
     )
 
+    _job_target = getattr(job, "target_agent", "all") or "all"
+    _is_single = _job_target in ("sme", "coordinator", "gad", "itso")
     synthesis_result = compute_synthesized_score(
         agent_results,
-        force_partial=job.partial_without_curriculum,
-        partial_reason=job.partial_reason,
+        force_partial=False if _is_single else bool(job.partial_without_curriculum),
+        partial_reason=None if _is_single else job.partial_reason,
     )
 
     criteria_by_result: dict[uuid.UUID, list[CriterionScore]] = {}
@@ -773,9 +789,7 @@ def get_evaluation_results(
         score.criterion_score_id: score for score in criterion_scores
     }
 
-    scheduled_ids = scheduled_agent_ids(
-        partial_without_curriculum=bool(job.partial_without_curriculum)
-    )
+    scheduled_ids = _scheduled_ids_for_job(job)
 
     snapshot_rows_count = (
         db.query(EvaluationFormSnapshot).filter_by(evaluation_id=evaluation_id).count()

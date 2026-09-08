@@ -68,6 +68,26 @@ def _safe_failure(exc: BaseException) -> tuple[str, str]:
     return type(exc).__name__[:64], error_reference(exc)
 
 
+def _scheduled_ids_for_job(job: Any) -> tuple[str, ...]:
+    """Resolve scheduled agents for a job, preferring targeted single-agent."""
+    target = getattr(job, "target_agent", None)
+    if target in ("sme", "coordinator", "gad", "itso"):
+        return scheduled_agent_ids(target_agent=target)
+    if target == "all":
+        # Historical bundle rows: preserve full vs partial via legacy flag.
+        return scheduled_agent_ids(
+            partial_without_curriculum=bool(
+                getattr(job, "partial_without_curriculum", False)
+            )
+        )
+    # Legacy rows lacking the column (or unexpected values): fall back.
+    return scheduled_agent_ids(
+        partial_without_curriculum=bool(
+            getattr(job, "partial_without_curriculum", False)
+        )
+    )
+
+
 def _persist_layer3_and_transition(
     session: Any,
     evaluation_id: uuid.UUID,
@@ -160,7 +180,27 @@ def _execute_claimed_evaluation(
             if syllabus is None:
                 raise DocumentNotFoundError(f"Document {job.syllabus_id} not found")
 
-        if not job.partial_without_curriculum:
+        target_agent = getattr(job, "target_agent", "all") or "all"
+        if target_agent in ("sme", "gad", "itso"):
+            # Domain experts evaluate SLM text directly with zero curriculum gating.
+            curriculum_available = False
+        elif target_agent == "coordinator":
+            if job.curriculum_id is None:
+                raise EvaluationPipelineUnavailableError(
+                    "Coordinator evaluation requires an authoritative curriculum."
+                )
+            curriculum_readiness = check_curriculum_readiness(
+                job.curriculum_id,
+                job.confirmed_program,
+                session,
+            )
+            if not curriculum_readiness.is_ready:
+                raise EvaluationPipelineUnavailableError(
+                    "Curriculum is not ready for evaluation: "
+                    f"{curriculum_readiness.reason}"
+                )
+            curriculum_available = True
+        elif not job.partial_without_curriculum:
             if job.curriculum_id is None:
                 raise EvaluationPipelineUnavailableError(
                     "Full evaluation requires an authoritative curriculum."
@@ -190,9 +230,7 @@ def _execute_claimed_evaluation(
             [chunk.text for chunk in slm_chunks if getattr(chunk, "text", None)]
         )
 
-        scheduled_ids = scheduled_agent_ids(
-            partial_without_curriculum=job.partial_without_curriculum
-        )
+        scheduled_ids = _scheduled_ids_for_job(job)
         existing_results = (
             session.query(AgentResult).filter_by(evaluation_id=evaluation_id).count()
         )
@@ -294,7 +332,25 @@ def _execute_claimed_evaluation(
         agent_results = load_verified_persisted_agent_results(
             session, evaluation_id, job.document_id
         )
-        if not job.partial_without_curriculum:
+        target_agent = getattr(job, "target_agent", "all") or "all"
+        is_single_agent = target_agent in ("sme", "coordinator", "gad", "itso")
+        if is_single_agent:
+            if target_agent == "coordinator":
+                final_readiness = (
+                    check_curriculum_readiness(
+                        job.curriculum_id,
+                        job.confirmed_program,
+                        session,
+                    )
+                    if job.curriculum_id is not None
+                    else None
+                )
+                curriculum_available = (
+                    final_readiness.is_ready if final_readiness is not None else False
+                )
+            else:
+                curriculum_available = False
+        elif not job.partial_without_curriculum:
             final_readiness = (
                 check_curriculum_readiness(
                     job.curriculum_id,
@@ -312,13 +368,16 @@ def _execute_claimed_evaluation(
 
         validation_error = _validate_required_agent_results(
             agent_results,
+            target_agent=target_agent,
             partial_without_curriculum=job.partial_without_curriculum,
             curriculum_available=curriculum_available,
         )
         synthesis_result = compute_synthesized_score(
             agent_results,
-            force_partial=job.partial_without_curriculum,
-            partial_reason=job.partial_reason,
+            force_partial=(
+                False if is_single_agent else bool(job.partial_without_curriculum)
+            ),
+            partial_reason=None if is_single_agent else job.partial_reason,
         )
         flag_count = (
             session.query(EvaluationFlag).filter_by(evaluation_id=evaluation_id).count()
@@ -328,6 +387,11 @@ def _execute_claimed_evaluation(
             final_status = EvaluationStatus.FAILED
             matrix_status = "FAILED"
             partial_error = validation_error
+        elif is_single_agent:
+            final_status = EvaluationStatus.COMPLETED
+            # Progressive matrix resolves IN_PROGRESS vs COMPLETED on merge.
+            matrix_status = "IN_PROGRESS"
+            partial_error = None
         else:
             final_status = EvaluationStatus.COMPLETED
             matrix_status = (
@@ -343,6 +407,7 @@ def _execute_claimed_evaluation(
             synthesized_score=synthesis_result["synthesized_score"],
             domain_scores=synthesis_result["domain_scores"],
             flag_count=flag_count,
+            target_agent=target_agent if is_single_agent else None,
         )
 
         _verify_token_ownership(session, evaluation_id, execution_token)
@@ -485,15 +550,23 @@ def _prepare_snapshots_and_enter_evaluating(
 def _validate_required_agent_results(
     agent_results: list[AgentResult],
     *,
-    partial_without_curriculum: bool,
-    curriculum_available: bool,
+    target_agent: str | None = None,
+    partial_without_curriculum: bool = False,
+    curriculum_available: bool = False,
 ) -> str | None:
     """Validate the execution contract before accepting synthesized output."""
-    scheduled = scheduled_agent_ids(
-        partial_without_curriculum=partial_without_curriculum
-    )
-    if not partial_without_curriculum and not curriculum_available:
-        return "Full evaluation requires an authoritative curriculum."
+    if target_agent in ("sme", "coordinator", "gad", "itso"):
+        scheduled = scheduled_agent_ids(target_agent=target_agent)
+        if target_agent == "coordinator" and not curriculum_available:
+            return "Coordinator evaluation requires an authoritative curriculum."
+    elif target_agent == "all" or target_agent is None:
+        scheduled = scheduled_agent_ids(
+            partial_without_curriculum=partial_without_curriculum
+        )
+        if not partial_without_curriculum and not curriculum_available:
+            return "Full evaluation requires an authoritative curriculum."
+    else:
+        return f"Unknown target_agent: {target_agent}."
 
     required = set(scheduled)
     by_name = {result.agent_name: result for result in agent_results}

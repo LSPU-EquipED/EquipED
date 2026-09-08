@@ -39,6 +39,8 @@ from server.modules.evaluations.schemas import (
 from sqlalchemy import func, inspect, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
+from .agent_schedule import VALID_TARGET_AGENTS
+
 logger = logging.getLogger(__name__)
 
 
@@ -96,21 +98,23 @@ def create_evaluation(
     if document.program is None:
         document.program = confirmed_prog
 
-    if req.curriculum_id is not None and req.partial_without_curriculum:
+    target_agent = getattr(req, "target_agent", "sme") or "sme"
+    if target_agent not in ("sme", "coordinator", "gad", "itso"):
         raise InvalidEvaluationTargetError(
-            "Cannot specify curriculum_id when partial_without_curriculum is True."
-        )
-
-    if req.curriculum_id is None and not req.partial_without_curriculum:
-        raise InvalidEvaluationTargetError(
-            "curriculum_id is required when partial_without_curriculum is False."
+            "Invalid target_agent. Must be one of sme, coordinator, gad, itso."
         )
 
     curriculum_id: uuid.UUID | None = None
-    partial_without_curriculum: bool
-    partial_reason: str | None = None
+    partial_without_curriculum: bool = bool(req.partial_without_curriculum)
+    partial_reason: str | None = (
+        "Curriculum alignment omitted." if partial_without_curriculum else None
+    )
 
-    if req.curriculum_id is not None:
+    if target_agent == "coordinator":
+        if req.curriculum_id is None:
+            raise InvalidEvaluationTargetError(
+                "Curriculum context is required for Program Coordinator evaluation."
+            )
         readiness = check_curriculum_readiness(
             document=req.curriculum_id,
             program=confirmed_prog,
@@ -128,14 +132,24 @@ def create_evaluation(
                 "Curriculum is not ready for evaluation."
             )
         curriculum_id = readiness.document_id
-        partial_without_curriculum = False
-        partial_reason = None
-    else:
-        curriculum_id = None
-        partial_without_curriculum = True
-        partial_reason = (
-            "Curriculum reference not provided; Coordinator review skipped."
+    elif req.curriculum_id is not None:
+        readiness = check_curriculum_readiness(
+            document=req.curriculum_id,
+            program=confirmed_prog,
+            db=db,
         )
+        if not readiness.is_ready:
+            logger.warning(
+                "Curriculum readiness check failed during evaluation admission: "
+                "curriculum_id=%s, program=%s, reason=%s",
+                req.curriculum_id,
+                confirmed_prog,
+                readiness.reason,
+            )
+            raise InvalidEvaluationTargetError(
+                "Curriculum is not ready for evaluation."
+            )
+        curriculum_id = readiness.document_id
 
     syllabus = None
     if req.syllabus_id:
@@ -153,6 +167,7 @@ def create_evaluation(
         curriculum_id=curriculum_id,
         status=EvaluationStatus.SUBMITTED.value,
         error_message=None,
+        target_agent=target_agent,
         partial_without_curriculum=partial_without_curriculum,
         partial_reason=partial_reason,
         confirmed_program=confirmed_prog,
@@ -171,6 +186,7 @@ def create_evaluation(
         curriculum_id=job.curriculum_id,
         status=EvaluationStatus(job.status),
         error_message=job.error_message,
+        target_agent=job.target_agent,
         partial_without_curriculum=job.partial_without_curriculum,
         partial_reason=job.partial_reason,
         confirmed_program=job.confirmed_program,
@@ -272,6 +288,7 @@ def get_evaluation(
         curriculum_id=row.curriculum_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        target_agent=getattr(row, "target_agent", "all") or "all",
         partial_without_curriculum=row.partial_without_curriculum,
         partial_reason=row.partial_reason,
         confirmed_program=row.confirmed_program,
@@ -290,12 +307,28 @@ def list_evaluations(
     db: Any = None,
     *,
     document_id: uuid.UUID | None = None,
+    target_agent: str | None = None,
+    status: str | None = None,
 ) -> EvaluationListResponse:
+    valid_targets = VALID_TARGET_AGENTS + ("all",)
+    if target_agent is not None and target_agent not in valid_targets:
+        raise InvalidEvaluationTargetError(
+            f"Invalid target_agent '{target_agent}'. Must be one of {valid_targets}."
+        )
+    valid_statuses = tuple(s.value for s in EvaluationStatus)
+    if status is not None and status not in valid_statuses:
+        raise InvalidEvaluationTargetError(
+            f"Invalid status '{status}'. Must be one of {valid_statuses}."
+        )
     if db is not None:
         query = db.query(EvaluationJob)
         query = query.filter(EvaluationJob.submitted_by == current_user_id)
         if document_id is not None:
             query = query.filter(EvaluationJob.document_id == document_id)
+        if target_agent is not None:
+            query = query.filter(EvaluationJob.target_agent == target_agent)
+        if status is not None:
+            query = query.filter(EvaluationJob.status == status)
         total = query.count()
         rows = (
             query.order_by(EvaluationJob.submitted_at.desc())
@@ -316,6 +349,7 @@ def list_evaluations(
                 syllabus_id=row.syllabus_id,
                 curriculum_id=row.curriculum_id,
                 status=EvaluationStatus(row.status),
+                target_agent=getattr(row, "target_agent", "all") or "all",
                 partial_without_curriculum=row.partial_without_curriculum,
                 partial_reason=row.partial_reason,
                 confirmed_program=row.confirmed_program,
@@ -345,6 +379,7 @@ def get_evaluation_status(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        target_agent=getattr(row, "target_agent", "all") or "all",
         partial_without_curriculum=row.partial_without_curriculum,
         partial_reason=row.partial_reason,
         completed_at=row.completed_at,
@@ -371,6 +406,7 @@ def transition_evaluation_status(
             evaluation_id=row.evaluation_id,
             status=EvaluationStatus(row.status),
             error_message=row.error_message,
+            target_agent=getattr(row, "target_agent", "all") or "all",
             partial_without_curriculum=row.partial_without_curriculum,
             partial_reason=row.partial_reason,
             completed_at=row.completed_at,
@@ -388,6 +424,7 @@ def transition_evaluation_status(
             evaluation_id=row.evaluation_id,
             status=EvaluationStatus(row.status),
             error_message=row.error_message,
+            target_agent=getattr(row, "target_agent", "all") or "all",
             partial_without_curriculum=row.partial_without_curriculum,
             partial_reason=row.partial_reason,
             completed_at=row.completed_at,
@@ -430,6 +467,7 @@ def transition_evaluation_status(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
         error_message=row.error_message,
+        target_agent=getattr(row, "target_agent", "all") or "all",
         partial_without_curriculum=row.partial_without_curriculum,
         partial_reason=row.partial_reason,
         completed_at=row.completed_at,
