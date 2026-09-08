@@ -132,8 +132,8 @@ export function UploadForm({ user }: UploadFormProps = {}) {
         navigationTriggeredRef.current = true;
         void queryClient.invalidateQueries({ queryKey: ['documents'] });
         void navigate({
-          to: '/documents/$documentId/evaluation',
-          params: { documentId: result.documentId },
+          to: '/specialists/$agentId/$documentId',
+          params: { agentId: 'sme', documentId: result.documentId },
         });
       }
     } catch {

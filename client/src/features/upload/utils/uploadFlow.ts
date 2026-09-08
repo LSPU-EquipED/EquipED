@@ -73,5 +73,5 @@ export function isPdfFile(file: File | null | undefined): boolean {
 }
 
 export function evaluationRouteForDocument(documentId: string): string {
-  return `/documents/${documentId}/evaluation`;
+  return `/specialists/sme/${documentId}`;
 }
