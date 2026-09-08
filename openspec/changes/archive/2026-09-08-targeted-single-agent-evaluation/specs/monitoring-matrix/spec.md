@@ -1,9 +1,4 @@
-# monitoring-matrix Specification
-
-## Purpose
-Define the monitoring matrix capability for admin-level oversight of evaluation jobs, including table schema, lifecycle hooks, and dashboard API.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Monitoring matrix table
 The system SHALL maintain a `monitoring_matrix` table as a progressive, materialized view of evaluation progress per document (`UNIQUE(document_id)`). The matrix SHALL accumulate domain evaluation outputs independently as individual domain experts execute their specialist roles over time.
@@ -56,25 +51,3 @@ The system SHALL maintain a `monitoring_matrix` table as a progressive, material
 - **THEN** synthesis SHALL persist an `evaluation_flags` row for that criterion with a reason identifying it as requiring human review
 - **AND** the matrix row's `flag_count` SHALL include that flag
 - **AND** the flagged criterion SHALL be surfaced for human review rather than presented as an authoritative grounded score
-### Requirement: Admin dashboard API
-The system SHALL expose a `GET /evaluations/matrix` endpoint restricted to admin users.
-
-#### Scenario: Admin retrieves matrix with filters
-- **WHEN** an admin requests `GET /evaluations/matrix`
-- **THEN** the system SHALL return paginated rows from `monitoring_matrix`
-- **AND** the system SHALL support optional filtering by `program` and `evaluation_status`
-
-#### Scenario: Non-admin is denied
-- **WHEN** a non-admin or unauthenticated user requests `GET /evaluations/matrix`
-- **THEN** the system SHALL return 401 (unauthenticated) or 403 (non-admin)
-
-### Requirement: Matrix upsert semantics
-The system SHALL use upsert (insert or update) semantics when writing to `monitoring_matrix`, using `document_id` as the unique key.
-
-#### Scenario: Re-evaluation updates existing row
-- **WHEN** a document is re-evaluated
-- **THEN** the existing matrix row SHALL be updated (not duplicated) with the new evaluation results
-
-#### Scenario: Concurrent writes do not produce duplicates
-- **WHEN** two evaluation jobs for the same document complete simultaneously
-- **THEN** the system SHALL resolve the race condition using `IntegrityError` handling and retry with an update
