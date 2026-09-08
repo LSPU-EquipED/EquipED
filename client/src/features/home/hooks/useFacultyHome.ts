@@ -1,6 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
+import type { ClientDocument, DocumentStats } from '@/shared/types/documents';
+import type { TargetAgent } from '@/shared/types/evaluations';
 import { homeApi } from '../api/home.api';
 import {
   deriveFacultyHomeData,
@@ -9,6 +11,11 @@ import {
 } from '../utils/homeData';
 
 export function useFacultyHome() {
+  const [evaluatingTarget, setEvaluatingTarget] = useState<{
+    doc: ClientDocument;
+    agent: TargetAgent;
+  } | null>(null);
+
   const documentsQuery = useQuery({
     queryKey: ['documents', { sourceType: 'slm' }],
     queryFn: () => homeApi.listSlms(),
@@ -59,6 +66,21 @@ export function useFacultyHome() {
   const isError = documentsQuery.isError || evaluationsQuery.isError;
   const error = documentsQuery.error || evaluationsQuery.error;
 
+  const stats: DocumentStats = useMemo(() => {
+    return {
+      total: documentsQuery.data?.stats?.total ?? documents.length,
+      ready:
+        documentsQuery.data?.stats?.ready ??
+        documents.filter((d) => d.processingStatus === 'PROCESSED').length,
+      processing:
+        documentsQuery.data?.stats?.processing ??
+        documents.filter((d) => isProcessingDocument(d.processingStatus)).length,
+      failed:
+        documentsQuery.data?.stats?.failed ??
+        documents.filter((d) => d.processingStatus === 'FAILED').length,
+    };
+  }, [documentsQuery.data?.stats, documents]);
+
   const homeData = useMemo(
     () =>
       deriveFacultyHomeData(
@@ -80,11 +102,14 @@ export function useFacultyHome() {
     isLoading,
     isError,
     error,
+    stats,
     homeData,
     documents,
     evaluations,
     latestEvalsByDocId,
     latestEvalsState,
+    evaluatingTarget,
+    setEvaluatingTarget,
     refetch,
   };
 }
