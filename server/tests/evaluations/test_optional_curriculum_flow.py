@@ -106,7 +106,7 @@ def test_submit_evaluation_admission_contract(
     db_session,
     monkeypatch,
 ) -> None:
-    """Admission allows full (curriculum+false) and partial (no curr+true), rejecting invalid combinations."""  # noqa: E501
+    """Targeted admission: coordinator requires curriculum; sme/gad/itso do not."""
     from server.modules.evaluations import router as evaluations_router
 
     monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
@@ -166,24 +166,12 @@ def test_submit_evaluation_admission_contract(
     db_session.add_all([slm, chunk])
     db_session.commit()
 
-    # Missing curriculum when partial_without_curriculum=False -> 422
+    # Coordinator without curriculum -> 422
     resp = client.post(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": False,
-            "confirmed_program": "BSCS",
-        },
-    )
-    assert resp.status_code == 422
-
-    # Conflicting curriculum_id + partial_without_curriculum=True -> 422
-    resp = client.post(
-        "/api/v1/evaluations/",
-        json={
-            "document_id": str(slm.document_id),
-            "curriculum_id": str(curr_doc.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "coordinator",
             "confirmed_program": "BSCS",
         },
     )
@@ -194,7 +182,7 @@ def test_submit_evaluation_admission_contract(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "confirmed_program": "BSIT",
         },
     )
@@ -205,39 +193,39 @@ def test_submit_evaluation_admission_contract(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
         },
     )
     assert resp.status_code == 422
 
-    # Valid partial submission -> 202
+    # Valid SME submission without curriculum -> 202
     resp = client.post(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "confirmed_program": "BSCS",
         },
     )
     assert resp.status_code == 202
     data = resp.json()
-    assert data["partial_without_curriculum"] is True
+    assert data["target_agent"] == "sme"
     assert data["curriculum_id"] is None
     assert data["confirmed_program"] == "BSCS"
 
-    # Valid full submission -> 202
+    # Valid coordinator submission with curriculum -> 202
     resp = client.post(
         "/api/v1/evaluations/",
         json={
             "document_id": str(slm.document_id),
             "curriculum_id": str(curr_doc.document_id),
-            "partial_without_curriculum": False,
+            "target_agent": "coordinator",
             "confirmed_program": "BSCS",
         },
     )
     assert resp.status_code == 202
     data = resp.json()
-    assert data["partial_without_curriculum"] is False
+    assert data["target_agent"] == "coordinator"
     assert data["curriculum_id"] == str(curr_doc.document_id)
     assert data["confirmed_program"] == "BSCS"
 

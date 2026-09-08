@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
+from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import EvaluationListItem
 from server.modules.evaluations.service import (
@@ -248,6 +249,142 @@ def test_list_evaluations_filters_by_document_id(db_session) -> None:
     )
     assert empty_resp.total == 0
     assert empty_resp.items == []
+
+
+def test_list_evaluations_filters_by_target_agent(db_session) -> None:
+    """Filtering by target_agent returns only evaluations for that specialist role."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-filter-agent@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    db_session.add_all(
+        [
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=EvaluationStatus.SUBMITTED.value,
+                target_agent="gad",
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=EvaluationStatus.SUBMITTED.value,
+                target_agent="sme",
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    # Query without filter: both
+    all_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session
+    )
+    assert all_resp.total == 2
+
+    # Query for gad: exactly 1
+    gad_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, target_agent="gad"
+    )
+    assert gad_resp.total == 1
+    assert gad_resp.items[0].target_agent == "gad"
+
+    # Query for coordinator: 0
+    coord_resp = list_evaluations(
+        1,
+        20,
+        owner.user_id,
+        UserRole.FACULTY.value,
+        db_session,
+        target_agent="coordinator",
+    )
+    assert coord_resp.total == 0
+    assert coord_resp.items == []
+
+    # Invalid target agent raises InvalidEvaluationTargetError
+    with pytest.raises(InvalidEvaluationTargetError):
+        list_evaluations(
+            1,
+            20,
+            owner.user_id,
+            UserRole.FACULTY.value,
+            db_session,
+            target_agent="invalid_role",
+        )
+
+
+def test_list_evaluations_filters_by_status(db_session) -> None:
+    """Filtering by status returns only evaluations in that lifecycle state."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-filter-status@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+
+    db_session.add_all(
+        [
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=EvaluationStatus.COMPLETED.value,
+                target_agent="sme",
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=EvaluationStatus.FAILED.value,
+                target_agent="gad",
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    completed_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, status="COMPLETED"
+    )
+    assert completed_resp.total == 1
+    assert completed_resp.items[0].status == EvaluationStatus.COMPLETED
+
+    combined_resp = list_evaluations(
+        1,
+        20,
+        owner.user_id,
+        UserRole.FACULTY.value,
+        db_session,
+        status="FAILED",
+        target_agent="gad",
+    )
+    assert combined_resp.total == 1
+    assert combined_resp.items[0].target_agent == "gad"
+
+    with pytest.raises(InvalidEvaluationTargetError):
+        list_evaluations(
+            1,
+            20,
+            owner.user_id,
+            UserRole.FACULTY.value,
+            db_session,
+            status="NOT_A_STATE",
+        )
 
 
 def test_list_evaluations_filter_by_document_id_respects_ownership(db_session) -> None:

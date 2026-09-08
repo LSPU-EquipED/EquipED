@@ -23,7 +23,7 @@ from .conftest import _add_document, _seed_active_prompts
 def test_create_evaluation_partial_persists_submitted_job_for_owned_docs(
     db_session,
 ) -> None:
-    """A partial evaluation persists confirmed_program and partial fields."""
+    """A single-agent SME evaluation persists without curriculum dependency."""
     owner = create_user(
         db_session,
         name="Owner",
@@ -43,6 +43,7 @@ def test_create_evaluation_partial_persists_submitted_job_for_owned_docs(
         EvaluationSubmitRequest(
             document_id=slm_id,
             syllabus_id=syllabus_id,
+            target_agent="sme",
             partial_without_curriculum=True,
             confirmed_program="BSCS",
         ),
@@ -54,16 +55,18 @@ def test_create_evaluation_partial_persists_submitted_job_for_owned_docs(
     assert response.document_id == slm_id
     assert response.syllabus_id == syllabus_id
     assert response.curriculum_id is None
-    assert response.partial_without_curriculum is True
+    assert response.target_agent == "sme"
+    # Single-agent evaluations are 100% complete for the targeted domain.
+    assert response.partial_without_curriculum is False
     assert response.confirmed_program == "BSCS"
-    assert response.partial_reason is not None
-    assert "curriculum" in response.partial_reason.lower()
+    assert response.partial_reason is None
     row = db_session.get(EvaluationJob, response.evaluation_id)
     assert row is not None
     assert row.status == EvaluationStatus.SUBMITTED.value
     assert row.submitted_by == owner.user_id
     assert row.confirmed_program == "BSCS"
-    assert row.partial_without_curriculum is True
+    assert row.target_agent == "sme"
+    assert row.partial_without_curriculum is False
 
 
 def test_create_evaluation_full_persists_submitted_job_with_curriculum(
@@ -105,6 +108,7 @@ def test_create_evaluation_full_persists_submitted_job_with_curriculum(
             document_id=slm_id,
             syllabus_id=syllabus_id,
             curriculum_id=curriculum_id,
+            target_agent="coordinator",
             partial_without_curriculum=False,
             confirmed_program="BSCS",
         ),
@@ -116,6 +120,7 @@ def test_create_evaluation_full_persists_submitted_job_with_curriculum(
     assert response.document_id == slm_id
     assert response.syllabus_id == syllabus_id
     assert response.curriculum_id == curriculum_id
+    assert response.target_agent == "coordinator"
     assert response.partial_without_curriculum is False
     assert response.partial_reason is None
     assert response.confirmed_program == "BSCS"
@@ -125,6 +130,7 @@ def test_create_evaluation_full_persists_submitted_job_with_curriculum(
     assert row.submitted_by == owner.user_id
     assert row.confirmed_program == "BSCS"
     assert row.curriculum_id == curriculum_id
+    assert row.target_agent == "coordinator"
     assert row.partial_without_curriculum is False
     assert row.partial_reason is None
 
@@ -222,7 +228,7 @@ def test_create_evaluation_without_syllabus_succeeds(db_session) -> None:
 def test_create_evaluation_rejects_missing_curriculum_when_partial_false(
     db_session,
 ) -> None:
-    """Submitting with partial_without_curriculum=False and no curriculum_id is rejected."""  # noqa: E501
+    """Coordinator submission without curriculum fails closed (HTTP 422)."""
     owner = create_user(
         db_session,
         name="Owner",
@@ -234,11 +240,12 @@ def test_create_evaluation_rejects_missing_curriculum_when_partial_false(
 
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
 
-    with pytest.raises(InvalidEvaluationTargetError, match="curriculum_id is required"):
+    with pytest.raises(InvalidEvaluationTargetError, match="Curriculum context"):
         create_evaluation(
             EvaluationSubmitRequest(
                 document_id=slm_id,
                 curriculum_id=None,
+                target_agent="coordinator",
                 partial_without_curriculum=False,
                 confirmed_program="BSCS",
             ),
@@ -249,8 +256,13 @@ def test_create_evaluation_rejects_missing_curriculum_when_partial_false(
 
 def test_create_evaluation_rejects_conflicting_curriculum_and_partial_true(
     db_session,
+    monkeypatch,
 ) -> None:
-    """Submitting both curriculum_id and partial_without_curriculum=True is rejected."""  # noqa: E501
+    """Legacy partial flag is deprecated: curriculum is validated, not rejected."""
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum.service.check_chroma_availability",
+        lambda doc_id, source_type: True,
+    )
     owner = create_user(
         db_session,
         name="Owner",
@@ -272,19 +284,21 @@ def test_create_evaluation_rejects_conflicting_curriculum_and_partial_true(
         db_session, owner_id=admin.user_id, source_type="curriculum"
     )
 
-    with pytest.raises(
-        InvalidEvaluationTargetError, match="Cannot specify curriculum_id"
-    ):
-        create_evaluation(
-            EvaluationSubmitRequest(
-                document_id=slm_id,
-                curriculum_id=curriculum_id,
-                partial_without_curriculum=True,
-                confirmed_program="BSCS",
-            ),
-            submitted_by=owner.user_id,
-            db=db_session,
-        )
+    # Deprecated partial flag is ignored; SME with a ready curriculum succeeds.
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            curriculum_id=curriculum_id,
+            target_agent="sme",
+            partial_without_curriculum=True,
+            confirmed_program="BSCS",
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+    assert response.target_agent == "sme"
+    assert response.curriculum_id == curriculum_id
+    assert response.partial_without_curriculum is False
 
 
 def test_create_evaluation_requires_confirmed_program(db_session) -> None:
@@ -807,3 +821,52 @@ def test_create_evaluation_primary_document_masking_precedes_program_validation(
     assert exc_info.value.__class__.__name__ == "DocumentNotFoundError"
 
     assert db_session.query(EvaluationJob).count() == 0
+
+@pytest.mark.parametrize("target_agent", ["sme", "gad", "itso"])
+def test_create_evaluation_single_agent_succeeds_without_curriculum(
+    db_session, target_agent: str
+) -> None:
+    """Non-coordinator agents execute immediately with zero curriculum gating."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email=f"owner-{target_agent}@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    response = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            target_agent=target_agent,  # type: ignore[arg-type]
+            confirmed_program="BSCS",
+        ),
+        submitted_by=owner.user_id,
+        db=db_session,
+    )
+    assert response.target_agent == target_agent
+    assert response.curriculum_id is None
+    assert response.partial_without_curriculum is False
+    row = db_session.get(EvaluationJob, response.evaluation_id)
+    assert row is not None
+    assert row.target_agent == target_agent
+
+
+def test_create_evaluation_rejects_invalid_target_agent(db_session) -> None:
+    """Invalid target_agent values are rejected."""
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-bad-agent@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    with pytest.raises(Exception):
+        EvaluationSubmitRequest(
+            document_id=slm_id,
+            target_agent="all",  # type: ignore[arg-type]
+            confirmed_program="BSCS",
+        )
