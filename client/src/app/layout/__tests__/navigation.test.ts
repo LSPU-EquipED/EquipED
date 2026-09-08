@@ -39,23 +39,30 @@ describe('isNavigationActive', () => {
 
 describe('navigation group structure', () => {
   it('defines the required faculty grouped hierarchy', () => {
-    expect(facultyNavGroups).toHaveLength(3);
+    expect(facultyNavGroups).toHaveLength(4);
 
-    const [homeGroup, workspaceGroup, alignmentGroup] = facultyNavGroups;
+    const [homeGroup, storageGroup, specialistsGroup, alignmentGroup] = facultyNavGroups;
     expect(homeGroup.id).toBe('home');
     expect(homeGroup.label).toBe('HOME');
     expect(homeGroup.items).toHaveLength(1);
     expect(homeGroup.items[0]).toMatchObject({ to: '/dashboard', label: 'Home', exact: true });
 
-    expect(workspaceGroup.id).toBe('workspace');
-    expect(workspaceGroup.label).toBe('WORKSPACE');
-    expect(workspaceGroup.items).toHaveLength(2);
-    expect(workspaceGroup.items[0]).toMatchObject({ to: '/documents', label: 'My SLMs', exact: false });
-    expect(workspaceGroup.items[1]).toMatchObject({ to: '/evaluations', label: 'Evaluations', exact: false });
+    expect(storageGroup.id).toBe('storage');
+    expect(storageGroup.label).toBe('SLM REPOSITORY');
+    expect(storageGroup.items).toHaveLength(1);
+    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'SLM Storage', exact: false });
+
+    expect(specialistsGroup.id).toBe('specialists');
+    expect(specialistsGroup.label).toBe('EVALUATION SPECIALISTS');
+    expect(specialistsGroup.items).toHaveLength(4);
+    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'Subject Matter Expert', exact: false });
+    expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Program Coordinator', exact: false });
+    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'Gender & Development', exact: false });
+    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'Innovation & IP (ITSO)', exact: false });
 
     expect(alignmentGroup.id).toBe('alignment');
-    expect(alignmentGroup.label).toBe('ALIGNMENT');
-    expect(alignmentGroup.items).toHaveLength(2);
+    expect(alignmentGroup.label).toBe('ALIGNMENT & AUDIT');
+    expect(alignmentGroup.items).toHaveLength(3);
     expect(alignmentGroup.items[0]).toMatchObject({
       to: '/syllabus-alignment',
       label: 'Syllabus Alignment',
@@ -66,8 +73,12 @@ describe('navigation group structure', () => {
       label: 'Curriculum Check',
       exact: false,
     });
+    expect(alignmentGroup.items[2]).toMatchObject({
+      to: '/evaluations',
+      label: 'Evaluation History',
+      exact: true,
+    });
   });
-
   it('leaves faculty secondary nav empty after moving Evaluation Map to admin', () => {
     expect(facultySecondaryNavItems).toHaveLength(0);
   });
@@ -104,16 +115,16 @@ describe('getRouteTitle', () => {
     expect(getRouteTitle('/documents')).toBe('My SLMs');
   });
 
-  it('returns Evaluation Interface for /documents/$documentId/evaluation', () => {
-    expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Evaluation Interface');
+  it('returns Specialist Review for /documents/$documentId/evaluation (redirect)', () => {
+    expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Specialist Review');
   });
 
   it('returns Upload SLM for /upload', () => {
     expect(getRouteTitle('/upload')).toBe('Upload SLM');
   });
 
-  it('returns Evaluations for /evaluations', () => {
-    expect(getRouteTitle('/evaluations')).toBe('Evaluations');
+  it('returns Evaluation History for /evaluations', () => {
+    expect(getRouteTitle('/evaluations')).toBe('Evaluation History');
   });
 
   it('returns Scorecard for /evaluations/$id', () => {
@@ -136,17 +147,32 @@ describe('getBreadcrumbs', () => {
     ]);
   });
 
-  it('returns Faculty Workspace > My SLMs for /documents', () => {
+  it('returns Faculty Workspace > SLM Storage for /documents and /storage', () => {
     expect(getBreadcrumbs('/documents')).toEqual([
       { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'My SLMs' },
+      { label: 'SLM Storage' },
+    ]);
+    expect(getBreadcrumbs('/storage')).toEqual([
+      { label: 'Faculty Workspace', to: '/dashboard' },
+      { label: 'SLM Storage' },
     ]);
   });
 
-  it('returns My SLMs > Evaluation Setup for /documents/doc-123/evaluation', () => {
+  it('returns Specialists breadcrumbs for specialist routes', () => {
+    expect(getBreadcrumbs('/specialists/sme')).toEqual([
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Subject Matter Expert' },
+    ]);
+    expect(getBreadcrumbs('/specialists/gad')).toEqual([
+      { label: 'Specialists', to: '/dashboard' },
+      { label: 'Gender & Development' },
+    ]);
+  });
+
+  it('returns SLM Storage > Specialist Review for /documents/doc-123/evaluation (redirect)', () => {
     expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
-      { label: 'My SLMs', to: '/documents' },
-      { label: 'Evaluation Setup' },
+      { label: 'SLM Storage', to: '/documents' },
+      { label: 'Specialist Review' },
     ]);
   });
 

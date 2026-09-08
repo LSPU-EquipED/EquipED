@@ -24,7 +24,6 @@ const mockHistoryData: ModelValidationListResponse = {
       evaluation_id: 'eval-1',
       document_id: 'doc-1',
       document_title: 'Algorithms SLM',
-      program: 'BSCS',
       status: 'COMPLETED',
       criterion_scores: [],
       bound_forms: [],
@@ -38,11 +37,10 @@ const mockHistoryData: ModelValidationListResponse = {
       toxicity_label: 'Clean',
       toxicity_explanation: 'No toxic comments',
       toxicity_error: null,
+      toxicity_model: 'llama-guard-3',
     },
   ],
   total: 1,
-  page: 1,
-  page_size: 20,
 };
 
 const mockMetricsData: ModelValidationMetricsResponse = {
@@ -58,6 +56,7 @@ const mockMetricsData: ModelValidationMetricsResponse = {
     [0, 0, 1, 0],
     [0, 0, 0, 1],
   ],
+  agent_confusion_matrices: {},
 };
 
 describe('ModelValidationPage', () => {

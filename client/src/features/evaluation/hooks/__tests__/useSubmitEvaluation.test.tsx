@@ -32,12 +32,13 @@ describe('useSubmitEvaluation', () => {
     vi.mocked(evaluationApi.submitEvaluation).mockReset();
   });
 
-  it('successfully submits full evaluation payload and sets query cache', async () => {
+  it('successfully submits targeted SME evaluation payload and sets query cache', async () => {
     const { wrapper, queryClient } = createWrapper();
     const mockResponse: EvaluationResponse = {
       evaluation_id: 'eval-full-1',
       document_id: 'doc-100',
       curriculum_id: 'curr-100',
+      target_agent: 'sme',
       status: 'SUBMITTED',
       partial_without_curriculum: false,
       submitted_at: '2026-08-24T10:00:00Z',
@@ -50,6 +51,7 @@ describe('useSubmitEvaluation', () => {
     result.current.mutate({
       document_id: 'doc-100',
       curriculum_id: 'curr-100',
+      target_agent: 'sme',
       confirmed_program: 'BSCS',
       partial_without_curriculum: false,
     });
@@ -59,6 +61,7 @@ describe('useSubmitEvaluation', () => {
     expect(evaluationApi.submitEvaluation).toHaveBeenCalledWith({
       document_id: 'doc-100',
       curriculum_id: 'curr-100',
+      target_agent: 'sme',
       confirmed_program: 'BSCS',
       partial_without_curriculum: false,
     });
@@ -75,13 +78,14 @@ describe('useSubmitEvaluation', () => {
     });
   });
 
-  it('successfully submits partial evaluation payload', async () => {
+  it('successfully submits targeted GAD evaluation payload without curriculum', async () => {
     const { wrapper } = createWrapper();
     const mockResponse: EvaluationResponse = {
       evaluation_id: 'eval-partial-1',
       document_id: 'doc-200',
+      target_agent: 'gad',
       status: 'SUBMITTED',
-      partial_without_curriculum: true,
+      partial_without_curriculum: false,
       submitted_at: '2026-08-24T11:00:00Z',
     };
 
@@ -91,16 +95,18 @@ describe('useSubmitEvaluation', () => {
 
     result.current.mutate({
       document_id: 'doc-200',
+      target_agent: 'gad',
       confirmed_program: 'BSInfoTech',
-      partial_without_curriculum: true,
+      partial_without_curriculum: false,
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(evaluationApi.submitEvaluation).toHaveBeenCalledWith({
       document_id: 'doc-200',
+      target_agent: 'gad',
       confirmed_program: 'BSInfoTech',
-      partial_without_curriculum: true,
+      partial_without_curriculum: false,
     });
   });
 });
