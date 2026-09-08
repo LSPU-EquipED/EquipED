@@ -7,6 +7,7 @@ export interface HomeEvaluationItem {
   syllabus_id: string;
   curriculum_id: string;
   status: string;
+  target_agent?: string;
   error_message?: string;
   submitted_by?: string;
   submitted_at: string;
