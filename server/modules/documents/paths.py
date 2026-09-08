@@ -28,14 +28,54 @@ def resolve_document_pdf_path(value: str | Path | None) -> Path:
     if value is None or not str(value).strip():
         raise invalid
     try:
-        candidate = Path(value)
+        raw_val = str(value)
         root = UPLOAD_ROOT.resolve(strict=True)
-        resolved = candidate.resolve(strict=True)
-        if not resolved.is_relative_to(root) or not resolved.is_file():
-            raise invalid
-        if resolved.suffix.lower() != ".pdf":
-            raise invalid
-        return resolved
+
+        # 1. Direct candidate
+        candidate = Path(raw_val)
+        if candidate.is_absolute():
+            try:
+                resolved = candidate.resolve(strict=True)
+                if (
+                    resolved.is_relative_to(root)
+                    and resolved.is_file()
+                    and resolved.suffix.lower() == ".pdf"
+                ):
+                    return resolved
+            except (OSError, RuntimeError):
+                pass
+
+        # 2. Extract standard filename (handles R2 URI, Windows path, macOS path)
+        from server.core.storage import extract_document_filename, get_storage_backend
+
+        filename = extract_document_filename(raw_val)
+        if filename and filename.lower().endswith(".pdf"):
+            local_target = (root / filename).resolve()
+            if (
+                local_target.is_relative_to(root)
+                and local_target.is_file()
+                and local_target.suffix.lower() == ".pdf"
+            ):
+                return local_target
+
+            # 3. Pull from storage backend if available
+            try:
+                storage = get_storage_backend()
+                if storage.file_exists(raw_val) or storage.file_exists(filename):
+                    storage.download_file(raw_val, local_target)
+                    resolved_target = local_target.resolve()
+                    if (
+                        resolved_target.is_relative_to(root)
+                        and resolved_target.is_file()
+                        and resolved_target.suffix.lower() == ".pdf"
+                    ):
+                        return resolved_target
+            except Exception:
+                pass
+
+        raise invalid
+    except DocumentsError:
+        raise
     except (OSError, RuntimeError, TypeError, ValueError):
         raise invalid from None
 

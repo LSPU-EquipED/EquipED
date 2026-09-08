@@ -80,6 +80,14 @@ class Settings:
     chroma_port: int | None = None
     chroma_ssl: bool = False
 
+    storage_backend: str = "local"
+    r2_account_id: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_bucket_name: str | None = None
+    r2_endpoint_url: str | None = None
+    r2_public_url: str | None = None
+
     llm_provider: str = "local"
     llm_model_name: str = "equiped-gemma3-4b-qat-q4"
     llm_api_base: str | None = None
@@ -209,6 +217,23 @@ class Settings:
     @property
     def embedding_configured(self) -> bool:
         return bool(self.embedding_model_name)
+
+    @property
+    def r2_configured(self) -> bool:
+        return bool(
+            self.r2_access_key_id
+            and self.r2_secret_access_key
+            and self.r2_bucket_name
+            and (self.r2_account_id or self.r2_endpoint_url)
+        )
+
+    @property
+    def resolved_r2_endpoint_url(self) -> str | None:
+        if self.r2_endpoint_url:
+            return self.r2_endpoint_url
+        if self.r2_account_id:
+            return f"https://{self.r2_account_id}.r2.cloudflarestorage.com"
+        return None
 
 
 @lru_cache(maxsize=1)
@@ -578,6 +603,13 @@ def get_settings() -> Settings:
         ocr_timeout_seconds=parsed_ocr_timeout_seconds,
         ocr_concurrency=parsed_ocr_concurrency,
         ocr_semaphore_timeout_seconds=parsed_ocr_semaphore_timeout_seconds,
+        storage_backend=_env("STORAGE_BACKEND", "local") or "local",
+        r2_account_id=_env("R2_ACCOUNT_ID"),
+        r2_access_key_id=_env("R2_ACCESS_KEY_ID"),
+        r2_secret_access_key=_env("R2_SECRET_ACCESS_KEY"),
+        r2_bucket_name=_env("R2_BUCKET_NAME"),
+        r2_endpoint_url=_env("R2_ENDPOINT_URL"),
+        r2_public_url=_env("R2_PUBLIC_URL"),
     )
 
     if settings.llm_response_mode not in {"json_object", "json_schema"}:

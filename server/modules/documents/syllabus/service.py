@@ -256,8 +256,14 @@ def delete_reference_document(
             f"Failed to delete Chroma vectors for document {document_id}: {exc}"
         ) from exc
 
-    # Step 3: Delete local PDF file and verify removal (preserve SQL on failure)
+    # Step 3: Delete PDF from storage backend and local filesystem
     if row.file_path:
+        try:
+            from server.core.storage import get_storage_backend
+
+            get_storage_backend().delete_file(row.file_path)
+        except Exception:
+            pass
         pdf_path = Path(row.file_path)
         if pdf_path.exists():
             try:
