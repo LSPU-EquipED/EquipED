@@ -9,7 +9,6 @@ import pytest
 from server.core.llm import CompletionResult
 from server.modules.agents.exceptions import AgentExecutionError
 from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.fallback import registry
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -20,20 +19,6 @@ from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snap
 
 PREAMBLE = "MANAGED SME PREAMBLE -- causal-test"
 PROMPT_ID = uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-
-
-def test_managed_preamble_is_consumed_by_criterion_fallback():
-    calls = []
-
-    class Client:
-        primary_client = None
-
-        def generate(self, prompt, **kwargs):
-            calls.append((prompt, kwargs["response_contract"]))
-            return json.dumps({"mechanisms": []})
-
-    registry.run_criterion("A-03", Client(), "canonical text", prompt_preamble=PREAMBLE)
-    assert calls and calls[0][0].startswith(PREAMBLE + "\n\n")
 
 
 def test_prompt_version_and_id_are_passed_and_preserved():

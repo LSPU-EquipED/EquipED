@@ -9,8 +9,8 @@ from server.modules.agents.coordinator.prompt import (
     REPAIR_SUFFIX,
     build_envelope_prompt_and_source,
 )
-from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.exceptions import AgentExecutionError
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -94,8 +94,13 @@ def test_preamble_carries_output_contract_rules():
     )
     assert "exactly one object per criterion" in prompt.system_instruction
     assert "verbatim substring of the source text" in prompt.system_instruction
-    assert "single JSON object with 'summary' and 'criterion_measurements'" in prompt.system_instruction
-    assert "Do NOT calculate or return final numeric scores" in prompt.system_instruction
+    assert (
+        "single JSON object with 'summary' and 'criterion_measurements'"
+        in prompt.system_instruction
+    )
+    assert (
+        "Do NOT calculate or return final numeric scores" in prompt.system_instruction
+    )
 
 
 def test_stored_scoring_rule_is_injected_into_the_criterion_block():
@@ -109,7 +114,10 @@ def test_stored_scoring_rule_is_injected_into_the_criterion_block():
     prompt, _ = build_envelope_prompt_and_source(
         env, "doc text", CURRICULUM, prompt_budget=32000
     )
-    assert "Scoring Rule: Count interactive elements; 4+ -> 4, 2-3 -> 3." in prompt.system_instruction
+    assert (
+        "Scoring Rule: Count interactive elements; 4+ -> 4, 2-3 -> 3."
+        in prompt.system_instruction
+    )
 
 
 def test_missing_scoring_rule_omits_the_line():
@@ -165,6 +173,5 @@ def test_prompt_is_role_separated_into_system_and_user_turns():
     assert CURRICULUM in prompt.user_context
     assert CURRICULUM not in prompt.system_instruction
     assert (
-        prompt.render_flat()
-        == f"{prompt.system_instruction}\n\n{prompt.user_context}"
+        prompt.render_flat() == f"{prompt.system_instruction}\n\n{prompt.user_context}"
     )

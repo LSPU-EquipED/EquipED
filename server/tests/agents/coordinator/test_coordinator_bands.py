@@ -1,4 +1,4 @@
-from server.modules.agents.coordinator.bands import count_band, ratio_band
+from server.modules.agents.runtime.bands import count_band, ratio_band
 
 
 def test_ratio_band_moderate_thresholds():

@@ -9,13 +9,13 @@ from typing import Any
 import pytest
 from server.core.llm import CompletionResult
 from server.modules.agents.exceptions import AgentExecutionError, AgentLLMError
+from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.sme.agent import SME
 from server.modules.agents.sme.packing import pack_domains
 from server.modules.agents.sme.prompt import (
     REPAIR_SUFFIX,
     build_envelope_prompt_and_source,
 )
-from server.modules.agents.runtime.prompts import AgentPrompt
 from server.modules.agents.sme.response import (
     build_envelope_schema,
     parse_and_validate_envelope_response,
@@ -883,8 +883,7 @@ def test_envelope_prompt_is_role_separated() -> None:
     assert "=== UNTRUSTED SOURCE TEXT ===" in prompt.user_context
     assert packet in prompt.user_context
     assert (
-        prompt.render_flat()
-        == f"{prompt.system_instruction}\n\n{prompt.user_context}"
+        prompt.render_flat() == f"{prompt.system_instruction}\n\n{prompt.user_context}"
     )
 
 

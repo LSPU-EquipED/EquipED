@@ -276,13 +276,9 @@ _ALL_BASKETS_IN_ORDER = [
 ]
 
 
-# --- SME grouped LLM-scoring fakes -------------------------------------------
-# ``SME.run()`` scores via 3 grouped direct-LLM calls (see
-# ``sme/grouped_execution.execute_group``) and only falls back to the
-# per-criterion engine lane (``registry.run_criterion``) for a group whose call
-# fails. A fake therefore has to answer BOTH prompt shapes: the grouped JSON
-# prompt, and the plain-text per-criterion extraction prompt.
-
+# --- SME snapshot LLM-scoring fakes ------------------------------------------
+# ``SME.run()`` scores dynamic CID rubric form snapshots via the SME pipeline
+# and envelope execution (see ``sme/pipeline.py`` and ``sme/execution.py``).
 SME_GROUP_TITLES: dict[str, str] = {
     "A-01": "Learner Transformation",
     "A-02": "Varied Assessment Tools",
