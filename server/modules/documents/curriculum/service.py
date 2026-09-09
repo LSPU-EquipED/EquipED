@@ -143,8 +143,24 @@ def check_curriculum_readiness(
             reason="Curriculum has no persisted chunks in SQL",
         )
 
-    # 5. Check live Chroma availability
+    # 5. Check live Chroma availability, with auto-heal and SQL fallback.
+    # The Program Coordinator loads authoritative curriculum text directly
+    # from DocumentChunk rows in SQL (see _load_authoritative_curriculum in
+    # context.py), so missing live Chroma vectors must not block curriculum
+    # use when the full text is available in SQL.
     chroma_available = check_chroma_availability(str(doc.document_id), "curriculum")
+    if not chroma_available and chunk_count > 0:
+        try:
+            from server.modules.documents.service import embed_document_chunks
+
+            embed_document_chunks(doc.document_id)
+        except Exception:
+            logger.warning(
+                "Curriculum auto-heal embedding failed for document %s",
+                doc.document_id,
+                exc_info=True,
+            )
+        chroma_available = check_chroma_availability(str(doc.document_id), "curriculum")
     if not chroma_available:
         return CurriculumReadiness(
             is_ready=False,
@@ -153,7 +169,9 @@ def check_curriculum_readiness(
             chunk_count=chunk_count,
             chroma_available=False,
             is_admin=True,
-            reason="Curriculum has no live local Chroma vectors",
+            reason=(
+                "Curriculum vectors are not available in Chroma reference collection"
+            ),
         )
 
     return CurriculumReadiness(
