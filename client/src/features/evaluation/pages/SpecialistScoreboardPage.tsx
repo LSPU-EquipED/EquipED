@@ -36,7 +36,7 @@ import {
   monitoringPercentage,
 } from '../utils/scoreHelpers';
 import { EvaluationConfirmModal } from '../components/EvaluationConfirmModal';
-import { GadExportDownloadButton } from '../components/ExportDocument';
+import { SpecialistExportDownloadButton } from '../components/ExportDocument';
 
 const ROLE_ICONS: Record<TargetAgent, typeof GraduationCap> = {
   sme: GraduationCap,
@@ -313,12 +313,12 @@ export function SpecialistScoreboardPage({
                 )}
               </div>
 
-              {/* Specialist Utilities (e.g. GAD Form Export) */}
+              {/* Specialist Utilities (Official CID Form Export) */}
               <div className="flex items-center gap-2 shrink-0">
-                {validAgent === 'gad' && results && (
-                  <GadExportDownloadButton
+                {results && domainScore && (
+                  <SpecialistExportDownloadButton
                     domainData={{
-                      agentId: 'gad',
+                      agentId: validAgent,
                       documentTitle: activeDocument.title,
                       program: activeDocument.program ?? null,
                       courseTitle: activeDocument.courseTitle ?? null,

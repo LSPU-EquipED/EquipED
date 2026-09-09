@@ -18,7 +18,7 @@ export interface EvaluationSubmitRequest {
   curriculum_id?: string | null;
   /** Target specialist agent for this evaluation job. Required. */
   target_agent: TargetAgent;
-  confirmed_program: string;
+  confirmed_program?: string | null;
   /**
    * Retained for backend compatibility: the API still accepts and returns
    * this field (defaulting to false). New submissions always send false.

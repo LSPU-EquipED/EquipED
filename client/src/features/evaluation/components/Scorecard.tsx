@@ -10,6 +10,7 @@ import {
   Lightbulb,
   Scales,
   ShieldCheck,
+  Spinner,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { Badge } from '@/shared/components/Badge';
@@ -28,6 +29,7 @@ import {
 } from '../utils/scoreHelpers';
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import { AgentReviewModal } from './AgentReviewModal';
+import { SpecialistExportDownloadButton } from './ExportDocument';
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
@@ -130,7 +132,11 @@ export function Scorecard() {
 
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
-
+  const isEvaluating =
+    evaluation?.status === 'SUBMITTED' ||
+    evaluation?.status === 'PREPROCESSING' ||
+    evaluation?.status === 'EVALUATING' ||
+    evaluation?.status === 'SYNTHESIZING';
   const {
     data: results,
     isLoading: isLoadingResults,
@@ -141,7 +147,9 @@ export function Scorecard() {
     queryKey: ['evaluation-results', id],
     queryFn: () => evaluationApi.getEvaluationResults(id!),
     enabled: !!id && isTerminal,
-    retry: 1,
+    retry: 2,
+    staleTime: 5000,
+    refetchInterval: (query) => (isTerminal && !query.state.data ? 1500 : false),
   });
 
   const isPartial = Boolean(results?.is_partial || evaluation?.partial_without_curriculum);
@@ -229,8 +237,30 @@ export function Scorecard() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          {results && isTerminal ? (
+        <div className="flex items-center gap-2.5 shrink-0">
+          {results && activeDomainData && (
+            <SpecialistExportDownloadButton
+              domainData={{
+                agentId: effectiveDomainId,
+                documentTitle: results.document_title || evaluation.document_id,
+                program: results.program ?? null,
+                evaluationId: evaluation.evaluation_id,
+                isPartial: results.is_partial,
+                partialReason: results.partial_reason,
+                evaluationStatus: results.evaluation_status,
+                subtotal: activeDomainData.subtotal,
+                max_score: activeDomainData.max_score || 4,
+                status: activeDomainData.status,
+                adjectival_rating: activeDomainData.adjectival_rating ?? undefined,
+                criteria: activeDomainData.criteria || [],
+                summary: activeDomainData.summary,
+                version: activeDomainData.version,
+                form_snapshot_id: activeDomainData.form_snapshot_id,
+                results,
+              }}
+            />
+          )}
+          {!isSingleAgentRun && results && isTerminal ? (
             <ScorecardPdfExport results={results} />
           ) : null}
         </div>
@@ -242,7 +272,37 @@ export function Scorecard() {
           aria-label="Specialist Evaluation Dossier"
           className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-6 md:p-8 max-w-[80rem] w-full mx-auto space-y-6"
         >
-          {activeDomainData ? (
+          {isEvaluating ? (
+            <div className="rounded-md border border-info/30 bg-info-soft/20 p-12 text-center flex flex-col items-center justify-center space-y-4 shadow-none">
+              <div className="flex size-12 items-center justify-center rounded-sm bg-info/10 text-info border border-info/20">
+                <Spinner className="size-6 text-info animate-spin" aria-hidden="true" />
+              </div>
+              <div className="space-y-1.5 max-w-md">
+                <h2 className="text-base font-bold text-text">
+                  {singleAgentMeta.fullName} Evaluation in Progress
+                </h2>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Analyzing learning module content and grounding criteria against institutional quality standards. Status: <strong className="font-semibold text-text uppercase">{evaluation.status}</strong>.
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  Results typically arrive within 20–30 seconds. This page updates automatically.
+                </p>
+              </div>
+            </div>
+          ) : isFailed ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive-soft p-8 text-center space-y-2">
+              <WarningCircle className="size-6 text-destructive mx-auto" aria-hidden="true" />
+              <h2 className="text-sm font-bold text-destructive">Evaluation Failed</h2>
+              <p className="text-xs text-text-muted max-w-md mx-auto">
+                {evaluation.error_message || 'The evaluation job failed to complete. Please try submitting again.'}
+              </p>
+            </div>
+          ) : isLoadingResults ? (
+            <div className="rounded-md border border-border bg-surface p-12 text-center flex flex-col items-center justify-center space-y-3">
+              <Spinner className="size-6 text-primary animate-spin" aria-hidden="true" />
+              <p className="text-xs text-text-muted">Loading evaluation score breakdown…</p>
+            </div>
+          ) : activeDomainData ? (
             <div className="space-y-6">
               {/* Scorecard Hero Summary Card */}
               <div className="rounded-md border border-border bg-surface p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-none">
@@ -622,7 +682,32 @@ export function Scorecard() {
           aria-label="Domain Criteria & Findings"
           className="flex flex-col h-full min-h-0 overflow-y-auto bg-canvas p-4 sm:p-6 md:p-8 space-y-5"
         >
-          {activeDomainData ? (
+          {isEvaluating ? (
+            <div className="rounded-md border border-info/30 bg-info-soft/20 p-12 text-center flex flex-col items-center justify-center space-y-4 shadow-none">
+              <div className="flex size-12 items-center justify-center rounded-sm bg-info/10 text-info border border-info/20">
+                <Spinner className="size-6 text-info animate-spin" aria-hidden="true" />
+              </div>
+              <div className="space-y-1.5 max-w-md">
+                <h2 className="text-base font-bold text-text">
+                  Multi-Agent Evaluation in Progress
+                </h2>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Specialist agents are evaluating module content against institutional quality standards. Status: <strong className="font-semibold text-text uppercase">{evaluation.status}</strong>.
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  Results will populate automatically upon completion.
+                </p>
+              </div>
+            </div>
+          ) : isFailed ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive-soft p-8 text-center space-y-2">
+              <WarningCircle className="size-6 text-destructive mx-auto" aria-hidden="true" />
+              <h2 className="text-sm font-bold text-destructive">Evaluation Failed</h2>
+              <p className="text-xs text-text-muted max-w-md mx-auto">
+                {evaluation.error_message || 'The evaluation job failed to complete.'}
+              </p>
+            </div>
+          ) : activeDomainData ? (
             <div className="space-y-5">
               {/* Active Domain Header Bar */}
               <div className="rounded-md border border-border bg-surface p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4 shadow-none">

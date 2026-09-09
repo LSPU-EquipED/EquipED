@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { DownloadSimple } from '@phosphor-icons/react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
+import { Button } from '@/shared/components/Button';
 import { cn } from '@/shared/components/utils';
+import { TARGET_AGENT_META, isTargetAgent, type TargetAgent } from '@/shared/types/evaluations';
 import type { ClientDocument } from '@/shared/types/documents';
 import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
 import {
@@ -479,8 +481,12 @@ function getExportDomainData({
   );
 }
 
-export function GadExportDownloadButton(props: ExportDocumentProps) {
-  const domainData = getExportDomainData(props);
+export function SpecialistExportDownloadButton({
+  domainData: explicitDomainData,
+  agentId,
+  className,
+}: ExportDocumentProps & { className?: string }) {
+  const domainData = getExportDomainData({ domainData: explicitDomainData, agentId });
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -497,17 +503,25 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
     }
   };
 
+  const safeAgentId = String(domainData.agentId).toLowerCase();
+  const agentLabel = isTargetAgent(safeAgentId)
+    ? TARGET_AGENT_META[safeAgentId].shortLabel
+    : safeAgentId.toUpperCase();
+
   return (
     <div className="inline-flex flex-col items-start gap-1">
-      <button
+      <Button
         type="button"
-        className="inline-flex h-9 items-center justify-center bg-primary hover:bg-primary-strong text-primary-foreground px-4 rounded-sm text-xs font-semibold tracking-wide uppercase transition-colors focus:ring-2 focus:ring-ring focus:outline-none disabled:opacity-60"
+        variant="primary"
+        size="sm"
+        aria-label={`Download PDF - ${agentLabel} Scorecard`}
+        className={cn('gap-1.5 font-bold uppercase tracking-wider text-xs h-8.5 px-3.5', className)}
         onClick={handleDownload}
         disabled={isDownloading}
       >
-        <DownloadSimple className="size-4 mr-1.5" aria-hidden="true" />
-        {isDownloading ? 'Creating PDF...' : 'Download PDF'}
-      </button>
+        <DownloadSimple className="size-3.5" aria-hidden="true" />
+        <span>{isDownloading ? 'Creating PDF…' : `Download ${agentLabel} PDF`}</span>
+      </Button>
       {errorMessage && (
         <span className="text-xs font-medium text-destructive" role="alert">
           {errorMessage}
@@ -516,6 +530,8 @@ export function GadExportDownloadButton(props: ExportDocumentProps) {
     </div>
   );
 }
+
+export const GadExportDownloadButton = SpecialistExportDownloadButton;
 
 export function GadExportPreview(props: ExportDocumentProps) {
   const domainData = getExportDomainData(props);
