@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   BookOpen,
@@ -64,7 +64,7 @@ export function SpecialistScoreboardPage({
   const Icon = ROLE_ICONS[validAgent] || GraduationCap;
   const routeDocId = propDocId ?? params.documentId;
   const navigate = useNavigate();
-
+  const queryClient = useQueryClient();
   const [selectedDocId, setSelectedDocId] = useState<string | null>(routeDocId ?? null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -93,7 +93,16 @@ export function SpecialistScoreboardPage({
     queryKey: ['specialist-evaluations', activeDocId, validAgent],
     queryFn: () => evaluationApi.listEvaluations(activeDocId),
     enabled: Boolean(activeDocId),
-    staleTime: 10000,
+    staleTime: 5000,
+    refetchInterval: (query) => {
+      const latest = query.state.data?.items?.[0];
+      const isEvaluating =
+        latest?.status === 'SUBMITTED' ||
+        latest?.status === 'PREPROCESSING' ||
+        latest?.status === 'EVALUATING' ||
+        latest?.status === 'SYNTHESIZING';
+      return isEvaluating ? 2000 : false;
+    },
   });
 
   const latestJob = evalsData?.items?.[0];
@@ -102,6 +111,7 @@ export function SpecialistScoreboardPage({
     latestJob?.status === 'PREPROCESSING' ||
     latestJob?.status === 'EVALUATING' ||
     latestJob?.status === 'SYNTHESIZING';
+  const isTerminal = latestJob?.status === 'COMPLETED' || latestJob?.status === 'FAILED';
 
   // 3. If a completed or terminal job exists, fetch results
   const evaluationId = latestJob?.evaluation_id;
@@ -109,7 +119,11 @@ export function SpecialistScoreboardPage({
     queryKey: ['specialist-results', evaluationId],
     queryFn: () => evaluationApi.getEvaluationResults(evaluationId!),
     enabled: Boolean(evaluationId && latestJob?.status === 'COMPLETED'),
-    staleTime: 15000,
+    staleTime: 5000,
+    refetchInterval: (query) => {
+      const hasScores = Boolean(query.state.data?.domain_scores?.[validAgent]);
+      return isTerminal && !hasScores ? 2000 : false;
+    },
   });
 
   const domainScore = results?.domain_scores?.[validAgent];
@@ -131,9 +145,12 @@ export function SpecialistScoreboardPage({
   };
 
   const handleModalSubmitted = useCallback(() => {
+    setShowConfirmModal(false);
+    void queryClient.invalidateQueries({ queryKey: ['specialist-evaluations'] });
+    void queryClient.invalidateQueries({ queryKey: ['specialist-results'] });
     void refetchEvals();
     void refetchResults();
-  }, [refetchEvals, refetchResults]);
+  }, [queryClient, refetchEvals, refetchResults]);
 
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-canvas">
