@@ -6,7 +6,7 @@ export { normalizeProgram };
 
 export interface EvaluationSubmitParams {
   documentId: string;
-  program: string;
+  program?: string | null;
   targetAgent: TargetAgent;
   curriculumId?: string | null;
 }
@@ -27,15 +27,17 @@ export function buildEvaluationSubmitPayload({
       `Invalid target agent '${targetAgent}'. Must be one of 'sme', 'coordinator', 'gad', or 'itso'.`,
     );
   }
-  if (!program || !isLspuSccProgram(program)) {
+  if (program && !isLspuSccProgram(program)) {
     throw new Error(
       `Invalid program '${program}'. Must be a supported LSPU SCC program ('BSCS' or 'BSInfoTech').`,
     );
   }
-
-  const confirmed_program = normalizeProgram(program);
-
   if (targetAgent === 'coordinator') {
+    if (!program) {
+      throw new Error(
+        "Program Coordinator evaluation requires a supported LSPU SCC program ('BSCS' or 'BSInfoTech').",
+      );
+    }
     if (!curriculumId || curriculumId.trim().length === 0) {
       throw new Error('Curriculum context is required for Program Coordinator evaluation');
     }
@@ -43,11 +45,13 @@ export function buildEvaluationSubmitPayload({
       document_id: documentId,
       curriculum_id: curriculumId.trim(),
       target_agent: targetAgent,
-      confirmed_program,
+      confirmed_program: normalizeProgram(program),
       partial_without_curriculum: false,
     };
   }
 
+  const confirmed_program =
+    program && isLspuSccProgram(program) ? normalizeProgram(program) : 'BSCS';
   return {
     document_id: documentId,
     target_agent: targetAgent,

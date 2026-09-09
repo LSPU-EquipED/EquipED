@@ -31,7 +31,9 @@ export function EvaluationConfirmModal({
 }: EvaluationConfirmModalProps) {
   const meta = TARGET_AGENT_META[targetAgent];
   const submitEvaluation = useSubmitEvaluation();
-  const [program, setProgram] = useState(detectedProgram ?? '');
+  const [program, setProgram] = useState(
+    detectedProgram && isLspuSccProgram(detectedProgram) ? detectedProgram : 'BSCS',
+  );
   const [curriculumId, setCurriculumId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -57,9 +59,8 @@ export function EvaluationConfirmModal({
       ? curriculumId
       : null;
   const canSubmit =
-    programValid &&
     !submitEvaluation.isPending &&
-    (!meta.requiresCurriculum || Boolean(effectiveCurriculumId));
+    (!meta.requiresCurriculum || (programValid && Boolean(effectiveCurriculumId)));
 
   const handleConfirm = () => {
     if (!canSubmit) return;
@@ -115,79 +116,75 @@ export function EvaluationConfirmModal({
         <div className="space-y-4 px-5 py-4">
           <p className="text-xs leading-relaxed text-text-muted">{meta.requirement}</p>
 
-          {detectedProgram && isLspuSccProgram(detectedProgram) && !meta.requiresCurriculum ? (
-            <div className="flex items-center justify-between rounded-xs border border-border bg-surface-subtle px-3 py-2 text-xs">
-              <span className="text-text-muted font-medium">Assigned Program</span>
-              <Badge variant="info">{normalizeProgram(program)}</Badge>
-            </div>
-          ) : (
-            <div>
-              <label
-                htmlFor="targeted-eval-program"
-                className="text-xs font-bold uppercase tracking-wider text-text"
-              >
-                {meta.requiresCurriculum ? 'Curriculum Degree Program *' : 'Academic Program *'}
-              </label>
-              <select
-                id="targeted-eval-program"
-                value={program}
-                onChange={(event) => {
-                  setProgram(event.target.value);
-                  setCurriculumId(null);
-                }}
-                className="mt-1.5 h-9 w-full rounded-xs border border-input bg-surface px-2.5 text-sm font-medium text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              >
-                <option value="">Select program</option>
-                {CANONICAL_PROGRAMS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {meta.requiresCurriculum ? (
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-text">
-                Curriculum Reference
-              </span>
-              {isLoadingCurricula ? (
-                <p className="mt-1.5 flex items-center gap-2 text-xs text-text-muted">
-                  <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
-                  Loading verified curricula…
-                </p>
-              ) : readyCurricula.length === 0 ? (
-                <p className="mt-1.5 rounded-xs border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning" role="alert">
-                  No verified curriculum found for {normalizeProgram(program) || 'this program'}. Coordinator evaluation requires one.
-                </p>
-              ) : (
-                <div className="mt-1.5 space-y-1.5" role="radiogroup" aria-label="Select curriculum reference">
-                  {readyCurricula.map((item) => (
-                    <label
-                      key={item.documentId}
-                      className="flex cursor-pointer items-start gap-2.5 rounded-xs border border-border px-3 py-2 text-xs hover:border-primary/50 has-checked:border-primary has-checked:bg-primary-soft/30"
-                    >
-                      <input
-                        type="radio"
-                        name="targeted-eval-curriculum"
-                        value={item.documentId}
-                        checked={effectiveCurriculumId === item.documentId}
-                        onChange={() => setCurriculumId(item.documentId)}
-                        className="mt-0.5 accent-primary"
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold text-text">{item.title}</span>
-                        <span className="block text-[11px] text-text-muted">
-                          {item.program} · {item.matchReason}
-                        </span>
-                      </span>
-                    </label>
+            <div className="space-y-4 pt-1">
+              <div>
+                <label
+                  htmlFor="targeted-eval-program"
+                  className="text-xs font-bold uppercase tracking-wider text-text"
+                >
+                  Curriculum Degree Program *
+                </label>
+                <select
+                  id="targeted-eval-program"
+                  value={program}
+                  onChange={(event) => {
+                    setProgram(event.target.value);
+                    setCurriculumId(null);
+                  }}
+                  className="mt-1.5 h-9 w-full rounded-xs border border-input bg-surface px-2.5 text-sm font-medium text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                >
+                  <option value="">Select program</option>
+                  {CANONICAL_PROGRAMS.map((option) => (
+                    <option key={option} value={option}>
+                      {option === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
+                    </option>
                   ))}
-                </div>
-              )}
+                </select>
+              </div>
+
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-text">
+                  Curriculum Reference *
+                </span>
+                {isLoadingCurricula ? (
+                  <p className="mt-1.5 flex items-center gap-2 text-xs text-text-muted">
+                    <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
+                    Loading verified curricula…
+                  </p>
+                ) : readyCurricula.length === 0 ? (
+                  <p className="mt-1.5 rounded-xs border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning" role="alert">
+                    No verified curriculum found for {normalizeProgram(program) || 'this program'}. Coordinator evaluation requires one.
+                  </p>
+                ) : (
+                  <div className="mt-1.5 space-y-1.5" role="radiogroup" aria-label="Select curriculum reference">
+                    {readyCurricula.map((item) => (
+                      <label
+                        key={item.documentId}
+                        className="flex cursor-pointer items-start gap-2.5 rounded-xs border border-border px-3 py-2 text-xs hover:border-primary/50 has-checked:border-primary has-checked:bg-primary-soft/30"
+                      >
+                        <input
+                          type="radio"
+                          name="targeted-eval-curriculum"
+                          value={item.documentId}
+                          checked={effectiveCurriculumId === item.documentId}
+                          onChange={() => setCurriculumId(item.documentId)}
+                          className="mt-0.5 accent-primary"
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-text">{item.title}</span>
+                          <span className="block text-[11px] text-text-muted">
+                            {item.program} · {item.matchReason}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
+
 
           {submitEvaluation.error ? (
             <p className="flex items-center gap-2 rounded-xs border border-destructive/30 bg-destructive-soft px-3 py-2 text-xs font-semibold text-destructive" role="alert">

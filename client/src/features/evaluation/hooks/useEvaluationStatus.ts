@@ -12,7 +12,7 @@ export function useEvaluation(id: string) {
       if (status === 'COMPLETED' || status === 'FAILED') {
         return false;
       }
-      return 3000; // Poll every 3 seconds
+      return 1500; // Poll every 1.5s while active
     },
   });
 }

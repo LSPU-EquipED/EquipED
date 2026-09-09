@@ -105,10 +105,10 @@ def create_evaluation(
         )
 
     curriculum_id: uuid.UUID | None = None
-    partial_without_curriculum: bool = bool(req.partial_without_curriculum)
-    partial_reason: str | None = (
-        "Curriculum alignment omitted." if partial_without_curriculum else None
-    )
+    # Single-agent evaluations are 100% complete for the targeted domain.
+    # The legacy partial mode is deprecated.
+    partial_without_curriculum: bool = False
+    partial_reason: str | None = None
 
     if target_agent == "coordinator":
         if req.curriculum_id is None:
