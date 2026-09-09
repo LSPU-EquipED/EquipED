@@ -115,30 +115,37 @@ export function EvaluationConfirmModal({
         <div className="space-y-4 px-5 py-4">
           <p className="text-xs leading-relaxed text-text-muted">{meta.requirement}</p>
 
-          <div>
-            <label
-              htmlFor="targeted-eval-program"
-              className="text-xs font-bold uppercase tracking-wider text-text"
-            >
-              Confirmed Program
-            </label>
-            <select
-              id="targeted-eval-program"
-              value={program}
-              onChange={(event) => {
-                setProgram(event.target.value);
-                setCurriculumId(null);
-              }}
-              className="mt-1.5 h-9 w-full rounded-xs border border-input bg-surface px-2.5 text-sm font-medium text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="">Select program</option>
-              {CANONICAL_PROGRAMS.map((option) => (
-                <option key={option} value={option}>
-                  {option === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
-                </option>
-              ))}
-            </select>
-          </div>
+          {detectedProgram && isLspuSccProgram(detectedProgram) && !meta.requiresCurriculum ? (
+            <div className="flex items-center justify-between rounded-xs border border-border bg-surface-subtle px-3 py-2 text-xs">
+              <span className="text-text-muted font-medium">Assigned Program</span>
+              <Badge variant="info">{normalizeProgram(program)}</Badge>
+            </div>
+          ) : (
+            <div>
+              <label
+                htmlFor="targeted-eval-program"
+                className="text-xs font-bold uppercase tracking-wider text-text"
+              >
+                {meta.requiresCurriculum ? 'Curriculum Degree Program *' : 'Academic Program *'}
+              </label>
+              <select
+                id="targeted-eval-program"
+                value={program}
+                onChange={(event) => {
+                  setProgram(event.target.value);
+                  setCurriculumId(null);
+                }}
+                className="mt-1.5 h-9 w-full rounded-xs border border-input bg-surface px-2.5 text-sm font-medium text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+              >
+                <option value="">Select program</option>
+                {CANONICAL_PROGRAMS.map((option) => (
+                  <option key={option} value={option}>
+                    {option === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {meta.requiresCurriculum ? (
             <div>

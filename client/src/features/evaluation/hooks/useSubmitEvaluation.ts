@@ -29,6 +29,8 @@ export function useSubmitEvaluation() {
       void queryClient.invalidateQueries({ queryKey: ['history'] });
       void queryClient.invalidateQueries({ queryKey: ['documents'] });
       void queryClient.invalidateQueries({ queryKey: ['latest-evaluations'] });
+      void queryClient.invalidateQueries({ queryKey: ['specialist-evaluations'] });
+      void queryClient.invalidateQueries({ queryKey: ['specialist-results'] });
     },
   });
 }

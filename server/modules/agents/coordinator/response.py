@@ -696,11 +696,22 @@ def parse_and_validate_envelope_response(
                         "'reasoning' must be a string"
                     )
                 if is_aligned is True:
+                    cleaned_excerpt = (
+                        excerpt.strip() if isinstance(excerpt, str) else ""
+                    )
                     matched_assessment = (
-                        _find_verbatim_substring(excerpt, curriculum_context)
-                        if isinstance(excerpt, str) and excerpt.strip()
+                        _find_verbatim_substring(cleaned_excerpt, curriculum_context)
+                        if cleaned_excerpt
                         else None
                     )
+                    if matched_assessment is None and cleaned_excerpt:
+                        # Fallback: the excerpt may quote an objective from the
+                        # SLM source packet rather than the curriculum text.
+                        # _find_verbatim_substring already tolerates minor
+                        # punctuation/casing drift via word-level matching.
+                        matched_assessment = _find_verbatim_substring(
+                            cleaned_excerpt, source_packet
+                        )
                     if (
                         matched_assessment is not None
                         and GAP_MARKER.strip() not in matched_assessment

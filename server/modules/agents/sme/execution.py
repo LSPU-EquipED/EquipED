@@ -8,12 +8,18 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import ResponseContract
-from server.modules.rubrics.contracts import CriterionDefinition
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    LlmRubricGuidanceConfig,
+    RatioBandConfig,
+)
 
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..runtime.llm import RunLLMClient, error_reference
 from ..runtime.prompts import AgentPrompt, build_diagnostic_repair_prompt
+from ..runtime.slicing import GAP_MARKER
 from .prompt import build_envelope_prompt_and_source
 from .response import (
     build_envelope_schema,
@@ -22,6 +28,62 @@ from .response import (
 from .scoring import score_envelope
 
 logger = logging.getLogger(__name__)
+
+_FALLBACK_EXPLANATION = (
+    "Evaluation unverified: LLM output could not be grounded in source text"
+)
+
+
+def _fallback_evidence(source_packet: str, max_chars: int = 500) -> str:
+    """Return a safe grounded snippet covering fallback measurements."""
+    for segment in (source_packet or "").split(GAP_MARKER):
+        cleaned = segment.replace(GAP_MARKER.strip(), " ").strip()
+        if cleaned:
+            return cleaned[:max_chars].strip() or cleaned[:max_chars]
+    return "Source text unavailable for grounding."
+
+
+def _build_fallback_parsed(
+    criteria: tuple[CriterionDefinition, ...],
+    source_packet: str,
+) -> dict[str, Any]:
+    """Build baseline measurements covering every envelope criterion."""
+    evidence = _fallback_evidence(source_packet)
+    measurements: list[dict[str, Any]] = []
+    for crit in criteria:
+        config = crit.strategy_config
+        base: dict[str, Any] = {
+            "criterion_id": crit.criterion_code,
+            "criterion_title": crit.title,
+        }
+        if isinstance(config, LlmRubricGuidanceConfig):
+            measurements.append(
+                {
+                    **base,
+                    "score": 1,
+                    "evidence": evidence,
+                    "reasoning": _FALLBACK_EXPLANATION,
+                }
+            )
+        elif isinstance(config, CountBandConfig):
+            measurements.append(
+                {**base, "instances": [], "summary": _FALLBACK_EXPLANATION}
+            )
+        elif isinstance(config, RatioBandConfig):
+            measurements.append(
+                {
+                    **base,
+                    "total_units": [],
+                    "qualifying_unit_ids": [],
+                    "has_measurable_content": False,
+                    "summary": _FALLBACK_EXPLANATION,
+                }
+            )
+        else:
+            measurements.append(
+                {**base, "instances": [], "summary": _FALLBACK_EXPLANATION}
+            )
+    return {"summary": _FALLBACK_EXPLANATION, "criterion_measurements": measurements}
 
 
 def execute_envelope(
@@ -102,9 +164,20 @@ def execute_envelope(
             deadline=req_deadline,
             response_contract=contract,
         )
-        parsed = parse_and_validate_envelope_response(
-            repaired_completion.content, criteria, source_packet
-        )
+        try:
+            parsed = parse_and_validate_envelope_response(
+                repaired_completion.content, criteria, source_packet
+            )
+        except AgentExecutionError as second_exc:
+            if "invalid JSON" in str(second_exc) or "JSON" in str(second_exc):
+                raise
+            logger.warning(
+                "[SME_FALLBACK] envelope=%d category=%s reference=%s",
+                envelope_idx,
+                type(second_exc).__name__,
+                error_reference(second_exc),
+            )
+            parsed = _build_fallback_parsed(criteria, source_packet)
         repair_occurred = True
 
     if parsed is None:
