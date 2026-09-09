@@ -6,6 +6,7 @@ import {
   ClipboardText,
   FileText,
   MagnifyingGlass,
+  Spinner,
   Warning,
 } from '@phosphor-icons/react';
 import { TARGET_AGENT_META, isTargetAgent } from '@/shared/types/evaluations';
@@ -59,7 +60,7 @@ export function EvaluationHistoryTable() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data, isLoading, isError } = useEvaluationHistory({
+  const { data, isLoading, isFetching, isError } = useEvaluationHistory({
     status: status !== 'all' ? status : undefined,
     target_agent: role,
     page,
@@ -186,14 +187,21 @@ export function EvaluationHistoryTable() {
               />
             </div>
 
-            <span className="text-xs text-text-muted tabular-nums font-semibold whitespace-nowrap">
-              {isLoading && !data
-                ? 'Loading…'
-                : `${total} evaluation${total === 1 ? '' : 's'} found`}
-            </span>
+            <div className="flex items-center gap-2.5">
+              {isFetching && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-info font-medium">
+                  <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
+                  <span>Loading…</span>
+                </span>
+              )}
+              <span className="text-xs text-text-muted tabular-nums font-semibold whitespace-nowrap">
+                {isLoading && !data
+                  ? 'Loading…'
+                  : `${total} evaluation${total === 1 ? '' : 's'} found`}
+              </span>
+            </div>
           </div>
         </div>
-
         {/* Table Body */}
         <div className="overflow-x-auto">
           {isLoading && !data ? (
@@ -231,29 +239,36 @@ export function EvaluationHistoryTable() {
             />
           ) : !isError && (!data || data.items.length === 0) ? (
             <div className="px-6 py-16 text-center text-sm text-text-muted">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <ClipboardText className="size-6 text-text-muted/60" aria-hidden="true" />
-                <p className="font-semibold text-text">
-                  {hasActiveFilters ? 'No evaluations match your filters' : 'No evaluations yet'}
-                </p>
-                <p className="text-xs text-text-muted max-w-sm">
-                  {hasActiveFilters
-                    ? 'Try resetting your role or status filter to see other evaluation runs.'
-                    : 'Evaluations will appear here once you run one from SLM Storage or the specialist workspaces.'}
-                </p>
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
-                  >
-                    Reset Filters
-                  </button>
-                )}
-              </div>
+              {isFetching ? (
+                <div className="flex flex-col items-center justify-center gap-2" role="status" aria-label="Loading evaluation history">
+                  <Spinner className="size-6 text-primary animate-spin" aria-hidden="true" />
+                  <p className="text-xs font-semibold text-text">Loading evaluations…</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <ClipboardText className="size-6 text-text-muted/60" aria-hidden="true" />
+                  <p className="font-semibold text-text">
+                    {hasActiveFilters ? 'No evaluations match your filters' : 'No evaluations yet'}
+                  </p>
+                  <p className="text-xs text-text-muted max-w-sm">
+                    {hasActiveFilters
+                      ? 'Try resetting your role or status filter to see other evaluation runs.'
+                      : 'Evaluations will appear here once you run one from SLM Storage or the specialist workspaces.'}
+                  </p>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="mt-2 text-xs font-semibold text-primary hover:underline cursor-pointer"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <table className={TABLE_STYLES.table}>
+            <table className={cn(TABLE_STYLES.table, isFetching && 'opacity-60 transition-opacity')}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
                   <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
