@@ -8,6 +8,7 @@ import {
   adminNavGroups,
   facultyNavGroups,
   facultySecondaryNavItems,
+  filterFacultyNavGroups,
   getAriaCurrent,
   getSidebarInertState,
   isNavigationActive,
@@ -198,7 +199,7 @@ export function Sidebar({
           <>
             {/* Grouped Faculty Navigation */}
             <nav aria-label="Faculty Navigation" className="grid gap-3 px-3">
-              {facultyNavGroups.map((group, groupIdx) => (
+              {filterFacultyNavGroups(facultyNavGroups, user?.evaluatorPermissions).map((group, groupIdx) => (
                 <div key={group.id} className="grid gap-1">
                   {collapsed && groupIdx > 0 ? (
                     <div

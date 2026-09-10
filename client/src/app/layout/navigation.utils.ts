@@ -72,6 +72,43 @@ export const facultyNavGroups: readonly NavGroup[] = [
 
 export const facultySecondaryNavItems: readonly NavItem[] = [] as const;
 
+export function filterFacultyNavGroups(
+  groups: readonly NavGroup[],
+  permissions?: readonly string[] | null,
+): readonly NavGroup[] {
+  if (
+    permissions === undefined ||
+    permissions === null ||
+    permissions.length === 0
+  ) {
+    return groups;
+  }
+
+  const SPECIALIST_PERMS: Record<string, string> = {
+    '/specialists/sme': 'sme',
+    '/specialists/coordinator': 'coordinator',
+    '/specialists/gad': 'gad',
+    '/specialists/itso': 'itso',
+  };
+
+  return groups
+    .map((group) => {
+      if (group.id !== 'specialists') {
+        return group;
+      }
+      const filteredItems = group.items.filter((item) => {
+        const requiredPerm = SPECIALIST_PERMS[item.to];
+        if (!requiredPerm) return true;
+        return permissions.includes(requiredPerm);
+      });
+      return {
+        ...group,
+        items: filteredItems,
+      };
+    })
+    .filter((group) => group.items.length > 0);
+}
+
 export const adminNavGroups: readonly NavGroup[] = [
   {
     id: 'overview',

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, Link } from '@tanstack/react-router';
 import {
   CaretLeft,
@@ -53,12 +53,41 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-export function EvaluationHistoryTable() {
+export interface EvaluationHistoryTableProps {
+  evaluatorPermissions?: readonly string[] | null;
+  userRole?: string;
+}
+
+export function EvaluationHistoryTable({
+  evaluatorPermissions,
+  userRole = 'faculty',
+}: EvaluationHistoryTableProps = {}) {
+  const allowedRoleTabs = useMemo(() => {
+    if (
+      userRole === 'admin' ||
+      evaluatorPermissions === undefined ||
+      evaluatorPermissions === null ||
+      evaluatorPermissions.length === 0
+    ) {
+      return ROLE_TABS;
+    }
+    return ROLE_TABS.filter((tab) => evaluatorPermissions.includes(tab.id));
+  }, [userRole, evaluatorPermissions]);
+
+  const defaultRole = allowedRoleTabs[0]?.id ?? 'sme';
   const [status, setStatus] = useState('all');
-  const [role, setRole] = useState<string>('sme');
+  const [role, setRole] = useState<string>(defaultRole);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Keep selected role in sync if permissions filter changes or current role is not allowed
+  useEffect(() => {
+    if (allowedRoleTabs.length > 0 && !allowedRoleTabs.some((tab) => tab.id === role)) {
+      setRole(allowedRoleTabs[0].id);
+      setPage(1);
+    }
+  }, [allowedRoleTabs, role]);
 
   const { data, isLoading, isFetching, isError } = useEvaluationHistory({
     status: status !== 'all' ? status : undefined,
@@ -87,14 +116,16 @@ export function EvaluationHistoryTable() {
   };
 
   const hasActiveFilters =
-    status !== 'all' || role !== 'sme' || search.trim().length > 0;
+    status !== 'all' || role !== defaultRole || search.trim().length > 0;
 
   const resetFilters = () => {
     setStatus('all');
-    setRole('sme');
+    setRole(defaultRole);
     setSearch('');
     setPage(1);
   };
+
+
   return (
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
       {/* Error alert */}
@@ -113,7 +144,7 @@ export function EvaluationHistoryTable() {
           role="tablist"
           aria-label="Filter evaluations by specialist role"
         >
-          {ROLE_TABS.map((tab) => {
+          {allowedRoleTabs.map((tab) => {
             const isActive = role === tab.id;
             return (
               <button

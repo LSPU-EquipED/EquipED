@@ -51,10 +51,10 @@ describe('EvaluationHistoryTable Component', () => {
     vi.restoreAllMocks();
   });
 
-  function renderTable() {
+  function renderTable(props?: Parameters<typeof EvaluationHistoryTable>[0]) {
     return render(
       <QueryClientProvider client={queryClient}>
-        <EvaluationHistoryTable />
+        <EvaluationHistoryTable {...props} />
       </QueryClientProvider>,
     );
   }
@@ -218,5 +218,45 @@ describe('EvaluationHistoryTable Component', () => {
         `Found cross-feature import in ${file}`,
       ).toBe(false);
     }
+  });
+
+  it('filters role tabs and defaults target_agent query to permitted evaluator desks', () => {
+    const useHistorySpy = vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 10 },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable({ evaluatorPermissions: ['coordinator'] });
+
+    // Only Program Coordinator tab should be present
+    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
+    expect(screen.queryByRole('tab', { name: 'Subject Matter Expert' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Gender & Development' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeNull();
+
+    // Query was triggered for coordinator
+    expect(useHistorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target_agent: 'coordinator',
+      }),
+    );
+  });
+
+  it('shows all role tabs when faculty has empty permissions (unrestricted default)', () => {
+    renderTable({ evaluatorPermissions: [], userRole: 'faculty' });
+
+    expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeDefined();
+  });
+  it('shows all role tabs for admin user even if permissions are empty', () => {
+    renderTable({ evaluatorPermissions: [], userRole: 'admin' });
+
+    expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeDefined();
   });
 });

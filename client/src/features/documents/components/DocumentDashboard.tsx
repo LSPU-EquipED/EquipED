@@ -4,6 +4,7 @@ import { CheckCircle, FileText, Warning } from '@phosphor-icons/react';
 
 import { getErrorMessage } from '@/shared/api/http';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
+import type { TargetAgent } from '@/shared/types/evaluations';
 import { useSlmStorage } from '../hooks/useSlmStorage';
 import { StorageMetricsStrip } from './StorageMetricsStrip';
 import { StorageToolbar } from './StorageToolbar';
@@ -12,7 +13,7 @@ import { DocumentPagination } from './DocumentPagination';
 import { ModuleInspectorDrawer } from './ModuleInspectorDrawer';
 import { StorageUploadModal } from './StorageUploadModal';
 
-export function DocumentDashboard() {
+export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: TargetAgent }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -147,6 +148,7 @@ export function DocumentDashboard() {
               flashId={flashId}
               latestEvalsByDocId={latestEvalsByDocId}
               latestEvalsState={latestEvalsState}
+              targetAgent={targetAgent}
               onInspect={(doc) => setInspectingDoc(doc)}
             />
           ) : null}

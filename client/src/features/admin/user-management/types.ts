@@ -10,6 +10,8 @@ export interface AdminUserResponse {
   program?: string | null;
   approved_at?: string | null;
   reviewed_at?: string | null;
+  evaluator_permissions?: string[];
+  evaluatorPermissions?: string[];
   created_at: string;
 }
 
@@ -23,6 +25,7 @@ export interface AdminUserCreateBody {
   email: string;
   password: string;
   role: 'admin' | 'faculty';
+  evaluator_permissions?: string[];
 }
 
 export interface AdminUserUpdateBody {
@@ -30,4 +33,5 @@ export interface AdminUserUpdateBody {
   email?: string;
   is_active?: boolean;
   account_status?: AdminUserResponse['account_status'];
+  evaluator_permissions?: string[];
 }

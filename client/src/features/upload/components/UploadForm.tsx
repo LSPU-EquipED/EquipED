@@ -5,6 +5,7 @@ import { ArrowRight, GraduationCap, Spinner } from '@phosphor-icons/react';
 import { useUploadDocument } from '@/features/upload/hooks/useUploadDocument';
 import { Button } from '@/shared/components/Button';
 import type { DocumentUploadResponse } from '@/shared/types/documents';
+import type { TargetAgent } from '@/shared/types/evaluations';
 import {
   isFailedStatus,
   isPdfFile,
@@ -28,9 +29,10 @@ function titleFromFilename(filename: string): string {
 }
 interface UploadFormProps {
   user?: { displayName?: string } | null;
+  targetAgent?: TargetAgent;
 }
 
-export function UploadForm({ user }: UploadFormProps = {}) {
+export function UploadForm({ user, targetAgent = 'sme' }: UploadFormProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { uploadDocument, isLoading, errorMessage, setData: resetUpload } = useUploadDocument();
@@ -133,7 +135,7 @@ export function UploadForm({ user }: UploadFormProps = {}) {
         void queryClient.invalidateQueries({ queryKey: ['documents'] });
         void navigate({
           to: '/specialists/$agentId/$documentId',
-          params: { agentId: 'sme', documentId: result.documentId },
+          params: { agentId: targetAgent, documentId: result.documentId },
         });
       }
     } catch {

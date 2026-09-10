@@ -135,4 +135,63 @@ describe('appRouter configuration and route splitting', () => {
     } as any);
     expect(result).toBeUndefined();
   });
+
+  it('enforces specialist evaluator permissions on specialist route guards', async () => {
+    const specialistRoute = appRouter.routesById['/shell/specialists/$agentId'];
+    expect(specialistRoute.options.beforeLoad).toBeTypeOf('function');
+
+    const baseContext = (perms?: string[]): AppRouterContext => ({
+      queryClient: appRouter.options.context.queryClient,
+      auth: {
+        status: 'authenticated',
+        source: 'server',
+        ready: true,
+        error: null,
+        user: {
+          id: 'faculty-1',
+          displayName: 'Faculty User',
+          role: 'faculty',
+          email: 'faculty@lspu.edu.ph',
+          evaluatorPermissions: perms,
+        },
+        login: async () => undefined,
+        logout: async () => undefined,
+        refresh: async () => undefined,
+        clearError: () => undefined,
+      },
+    });
+
+    type RouteBeforeLoadFn = (args: { context: AppRouterContext; params: Record<string, string> }) => unknown;
+    const beforeLoad = specialistRoute.options.beforeLoad as unknown as RouteBeforeLoadFn;
+
+    // Allowed when user has the specific specialist permission
+    const allowedResult = await beforeLoad({
+      context: baseContext(['sme']),
+      params: { agentId: 'sme' },
+    });
+    expect(allowedResult).toBeUndefined();
+
+    // Redirected to /dashboard when user lacks the specific specialist permission
+    let deniedTarget: string | undefined;
+    try {
+      await beforeLoad({
+        context: baseContext(['sme']),
+        params: { agentId: 'coordinator' },
+      });
+    } catch (err: unknown) {
+      if (err && typeof err === 'object') {
+        const errRecord = err as Record<string, unknown>;
+        const options = errRecord.options as Record<string, unknown> | undefined;
+        deniedTarget = typeof options?.to === 'string' ? options.to : (errRecord.to as string | undefined);
+      }
+    }
+    expect(deniedTarget).toBe('/dashboard');
+
+    // Allowed when permissions are unspecified (backward compatibility)
+    const legacyResult = await beforeLoad({
+      context: baseContext(undefined),
+      params: { agentId: 'coordinator' },
+    });
+    expect(legacyResult).toBeUndefined();
+  });
 });

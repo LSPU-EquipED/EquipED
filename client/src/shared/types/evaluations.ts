@@ -12,6 +12,7 @@ export interface LatestEvaluationItem {
   document_id: string;
   evaluation_id: string;
   status: string;
+  target_agent?: TargetAgent | 'all';
   submitted_at: string;
   completed_at?: string | null;
   error_message?: string | null;

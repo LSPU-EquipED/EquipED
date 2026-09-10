@@ -210,6 +210,46 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 <option value="admin">Admin</option>
               </select>
             </div>
+            {formData.role === 'faculty' && (
+              <div className="space-y-2 pt-1 border-t border-border">
+                <span className="text-xs font-semibold uppercase tracking-wider text-text-muted block">
+                  Evaluator Permissions (Optional)
+                </span>
+                <p className="text-[11px] text-text-muted">
+                  Assign which specialist desks this faculty member can evaluate (if none selected, all desks remain accessible):
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { id: 'sme', label: 'Subject Matter Expert (SME)' },
+                    { id: 'coordinator', label: 'Program Coordinator (PC)' },
+                    { id: 'gad', label: 'Gender & Development (GAD)' },
+                    { id: 'itso', label: 'Innovation & IP (ITSO)' },
+                  ].map((spec) => {
+                    const isChecked = (formData.evaluator_permissions || []).includes(spec.id);
+                    return (
+                      <label
+                        key={spec.id}
+                        className="flex items-center gap-2 rounded-xs border border-border bg-surface-subtle p-2.5 hover:border-primary/50 cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const cur = formData.evaluator_permissions || [];
+                            const next = e.target.checked
+                              ? [...cur, spec.id]
+                              : cur.filter((x) => x !== spec.id);
+                            setFormData((prev) => ({ ...prev, evaluator_permissions: next }));
+                          }}
+                          className="accent-primary"
+                        />
+                        <span className="font-semibold text-text text-[11px]">{spec.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {createUser.isError ? (
               <div className="rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-sm text-destructive font-semibold">

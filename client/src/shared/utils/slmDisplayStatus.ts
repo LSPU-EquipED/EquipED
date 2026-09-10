@@ -1,5 +1,9 @@
 import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import {
+  isTargetAgent,
+  type LatestEvaluationItem,
+  type TargetAgent,
+} from '@/shared/types/evaluations';
 
 export type SlmDisplayActionType =
   | 'view_progress'
@@ -65,8 +69,15 @@ export function getSlmDisplayStatus(
   document: Pick<ClientDocument, 'documentId' | 'title' | 'processingStatus'>,
   latestEval: LatestEvaluationItem | undefined,
   queryState: SlmStatusQueryState = {},
+  targetAgent: TargetAgent = 'sme',
 ): SlmDisplayStatus {
   const { processingStatus, documentId, title } = document;
+  const existingEvaluationUrl =
+    latestEval?.target_agent === 'all'
+      ? `/evaluations/${latestEval.evaluation_id}`
+      : isTargetAgent(latestEval?.target_agent)
+        ? `/specialists/${latestEval.target_agent}/${documentId}`
+        : null;
 
   // Precedence 1: Document is PENDING/PROCESSING/CLEANUP_PENDING => Processing
   if (isProcessingDocumentStatus(processingStatus)) {
@@ -137,10 +148,10 @@ export function getSlmDisplayStatus(
         badgeLabel: 'Evaluating',
         badgeClass: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
         showSpinner: true,
-        isClickable: true,
+        isClickable: existingEvaluationUrl !== null,
         actionType: 'view_progress',
         actionLabel: 'View Progress',
-        actionUrl: `/specialists/sme/${documentId}`,
+        actionUrl: existingEvaluationUrl,
         ariaLabel: `View evaluation progress for ${title}`,
       };
     }
@@ -151,10 +162,10 @@ export function getSlmDisplayStatus(
         badgeLabel: 'Evaluation Failed',
         badgeClass: 'bg-[#b91c1c]/10 text-[#b91c1c] border border-[#b91c1c]/30',
         showSpinner: false,
-        isClickable: true,
+        isClickable: existingEvaluationUrl !== null,
         actionType: 'inspect_failure',
         actionLabel: 'Inspect Evaluation',
-        actionUrl: `/specialists/sme/${documentId}`,
+        actionUrl: existingEvaluationUrl,
         ariaLabel: `Inspect evaluation for ${title}`,
       };
     }
@@ -165,16 +176,16 @@ export function getSlmDisplayStatus(
         badgeLabel: 'Evaluated',
         badgeClass: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
         showSpinner: false,
-        isClickable: true,
+        isClickable: existingEvaluationUrl !== null,
         actionType: 'view_results',
         actionLabel: 'Open Evaluation',
-        actionUrl: `/specialists/sme/${documentId}`,
+        actionUrl: existingEvaluationUrl,
         ariaLabel: `Open evaluation for ${title}`,
       };
     }
   }
 
-  // Precedence 6: Processed + no eval after successful batch response => Ready to Evaluate -> /specialists/sme/$documentId
+  // Precedence 6: Processed + no eval after successful batch response => Ready to Evaluate.
   return {
     badgeLabel: 'Ready to Evaluate',
     badgeClass: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
@@ -182,7 +193,7 @@ export function getSlmDisplayStatus(
     isClickable: true,
     actionType: 'start_evaluation',
     actionLabel: 'Evaluate',
-    actionUrl: `/specialists/sme/${documentId}`,
+    actionUrl: `/specialists/${targetAgent}/${documentId}`,
     ariaLabel: `Start evaluation for ${title}`,
   };
 }

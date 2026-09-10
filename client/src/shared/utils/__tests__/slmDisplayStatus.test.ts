@@ -66,13 +66,14 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
       document_id: 'doc-123',
       evaluation_id: 'eval-active-1',
       status: 'EVALUATING',
+      target_agent: 'coordinator',
       submitted_at: '2026-08-21T10:00:00Z',
     };
     const status = getSlmDisplayStatus(baseDoc, activeEval, { isSuccess: true });
     expect(status.badgeLabel).toBe('Evaluating');
     expect(status.actionType).toBe('view_progress');
     expect(status.actionLabel).toBe('View Progress');
-    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
+    expect(status.actionUrl).toBe('/specialists/coordinator/doc-123');
     expect(status.isClickable).toBe(true);
     expect(status.showSpinner).toBe(true);
 
@@ -94,6 +95,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
       document_id: 'doc-123',
       evaluation_id: 'eval-fail-1',
       status: 'FAILED',
+      target_agent: 'gad',
       submitted_at: '2026-08-21T09:00:00Z',
       error_message: 'Agent timeout',
     };
@@ -101,7 +103,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Evaluation Failed');
     expect(status.actionType).toBe('inspect_failure');
     expect(status.actionLabel).toBe('Inspect Evaluation');
-    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
+    expect(status.actionUrl).toBe('/specialists/gad/doc-123');
     expect(status.isClickable).toBe(true);
   });
 
@@ -110,6 +112,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
       document_id: 'doc-123',
       evaluation_id: 'eval-done-1',
       status: 'COMPLETED',
+      target_agent: 'itso',
       submitted_at: '2026-08-20T11:00:00Z',
       completed_at: '2026-08-20T11:05:00Z',
     };
@@ -117,7 +120,7 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     expect(status.badgeLabel).toBe('Evaluated');
     expect(status.actionType).toBe('view_results');
     expect(status.actionLabel).toBe('Open Evaluation');
-    expect(status.actionUrl).toBe('/specialists/sme/doc-123');
+    expect(status.actionUrl).toBe('/specialists/itso/doc-123');
     expect(status.isClickable).toBe(true);
 
     const partialEval: LatestEvaluationItem = {
@@ -127,8 +130,29 @@ describe('getSlmDisplayStatus - Truthful Display Precedence', () => {
     const partialStatus = getSlmDisplayStatus(baseDoc, partialEval, { isSuccess: true });
     expect(partialStatus.badgeLabel).toBe('Evaluated');
     expect(partialStatus.actionLabel).toBe('Open Evaluation');
-    expect(partialStatus.actionUrl).toBe('/specialists/sme/doc-123');
+    expect(partialStatus.actionUrl).toBe('/specialists/itso/doc-123');
   });
+
+  it.each(['EVALUATING', 'FAILED', 'COMPLETED'] as const)(
+    'routes an all-domain %s evaluation to its historical scorecard',
+    (evaluationStatus) => {
+      const status = getSlmDisplayStatus(
+        baseDoc,
+        {
+          document_id: 'doc-123',
+          evaluation_id: 'eval-all-1',
+          status: evaluationStatus,
+          target_agent: 'all',
+          submitted_at: '2026-08-20T11:00:00Z',
+        },
+        { isSuccess: true },
+        'coordinator',
+      );
+
+      expect(status.actionUrl).toBe('/evaluations/eval-all-1');
+      expect(status.isClickable).toBe(true);
+    },
+  );
 
   it('Precedence 6: returns Ready to Evaluate and links to workspace when processed with no eval after batch loads', () => {
     const status = getSlmDisplayStatus(baseDoc, undefined, { isSuccess: true });
