@@ -485,7 +485,8 @@ export function SpecialistExportDownloadButton({
   domainData: explicitDomainData,
   agentId,
   className,
-}: ExportDocumentProps & { className?: string }) {
+  variant = 'secondary',
+}: ExportDocumentProps & { className?: string; variant?: 'primary' | 'secondary' | 'outline' }) {
   const domainData = getExportDomainData({ domainData: explicitDomainData, agentId });
   const [isDownloading, setIsDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -512,10 +513,10 @@ export function SpecialistExportDownloadButton({
     <div className="inline-flex flex-col items-start gap-1">
       <Button
         type="button"
-        variant="primary"
+        variant={variant}
         size="sm"
         aria-label={`Download PDF - ${agentLabel} Scorecard`}
-        className={cn('gap-1.5 font-bold uppercase tracking-wider text-xs h-8.5 px-3.5', className)}
+        className={cn('gap-1.5 font-semibold text-xs h-8.5 px-3', className)}
         onClick={handleDownload}
         disabled={isDownloading}
       >

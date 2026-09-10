@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query';
 import { Scorecard } from '../Scorecard';
@@ -7,7 +7,9 @@ import { evaluationApi } from '../../api/evaluation.api';
 import * as useEvaluationModule from '../../hooks/useEvaluationStatus';
 import type { EvaluationResponse, EvaluationResultsResponse } from '../../types';
 
+const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
   useParams: () => ({ id: 'eval-123' }),
   Outlet: () => null,
 }));
@@ -15,9 +17,21 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('../../api/evaluation.api', () => ({
   evaluationApi: {
     getEvaluationResults: vi.fn(),
+    submitEvaluation: vi.fn(),
+    submitCriterionFeedback: vi.fn(),
   },
 }));
 
+vi.mock('@/shared/api/documents.api', () => ({
+  documentsApi: {
+    getCurriculumSuggestion: vi.fn().mockResolvedValue({
+      documentId: 'doc-456',
+      detectedProgram: 'BSCS',
+      selectedProgram: 'BSCS',
+      curriculumSuggestions: [],
+    }),
+  },
+}));
 vi.mock('../ScorecardPdfExport', () => ({
   ScorecardPdfExport: () => <button type="button">Export PDF Mock</button>,
 }));
@@ -279,5 +293,203 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     // Confirms 2-column multi-domain sidebar is collapsed
     expect(screen.queryByLabelText('Executive Dossier & Review Domains')).toBeNull();
     expect(screen.getByRole('button', { name: /Review & Correct Scores/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Re-evaluate/i })).toBeDefined();
+    expect(screen.getByText(/All developers must verify their code/i)).toBeDefined();
+    expect(screen.getByText(/Inclusive language throughout/i)).toBeDefined();
+  });
+
+  it('opens AgentReviewModal when clicking "Review & Correct Scores"', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-gad-789',
+        document_id: 'doc-456',
+        status: 'COMPLETED',
+        target_agent: 'gad',
+        submitted_at: '2026-08-20T10:00:00Z',
+      } as unknown as EvaluationResponse,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<EvaluationResponse, Error>);
+
+    const mockResults: EvaluationResultsResponse = {
+      evaluation_id: 'eval-gad-789',
+      document_id: 'doc-456',
+      synthesized_score: 3.8,
+      overall_score: 3.8,
+      adjectival_rating: 'Very Satisfactory',
+      active_agents: ['gad'],
+      failed_agents: [],
+      is_partial: true,
+      evaluation_status: 'COMPLETED',
+      domain_scores: {
+        gad: {
+          subtotal: 3.8,
+          max_score: 4,
+          status: 'OK',
+          adjectival_rating: 'Very Satisfactory',
+          criteria: [
+            {
+              criterion_id: 'GAD-01',
+              criterion_text: 'Gender-Fair Language & Terms',
+              score: 4,
+              justification: 'Inclusive language throughout.',
+              evidence: 'All developers must verify their code.',
+              is_ungrounded: false,
+            },
+          ],
+        },
+      },
+      flags: [],
+    };
+
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue(mockResults);
+
+    renderScorecard();
+
+    const reviewButton = await screen.findByRole('button', { name: /Review & Correct Scores/i });
+    fireEvent.click(reviewButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Review GAD Scores/i)).toBeDefined();
+    });
+  });
+
+  it('opens EvaluationConfirmModal when clicking "Re-evaluate" and submits a re-run', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-gad-789',
+        document_id: 'doc-456',
+        status: 'COMPLETED',
+        target_agent: 'gad',
+        submitted_at: '2026-08-20T10:00:00Z',
+      } as unknown as EvaluationResponse,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<EvaluationResponse, Error>);
+
+    const mockResults: EvaluationResultsResponse = {
+      evaluation_id: 'eval-gad-789',
+      document_id: 'doc-456',
+      synthesized_score: 3.8,
+      overall_score: 3.8,
+      adjectival_rating: 'Very Satisfactory',
+      active_agents: ['gad'],
+      failed_agents: [],
+      is_partial: true,
+      evaluation_status: 'COMPLETED',
+      domain_scores: {
+        gad: {
+          subtotal: 3.8,
+          max_score: 4,
+          status: 'OK',
+          adjectival_rating: 'Very Satisfactory',
+          criteria: [
+            {
+              criterion_id: 'GAD-01',
+              criterion_text: 'Gender-Fair Language & Terms',
+              score: 4,
+              justification: 'Inclusive language throughout.',
+              evidence: 'All developers must verify their code.',
+              is_ungrounded: false,
+            },
+          ],
+        },
+      },
+      flags: [],
+    };
+
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue(mockResults);
+    vi.mocked(evaluationApi.submitEvaluation).mockResolvedValue({
+      evaluation_id: 'eval-gad-new-999',
+      status: 'SUBMITTED',
+      document_id: 'doc-456',
+      submitted_at: '2026-09-11T00:00:00Z',
+    });
+
+    renderScorecard();
+
+    const reevaluateButton = await screen.findByRole('button', { name: /Re-evaluate/i });
+    fireEvent.click(reevaluateButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Confirm GAD Unit evaluation/i })).toBeDefined();
+      expect(screen.getByText('Confirm Targeted Evaluation')).toBeDefined();
+    });
+
+    const submitBtn = screen.getByRole('button', { name: /Run GAD Evaluation/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(evaluationApi.submitEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          document_id: 'doc-456',
+          target_agent: 'gad',
+        }),
+      );
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: '/evaluations/$id',
+        params: { id: 'eval-gad-new-999' },
+      });
+    });
+  });
+
+  it('renders reviewer correction override callouts with score and justification', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-gad-789',
+        document_id: 'doc-456',
+        status: 'COMPLETED',
+        target_agent: 'gad',
+        submitted_at: '2026-08-20T10:00:00Z',
+      } as unknown as EvaluationResponse,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<EvaluationResponse, Error>);
+
+    const mockResults: EvaluationResultsResponse = {
+      evaluation_id: 'eval-gad-789',
+      document_id: 'doc-456',
+      synthesized_score: 3.8,
+      overall_score: 3.8,
+      adjectival_rating: 'Very Satisfactory',
+      active_agents: ['gad'],
+      failed_agents: [],
+      is_partial: true,
+      evaluation_status: 'COMPLETED',
+      domain_scores: {
+        gad: {
+          subtotal: 3.8,
+          max_score: 4,
+          status: 'OK',
+          adjectival_rating: 'Very Satisfactory',
+          criteria: [
+            {
+              criterion_id: 'GAD-01',
+              criterion_text: 'Gender-Fair Language & Terms',
+              score: 2,
+              justification: 'Some concerns flagged.',
+              evidence: 'Some sample text.',
+              is_ungrounded: false,
+              reviewer_correction: {
+                action: 'EDIT',
+                score: 4,
+                justification: 'Approved upon manual verification.',
+              },
+            },
+          ],
+        },
+      },
+      flags: [],
+    };
+
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue(mockResults);
+
+    renderScorecard();
+
+    await waitFor(() => {
+      expect(screen.getByText('Authoritative CID Human Override Applied')).toBeDefined();
+      expect(screen.getByText('Override Score: 4 / 4')).toBeDefined();
+      expect(screen.getByText(/Approved upon manual verification/i)).toBeDefined();
+    });
   });
 });
