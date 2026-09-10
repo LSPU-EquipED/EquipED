@@ -6,12 +6,19 @@ import copy
 import uuid
 from typing import Any
 
+from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document
+from server.modules.synthesis.exceptions import UnsupportedProgramFilterError
 from server.modules.synthesis.models import (
     AgentResult,
     MonitoringMatrix,
 )
-from server.modules.synthesis.schemas import score_to_adjectival
+from server.modules.synthesis.schemas import (
+    MatrixListResponse,
+    MatrixRowItem,
+    score_to_adjectival,
+)
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -393,3 +400,75 @@ def _upsert_failure(
             existing.domain_scores_json = domain_scores
     db.flush()
     return existing
+def get_monitoring_matrix(
+    program: str | None,
+    status: str | None,
+    page: int,
+    page_size: int,
+    db: Any,
+) -> MatrixListResponse:
+    """Assemble the monitoring matrix list response with filtering and pagination.
+
+    Raises ``UnsupportedProgramFilterError`` when the ``program`` filter is
+    not a supported program (so the router can map it to a 422).
+    """
+    query = db.query(MonitoringMatrix)
+
+    if program:
+        canonical_program = canonicalize_supported_program(program)
+        if canonical_program is None:
+            raise UnsupportedProgramFilterError(
+                "Unsupported program filter. Only BSCS and BSInfoTech are "
+                "supported; BSIT is accepted as an alias."
+            )
+        values = [canonical_program]
+        if canonical_program == "BSInfoTech":
+            values.append("BSIT")
+        query = query.filter(
+            func.lower(MonitoringMatrix.program).in_(
+                [value.lower() for value in values]
+            )
+        )
+    if status:
+        query = query.filter(MonitoringMatrix.evaluation_status == status)
+
+    total = query.count()
+    rows = (
+        query.order_by(MonitoringMatrix.last_updated.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    doc_ids = [row.document_id for row in rows]
+    docs = {
+        d.document_id: d
+        for d in db.query(Document).filter(Document.document_id.in_(doc_ids)).all()
+    }
+
+    items = []
+    for row in rows:
+        doc = docs.get(row.document_id)
+        items.append(
+            MatrixRowItem(
+                matrix_id=row.matrix_id,
+                document_id=row.document_id,
+                evaluation_id=row.evaluation_id,
+                faculty_name=row.faculty_name,
+                program=row.program,
+                document_title=doc.title if doc else None,
+                evaluation_status=row.evaluation_status,
+                synthesized_score=float(row.synthesized_score)
+                if row.synthesized_score is not None
+                else None,
+                adjectival_rating=score_to_adjectival(float(row.synthesized_score))
+                if row.synthesized_score is not None
+                else None,
+                domain_scores=row.domain_scores_json,
+                flag_count=row.flag_count,
+                feedback_status=row.feedback_status,
+                last_updated=row.last_updated,
+            )
+        )
+
+    return MatrixListResponse(items=items, total=total, page=page, page_size=page_size)
