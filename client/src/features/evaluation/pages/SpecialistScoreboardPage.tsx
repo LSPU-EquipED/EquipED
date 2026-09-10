@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, Link } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -37,6 +37,7 @@ import {
 } from '../utils/scoreHelpers';
 import { EvaluationConfirmModal } from '../components/EvaluationConfirmModal';
 import { SpecialistExportDownloadButton } from '../components/ExportDocument';
+import { SpecialistQueueSwitcher } from '../components/SpecialistQueueSwitcher';
 
 const ROLE_ICONS: Record<TargetAgent, typeof GraduationCap> = {
   sme: GraduationCap,
@@ -67,6 +68,12 @@ export function SpecialistScoreboardPage({
   const queryClient = useQueryClient();
   const [selectedDocId, setSelectedDocId] = useState<string | null>(routeDocId ?? null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  useEffect(() => {
+    if (routeDocId) {
+      setSelectedDocId(routeDocId);
+    }
+  }, [routeDocId]);
+
 
   // 1. Fetch available processed SLMs from Storage
   const { data: docsData, isLoading: isLoadingDocs } = useQuery({
@@ -80,11 +87,12 @@ export function SpecialistScoreboardPage({
   }, [docsData]);
   // Default to first document if none selected
   const activeDocument = useMemo(() => {
-    if (selectedDocId) {
-      return slmDocuments.find((d) => d.documentId === selectedDocId) ?? null;
+    const currentId = selectedDocId ?? routeDocId;
+    if (currentId) {
+      return slmDocuments.find((d) => d.documentId === currentId) ?? null;
     }
     return slmDocuments[0] ?? null;
-  }, [slmDocuments, selectedDocId]);
+  }, [slmDocuments, selectedDocId, routeDocId]);
 
   const activeDocId = activeDocument?.documentId;
 
@@ -183,24 +191,13 @@ export function SpecialistScoreboardPage({
               >
                 Active SLM:
               </label>
-              {isLoadingDocs ? (
-                <div className="h-9 w-64 animate-pulse rounded-sm bg-surface-subtle border border-border" />
-              ) : slmDocuments.length === 0 ? (
-                <span className="text-xs text-text-muted">No processed SLMs in storage</span>
-              ) : (
-                <select
-                  id="slm-picker"
-                  value={activeDocId ?? ''}
-                  onChange={(e) => handleDocumentChange(e.target.value)}
-                  className="h-9 w-72 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                >
-                  {slmDocuments.map((doc) => (
-                    <option key={doc.documentId} value={doc.documentId}>
-                      {doc.courseCode ? `${doc.courseCode} — ` : ''}{doc.title}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <SpecialistQueueSwitcher
+                id="slm-picker"
+                targetAgent={validAgent}
+                selectedDocumentId={activeDocId}
+                onSelectDocument={handleDocumentChange}
+                fallbackDocuments={slmDocuments}
+              />
             </div>
 
             <Button

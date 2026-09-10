@@ -1,5 +1,5 @@
 import { requestJson } from '@/shared/api/http';
-import type { MatrixListResponse } from '../types';
+import type { MasterSynthesisDetailResponse, MatrixListResponse } from '../types';
 
 export const matrixApi = {
   getMatrix: (
@@ -11,5 +11,8 @@ export const matrixApi = {
     if (params.page) searchParams.set('page', String(params.page));
     if (params.page_size) searchParams.set('page_size', String(params.page_size));
     return requestJson<MatrixListResponse>(`/evaluations/matrix?${searchParams.toString()}`);
+  },
+  getMasterSynthesisDetail: (documentId: string) => {
+    return requestJson<MasterSynthesisDetailResponse>(`/evaluations/matrix/${documentId}`);
   },
 };

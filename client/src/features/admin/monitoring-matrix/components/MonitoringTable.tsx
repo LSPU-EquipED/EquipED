@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  CaretRight,
   CheckCircle,
   FilePdf,
   FileText,
@@ -29,11 +31,11 @@ import {
 import { MatrixFilters } from './MatrixFilters';
 
 export function MonitoringTable() {
+  const navigate = useNavigate();
   const [program, setProgram] = useState('all');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
   const { data, isLoading, isError } = useMonitoringMatrix({
     program: program !== 'all' ? program : undefined,
     status: status !== 'all' ? status : undefined,
@@ -167,7 +169,8 @@ export function MonitoringTable() {
               { label: 'Status', skeletonClassName: 'h-5 w-24' },
               { label: 'Form Revision', skeletonClassName: 'h-4 w-20' },
               { label: 'Rating', skeletonClassName: 'h-4 w-16' },
-              { label: 'Last Updated', headerClassName: 'text-right', skeletonClassName: 'h-4 w-28 ml-auto' },
+              { label: 'Last Updated', skeletonClassName: 'h-4 w-28' },
+              { label: 'Actions', headerClassName: 'text-right', skeletonClassName: 'h-6 w-24 ml-auto' },
             ]}
           />
         ) : null}
@@ -202,7 +205,8 @@ export function MonitoringTable() {
                   <th className={TABLE_STYLES.th}>Status</th>
                   <th className={TABLE_STYLES.th}>Form Revision</th>
                   <th className={TABLE_STYLES.th}>Rating</th>
-                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Last Updated</th>
+                  <th className={TABLE_STYLES.th}>Last Updated</th>
+                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Actions</th>
                 </tr>
               </thead>
               <tbody className={TABLE_STYLES.tbody}>
@@ -210,7 +214,16 @@ export function MonitoringTable() {
                   const rowKey = row.evaluation_id ?? row.matrix_id;
 
                   return (
-                    <tr key={rowKey} className={TABLE_STYLES.tr}>
+                    <tr
+                      key={rowKey}
+                      className={cn(TABLE_STYLES.tr, 'cursor-pointer hover:bg-surface-subtle transition-colors')}
+                      onClick={() => {
+                        navigate?.({
+                          to: '/admin/synthesis/$documentId',
+                          params: { documentId: row.document_id },
+                        });
+                      }}
+                    >
                       {/* SLM Title & Faculty Member */}
                       <td className={cn(TABLE_STYLES.td, 'font-semibold text-text max-w-[22rem]')}>
                         <div className="flex items-start gap-2.5">
@@ -298,8 +311,25 @@ export function MonitoringTable() {
                       </td>
 
                       {/* Last Updated */}
-                      <td className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium whitespace-nowrap text-xs')}>
+                      <td className={cn(TABLE_STYLES.tdData, 'text-text-muted font-medium whitespace-nowrap text-xs')}>
                         {new Date(row.last_updated).toLocaleDateString()}
+                      </td>
+
+                      {/* Actions / Drilldown */}
+                      <td className={cn(TABLE_STYLES.td, 'text-right whitespace-nowrap')}>
+                        <Link
+                          to="/admin/synthesis/$documentId"
+                          params={{ documentId: row.document_id }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xs border border-primary/30 text-primary bg-primary-soft hover:bg-primary hover:text-white transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                          title="View Master Synthesis Scorecard"
+                          data-testid={`view-synthesis-${row.document_id}`}
+                        >
+                          <span>View Synthesis</span>
+                          <CaretRight className="size-3" aria-hidden="true" />
+                        </Link>
                       </td>
                     </tr>
                   );

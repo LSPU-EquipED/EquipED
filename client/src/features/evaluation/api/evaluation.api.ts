@@ -7,6 +7,8 @@ import type {
   EvaluationSubmitRequest,
   CriterionFeedbackRequest,
   CriterionFeedbackResponse,
+  DeskQueueListResponse,
+  TargetAgent,
 } from '../types';
 
 export const evaluationApi = {
@@ -48,5 +50,16 @@ export const evaluationApi = {
         body: JSON.stringify(body),
       },
     );
+  },
+
+  getDeskQueue: async (
+    targetAgent: TargetAgent,
+    program?: string,
+  ): Promise<DeskQueueListResponse> => {
+    const params = new URLSearchParams({ target_agent: targetAgent });
+    if (program) {
+      params.set('program', program);
+     }
+    return requestJson<DeskQueueListResponse>(`/evaluations/desk-queue?${params.toString()}`);
   },
 };
