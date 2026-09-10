@@ -38,6 +38,7 @@ def create_admin_user(
     email: str,
     password: str,
     role: str = "faculty",
+    evaluator_permissions: list[str] | None = None,
 ) -> User:
     """Create a new user via the auth service.
 
@@ -51,6 +52,7 @@ def create_admin_user(
         password=password,
         role=user_role,
         is_active=True,
+        evaluator_permissions=evaluator_permissions,
     )
 
 
@@ -62,6 +64,7 @@ def update_user(
     email: str | None = None,
     is_active: bool | None = None,
     account_status: AccountStatus | None = None,
+    evaluator_permissions: list[str] | None = None,
     reviewed_by: uuid.UUID | None = None,
 ) -> User:
     """Update an existing user by ID with row locking. Only provided fields are changed.
@@ -84,6 +87,8 @@ def update_user(
     if name is not None:
         user.name = name
 
+    if evaluator_permissions is not None:
+        user.evaluator_permissions = list(evaluator_permissions)
     previous_status = user.account_status
     user._previous_account_status = previous_status
 

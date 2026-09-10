@@ -86,6 +86,7 @@ class LatestEvaluationItem(BaseModel):
     document_id: UUID
     evaluation_id: UUID
     status: EvaluationStatus
+    target_agent: str
     submitted_at: datetime
     completed_at: datetime | None = None
     error_message: str | None = None

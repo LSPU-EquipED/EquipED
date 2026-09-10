@@ -264,23 +264,38 @@ def _validate_evaluation_target(
 
 
 def _check_ownership_or_404(
-    row: EvaluationJob, current_user_id: uuid.UUID, current_user_role: str
+    row: EvaluationJob,
+    current_user_id: uuid.UUID,
+    current_user_role: str,
+    evaluator_permissions: tuple[str, ...] | list[str] | None = None,
 ):
     if row.submitted_by != current_user_id:
         # Always mask existence as 404 if not the owner.
         raise EvaluationNotFoundError("Not found.")
-
+    if (
+        current_user_role == "faculty"
+        and evaluator_permissions
+    ):
+        target = getattr(row, "target_agent", None) or "all"
+        if target == "all":
+            if not set(VALID_TARGET_AGENTS).issubset(set(evaluator_permissions)):
+                raise EvaluationNotFoundError("Not found.")
+        elif target not in evaluator_permissions:
+            raise EvaluationNotFoundError("Not found.")
 
 def get_evaluation(
     evaluation_id: uuid.UUID,
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any = None,
+    evaluator_permissions: tuple[str, ...] | list[str] | None = None,
 ) -> EvaluationResponse:
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
-    _check_ownership_or_404(row, current_user_id, current_user_role)
+    _check_ownership_or_404(
+        row, current_user_id, current_user_role, evaluator_permissions
+    )
     return EvaluationResponse(
         evaluation_id=row.evaluation_id,
         document_id=row.document_id,
@@ -309,6 +324,7 @@ def list_evaluations(
     document_id: uuid.UUID | None = None,
     target_agent: str | None = None,
     status: str | None = None,
+    allowed_target_agents: tuple[str, ...] | list[str] | None = None,
 ) -> EvaluationListResponse:
     valid_targets = VALID_TARGET_AGENTS + ("all",)
     if target_agent is not None and target_agent not in valid_targets:
@@ -327,6 +343,11 @@ def list_evaluations(
             query = query.filter(EvaluationJob.document_id == document_id)
         if target_agent is not None:
             query = query.filter(EvaluationJob.target_agent == target_agent)
+        elif allowed_target_agents is not None:
+            allowed = list(allowed_target_agents)
+            if set(VALID_TARGET_AGENTS).issubset(set(allowed_target_agents)):
+                allowed.append("all")
+            query = query.filter(EvaluationJob.target_agent.in_(allowed))
         if status is not None:
             query = query.filter(EvaluationJob.status == status)
         total = query.count()
@@ -370,11 +391,14 @@ def get_evaluation_status(
     current_user_id: uuid.UUID,
     current_user_role: str,
     db: Any = None,
+    evaluator_permissions: tuple[str, ...] | list[str] | None = None,
 ) -> EvaluationStatusResponse:
     row = db.get(EvaluationJob, evaluation_id) if db is not None else None
     if row is None:
         raise EvaluationNotFoundError(f"Evaluation {evaluation_id} not found")
-    _check_ownership_or_404(row, current_user_id, current_user_role)
+    _check_ownership_or_404(
+        row, current_user_id, current_user_role, evaluator_permissions
+    )
     return EvaluationStatusResponse(
         evaluation_id=row.evaluation_id,
         status=EvaluationStatus(row.status),
@@ -651,6 +675,8 @@ def get_latest_evaluations(
     document_ids: list[uuid.UUID],
     current_user_id: uuid.UUID,
     db: Any = None,
+    evaluator_permissions: tuple[str, ...] | list[str] | None = None,
+    current_user_role: str = "faculty",
 ) -> LatestEvaluationsResponse:
     if not document_ids or db is None:
         return LatestEvaluationsResponse(items=[])
@@ -667,20 +693,28 @@ def get_latest_evaluations(
         .label("rn")
     )
 
+    predicates = [
+        EvaluationJob.submitted_by == current_user_id,
+        EvaluationJob.document_id.in_(document_ids),
+    ]
+    if current_user_role == "faculty" and evaluator_permissions:
+        allowed = list(evaluator_permissions)
+        if set(VALID_TARGET_AGENTS).issubset(set(evaluator_permissions)):
+            allowed.append("all")
+        predicates.append(EvaluationJob.target_agent.in_(allowed))
+
     subquery = (
         select(
             EvaluationJob.document_id,
             EvaluationJob.evaluation_id,
             EvaluationJob.status,
+            EvaluationJob.target_agent,
             EvaluationJob.submitted_at,
             EvaluationJob.completed_at,
             EvaluationJob.error_message,
             rn_col,
         )
-        .where(
-            EvaluationJob.submitted_by == current_user_id,
-            EvaluationJob.document_id.in_(document_ids),
-        )
+        .where(*predicates)
         .subquery()
     )
 
@@ -688,6 +722,7 @@ def get_latest_evaluations(
         subquery.c.document_id,
         subquery.c.evaluation_id,
         subquery.c.status,
+        subquery.c.target_agent,
         subquery.c.submitted_at,
         subquery.c.completed_at,
         subquery.c.error_message,
@@ -700,6 +735,7 @@ def get_latest_evaluations(
             document_id=row.document_id,
             evaluation_id=row.evaluation_id,
             status=EvaluationStatus(row.status),
+            target_agent=row.target_agent,
             submitted_at=row.submitted_at,
             completed_at=row.completed_at,
             error_message=row.error_message,

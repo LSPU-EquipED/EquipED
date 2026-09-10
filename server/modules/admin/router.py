@@ -229,6 +229,7 @@ def _map_admin_user_response(
         approved_at=user.approved_at,
         reviewed_at=user.reviewed_at,
         notification_warning=notification_warning,
+        evaluator_permissions=list(getattr(user, "evaluator_permissions", None) or []),
         created_at=user.created_at,
     )
 
@@ -277,6 +278,7 @@ def create_user_endpoint(
             email=body.email,
             password=body.password,
             role=body.role,
+            evaluator_permissions=body.evaluator_permissions,
         )
     except IntegrityError:
         db.rollback()
@@ -304,6 +306,7 @@ def update_user_endpoint(
             email=body.email,
             is_active=body.is_active,
             account_status=body.account_status,
+            evaluator_permissions=body.evaluator_permissions,
             reviewed_by=current_user.id,
         )
     except ValueError as e:

@@ -47,6 +47,7 @@ def _build_user_response(user) -> AuthUserResponse:
         display_name=user.display_name,
         email=user.email,
         role=user.role,
+        evaluator_permissions=list(getattr(user, "evaluator_permissions", None) or []),
     )
 
 

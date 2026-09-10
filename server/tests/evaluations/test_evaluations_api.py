@@ -769,3 +769,102 @@ def test_faculty_results_non_owner_returns_404_ownership_masking(
     response = client.get(f"/api/v1/evaluations/{job.evaluation_id}/results")
     assert response.status_code == 404
     assert response.json()["detail"] == "Evaluation not found"
+
+
+def test_submit_evaluation_enforces_evaluator_permissions(
+    client: TestClient, db_session
+):
+    faculty = create_user(
+        db_session,
+        name="Permitted Faculty",
+        email="permitted@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["sme"],
+    )
+    db_session.commit()
+
+    _login(client, faculty)
+    response = client.post(
+        "/api/v1/evaluations/",
+        json={
+            "document_id": "00000000-0000-0000-0000-000000000001",
+            "target_agent": "coordinator",
+            "confirmed_program": "BSCS",
+        },
+    )
+    assert response.status_code == 403
+    assert "User does not have evaluator permission" in response.json()["detail"]
+
+
+def test_list_evaluations_enforces_evaluator_permissions(
+    client: TestClient, db_session
+):
+    faculty = create_user(
+        db_session,
+        name="Permitted Coordinator",
+        email="coord@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["coordinator"],
+    )
+    db_session.commit()
+
+    doc, job_sme = _create_document_and_job(
+        db_session, faculty.user_id, partial=False
+    )
+    job_sme.target_agent = "sme"
+
+    _, job_coord = _create_document_and_job(
+        db_session, faculty.user_id, partial=False
+    )
+    job_coord.target_agent = "coordinator"
+    db_session.commit()
+
+    _login(client, faculty)
+
+    # Querying forbidden target returns 403
+    forbidden_resp = client.get("/api/v1/evaluations/?target_agent=sme")
+    assert forbidden_resp.status_code == 403
+    assert "User does not have evaluator permission" in forbidden_resp.json()["detail"]
+
+    # Listing all evaluations automatically restricts to permitted desks
+    all_resp = client.get("/api/v1/evaluations/")
+    assert all_resp.status_code == 200
+    items = all_resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["target_agent"] == "coordinator"
+
+    # Getting detail of unpermitted target returns 404 (masked)
+    detail_resp = client.get(f"/api/v1/evaluations/{job_sme.evaluation_id}")
+    assert detail_resp.status_code == 404
+    status_resp = client.get(f"/api/v1/evaluations/{job_sme.evaluation_id}/status")
+    assert status_resp.status_code == 404
+    results_resp = client.get(f"/api/v1/evaluations/{job_sme.evaluation_id}/results")
+    assert results_resp.status_code == 404
+
+    # Querying target_agent=all when user only has coordinator returns 403
+    all_target_resp = client.get("/api/v1/evaluations/?target_agent=all")
+    assert all_target_resp.status_code == 403
+
+    # /latest scopes to permitted desks:
+    # doc has only job_sme (forbidden) -> 0 items
+    sme_latest = client.get(f"/api/v1/evaluations/latest?document_id={doc.document_id}")
+    assert sme_latest.status_code == 200
+    assert len(sme_latest.json()["items"]) == 0
+
+    # job_coord is permitted -> 1 item
+    coord_latest = client.get(
+        f"/api/v1/evaluations/latest?document_id={job_coord.document_id}"
+    )
+    assert coord_latest.status_code == 200
+    coord_items = coord_latest.json()["items"]
+    assert coord_items[0]["target_agent"] == "coordinator"
+    assert len(coord_items) == 1
+    assert coord_items[0]["evaluation_id"] == str(job_coord.evaluation_id)
+    # target_agent='all' job returns 404 to single-desk user
+    _, job_all = _create_document_and_job(db_session, faculty.user_id, partial=False)
+    job_all.target_agent = "all"
+    db_session.commit()
+    detail_all_resp = client.get(f"/api/v1/evaluations/{job_all.evaluation_id}")
+    assert detail_all_resp.status_code == 404
