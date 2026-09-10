@@ -21,9 +21,15 @@ export const evaluationApi = {
     });
   },
 
-  listEvaluations: async (documentId?: string): Promise<EvaluationListResponse> => {
-    const params = documentId ? `?document_id=${encodeURIComponent(documentId)}` : '';
-    return requestJson<EvaluationListResponse>(`/evaluations/${params}`);
+  listEvaluations: async (
+    documentId?: string,
+    targetAgent?: TargetAgent,
+  ): Promise<EvaluationListResponse> => {
+    const params = new URLSearchParams();
+    if (documentId) params.set('document_id', documentId);
+    if (targetAgent) params.set('target_agent', targetAgent);
+    const query = params.toString();
+    return requestJson<EvaluationListResponse>(`/evaluations/${query ? `?${query}` : ''}`);
   },
 
   getEvaluation: async (id: string): Promise<EvaluationResponse> => {

@@ -92,7 +92,7 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByText('Failed to load evaluation history.')).toBeDefined();
   });
 
-  it('renders history items with correct statuses and document titles', () => {
+  it('renders history items with correct statuses, document titles, and scorecard link for all-agent runs', () => {
     const mockData: HistoryListResponse = {
       items: [
         {
@@ -122,9 +122,13 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByText('Syllabus for Data Structures')).toBeDefined();
     expect(screen.getByText('COMPLETED')).toBeDefined();
     expect(screen.getByText('1 evaluation found')).toBeDefined();
+    const scorecardLink = screen.getByRole('link', { name: /View audit scorecard for Syllabus for Data Structures/i });
+    expect(scorecardLink).toBeDefined();
+    expect(scorecardLink.getAttribute('href')).toBe('/evaluations/eval-12345678-abcd');
+    expect(scorecardLink.textContent).toBe('Scorecard');
   });
 
-  it('renders role badge and accessible scorecard action for targeted evaluations', () => {
+  it('renders role badge and links directly to specialist desk for single-agent runs', () => {
     const mockData: HistoryListResponse = {
       items: [
         {
@@ -154,7 +158,44 @@ describe('EvaluationHistoryTable Component', () => {
 
     expect(screen.getByText('SME')).toBeDefined();
     expect(screen.queryByRole('link', { name: /workspace/i })).toBeNull();
-    expect(screen.getByRole('link', { name: /View audit scorecard for Operating Systems SLM/i })).toBeDefined();
+    const actionLink = screen.getByRole('link', { name: /View audit scorecard for Operating Systems SLM/i });
+    expect(actionLink).toBeDefined();
+    expect(actionLink.getAttribute('href')).toBe('/evaluations/eval-targeted-1234');
+    expect(actionLink.textContent).toBe('Scorecard');
+  });
+  it('renders scorecard link with text Scorecard when target_agent is explicitly all', () => {
+    const mockData: HistoryListResponse = {
+      items: [
+        {
+          evaluation_id: 'eval-all-5678',
+          document_id: 'doc-2',
+          document_title: 'Full Curriculum Bundle',
+          syllabus_id: 'syl-2',
+          curriculum_id: 'curr-2',
+          status: 'COMPLETED',
+          target_agent: 'all',
+          submitted_at: '2026-08-20T10:00:00Z',
+          completed_at: '2026-08-20T10:05:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    };
+
+    vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: mockData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    expect(screen.getByText('All Domains')).toBeDefined();
+    const scorecardLink = screen.getByRole('link', { name: /View audit scorecard for Full Curriculum Bundle/i });
+    expect(scorecardLink).toBeDefined();
+    expect(scorecardLink.getAttribute('href')).toBe('/evaluations/eval-all-5678');
+    expect(scorecardLink.textContent).toBe('Scorecard');
   });
 
   it('triggers history query with selected target_agent when role filter is changed', () => {

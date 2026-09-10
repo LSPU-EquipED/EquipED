@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useParams } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowsClockwise,
   BookOpen,
   CaretRight,
   CheckCircle,
@@ -30,6 +31,7 @@ import {
 import { ScorecardPdfExport } from './ScorecardPdfExport';
 import { AgentReviewModal } from './AgentReviewModal';
 import { SpecialistExportDownloadButton } from './ExportDocument';
+import { EvaluationConfirmModal } from './EvaluationConfirmModal';
 
 function getAdjectivalRatingClasses(rating: string | undefined): string {
   switch (rating) {
@@ -124,12 +126,14 @@ function ScorecardSkeleton() {
 }
 
 export function Scorecard() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { id } = useParams({ strict: false }) as { id?: string };
   const [selectedDomainId, setSelectedDomainId] = useState<string>('sme');
 
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? '');
   const [reviewModalAgent, setReviewModalAgent] = useState<string | null>(null);
-
+  const [showReevaluateModal, setShowReevaluateModal] = useState(false);
   const isTerminal = evaluation?.status === 'COMPLETED' || evaluation?.status === 'FAILED';
   const isFailed = evaluation?.status === 'FAILED';
   const isEvaluating =
@@ -195,11 +199,19 @@ export function Scorecard() {
     );
   }
 
-  // Active domain data on the right (auto-falls back to first available domain with scores)
+  const singleAgentMeta = isTargetAgent(evaluation.target_agent)
+    ? TARGET_AGENT_META[evaluation.target_agent]
+    : null;
+  const isSingleAgentRun = singleAgentMeta !== null;
+
+  // Active domain data on the right (auto-falls back to target agent or first available domain with scores)
+  const targetAgentKey = isTargetAgent(evaluation.target_agent) ? evaluation.target_agent : null;
   const availableDomains = domainKeys.filter((k) => results?.domain_scores[k] != null);
-  const effectiveDomainId = availableDomains.includes(selectedDomainId)
-    ? selectedDomainId
-    : availableDomains[0] || domainKeys[0] || 'sme';
+  const effectiveDomainId = targetAgentKey && results?.domain_scores[targetAgentKey] != null
+    ? targetAgentKey
+    : availableDomains.includes(selectedDomainId)
+      ? selectedDomainId
+      : availableDomains[0] || domainKeys[0] || 'sme';
   const activeDomainData = results?.domain_scores[effectiveDomainId];
   const ActiveDomainIcon = DOMAIN_ICONS[effectiveDomainId] || FileText;
 
@@ -209,11 +221,6 @@ export function Scorecard() {
     }
     return a.criterion_id.localeCompare(b.criterion_id, undefined, { numeric: true });
   });
-  const singleAgentMeta = isTargetAgent(evaluation.target_agent)
-    ? TARGET_AGENT_META[evaluation.target_agent]
-    : null;
-  const isSingleAgentRun = singleAgentMeta !== null;
-
   return (
     <section className="flex h-[calc(100vh-4rem)] min-h-0 flex-col bg-canvas">
       {/* Top Dossier Context Header */}
@@ -238,6 +245,18 @@ export function Scorecard() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          {isSingleAgentRun && isTargetAgent(evaluation.target_agent) && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowReevaluateModal(true)}
+              className="text-xs h-8 px-3 font-semibold gap-1.5"
+            >
+              <ArrowsClockwise className="size-3.5" aria-hidden="true" />
+              <span>Re-evaluate</span>
+            </Button>
+          )}
           {results && activeDomainData && (
             <SpecialistExportDownloadButton
               domainData={{
@@ -437,11 +456,21 @@ export function Scorecard() {
                         {criterion.reviewer_correction ? (
                           <div className="rounded-sm border border-info/30 bg-info-soft/20 p-3 text-xs space-y-1">
                             <span className="font-bold text-info block text-[10px] uppercase">
-                              Authoritative CID Human Override Applied
+                              {criterion.reviewer_correction.action === 'REJECT'
+                                ? 'Authoritative CID Human Override Flagged (Rejected)'
+                                : 'Authoritative CID Human Override Applied'}
                             </span>
-                            <p className="text-text font-medium">
-                              Override Score: {criterion.reviewer_correction.score} / 4
-                            </p>
+                            {criterion.reviewer_correction.score != null ? (
+                              <p className="text-text font-medium">
+                                Override Score: {criterion.reviewer_correction.score} / 4
+                              </p>
+                            ) : null}
+                            {criterion.reviewer_correction.justification ? (
+                              <p className="text-text-muted leading-relaxed">
+                                <strong>Reviewer Justification: </strong>
+                                {cleanJustification(criterion.reviewer_correction.justification)}
+                              </p>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
@@ -821,6 +850,27 @@ export function Scorecard() {
                             <span>Verified compliant with institutional quality standards.</span>
                           </div>
                         )}
+                        {/* Reviewer Correction Callout if Present */}
+                        {criterion.reviewer_correction ? (
+                          <div className="rounded-sm border border-info/30 bg-info-soft/20 p-3 text-xs space-y-1">
+                            <span className="font-bold text-info block text-[10px] uppercase">
+                              {criterion.reviewer_correction.action === 'REJECT'
+                                ? 'Authoritative CID Human Override Flagged (Rejected)'
+                                : 'Authoritative CID Human Override Applied'}
+                            </span>
+                            {criterion.reviewer_correction.score != null ? (
+                              <p className="text-text font-medium">
+                                Override Score: {criterion.reviewer_correction.score} / 4
+                              </p>
+                            ) : null}
+                            {criterion.reviewer_correction.justification ? (
+                              <p className="text-text-muted leading-relaxed">
+                                <strong>Reviewer Justification: </strong>
+                                {cleanJustification(criterion.reviewer_correction.justification)}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -863,6 +913,26 @@ export function Scorecard() {
           evaluationId={id}
           criteria={results?.domain_scores[reviewModalAgent]?.criteria || []}
           onClose={() => setReviewModalAgent(null)}
+        />
+      )}
+      {/* Re-evaluate Confirmation Modal */}
+      {showReevaluateModal && isTargetAgent(evaluation.target_agent) && (
+        <EvaluationConfirmModal
+          documentId={evaluation.document_id}
+          documentTitle={results?.document_title || evaluation.document_id}
+          detectedProgram={results?.program ?? null}
+          targetAgent={evaluation.target_agent}
+          onClose={() => setShowReevaluateModal(false)}
+          onSubmitted={(newEvaluationId) => {
+            setShowReevaluateModal(false);
+            void queryClient.invalidateQueries({ queryKey: ['evaluation'] });
+            void queryClient.invalidateQueries({ queryKey: ['evaluation-results'] });
+            void queryClient.invalidateQueries({ queryKey: ['evaluation-history'] });
+            void navigate({
+              to: '/evaluations/$id',
+              params: { id: newEvaluationId },
+            });
+          }}
         />
       )}
     </section>
