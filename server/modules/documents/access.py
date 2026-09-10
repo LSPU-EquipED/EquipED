@@ -43,20 +43,28 @@ def _is_document_accessible(
     document,
     current_user_id: uuid.UUID,
     current_user_role: str | None = None,
+    db: Any | None = None,
 ) -> bool:
-    """Check whether a user may read/access a document row.
-
-    Reference documents (syllabus, curriculum) are shared to all
-    authenticated users. Policy documents are admin-only — faculty
-    requests are denied without existence leakage. SLMs and other
-    types remain owner-only.
-    """
+    """Check whether a user may read/access a document row."""
+    if document.source_type == "curriculum":
+        return False
     if is_reference_source_type(document.source_type):
         return True
     if is_policy_source_type(document.source_type):
         return current_user_role == "admin"
     if current_user_id is not None:
-        return document.uploaded_by == current_user_id
+        if document.uploaded_by == current_user_id:
+            return True
+        if db is not None:
+            from .models import UserDocument
+
+            has_link = (
+                db.query(UserDocument)
+                .filter_by(user_id=current_user_id, document_id=document.document_id)
+                .first()
+            )
+            if has_link is not None:
+                return True
     return False
 
 
@@ -69,7 +77,9 @@ def get_document(
     if db is not None:
         row = db.get(Document, document_id)
         if row is not None:
-            if not _is_document_accessible(row, current_user_id, current_user_role):
+            if not _is_document_accessible(
+                row, current_user_id, current_user_role, db=db
+            ):
                 raise DocumentNotFoundError(f"Document {document_id} not found")
             return DocumentResponse(
                 document_id=row.document_id,
@@ -131,9 +141,16 @@ def list_documents(
 ) -> DocumentListResponse:
     if db is not None:
         query = db.query(Document)
+        from sqlalchemy import select
 
+        from .models import UserDocument
+
+        user_doc_ids = select(UserDocument.document_id).where(
+            UserDocument.user_id == current_user_id
+        )
         query = query.filter(
             or_(
+                Document.document_id.in_(user_doc_ids),
                 Document.uploaded_by == current_user_id,
                 Document.source_type.in_(REFERENCE_SOURCE_TYPES),
             )

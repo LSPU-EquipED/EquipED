@@ -81,6 +81,8 @@ def create_document(
         runtime_db = runtime_session
 
     if runtime_db is not None and source_type == "slm":
+        from .models import UserDocument
+
         doc_query = runtime_db.query(Document).filter(
             Document.source_type == "slm",
             Document.title.ilike(title.strip()),
@@ -90,41 +92,38 @@ def create_document(
             doc_query = doc_query.filter(Document.program == canonical_program)
         existing_doc = doc_query.order_by(Document.uploaded_at.desc()).first()
         if existing_doc is not None:
-            from server.modules.synthesis.models import MonitoringMatrix
-
-            matrix = (
-                runtime_db.query(MonitoringMatrix)
-                .filter_by(document_id=existing_doc.document_id)
+            user_link = (
+                runtime_db.query(UserDocument)
+                .filter_by(user_id=uploaded_by, document_id=existing_doc.document_id)
                 .first()
             )
-            is_completed = False
-            if matrix is not None:
-                domain_count = len(matrix.domain_scores_json or {})
-                if matrix.evaluation_status == "COMPLETED" or domain_count >= 4:
-                    is_completed = True
+            if user_link is None:
+                runtime_db.add(
+                    UserDocument(
+                        user_id=uploaded_by,
+                        document_id=existing_doc.document_id,
+                    )
+                )
+                runtime_db.commit()
 
-            if not is_completed:
-                if existing_doc.uploaded_by != uploaded_by:
-                    existing_doc.uploaded_by = uploaded_by
-                    runtime_db.commit()
-                logger.info(
-                    "Reusing in-progress canonical SLM document_id=%s for title=%s",
-                    existing_doc.document_id,
-                    title,
-                )
-                return DocumentUploadResponse(
-                    document_id=existing_doc.document_id,
-                    title=existing_doc.title,
-                    course_title=existing_doc.course_title,
-                    lesson_title=existing_doc.lesson_title,
-                    source_type=existing_doc.source_type,
-                    policy_area=existing_doc.policy_area,
-                    processing_status=existing_doc.processing_status,
-                    academic_year=existing_doc.academic_year,
-                    course_code=existing_doc.course_code,
-                    structured_summary=existing_doc.structured_summary,
-                    evaluation_readiness=existing_doc.evaluation_readiness,
-                )
+            logger.info(
+                "Linked canonical SLM document_id=%s to user_id=%s storage",
+                existing_doc.document_id,
+                uploaded_by,
+            )
+            return DocumentUploadResponse(
+                document_id=existing_doc.document_id,
+                title=existing_doc.title,
+                course_title=existing_doc.course_title,
+                lesson_title=existing_doc.lesson_title,
+                source_type=existing_doc.source_type,
+                policy_area=existing_doc.policy_area,
+                processing_status=existing_doc.processing_status,
+                academic_year=existing_doc.academic_year,
+                course_code=existing_doc.course_code,
+                structured_summary=existing_doc.structured_summary,
+                evaluation_readiness=existing_doc.evaluation_readiness,
+            )
 
     doc_id = uuid.uuid4()
     target_path = paths.UPLOAD_ROOT / f"{doc_id}.pdf"
@@ -143,6 +142,10 @@ def create_document(
                 file_path=str(target_path),
                 uploaded_by=uploaded_by,
             )
+            from .models import UserDocument
+
+            runtime_db.add(UserDocument(user_id=uploaded_by, document_id=doc_id))
+            runtime_db.flush()
         else:
             upload_marker = _create_upload_marker(doc_id, target_path)
 

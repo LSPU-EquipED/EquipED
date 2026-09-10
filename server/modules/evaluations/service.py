@@ -802,15 +802,35 @@ def get_specialist_desk_queue(
         raise ForbiddenEvaluationAccessError(
             f"User does not have evaluator permission for '{target_agent}'."
         )
-
     if db is None:
         return DeskQueueListResponse(items=[], total=0)
+
+    current_user_id = getattr(current_user, "id", None) or getattr(
+        current_user, "user_id", None
+    )
 
     doc_query = db.query(Document).filter(
         func.lower(Document.source_type) == "slm",
         func.upper(Document.processing_status) == "PROCESSED",
     )
 
+    if not is_admin:
+        from server.modules.documents.models import UserDocument
+        from sqlalchemy import select
+
+        user_storage_doc_ids = select(UserDocument.document_id).where(
+            UserDocument.user_id == current_user_id
+        )
+        user_job_docs = select(EvaluationJob.document_id).where(
+            EvaluationJob.submitted_by == current_user_id
+        )
+        doc_query = doc_query.filter(
+            or_(
+                Document.document_id.in_(user_storage_doc_ids),
+                Document.uploaded_by == current_user_id,
+                Document.document_id.in_(user_job_docs),
+            )
+        )
     if program:
         canonical_program = canonicalize_supported_program(program)
         if canonical_program is None:
@@ -824,7 +844,6 @@ def get_specialist_desk_queue(
         doc_query = doc_query.filter(
             func.lower(Document.program).in_([v.lower() for v in values])
         )
-
     total = doc_query.count()
     docs = (
         doc_query.order_by(Document.uploaded_at.desc())
@@ -877,9 +896,8 @@ def get_specialist_desk_queue(
         if user_job is None and doc_jobs:
             user_job = doc_jobs[0]
 
-        # Determine peer completed desks from monitoring matrix
         peer_completed_desks: list[str] = []
-        if matrix and isinstance(matrix.domain_scores_json, dict):
+        if is_admin and matrix and isinstance(matrix.domain_scores_json, dict):
             for agent_code in ("sme", "coordinator", "gad", "itso"):
                 if agent_code in matrix.domain_scores_json:
                     agent_val = matrix.domain_scores_json[agent_code]
@@ -891,7 +909,6 @@ def get_specialist_desk_queue(
                     if st not in ("ERROR", "FAILED"):
                         peer_completed_desks.append(agent_code)
         peer_completed_count = len(peer_completed_desks)
-
         my_score: float | None = None
         my_adjectival: str | None = None
 

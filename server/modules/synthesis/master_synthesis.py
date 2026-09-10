@@ -28,6 +28,7 @@ from server.modules.synthesis.schemas import (
     MasterSynthesisPillar,
     score_to_adjectival,
 )
+from sqlalchemy import func
 
 
 def get_master_synthesis_detail(
@@ -79,11 +80,25 @@ def get_master_synthesis_detail(
             department=None,
         )
 
+    same_module_doc_ids = [document_id]
+    if document is not None and getattr(document, "source_type", None) == "slm":
+        same_module_doc_ids = [
+            d.document_id
+            for d in db.query(Document.document_id)
+            .filter(
+                Document.source_type == "slm",
+                func.lower(Document.title) == document.title.strip().lower(),
+                func.lower(Document.program)
+                == (document.program or "").strip().lower(),
+            )
+            .all()
+        ]
+
     job_rows = (
         db.query(EvaluationJob, User)
         .outerjoin(User, EvaluationJob.submitted_by == User.user_id)
         .filter(
-            EvaluationJob.document_id == document_id,
+            EvaluationJob.document_id.in_(same_module_doc_ids),
             EvaluationJob.status == EvaluationStatus.COMPLETED.value,
         )
         .order_by(EvaluationJob.submitted_at.desc())
@@ -163,7 +178,7 @@ def get_master_synthesis_detail(
                     CriterionScore.agent_result_id == AgentResult.agent_result_id,
                 )
                 .filter(
-                    CriterionScore.document_id == document_id,
+                    CriterionScore.document_id.in_(same_module_doc_ids),
                     AgentResult.agent_name == agent,
                 )
                 .all()
@@ -204,7 +219,7 @@ def get_master_synthesis_detail(
             CriterionScore,
             EvaluationFlag.criterion_score_id == CriterionScore.criterion_score_id,
         )
-        .filter(EvaluationFlag.document_id == document_id)
+        .filter(EvaluationFlag.document_id.in_(same_module_doc_ids))
         .all()
         if db is not None
         else []
