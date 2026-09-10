@@ -9,9 +9,11 @@ import type { ClientDocument } from '@/shared/types/documents';
 import type { EvaluationListItem, EvaluationResultsResponse } from '../../types';
 import type { TargetAgent } from '@/shared/types/evaluations';
 
+const mockNavigate = vi.fn();
+
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({}),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -28,6 +30,7 @@ vi.mock('../../api/evaluation.api', () => ({
   evaluationApi: {
     listEvaluations: vi.fn(),
     getEvaluationResults: vi.fn(),
+    getDeskQueue: vi.fn(),
   },
 }));
 
@@ -71,6 +74,12 @@ describe('SpecialistScoreboardPage', () => {
     vi.mocked(evaluationApi.listEvaluations).mockReset();
     vi.mocked(evaluationApi.getEvaluationResults).mockReset();
 
+    vi.mocked(evaluationApi.getDeskQueue).mockReset();
+    mockNavigate.mockReset();
+    vi.mocked(evaluationApi.getDeskQueue).mockResolvedValue({
+      items: [],
+      total: 0,
+    });
     vi.mocked(documentsApi.listDocuments).mockResolvedValue({
       items: [mockDoc],
       total: 1,
@@ -207,6 +216,59 @@ describe('SpecialistScoreboardPage', () => {
       expect(screen.getByRole('heading', { name: /GAD Unit Review/i })).toBeDefined();
       expect(screen.getAllByText(/GAD Specialist/i)[0]).toBeDefined();
       expect(screen.getByRole('button', { name: /Download PDF/i })).toBeDefined();
+    });
+  });
+
+  it('navigates to /specialists/$agentId/$documentId when document is selected from switcher', async () => {
+    vi.mocked(evaluationApi.getDeskQueue).mockResolvedValue({
+      items: [
+        {
+          document_id: 'doc-slm-001',
+          title: 'Data Structures SLM',
+          course_code: 'CS101',
+          program: 'BSCS',
+          uploaded_at: '2026-08-20T10:00:00Z',
+          my_status: 'READY',
+          my_score: null,
+          my_adjectival: null,
+          peer_completed_count: 0,
+          peer_completed_desks: [],
+        },
+        {
+          document_id: 'doc-slm-002',
+          title: 'Algorithms SLM',
+          course_code: 'CS102',
+          program: 'BSCS',
+          uploaded_at: '2026-08-22T10:00:00Z',
+          my_status: 'COMPLETED',
+          my_score: 3.8,
+          my_adjectival: 'Very Satisfactory',
+          peer_completed_count: 2,
+          peer_completed_desks: ['sme', 'coordinator'],
+        },
+      ],
+      total: 2,
+    });
+
+    renderPage({ agentId: 'sme' });
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /Active SLM/i })).toBeDefined();
+    });
+
+    const trigger = screen.getByRole('combobox', { name: /Active SLM/i });
+    trigger.click();
+
+    await waitFor(() => {
+      expect(screen.getByText('Algorithms SLM')).toBeDefined();
+    });
+
+    const targetOption = screen.getByText('Algorithms SLM').closest('button');
+    targetOption?.click();
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/specialists/$agentId/$documentId',
+      params: { agentId: 'sme', documentId: 'doc-slm-002' },
     });
   });
 });

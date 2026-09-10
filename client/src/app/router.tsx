@@ -102,6 +102,10 @@ const ModelValidationPage = lazyRouteComponent(
   () => import('../features/admin/model-validation/pages/ModelValidationPage'),
   'ModelValidationPage',
 );
+const MasterSynthesisPage = lazyRouteComponent(
+  () => import('../features/admin/monitoring-matrix/pages/MasterSynthesisPage'),
+  'MasterSynthesisPage',
+);
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -196,21 +200,23 @@ const uploadRoute = createRoute({
   component: UploadRouteView,
 });
 
+function EvaluationsRouteView() {
+  const auth = useAuth();
+  return (
+    <div className="px-6 py-7">
+      <HistoryPage
+        evaluatorPermissions={auth.user?.evaluatorPermissions}
+        userRole={auth.user?.role}
+      />
+    </div>
+  );
+}
+
 const evaluationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations',
   beforeLoad: requireRole(['faculty']),
-  component: () => {
-    const auth = useAuth();
-    return (
-      <div className="px-6 py-7">
-        <HistoryPage
-          evaluatorPermissions={auth.user?.evaluatorPermissions}
-          userRole={auth.user?.role}
-        />
-      </div>
-    );
-  },
+  component: EvaluationsRouteView,
 });
 
 const evaluationMapRoute = createRoute({
@@ -384,6 +390,15 @@ const adminModelValidationRoute = createRoute({
   component: ModelValidationPage,
 });
 
+const adminSynthesisRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'synthesis/$documentId',
+  beforeLoad: ({ context }) => {
+    requireRole(['admin'])({ context });
+  },
+  component: MasterSynthesisPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -413,6 +428,7 @@ const routeTree = rootRoute.addChildren([
       adminPreferencesRoute,
       adminRubricsRoute,
       adminModelValidationRoute,
+      adminSynthesisRoute,
     ]),
   ]),
 ]);

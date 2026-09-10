@@ -3,11 +3,13 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query';
 import { MonitoringTable } from '../MonitoringTable';
 import { formatRevisionContext } from '../../utils';
 import * as useMonitoringMatrixModule from '../../hooks/useMonitoringMatrix';
 import type { MatrixListResponse } from '../../types';
+
+const mockNavigate = vi.fn();
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -15,11 +17,13 @@ vi.mock('@tanstack/react-router', () => ({
     params,
     children,
     className,
+    onClick,
   }: {
     to: string;
     params?: Record<string, string>;
     children?: React.ReactNode;
     className?: string;
+    onClick?: (e: React.MouseEvent) => void;
   }) => {
     let href = to;
     if (params) {
@@ -28,11 +32,12 @@ vi.mock('@tanstack/react-router', () => ({
       });
     }
     return (
-      <a href={href} className={className}>
+      <a href={href} className={className} onClick={onClick}>
         {children}
       </a>
     );
   },
+  useNavigate: () => mockNavigate,
 }));
 
 describe('formatRevisionContext helper', () => {
@@ -309,7 +314,7 @@ describe('MonitoringTable Component', () => {
       data: mockData,
       isLoading: false,
       isError: false,
-    } as unknown as ReturnType<typeof useMonitoringMatrixModule.useMonitoringMatrix>);
+    } as unknown as UseQueryResult<MatrixListResponse, Error>);
 
     renderTable();
 
@@ -318,6 +323,56 @@ describe('MonitoringTable Component', () => {
     expect(screen.getAllByText('45').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDefined();
+  });
+
+  it('renders clickable drilldown View Synthesis button and navigates on row click', () => {
+    const mockData: MatrixListResponse = {
+      items: [
+        {
+          matrix_id: 'mat-100',
+          document_id: 'doc-synthesis-123',
+          evaluation_id: 'eval-100',
+          faculty_name: 'Prof. Garcia',
+          program: 'BSCS',
+          document_title: 'Database Systems Module',
+          evaluation_status: 'COMPLETED',
+          synthesized_score: 3.85,
+          adjectival_rating: 'Outstanding',
+          domain_scores: null,
+          flag_count: 0,
+          feedback_status: 'PUBLISHED',
+          last_updated: '2026-06-01T00:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 10,
+    };
+
+    vi.spyOn(useMonitoringMatrixModule, 'useMonitoringMatrix').mockReturnValue({
+      data: mockData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MatrixListResponse, Error>);
+
+    renderTable();
+
+    // View Synthesis button/link rendered with correct route
+    const viewSynthesisBtn = screen.getByRole('link', { name: /view synthesis/i });
+    expect(viewSynthesisBtn).toBeDefined();
+    expect(viewSynthesisBtn.getAttribute('href')).toBe('/admin/synthesis/doc-synthesis-123');
+
+    // Row click triggers navigation to /admin/synthesis/$documentId
+    const rowTitle = screen.getByText('Database Systems Module');
+    const tr = rowTitle.closest('tr');
+    expect(tr).not.toBeNull();
+    if (tr) {
+      fireEvent.click(tr);
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: '/admin/synthesis/$documentId',
+        params: { documentId: 'doc-synthesis-123' },
+      });
+    }
   });
 
   it('monitoring-matrix feature never imports from evaluation feature (strict feature boundary)', () => {

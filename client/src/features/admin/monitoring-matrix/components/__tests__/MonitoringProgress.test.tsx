@@ -18,6 +18,7 @@ vi.mock('@tanstack/react-router', () => ({
     children: React.ReactNode;
     className?: string;
   }) => <span className={className}>{children}</span>,
+  useNavigate: () => vi.fn(),
 }));
 
 describe('domain progress helpers', () => {

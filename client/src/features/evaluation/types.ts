@@ -152,6 +152,26 @@ export interface EvaluationListResponse {
   page_size: number;
 }
 
+export type DeskQueueStatus = 'READY' | 'EVALUATING' | 'COMPLETED' | 'FAILED';
+
+export interface DeskQueueItem {
+  document_id: string;
+  title: string;
+  course_code: string | null;
+  program: string | null;
+  uploaded_at: string;
+  my_status: DeskQueueStatus | string;
+  my_score: number | null;
+  my_adjectival: string | null;
+  peer_completed_count: number;
+  peer_completed_desks: string[];
+}
+
+export interface DeskQueueListResponse {
+  items: DeskQueueItem[];
+  total: number;
+}
+
 export interface EvaluationResultsResponse {
   evaluation_id: string;
   document_id: string;
