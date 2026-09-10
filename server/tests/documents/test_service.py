@@ -1743,3 +1743,89 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
 
     # Ordinary failed document must have had its PDF unlinked
     assert not ordinary_pdf.exists()
+def test_create_document_reuses_in_progress_slm_until_completed(
+    db_session, monkeypatch, tmp_path
+) -> None:
+    """SLM upload reuses active canonical document until all 4 domains are completed."""
+    from server.modules.auth.models import User, UserRole
+    from server.modules.documents.models import Document
+    from server.modules.synthesis.models import MonitoringMatrix
+
+    monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.documents.service.ingest_document", lambda *args, **kwargs: []
+    )
+
+    user = User(
+        name="Faculty Author",
+        email=f"author-{uuid.uuid4().hex[:8]}@lspu.edu.ph",
+        role=UserRole.FACULTY,
+        password_hash="fake",
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # 1. First upload creates canonical doc_id
+    pdf_file = UploadFile(filename="module1.pdf", file=BytesIO(b"%PDF-1.4 sample"))
+    res1 = create_document(
+        pdf_file,
+        "slm",
+        "Module 1",
+        "Data Structures",
+        None,
+        "BSIT",
+        user.user_id,
+        db=db_session,
+    )
+    canonical_id = res1.document_id
+
+    # Mark document as PROCESSED
+    doc = db_session.get(Document, canonical_id)
+    doc.processing_status = "PROCESSED"
+    db_session.commit()
+
+    # In-progress matrix row (e.g. only 1 domain completed)
+    matrix = MonitoringMatrix(
+        document_id=canonical_id,
+        evaluation_status="IN_PROGRESS",
+        domain_scores_json={"coordinator": {"subtotal": 3.1}},
+    )
+    db_session.add(matrix)
+    db_session.commit()
+
+    # 2. Second upload of the same module while in-progress must reuse canonical_id
+    pdf_file_2 = UploadFile(filename="module1.pdf", file=BytesIO(b"%PDF-1.4 sample"))
+    res2 = create_document(
+        pdf_file_2,
+        "slm",
+        "Module 1",
+        "Data Structures",
+        None,
+        "BSIT",
+        user.user_id,
+        db=db_session,
+    )
+    assert res2.document_id == canonical_id
+
+    # 3. Once evaluation is COMPLETED (4/4 domains), next upload creates a new revision
+    matrix.evaluation_status = "COMPLETED"
+    matrix.domain_scores_json = {
+        "sme": {"subtotal": 3.8},
+        "coordinator": {"subtotal": 3.1},
+        "gad": {"subtotal": 3.5},
+        "itso": {"subtotal": 3.0},
+    }
+    db_session.commit()
+
+    pdf_file_3 = UploadFile(filename="module1.pdf", file=BytesIO(b"%PDF-1.4 sample"))
+    res3 = create_document(
+        pdf_file_3,
+        "slm",
+        "Module 1",
+        "Data Structures",
+        None,
+        "BSIT",
+        user.user_id,
+        db=db_session,
+    )
+    assert res3.document_id != canonical_id

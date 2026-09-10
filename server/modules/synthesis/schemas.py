@@ -127,6 +127,37 @@ class MatrixListResponse(BaseModel):
     page_size: int
 
 
+
+class EvaluatorAttribution(BaseModel):
+    user_id: UUID | None = None
+    name: str = "Unknown Author"
+    email: str | None = None
+    department: str | None = None
+
+
+class MasterSynthesisPillar(BaseModel):
+    weight: float
+    subtotal: float | None = None
+    status: str
+    criteria: list[CriterionScoreItem] = Field(default_factory=list)
+    summary: str = ""
+    evaluator: EvaluatorAttribution | None = None
+
+
+class MasterSynthesisDetailResponse(BaseModel):
+    document_id: UUID
+    document_title: str | None = None
+    course_code: str | None = None
+    program: str | None = None
+    author: EvaluatorAttribution
+    synthesized_score: float | None = None
+    adjectival_rating: str | None = None
+    evaluation_status: str
+    last_updated: datetime | None = None
+    pillars: dict[str, MasterSynthesisPillar]
+    flags: list[EvaluationFlagItem] = Field(default_factory=list)
+    can_certify: bool
+
 __all__ = [
     "CriterionScoreItem",
     "ReviewerCorrection",
@@ -139,4 +170,7 @@ __all__ = [
     "MatrixRowItem",
     "MatrixListResponse",
     "score_to_adjectival",
+    "EvaluatorAttribution",
+    "MasterSynthesisPillar",
+    "MasterSynthesisDetailResponse",
 ]
