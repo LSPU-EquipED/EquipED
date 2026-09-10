@@ -3,7 +3,6 @@ import {
   CaretDown,
   Check,
   CheckCircle,
-  Circle,
   Clock,
   MagnifyingGlass,
   Spinner,
@@ -35,12 +34,6 @@ export interface SpecialistQueueSwitcherProps {
   }>;
 }
 
-const PEER_DESKS = [
-  { key: 'sme', label: 'SME' },
-  { key: 'coordinator', label: 'PC' },
-  { key: 'gad', label: 'GAD' },
-  { key: 'itso', label: 'ITSO' },
-] as const;
 
 function formatUploadDate(dateString?: string | null): string {
   if (!dateString) return '—';
@@ -101,53 +94,6 @@ function DeskStatusBadge({
   );
 }
 
-function PeerConvergencePills({
-  completedDesks,
-  completedCount,
-}: {
-  completedDesks: string[];
-  completedCount: number;
-}) {
-  const normalizedDesks = (completedDesks || []).map((d) => d.toLowerCase());
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <div className="flex items-center gap-1" role="group" aria-label="Peer desk status">
-        {PEER_DESKS.map(({ key, label }) => {
-          const isDone = normalizedDesks.includes(key);
-          return (
-            <span
-              key={key}
-              title={`${label}: ${isDone ? 'Completed' : 'Pending'}`}
-              className={cn(
-                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium transition-colors select-none',
-                isDone
-                  ? 'bg-success/15 text-success border border-success/30 font-semibold'
-                  : 'bg-surface-subtle text-text-muted/70 border border-border/60',
-              )}
-            >
-              {isDone ? (
-                <Check className="size-2.5 stroke-[2.5]" aria-hidden="true" />
-              ) : (
-                <Circle className="size-1.5 fill-current" aria-hidden="true" />
-              )}
-              <span>{label}</span>
-            </span>
-          );
-        })}
-      </div>
-      <span
-        className={cn(
-          'text-[10px] font-semibold px-1.5 py-0.5 rounded-xs tracking-tight select-none',
-          completedCount === 4
-            ? 'bg-success/15 text-success border border-success/30'
-            : 'bg-surface-subtle text-text-muted border border-border',
-        )}
-      >
-        {completedCount}/4 Complete
-      </span>
-    </div>
-  );
-}
 
 type FilterChip = 'all' | 'pending' | 'completed';
 
@@ -555,13 +501,6 @@ export function SpecialistQueueSwitcher({
                       <DeskStatusBadge status={item.my_status} score={item.my_score} />
                     </div>
 
-                    {/* Row 3: Peer Convergence Pills (4 dots + N/4 chip) */}
-                    <div className="pt-0.5">
-                      <PeerConvergencePills
-                        completedDesks={item.peer_completed_desks}
-                        completedCount={item.peer_completed_count}
-                      />
-                    </div>
                   </button>
                 );
               })
