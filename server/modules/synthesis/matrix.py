@@ -251,6 +251,21 @@ def _upsert_progressive_domain(
         existing = None
 
     if existing is None:
+        doc = db.get(Document, document_id)
+        if doc is not None and getattr(doc, "source_type", None) == "slm":
+            existing = (
+                db.query(MonitoringMatrix)
+                .join(Document, MonitoringMatrix.document_id == Document.document_id)
+                .filter(
+                    Document.source_type == "slm",
+                    func.lower(Document.title) == doc.title.strip().lower(),
+                    func.lower(Document.program) == (doc.program or "").strip().lower(),
+                )
+                .order_by(MonitoringMatrix.last_updated.desc())
+                .first()
+            )
+
+    if existing is None:
         merged: dict[str, Any] = {}
         for agent, payload in incoming_map.items():
             merged[agent] = copy.deepcopy(payload)
@@ -358,6 +373,22 @@ def _upsert_failure(
         )
     except Exception:
         existing = None
+
+    if existing is None:
+        doc = db.get(Document, document_id)
+        if doc is not None and getattr(doc, "source_type", None) == "slm":
+            existing = (
+                db.query(MonitoringMatrix)
+                .join(Document, MonitoringMatrix.document_id == Document.document_id)
+                .filter(
+                    Document.source_type == "slm",
+                    func.lower(Document.title) == doc.title.strip().lower(),
+                    func.lower(Document.program) == (doc.program or "").strip().lower(),
+                )
+                .order_by(MonitoringMatrix.last_updated.desc())
+                .first()
+            )
+
     if existing is None:
         row = MonitoringMatrix(
             document_id=document_id,
