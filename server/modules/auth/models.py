@@ -8,6 +8,7 @@ from enum import StrEnum
 
 from server.core.database import Base
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     ForeignKey,
@@ -52,6 +53,9 @@ class User(Base):
     faculty_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     department: Mapped[str | None] = mapped_column(String(300), nullable=True)
     program: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    evaluator_permissions: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
     account_status: Mapped[AccountStatus] = mapped_column(
         SqlEnum(
             AccountStatus,
