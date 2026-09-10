@@ -14,7 +14,11 @@ from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.rubrics.models import EvaluationFormSnapshot, RubricSet
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
-from server.modules.synthesis.models import AgentResult, CriterionScore
+from server.modules.synthesis.models import (
+    AgentResult,
+    CriterionScore,
+    MonitoringMatrix,
+)
 from server.modules.synthesis.service import persist_agent_outputs
 from server.tests.evaluations.snapshot_test_helpers import make_agent_result
 from server.tests.rubrics.helpers import seed_all_rubrics
@@ -868,3 +872,184 @@ def test_list_evaluations_enforces_evaluator_permissions(
     db_session.commit()
     detail_all_resp = client.get(f"/api/v1/evaluations/{job_all.evaluation_id}")
     assert detail_all_resp.status_code == 404
+
+
+def test_desk_queue_enforces_permissions(client: TestClient, db_session):
+    faculty = create_user(
+        db_session,
+        name="Specialist User",
+        email="specialist@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["sme"],
+    )
+    db_session.commit()
+
+    _login(client, faculty)
+    # Querying unpermitted desk returns 403
+    forbidden_resp = client.get("/api/v1/evaluations/desk-queue?target_agent=gad")
+    assert forbidden_resp.status_code == 403
+    assert "User does not have evaluator permission" in forbidden_resp.json()["detail"]
+
+    # Querying permitted desk returns 200
+    permitted_resp = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert permitted_resp.status_code == 200
+    data = permitted_resp.json()
+    assert "items" in data
+    assert "total" in data
+
+
+def test_desk_queue_item_lifecycle_and_peer_convergence(
+    client: TestClient, db_session
+):
+    admin = create_user(
+        db_session,
+        name="Admin Evaluator",
+        email="admineval@lspu.edu.ph",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    doc = Document(
+        document_id=uuid.uuid4(),
+        title="SLM Document Alpha",
+        program="BSCS",
+        course_code="CS101",
+        source_type="slm",
+        file_path="/tmp/slm_alpha.pdf",
+        uploaded_by=admin.user_id,
+        uploaded_at=datetime.now(UTC),
+        page_count=10,
+        has_ocr_pages=False,
+        processing_status="PROCESSED",
+    )
+    db_session.add(doc)
+    db_session.flush()
+
+    matrix = MonitoringMatrix(
+        document_id=doc.document_id,
+        program="BSCS",
+        domain_scores_json={
+            "gad": {
+                "subtotal": 3.75,
+                "status": "OK",
+                "adjectival_rating": "Very Satisfactory",
+            },
+            "itso": {
+                "subtotal": 3.20,
+                "status": "OK",
+                "adjectival_rating": "Satisfactory",
+            },
+        },
+    )
+    db_session.add(matrix)
+    db_session.commit()
+
+    _login(client, admin)
+
+    # 1. SME desk: no job submitted -> READY status
+    resp_sme = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert resp_sme.status_code == 200
+    items_sme = [
+        it for it in resp_sme.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert len(items_sme) == 1
+    item = items_sme[0]
+    assert item["my_status"] == "READY"
+    assert item["my_score"] is None
+    assert item["my_adjectival"] is None
+    assert item["peer_completed_count"] == 2
+    assert set(item["peer_completed_desks"]) == {"gad", "itso"}
+    assert item["course_code"] == "CS101"
+    assert item["program"] == "BSCS"
+
+    # 2. GAD desk: already completed in matrix -> COMPLETED status with score
+    resp_gad = client.get("/api/v1/evaluations/desk-queue?target_agent=gad")
+    assert resp_gad.status_code == 200
+    items_gad = [
+        it for it in resp_gad.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert len(items_gad) == 1
+    gad_item = items_gad[0]
+    assert gad_item["my_status"] == "COMPLETED"
+    assert gad_item["my_score"] == 3.75
+    assert gad_item["my_adjectival"] == "Very Satisfactory"
+    assert gad_item["peer_completed_count"] == 2
+
+    # 3. Add job in EVALUATING state for SME
+    job_sme = EvaluationJob(
+        evaluation_id=uuid.uuid4(),
+        document_id=doc.document_id,
+        submitted_by=admin.user_id,
+        status=EvaluationStatus.EVALUATING.value,
+        target_agent="sme",
+    )
+    db_session.add(job_sme)
+    db_session.commit()
+
+    resp_sme_eval = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert resp_sme_eval.status_code == 200
+    items_sme_eval = [
+        it for it in resp_sme_eval.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert items_sme_eval[0]["my_status"] == "EVALUATING"
+
+
+def test_desk_queue_program_filtering(client: TestClient, db_session):
+    admin = create_user(
+        db_session,
+        name="Admin Filter",
+        email="adminfilter@lspu.edu.ph",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    doc_bscs = Document(
+        document_id=uuid.uuid4(),
+        title="BSCS Document",
+        program="BSCS",
+        source_type="slm",
+        file_path="/tmp/bscs.pdf",
+        uploaded_by=admin.user_id,
+        uploaded_at=datetime.now(UTC),
+        processing_status="PROCESSED",
+    )
+    doc_bsit = Document(
+        document_id=uuid.uuid4(),
+        title="BSIT Document",
+        program="BSInfoTech",
+        source_type="slm",
+        file_path="/tmp/bsit.pdf",
+        uploaded_by=admin.user_id,
+        uploaded_at=datetime.now(UTC),
+        processing_status="PROCESSED",
+    )
+    db_session.add_all([doc_bscs, doc_bsit])
+    db_session.commit()
+
+    _login(client, admin)
+
+    # Filter BSCS
+    bscs_resp = client.get(
+        "/api/v1/evaluations/desk-queue?target_agent=coordinator&program=BSCS"
+    )
+    assert bscs_resp.status_code == 200
+    bscs_ids = {it["document_id"] for it in bscs_resp.json()["items"]}
+    assert str(doc_bscs.document_id) in bscs_ids
+    assert str(doc_bsit.document_id) not in bscs_ids
+
+    # Filter BSIT alias
+    bsit_resp = client.get(
+        "/api/v1/evaluations/desk-queue?target_agent=coordinator&program=BSIT"
+    )
+    assert bsit_resp.status_code == 200
+    bsit_ids = {it["document_id"] for it in bsit_resp.json()["items"]}
+    assert str(doc_bsit.document_id) in bsit_ids
+    assert str(doc_bscs.document_id) not in bsit_ids
+
+    # Unsupported program -> 422
+    unsupported_resp = client.get(
+        "/api/v1/evaluations/desk-queue?target_agent=coordinator&program=BSEd"
+    )
+    assert unsupported_resp.status_code == 422

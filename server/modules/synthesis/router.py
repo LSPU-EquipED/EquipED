@@ -10,14 +10,19 @@ from server.modules.auth.dependencies import require_admin, require_authenticate
 from server.modules.synthesis.exceptions import (
     EvaluationResultIntegrityError,
     EvaluationResultsNotFoundError,
+    MonitoringMatrixNotFoundError,
     UnsupportedProgramFilterError,
 )
 from server.modules.synthesis.schemas import (
     EvaluationResultsResponse,
+    MasterSynthesisDetailResponse,
     MatrixListResponse,
 )
 from server.modules.synthesis.service import (
     get_evaluation_results as service_get_evaluation_results,
+)
+from server.modules.synthesis.service import (
+    get_master_synthesis_detail as service_get_master_synthesis_detail,
 )
 from server.modules.synthesis.service import (
     get_monitoring_matrix as service_get_monitoring_matrix,
@@ -67,5 +72,17 @@ def get_monitoring_matrix(
     except UnsupportedProgramFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
+
+
+@router.get("/matrix/{document_id}", response_model=MasterSynthesisDetailResponse)
+def get_master_synthesis_detail(
+    document_id: uuid.UUID,
+    current_user=Depends(require_admin),
+    db=Depends(get_db_session),
+) -> MasterSynthesisDetailResponse:
+    try:
+        return service_get_master_synthesis_detail(db=db, document_id=document_id)
+    except MonitoringMatrixNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 __all__ = ["router"]

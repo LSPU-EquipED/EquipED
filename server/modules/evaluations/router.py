@@ -20,10 +20,12 @@ from server.modules.evaluations.agent_schedule import VALID_TARGET_AGENTS
 from server.modules.evaluations.exceptions import (
     EvaluationNotFoundError,
     EvaluationPipelineUnavailableError,
+    ForbiddenEvaluationAccessError,
     InvalidEvaluationTargetError,
 )
 from server.modules.evaluations.orchestrator import drain_evaluation_queue
 from server.modules.evaluations.schemas import (
+    DeskQueueListResponse,
     EvaluationListResponse,
     EvaluationResponse,
     EvaluationStatusResponse,
@@ -36,6 +38,7 @@ from server.modules.evaluations.service import (
     get_evaluation,
     get_evaluation_status,
     get_latest_evaluations,
+    get_specialist_desk_queue,
     list_evaluations,
 )
 
@@ -164,6 +167,36 @@ def get_latest_evals(
         evaluator_permissions=current_user.evaluator_permissions,
         current_user_role=current_user.role.value,
     )
+
+
+@router.get("/desk-queue", response_model=DeskQueueListResponse)
+def get_desk_queue(
+    target_agent: Literal["sme", "coordinator", "gad", "itso"] = Query(
+        ..., description="Specialist desk agent identifier."
+    ),
+    program: str | None = Query(None, description="Optional program filter."),
+    page: int = Query(1, ge=1, description="Page number."),
+    page_size: int = Query(50, ge=1, le=100, description="Page size."),
+    current_user: AuthenticatedUser = Depends(require_authenticated_user),
+    db: Any = Depends(get_db_session),
+) -> DeskQueueListResponse:
+    try:
+        return get_specialist_desk_queue(
+            db=db,
+            target_agent=target_agent,
+            current_user=current_user,
+            program=program,
+            page=page,
+            page_size=page_size,
+        )
+    except ForbiddenEvaluationAccessError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        )
+    except InvalidEvaluationTargetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_eval(

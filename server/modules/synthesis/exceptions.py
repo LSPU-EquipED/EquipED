@@ -25,9 +25,13 @@ class EvaluationResultIntegrityError(SynthesisError):
     """Raised when agent results fail strict snapshot-bound integrity validation."""
 
 
+class MonitoringMatrixNotFoundError(SynthesisError):
+    """Raised when a monitoring matrix row does not exist for a document."""
+
 __all__ = [
     "SynthesisError",
     "EvaluationResultsNotFoundError",
     "UnsupportedProgramFilterError",
     "EvaluationResultIntegrityError",
+    "MonitoringMatrixNotFoundError",
 ]

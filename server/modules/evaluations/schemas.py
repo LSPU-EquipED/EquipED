@@ -96,6 +96,24 @@ class LatestEvaluationsResponse(BaseModel):
     items: list[LatestEvaluationItem]
 
 
+class DeskQueueItem(BaseModel):
+    document_id: UUID
+    title: str
+    course_code: str | None = None
+    program: str | None = None
+    uploaded_at: datetime
+    my_status: str  # "READY", "EVALUATING", "COMPLETED", "FAILED"
+    my_score: float | None = None
+    my_adjectival: str | None = None
+    peer_completed_count: int = 0
+    peer_completed_desks: list[str] = Field(default_factory=list)
+
+
+class DeskQueueListResponse(BaseModel):
+    items: list[DeskQueueItem]
+    total: int
+
+
 __all__ = [
     "EvaluationSubmitRequest",
     "EvaluationResponse",
@@ -104,4 +122,6 @@ __all__ = [
     "EvaluationStatusResponse",
     "LatestEvaluationItem",
     "LatestEvaluationsResponse",
+    "DeskQueueItem",
+    "DeskQueueListResponse",
 ]
