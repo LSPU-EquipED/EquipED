@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { TARGET_AGENTS, TARGET_AGENT_META, type TargetAgent } from '@/shared/types/evaluations';
 import {
+  ArrowsClockwise,
   CaretLeft,
   CaretRight,
   CheckCircle,
@@ -34,6 +35,7 @@ interface FacultyOperationalLedgerProps {
   latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
   latestEvalsState?: { isLoading?: boolean; isError?: boolean; isSuccess?: boolean };
   onEvaluate?: (doc: ClientDocument, agent: TargetAgent) => void;
+  onRefresh?: () => void;
 }
 
 export function FacultyOperationalLedger({
@@ -43,6 +45,7 @@ export function FacultyOperationalLedger({
   latestEvalsByDocId = {},
   latestEvalsState = {},
   onEvaluate,
+  onRefresh,
 }: FacultyOperationalLedgerProps) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<LedgerTab>('evaluations');
@@ -101,63 +104,83 @@ export function FacultyOperationalLedger({
 
   return (
     <div className={TABLE_STYLES.wrapper}>
-      {/* Ledger Navigation & Filter Toolbar */}
+      {/* ── Unified Ledger Toolbar (Single Tier) ──────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5">
-        {/* View Tabs */}
-        <div className="flex items-center gap-1 -mb-[11px] overflow-x-auto pb-2 md:pb-0" role="tablist" aria-label="Ledger views">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'evaluations'}
-            onClick={() => handleTabChange('evaluations')}
-            className={cn(
-              'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
-              activeTab === 'evaluations'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-muted hover:text-text hover:border-border',
-            )}
-          >
-            <span>Recent Evaluations</span>
-            <span
+        {/* Left: Section Stamp & View Tabs */}
+        <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
+          <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-primary font-mono bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-xs shrink-0 select-none">
+            Faculty Command Ledger
+          </span>
+
+          <div className="h-4 w-px bg-border/80 shrink-0" aria-hidden="true" />
+
+          <div className="flex items-center gap-1 -mb-[11px]" role="tablist" aria-label="Ledger views">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'evaluations'}
+              onClick={() => handleTabChange('evaluations')}
               className={cn(
-                'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold',
+                'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
                 activeTab === 'evaluations'
-                  ? 'bg-primary-soft text-primary'
-                  : 'bg-surface-subtle text-text-muted',
+                  ? 'border-primary text-primary font-bold'
+                  : 'border-transparent text-text-muted hover:text-text hover:border-border',
               )}
             >
-              {evaluations.length}
-            </span>
-          </button>
+              <span>Recent Evaluations</span>
+              <span
+                className={cn(
+                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold font-mono',
+                  activeTab === 'evaluations'
+                    ? 'bg-primary-soft text-primary'
+                    : 'bg-surface-subtle text-text-muted',
+                )}
+              >
+                {evaluations.length}
+              </span>
+            </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'attention'}
-            onClick={() => handleTabChange('attention')}
-            className={cn(
-              'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
-              activeTab === 'attention'
-                ? 'border-warning text-warning'
-                : 'border-transparent text-text-muted hover:text-text hover:border-border',
-            )}
-          >
-            <span>Requires Review</span>
-            <span
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'attention'}
+              onClick={() => handleTabChange('attention')}
               className={cn(
-                'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold',
+                'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
                 activeTab === 'attention'
-                  ? 'bg-warning-soft text-warning'
-                  : 'bg-surface-subtle text-text-muted',
+                  ? 'border-warning text-warning font-bold'
+                  : 'border-transparent text-text-muted hover:text-text hover:border-border',
               )}
             >
-              {recentIssues.length}
-            </span>
-          </button>
+              <span>Requires Review</span>
+              <span
+                className={cn(
+                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold font-mono',
+                  activeTab === 'attention'
+                    ? 'bg-warning-soft text-warning'
+                    : 'bg-surface-subtle text-text-muted',
+                )}
+              >
+                {recentIssues.length}
+              </span>
+            </button>
+          </div>
         </div>
-
-        {/* Controls: Program Filter & Search */}
+        {/* Controls: Refresh & Search */}
         <div className="flex items-center gap-2 shrink-0">
+          {onRefresh && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onRefresh}
+              className="h-8.5 px-3 text-xs font-semibold gap-1.5 shrink-0 border-border hover:bg-surface-subtle"
+              title="Refresh workspace data"
+            >
+              <ArrowsClockwise className="size-3.5" aria-hidden="true" />
+              <span>Refresh</span>
+            </Button>
+          )}
 
           <div className="relative min-w-[12rem] sm:min-w-[15rem]">
             <MagnifyingGlass
@@ -211,11 +234,11 @@ export function FacultyOperationalLedger({
                   return (
                     <tr key={ev.evaluation_id} className={TABLE_STYLES.tr}>
                       <td className={TABLE_STYLES.td}>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-text">
+                        <div className="space-y-0.5">
+                          <span className="text-sm font-bold text-text block leading-snug">
                             {ev.document_title || 'Untitled SLM'}
                           </span>
-                          <span className="text-[11px] font-mono text-text-muted">
+                          <span className="text-[10px] font-mono text-text-muted/80 block tabular-nums">
                             {ev.evaluation_id}
                           </span>
                         </div>
@@ -223,7 +246,7 @@ export function FacultyOperationalLedger({
                       <td className={TABLE_STYLES.td}>
                         <span
                           className={cn(
-                            'inline-flex items-center gap-1.5 rounded-xs px-2 py-0.5 text-xs font-semibold select-none',
+                            'inline-flex items-center gap-1.5 rounded-xs px-2.5 py-0.5 text-xs font-semibold select-none',
                             evalBadge.className,
                           )}
                         >
@@ -237,14 +260,10 @@ export function FacultyOperationalLedger({
                         <Link
                           to="/evaluations/$id"
                           params={{ id: ev.evaluation_id }}
-                          className={cn(
-                            BUTTON_STYLES.base,
-                            BUTTON_STYLES.variants.secondary,
-                            BUTTON_STYLES.sizes.sm,
-                          )}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong hover:underline transition-colors"
                         >
                           <span>View Scorecard</span>
-                          <CaretRight className="size-3.5" aria-hidden="true" />
+                          <CaretRight className="size-3" aria-hidden="true" />
                         </Link>
                       </td>
                     </tr>
@@ -298,14 +317,10 @@ export function FacultyOperationalLedger({
                     <td className={cn(TABLE_STYLES.td, 'text-right')}>
                       <Link
                         to={issue.targetUrl}
-                        className={cn(
-                          BUTTON_STYLES.base,
-                          BUTTON_STYLES.variants.secondary,
-                          BUTTON_STYLES.sizes.sm,
-                        )}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong hover:underline transition-colors"
                       >
                         <span>{issue.actionLabel}</span>
-                        <CaretRight className="size-3.5" aria-hidden="true" />
+                        <CaretRight className="size-3" aria-hidden="true" />
                       </Link>
                     </td>
                   </tr>

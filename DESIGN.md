@@ -214,26 +214,63 @@ EquipED uses **Public Sans**—an open-source, civic typeface created by the Uni
 
 ---
 
-## Layout
+## Layout & Page Archetypes
 
-Layouts reflect an authentic ledger workspace:
-- **Base Grid**: 4px base unit (`4px`, `8px`, `16px`, `24px`, `32px`, `48px`).
-- **Container Constraint**: Maximum content width is `108rem` (1728px) with horizontal auto-margins.
-- **Split-Pane Review Workspace**: High-frequency evaluation screens utilize a two-pane layout:
-  - Left pane: Original SLM document canvas with highlighted evidence.
-  - Right pane: Structured evaluation scorecard with domain-by-domain criterion ratings.
-  - Responsive stacking: Screens below 1024px stack panes sequentially with tabbed quick-navigation.
-- **Ledger Tables**: Persistent top headers, compact row heights (36px to 44px), subtle 1px dividers, and right-aligned numeric data.
+Layouts reflect an authentic academic ledger workspace structured around two definitive page archetypes:
+
+### Archetype A: The Overview Ledger (Full-Width Containerized)
+Applied to: Dashboard (`/dashboard`), SLM Storage Repository (`/documents`), User Management, Monitoring Matrix.
+* **Container Constraint**: `max-w-[108rem] (1728px)` with horizontal auto-margins (`mx-auto px-4 sm:px-6 py-6`).
+* **Grid Discipline**: Strict 12-column grid or responsive 4-column cards (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4`).
+* **Anti-Empty Margin Rule**: Elements must span their full container width with balanced internal data density. Never center narrow `max-w-3xl` columns on expansive desktop screens leaving wide empty canvas margins.
+* **Structural Layer Sequencing**:
+  1. Workstation Hero Header (Heading LG title, primary eyebrow, primary action CTA)
+  2. Repository Pulse / Metrics Strip (Full width, dense tabular numbers, semantic status icons)
+  3. Workstation Launchpads or Filter Toolbars
+  4. Primary Tabular Ledger (Sticky headers, compact rows, right-aligned data)
+
+### Archetype B: The Inspection Workstation (Split-Pane, Full-Height)
+Applied to: Specialist Scoreboards (`/specialists/$agentId/$documentId`), Syllabus Alignment Workspace, Evaluation Scorecards.
+* **Viewport Constraint**: Full viewport height `min-h-[calc(100vh-4rem)] flex flex-col bg-canvas`.
+* **Pane Distribution**:
+  - **Left Pane (Reference Dossier)**: Fixed width (`22rem` to `28rem`), border-right separator (`border-r border-border`), dedicated scroll container (`overflow-y-auto p-4 sm:p-5`). Houses read-only reference facts (metadata matrix, unit outline).
+  - **Right Pane (Action Docket / Scoreboard)**: Fluid width (`flex-1 min-w-0`), independent scroll container (`overflow-y-auto p-6 sm:p-8`). Houses interactive criteria, domain tabs, and authoritative review actions.
+* **Responsive Collapse**: Screens below `1024px` (`lg`) stack panes sequentially with tabbed navigation.
 
 ---
 
-## Elevation & Depth
+## Spacing Architecture (Macro vs. Micro Rhythm)
 
-EquipED employs a **flat-by-default** elevation model. Depth is established through tonal contrast and crisp borders rather than floating drop shadows:
-- **Surfaces at Rest**: Flat against the background (`box-shadow: none`). 1px solid borders (`#d6deea`) define boundaries.
-- **Modals & Dialogs**: Centered over a dimmed backdrop (`rgba(15, 23, 42, 0.45)`) with a subtle 1px border and minimal functional shadow (`0 4px 12px rgba(15, 23, 42, 0.08)`). Large blurred halos (blur > 16px) are forbidden.
-- **State-Only Focus**: Active interactive elements display a 2px royal blue outline (`ring-2 ring-[#1b3b87]`) with a 1px offset.
+EquipED structures spatial intervals around a 4px base unit grouped into three functional tiers:
 
+* **Micro Spacing (`4px`–`8px`)**:
+  - `4px` (`gap-1`, `space-y-1`): Micro badge padding, inline icon gaps, tabular suffix offsets.
+  - `8px` (`gap-2`, `space-y-2`): Form label to control offset (`mb-1.5`), list item separation in drawers, metadata key-value row spacing.
+* **Component Padding (`16px`–`24px`)**:
+  - `16px` (`p-4` / `p-4.5`): Standard interior padding for ledger cards, compact dossiers, and table headers.
+  - `24px` (`p-6`): Primary workstation cards, modal interiors, and dashboard containers.
+  - *Anti-Pattern*: Do not apply arbitrary padding (e.g. `p-12` or `p-2`) to standard ledger containers.
+* **Macro Spacing & Section Rhythm (`24px`–`32px`)**:
+  - `24px` (`space-y-6`): Standard vertical interval separating screen zones (Header → Metrics Strip → Launchpads → Ledger).
+  - `32px` (`space-y-8`): Dedicated section margins in complex configuration flows.
+
+## Elevation, Depth & Tonal Layering
+
+EquipED employs a **flat-by-default** elevation model. Depth is established through intentional tonal recession and layered borders rather than floating drop shadows:
+
+### The 3-Plane Tonal Depth Model
+* **Plane 0 (Canvas Backdrop `#f4f7fb`)**: The cool institutional foundation separating panels.
+* **Plane 1 (Surface Sheets `#ffffff`)**: Primary ledger cards and tables bounded by crisp 1px borders (`#d6deea`).
+* **Plane 2 (Recessed Sunken Trays `#f8fafc` / `#edf2ff`)**: Embedded trays inside cards for key-value ledgers, filter toolbars, and metadata blocks (`bg-surface-subtle p-3.5 rounded-sm`), creating physical depth without drop shadows.
+
+### 3-Tier Border Hierarchy
+* **Structural Border (`#d6deea`)**: 1px outer perimeters of cards, split-pane dividers, primary table edges.
+* **Interior Hairlines (`#d6deea` at 50%–60% opacity / `#e2e8f0`)**: Subtle separation inside cards and between compact key-value pairs, eliminating harsh heavy lines.
+* **Interactive Focus / Hover Border (`#1b3b87` at 40%–60%)**: Subtle brand glow when hovering over actionable workstation cards or active tabs.
+
+### Modals & Interactive Focus
+* **Modals & Dialogs**: Centered over a dimmed backdrop (`rgba(15, 23, 42, 0.45)`) with a subtle 1px border and minimal functional shadow (`0 4px 12px rgba(15, 23, 42, 0.08)`). Large blurred halos (blur > 16px) are forbidden.
+* **State-Only Focus**: Active interactive elements display a 2px royal blue outline (`ring-2 ring-[#1b3b87]`) with a 1px offset.
 ---
 
 ## Shapes
