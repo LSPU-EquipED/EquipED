@@ -20,6 +20,7 @@ interface DocumentTableProps {
   flashId: string | null;
   latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
   latestEvalsState?: SlmStatusQueryState;
+  targetAgent?: TargetAgent;
   /**
    * Optional targeted-evaluation trigger. When omitted, role actions
    * navigate to the evaluation workspace with `?target_agent=` so the
@@ -34,6 +35,7 @@ export function DocumentTable({
   flashId,
   latestEvalsByDocId = {},
   latestEvalsState = {},
+  targetAgent = 'sme',
   onEvaluate,
   onInspect,
 }: DocumentTableProps) {
@@ -91,7 +93,12 @@ export function DocumentTable({
         <tbody className="divide-y divide-border bg-surface">
           {documents.map((document) => {
             const latestEval = latestEvalsByDocId[document.documentId];
-            const display = getSlmDisplayStatus(document, latestEval, latestEvalsState);
+            const display = getSlmDisplayStatus(
+              document,
+              latestEval,
+              latestEvalsState,
+              targetAgent,
+            );
             const isFlashing = flashId === document.documentId;
 
             const primaryUrl = display.actionUrl;

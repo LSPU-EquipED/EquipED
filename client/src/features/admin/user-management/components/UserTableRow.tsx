@@ -60,9 +60,19 @@ export function UserTableRow({
         </div>
       </td>
       <td className={TABLE_STYLES.td}>
-        <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
-          {user.role}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
+            {user.role}
+          </Badge>
+          {(user.evaluator_permissions || user.evaluatorPermissions || []).map((perm) => (
+            <span
+              key={perm}
+              className="inline-flex items-center rounded-xs bg-primary-soft/50 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider text-primary"
+            >
+              {perm === 'coordinator' ? 'PC' : perm.toUpperCase()}
+            </span>
+          ))}
+        </div>
       </td>
       <td className={TABLE_STYLES.td}>
         <Badge variant={status.variant} withDot>

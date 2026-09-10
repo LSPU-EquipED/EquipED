@@ -9,7 +9,7 @@ import {
 import { AppShell } from './layout/AppShell';
 import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
-import { requireRole } from '../features/auth/guards/RoleGuard';
+import { requireRole, requireEvaluatorPermission } from '../features/auth/guards/RoleGuard';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
 import { isTargetAgent } from '@/shared/types/evaluations';
@@ -158,19 +158,28 @@ const dashboardRoute = createRoute({
   beforeLoad: requireRole(['faculty']),
   component: FacultyHomePage,
 });
+function DocumentsRouteView() {
+  const { user } = useAuth();
+  const firstPermission = user?.evaluatorPermissions?.[0];
+  const targetAgent = isTargetAgent(firstPermission) ? firstPermission : 'sme';
+  return <DocumentsPage targetAgent={targetAgent} />;
+}
+
 
 const documentsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'documents',
   beforeLoad: requireRole(['faculty']),
-  component: DocumentsPage,
+  component: DocumentsRouteView,
 });
 
 function UploadRouteView() {
   const { user } = useAuth();
+  const firstPermission = user?.evaluatorPermissions?.[0];
+  const targetAgent = isTargetAgent(firstPermission) ? firstPermission : 'sme';
   return (
     <div className="px-6 py-7">
-      <UploadPage user={user} />
+      <UploadPage user={user} targetAgent={targetAgent} />
     </div>
   );
 }
@@ -191,11 +200,17 @@ const evaluationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'evaluations',
   beforeLoad: requireRole(['faculty']),
-  component: () => (
-    <div className="px-6 py-7">
-      <HistoryPage />
-    </div>
-  ),
+  component: () => {
+    const auth = useAuth();
+    return (
+      <div className="px-6 py-7">
+        <HistoryPage
+          evaluatorPermissions={auth.user?.evaluatorPermissions}
+          userRole={auth.user?.role}
+        />
+      </div>
+    );
+  },
 });
 
 const evaluationMapRoute = createRoute({
@@ -212,8 +227,11 @@ const documentEvaluationRoute = createRoute({
     requireRole(['faculty'])({ context });
     const searchRecord = search as Record<string, unknown> | undefined;
     const rawTarget = searchRecord?.target_agent;
+    const firstPermission = context.auth?.user?.evaluatorPermissions?.[0];
+    const fallbackTarget = isTargetAgent(firstPermission) ? firstPermission : 'sme';
     const target =
-      typeof rawTarget === 'string' && isTargetAgent(rawTarget) ? rawTarget : 'sme';
+      typeof rawTarget === 'string' && isTargetAgent(rawTarget) ? rawTarget : fallbackTarget;
+    requireEvaluatorPermission(() => target)({ context, params });
     throw redirect({
       to: '/specialists/$agentId/$documentId',
       params: { agentId: target, documentId: params.documentId },
@@ -224,14 +242,20 @@ const documentEvaluationRoute = createRoute({
 const specialistScoreboardDocRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'specialists/$agentId/$documentId',
-  beforeLoad: requireRole(['faculty']),
+  beforeLoad: ({ context, params }) => {
+    requireRole(['faculty'])({ context });
+    requireEvaluatorPermission((p) => p.agentId)({ context, params });
+  },
   component: SpecialistScoreboardPage,
 });
 
 const specialistScoreboardRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'specialists/$agentId',
-  beforeLoad: requireRole(['faculty']),
+  beforeLoad: ({ context, params }) => {
+    requireRole(['faculty'])({ context });
+    requireEvaluatorPermission((p) => p.agentId)({ context, params });
+  },
   component: SpecialistScoreboardPage,
 });
 

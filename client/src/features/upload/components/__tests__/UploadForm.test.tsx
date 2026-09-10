@@ -135,7 +135,7 @@ describe('UploadForm', () => {
 
     mockUploadDocument.mockResolvedValueOnce(processedResponse);
 
-    render(<UploadForm user={mockUser} />);
+    render(<UploadForm user={mockUser} targetAgent="coordinator" />);
 
     const fileInput = document.getElementById('pdf-file') as HTMLInputElement;
     const pdfFile = new File(['pdf content'], 'Operating_Systems.pdf', { type: 'application/pdf' });
@@ -151,7 +151,7 @@ describe('UploadForm', () => {
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ['documents'] });
     expect(mockNavigate).toHaveBeenCalledWith({
       to: '/specialists/$agentId/$documentId',
-      params: { agentId: 'sme', documentId: 'doc-ready-99' },
+      params: { agentId: 'coordinator', documentId: 'doc-ready-99' },
     });
   });
 

@@ -113,6 +113,7 @@ describe('DocumentTable', () => {
         document_id: 'doc-1',
         evaluation_id: 'eval-done-1',
         status: 'COMPLETED_PARTIAL',
+        target_agent: 'sme',
         submitted_at: '2026-08-20T10:00:00Z',
         completed_at: '2026-08-20T10:05:00Z',
       },
@@ -138,6 +139,7 @@ describe('DocumentTable', () => {
         document_id: 'doc-1',
         evaluation_id: 'eval-active-1',
         status: 'EVALUATING',
+        target_agent: 'sme',
         submitted_at: '2026-08-21T10:00:00Z',
       },
     };
@@ -162,6 +164,7 @@ describe('DocumentTable', () => {
         document_id: 'doc-1',
         evaluation_id: 'eval-fail-1',
         status: 'FAILED',
+        target_agent: 'sme',
         submitted_at: '2026-08-21T09:00:00Z',
         error_message: 'Agent timeout',
       },

@@ -5,6 +5,7 @@ export type AppAuthUser = {
   displayName: string;
   email: string;
   role: UserRole;
+  evaluatorPermissions?: string[];
 };
 
 export type AuthCredentials = {

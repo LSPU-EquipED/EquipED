@@ -3,6 +3,7 @@ import {
   adminNavGroups,
   facultyNavGroups,
   facultySecondaryNavItems,
+  filterFacultyNavGroups,
   getAriaCurrent,
   getBreadcrumbs,
   getRouteTitle,
@@ -243,5 +244,34 @@ describe('getSidebarInertState', () => {
 
   it('returns not inert and not aria-hidden on mobile when mobileOpen is true', () => {
     expect(getSidebarInertState(true, true)).toEqual({ inert: false, ariaHidden: false });
+  });
+});
+
+describe('filterFacultyNavGroups', () => {
+  it('returns all groups unchanged when permissions are undefined or null', () => {
+    expect(filterFacultyNavGroups(facultyNavGroups, undefined)).toEqual(facultyNavGroups);
+    expect(filterFacultyNavGroups(facultyNavGroups, null)).toEqual(facultyNavGroups);
+  });
+
+  it('returns all groups unchanged when permissions array is empty (unrestricted)', () => {
+    expect(filterFacultyNavGroups(facultyNavGroups, [])).toEqual(facultyNavGroups);
+  });
+
+  it('filters specialists to only assigned desks', () => {
+    const result = filterFacultyNavGroups(facultyNavGroups, ['sme']);
+    const specialistGroup = result.find((g) => g.id === 'specialists');
+    expect(specialistGroup).toBeDefined();
+    expect(specialistGroup?.items).toHaveLength(1);
+    expect(specialistGroup?.items[0].to).toBe('/specialists/sme');
+  });
+
+  it('supports multiple specialist permissions', () => {
+    const result = filterFacultyNavGroups(facultyNavGroups, ['coordinator', 'gad']);
+    const specialistGroup = result.find((g) => g.id === 'specialists');
+    expect(specialistGroup?.items).toHaveLength(2);
+    expect(specialistGroup?.items.map((i) => i.to)).toEqual([
+      '/specialists/coordinator',
+      '/specialists/gad',
+    ]);
   });
 });
