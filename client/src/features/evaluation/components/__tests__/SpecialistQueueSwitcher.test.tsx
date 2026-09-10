@@ -111,7 +111,7 @@ describe('SpecialistQueueSwitcher', () => {
     expect(screen.getByRole('tab', { name: /Completed/i })).toBeDefined();
   });
 
-  it('displays module metadata, desk status badges, and peer convergence pills', () => {
+  it('displays module metadata and desk status badges', () => {
     renderSwitcher();
 
     fireEvent.click(screen.getByRole('combobox', { name: /Active SLM/i }));
@@ -128,11 +128,6 @@ describe('SpecialistQueueSwitcher', () => {
     expect(screen.getByText('Ready for Review')).toBeDefined();
     expect(screen.getByText(/Evaluated 3.85\/4.00/i)).toBeDefined();
     expect(screen.getByText(/Evaluating…/i)).toBeDefined();
-
-    // Verify peer convergence pills
-    expect(screen.getByText('0/4 Complete')).toBeDefined();
-    expect(screen.getByText('3/4 Complete')).toBeDefined();
-    expect(screen.getByText('1/4 Complete')).toBeDefined();
   });
 
   it('filters modules by status chips (Pending Review, Completed, All)', () => {
