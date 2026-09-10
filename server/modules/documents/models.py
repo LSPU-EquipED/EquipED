@@ -111,6 +111,7 @@ class DocumentChunk(Base):
         default=datetime.utcnow,
     )
 
+
 class UserDocument(Base):
     """User personal storage association with a canonical document."""
 

@@ -431,6 +431,8 @@ def _upsert_failure(
             existing.domain_scores_json = domain_scores
     db.flush()
     return existing
+
+
 def get_monitoring_matrix(
     program: str | None,
     status: str | None,
