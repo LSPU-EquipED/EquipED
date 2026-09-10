@@ -15,6 +15,33 @@ export const TYPOGRAPHY = {
   dataMd: 'text-[13px] font-medium leading-[1.35] tabular-nums text-text',
 } as const;
 
+export const SPACING_TIERS = {
+  micro: {
+    xs: 'gap-1 space-y-1',
+    sm: 'gap-2 space-y-2',
+  },
+  component: {
+    md: 'p-4 sm:p-5',
+    lg: 'p-6 sm:p-7',
+  },
+  macro: {
+    section: 'space-y-6',
+    flow: 'space-y-8',
+  },
+} as const;
+
+export const BORDER_STYLES = {
+  structural: 'border border-border',
+  hairline: 'border border-border/50',
+  interactive: 'border border-border hover:border-primary/40 transition-colors',
+} as const;
+
+export const ELEVATION_PLANES = {
+  canvas: 'bg-canvas',
+  surface: 'bg-surface border border-border shadow-none',
+  sunkenTray: 'bg-surface-subtle/80 border-0',
+} as const;
+
 export const STATUS_VARIANTS = {
   success: {
     container: 'bg-success-soft text-success border border-success/20',

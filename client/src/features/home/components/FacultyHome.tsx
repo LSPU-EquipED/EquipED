@@ -1,16 +1,7 @@
-import { Link, useNavigate } from '@tanstack/react-router';
-import {
-  ArrowsClockwise,
-  CheckCircle,
-  Clock,
-  FolderOpen,
-  Plus,
-  Warning,
-} from '@phosphor-icons/react';
+import { useNavigate } from '@tanstack/react-router';
+import { Warning } from '@phosphor-icons/react';
 import { getErrorMessage } from '@/shared/api/http';
 import { Button } from '@/shared/components/Button';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
-import { Skeleton } from '@/shared/components/Skeleton';
 import { useFacultyHome } from '../hooks/useFacultyHome';
 import { FacultyLaunchpads } from './FacultyLaunchpads';
 import { FacultyOperationalLedger } from './FacultyOperationalLedger';
@@ -46,44 +37,7 @@ export function FacultyHome() {
 
   return (
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
-      {/* ── 1. Top Action Bar ────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            Faculty Command Ledger
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => refetch()}
-            className="h-8.5 px-3 text-xs"
-            title="Refresh workspace data"
-          >
-            <ArrowsClockwise className="size-3.5" aria-hidden="true" />
-            <span>Refresh</span>
-          </Button>
-
-          <Link
-            to="/upload"
-            className={
-              BUTTON_STYLES.base +
-              ' ' +
-              BUTTON_STYLES.variants.primary +
-              ' ' +
-              BUTTON_STYLES.sizes.sm
-            }
-          >
-            <Plus className="size-3.5" aria-hidden="true" weight="bold" />
-            <span>Upload SLM</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* ── 2. Error State ───────────────────────────────────────────── */}
+      {/* ── 1. Error State ───────────────────────────────────────────── */}
       {isError ? (
         <div
           className="flex items-center justify-between rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive"
@@ -107,76 +61,16 @@ export function FacultyHome() {
         </div>
       ) : null}
 
-      {/* ── 3. Academic Workstation Launchpads ───────────────────────── */}
-      <FacultyLaunchpads />
+      {/* ── 2. Academic Workstation Bento Control Deck ────────────────── */}
+      <FacultyLaunchpads
+        totalModules={totalModules}
+        readyModules={readyModules}
+        inProgressCount={inProgressCount}
+        actionRequiredCount={actionRequiredCount}
+        isLoading={isLoading}
+      />
 
-      {/* ── 4. Metric Ledger Strip ───────────────────────────────────── */}
-      <div
-        aria-busy={isLoading}
-        className="rounded-md border border-border bg-surface shadow-none divide-y sm:divide-y-0 sm:divide-x divide-border grid grid-cols-2 sm:grid-cols-4"
-      >
-        {/* Total Modules */}
-        <div className="p-4 sm:p-4.5 flex items-center gap-3.5">
-          <div className="flex size-9 sm:size-10 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <FolderOpen className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Total Modules
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-12" /> : totalModules}
-            </p>
-          </div>
-        </div>
-
-        {/* Ready for Review */}
-        <div className="p-4 sm:p-4.5 flex items-center gap-3.5">
-          <div className="flex size-9 sm:size-10 items-center justify-center rounded-sm border border-success/30 bg-success-soft text-success shrink-0">
-            <CheckCircle className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Ready for Review
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-12" /> : readyModules}
-            </p>
-          </div>
-        </div>
-
-        {/* In Ingestion / Parsing */}
-        <div className="p-4 sm:p-4.5 flex items-center gap-3.5">
-          <div className="flex size-9 sm:size-10 items-center justify-center rounded-sm border border-info/30 bg-info-soft text-info shrink-0">
-            <Clock className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              In Ingestion
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-12" /> : inProgressCount}
-            </p>
-          </div>
-        </div>
-
-        {/* Action Required */}
-        <div className="p-4 sm:p-4.5 flex items-center gap-3.5">
-          <div className="flex size-9 sm:size-10 items-center justify-center rounded-sm border border-warning/30 bg-warning-soft text-warning shrink-0">
-            <Warning className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Action Required
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-12" /> : actionRequiredCount}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 5. Unified Operational Module Ledger ─────────────────────── */}
+      {/* ── 3. Unified Operational Module Ledger ─────────────────────── */}
       <FacultyOperationalLedger
         evaluations={evaluationsList}
         recentIssues={homeData.recentIssues}
@@ -184,9 +78,10 @@ export function FacultyHome() {
         latestEvalsByDocId={latestEvalsByDocId}
         latestEvalsState={latestEvalsState}
         onEvaluate={(doc, agent) => setEvaluatingTarget({ doc, agent })}
+        onRefresh={refetch}
       />
 
-      {/* ── 6. In-Place Targeted Evaluation Modal ───────────────────── */}
+      {/* ── 5. In-Place Targeted Evaluation Modal ───────────────────── */}
       {evaluatingTarget && (
         <EvaluationConfirmModal
           documentId={evaluatingTarget.doc.documentId}
