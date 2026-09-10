@@ -279,16 +279,14 @@ def _check_ownership_or_404(
     if row.submitted_by != current_user_id:
         # Always mask existence as 404 if not the owner.
         raise EvaluationNotFoundError("Not found.")
-    if (
-        current_user_role == "faculty"
-        and evaluator_permissions
-    ):
+    if current_user_role == "faculty" and evaluator_permissions:
         target = getattr(row, "target_agent", None) or "all"
         if target == "all":
             if not set(VALID_TARGET_AGENTS).issubset(set(evaluator_permissions)):
                 raise EvaluationNotFoundError("Not found.")
         elif target not in evaluator_permissions:
             raise EvaluationNotFoundError("Not found.")
+
 
 def get_evaluation(
     evaluation_id: uuid.UUID,
@@ -963,6 +961,7 @@ def get_specialist_desk_queue(
         )
 
     return DeskQueueListResponse(items=items, total=total)
+
 
 __all__ = [
     "create_evaluation",

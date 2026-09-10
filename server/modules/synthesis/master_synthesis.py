@@ -134,9 +134,7 @@ def get_master_synthesis_detail(
                 fallback_bundle_evaluator = attr
 
     domain_scores_json = (
-        matrix.domain_scores_json
-        if isinstance(matrix.domain_scores_json, dict)
-        else {}
+        matrix.domain_scores_json if isinstance(matrix.domain_scores_json, dict) else {}
     )
     pillars: dict[str, MasterSynthesisPillar] = {}
     for agent in PROGRESSIVE_AGENT_IDS:
