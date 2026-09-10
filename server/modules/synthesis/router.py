@@ -33,7 +33,18 @@ def get_evaluation_results(
     db=Depends(get_db_session),
 ):
     try:
-        return service_get_evaluation_results(evaluation_id, current_user.id, db=db)
+        user_role = (
+            current_user.role.value
+            if hasattr(current_user.role, "value")
+            else str(current_user.role)
+        )
+        return service_get_evaluation_results(
+            evaluation_id,
+            current_user.id,
+            db=db,
+            evaluator_permissions=getattr(current_user, "evaluator_permissions", None),
+            current_user_role=user_role,
+        )
     except EvaluationResultsNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     except EvaluationResultIntegrityError:

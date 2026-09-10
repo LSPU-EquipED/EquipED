@@ -31,7 +31,7 @@ class AuthenticatedUser:
     display_name: str
     email: str
     role: UserRole
-
+    evaluator_permissions: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class LoginResult:
@@ -88,11 +88,14 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 def build_authenticated_user(user: User) -> AuthenticatedUser:
+    raw_perms = getattr(user, "evaluator_permissions", None) or ()
+    perms = tuple(raw_perms) if isinstance(raw_perms, (list, tuple)) else ()
     return AuthenticatedUser(
         id=user.user_id,
         display_name=user.name,
         email=user.email,
         role=user.role,
+        evaluator_permissions=perms,
     )
 
 
@@ -106,8 +109,9 @@ def create_user(
     name: str,
     email: str,
     password: str,
-    role: UserRole,
+    role: UserRole = UserRole.FACULTY,
     is_active: bool = True,
+    evaluator_permissions: list[str] | None = None,
 ) -> User:
     user = User(
         name=name.strip(),
@@ -115,6 +119,7 @@ def create_user(
         password_hash=hash_password(password),
         role=role,
         is_active=is_active,
+        evaluator_permissions=list(evaluator_permissions or []),
     )
     db.add(user)
     db.flush()

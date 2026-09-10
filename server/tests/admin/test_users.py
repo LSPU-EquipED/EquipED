@@ -86,7 +86,7 @@ def test_admin_create_faculty_user(
 ) -> None:
     _auth(client, auth_cookies_admin)
     payload = {
-        "name": "New Faculty",
+        "name": "  New Faculty  ",
         "email": "newfaculty@lspu.edu.ph",
         "password": "password123",
         "role": "faculty",
@@ -760,3 +760,67 @@ def test_admin_approval_endpoint_user_not_found(
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "User not found"
+
+
+def test_admin_create_and_update_user_evaluator_permissions(
+    client: TestClient, auth_cookies_admin
+) -> None:
+    """Admin can set and update evaluator_permissions for faculty users."""
+    _auth(client, auth_cookies_admin)
+
+    # 1. Create with evaluator permissions
+    create_resp = client.post(
+        "/api/v1/admin/users",
+        json={
+            "name": "Specialist Faculty",
+            "email": "specialist@lspu.edu.ph",
+            "password": "SecurePassword123!",
+            "role": "faculty",
+            "evaluator_permissions": ["sme", "coordinator"],
+        },
+    )
+    assert create_resp.status_code == 201
+    user_data = create_resp.json()
+    assert user_data["evaluatorPermissions"] == ["sme", "coordinator"]
+    user_id = user_data["user_id"]
+
+    # 2. Update evaluator permissions
+    update_resp = client.put(
+        f"/api/v1/admin/users/{user_id}",
+        json={
+            "evaluator_permissions": ["gad", "itso"],
+        },
+    )
+    assert update_resp.status_code == 200
+    updated_data = update_resp.json()
+    assert updated_data["evaluatorPermissions"] == ["gad", "itso"]
+
+    # 3. Verify in user list
+    list_resp = client.get("/api/v1/admin/users")
+    assert list_resp.status_code == 200
+    fetched = next(u for u in list_resp.json()["items"] if u["user_id"] == user_id)
+    assert fetched["evaluatorPermissions"] == ["gad", "itso"]
+
+
+def test_admin_rejects_invalid_or_duplicate_evaluator_permissions(
+    client: TestClient, auth_cookies_admin
+) -> None:
+    _auth(client, auth_cookies_admin)
+    base_payload = {
+        "name": "Invalid Permissions",
+        "email": "invalid-permissions@lspu.edu.ph",
+        "password": "password123",
+        "role": "faculty",
+    }
+
+    invalid = client.post(
+        "/api/v1/admin/users",
+        json={**base_payload, "evaluator_permissions": ["root"]},
+    )
+    assert invalid.status_code == 422
+
+    duplicate = client.post(
+        "/api/v1/admin/users",
+        json={**base_payload, "evaluator_permissions": ["sme", "sme"]},
+    )
+    assert duplicate.status_code == 422

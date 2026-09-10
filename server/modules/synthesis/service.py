@@ -744,6 +744,8 @@ def get_evaluation_results(
     evaluation_id: uuid.UUID,
     current_user_id: uuid.UUID,
     db: Any,
+    evaluator_permissions: tuple[str, ...] | list[str] | None = None,
+    current_user_role: str = "faculty",
 ) -> EvaluationResultsResponse:
     """Assemble the full evaluation results response for an owner.
 
@@ -754,7 +756,17 @@ def get_evaluation_results(
     job = db.get(EvaluationJob, evaluation_id)
     if job is None or job.submitted_by != current_user_id:
         raise EvaluationResultsNotFoundError("Evaluation not found")
-
+    if (
+        current_user_role == "faculty"
+        and evaluator_permissions
+    ):
+        target = getattr(job, "target_agent", None) or "all"
+        valid_targets = ("sme", "coordinator", "gad", "itso")
+        if target == "all":
+            if not set(valid_targets).issubset(set(evaluator_permissions)):
+                raise EvaluationResultsNotFoundError("Evaluation not found")
+        elif target not in evaluator_permissions:
+            raise EvaluationResultsNotFoundError("Evaluation not found")
     document = db.get(Document, job.document_id)
     agent_results = db.query(AgentResult).filter_by(evaluation_id=evaluation_id).all()
     agent_name_map = {r.agent_result_id: r.agent_name for r in agent_results}

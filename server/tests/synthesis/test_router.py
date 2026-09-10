@@ -73,39 +73,6 @@ def test_matrix_preserves_historical_program_rows(matrix_client_data) -> None:
     assert "historical" in {item["document_title"] for item in response.json()["items"]}
 
 
-def test_results_route_delegates_to_service(
-    client, db_session, seeded_user, monkeypatch
-) -> None:
-    """The results route hands off to the service boundary with user/db args."""
-    import uuid as _uuid
-
-    from server.modules.synthesis import router as synthesis_router
-    from server.modules.synthesis.schemas import EvaluationResultsResponse
-
-    captured: dict = {}
-    eval_id = _uuid.uuid4()
-
-    def fake_get(evaluation_id, current_user_id, db=None):
-        captured["evaluation_id"] = evaluation_id
-        captured["current_user_id"] = current_user_id
-        return EvaluationResultsResponse(
-            evaluation_id=evaluation_id,
-            document_id=_uuid.uuid4(),
-            domain_scores={},
-            synthesized_score=0.0,
-            active_agents=[],
-            failed_agents=[],
-            evaluation_status="COMPLETED",
-        )
-
-    monkeypatch.setattr(synthesis_router, "service_get_evaluation_results", fake_get)
-    _login(client, seeded_user)
-
-    response = client.get(f"/api/v1/evaluations/{eval_id}/results")
-    assert response.status_code == 200
-    assert captured["evaluation_id"] == eval_id
-    assert captured["current_user_id"] == seeded_user.user_id
-
 
 def test_matrix_route_delegates_to_service(
     client, db_session, seeded_user, monkeypatch

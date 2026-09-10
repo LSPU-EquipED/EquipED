@@ -18,6 +18,17 @@ from server.modules.auth.email_policy import MAX_EMAIL_LENGTH, normalize_lspu_em
 from server.modules.auth.models import AccountStatus
 from server.modules.evaluations.models import EvaluationStatus
 
+EvaluatorPermission = Literal["sme", "coordinator", "gad", "itso"]
+
+
+def _validate_evaluator_permissions(
+    permissions: list[EvaluatorPermission] | None,
+) -> list[EvaluatorPermission] | None:
+    if permissions is not None and len(permissions) != len(set(permissions)):
+        raise ValueError("evaluator_permissions must not contain duplicates")
+    return permissions
+
+
 
 class PromptCreate(BaseModel):
     """Request body for creating a new prompt version."""
@@ -84,6 +95,11 @@ class AdminUserCreateRequest(BaseModel):
     email: str = Field(..., min_length=1, max_length=MAX_EMAIL_LENGTH)
     password: str = Field(..., min_length=8, max_length=256)
     role: Literal["admin", "faculty"] = Field(default="faculty")
+    evaluator_permissions: list[EvaluatorPermission] = Field(default_factory=list)
+
+    _unique_evaluator_permissions = field_validator("evaluator_permissions")(
+        _validate_evaluator_permissions
+    )
 
     @field_validator("email")
     @classmethod
@@ -98,6 +114,11 @@ class AdminUserUpdateRequest(BaseModel):
     email: str | None = Field(None, min_length=1, max_length=MAX_EMAIL_LENGTH)
     is_active: bool | None = None
     account_status: AccountStatus | None = None
+    evaluator_permissions: list[EvaluatorPermission] | None = None
+
+    _unique_evaluator_permissions = field_validator("evaluator_permissions")(
+        _validate_evaluator_permissions
+    )
 
     @field_validator("email")
     @classmethod
@@ -124,8 +145,10 @@ class AdminUserResponse(BaseModel):
     approved_at: datetime | None = None
     reviewed_at: datetime | None = None
     notification_warning: str | None = None
+    evaluator_permissions: list[str] = Field(
+        default_factory=list, serialization_alias="evaluatorPermissions"
+    )
     created_at: datetime
-
     class Config:
         from_attributes = True
 

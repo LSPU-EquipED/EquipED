@@ -33,6 +33,7 @@ def test_login_sets_cookie_and_returns_authenticated_user(
             "displayName": "Platform Admin",
             "email": "admin@lspu.edu.ph",
             "role": "admin",
+            "evaluatorPermissions": [],
         },
     }
     assert "equiped_session=" in response.headers["set-cookie"]
@@ -59,6 +60,7 @@ def test_me_returns_authenticated_user_after_login(
             "displayName": "Platform Admin",
             "email": "admin@lspu.edu.ph",
             "role": "admin",
+            "evaluatorPermissions": [],
         },
     }
 

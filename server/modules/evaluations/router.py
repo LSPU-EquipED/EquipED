@@ -13,8 +13,10 @@ from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
 from server.modules.auth.dependencies import require_authenticated_user
+from server.modules.auth.models import UserRole
 from server.modules.auth.service import AuthenticatedUser
 from server.modules.documents.exceptions import DocumentNotFoundError
+from server.modules.evaluations.agent_schedule import VALID_TARGET_AGENTS
 from server.modules.evaluations.exceptions import (
     EvaluationNotFoundError,
     EvaluationPipelineUnavailableError,
@@ -49,6 +51,15 @@ def submit_evaluation(
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationResponse:
+    if (
+        current_user.role == UserRole.FACULTY
+        and current_user.evaluator_permissions
+        and req.target_agent not in current_user.evaluator_permissions
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"User does not have evaluator permission for '{req.target_agent}'.",
+        )
     try:
         probe_local_model_readiness()
         if not admission_schema_ready(db):
@@ -91,7 +102,33 @@ def list_evals(
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationListResponse:
+    if (
+        current_user.role == UserRole.FACULTY
+        and current_user.evaluator_permissions
+        and target_agent
+    ):
+        if target_agent == "all":
+            if not set(VALID_TARGET_AGENTS).issubset(
+                set(current_user.evaluator_permissions)
+            ):
+                raise HTTPException(
+                    status_code=403,
+                    detail="User does not have permission to view all evaluator desks.",
+                )
+        elif target_agent not in current_user.evaluator_permissions:
+            raise HTTPException(
+                status_code=403,
+                detail=f"User does not have evaluator permission for '{target_agent}'.",
+            )
     try:
+        allowed_targets = (
+            current_user.evaluator_permissions
+            if (
+                current_user.role == UserRole.FACULTY
+                and current_user.evaluator_permissions
+            )
+            else None
+        )
         return list_evaluations(
             page,
             page_size,
@@ -101,6 +138,7 @@ def list_evals(
             document_id=document_id,
             target_agent=target_agent,
             status=status,
+            allowed_target_agents=allowed_targets,
         )
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
@@ -123,8 +161,9 @@ def get_latest_evals(
         deduped_ids,
         current_user.id,
         db=db,
+        evaluator_permissions=current_user.evaluator_permissions,
+        current_user_role=current_user.role.value,
     )
-
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_eval(
@@ -134,7 +173,11 @@ def get_eval(
 ) -> EvaluationResponse:
     try:
         return get_evaluation(
-            evaluation_id, current_user.id, current_user.role.value, db=db
+            evaluation_id,
+            current_user.id,
+            current_user.role.value,
+            db=db,
+            evaluator_permissions=current_user.evaluator_permissions,
         )
     except EvaluationNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation not found.")
@@ -148,7 +191,11 @@ def get_eval_status(
 ) -> EvaluationStatusResponse:
     try:
         return get_evaluation_status(
-            evaluation_id, current_user.id, current_user.role.value, db=db
+            evaluation_id,
+            current_user.id,
+            current_user.role.value,
+            db=db,
+            evaluator_permissions=current_user.evaluator_permissions,
         )
     except EvaluationNotFoundError:
         raise HTTPException(status_code=404, detail="Evaluation not found.")

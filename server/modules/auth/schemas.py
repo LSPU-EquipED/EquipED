@@ -56,7 +56,10 @@ class AuthUserResponse(BaseModel):
     display_name: str = Field(serialization_alias="displayName")
     email: str
     role: UserRole
-
+    evaluator_permissions: list[str] = Field(
+        default_factory=list,
+        serialization_alias="evaluatorPermissions",
+    )
 
 class AuthStateResponse(BaseModel):
     authenticated: bool
