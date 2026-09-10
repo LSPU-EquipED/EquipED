@@ -16,6 +16,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
+    Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -109,5 +111,39 @@ class DocumentChunk(Base):
         default=datetime.utcnow,
     )
 
+class UserDocument(Base):
+    """User personal storage association with a canonical document."""
 
-__all__ = ["Base", "Document", "DocumentChunk", "VALID_POLICY_AREAS"]
+    __tablename__ = "user_documents"
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_id", name="uq_user_documents_user_doc"),
+    )
+
+    user_document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("documents.document_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+    )
+
+
+__all__ = [
+    "Base",
+    "Document",
+    "DocumentChunk",
+    "UserDocument",
+    "VALID_POLICY_AREAS",
+]
