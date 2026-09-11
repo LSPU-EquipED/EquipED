@@ -20,14 +20,14 @@ from typing import Any
 
 from server.modules.embeddings.service import check_chroma_availability
 
-from .. import persistence
-from ..exceptions import (
+from . import persistence
+from .exceptions import (
     DocumentNotFoundError,
     ReferenceDeleteInvalidTypeError,
     ReferenceRebuildError,
 )
-from ..models import VALID_POLICY_AREAS, Document, DocumentChunk
-from ..schemas import (
+from .models import VALID_POLICY_AREAS, Document, DocumentChunk
+from .schemas import (
     POLICY_SOURCE_TYPES,
     PolicyDeleteResponse,
     PolicyLibraryItem,

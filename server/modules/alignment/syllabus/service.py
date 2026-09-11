@@ -24,7 +24,7 @@ from server.modules.alignment.syllabus.schemas import (
 )
 from server.modules.documents import persistence
 from server.modules.documents.models import Document, DocumentChunk
-from server.modules.documents.syllabus.service import is_syllabus_reference_ready
+from server.modules.documents.references import is_syllabus_reference_ready
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 

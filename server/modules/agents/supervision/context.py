@@ -317,7 +317,7 @@ class EvaluationContextBuilder:
         curriculum_id = refs.get("curriculum")
         if self.db is None or curriculum_id is None:
             return None
-        from server.modules.documents.curriculum.service import (
+        from server.modules.documents.curriculum_readiness import (
             check_curriculum_readiness,
         )
 

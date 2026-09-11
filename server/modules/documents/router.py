@@ -25,7 +25,7 @@ from sqlalchemy import func
 
 from . import persistence
 from .access import get_document, list_documents, stream_document_file
-from .curriculum.service import check_curriculum_readiness
+from .curriculum_readiness import check_curriculum_readiness
 from .exceptions import (
     DocumentNotFoundError,
     ExtractionFailedError,
@@ -39,10 +39,17 @@ from .exceptions import (
 )
 from .metadata import canonicalize_supported_program
 from .models import Document
-from .policy.service import (
+from .policies import (
     delete_policy_document,
     list_policy_documents,
     rebuild_policy_embeddings,
+)
+from .references import (
+    delete_reference_document,
+    get_syllabus_course_contents,
+    list_available_syllabus_references,
+    list_reference_documents,
+    rebuild_reference_embeddings,
 )
 from .schemas import (
     CurriculumSuggestionItem,
@@ -63,13 +70,6 @@ from .service import (
     create_document,
     embed_document_chunks,
     process_document_ingestion,
-)
-from .syllabus.service import (
-    delete_reference_document,
-    get_syllabus_course_contents,
-    list_available_syllabus_references,
-    list_reference_documents,
-    rebuild_reference_embeddings,
 )
 
 logger = logging.getLogger(__name__)

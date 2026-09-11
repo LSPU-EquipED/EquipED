@@ -10,8 +10,8 @@ from typing import Any
 from server.modules.auth.models import User, UserRole
 from server.modules.embeddings.service import check_chroma_availability
 
-from ..metadata import canonicalize_supported_program
-from ..models import Document, DocumentChunk
+from .metadata import canonicalize_supported_program
+from .models import Document, DocumentChunk
 
 logger = logging.getLogger(__name__)
 
