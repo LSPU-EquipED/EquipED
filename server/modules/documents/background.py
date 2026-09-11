@@ -9,9 +9,7 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.database import get_session_factory
-from server.modules.embeddings.service import (
-    delete_chroma_vectors_strict,
-)
+from server.modules.embeddings.service import delete_chroma_vectors_strict
 
 from . import paths, persistence
 from .embedding import embed_document_chunks

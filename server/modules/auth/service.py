@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,16 +11,27 @@ from server.core.config import Settings
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload
 
+from .crypto import (
+    SCRYPT_DKLEN,
+    SCRYPT_N,
+    SCRYPT_P,
+    SCRYPT_PREFIX,
+    SCRYPT_R,
+    _otp_hash,
+    hash_password,
+    hash_session_token,
+    verify_password,
+)
 from .email_policy import normalize_lspu_email
 from .exceptions import InactiveUserError, InvalidCredentialsError
-from .models import AccountStatus, PendingRegistration, User, UserRole
+from .models import AccountStatus, User, UserRole
 from .models import Session as AuthSession
-
-SCRYPT_PREFIX = "scrypt"
-SCRYPT_N = 2**14
-SCRYPT_R = 8
-SCRYPT_P = 1
-SCRYPT_DKLEN = 64
+from .registration import (
+    _utc,
+    resend_registration_otp,
+    start_registration,
+    verify_registration,
+)
 
 
 @dataclass(frozen=True)
@@ -33,58 +42,11 @@ class AuthenticatedUser:
     role: UserRole
     evaluator_permissions: tuple[str, ...] = ()
 
+
 @dataclass(frozen=True)
 class LoginResult:
     user: AuthenticatedUser
     session_token: str
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_bytes(16)
-    derived_key = hashlib.scrypt(
-        password.encode("utf-8"),
-        salt=salt,
-        n=SCRYPT_N,
-        r=SCRYPT_R,
-        p=SCRYPT_P,
-        dklen=SCRYPT_DKLEN,
-    )
-    return "$".join(
-        (
-            SCRYPT_PREFIX,
-            str(SCRYPT_N),
-            str(SCRYPT_R),
-            str(SCRYPT_P),
-            salt.hex(),
-            derived_key.hex(),
-        )
-    )
-
-
-def verify_password(password: str, stored_hash: str) -> bool:
-    try:
-        algorithm, n_value, r_value, p_value, salt_hex, digest_hex = stored_hash.split(
-            "$", 5
-        )
-    except ValueError:
-        return False
-
-    if algorithm != SCRYPT_PREFIX:
-        return False
-
-    try:
-        expected_digest = hashlib.scrypt(
-            password.encode("utf-8"),
-            salt=bytes.fromhex(salt_hex),
-            n=int(n_value),
-            r=int(r_value),
-            p=int(p_value),
-            dklen=len(bytes.fromhex(digest_hex)),
-        )
-    except (TypeError, ValueError):
-        return False
-
-    return hmac.compare_digest(expected_digest.hex(), digest_hex)
 
 
 def build_authenticated_user(user: User) -> AuthenticatedUser:
@@ -97,10 +59,6 @@ def build_authenticated_user(user: User) -> AuthenticatedUser:
         role=user.role,
         evaluator_permissions=perms,
     )
-
-
-def hash_session_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_user(
@@ -247,199 +205,24 @@ def logout_session(db: Session, token: str | None) -> bool:
     return True
 
 
-def _otp_hash(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
-
-
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
-
-
-def start_registration(db: Session, *, payload, settings):
-    normalized_email = normalize_lspu_email(payload.email)
-    existing = db.scalar(select(User).where(User.email == normalized_email))
-    if existing is not None:
-        if existing.role == UserRole.ADMIN:
-            raise ValueError("An account with this email already exists")
-        if existing.account_status != AccountStatus.REJECTED:
-            raise ValueError("An account with this email already exists")
-
-    registration_token = secrets.token_urlsafe(32)
-    otp = f"{secrets.randbelow(1_000_000):06d}"
-    now = datetime.now(UTC)
-
-    # Check if there is an existing pending registration row for this email
-    existing_reg = db.scalar(
-        select(PendingRegistration)
-        .where(PendingRegistration.email == normalized_email)
-        .with_for_update()
-    )
-    if existing_reg is not None:
-        # Enforce 60s cooldown from last_sent_at
-        if now - _utc(existing_reg.last_sent_at) < timedelta(seconds=60):
-            raise ValueError("Please wait before requesting another code")
-
-        # Reuse existing row, update attributes and OTP
-        existing_reg.token_hash = hash_session_token(registration_token)
-        existing_reg.existing_user_id = (
-            existing.user_id if existing is not None else None
-        )
-        existing_reg.name = payload.name.strip()
-        existing_reg.password_hash = hash_password(payload.password)
-        existing_reg.faculty_id = payload.faculty_id.strip()
-        existing_reg.department = payload.department.strip()
-        existing_reg.program = payload.program.strip()
-        existing_reg.otp_hash = _otp_hash(otp)
-        existing_reg.otp_expires_at = now + timedelta(minutes=10)
-        existing_reg.otp_attempts = 0
-        existing_reg.last_sent_at = now
-        registration = existing_reg
-    else:
-        registration = PendingRegistration(
-            token_hash=hash_session_token(registration_token),
-            existing_user_id=existing.user_id if existing is not None else None,
-            name=payload.name.strip(),
-            email=normalized_email,
-            password_hash=hash_password(payload.password),
-            faculty_id=payload.faculty_id.strip(),
-            department=payload.department.strip(),
-            program=payload.program.strip(),
-            otp_hash=_otp_hash(otp),
-            otp_expires_at=now + timedelta(minutes=10),
-            otp_attempts=0,
-            last_sent_at=now,
-        )
-        db.add(registration)
-
-    db.flush()
-    return registration_token, registration, otp
-
-
-def verify_registration(db: Session, *, token: str, otp: str) -> User:
-    """Verifies OTP and completes faculty registration.
-
-    Lock order:
-    1. Existing User row (via SELECT ... FOR UPDATE) if matching.
-    2. PendingRegistration row (via SELECT ... FOR UPDATE).
-    3. Any Session effects.
-    For new users without an existing User row, concurrency relies on
-    DB unique constraints on email.
-    """
-    token_hash = hash_session_token(token)
-
-    # 1. Probe PendingRegistration projection without ORM identity-map caching
-    probe_row = db.execute(
-        select(
-            PendingRegistration.existing_user_id,
-            PendingRegistration.email,
-        ).where(PendingRegistration.token_hash == token_hash)
-    ).first()
-    if probe_row is None:
-        raise ValueError("Registration is invalid or expired")
-
-    probe_existing_user_id, probe_email = probe_row[0], probe_row[1]
-
-    # 2. Acquire lock on existing User row BEFORE acquiring PendingRegistration lock
-    user: User | None = None
-    if probe_existing_user_id is not None:
-        user = db.scalar(
-            select(User).where(User.user_id == probe_existing_user_id).with_for_update()
-        )
-    else:
-        user = db.scalar(
-            select(User).where(User.email == probe_email).with_for_update()
-        )
-
-    # 3. Acquire lock on PendingRegistration row with fresh refresh and verify coherence
-    registration = db.scalar(
-        select(PendingRegistration)
-        .where(PendingRegistration.token_hash == token_hash)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if (
-        registration is None
-        or registration.email != probe_email
-        or registration.existing_user_id != probe_existing_user_id
-    ):
-        raise ValueError("Registration is invalid or expired")
-
-    if _utc(registration.otp_expires_at) <= datetime.now(UTC):
-        raise ValueError("Verification code has expired")
-    if registration.otp_attempts >= 5:
-        raise ValueError("Too many verification attempts")
-
-    if not hmac.compare_digest(registration.otp_hash, _otp_hash(otp)):
-        registration.otp_attempts += 1
-        db.flush()
-        raise ValueError("Invalid verification code")
-
-    # 4. Revalidate under lock
-    if registration.existing_user_id is not None:
-        if (
-            user is None
-            or user.user_id != registration.existing_user_id
-            or user.email != registration.email
-        ):
-            raise ValueError("Registration is invalid or expired")
-        if user.role != UserRole.FACULTY:
-            raise ValueError("Only faculty registrations can be verified")
-        if user.account_status != AccountStatus.REJECTED:
-            raise ValueError("An account with this email already exists")
-    else:
-        if user is not None:
-            if user.role != UserRole.FACULTY:
-                raise ValueError("Only faculty registrations can be verified")
-            if user.account_status != AccountStatus.REJECTED:
-                raise ValueError("An account with this email already exists")
-        else:
-            user = User(email=registration.email, role=UserRole.FACULTY)
-            db.add(user)
-
-    user.name = registration.name
-    user.password_hash = registration.password_hash
-    user.is_active = False
-    user.account_status = AccountStatus.PENDING
-    user.faculty_id = registration.faculty_id
-    user.department = registration.department
-    user.program = registration.program
-    user.reviewed_by = None
-    user.reviewed_at = None
-    user.approved_at = None
-
-    db.delete(registration)
-    db.flush()
-    return user
-
-
-def resend_registration_otp(db: Session, *, token: str, settings):
-    registration = db.scalar(
-        select(PendingRegistration)
-        .where(PendingRegistration.token_hash == hash_session_token(token))
-        .with_for_update()
-    )
-    if registration is None:
-        raise ValueError("Registration is invalid or expired")
-    now = datetime.now(UTC)
-    if now - _utc(registration.last_sent_at) < timedelta(seconds=60):
-        raise ValueError("Please wait before requesting another code")
-    otp = f"{secrets.randbelow(1_000_000):06d}"
-    registration.otp_hash = _otp_hash(otp)
-    registration.otp_expires_at = now + timedelta(minutes=10)
-    registration.otp_attempts = 0
-    registration.last_sent_at = now
-    db.flush()
-    return registration, otp
-
-
 __all__ = [
     "AuthenticatedUser",
     "LoginResult",
+    "SCRYPT_DKLEN",
+    "SCRYPT_N",
+    "SCRYPT_P",
+    "SCRYPT_PREFIX",
+    "SCRYPT_R",
+    "_otp_hash",
+    "_utc",
     "authenticate_user",
     "bootstrap_admin_if_configured",
+    "build_authenticated_user",
     "create_user",
+    "get_active_session_query",
     "get_authenticated_user_from_token",
     "hash_password",
+    "hash_session_token",
     "logout_session",
     "resend_registration_otp",
     "revoke_active_sessions",
