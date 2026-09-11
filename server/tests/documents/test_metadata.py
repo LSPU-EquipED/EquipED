@@ -271,7 +271,7 @@ class TestDetectionNonBlocking:
         from server.modules.documents.service import (
             create_document,
         )
-        from server.modules.documents.slm import SlmProcessingResult
+        from server.modules.documents.slm_processing import SlmProcessingResult
 
         # Clean in-memory state for isolation
 
@@ -309,13 +309,13 @@ class TestDetectionNonBlocking:
 
         monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
         monkeypatch.setattr(
-            "server.modules.documents.service.ingest_document", _fake_ingest
+            "server.modules.documents.processing.ingest_document", _fake_ingest
         )
         monkeypatch.setattr(
-            "server.modules.documents.service.detect_metadata", _raise_on_detect
+            "server.modules.documents.processing.detect_metadata", _raise_on_detect
         )
         monkeypatch.setattr(
-            "server.modules.documents.service.prepare_slm_package",
+            "server.modules.documents.processing.prepare_slm_package",
             _fake_prepare_slm_package,
         )
 

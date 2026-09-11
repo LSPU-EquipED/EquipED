@@ -777,7 +777,9 @@ class TestPolicyClauseAwareAssembly:
         import uuid
 
         from server.modules.documents.ingestion.pipeline import ExtractedPage
-        from server.modules.documents.policy.chunking import build_policy_chunks
+        from server.modules.documents.ingestion.policy_chunking import (
+            build_policy_chunks,
+        )
 
         text = (
             "Preamble text explaining the policy.\n\n"
@@ -805,7 +807,9 @@ class TestPolicyClauseAwareAssembly:
         import uuid
 
         from server.modules.documents.ingestion.pipeline import ExtractedPage
-        from server.modules.documents.policy.chunking import build_policy_chunks
+        from server.modules.documents.ingestion.policy_chunking import (
+            build_policy_chunks,
+        )
 
         text = (
             "Section 1. First Policy\n\nContent one.\n\n"
@@ -828,7 +832,9 @@ class TestPolicyClauseAwareAssembly:
         import uuid
 
         from server.modules.documents.ingestion.pipeline import ExtractedPage
-        from server.modules.documents.policy.chunking import build_policy_chunks
+        from server.modules.documents.ingestion.policy_chunking import (
+            build_policy_chunks,
+        )
 
         text = (
             "Just a plain paragraph with no real section headings "
@@ -1349,7 +1355,9 @@ class TestPolicyChunkingPageProvenance:
         import uuid
 
         from server.modules.documents.ingestion.pipeline import ExtractedPage
-        from server.modules.documents.policy.chunking import build_policy_chunks
+        from server.modules.documents.ingestion.policy_chunking import (
+            build_policy_chunks,
+        )
 
         pages = [
             ExtractedPage(
@@ -1377,7 +1385,9 @@ class TestPolicyChunkingPageProvenance:
         import uuid
 
         from server.modules.documents.ingestion.pipeline import ExtractedPage
-        from server.modules.documents.policy.chunking import build_policy_chunks
+        from server.modules.documents.ingestion.policy_chunking import (
+            build_policy_chunks,
+        )
 
         pages = [
             ExtractedPage(
@@ -1406,7 +1416,7 @@ class TestPolicyDeleteOrdering:
 
     def test_delete_commits_sql_before_external_cleanup(self, db_session):
         """Delete commits SQL removal first, then attempts external cleanup."""
-        from server.modules.documents.policy.service import delete_policy_document
+        from server.modules.documents.policies import delete_policy_document
 
         admin = create_user(
             db_session,
@@ -1440,7 +1450,7 @@ class TestPolicyDeleteOrdering:
 
     def test_delete_changes_status_first_before_external(self, db_session):
         """SQL removal happens before external cleanup in the function body."""
-        from server.modules.documents.policy.service import delete_policy_document
+        from server.modules.documents.policies import delete_policy_document
 
         admin = create_user(
             db_session,
@@ -1476,7 +1486,7 @@ class TestPolicyDeleteOrdering:
     def test_delete_rejects_nonexistent_document(self, db_session):
         """Deleting a non-existent document raises DocumentNotFoundError."""
         from server.modules.documents.exceptions import DocumentNotFoundError
-        from server.modules.documents.policy.service import delete_policy_document
+        from server.modules.documents.policies import delete_policy_document
 
         fake_id = uuid.uuid4()
         with pytest.raises(DocumentNotFoundError):

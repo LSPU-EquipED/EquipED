@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from server.modules.documents.exceptions import ExtractionFailedError
-from server.modules.documents.syllabus.extraction import (
+from server.modules.documents.ingestion.syllabus import (
     SyllabusCourseContentRecord,
     extract_syllabus_course_contents,
 )
@@ -205,7 +205,7 @@ def test_ingestion_emits_only_course_content_chunks(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "server.modules.documents.syllabus.extraction.extract_syllabus_course_contents",
+        "server.modules.documents.ingestion.syllabus.extract_syllabus_course_contents",
         lambda _file_path, _pages: [
             SyllabusCourseContentRecord(
                 content="Network models and routing fundamentals.",

@@ -53,10 +53,13 @@ def test_authenticated_faculty_can_view_ordered_shared_syllabus_course_contents(
         ]
     )
     db_session.commit()
-    assert client.post(
-        "/api/v1/auth/login",
-        json={"email": seeded_user.email, "password": "correct-horse-battery"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": seeded_user.email, "password": "correct-horse-battery"},
+        ).status_code
+        == 200
+    )
 
     response = client.get(f"/api/v1/documents/{syllabus_id}/course-contents")
 
@@ -117,17 +120,20 @@ def test_available_syllabi_lists_only_processed_references_with_contents_and_vec
         ]
     )
     db_session.commit()
-    from server.modules.documents.syllabus import service as reference_service
+    from server.modules.documents import references as reference_service
 
     monkeypatch.setattr(
         reference_service,
         "check_chroma_availability",
         lambda document_id, _source_type: document_id == str(ready_id),
     )
-    assert client.post(
-        "/api/v1/auth/login",
-        json={"email": seeded_user.email, "password": "correct-horse-battery"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": seeded_user.email, "password": "correct-horse-battery"},
+        ).status_code
+        == 200
+    )
 
     response = client.get("/api/v1/documents/syllabi/available")
 

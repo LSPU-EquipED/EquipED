@@ -674,7 +674,7 @@ def test_validation_full_requires_curriculum_and_all_four_agents(
         "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, domain: True,
     )
     _auth(client, auth_cookies_admin)

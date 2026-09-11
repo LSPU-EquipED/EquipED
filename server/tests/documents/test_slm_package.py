@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from server.modules.documents.slm import prepare_slm_package
+from server.modules.documents.slm_processing import prepare_slm_package
 
 
 def test_prepare_slm_package_builds_structured_context() -> None:

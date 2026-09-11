@@ -9,11 +9,11 @@ from unittest.mock import patch
 import pytest
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.documents.curriculum.extraction import filter_curriculum_pages
-from server.modules.documents.curriculum.service import (
+from server.modules.documents.curriculum_readiness import (
     check_curriculum_readiness,
 )
 from server.modules.documents.exceptions import ExtractionFailedError
+from server.modules.documents.ingestion.curriculum import filter_curriculum_pages
 from server.modules.documents.ingestion.pipeline import ExtractedPage
 from server.modules.documents.models import Document, DocumentChunk
 
@@ -561,7 +561,7 @@ class TestCurriculumReadinessService:
         _add_chunk(db_session, document_id=doc_id, source_type="curriculum")
 
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             return_value=True,
         ):
             readiness = check_curriculum_readiness(doc_id, "BSCS", db_session)
@@ -587,7 +587,7 @@ class TestCurriculumReadinessService:
         _add_chunk(db_session, document_id=doc_id, source_type="curriculum")
 
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             return_value=True,
         ):
             readiness = check_curriculum_readiness(doc_id, "BSCS", db_session)
@@ -619,7 +619,7 @@ class TestCurriculumReadinessService:
         )
 
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             return_value=False,
         ):
             readiness = check_curriculum_readiness(doc_id, "BSCS", db_session)
@@ -645,7 +645,7 @@ class TestCurriculumReadinessService:
         )
 
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             return_value=True,
         ):
             readiness = check_curriculum_readiness(doc_id, "BSCS", db_session)
@@ -811,7 +811,7 @@ class TestCurriculumSuggestionEndpoint:
 
         _login(client, faculty.email)
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             side_effect=mock_chroma,
         ):
             resp = client.get(
@@ -882,7 +882,7 @@ class TestCurriculumSuggestionEndpoint:
 
         _login(client, faculty.email)
         with patch(
-            "server.modules.documents.curriculum.service.check_chroma_availability",
+            "server.modules.documents.curriculum_readiness.check_chroma_availability",
             return_value=True,
         ):
             resp = client.get(

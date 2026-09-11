@@ -100,7 +100,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     session.commit()
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
 
@@ -605,7 +605,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     db_session.commit()
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
 
@@ -703,7 +703,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
     db_session.commit()
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
 
@@ -921,7 +921,7 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     )
     db_session.commit()
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
     slm_3 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
@@ -1103,7 +1103,7 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     )
     db_session.commit()
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
     slm_full = _add_document(db_session, owner_id=owner.user_id, source_type="slm")

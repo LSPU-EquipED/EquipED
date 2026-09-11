@@ -20,11 +20,9 @@ from server.modules.documents.exceptions import (
     UnsupportedFileTypeError,
 )
 from server.modules.documents.journaling import _cleanup_failed_upload
+from server.modules.documents.processing import _sanitize_error
 from server.modules.documents.schemas import DocumentChunkData, DocumentResponse
-from server.modules.documents.service import (
-    _sanitize_error,
-    create_document,
-)
+from server.modules.documents.service import create_document
 
 
 def test_paths_consumers_resolve_same_repository_root() -> None:
@@ -40,7 +38,8 @@ def test_paths_consumers_resolve_same_repository_root() -> None:
 def test_upload_manual_bsit_is_canonicalized(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", lambda *args, **kwargs: []
+        "server.modules.documents.processing.ingest_document",
+        lambda *args, **kwargs: [],
     )
     result = create_document(
         UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
@@ -66,7 +65,7 @@ def test_upload_unsupported_program_rejected_before_processing(
         return []
 
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", ingest)
+    monkeypatch.setattr("server.modules.documents.processing.ingest_document", ingest)
     with pytest.raises(UnsupportedFileTypeError, match="Only BSCS"):
         create_document(
             UploadFile(filename="program.pdf", file=BytesIO(b"pdf")),
@@ -83,7 +82,7 @@ def test_upload_unsupported_program_rejected_before_processing(
 
 
 def test_upload_rbac_precedes_unsupported_program() -> None:
-    from server.modules.documents.service import _validate_upload
+    from server.modules.documents.upload import _validate_upload
 
     with pytest.raises(ForbiddenUploadError):
         _validate_upload(
@@ -487,7 +486,7 @@ def test_existing_documents_are_not_auto_reprocessed(
 
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document",
+        "server.modules.documents.processing.ingest_document",
         fake_ingest_document,
     )
 
@@ -572,13 +571,13 @@ def test_curriculum_background_ingestion_fails_closed_on_empty_page(
         lambda _: fake_pages,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     from server.core.config import Settings
 
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -658,15 +657,15 @@ def test_background_ingestion_clears_stale_chunks_on_ocr_failure(
         raise ExtractionFailedError("OCR extraction produced no text for page 1")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document",
+        "server.modules.documents.background.ingest_document",
         fail_ingest,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -726,13 +725,15 @@ def test_process_document_ingestion_expected_failure_persists_sanitized_warning(
             "OCR extraction produced no text for page 2 (/var/private/secret/path.pdf)"
         )
 
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", fail_ingest)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.ingest_document", fail_ingest
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -791,14 +792,14 @@ def test_process_document_ingestion_unexpected_failure_persists_generic_warning(
         raise RuntimeError("Internal DB connection dropped unexpectedly: /etc/secrets")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", unexpected_crash
+        "server.modules.documents.background.ingest_document", unexpected_crash
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -862,17 +863,17 @@ def test_process_document_ingestion_successful_retry_clears_stale_warning(
         ]
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", successful_ingest
+        "server.modules.documents.background.ingest_document", successful_ingest
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.embed_document_chunks", lambda _: 1
+        "server.modules.documents.background.embed_document_chunks", lambda _: 1
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -894,7 +895,8 @@ def test_create_document_blank_only_fails_closed(monkeypatch, tmp_path) -> None:
     # Blank-only PDF produces empty chunk list from ingest_document
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", lambda *args, **kwargs: []
+        "server.modules.documents.processing.ingest_document",
+        lambda *args, **kwargs: [],
     )
     result = create_document(
         UploadFile(filename="blank.pdf", file=BytesIO(b"%PDF-1.4\nblank")),
@@ -950,20 +952,22 @@ def test_process_document_ingestion_initial_failure_does_not_invoke_chroma(
 
     mock_chroma_delete = MagicMock()
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
     def fail_ingest(*args, **kwargs):
         raise ExtractionFailedError("OCR extraction produced no text for page 1")
 
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", fail_ingest)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.ingest_document", fail_ingest
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1034,20 +1038,22 @@ def test_process_document_ingestion_stale_prior_state_strict_cleanup_success(
 
     mock_chroma_delete = MagicMock(return_value=True)
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
     def fail_ingest(*args, **kwargs):
         raise ExtractionFailedError("OCR extraction produced no text for page 1")
 
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", fail_ingest)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.ingest_document", fail_ingest
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1118,20 +1124,22 @@ def test_process_document_ingestion_stale_prior_state_missing_collection_converg
 
     mock_chroma_delete = MagicMock(return_value=False)
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
     def fail_ingest(*args, **kwargs):
         raise ExtractionFailedError("OCR extraction produced no text for page 1")
 
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", fail_ingest)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.ingest_document", fail_ingest
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1203,26 +1211,28 @@ def test_process_document_ingestion_strict_cleanup_exception_preserves_state(
         side_effect=RuntimeError("Chroma vectors remain after deletion: 5 leftover")
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
     mock_embed = MagicMock()
     monkeypatch.setattr(
-        "server.modules.documents.service.embed_document_chunks",
+        "server.modules.documents.background.embed_document_chunks",
         mock_embed,
     )
 
     def fail_ingest(*args, **kwargs):
         raise ExtractionFailedError("OCR extraction produced no text for page 1")
 
-    monkeypatch.setattr("server.modules.documents.service.ingest_document", fail_ingest)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.ingest_document", fail_ingest
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1263,7 +1273,7 @@ def test_process_document_ingestion_no_database_mode_fails_closed_and_cleans_fil
 
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url=""),
     )
 
@@ -1343,7 +1353,7 @@ def test_persist_reference_stub_preserves_course_and_lesson_titles_db_and_memory
 
     # 2. In-memory / no-DB path
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url=""),
     )
     mem_resp = create_document(
@@ -1422,7 +1432,7 @@ def test_process_document_ingestion_db_write_failure_strict_cleanup_success(
 
     mock_chroma_delete = MagicMock(return_value=True)
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
@@ -1441,22 +1451,22 @@ def test_process_document_ingestion_db_write_failure_strict_cleanup_success(
         ]
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", successful_extract
+        "server.modules.documents.background.ingest_document", successful_extract
     )
 
     def failing_persist_chunks(*args, **kwargs):
         raise RuntimeError("Disk full / DB connection lost during chunk write")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.persistence._persist_chunks",
+        "server.modules.documents.background.persistence._persist_chunks",
         failing_persist_chunks,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1531,7 +1541,7 @@ def test_process_document_ingestion_db_write_fail_unverified_preserves_state(
         side_effect=RuntimeError("Chroma vectors remain after deletion: leftover")
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
@@ -1550,22 +1560,22 @@ def test_process_document_ingestion_db_write_fail_unverified_preserves_state(
         ]
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", successful_extract
+        "server.modules.documents.background.ingest_document", successful_extract
     )
 
     def failing_persist_chunks(*args, **kwargs):
         raise RuntimeError("Disk full / DB connection lost during chunk write")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.persistence._persist_chunks",
+        "server.modules.documents.background.persistence._persist_chunks",
         failing_persist_chunks,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1658,7 +1668,7 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
         side_effect=RuntimeError("Chroma vectors remain after deletion: 2 leftover")
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.delete_chroma_vectors_strict",
+        "server.modules.documents.background.delete_chroma_vectors_strict",
         mock_chroma_delete,
     )
 
@@ -1666,14 +1676,14 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
         raise ExtractionFailedError("Corrupted scan")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", fail_extract
+        "server.modules.documents.background.ingest_document", fail_extract
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_session_factory",
+        "server.modules.documents.background.get_session_factory",
         lambda: lambda: db_session,
     )
     monkeypatch.setattr(
-        "server.modules.documents.service.get_settings",
+        "server.modules.documents.background.get_settings",
         lambda: Settings(database_url="sqlite:///:memory:"),
     )
 
@@ -1743,6 +1753,8 @@ def test_startup_recovery_preserves_unverified_vector_cleanup_state(
 
     # Ordinary failed document must have had its PDF unlinked
     assert not ordinary_pdf.exists()
+
+
 def test_create_document_reuses_in_progress_slm_until_completed(
     db_session, monkeypatch, tmp_path
 ) -> None:
@@ -1753,7 +1765,8 @@ def test_create_document_reuses_in_progress_slm_until_completed(
 
     monkeypatch.setattr("server.modules.documents.paths.UPLOAD_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document", lambda *args, **kwargs: []
+        "server.modules.documents.processing.ingest_document",
+        lambda *args, **kwargs: [],
     )
 
     user = User(

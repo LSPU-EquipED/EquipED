@@ -113,7 +113,7 @@ def test_submit_evaluation_admission_contract(
     monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
     monkeypatch.setattr(evaluations_router, "drain_evaluation_queue", lambda: None)
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
 

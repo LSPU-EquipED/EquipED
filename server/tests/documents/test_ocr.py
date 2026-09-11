@@ -811,7 +811,7 @@ def test_cleanup_failed_upload_retries_and_cleanup_pending(
         raise OcrLimitExceededError("Forced limit exceeded")
 
     monkeypatch.setattr(
-        "server.modules.documents.service.ingest_document",
+        "server.modules.documents.processing.ingest_document",
         fail_ingestion_after_asserting_intent,
     )
 

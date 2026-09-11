@@ -236,7 +236,7 @@ def test_prepared_context_loads_authoritative_curriculum_text(
     from server.modules.documents.models import Document
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
 

@@ -170,7 +170,7 @@ def _claim_and_execute(db_session, evaluation_id):
 def test_full_evaluation_stale_curriculum_status_fails(db_session, monkeypatch):
     """Curriculum with non-PROCESSED status must fail full evaluation honestly."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     job_id = _create_test_environment(
@@ -191,7 +191,7 @@ def test_full_evaluation_stale_curriculum_status_fails(db_session, monkeypatch):
 def test_full_evaluation_non_admin_provenance_fails(db_session, monkeypatch):
     """Curriculum uploaded by a non-admin must fail full evaluation honestly."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     job_id = _create_test_environment(
@@ -214,7 +214,7 @@ def test_full_evaluation_non_admin_provenance_fails(db_session, monkeypatch):
 def test_full_evaluation_missing_vectors_fails(db_session, monkeypatch):
     """Curriculum with missing Chroma vectors must fail full evaluation honestly."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: False,
     )
     job_id = _create_test_environment(db_session, partial=False)
@@ -238,7 +238,7 @@ def test_full_evaluation_final_readiness_drift_fails(db_session, monkeypatch):
         return chroma_available_state
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         dynamic_chroma_check,
     )
     job_id = _create_test_environment(db_session, partial=False)
@@ -280,7 +280,7 @@ def test_full_evaluation_final_readiness_drift_fails(db_session, monkeypatch):
 def test_successful_full_evaluation_behavior_unchanged(db_session, monkeypatch):
     """Valid full evaluation with ready curriculum completes as COMPLETED."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     job_id = _create_test_environment(db_session, partial=False)
