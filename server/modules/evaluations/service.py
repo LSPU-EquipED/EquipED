@@ -13,7 +13,7 @@ from typing import Any
 
 from server.modules.auth.models import UserRole
 from server.modules.documents import persistence
-from server.modules.documents.curriculum.service import check_curriculum_readiness
+from server.modules.documents.curriculum_readiness import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.metadata import canonicalize_supported_program
 from server.modules.documents.models import Document

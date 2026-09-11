@@ -22,17 +22,17 @@ from server.modules.embeddings.service import (
 )
 from server.modules.evaluations.document_references import count_document_references
 
-from .. import persistence
-from ..access import get_document, is_reference_source_type
-from ..exceptions import (
+from . import persistence
+from .access import get_document, is_reference_source_type
+from .exceptions import (
     DocumentNotFoundError,
     ReferenceDeleteConflictError,
     ReferenceDeleteInvalidTypeError,
     ReferenceDeleteStorageError,
     ReferenceRebuildError,
 )
-from ..models import Document, DocumentChunk
-from ..schemas import (
+from .models import Document, DocumentChunk
+from .schemas import (
     REFERENCE_SOURCE_TYPES,
     ReferenceDeleteResponse,
     ReferenceLibraryItem,

@@ -6,7 +6,7 @@ import re
 from typing import NamedTuple
 
 from ..exceptions import ExtractionFailedError
-from ..ingestion.pipeline import ExtractedPage
+from .pipeline import ExtractedPage
 
 # Matches: "Curriculum Map for the Bachelor of Science in <Program>"
 CURRICULUM_MAP_HEADER_RE = re.compile(

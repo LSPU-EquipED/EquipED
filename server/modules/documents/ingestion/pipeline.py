@@ -71,7 +71,7 @@ def ingest_document(
     chunks: list[DocumentChunkData] = []
 
     if source_type == "curriculum":
-        from ..curriculum.extraction import filter_curriculum_pages
+        from .curriculum import filter_curriculum_pages
 
         filtered_pages = filter_curriculum_pages(pages, program or "")
         for page in filtered_pages:
@@ -96,7 +96,7 @@ def ingest_document(
         return _ingest_syllabus_course_contents(file_path, pages, domain, doc_uuid)
 
     if source_type == "policy":
-        from ..policy.chunking import build_policy_chunks
+        from .policy_chunking import build_policy_chunks
 
         return build_policy_chunks(pages, domain, doc_uuid)
 
@@ -144,7 +144,7 @@ def _ingest_syllabus_course_contents(
     domain: str,
     doc_uuid: uuid.UUID,
 ) -> list[DocumentChunkData]:
-    from ..syllabus.extraction import extract_syllabus_course_contents
+    from .syllabus import extract_syllabus_course_contents
 
     chunks: list[DocumentChunkData] = []
     records = extract_syllabus_course_contents(file_path, pages)

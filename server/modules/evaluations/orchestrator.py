@@ -26,7 +26,7 @@ from server.modules.agents.runtime.llm import error_reference
 from server.modules.agents.sme.agent import SME
 from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
-from server.modules.documents.curriculum.service import check_curriculum_readiness
+from server.modules.documents.curriculum_readiness import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.documents.persistence import get_document_chunks
