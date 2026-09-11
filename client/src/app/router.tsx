@@ -11,7 +11,6 @@ import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
 import { requireRole, requireEvaluatorPermission } from '../features/auth/guards/RoleGuard';
 import { useAuth } from '../features/auth/hooks/useAuth';
-import { resolveUploadRouteAccess } from '../features/upload/utils/uploadFlow';
 import { isTargetAgent } from '@/shared/types/evaluations';
 
 // Lazy Feature Pages
@@ -27,10 +26,6 @@ const LoginPage = lazyRouteComponent(() => import('../features/auth/pages/LoginP
 const RegistrationPage = lazyRouteComponent(
   () => import('../features/auth/pages/RegistrationPage'),
   'RegistrationPage',
-);
-const UploadPage = lazyRouteComponent(
-  () => import('../features/upload/pages/UploadPage'),
-  'UploadPage',
 );
 const HistoryPage = lazyRouteComponent(
   () => import('../features/history/pages/HistoryPage'),
@@ -177,28 +172,6 @@ const documentsRoute = createRoute({
   component: DocumentsRouteView,
 });
 
-function UploadRouteView() {
-  const { user } = useAuth();
-  const firstPermission = user?.evaluatorPermissions?.[0];
-  const targetAgent = isTargetAgent(firstPermission) ? firstPermission : 'sme';
-  return (
-    <div className="px-6 py-7">
-      <UploadPage user={user} targetAgent={targetAgent} />
-    </div>
-  );
-}
-
-const uploadRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: 'upload',
-  beforeLoad: ({ context }) => {
-    const access = resolveUploadRouteAccess(context.auth.user?.role);
-    if (!access.allowed) {
-      throw redirect({ to: access.redirectTo });
-    }
-  },
-  component: UploadRouteView,
-});
 
 function EvaluationsRouteView() {
   const auth = useAuth();
@@ -406,7 +379,6 @@ const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     dashboardRoute,
     documentsRoute,
-    uploadRoute,
     evaluationsRoute,
     evaluationMapRoute,
     documentEvaluationRoute,

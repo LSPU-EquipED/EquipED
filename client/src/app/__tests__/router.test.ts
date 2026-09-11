@@ -15,7 +15,6 @@ describe('appRouter configuration and route splitting', () => {
     // Faculty routes
     expect(flatRoutes['/shell/dashboard']).toBeDefined();
     expect(flatRoutes['/shell/documents']).toBeDefined();
-    expect(flatRoutes['/shell/upload']).toBeDefined();
     expect(flatRoutes['/shell/evaluations']).toBeDefined();
     expect(flatRoutes['/shell/evaluation-map']).toBeDefined();
     expect(flatRoutes['/shell/documents/$documentId/evaluation']).toBeDefined();

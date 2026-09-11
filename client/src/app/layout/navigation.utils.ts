@@ -217,12 +217,6 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
     ];
   }
 
-  if (cleanPath === '/upload') {
-    return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Upload SLM' },
-    ];
-  }
 
   if (cleanPath.startsWith('/evaluations/') && cleanPath.endsWith('/report')) {
     return [
@@ -383,7 +377,6 @@ export function getRouteTitle(routeId?: string, userRole?: string): string {
   if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
     return 'Specialist Review';
   if (routeId.includes('/documents')) return 'My SLMs';
-  if (routeId.includes('/upload')) return 'Upload SLM';
   if (routeId.includes('/evaluations') && routeId.includes('/report'))
     return 'Evaluation Report';
   if (routeId.includes('/evaluations/$id')) return 'Scorecard';

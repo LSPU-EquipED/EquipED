@@ -105,14 +105,12 @@ describe('FacultyHome', () => {
     refetch: vi.fn(),
   };
 
-  it('renders header with Refresh and Upload SLM action', () => {
+  it('renders the faculty command ledger and storage action', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
     expect(markup).toContain('Faculty Command Ledger');
     expect(markup).toContain('Refresh');
-    expect(markup).toContain('Upload SLM');
-    expect(markup).toContain('href="/upload"');
   });
 
   it('renders the academic launchpads and unified metric ledger strip', () => {
