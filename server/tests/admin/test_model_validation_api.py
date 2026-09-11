@@ -30,7 +30,7 @@ def _model_validation_readiness(monkeypatch):
         "server.modules.admin.router.drain_evaluation_queue", lambda: None
     )
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, domain: True,
     )
 

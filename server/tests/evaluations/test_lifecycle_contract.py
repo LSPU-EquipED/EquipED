@@ -127,7 +127,7 @@ def _result(agent, evaluation_id, document_id, success=True):
 def _run(db_session, monkeypatch, *, partial, agents, curriculum=False):
     _seed_all_rubrics(db_session)
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     evaluation, token = _job(db_session, partial=partial, curriculum=curriculum)

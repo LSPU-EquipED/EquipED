@@ -827,7 +827,7 @@ class TestAdminDelete:
             _login(client, admin.email)
             with (
                 patch(
-                    "server.modules.documents.syllabus.service.delete_chroma_vectors_strict",
+                    "server.modules.documents.references.delete_chroma_vectors_strict",
                     return_value=True,
                 ),
                 patch.object(
@@ -885,7 +885,7 @@ class TestAdminDelete:
             # Simulate unlink doing nothing by patching unlink to no-op
             with (
                 patch(
-                    "server.modules.documents.syllabus.service.delete_chroma_vectors_strict",
+                    "server.modules.documents.references.delete_chroma_vectors_strict",
                     return_value=True,
                 ),
                 patch.object(Path, "unlink", return_value=None),
@@ -967,7 +967,7 @@ class TestAdminDelete:
 
         _login(client, admin.email)
         with patch(
-            "server.modules.documents.syllabus.service.delete_chroma_vectors_strict",
+            "server.modules.documents.references.delete_chroma_vectors_strict",
             return_value=True,
         ):
             resp = client.delete(f"/api/v1/documents/{curr_id}")
@@ -1141,7 +1141,7 @@ class TestAdminRebuild:
         _add_chunk(db_session, document_id=ref_id, source_type="syllabus")
 
         with patch(
-            "server.modules.documents.syllabus.service.embed_and_store_chunks"
+            "server.modules.documents.references.embed_and_store_chunks"
         ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
@@ -1233,7 +1233,7 @@ class TestAdminRebuild:
         _add_chunk(db_session, document_id=curr_id, source_type="curriculum")
 
         with patch(
-            "server.modules.documents.syllabus.service.embed_and_store_chunks"
+            "server.modules.documents.references.embed_and_store_chunks"
         ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)
@@ -1278,7 +1278,7 @@ class TestAdminRebuild:
         db_session.commit()
 
         with patch(
-            "server.modules.documents.syllabus.service.embed_and_store_chunks"
+            "server.modules.documents.references.embed_and_store_chunks"
         ) as mock_embed:
             mock_embed.return_value = 1
             _login(client, admin.email)

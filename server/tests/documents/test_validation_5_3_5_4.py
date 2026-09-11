@@ -76,10 +76,12 @@ def test_upload_detects_metadata_when_patterns_exist(
     assert body["processing_status"] == "PROCESSED", f"Preprocessing failed: {body}"
 
     # Metadata detection assertions (DocumentUploadResponse fields)
-    assert body["academic_year"] == "2025-2026", \
+    assert body["academic_year"] == "2025-2026", (
         f"Expected 2025-2026, got {body['academic_year']}"
-    assert body["course_code"] == "CCS 101", \
+    )
+    assert body["course_code"] == "CCS 101", (
         f"Expected CCS 101, got {body['course_code']}"
+    )
 
     # Verify via GET — DocumentResponse includes program
     doc_id = body["document_id"]
@@ -127,8 +129,9 @@ def test_upload_with_manual_program_not_overridden(
     get_resp = client.get(f"/api/v1/documents/{doc_id}")
     assert get_resp.status_code == 200
     get_body = get_resp.json()
-    assert get_body["program"] == "BSCS", \
+    assert get_body["program"] == "BSCS", (
         f"Manual program was overridden: {get_body['program']}"
+    )
     assert get_body["academic_year"] == "2025-2026"
     assert get_body["course_code"] == "CCS 101"
 
@@ -173,14 +176,15 @@ def test_upload_without_metadata_still_completes(
     body = upload_resp.json()
 
     # Processing must complete normally even without patterns
-    assert body["processing_status"] == "PROCESSED", \
-        f"Preprocessing failed: {body}"
+    assert body["processing_status"] == "PROCESSED", f"Preprocessing failed: {body}"
 
     # Metadata fields should be None (no patterns matched)
-    assert body["academic_year"] is None, \
+    assert body["academic_year"] is None, (
         f"Expected None academic_year, got {body['academic_year']}"
-    assert body["course_code"] is None, \
+    )
+    assert body["course_code"] is None, (
         f"Expected None course_code, got {body['course_code']}"
+    )
 
     # Verify via GET — DocumentResponse includes program
     doc_id = body["document_id"]

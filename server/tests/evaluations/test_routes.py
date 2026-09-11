@@ -549,7 +549,7 @@ def test_submit_evaluation_unready_curriculum_route_parameterized(
     monkeypatch.setattr(evaluations_router, "probe_local_model_readiness", lambda: None)
     monkeypatch.setattr(evaluations_router, "admission_schema_ready", lambda db: True)
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: chroma_ready,
     )
 

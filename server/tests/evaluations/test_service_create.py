@@ -75,7 +75,7 @@ def test_create_evaluation_full_persists_submitted_job_with_curriculum(
 ) -> None:
     """A full evaluation with ready admin curriculum persists curriculum_id and full intent."""  # noqa: E501
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     admin = create_user(
@@ -260,7 +260,7 @@ def test_create_evaluation_rejects_conflicting_curriculum_and_partial_true(
 ) -> None:
     """Legacy partial flag is deprecated: curriculum is validated, not rejected."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     owner = create_user(
@@ -342,7 +342,7 @@ def test_create_evaluation_requires_confirmed_program(db_session) -> None:
 def test_create_evaluation_rejects_unready_curriculum(db_session, monkeypatch) -> None:
     """Unready curriculum (e.g. no chroma vectors or unbaked status) is rejected."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: False,
     )
     admin = create_user(
@@ -388,7 +388,7 @@ def test_create_evaluation_rejects_non_admin_curriculum(
 ) -> None:
     """Curriculum uploaded by a non-admin is rejected."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     faculty_uploader = create_user(
@@ -434,7 +434,7 @@ def test_create_evaluation_rejects_program_mismatched_curriculum(
 ) -> None:
     """Curriculum whose program does not match confirmed_program is rejected."""
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: True,
     )
     admin = create_user(
@@ -500,7 +500,7 @@ def test_create_evaluation_unready_curriculum_parameterized(
     from uuid import uuid4
 
     monkeypatch.setattr(
-        "server.modules.documents.curriculum.service.check_chroma_availability",
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda doc_id, source_type: chroma_ready,
     )
 
