@@ -28,11 +28,11 @@ The system SHALL compute reference health from current local state rather than s
 - **THEN** the system SHALL report embedding health as missing locally and eligible for rebuild
 
 ### Requirement: Reference PDF preview streams stored local files
-The system SHALL allow authenticated users to preview syllabus and curriculum PDFs according to institution-shared reference access rules. Policy preview SHALL remain admin-only and SLM preview SHALL remain owner-only.
+The system SHALL allow authenticated users to preview syllabus PDFs according to institution-shared reference access rules. Curriculum and policy preview SHALL remain admin-only and SLM preview SHALL remain owner-only.
 
-#### Scenario: Faculty previews a curriculum PDF
-- **WHEN** authenticated faculty previews a curriculum exposed through program-matched evaluation setup
-- **THEN** the system SHALL stream the locally stored curriculum PDF without granting lifecycle permissions
+#### Scenario: Faculty requests a curriculum PDF
+- **WHEN** an authenticated faculty user requests a curriculum PDF or detail
+- **THEN** the system SHALL deny access with a masked not-found response without disclosing existence
 
 #### Scenario: Faculty requests a policy PDF
 - **WHEN** an authenticated faculty user requests a policy PDF
