@@ -112,6 +112,17 @@ def test_r2_storage_backend_mocked():
 
 
 def test_get_storage_backend_fallback_to_local(monkeypatch, tmp_path):
+    from dataclasses import replace
+
+    from server.core.config import get_settings
+
+    local_settings = replace(
+        get_settings(),
+        storage_backend="local",
+        r2_access_key_id=None,
+        r2_secret_access_key=None,
+    )
+    monkeypatch.setattr("server.core.storage.get_settings", lambda: local_settings)
     reset_storage_backend_for_tests()
 
     backend = get_storage_backend()

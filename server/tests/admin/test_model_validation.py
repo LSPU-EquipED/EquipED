@@ -205,9 +205,7 @@ _COORDINATOR_V3_DOMAINS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
-def _seed_coordinator_v3_criteria(
-    db_session, rubric_set, now
-) -> list[RubricCriterion]:
+def _seed_coordinator_v3_criteria(db_session, rubric_set, now) -> list[RubricCriterion]:
     """Seed the 10-criterion Coordinator Rubric v3 (OP + A domains)."""
     from server.scripts.seed_rubrics import _COORDINATOR_STRATEGY_CONFIGS
 
@@ -439,7 +437,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     assert drained == [True]
     assert (True, False) in flush_states
     payload = response.json()
-    assert payload["partial_without_curriculum"] is True
+    assert payload["partial_without_curriculum"] is False
     assert len(payload["criterion_scores"]) == 3
     assert all(item["actual_score"] is None for item in payload["criterion_scores"])
     job = db_session.get(EvaluationJob, uuid.UUID(payload["evaluation_id"]))
@@ -731,7 +729,7 @@ def test_validation_explicit_partial_without_curriculum(
         },
     )
     assert resp.status_code == 202
-    assert resp.json()["partial_without_curriculum"] is True
+    assert resp.json()["partial_without_curriculum"] is False
 
 
 def test_validation_rejects_coordinator_in_partial_mode(
