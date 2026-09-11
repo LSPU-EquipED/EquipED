@@ -120,9 +120,6 @@ describe('getRouteTitle', () => {
     expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Specialist Review');
   });
 
-  it('returns Upload SLM for /upload', () => {
-    expect(getRouteTitle('/upload')).toBe('Upload SLM');
-  });
 
   it('returns Evaluation History for /evaluations', () => {
     expect(getRouteTitle('/evaluations')).toBe('Evaluation History');

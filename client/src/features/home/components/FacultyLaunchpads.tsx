@@ -1,14 +1,12 @@
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import {
   Books,
   CaretRight,
   ClockCounterClockwise,
   GitFork,
   GraduationCap,
-  Plus,
 } from '@phosphor-icons/react';
 import { Button } from '@/shared/components/Button';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { cn } from '@/shared/components/utils';
 
@@ -101,20 +99,8 @@ export function FacultyLaunchpads({
           </div>
         </div>
 
-        {/* Dual Actions: Primary Upload + Secondary Storage */}
+        {/* Storage action */}
         <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
-          <Link
-            to="/upload"
-            className={cn(
-              BUTTON_STYLES.base,
-              BUTTON_STYLES.variants.primary,
-              BUTTON_STYLES.sizes.sm,
-              'w-full sm:w-auto flex-1 text-xs font-bold uppercase tracking-wider gap-1.5 h-9.5 px-4',
-            )}
-          >
-            <Plus className="size-3.5" aria-hidden="true" weight="bold" />
-            <span>Upload SLM</span>
-          </Link>
 
           <Button
             type="button"
