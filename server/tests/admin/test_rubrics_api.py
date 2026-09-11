@@ -17,7 +17,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi.testclient import TestClient
-from server.modules.rubrics import service as rubric_service
 from server.modules.rubrics.models import (
     RubricAgentActivation,
     RubricCriterion,
@@ -347,7 +346,9 @@ def test_create_criterion_domain_removed_while_waiting_returns_404_without_inser
         json={"code": "RACE", "title": "Race domain"},
     )
     domain_id = uuid.UUID(domain_res.json()["rubric_domain_id"])
-    original_lock = rubric_service._lock_parent_draft_rubric_set
+    from server.modules.rubrics import authoring as rubric_authoring
+
+    original_lock = rubric_authoring._lock_parent_draft_rubric_set
 
     def _remove_domain_then_lock(db, rubric_set_id):
         db.query(RubricDomain).filter_by(rubric_domain_id=domain_id).delete()
@@ -355,7 +356,7 @@ def test_create_criterion_domain_removed_while_waiting_returns_404_without_inser
         return original_lock(db, rubric_set_id)
 
     monkeypatch.setattr(
-        rubric_service, "_lock_parent_draft_rubric_set", _remove_domain_then_lock
+        rubric_authoring, "_lock_parent_draft_rubric_set", _remove_domain_then_lock
     )
     before_count = db_session.query(RubricCriterion).count()
     response = client.post(

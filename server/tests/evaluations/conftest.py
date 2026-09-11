@@ -20,13 +20,14 @@ def _add_document(
     processing_status: str = "PROCESSED",
     with_chunks: bool = True,
     chroma_stored: bool = True,
+    title: str | None = None,
 ):
     """Create a Document and optional chunk in the test database."""
     document_id = uuid4()
     db_session.add(
         Document(
             document_id=document_id,
-            title=f"{source_type} doc",
+            title=title or f"{source_type} doc",
             program="BSCS",
             source_type=source_type,
             file_path=f"uploads/{document_id}.pdf",

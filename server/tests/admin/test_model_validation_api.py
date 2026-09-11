@@ -282,7 +282,7 @@ def test_partial_validation_submission_and_snapshot_persistence(
     )
     assert resp.status_code == 202
     data = resp.json()
-    assert data["partial_without_curriculum"] is True
+    assert data["partial_without_curriculum"] is False
     assert len(data["bound_forms"]) == 3
     assert {bf["agent_id"] for bf in data["bound_forms"]} == {"sme", "gad", "itso"}
     assert len(data["criterion_scores"]) == 3

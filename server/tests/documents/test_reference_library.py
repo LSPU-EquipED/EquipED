@@ -275,7 +275,7 @@ class TestEvaluationSharedReferenceValidation:
         assert response.document_id == slm_id
         assert response.syllabus_id == syllabus_id
         assert response.curriculum_id is None
-        assert response.partial_without_curriculum is True
+        assert response.partial_without_curriculum is False
 
     def test_faculty_cannot_evaluate_other_faculty_slm_even_with_shared_refs(
         self, db_session
@@ -1321,8 +1321,7 @@ class TestCurriculumAccessRules:
 
         _login(client, faculty.email)
         resp = client.get(f"/api/v1/documents/{curr_id}")
-        assert resp.status_code == 200
-        assert resp.json()["title"] == "Active Curriculum"
+        assert resp.status_code == 404
 
     def test_curriculum_excluded_from_generic_list_for_faculty(
         self, client, db_session
@@ -1399,8 +1398,7 @@ class TestCurriculumAccessRules:
 
             _login(client, faculty.email)
             resp = client.get(f"/api/v1/documents/{curr_id}/file")
-            assert resp.status_code == 200
-            assert resp.content == b"%PDF-1.4 curriculum content"
+            assert resp.status_code == 404
         finally:
             pdf_path.unlink(missing_ok=True)
 

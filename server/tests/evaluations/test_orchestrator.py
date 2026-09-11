@@ -817,7 +817,9 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
         )
 
     # --- Case 1: intentional partial + all SME/GAD/ITSO success ---
-    slm_1 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_1 = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", title="Case 1 SLM"
+    )
     job_1 = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=slm_1,
@@ -864,7 +866,9 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     assert res1.evaluation_status == EvaluationStatus.COMPLETED.value
 
     # --- Case 2: intentional partial + required agent failed ---
-    slm_2 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_2 = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", title="Case 2 SLM"
+    )
     job_2 = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=slm_2,
@@ -924,7 +928,9 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
         "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
-    slm_3 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_3 = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", title="Case 3 SLM"
+    )
     syl_3 = _add_document(db_session, owner_id=owner.user_id, source_type="syllabus")
     cur_3 = _add_document(db_session, owner_id=admin.user_id, source_type="curriculum")
     job_3 = EvaluationJob(
@@ -976,7 +982,9 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
     assert res3.evaluation_status == EvaluationStatus.COMPLETED.value
 
     # --- Case 4: full + missing curriculum/coordinator -> never COMPLETED_PARTIAL
-    slm_4 = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_4 = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", title="Case 4 SLM"
+    )
     job_4 = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=slm_4,
@@ -1049,7 +1057,12 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
     from server.modules.synthesis.service import persist_agent_outputs
 
-    slm_partial = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_partial = _add_document(
+        db_session,
+        owner_id=owner.user_id,
+        source_type="slm",
+        title="Partial Resume SLM",
+    )
     job_partial = EvaluationJob(
         evaluation_id=uuid4(),
         document_id=slm_partial,
@@ -1106,7 +1119,9 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
         "server.modules.documents.curriculum_readiness.check_chroma_availability",
         lambda *args, **kwargs: True,
     )
-    slm_full = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    slm_full = _add_document(
+        db_session, owner_id=owner.user_id, source_type="slm", title="Full Resume SLM"
+    )
     cur_full = _add_document(
         db_session, owner_id=admin.user_id, source_type="curriculum"
     )
