@@ -7,11 +7,11 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from server.modules.alignment import curriculum as alignment_curriculum
-from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
+from server.modules import curriculum_alignment as alignment_curriculum
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.curriculum.models import Course
+from server.modules.curriculum_alignment.models import CurriculumAlignmentCheck
 from server.modules.documents.models import Document
 
 
@@ -72,7 +72,7 @@ def test_run_check_returns_404_for_unknown_course(
     client, db_session, monkeypatch
 ) -> None:
     """Unknown course id returns 404 once the document gate has passed."""
-    from server.modules.alignment.curriculum import service as service_module
+    from server.modules.curriculum_alignment import workflow as workflow_module
 
     user = _login(client, db_session)
     document = Document(
@@ -89,7 +89,7 @@ def test_run_check_returns_404_for_unknown_course(
     def _empty_pages(_db, _document_id):
         return []
 
-    monkeypatch.setattr(service_module, "load_document_pages", _empty_pages)
+    monkeypatch.setattr(workflow_module, "load_document_pages", _empty_pages)
 
     response = client.post(
         "/api/v1/curriculum-map/checks",
@@ -103,7 +103,10 @@ def test_run_check_returns_422_for_unmapped_course(
 ) -> None:
     """A BSIT course with no mapped objectives is 422 once the document gate
     has passed and the document has usable persisted text."""
-    from server.modules.alignment.curriculum import service as service_module
+    from server.modules.curriculum_alignment import (
+        document_text as doc_text_module,
+    )
+    from server.modules.curriculum_alignment import workflow as workflow_module
 
     user = _login(client, db_session)
     course = Course(course_code="IT999", course_title="Unmapped", program="BSIT")
@@ -118,9 +121,9 @@ def test_run_check_returns_422_for_unmapped_course(
     db_session.add_all([course, document])
     db_session.commit()
 
-    fake_page = service_module.DocumentPage(page_number=1, text="sample slm text")
+    fake_page = doc_text_module.DocumentPage(page_number=1, text="sample slm text")
     monkeypatch.setattr(
-        service_module, "load_document_pages", lambda _db, _document_id: [fake_page]
+        workflow_module, "load_document_pages", lambda _db, _document_id: [fake_page]
     )
 
     response = client.post(

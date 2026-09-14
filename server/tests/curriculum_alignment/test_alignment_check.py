@@ -22,9 +22,9 @@ from urllib import error as urllib_error
 import pytest
 from server.core.exceptions import ConfigurationError, InfrastructureUnavailableError
 from server.core.llm import LocalLLMClient
-from server.modules.alignment.curriculum import alignment_check as ac
-from server.modules.alignment.curriculum import alignment_runtime as rt
-from server.modules.alignment.curriculum.alignment_check import (
+from server.modules.curriculum_alignment import alignment_check as ac
+from server.modules.curriculum_alignment import alignment_runtime as rt
+from server.modules.curriculum_alignment.alignment_check import (
     MAX_EVIDENCE_CHARS,
     MAX_NEW_TOKENS,
     PROMPT_VERSION,
