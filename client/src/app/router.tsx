@@ -44,19 +44,19 @@ const MonitoringPage = lazyRouteComponent(
   'MonitoringPage',
 );
 const AlignmentCheckPage = lazyRouteComponent(
-  () => import('../features/alignment/curriculum/pages/AlignmentCheckPage'),
+  () => import('../features/curriculum-alignment/pages/AlignmentCheckPage'),
   'AlignmentCheckPage',
 );
 const SyllabusAlignmentPage = lazyRouteComponent(
-  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentPage'),
+  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentPage'),
   'SyllabusAlignmentPage',
 );
 const SyllabusAlignmentWorkspacePage = lazyRouteComponent(
-  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage'),
+  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentWorkspacePage'),
   'SyllabusAlignmentWorkspacePage',
 );
 const SyllabusAlignmentReportPage = lazyRouteComponent(
-  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentReportPage'),
+  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentReportPage'),
   'SyllabusAlignmentReportPage',
 );
 const EvaluationMapPage = lazyRouteComponent(
