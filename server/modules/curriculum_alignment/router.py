@@ -35,12 +35,13 @@ from .schemas import (
     RunAlignmentCheckRequest,
 )
 from .service import (
-    _require_owned_document,
     delete_alignment_check,
     get_alignment_check,
     get_document_pages_for_check,
     list_alignment_checks,
+    require_owned_document,
     run_curriculum_alignment_check,
+    to_alignment_check_response,
 )
 
 router = APIRouter(prefix="/curriculum-map/checks", tags=["curriculum-map"])
@@ -78,7 +79,7 @@ def run_check_endpoint(
     try:
         # Keep ownership/program-scoping behavior unchanged: deny invalid document
         # access before any rate-limit scheduling.
-        _require_owned_document(body.document_id, _current_user.id, db)
+        require_owned_document(body.document_id, _current_user.id, db)
 
         with alignment_check_slot_context(
             user_id=_current_user.id,
@@ -125,7 +126,7 @@ def run_check_endpoint(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
-    return _to_response(check, db)
+    return to_alignment_check_response(check, db)
 
 
 @router.get("/{check_id}", response_model=AlignmentCheckResponse)
@@ -140,7 +141,7 @@ def get_check_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
         ) from exc
-    return _to_response(check, db)
+    return to_alignment_check_response(check, db)
 
 
 @router.delete("/{check_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -174,24 +175,6 @@ def get_document_pages_endpoint(
             DocumentPageResponse(page_number=page.page_number, text=page.text)
             for page in pages
         ]
-    )
-
-
-def _to_response(check: Any, db: Any) -> AlignmentCheckResponse:
-    from server.modules.curriculum.models import Course
-
-    course = db.get(Course, check.course_id)
-    return AlignmentCheckResponse(
-        check_id=check.check_id,
-        document_id=check.document_id,
-        course_id=check.course_id,
-        course_title=course.course_title if course else "",
-        run_at=check.run_at,
-        model_name=check.model_name,
-        objective_results=check.objective_results,
-        summary=check.summary,
-        success=check.success,
-        error_message=check.error_message,
     )
 
 
