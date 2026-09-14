@@ -13,14 +13,22 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from server.modules.alignment.curriculum import service
-from server.modules.alignment.curriculum.alignment_check import (
+from server.modules.curriculum import service as curriculum_map_service
+from server.modules.curriculum.models import (
+    Course,
+    CurriculumMapCell,
+    CurriculumObjective,
+)
+from server.modules.curriculum_alignment.admission import (
+    validate_course_program,
+)
+from server.modules.curriculum_alignment.alignment_check import (
     PROMPT_VERSION,
     AlignmentCheckOutcome,
     AlignmentProvenance,
     AlignmentResultItem,
 )
-from server.modules.alignment.curriculum.exceptions import (
+from server.modules.curriculum_alignment.exceptions import (
     AlignmentCheckCooldownError,
     AlignmentCheckNotFoundError,
     CourseNotFoundError,
@@ -33,12 +41,17 @@ from server.modules.alignment.curriculum.exceptions import (
     NoCurriculumMapError,
     NoUsableDocumentTextError,
 )
-from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
-from server.modules.curriculum import service as curriculum_map_service
-from server.modules.curriculum.models import (
-    Course,
-    CurriculumMapCell,
-    CurriculumObjective,
+from server.modules.curriculum_alignment.models import CurriculumAlignmentCheck
+from server.modules.curriculum_alignment.queries import (
+    get_alignment_check,
+    get_coverage_metadata,
+    get_document_pages_for_check,
+    list_alignment_checks,
+)
+from server.modules.curriculum_alignment.repository import delete_alignment_check
+from server.modules.curriculum_alignment.workflow import (
+    _MAX_SLM_TEXT_CHARS,
+    run_curriculum_alignment_check,
 )
 from server.modules.documents.models import Document, DocumentChunk
 
@@ -193,7 +206,7 @@ def test_list_courses_returns_seeded_courses(db_session) -> None:
 def test_run_check_raises_when_document_missing(db_session) -> None:
     course, _ = _make_course_with_map(db_session)
     with pytest.raises(DocumentAccessDeniedError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=uuid.uuid4(),
             course_id=course.course_id,
             current_user_id=uuid.uuid4(),
@@ -206,7 +219,7 @@ def test_run_check_raises_when_not_document_owner(db_session) -> None:
     course, _ = _make_course_with_map(db_session)
     document = _make_document(db_session, uploaded_by=uuid.uuid4())
     with pytest.raises(DocumentAccessDeniedError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=uuid.uuid4(),
@@ -229,7 +242,7 @@ def test_run_check_rejects_non_slm_source_before_llm(db_session, source_type) ->
     )
 
     with pytest.raises(DocumentSourceTypeError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -244,7 +257,7 @@ def test_run_check_rejects_unprocessed_document_before_llm(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner, status="PENDING")
 
     with pytest.raises(DocumentNotReadyError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -259,7 +272,7 @@ def test_run_check_rejects_document_without_usable_chunks(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner)
 
     with pytest.raises(NoUsableDocumentTextError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -275,7 +288,7 @@ def test_run_check_rejects_unsupported_document_program(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(DocumentProgramError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -291,7 +304,7 @@ def test_run_check_rejects_missing_document_program(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(DocumentProgramError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -306,7 +319,7 @@ def test_run_check_raises_when_course_not_found(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(CourseNotFoundError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=uuid.uuid4(),
             current_user_id=owner,
@@ -323,7 +336,7 @@ def test_run_check_rejects_unsupported_course_program(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(CourseProgramMismatchError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -345,7 +358,7 @@ def test_course_document_program_mismatch_is_refused(db_session) -> None:
         program = "BSCS"
 
     with pytest.raises(CourseProgramMismatchError):
-        service._validate_course_program(StubCourse(), StubDocument())
+        validate_course_program(StubCourse(), StubDocument())
 
 
 def test_run_check_accepts_legacy_bsit_alias_program(db_session) -> None:
@@ -354,7 +367,7 @@ def test_run_check_accepts_legacy_bsit_alias_program(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner, program="BSIT")
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -386,7 +399,7 @@ def test_run_check_rejects_foreign_objective_program(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(CurriculumMapProgramError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -404,7 +417,7 @@ def test_run_check_raises_when_no_curriculum_map(db_session) -> None:
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     with pytest.raises(NoCurriculumMapError):
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -438,7 +451,7 @@ def test_run_check_rejects_duplicate_request_within_cooldown(db_session) -> None
     db_session.commit()
 
     with pytest.raises(AlignmentCheckCooldownError) as exc:
-        service.run_curriculum_alignment_check(
+        run_curriculum_alignment_check(
             document_id=document.document_id,
             course_id=course.course_id,
             current_user_id=owner,
@@ -473,7 +486,7 @@ def test_run_check_allows_request_after_cooldown_window(db_session) -> None:
     )
     db_session.commit()
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -502,7 +515,7 @@ def test_run_check_happy_path_persists_result_from_chunks(
     )
 
     client = FakeClient(_ok_payload(evidence=_PAGE_TEXT))
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -526,7 +539,7 @@ def test_run_check_happy_path_persists_result_from_chunks(
     assert result["status"] == "match"
     assert result["evidence_page"] == 2
 
-    fetched = service.get_alignment_check(check.check_id, owner, db_session)
+    fetched = get_alignment_check(check.check_id, owner, db_session)
     assert fetched.check_id == check.check_id
 
 
@@ -537,7 +550,7 @@ def test_run_check_persists_safe_provenance_without_document_text(db_session) ->
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
     client = FakeClient(_ok_payload())
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -571,7 +584,7 @@ def test_full_coverage_grounds_against_all_pages(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner)
     _add_chunks(db_session, document.document_id, [(1, "intro"), (2, _PAGE_TEXT)])
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -594,12 +607,12 @@ def test_bounded_scope_records_not_observed_for_absence(db_session) -> None:
     course, _ = _make_course_with_map(db_session)
     owner = uuid.uuid4()
     document = _make_document(db_session, uploaded_by=owner)
-    big = "x" * (service._MAX_SLM_TEXT_CHARS // 2)
+    big = "x" * (_MAX_SLM_TEXT_CHARS // 2)
     _add_chunks(db_session, document.document_id, [(1, big), (2, big), (3, big)])
 
     # The model reports the objective as NOT addressed within the bounded
     # window: that is "not observed", never a whole-document "not_addressed".
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -633,7 +646,7 @@ def test_bounded_scope_preserves_grounded_positive_result(db_session) -> None:
         [(1, big), (2, f"{big} {_PAGE_TEXT}"), (3, big)],
     )
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -653,7 +666,7 @@ def test_bounded_scope_downgrades_evidence_from_excluded_page(db_session) -> Non
     course, _ = _make_course_with_map(db_session)
     owner = uuid.uuid4()
     document = _make_document(db_session, uploaded_by=owner)
-    big = "x" * (service._MAX_SLM_TEXT_CHARS // 2)
+    big = "x" * (_MAX_SLM_TEXT_CHARS // 2)
     # The quote only exists on page 3, which is NOT part of the evaluated
     # prefix (pages 1-2). Grounding happens against evaluated pages only.
     _add_chunks(
@@ -662,7 +675,7 @@ def test_bounded_scope_downgrades_evidence_from_excluded_page(db_session) -> Non
         [(1, big), (2, big), (3, _PAGE_TEXT)],
     )
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -685,7 +698,7 @@ def test_ungrounded_evidence_is_downgraded_to_not_addressed_full_scope(
     document = _make_document(db_session, uploaded_by=owner)
     _add_chunks(db_session, document.document_id, [(1, "Unrelated page text.")])
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -710,7 +723,7 @@ def test_malformed_model_response_fails_atomically(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner)
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -751,7 +764,7 @@ def test_partial_objective_coverage_rejects_whole_response(db_session) -> None:
 
     # Response only covers IT08 -- IT09 is missing, so the WHOLE response is
     # rejected. No silent partial-to-negative conversion.
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -774,7 +787,7 @@ def test_configuration_failure_message_is_concise(db_session) -> None:
     class NoGenerateClient:  # preflight rejects: no callable generate()
         model = "fake-model"
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -794,7 +807,7 @@ def test_transient_failure_message_is_concise(db_session) -> None:
     document = _make_document(db_session, uploaded_by=owner)
     _add_chunks(db_session, document.document_id, [(1, _PAGE_TEXT)])
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -827,7 +840,7 @@ def test_permanent_call_failure_message_is_concise(db_session) -> None:
                 "http://llm.local", 400, "bad request", Message(), None
             )
 
-    check = service.run_curriculum_alignment_check(
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -846,7 +859,7 @@ def test_prompt_input_uses_only_evaluated_pages(db_session, monkeypatch) -> None
     course, _ = _make_course_with_map(db_session)
     owner = uuid.uuid4()
     document = _make_document(db_session, uploaded_by=owner)
-    big_len = service._MAX_SLM_TEXT_CHARS // 2
+    big_len = _MAX_SLM_TEXT_CHARS // 2
     _add_chunks(
         db_session,
         document.document_id,
@@ -868,8 +881,9 @@ def test_prompt_input_uses_only_evaluated_pages(db_session, monkeypatch) -> None
             ]
         )
 
-    monkeypatch.setattr(service, "run_alignment_check", _stub)
-    check = service.run_curriculum_alignment_check(
+    from server.modules.curriculum_alignment import workflow
+    monkeypatch.setattr(workflow, "run_alignment_check", _stub)
+    check = run_curriculum_alignment_check(
         document_id=document.document_id,
         course_id=course.course_id,
         current_user_id=owner,
@@ -890,7 +904,7 @@ def test_prompt_input_uses_only_evaluated_pages(db_session, monkeypatch) -> None
 
 def test_get_alignment_check_raises_when_missing(db_session) -> None:
     with pytest.raises(AlignmentCheckNotFoundError):
-        service.get_alignment_check(uuid.uuid4(), uuid.uuid4(), db_session)
+        get_alignment_check(uuid.uuid4(), uuid.uuid4(), db_session)
 
 
 def test_get_alignment_check_raises_for_non_owner(db_session) -> None:
@@ -908,7 +922,7 @@ def test_get_alignment_check_raises_for_non_owner(db_session) -> None:
     db_session.commit()
 
     with pytest.raises(DocumentAccessDeniedError):
-        service.get_alignment_check(check.check_id, uuid.uuid4(), db_session)
+        get_alignment_check(check.check_id, uuid.uuid4(), db_session)
 
 
 def test_legacy_check_without_provenance_reports_legacy_unknown_coverage(
@@ -928,9 +942,9 @@ def test_legacy_check_without_provenance_reports_legacy_unknown_coverage(
     db_session.add(check)
     db_session.commit()
 
-    fetched = service.get_alignment_check(check.check_id, owner, db_session)
+    fetched = get_alignment_check(check.check_id, owner, db_session)
     assert fetched.provenance is None
-    assert service.get_coverage_metadata(fetched) == {
+    assert get_coverage_metadata(fetched) == {
         "scope": "legacy_unknown",
         "total_pages": None,
         "evaluated_pages": None,
@@ -955,7 +969,7 @@ def test_legacy_check_document_pages_still_load_from_chunks(db_session) -> None:
     db_session.add(check)
     db_session.commit()
 
-    pages = service.get_document_pages_for_check(check.check_id, owner, db_session)
+    pages = get_document_pages_for_check(check.check_id, owner, db_session)
 
     assert [(p.page_number, p.text) for p in pages] == [
         (1, "intro"),
@@ -978,7 +992,7 @@ def test_get_document_pages_raises_for_non_owner(db_session) -> None:
     db_session.commit()
 
     with pytest.raises(DocumentAccessDeniedError):
-        service.get_document_pages_for_check(check.check_id, uuid.uuid4(), db_session)
+        get_document_pages_for_check(check.check_id, uuid.uuid4(), db_session)
 
 
 def test_list_checks_returns_only_current_users_checks_newest_first(db_session) -> None:
@@ -1021,7 +1035,7 @@ def test_list_checks_returns_only_current_users_checks_newest_first(db_session) 
     db_session.add(not_mine)
     db_session.commit()
 
-    items, total = service.list_alignment_checks(
+    items, total = list_alignment_checks(
         current_user_id=owner, page=1, page_size=20, db=db_session
     )
     assert total == 2
@@ -1047,10 +1061,10 @@ def test_list_checks_paginates(db_session) -> None:
         )
         db_session.commit()
 
-    page_1, total = service.list_alignment_checks(
+    page_1, total = list_alignment_checks(
         current_user_id=owner, page=1, page_size=2, db=db_session
     )
-    page_2, _ = service.list_alignment_checks(
+    page_2, _ = list_alignment_checks(
         current_user_id=owner, page=2, page_size=2, db=db_session
     )
     assert total == 3
@@ -1059,7 +1073,7 @@ def test_list_checks_paginates(db_session) -> None:
 
 
 def test_list_checks_returns_empty_for_user_with_none(db_session) -> None:
-    items, total = service.list_alignment_checks(
+    items, total = list_alignment_checks(
         current_user_id=uuid.uuid4(), page=1, page_size=20, db=db_session
     )
     assert items == []
@@ -1081,14 +1095,14 @@ def test_delete_check_removes_row(db_session) -> None:
     db_session.commit()
     check_id = check.check_id
 
-    service.delete_alignment_check(check_id, owner, db_session)
+    delete_alignment_check(check_id, owner, db_session)
 
     assert db_session.get(CurriculumAlignmentCheck, check_id) is None
 
 
 def test_delete_check_raises_for_nonexistent_check(db_session) -> None:
     with pytest.raises(AlignmentCheckNotFoundError):
-        service.delete_alignment_check(uuid.uuid4(), uuid.uuid4(), db_session)
+        delete_alignment_check(uuid.uuid4(), uuid.uuid4(), db_session)
 
 
 def test_delete_check_raises_for_non_owner(db_session) -> None:
@@ -1107,4 +1121,4 @@ def test_delete_check_raises_for_non_owner(db_session) -> None:
     db_session.commit()
 
     with pytest.raises(DocumentAccessDeniedError):
-        service.delete_alignment_check(check.check_id, other_user, db_session)
+        delete_alignment_check(check.check_id, other_user, db_session)

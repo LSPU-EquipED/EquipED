@@ -7,8 +7,8 @@ import threading
 import time
 
 import pytest
-from server.modules.alignment.curriculum.exceptions import AlignmentCheckRateLimitError
-from server.modules.alignment.curriculum.limiter import AlignmentCheckLimiter
+from server.modules.curriculum_alignment.exceptions import AlignmentCheckRateLimitError
+from server.modules.curriculum_alignment.limiter import AlignmentCheckLimiter
 
 
 def test_limiter_releases_slot_after_successful_check() -> None:

@@ -40,7 +40,7 @@ def test_fresh_metadata_registers_alignment_table_once() -> None:
         engine.dispose()
 
 
-def test_startup_recovery_calls_new_service(
+def test_startup_recovery_calls_service_facade(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import server.main as main
@@ -50,7 +50,7 @@ def test_startup_recovery_calls_new_service(
     monkeypatch.setattr(main, "get_settings", lambda: settings)
     monkeypatch.setattr(main, "get_session_factory", lambda: "factory")
     monkeypatch.setattr(
-        "server.modules.alignment.syllabus.service.fail_interrupted_syllabus_alignments",
+        "server.modules.syllabus_alignment.service.fail_interrupted_syllabus_alignments",
         lambda factory: calls.append(factory) or 0,
     )
 
@@ -70,8 +70,8 @@ def test_app_registers_syllabus_alignment_routes() -> None:
 
 
 def test_new_module_has_independent_import_boundary() -> None:
-    root = Path(__file__).resolve().parents[4]
-    package = root / "server" / "modules" / "alignment" / "syllabus"
+    root = Path(__file__).resolve().parents[3]
+    package = root / "server" / "modules" / "syllabus_alignment"
     forbidden = {"server.modules.evaluations", "server.modules.agents"}
     for source_path in package.glob("*.py"):
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
@@ -86,10 +86,16 @@ def test_new_module_has_independent_import_boundary() -> None:
     script = """
 import importlib
 for name in (
-    'server.modules.alignment.syllabus.router',
-    'server.modules.alignment.syllabus.service',
-    'server.modules.alignment.syllabus.evaluator',
-    'server.modules.alignment.syllabus.models',
+    'server.modules.syllabus_alignment.router',
+    'server.modules.syllabus_alignment.service',
+    'server.modules.curriculum_alignment.service',
+    'server.modules.syllabus_alignment.admission',
+    'server.modules.syllabus_alignment.repository',
+    'server.modules.syllabus_alignment.commands',
+    'server.modules.syllabus_alignment.jobs',
+    'server.modules.syllabus_alignment.queries',
+    'server.modules.syllabus_alignment.evaluator',
+    'server.modules.syllabus_alignment.models',
 ):
     importlib.import_module(name)
 for name in (
@@ -102,7 +108,7 @@ for name in (
         importlib.import_module(name)
     except ModuleNotFoundError:
         continue
-    raise AssertionError(name)
+    raise AssertionError(f"Expected {name} to be deleted or non-existent")
 """
     result = subprocess.run([sys.executable, "-c", script], cwd=root, check=False)
     assert result.returncode == 0
