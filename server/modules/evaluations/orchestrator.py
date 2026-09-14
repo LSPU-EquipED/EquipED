@@ -18,13 +18,15 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.coordinator.agent import Coordinator
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.itso.agent import ITSO
+from server.modules.agents import (
+    GAD,
+    ITSO,
+    SME,
+    AgentEvaluationResult,
+    Coordinator,
+    Supervisor,
+)
 from server.modules.agents.runtime.llm import error_reference
-from server.modules.agents.sme.agent import SME
-from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.curriculum_readiness import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError

@@ -21,10 +21,6 @@ def _failure(category: str, value: Any) -> AgentExecutionError:
     return AgentExecutionError(f"{category} (reference: {reference})")
 
 
-def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
-    return find_verbatim_substring(excerpt, source, max_chars=2000)
-
-
 ITSO_RESPONSE_SCHEMA_VERSION = "itso-response-v1"
 ITSO_CRITERIA_TITLES = {
     "ITSO-01": "No IP Issue — absence of plagiarism indicators",
@@ -570,13 +566,17 @@ def _normalize_evidence(
                 matched_chunk_ev = None
                 for cid in chunk_ids:
                     if cid in packed_chunk_map:
-                        matched = _find_verbatim_substring(ev, packed_chunk_map[cid])
+                        matched = find_verbatim_substring(
+                            ev, packed_chunk_map[cid], max_chars=ITSO_TEXT_MAX
+                        )
                         if matched:
                             matched_chunk_ev = matched
                             break
                 if not matched_chunk_ev:
                     for cid, text in packed_chunk_map.items():
-                        matched = _find_verbatim_substring(ev, text)
+                        matched = find_verbatim_substring(
+                            ev, text, max_chars=ITSO_TEXT_MAX
+                        )
                         if matched:
                             matched_chunk_ev = matched
                             break
