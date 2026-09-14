@@ -21,10 +21,6 @@ from ..runtime.slicing import GAP_MARKER
 SME_TEXT_MAX = 2000
 
 
-def _find_verbatim_substring(excerpt: str, source: str) -> str | None:
-    return find_verbatim_substring(excerpt, source, max_chars=SME_TEXT_MAX)
-
-
 def _optional_string_schema(max_length: int) -> dict[str, Any]:
     return {
         "anyOf": [
@@ -313,7 +309,9 @@ def parse_and_validate_envelope_response(
                     f"Measurement '{cid}' requires non-empty string 'evidence' "
                     f"(max {SME_TEXT_MAX} chars)"
                 )
-            matched_ev = _find_verbatim_substring(evidence, source_packet)
+            matched_ev = find_verbatim_substring(
+                evidence, source_packet, max_chars=SME_TEXT_MAX
+            )
             if matched_ev is None or GAP_MARKER.strip() in matched_ev:
                 raise AgentExecutionError(
                     f"Measurement '{cid}' evidence is not an exact substring of "
@@ -369,7 +367,9 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' instance[{inst_idx}] requires "
                         "non-empty string 'excerpt'"
                     )
-                matched_excerpt = _find_verbatim_substring(excerpt, source_packet)
+                matched_excerpt = find_verbatim_substring(
+                    excerpt, source_packet, max_chars=SME_TEXT_MAX
+                )
                 if matched_excerpt is None or GAP_MARKER.strip() in matched_excerpt:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' instance[{inst_idx}] excerpt is not "
@@ -504,7 +504,9 @@ def parse_and_validate_envelope_response(
                         f"Measurement '{cid}' unit[{unit_idx}] requires non-empty "
                         f"string 'evidence'"
                     )
-                matched_ev = _find_verbatim_substring(evidence, source_packet)
+                matched_ev = find_verbatim_substring(
+                    evidence, source_packet, max_chars=SME_TEXT_MAX
+                )
                 if matched_ev is None or GAP_MARKER.strip() in matched_ev:
                     raise AgentExecutionError(
                         f"Measurement '{cid}' unit[{unit_idx}] evidence is not "
