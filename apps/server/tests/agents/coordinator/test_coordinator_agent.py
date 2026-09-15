@@ -117,6 +117,11 @@ def test_run_scores_all_ten_criteria_in_snapshot_order():
     assert "_grounding_rejected_count" not in json.dumps(
         result.metadata["group_responses"]
     )
+    assert result.metadata["envelope_status"] == {
+        "envelope_0": "ok",
+        "envelope_1": "ok",
+        "envelope_2": "ok",
+    }
     assert result.provenance["grouped_calls"] == 3
     assert "grounding_rejected_count" in result.provenance
 
