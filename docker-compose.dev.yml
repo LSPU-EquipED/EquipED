@@ -1,0 +1,110 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: equiped
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d equiped"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:0.5.0
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./chroma_data:/chroma/chroma
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: dev
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/equiped}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
+    volumes:
+      - ./apps/server:/app/apps/server
+      - ./uploads:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  faculty:
+    image: node:20-slim
+    working_dir: /app
+    environment:
+      - PNPM_HOME=/pnpm
+      - PATH=/pnpm:/usr/local/bin:/usr/bin:/bin
+    volumes:
+      - .:/app
+      - node_modules_faculty:/app/node_modules
+      - node_modules_apps_faculty:/app/apps/faculty/node_modules
+    ports:
+      - "5173:5173"
+    command: >
+      sh -c "corepack enable && pnpm --dir apps/faculty dev --host 0.0.0.0 --port 5173"
+
+  admin:
+    image: node:20-slim
+    working_dir: /app
+    environment:
+      - PNPM_HOME=/pnpm
+      - PATH=/pnpm:/usr/local/bin:/usr/bin:/bin
+    volumes:
+      - .:/app
+      - node_modules_admin:/app/node_modules
+      - node_modules_apps_admin:/app/apps/admin/node_modules
+    ports:
+      - "5174:5174"
+    command: >
+      sh -c "corepack enable && pnpm --dir apps/admin dev --host 0.0.0.0 --port 5174"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./infra/caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    environment:
+      - CADDY_DEV_ADDR=:3000
+      - SERVER_UPSTREAM=server:8000
+      - FACULTY_UPSTREAM=faculty:5173
+      - ADMIN_UPSTREAM=admin:5174
+    depends_on:
+      - server
+      - faculty
+      - admin
+
+volumes:
+  postgres_dev_data: {}
+  chroma_dev_data: {}
+  node_modules_faculty: {}
+  node_modules_apps_faculty: {}
+  node_modules_admin: {}
+  node_modules_apps_admin: {}

@@ -12,63 +12,81 @@ hold final authority. The project is in an active build phase.
 
 ## Key Commands
 
-### Client (`client/`, Node 20 + pnpm 9.12.0)
+### Frontend Workspace (Node 20 + pnpm 9.12.0)
 
 ```bash
-cd client
 pnpm install
-pnpm dev        # Vite dev server (http://localhost:5173)
-pnpm build      # tsc && vite build
-pnpm preview    # serve production build
-pnpm lint       # eslint .
-pnpm format     # prettier --write .
+pnpm dev        # Faculty Vite dev server (http://localhost:5173)
+pnpm dev:admin  # Admin Vite dev server (http://localhost:5174, proxied under /admin)
+pnpm build      # tsc && vite build for all workspace apps
+pnpm test       # vitest run across all workspace packages
+pnpm lint       # eslint across workspace packages
+pnpm typecheck  # typecheck all packages
 ```
 
-### Server (Python 3.12, run from repo root)
+### Backend Workspace (Python 3.12, run via root scripts or `cd apps`)
 
 ```bash
-uv sync --project server
-uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
-uv run --project server ruff check server     # lint (E, F, I, UP; line-length 88)
-uv run --project server pytest                 # tests are currently scaffold-only
+uv sync --project apps/server
+pnpm server:dev     # or: cd apps && uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+pnpm server:lint    # or: cd apps && uv run --project server ruff check
+pnpm server:format  # or: cd apps && uv run --project server ruff format --check
+pnpm server:test    # or: cd apps && uv run --project server pytest
+pnpm server:migrate # or: cd apps/server && uv run alembic upgrade head
 ```
 
 Notes:
-- Run the backend from the **repo root**, not inside `server/` (absolute
-  `from server.core...` imports require repo root on `PYTHONPATH`).
-- There is no root `pyproject.toml`; always pass `--project server`.
+- Backend modules use absolute `server.*` imports. Always run via root scripts
+  or `cd apps && uv run --project server ...` so `apps/` is the Python package import root.
+  Running `uv run --project apps/server` from repo root does not add `apps/` to `sys.path`.
 - DB: shared **Neon** PostgreSQL for dev + **local Chroma** per developer.
   See `README.md` for the full topology and Docker/smoke-test workflow.
 
 ## Architecture
 
-Two apps in one repo. Backend is a single-process **FastAPI modular
-monolith**; frontend is a **feature-driven React + Vite + TS** SPA.
+Monorepo with applications in `apps/` and shared TypeScript packages in `libs/`.
+Backend is a single-process **FastAPI modular monolith**; frontend consists of
+two **feature-driven React + Vite + TS** SPAs (`faculty` and `admin`).
 
 ```
-server/
-  main.py            # FastAPI app entry
-  core/              # shared infrastructure ONLY (no business logic)
-  modules/           # each owns router / service / models / schemas / exceptions
-    auth/  documents/  embeddings/  evaluations/  agents/
-    synthesis/  feedback/  admin/  rubrics/
-  db/  alembic/      # migrations & config
-  tests/             # scaffold
-client/src/
-  app/               # router.tsx, providers.tsx, layout shell
-  features/          # self-contained: auth, dashboard, upload, evaluation,
-                     #   history, matrix, admin
-  shared/            # only code reused by 2+ features (api, components, hooks, types)
-docs/  openspec/     # supporting reference docs & specs (see Working Style)
-uploads/  chroma_data/  equiped_dev.db   # local runtime data, anchored to repo root
+apps/
+  server/
+    main.py            # FastAPI app entry
+    core/              # shared infrastructure ONLY (no business logic)
+    modules/           # each owns router / service / models / schemas / exceptions
+      auth/  documents/  embeddings/  evaluations/  agents/
+      synthesis/  feedback/  admin/  rubrics/  curriculum/
+      curriculum_alignment/  syllabus_alignment/
+    alembic/           # migrations & config
+    scripts/           # seed and benchmark scripts
+    tests/             # backend test suites
+  faculty/             # Faculty portal SPA (port 5173 dev)
+    src/
+      app/             # router.tsx, providers.tsx, layout shell
+      features/        # self-contained: auth, home, documents, evaluation,
+                       #   history, curriculum-alignment, syllabus-alignment
+  admin/               # CID Admin portal SPA (port 5174 dev)
+    src/
+      app/             # router.tsx, layout shell
+      features/        # self-contained: home, monitoring-matrix, rubric-editor,
+                       #   agent-prompt, preference-log, user-management,
+                       #   reference-library, reference-ingestion, model-validation,
+                       #   evaluation-map
+libs/
+  types/               # shared TypeScript domain contracts and interfaces
+  api-client/          # typed API client and HTTP primitives
+  ui/                  # WCAG AA design system primitives, tokens, and components
+  auth/                # client session hooks, providers, and RBAC guards
+docs/  openspec/       # supporting reference docs & specs (see Authority and Working Style)
+uploads/  chroma_data/ # local runtime data, anchored to repo root
 ```
 
-Key entry points: `server/main.py`, `client/src/main.tsx`,
-`client/src/app/router.tsx`, `client/src/app/providers.tsx`.
+Key entry points: `apps/server/main.py`, `apps/faculty/src/main.tsx`,
+`apps/faculty/src/app/router.tsx`, `apps/admin/src/main.tsx`, `apps/admin/src/app/router.tsx`.
 
-Module boundaries: `server/core/` is infrastructure only. Frontend
-`features/*` must stay self-contained and **must not import from one another**;
-promote shared code to `shared/` only once 2+ features use it.
+Module boundaries: `apps/server/core/` is infrastructure only. Frontend
+`features/*` within each app must stay self-contained and **must not import from sibling features**;
+shared code is promoted to `libs/*`. `libs/` packages must never import from `apps/*`.
 
 ## Coding Conventions
 
@@ -82,17 +100,18 @@ promote shared code to `shared/` only once 2+ features use it.
 - Only reference docs (syllabus, curriculum) and rubrics go into Chroma; SLMs
   are direct evaluation input and are **not** embedded.
 
-## Working Style
+## Authority and Working Style
 
-- This project is in an experimental phase; scope is still evolving.
-- AGENTS.md is REFERENCE ONLY — not a fixed spec or roadmap. Do not treat
-  it as a waterfall plan.
+- **AGENTS.md is governing** repo-wide; executable behavior is authoritative
+  through current code, API and schema contracts, migrations, and tests.
+  `PRODUCT.md`/`PRD.md` govern product intent, `ARCHITECTURE.md` governs system
+  structure, and `DESIGN.md` governs design tokens.
+- OpenSpec material is historical reference only. It is not an implementation
+  contract, required workflow, or source of current authority.
 - Before modifying code, ask 3–5 clarifying questions about intent and scope.
 - Propose options instead of committing to one approach.
 - Prefer small, reversible changes; confirm before large refactors or new
   dependencies.
 - When ambiguous, stop and ask rather than guessing.
-
-> `AGENTS.md`, `openspec/specs/`, `docs/`, `PRODUCT.md`, and `DESIGN.md` are
-> useful background context, but they are subordinate to the Working Style
-> rules above — consult them for context, don't follow them as a fixed plan.
+- Surfaced conflicts between code, tests, migrations, and product documentation
+  must be reconciled explicitly, never chosen silently.

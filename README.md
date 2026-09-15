@@ -40,7 +40,8 @@ disabled by default and must remain local/residency-gated when enabled.
 
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Node 20, Corepack, and pnpm 9.12.0
-- Docker Compose only when using optional container services
+- [Caddy](https://caddyserver.com/) (required for unified single-origin reverse proxy `pnpm dev` or `pnpm dev:proxy`)
+- Docker Compose only when using optional container services (such as ChromaDB via `pnpm infra:chroma`)
 - Tesseract with `eng` and `fil` language packs to process scanned PDFs
   (required in production; optional for text-only development)
 
@@ -50,11 +51,8 @@ From the repository root:
 
 ```bash
 cp .env.example .env
-uv sync --project server
-
-cd client
+uv sync --project apps/server
 pnpm install
-cd ..
 ```
 
 Configure `.env` with the development database URL, Gmail SMTP account, and
@@ -66,44 +64,112 @@ Registration and account-status emails use Gmail SMTP. Set `SMTP_USERNAME` and
 Gmail account password—in `SMTP_PASSWORD`. The application defaults already use
 `smtp.gmail.com:587` with STARTTLS.
 
-Start the backend:
+### Starting Development
 
+You can run the development environment in two ways:
+
+**Option 1: Two-Terminal Host Workflow (Standard Workflow)**
 ```bash
+# Terminal 1: Start FastAPI backend
 make server
-```
 
-Start the client in another terminal:
-
-```bash
-cd client
+# Terminal 2: Start Frontends (Faculty Vite and Admin Vite)
 pnpm dev
 ```
 
-Open the client at <http://localhost:5173>. The live FastAPI documentation is
-available at <http://localhost:8000/docs>.
+**Option 2: Docker Compose Workflows (All-in-One)**
 
-### Why `make server` runs from the repository root
-
-The FastAPI application is imported as `server.main:app`, and backend modules
-use absolute `server.*` imports. The root Make target selects
-`server/pyproject.toml` while keeping the repository root on Python's import
-path:
+EquipED maintains separate Docker Compose configurations for Development and Production:
 
 ```bash
-uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+# Development (with hot-reloading, preserving local ./uploads and ./chroma_data)
+pnpm docker:dev        # or: docker compose -f docker-compose.dev.yml up
+pnpm docker:dev:build  # rebuild dev containers
+pnpm docker:dev:down   # stop dev containers
+
+# Production (Caddy reverse proxy + static SPAs + production FastAPI single worker)
+pnpm docker:prod       # or: docker compose -f docker-compose.prod.yml up
+pnpm docker:prod:build # rebuild production containers
+pnpm docker:prod:down  # stop production containers
 ```
+
+The unified development origin is available at <http://localhost:3000> (or <http://localhost:5173> when running without Caddy):
+- Faculty Portal: <http://localhost:3000/>
+- Admin Workstations: <http://localhost:3000/admin>
+- Monitoring Matrix: <http://localhost:3000/matrix>
+- Evaluation Map: <http://localhost:3000/evaluation-map>
+- API: <http://localhost:3000/api/v1/...> (proxied to port 8000)
+- FastAPI Docs: <http://localhost:8000/docs> (direct backend endpoint)
+
+### Route Ownership & Port Allocations
+
+| Service | Port / Address | Route Ownership / Role |
+| --- | --- | --- |
+| **Caddy Dev Ingress** | `:3000` (default) | Single-origin ingress (`http://localhost:3000`). Handles `/api/*` -> FastAPI, `/admin-assets/*`, `/admin/*`, `/matrix/*`, `/evaluation-map/*` -> Admin Vite, and all other paths -> Faculty Vite. |
+| **FastAPI Monolith** | `127.0.0.1:8000` | Backend API routes (`/api/*`, `/health`, `/ready`, `/docs`). |
+| **Faculty Vite** | `127.0.0.1:5173` | Faculty dashboard, document intake, evaluations history, and public auth. |
+| **Admin Vite** | `127.0.0.1:5174` | Admin workstations (`/admin/*`), Monitoring Matrix (`/matrix/*`), Evaluation Map (`/evaluation-map/*`). Component-debug endpoint only; canonical navigation origin is Caddy `:3000` or Faculty proxy `:5173`. |
+| **ChromaDB** | Host port `8001` | Local vector store (started separately via `pnpm infra:chroma` or Docker Compose). |
+
+### Fallback Commands & Individual Dev Servers
+
+If `caddy` is not installed on your host, you can run individual services independently:
+
+```bash
+# Start backend
+pnpm server:dev
+
+# Start Faculty portal (with Vite internal dev proxy)
+pnpm dev:faculty  # http://localhost:5173
+
+# Start Admin portal
+pnpm dev:admin    # http://localhost:5174
+
+# Run Caddy dev proxy alone (when Caddy is installed)
+pnpm dev:proxy
+
+# Start vector store container independently
+pnpm infra:chroma
+```
+
+When running without Caddy, open the faculty portal at <http://localhost:5173> and the admin portal at <http://localhost:5173/admin> (proxied to admin Vite on port 5174 via Vite's dev proxy). Direct access to port 5174 is intended solely as a component-debug endpoint, not a canonical navigation origin; cross-app relative redirects and session flows rely on the canonical dev origin provided by Caddy (`:3000`) or the Faculty proxy (`:5173`). The direct FastAPI documentation is available at <http://localhost:8000/docs>.
+
+### How backend commands run
+
+The FastAPI application is imported as `server.main:app`, and backend modules
+use absolute `server.*` imports. Always standardize on running backend commands
+from `apps/` (or via root package scripts) so `apps/` is the Python package import root:
+
+```bash
+pnpm server:dev
+# or directly:
+cd apps && uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+> Note: Running `uv run --project apps/server` directly from the repository root
+> does **not** preserve `apps/` as the package import root for absolute `server.*`
+> imports. Backend commands must be executed via root `pnpm server:*` scripts or
+> with `cd apps && uv run --project server ...`.
 
 ## Common commands
 
 | Task | Command |
 | --- | --- |
-| Start the backend | `make server` |
-| Run backend tests | `uv run --project server pytest server/tests` |
-| Lint backend | `uv run --project server ruff check server` |
-| Start the client | `cd client && pnpm dev` |
-| Run client tests | `cd client && pnpm test` |
-| Lint client | `cd client && pnpm lint` |
-| Build client | `cd client && pnpm build` |
+| Start all dev services (Faculty, Admin, Server, Caddy) | `pnpm dev` |
+| Start Caddy dev reverse proxy | `pnpm dev:proxy` |
+| Start Faculty dev server | `pnpm dev:faculty` |
+| Start Admin dev server | `pnpm dev:admin` |
+| Start local ChromaDB container | `pnpm infra:chroma` |
+| Start the backend alone | `make server` (or `pnpm server:dev`) |
+| Run backend tests | `pnpm server:test` (or `cd apps && uv run --project server pytest`) |
+| Lint backend | `pnpm server:lint` (or `cd apps && uv run --project server ruff check server`) |
+| Format backend | `pnpm server:format` |
+| Run migrations | `pnpm server:migrate` |
+| Run all frontend/lib tests | `pnpm test` |
+| Run Caddy contract test | `pnpm test:caddy` |
+| Lint all workspace packages | `pnpm lint` |
+| Build all frontend apps | `pnpm build` |
+| Typecheck entire workspace | `pnpm typecheck` |
 | Check API liveness | `curl http://localhost:8000/health` |
 | Check runtime readiness | `curl http://localhost:8000/ready` |
 
@@ -125,16 +191,18 @@ canonical full-stack development workflow. To run the optional Chroma service:
 docker compose up --build chroma
 ```
 
-The Compose file also provides optional `db`, `server`, `server-smoke`,
-`client`, and `client-smoke` services. Refer to `docker-compose.yml` for their
-ports and environment overrides.
+The Compose file also provides optional `db`, `server`, and `server-smoke`
+services. Frontend container packaging remains deferred; run apps locally with `pnpm dev`.
+Refer to `docker-compose.yml` for infrastructure ports and environment overrides.
 
 ## Repository guide
 
 ```text
-server/          FastAPI modular monolith
-client/          React feature-driven application
-openspec/specs/  Canonical implementation contracts
+apps/server/     FastAPI modular monolith
+apps/faculty/    Faculty portal React Vite app (port 5173)
+apps/admin/      Admin portal React Vite app (port 5174, base /)
+libs/            Extracted shared workspace packages (types, api-client, ui, auth)
+openspec/specs/  Historical specification references
 docs/            Product and architecture reference material
 uploads/         Local uploaded documents
 chroma_data/     Local vector-store data
@@ -142,17 +210,24 @@ chroma_data/     Local vector-store data
 
 Key entry points:
 
-- `server/main.py` — FastAPI application
-- `client/src/main.tsx` — client bootstrap
-- `client/src/app/router.tsx` — route tree
-- `client/src/features/` — feature-owned UI, APIs, hooks, and types
+- `apps/server/main.py` — FastAPI application
+- `apps/faculty/src/main.tsx` — Faculty app bootstrap
+- `apps/faculty/src/app/router.tsx` — Faculty route tree
+- `apps/admin/src/main.tsx` — Admin app bootstrap
+- `apps/admin/src/app/router.tsx` — Admin route tree
+- `libs/` — workspace packages (@equiped/types, @equiped/api-client, @equiped/ui, @equiped/auth)
 
-## Documentation and contracts
+## Documentation and authority model
 
-- [Product requirements](docs/PRD.md)
-- [Architecture overview](docs/ARCHITECTURE.md)
-- [Canonical OpenSpec contracts](openspec/specs/)
+- [Product requirements](PRD.md)
+- [Architecture overview](ARCHITECTURE.md)
+- [Historical OpenSpec material](openspec/specs/)
 - [Live API documentation](http://localhost:8000/docs)
 
-OpenSpec contracts define accepted implementation behavior. The PRD provides
-product scope and supporting context; it does not override an OpenSpec contract.
+Executable behavior is authoritative through current code, API and schema
+contracts, migrations, and tests. `PRODUCT.md` and `PRD.md` govern product intent,
+roles, scope, and constraints; `ARCHITECTURE.md` governs system structure, and
+`DESIGN.md` governs design-system and UX direction.
+
+OpenSpec material is retained for historical reference only. It is not an
+implementation contract, required workflow, or source of current authority.

@@ -1,7 +1,7 @@
 ## Scope
 
-- Rules in this file apply under `docs/` and inherit repo-wide authority, OpenSpec workflow, and product invariants from root `AGENTS.md`.
-- Documentation in `docs/` provides supporting product and architecture reference material, not implementation contracts.
+- Rules in this file apply under `docs/` and inherit repo-wide authority and product invariants from root `AGENTS.md`.
+- Root `PRODUCT.md` and `PRD.md` govern product intent, roles, scope, and constraints; root `ARCHITECTURE.md` governs system structure, and root `DESIGN.md` governs design-system and UX direction.
 
 ## Documentation Guardrails
 
@@ -12,6 +12,6 @@
 
 ## Validation And Quality
 
-- Cross-check documentation against canonical specs (`openspec/specs/`) and current codebase reality.
-- Verify internal links, file paths, and referenced spec anchors.
-- If conflicts arise between documentation, specs, and code, report them separately for explicit reconciliation rather than silently modifying docs to mask inconsistencies.
+- Cross-check documentation against current code, tests, schemas, migrations, and product documentation.
+- Verify internal links and file paths.
+- If conflicts arise between documentation and executable behavior, report them separately for explicit reconciliation rather than silently masking inconsistencies.
