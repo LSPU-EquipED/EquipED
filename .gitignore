@@ -14,6 +14,7 @@ skills-lock.json
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Python
 __pycache__/
@@ -21,7 +22,7 @@ __pycache__/
 *.pyo
 *.pyd
 .python-version
-!server/.python-version
+!apps/server/.python-version
 .venv/
 venv/
 env/

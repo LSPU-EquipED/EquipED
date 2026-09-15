@@ -1,0 +1,49 @@
+# Multi-stage Web Dockerfile for EquipED
+# Targets:
+# - `dev`: Node development container with workspace tools
+# - `prod`: Caddy production runtime serving built Faculty and Admin SPAs while proxying /api to server
+
+# --- Base Node stage with pnpm ---
+FROM node:20-slim AS node-base
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+WORKDIR /app
+
+# --- Development stage ---
+FROM node-base AS dev
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY libs ./libs
+COPY apps/faculty ./apps/faculty
+COPY apps/admin ./apps/admin
+
+RUN pnpm install --frozen-lockfile
+
+EXPOSE 5173 5174
+
+CMD ["pnpm", "dev"]
+
+# --- Frontend build stage ---
+FROM node-base AS builder
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY libs ./libs
+COPY apps/faculty ./apps/faculty
+COPY apps/admin ./apps/admin
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+
+# --- Production stage: Caddy runtime ---
+FROM caddy:2-alpine AS prod
+
+COPY --from=builder /app/apps/faculty/dist /srv/faculty
+COPY --from=builder /app/apps/admin/dist /srv/admin
+COPY infra/caddy/Caddyfile.prod /etc/caddy/Caddyfile
+
+EXPOSE 80
+
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

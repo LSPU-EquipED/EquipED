@@ -1,0 +1,67 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-equiped}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d equiped"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:0.5.0
+    volumes:
+      - chroma_prod_data:/chroma/chroma
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: prod
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/equiped}
+      CHROMA_HOST: chroma
+      CHROMA_PORT: "8000"
+      CHROMA_SSL: "false"
+    volumes:
+      - uploads_prod_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read(); print('ok')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+      target: prod
+    ports:
+      - "80:80"
+    environment:
+      PORT: "80"
+      SERVER_UPSTREAM: "http://server:8000"
+    depends_on:
+      - server
+
+volumes:
+  postgres_prod_data: {}
+  chroma_prod_data: {}
+  uploads_prod_data: {}

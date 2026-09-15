@@ -1,0 +1,34 @@
+# EquipED Local Development Caddyfile
+#
+# Route contract:
+# 1. API: /api and /api/* -> FastAPI monolith (127.0.0.1:8000). Do not rewrite/strip paths, do not fallback to SPA.
+# 2. Admin app: /admin-assets/*, /admin, /admin/*, /matrix, /matrix/*, /evaluation-map, /evaluation-map/* -> Admin Vite (127.0.0.1:5174).
+# 3. Faculty app: all other routes -> Faculty Vite (127.0.0.1:5173).
+#
+# Environment overrides supported:
+#   CADDY_DEV_ADDR: bind address and port (default :3000)
+#   SERVER_UPSTREAM: FastAPI upstream (default 127.0.0.1:8000)
+#   ADMIN_UPSTREAM: Admin Vite upstream (default 127.0.0.1:5174)
+#   FACULTY_UPSTREAM: Faculty Vite upstream (default 127.0.0.1:5173)
+
+{$CADDY_DEV_ADDR::3000} {
+	# Explicitly handle routes without stripping paths or falling back to index.html on upstream errors.
+	route {
+		# 1. Server API routes
+		@api path /api /api/*
+		handle @api {
+			reverse_proxy {$SERVER_UPSTREAM:127.0.0.1:8000}
+		}
+
+		# 2. Admin Vite routes (bare paths and descendants) and bundled admin assets
+		@admin path /admin-dev/* /admin-assets/* /admin /admin/* /matrix /matrix/* /evaluation-map /evaluation-map/*
+		handle @admin {
+			reverse_proxy {$ADMIN_UPSTREAM:127.0.0.1:5174}
+		}
+
+		# 3. Faculty Vite fallback (all remaining requests)
+		handle {
+			reverse_proxy {$FACULTY_UPSTREAM:127.0.0.1:5173}
+		}
+	}
+}

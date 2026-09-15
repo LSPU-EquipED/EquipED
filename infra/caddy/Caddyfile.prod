@@ -1,0 +1,39 @@
+# EquipED Production Caddyfile
+#
+# Route contract:
+# 1. API: /api and /api/* -> FastAPI monolith (http://server:8000).
+# 2. Admin bundled assets: /admin-assets/* -> serve from /srv/admin/admin-assets.
+# 3. Admin SPA: /admin, /admin/*, /matrix, /matrix/*, /evaluation-map, /evaluation-map/* -> try_files to /srv/admin/index.html.
+# 4. Faculty SPA: all other routes -> try_files to /srv/faculty/index.html.
+
+:{$PORT:80} {
+	route {
+		# 1. Server API routes
+		@api path /api /api/*
+		handle @api {
+			reverse_proxy {$SERVER_UPSTREAM:http://server:8000}
+		}
+
+		# 2. Admin static assets
+		@admin_assets path /admin-assets/*
+		handle @admin_assets {
+			root * /srv/admin
+			file_server
+		}
+
+		# 3. Admin SPA routes (fallback to /srv/admin/index.html)
+		@admin path /admin /admin/* /matrix /matrix/* /evaluation-map /evaluation-map/*
+		handle @admin {
+			root * /srv/admin
+			try_files {path} /index.html
+			file_server
+		}
+
+		# 4. Faculty SPA routes (default fallback to /srv/faculty/index.html)
+		handle {
+			root * /srv/faculty
+			try_files {path} /index.html
+			file_server
+		}
+	}
+}

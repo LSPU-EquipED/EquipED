@@ -1,16 +1,10 @@
 ## Authority And Scope
 
-- Root instructions apply repo-wide; scoped `AGENTS.md` files (in `server/`, `client/`, `docs/`) add domain-specific enforcement without weakening root rules.
-- `openspec/specs/` is the canonical source for implementation contracts and accepted product behavior.
-- `docs/PRD.md` provides supporting scope, roles, and constraints; it does not override canonical specifications.
-- Conflicts between code, specs, and documentation must be surfaced and reconciled explicitly, never chosen silently.
-
-## OpenSpec Workflow
-
-- Active material changes are tracked under `openspec/changes/<change>/`.
-- `openspec/changes/archive/` contains historical evidence only; archived deltas are never current authority and cannot be reapplied without a new change proposal.
-- Preserve newer canonical wording when reconciling specifications against changes.
-- Keep proposal, design, tasks, implementation, and canonical specs aligned throughout the change lifecycle.
+- Root instructions apply repo-wide; scoped `AGENTS.md` files (in `apps/server/`, `apps/faculty/`, `apps/admin/`, `docs/`) add domain-specific enforcement without weakening root rules.
+- Executable behavior is authoritative through current code, API and schema contracts, migrations, and tests.
+- `PRODUCT.md` and `PRD.md` govern product intent, roles, scope, and constraints; `ARCHITECTURE.md` governs system structure, and `DESIGN.md` governs design-system and UX direction.
+- OpenSpec material is historical reference only. It is not an implementation contract, required workflow, or source of current authority.
+- Conflicts between code, tests, migrations, and product documentation must be surfaced and reconciled explicitly, never chosen silently.
 
 ## Product Invariants
 
@@ -22,15 +16,15 @@
 
 ## Stable Architecture
 
-- Backend is a single-process FastAPI modular monolith; `server/core/` is infrastructure-only and contains no business logic.
-- Frontend is a feature-driven React application; `client/src/features/*` remain self-contained with no cross-feature imports, and `client/src/shared/` is restricted to proven multi-feature utilities.
+- Backend is a single-process FastAPI modular monolith; `apps/server/core/` is infrastructure-only and contains no business logic.
+- Frontend comprises two feature-driven React applications: `apps/faculty` and `apps/admin`, built on shared libraries under `libs/*` (`@equiped/types`, `@equiped/api-client`, `@equiped/ui`, `@equiped/auth`). Features within each app remain self-contained with no cross-feature imports.
 - In-process durable evaluation admission and recovery: Layer 3 specialist agent outputs are persisted to the database, followed by deterministic Layer 4 synthesis producing the terminal monitoring matrix. No further automated layers run.
 - Module and feature boundaries are strictly scoped.
-- No external message queues (e.g. Celery/Redis) or distributed execution systems may be introduced without an accepted spec contract.
+- No external message queues (e.g. Celery/Redis) or distributed execution systems may be introduced without explicit user approval and corresponding updates to authoritative code, tests, and product documentation.
 
 ## Working Rules
 
-- Read relevant canonical specs in `openspec/specs/` first before implementation; consult `docs/PRD.md` for supporting context.
-- Refer to `PRODUCT.md` and `DESIGN.md` for product personality, design tokens, and UI component standards.
+- Read relevant code, tests, schemas, migrations, `PRODUCT.md`, `PRD.md`, `ARCHITECTURE.md`, and `DESIGN.md` before implementation.
+- Keep tests and product documentation aligned with material behavior or architecture changes.
 - Prefer minimal diffs, execute narrow verification checks, and call out material assumptions explicitly.
 
