@@ -58,6 +58,13 @@ export interface EvaluationFormPresentation {
   domains: EvaluationFormDomainPresentation[];
 }
 
+export interface RawMeasurementItem {
+  item_id: string;
+  text: string;
+  included: boolean;
+  rejected: boolean;
+}
+
 export interface CriterionScoreItem {
   rubric_criterion_id?: string | null;
   criterion_id: string;
@@ -69,6 +76,8 @@ export interface CriterionScoreItem {
   evidence?: string | null;
   is_ungrounded?: boolean;
   reviewer_correction?: CriterionReviewerCorrection | null;
+  raw_items?: RawMeasurementItem[] | null;
+  corrected_score?: number | null;
 }
 
 export interface DomainScoreBlock {
@@ -195,7 +204,12 @@ export interface EvaluationResultsResponse {
   legacy_notice?: string | null;
 }
 
-export type CriterionFeedbackAction = 'ACCEPT' | 'REJECT' | 'EDIT';
+export type CriterionFeedbackAction =
+  | 'ACCEPT'
+  | 'REJECT'
+  | 'EDIT'
+  | 'ITEM_REJECT'
+  | 'ITEM_ACCEPT';
 
 export interface CriterionFeedbackRequest {
   agent_name: string;
@@ -203,6 +217,7 @@ export interface CriterionFeedbackRequest {
   score?: number;
   justification?: string;
   notes?: string;
+  item_id?: string;
 }
 
 export interface CriterionFeedbackResponse {
@@ -211,6 +226,7 @@ export interface CriterionFeedbackResponse {
   user_id: string;
   agent_name: string | null;
   criterion_id: string | null;
+  item_id?: string | null;
   action: CriterionFeedbackAction;
   edited_json: { score: number; justification: string } | null;
   notes: string | null;

@@ -199,6 +199,10 @@ def test_full_success_scores_all_criteria() -> None:
     assert result.summary != ""
     assert "strongest area" in result.summary
     assert client.call_count == 2
+    assert result.metadata["envelope_status"] == {
+        "envelope_0": "ok",
+        "envelope_1": "ok",
+    }
 
 
 def test_repair_on_validation_failure() -> None:
@@ -219,6 +223,62 @@ def test_repair_on_validation_failure() -> None:
     assert result.success is True
     assert client.call_count == 3
     assert result.provenance["repair_occurred"] is True
+    assert result.metadata["envelope_status"] == {
+        "envelope_0": "repaired",
+        "envelope_1": "ok",
+    }
+
+
+def test_fallback_used_when_repair_also_fails_grounding() -> None:
+    eval_id = uuid.uuid4()
+    snap = _make_snapshot(eval_id)
+    # Both attempts on envelope 0 reference text that isn't in the source
+    # document, so grounding validation fails twice and the pipeline must
+    # fall back to a synthetic placeholder rather than raising.
+    ungrounded_payload = json.dumps(
+        {
+            "summary": "Design domain",
+            "criterion_measurements": [
+                {
+                    "criterion_id": "OP-01",
+                    "criterion_title": "Topic Coherence",
+                    "total_units": [
+                        {"unit_id": "u1", "evidence": "text not in the document"}
+                    ],
+                    "qualifying_unit_ids": ["u1"],
+                    "has_measurable_content": True,
+                },
+                {
+                    "criterion_id": "OP-02",
+                    "criterion_title": "Interactive Elements",
+                    "instances": [{"excerpt": "also missing from the document"}],
+                },
+            ],
+        }
+    )
+    client = MockLLM([ungrounded_payload, ungrounded_payload, _valid_payload_for_d2()])
+    agent = SME(llm_client=client)
+
+    result = agent.run(
+        evaluation_id=eval_id,
+        document_id=uuid.uuid4(),
+        form_snapshot=snap,
+        chunk_infos=_CHUNK_INFOS,
+        canonical_source_text=_SOURCE,
+    )
+
+    assert result.success is True
+    assert result.provenance["repair_occurred"] is True
+    assert result.metadata["envelope_status"] == {
+        "envelope_0": "fallback",
+        "envelope_1": "ok",
+    }
+    # Fallback measurements must never claim grounded instances/units.
+    envelope_0_response = result.metadata["group_responses"]["envelope_0"]
+    for measurement in envelope_0_response["criterion_measurements"]:
+        assert measurement.get("instances", []) == [] or measurement.get(
+            "total_units", []
+        ) == []
 
 
 def test_repair_failure_raises() -> None:

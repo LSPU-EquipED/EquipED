@@ -114,7 +114,7 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
     return {"criterion_id": criterion.criterion_code}
 
 
-SME_PREAMBLE = (
+_SME_PREAMBLE_BASE = (
     "You are the Subject Matter Expert (SME) evaluation agent for Student "
     "Learning Materials (SLM).\n"
     "Evaluate the criteria below strictly and impartially against the "
@@ -124,10 +124,27 @@ SME_PREAMBLE = (
     "- Return a single JSON object with 'summary' and "
     "'criterion_measurements'.\n"
     "- 'criterion_measurements' must contain exactly one object per "
-    "criterion in the exact order listed below.\n"
-    "- Do NOT calculate or return final numeric scores for count or ratio "
+    "criterion in the exact order listed below."
+)
+
+_NO_SELF_SCORE_FOR_COUNT_RATIO = (
+    "\n- Do NOT calculate or return final numeric scores for count or ratio "
     "strategies; emit only the required measurement structure."
 )
+
+
+def _build_sme_preamble(criteria: tuple[CriterionDefinition, ...]) -> str:
+    """SME's preamble, only warning against self-scoring if this envelope
+    actually contains a count/ratio criterion -- for an all-llm_rubric_
+    guidance envelope, that warning would directly contradict the per-
+    criterion "assign an integer score" instruction."""
+    has_calculator_criterion = any(
+        isinstance(c.strategy_config, (CountBandConfig, RatioBandConfig))
+        for c in criteria
+    )
+    if has_calculator_criterion:
+        return _SME_PREAMBLE_BASE + _NO_SELF_SCORE_FOR_COUNT_RATIO
+    return _SME_PREAMBLE_BASE
 
 _GAP_MARKER_WARNING = (
     "The source text may contain '[...]' markers where document sections were "
@@ -155,7 +172,7 @@ def build_envelope_prompt_and_source(
     }
     example_json = json.dumps(example, indent=2, ensure_ascii=False)
     builder = PromptEnvelopeBuilder(
-        evaluator_preamble=SME_PREAMBLE,
+        evaluator_preamble=_build_sme_preamble(criteria),
         criteria_blocks=criteria_blocks,
         example_json=example_json,
         total_budget=prompt_budget,
@@ -171,6 +188,5 @@ def build_envelope_prompt_and_source(
 
 __all__ = [
     "REPAIR_SUFFIX",
-    "SME_PREAMBLE",
     "build_envelope_prompt_and_source",
 ]

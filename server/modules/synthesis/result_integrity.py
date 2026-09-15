@@ -43,6 +43,8 @@ MAX_CHUNK_ITEM_LENGTH = 128
 MAX_GROUP_PAYLOAD_BYTES = 256 * 1024
 MAX_PROVENANCE_BYTES = 64 * 1024
 MAX_JSON_DEPTH = 8
+MAX_ENVELOPE_STATUS_BYTES = 16 * 1024
+_VALID_ENVELOPE_STATUSES = frozenset({"ok", "repaired", "fallback"})
 
 
 def _validate_json_depth_and_types(obj: Any, depth: int = 1) -> None:
@@ -139,6 +141,7 @@ class PersistableAgentResult:
     prompt_text: str | None
     group_prompts_json: str | None
     group_responses_json: str | None
+    envelope_status_json: str | None
     provenance_json: str | None
     advisory_outputs_json: str | None
     advisory_output_dto: AdvisoryOutput | None
@@ -197,6 +200,7 @@ def build_persistable_agent_result(
         if (
             result.metadata.get("group_prompts") is not None
             or result.metadata.get("group_responses") is not None
+            or result.metadata.get("envelope_status") is not None
         ):
             raise EvaluationResultIntegrityError(
                 "Failed result must not contain group payloads"
@@ -243,6 +247,7 @@ def build_persistable_agent_result(
             prompt_text=None,
             group_prompts_json=None,
             group_responses_json=None,
+            envelope_status_json=None,
             provenance_json=prov_json,
             advisory_outputs_json=None,
             advisory_output_dto=None,
@@ -302,6 +307,34 @@ def build_persistable_agent_result(
     )
     if combined_group_bytes > MAX_GROUP_PAYLOAD_BYTES:
         raise EvaluationResultIntegrityError("Combined group payload size exceeded")
+
+    envelope_status = result.metadata.get("envelope_status")
+    if envelope_status is not None:
+        if not isinstance(envelope_status, dict):
+            raise EvaluationResultIntegrityError(
+                "envelope_status must be a dict or None"
+            )
+        for key, value in envelope_status.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise EvaluationResultIntegrityError(
+                    "envelope_status keys and values must be strings"
+                )
+            if value not in _VALID_ENVELOPE_STATUSES:
+                raise EvaluationResultIntegrityError(
+                    f"Invalid envelope_status value '{value}'"
+                )
+        expected_keys = set(group_responses) if group_responses is not None else None
+        if expected_keys is not None and set(envelope_status) != expected_keys:
+            raise EvaluationResultIntegrityError(
+                "envelope_status keys must match group_responses keys"
+            )
+    es_json = (
+        _serialize_bounded_json(
+            envelope_status, MAX_ENVELOPE_STATUS_BYTES, "envelope_status"
+        )
+        if envelope_status is not None
+        else None
+    )
 
     if result.agent_name != "itso" and result.advisory_outputs is not None:
         raise EvaluationResultIntegrityError(
@@ -510,6 +543,7 @@ def build_persistable_agent_result(
         prompt_text=prompt_txt,
         group_prompts_json=gp_json,
         group_responses_json=gr_json,
+        envelope_status_json=es_json,
         provenance_json=prov_json,
         advisory_outputs_json=adv_json,
         advisory_output_dto=adv_dto,

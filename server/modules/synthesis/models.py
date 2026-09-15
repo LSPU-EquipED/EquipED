@@ -50,6 +50,7 @@ class AgentResult(Base):
     prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_prompts: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     group_responses: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    envelope_status: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     advisory_outputs: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     form_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(

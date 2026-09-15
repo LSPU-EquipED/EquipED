@@ -194,6 +194,7 @@ class Coordinator:
         any_repair = False
         grounding_rejected = 0
 
+        envelope_status: dict[str, str] = {}
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
             scores, prompt, parsed, repaired = execute_envelope(
@@ -207,6 +208,7 @@ class Coordinator:
             all_scores.extend(scores)
             envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = parsed
+            envelope_status[env_key] = "repaired" if repaired else "ok"
             any_repair = any_repair or repaired
             for m in parsed.get("criterion_measurements", []):
                 grounding_rejected += int(m.get("_grounding_rejected_count", 0))
@@ -261,6 +263,7 @@ class Coordinator:
             metadata={
                 "group_prompts": envelope_prompts,
                 "group_responses": envelope_responses,
+                "envelope_status": envelope_status,
             },
             provenance=sanitize_provenance(provenance),
         )

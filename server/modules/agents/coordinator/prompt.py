@@ -29,7 +29,7 @@ REPAIR_SUFFIX = (
 )
 
 
-COORDINATOR_PREAMBLE = (
+_COORDINATOR_PREAMBLE_BASE = (
     "You are the Program Coordinator evaluation agent for Student Learning\n"
     "Materials (SLM). You judge each criterion the same way the Subject Matter\n"
     "Expert does, but from a curriculum-alignment perspective: your role is to\n"
@@ -43,10 +43,33 @@ COORDINATOR_PREAMBLE = (
     "fabricate text to fill omitted sections.\n"
     "- Return a single JSON object with 'summary' and 'criterion_measurements'.\n"
     "- 'criterion_measurements' must contain exactly one object per criterion, "
-    "in the exact order listed below.\n"
-    "- Do NOT calculate or return final numeric scores for count or ratio "
+    "in the exact order listed below."
+)
+
+_NO_SELF_SCORE_FOR_COUNT_RATIO = (
+    "\n- Do NOT calculate or return final numeric scores for count or ratio "
     "strategies; emit only the required measurement structure."
 )
+
+
+def _build_coordinator_preamble(criteria: tuple[CriterionDefinition, ...]) -> str:
+    """Coordinator's preamble, only warning against self-scoring if this
+    envelope actually contains a criterion the model doesn't score itself
+    -- count_band/ratio_band (grounded counting) or curriculum_alignment
+    (A-05's score is also code-computed from alignment matches, see
+    score_curriculum_alignment). For an envelope of only
+    llm_rubric_guidance criteria, that warning would directly contradict
+    the per-criterion "assign an integer score" instruction."""
+    has_calculator_criterion = any(
+        isinstance(
+            c.strategy_config,
+            (CountBandConfig, RatioBandConfig, CurriculumAlignmentConfig),
+        )
+        for c in criteria
+    )
+    if has_calculator_criterion:
+        return _COORDINATOR_PREAMBLE_BASE + _NO_SELF_SCORE_FOR_COUNT_RATIO
+    return _COORDINATOR_PREAMBLE_BASE
 
 
 def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
@@ -191,7 +214,7 @@ def build_envelope_prompt_and_source(
     }
     example_json = json.dumps(example, indent=2, ensure_ascii=False)
     builder = PromptEnvelopeBuilder(
-        evaluator_preamble=COORDINATOR_PREAMBLE,
+        evaluator_preamble=_build_coordinator_preamble(criteria),
         criteria_blocks=criteria_blocks,
         example_json=example_json,
         total_budget=prompt_budget,
@@ -211,7 +234,6 @@ def build_envelope_prompt_and_source(
 
 
 __all__ = [
-    "COORDINATOR_PREAMBLE",
     "GAP_MARKER",
     "REPAIR_SUFFIX",
     "build_envelope_prompt_and_source",
