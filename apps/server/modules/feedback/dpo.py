@@ -16,6 +16,7 @@ a synthetic one would train on a shape the model never sees at inference.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Iterator
@@ -27,9 +28,13 @@ from server.modules.synthesis.models import AgentResult
 
 from .items import apply_item_rejections
 from .models import PreferenceLog
+from .state import get_effective_criterion_corrections
+
+logger = logging.getLogger(__name__)
 
 _ITEM_LEVEL_AGENTS = ("sme", "coordinator")
 _ITEM_LEVEL_ACTIONS = ("ITEM_REJECT", "ITEM_ACCEPT")
+_SCORE_LEVEL_AGENTS = ("sme",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,4 +181,155 @@ def export_item_level_dpo_pairs(db: Any) -> Iterator[DpoPair]:
             )
 
 
-__all__ = ["DpoPair", "export_item_level_dpo_pairs"]
+def _is_score_shaped(measurement: dict[str, Any]) -> bool:
+    """True only for a genuine llm_rubric_guidance measurement.
+
+    Guards against ever substituting a score into a count_band/ratio_band
+    measurement (no "score" field there by design -- see
+    server/modules/agents/sme/response.py's score-field blocklist) --
+    relevant for historical SME evaluations scored before the criteria
+    were converted to llm_rubric_guidance, and for other agents (e.g.
+    Coordinator) still on the calculator strategies.
+    """
+    return (
+        "score" in measurement
+        and "instances" not in measurement
+        and "total_units" not in measurement
+    )
+
+
+def export_score_level_dpo_pairs(
+    db: Any, agent_names: tuple[str, ...] = _SCORE_LEVEL_AGENTS
+) -> Iterator[DpoPair]:
+    """Yield one DpoPair per envelope with an active score-level EDIT.
+
+    Applies only to llm_rubric_guidance criteria, where the LLM outputs
+    the score itself -- see server/modules/agents/sme/prompt.py. A plain
+    score+justification correction (the EDIT action) is real, valid model
+    output to pair against for these criteria, unlike SME/Coordinator's
+    count_band/ratio_band criteria (see export_item_level_dpo_pairs).
+
+    An envelope with any effective REJECT among its criteria is skipped
+    entirely: REJECT carries no corrected score/justification to build a
+    "chosen" response from.
+    """
+    candidate_rows = (
+        db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
+        .filter(
+            PreferenceLog.agent_name.in_(agent_names),
+            PreferenceLog.action == "EDIT",
+        )
+        .distinct()
+        .all()
+    )
+
+    for evaluation_id, agent_name in candidate_rows:
+        result = (
+            db.query(AgentResult)
+            .filter_by(evaluation_id=evaluation_id, agent_name=agent_name)
+            .first()
+        )
+        if result is None or not result.success or not result.group_responses:
+            continue
+
+        corrections = get_effective_criterion_corrections(
+            db, evaluation_id, agent_names=[agent_name]
+        )
+        edit_corrections = {
+            criterion_id: corr
+            for (a, criterion_id), corr in corrections.items()
+            if a == agent_name
+        }
+        if not edit_corrections:
+            continue
+
+        try:
+            envelope_map = get_envelope_criteria_map(db, evaluation_id, agent_name)
+        except Exception:
+            continue
+
+        code_to_envelope_key = {
+            c.criterion_code: key
+            for key, criteria in envelope_map.items()
+            for c in criteria
+        }
+
+        envelopes_touched: dict[str, dict[str, Any]] = defaultdict(dict)
+        for criterion_id, corr in edit_corrections.items():
+            env_key = code_to_envelope_key.get(criterion_id)
+            if env_key is not None:
+                envelopes_touched[env_key][criterion_id] = corr
+
+        for env_key, crit_corrections in envelopes_touched.items():
+            # A REJECT in this envelope has no corrected text -- can't
+            # build a "chosen" response for the whole envelope.
+            if any(corr.action == "REJECT" for corr in crit_corrections.values()):
+                continue
+
+            prompt = (result.group_prompts or {}).get(env_key)
+            envelope_response = (result.group_responses or {}).get(env_key)
+            if not prompt or not envelope_response:
+                continue
+
+            measurements = envelope_response.get("criterion_measurements", [])
+            chosen_measurements = []
+            reviewer_ids: set[uuid.UUID] = set()
+            real_change = False
+            skip_envelope = False
+
+            for measurement in measurements:
+                cid = measurement.get("criterion_id")
+                corr = crit_corrections.get(cid)
+                if corr is None or corr.action != "EDIT":
+                    chosen_measurements.append(measurement)
+                    continue
+
+                if not _is_score_shaped(measurement):
+                    logger.warning(
+                        "Skipping envelope %s for evaluation %s: criterion "
+                        "'%s' has a score-level EDIT but its stored "
+                        "measurement isn't llm_rubric_guidance-shaped",
+                        env_key,
+                        evaluation_id,
+                        cid,
+                    )
+                    skip_envelope = True
+                    break
+
+                new_measurement = dict(measurement)
+                if corr.score is not None and corr.score != measurement.get("score"):
+                    new_measurement["score"] = corr.score
+                    real_change = True
+                if corr.justification:
+                    trimmed = corr.justification.strip()
+                    old_reasoning = (measurement.get("reasoning") or "").strip()
+                    if trimmed and trimmed != old_reasoning:
+                        new_measurement["reasoning"] = trimmed
+                        real_change = True
+                if corr.user_id:
+                    reviewer_ids.add(corr.user_id)
+                chosen_measurements.append(new_measurement)
+
+            if skip_envelope or not real_change:
+                continue
+
+            chosen_response = {
+                **envelope_response,
+                "criterion_measurements": chosen_measurements,
+            }
+
+            yield DpoPair(
+                prompt=prompt,
+                chosen=json.dumps(chosen_response, ensure_ascii=False),
+                rejected=json.dumps(envelope_response, ensure_ascii=False),
+                evaluation_id=evaluation_id,
+                document_id=result.document_id,
+                reviewer_ids=frozenset(reviewer_ids),
+            )
+
+
+__all__ = [
+    "DpoPair",
+    "export_item_level_dpo_pairs",
+    "export_score_level_dpo_pairs",
+]
