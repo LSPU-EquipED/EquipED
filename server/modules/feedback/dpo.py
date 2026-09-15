@@ -1,16 +1,28 @@
-"""Item-level DPO training pair projection for SME/Coordinator feedback.
+"""DPO training pair projection for SME/Coordinator feedback.
 
-Only item-level corrections (ITEM_REJECT/ITEM_ACCEPT) produce valid DPO
-pairs today: SME/Coordinator's count_band/ratio_band criteria never have
-the LLM output a score directly, so a score-only correction (EDIT/REJECT)
-has no corresponding field in the model's own output to pair against. See
-server/modules/feedback/items.py for the correction/recompute mechanism
-this module builds on.
+Two independent export paths, depending on whether the LLM outputs the
+score itself for a given criterion:
+
+- export_score_level_dpo_pairs: for llm_rubric_guidance criteria (SME and
+  Coordinator's OP-01..OP-05/A-01..A-04, since both were converted from
+  count_band/ratio_band -- see convert_sme_to_llm_rubric_guidance.py and
+  convert_coordinator_to_llm_rubric_guidance.py). The model states its
+  own score, so a plain score+justification EDIT is real model output to
+  pair against.
+- export_item_level_dpo_pairs: for any remaining count_band/ratio_band
+  criteria, where the LLM never outputs a score directly (code computes
+  it from an extracted item list) -- a score-only correction has no
+  field in the model's own output to attach to, so only ITEM_REJECT/
+  ITEM_ACCEPT corrections on the item list itself are valid pairs. See
+  server/modules/feedback/items.py for that correction/recompute
+  mechanism. As of the conversions above, this path is currently dormant
+  for SME/Coordinator (no criteria left in that shape) but is kept for
+  any future/other agent still using those strategies.
 
 Pairs are keyed per (evaluation, envelope): an envelope with no active
-item rejection among its criteria yields no pair -- no real agent call
-ever produces a "corrected" response for an envelope nobody touched, and
-a synthetic one would train on a shape the model never sees at inference.
+correction among its criteria yields no pair -- no real agent call ever
+produces a "corrected" response for an envelope nobody touched, and a
+synthetic one would train on a shape the model never sees at inference.
 """
 
 from __future__ import annotations
@@ -34,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 _ITEM_LEVEL_AGENTS = ("sme", "coordinator")
 _ITEM_LEVEL_ACTIONS = ("ITEM_REJECT", "ITEM_ACCEPT")
-_SCORE_LEVEL_AGENTS = ("sme",)
+_SCORE_LEVEL_AGENTS = ("sme", "coordinator")
 
 
 @dataclass(frozen=True, slots=True)
