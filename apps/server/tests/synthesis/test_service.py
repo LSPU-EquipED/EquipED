@@ -531,3 +531,115 @@ def test_persist_agent_outputs_stores_group_responses(db_session, seeded_user):
     assert saved_row.group_responses == group_responses
     # Ensure raw model text is never stored in group_responses or raw_response
     assert saved_row.raw_response is None
+
+
+def test_get_evaluation_results_surfaces_item_level_correction(db_session, seeded_user):
+    """Full stack: real SME snapshot, real group_responses, an ITEM_REJECT,
+    and the API response exposing raw_items + the live-recomputed score."""
+    from server.modules.documents.models import Document
+    from server.modules.evaluations.models import EvaluationJob
+    from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
+    from server.modules.synthesis.service import persist_agent_outputs
+    from server.tests.evaluations.snapshot_test_helpers import make_agent_result
+    from server.tests.rubrics.helpers import seed_all_rubrics
+
+    document_id = uuid4()
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title="test_doc",
+            program="BSCS",
+            source_type="slm",
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=datetime.now(UTC),
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status="PROCESSED",
+        )
+    )
+    db_session.flush()
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=document_id,
+        submitted_by=seeded_user.user_id,
+        status="COMPLETED",
+        target_agent="sme",
+    )
+    db_session.add(job)
+    db_session.flush()
+
+    seed_all_rubrics(db_session)
+    resolve_or_reuse_evaluation_snapshots(db_session, job.evaluation_id, ("sme",))
+    db_session.commit()
+
+    # OP-01 (ratio_band) real measurement: 2 total_units, both qualifying.
+    op01_measurement = {
+        "criterion_id": "OP-01",
+        "criterion_title": "Topic Coherence",
+        "total_units": [
+            {"unit_id": "u1", "evidence": "Unit 1 to Unit 2."},
+            {"unit_id": "u2", "evidence": "Unit 2 to Unit 3."},
+        ],
+        "qualifying_unit_ids": ["u1", "u2"],
+        "has_measurable_content": True,
+    }
+    other_op_measurements = [
+        {"criterion_id": cid, "criterion_title": cid, "instances": []}
+        for cid in ("OP-02", "OP-03", "OP-04", "OP-05")
+    ]
+    other_a_measurements = [
+        {"criterion_id": cid, "criterion_title": cid, "instances": []}
+        for cid in ("A-01", "A-02", "A-03", "A-04", "A-05")
+    ]
+    group_responses = {
+        "envelope_0": {
+            "criterion_measurements": [op01_measurement, *other_op_measurements]
+        },
+        "envelope_1": {"criterion_measurements": other_a_measurements},
+    }
+
+    sme_result = make_agent_result(
+        "sme",
+        job.evaluation_id,
+        document_id,
+        scores_by_criterion={"OP-01": 4},
+        metadata={"group_responses": group_responses},
+    )
+    persist_agent_outputs(
+        db_session,
+        job.evaluation_id,
+        document_id,
+        [sme_result],
+        verify_ownership=lambda db: None,
+    )
+
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="sme",
+            criterion_id="OP-01",
+            item_id="u2",
+            action="ITEM_REJECT",
+        )
+    )
+    db_session.commit()
+
+    result = get_evaluation_results(job.evaluation_id, seeded_user.user_id, db_session)
+
+    by_id = {c.criterion_id: c for c in result.domain_scores["sme"].criteria}
+    op01 = by_id["OP-01"]
+
+    assert op01.score == 4  # original persisted score is untouched
+    assert op01.raw_items is not None
+    assert {item.item_id: item.rejected for item in op01.raw_items} == {
+        "u1": False,
+        "u2": True,
+    }
+    # 1/2 qualifying units -> 50% coverage -> threshold_3 band.
+    assert op01.corrected_score == 3
+
+    # A criterion with no item rejections gets no item-level display at all.
+    op02 = by_id["OP-02"]
+    assert op02.corrected_score is None

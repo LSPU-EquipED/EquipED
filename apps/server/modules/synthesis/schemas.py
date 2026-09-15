@@ -20,6 +20,17 @@ class ReviewerCorrection(BaseModel):
     justification: str | None = None
 
 
+class RawMeasurementItemOut(BaseModel):
+    """One extracted item (instance/qualifying unit) within a criterion's
+    raw measurement -- what an SME/Coordinator reviewer can accept/reject
+    at the item level. See server/modules/feedback/items.py."""
+
+    item_id: str
+    text: str
+    included: bool
+    rejected: bool = False
+
+
 class CriterionScoreItem(BaseModel):
     rubric_criterion_id: UUID | None = None
     criterion_id: str
@@ -31,6 +42,8 @@ class CriterionScoreItem(BaseModel):
     evidence: str | None = None
     is_ungrounded: bool = False
     reviewer_correction: ReviewerCorrection | None = None
+    raw_items: list[RawMeasurementItemOut] | None = None
+    corrected_score: int | None = None
 
 
 def score_to_adjectival(score: float) -> str:
@@ -160,6 +173,7 @@ class MasterSynthesisDetailResponse(BaseModel):
 
 __all__ = [
     "CriterionScoreItem",
+    "RawMeasurementItemOut",
     "ReviewerCorrection",
     "DomainScoreBlock",
     "EvaluationFormCriterionPresentation",

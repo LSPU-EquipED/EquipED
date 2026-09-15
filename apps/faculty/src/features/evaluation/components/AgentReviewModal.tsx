@@ -10,6 +10,8 @@ type CriterionDraft = {
   justification: string;
   rejected: boolean;
   expanded: boolean;
+  /** item_id -> locally rejected? Only populated for criteria with raw_items. */
+  itemRejections: Record<string, boolean>;
 };
 
 type AgentReviewModalProps = {
@@ -45,6 +47,9 @@ function initialDrafts(
           justification: baseline.justification,
           rejected: c.reviewer_correction?.action === 'REJECT',
           expanded: isEditBaseline,
+          itemRejections: Object.fromEntries(
+            (c.raw_items ?? []).map((item) => [item.item_id, item.rejected]),
+          ),
         },
       ];
     }),
@@ -112,6 +117,16 @@ export function AgentReviewModal({
     });
   }
 
+  function toggleItem(criterion: CriterionScoreItem, itemId: string) {
+    const draft = drafts[criterion.criterion_id];
+    updateDraft(criterion.criterion_id, {
+      itemRejections: {
+        ...draft.itemRejections,
+        [itemId]: !draft.itemRejections[itemId],
+      },
+    });
+  }
+
   function revertCriterion(criterion: CriterionScoreItem) {
     updateDraft(criterion.criterion_id, {
       score: criterion.score,
@@ -153,7 +168,7 @@ export function AgentReviewModal({
       return;
     }
 
-    const actions = criteria
+    const scoreActions = criteria
       .map((criterion) => {
         const draft = drafts[criterion.criterion_id];
         const wasRejected = criterion.reviewer_correction?.action === 'REJECT';
@@ -188,6 +203,28 @@ export function AgentReviewModal({
         return null;
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+    // Item-level corrections (SME/Coordinator raw_items only): only send an
+    // action for items whose local toggle actually differs from what's
+    // already persisted, same "unchanged = zero requests" rule as above.
+    const itemActions = criteria.flatMap((criterion) => {
+      const draft = drafts[criterion.criterion_id];
+      if (!criterion.raw_items || draft.rejected) return [];
+      return criterion.raw_items
+        .filter((item) => draft.itemRejections[item.item_id] !== item.rejected)
+        .map((item) => ({
+          criterionId: criterion.criterion_id,
+          body: {
+            agent_name: agentName,
+            action: draft.itemRejections[item.item_id]
+              ? ('ITEM_REJECT' as const)
+              : ('ITEM_ACCEPT' as const),
+            item_id: item.item_id,
+          },
+        }));
+    });
+
+    const actions = [...scoreActions, ...itemActions];
 
     if (actions.length === 0) {
       onClose();
@@ -343,6 +380,45 @@ export function AgentReviewModal({
                         Revert
                       </button>
                     </p>
+                  </div>
+                )}
+
+                {criterion.raw_items && criterion.raw_items.length > 0 && !draft.rejected && (
+                  <div className="grid gap-1 rounded-sm border border-border/60 bg-surface-subtle p-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                      Extracted items
+                      {typeof criterion.corrected_score === 'number' && (
+                        <span className="ml-2 font-normal normal-case tracking-normal text-text-muted">
+                          (recalculates to {formatScore(criterion.corrected_score)}/4 on save)
+                        </span>
+                      )}
+                    </p>
+                    <ul className="grid gap-1">
+                      {criterion.raw_items.map((item) => {
+                        const isRejected = draft.itemRejections[item.item_id] ?? item.rejected;
+                        return (
+                          <li key={item.item_id} className="flex items-start gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 shrink-0"
+                              checked={!isRejected}
+                              onChange={() => toggleItem(criterion, item.item_id)}
+                              aria-label={
+                                isRejected ? 'Mark item as counted' : 'Mark item as not counted'
+                              }
+                            />
+                            <span
+                              className={cn(
+                                'leading-snug',
+                                isRejected && 'text-text-muted line-through',
+                              )}
+                            >
+                              {item.text}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 )}
               </div>

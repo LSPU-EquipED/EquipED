@@ -2,14 +2,28 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
+from server.modules.agents.envelope_map import envelope_criteria_map_from_snapshot
+from server.modules.agents.sme.scoring import score_criterion_measurement
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
+from server.modules.feedback.items import (
+    RawMeasurementItem,
+    apply_item_rejections,
+    extract_raw_items,
+    get_effective_item_rejections_batch,
+)
 from server.modules.feedback.state import (
     EffectiveCriterionCorrection,
     get_effective_criterion_corrections,
+)
+from server.modules.rubrics.contracts import (
+    CountBandConfig,
+    CriterionDefinition,
+    RatioBandConfig,
 )
 from server.modules.rubrics.models import EvaluationFormSnapshot
 from server.modules.rubrics.presentation import (
@@ -37,7 +51,15 @@ from server.modules.synthesis.schemas import (
     DomainScoreBlock,
     EvaluationFlagItem,
     EvaluationResultsResponse,
+    RawMeasurementItemOut,
 )
+
+logger = logging.getLogger(__name__)
+
+# Item-level correction display (raw item checklist + live-recomputed score)
+# only applies to agents whose score is code-computed from LLM-extracted
+# items -- see server/modules/feedback/items.py.
+_ITEM_LEVEL_AGENTS = ("sme", "coordinator")
 
 
 def _reviewer_correction_payload(
@@ -50,6 +72,78 @@ def _reviewer_correction_payload(
         "score": correction.score,
         "justification": correction.justification,
     }
+
+
+def _item_correction_payload(
+    result: AgentResult,
+    agent_id: str,
+    snap_crit: CriterionDefinition,
+    envelope_key_by_code: dict[str, str],
+    rejections_batch: dict[tuple[str, str], frozenset[str]],
+) -> tuple[list[RawMeasurementItemOut] | None, int | None]:
+    """Return (raw_items, corrected_score) for one criterion, or (None, None).
+
+    Best-effort/defensive: this is display enrichment, not a persisted
+    invariant, so any lookup failure (missing envelope, malformed stored
+    response, etc.) degrades to "no item-level info" rather than failing
+    the whole results response.
+    """
+    if agent_id not in _ITEM_LEVEL_AGENTS:
+        return None, None
+    if not isinstance(snap_crit.strategy_config, (CountBandConfig, RatioBandConfig)):
+        return None, None
+    if not result.group_responses:
+        return None, None
+
+    envelope_key = envelope_key_by_code.get(snap_crit.criterion_code)
+    if envelope_key is None:
+        return None, None
+
+    try:
+        envelope_response = result.group_responses.get(envelope_key) or {}
+        measurement = next(
+            (
+                m
+                for m in envelope_response.get("criterion_measurements", [])
+                if m.get("criterion_id") == snap_crit.criterion_code
+            ),
+            None,
+        )
+        if measurement is None:
+            return None, None
+
+        raw_items: tuple[RawMeasurementItem, ...] = extract_raw_items(measurement)
+        rejected_ids = rejections_batch.get(
+            (agent_id, snap_crit.criterion_code), frozenset()
+        )
+
+        items_out = [
+            RawMeasurementItemOut(
+                item_id=item.item_id,
+                text=item.text,
+                included=item.included,
+                rejected=item.item_id in rejected_ids,
+            )
+            for item in raw_items
+        ]
+
+        corrected_score: int | None = None
+        if rejected_ids:
+            corrected_measurement = apply_item_rejections(measurement, rejected_ids)
+            corrected_score = score_criterion_measurement(
+                snap_crit, corrected_measurement
+            ).score
+
+        return items_out, corrected_score
+    except Exception:
+        logger.warning(
+            "Failed to compute item-level correction display for criterion '%s' "
+            "(agent '%s'); omitting raw_items/corrected_score",
+            snap_crit.criterion_code,
+            agent_id,
+            exc_info=True,
+        )
+        return None, None
 
 
 def get_evaluation_results(
@@ -248,6 +342,9 @@ def get_evaluation_results(
                 )
 
         ungrounded_cids = {f.criterion_id for f in flags if f.chunk_id is None}
+        item_rejections_batch = get_effective_item_rejections_batch(
+            db, evaluation_id, _ITEM_LEVEL_AGENTS
+        )
 
         for agent_id in scheduled_ids:
             result = result_by_agent[agent_id]
@@ -256,6 +353,25 @@ def get_evaluation_results(
             domain_id = first_domain.rubric_domain_id if first_domain else None
             domain_name = first_domain.title if first_domain else None
             domain_display_order = first_domain.display_order if first_domain else None
+
+            envelope_key_by_code: dict[str, str] = {}
+            if agent_id in _ITEM_LEVEL_AGENTS:
+                try:
+                    envelope_map = envelope_criteria_map_from_snapshot(
+                        snapshot, agent_id
+                    )
+                    envelope_key_by_code = {
+                        c.criterion_code: key
+                        for key, criteria in envelope_map.items()
+                        for c in criteria
+                    }
+                except Exception:
+                    logger.warning(
+                        "Failed to reconstruct envelope map for agent '%s'; "
+                        "item-level correction display will be omitted",
+                        agent_id,
+                        exc_info=True,
+                    )
 
             db_scores = criteria_by_result.get(result.agent_result_id, [])
             db_scores_by_cid = {s.criterion_id: s for s in db_scores}
@@ -285,6 +401,13 @@ def get_evaluation_results(
                             f"!= '{snap_crit.title}'"
                         )
                     is_ungrounded = score_row.criterion_id in ungrounded_cids
+                    raw_items, corrected_score = _item_correction_payload(
+                        result,
+                        agent_id,
+                        snap_crit,
+                        envelope_key_by_code,
+                        item_rejections_batch,
+                    )
                     reconstructed_criteria.append(
                         CriterionScoreItem(
                             rubric_criterion_id=snap_crit.rubric_criterion_id,
@@ -305,6 +428,8 @@ def get_evaluation_results(
                                 if result.agent_name in reviewable_agents
                                 else None
                             ),
+                            raw_items=raw_items,
+                            corrected_score=corrected_score,
                         )
                     )
             else:
