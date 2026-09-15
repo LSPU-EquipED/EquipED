@@ -1,6 +1,6 @@
 import React, { forwardRef, useId } from 'react';
-import { cn } from '@/shared/components/utils';
-import { INPUT_STYLES } from '@/shared/constants/theme';
+import { cn } from '../utils';
+import { INPUT_STYLES } from '../theme';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;

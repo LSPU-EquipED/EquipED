@@ -1,6 +1,6 @@
 import React from 'react';
-import { cn } from '@/shared/components/utils';
-import { STATUS_VARIANTS, type StatusVariant } from '@/shared/constants/theme';
+import { cn } from '../utils';
+import { STATUS_VARIANTS, type StatusVariant } from '../theme';
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: StatusVariant;

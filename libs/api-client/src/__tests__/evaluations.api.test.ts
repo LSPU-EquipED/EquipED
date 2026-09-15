@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as httpModule from '@/shared/api/http';
+import * as httpModule from '../http';
 import { buildLatestEvaluationsQuery, evaluationsApi } from '../evaluations.api';
 
 describe('evaluationsApi.buildLatestEvaluationsQuery', () => {
@@ -32,7 +32,7 @@ describe('evaluationsApi.buildLatestEvaluationsQuery', () => {
 
 describe('evaluationsApi.getLatestEvaluations', () => {
   it('returns empty items immediately without HTTP call if given empty list', async () => {
-    const spy = vi.spyOn(httpModule, 'requestJson');
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce({} as any);
     const result = await evaluationsApi.getLatestEvaluations([]);
     expect(result).toEqual({ items: [] });
     expect(spy).not.toHaveBeenCalled();

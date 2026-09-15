@@ -1,0 +1,33 @@
+{
+  "name": "equiped-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"faculty,admin\" -c \"blue,magenta\" \"pnpm run dev:faculty\" \"pnpm run dev:admin\"",
+    "dev:all": "concurrently -k -p \"[{name}]\" -n \"faculty,admin,server,caddy\" -c \"blue,magenta,green,cyan\" \"pnpm run dev:faculty\" \"pnpm run dev:admin\" \"pnpm run server:dev\" \"pnpm run dev:proxy\"",
+    "dev:proxy": "node infra/caddy/run-dev.mjs",
+    "dev:faculty": "pnpm --dir apps/faculty dev",
+    "dev:admin": "pnpm --dir apps/admin dev",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:dev:build": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up",
+    "docker:prod:build": "docker compose -f docker-compose.prod.yml up --build",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
+    "infra:chroma": "docker compose up -d chroma",
+    "test:caddy": "pnpm --dir apps/faculty exec vitest run --config ../../vitest.caddy.config.ts",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "server:dev": "cd apps && uv run --project server uvicorn server.main:app --reload --host 127.0.0.1 --port 8000",
+    "server:test": "cd apps && uv run --project server pytest",
+    "server:lint": "cd apps && uv run --project server ruff check",
+    "server:format": "cd apps && uv run --project server ruff format --check",
+    "server:migrate": "cd apps/server && uv run alembic upgrade head"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.5"
+  }
+}

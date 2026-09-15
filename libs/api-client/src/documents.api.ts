@@ -1,4 +1,4 @@
-import { requestJson } from '@/shared/api/http';
+import { requestJson } from './http';
 import {
   mapDocumentUploadResponse,
   mapDocumentListResponse,
@@ -13,7 +13,7 @@ import {
   type DocumentUploadResponse,
   type CurriculumSuggestionResponse,
   type RawCurriculumSuggestionResponse,
-} from '@/shared/types/documents';
+} from '@equiped/types';
 
 export type DocumentApiStatus = 'ready' | 'processing' | 'failed';
 

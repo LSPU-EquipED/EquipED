@@ -1,16 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { documentsApi } from '@/shared/api/documents.api';
-import { requestJson } from '@/shared/api/http';
-import type { RawDocumentListResponse } from '@/shared/types/documents';
-
-vi.mock('@/shared/api/http', () => ({
-  requestJson: vi.fn(),
-  getErrorMessage: vi.fn((err: unknown) => String(err)),
-}));
+import * as httpModule from '../http';
+import { documentsApi } from '../documents.api';
+import type { RawDocumentListResponse } from '@equiped/types';
 
 describe('documentsApi.listDocuments', () => {
   beforeEach(() => {
-    vi.mocked(requestJson).mockReset();
+    vi.restoreAllMocks();
   });
 
   it('builds query without params when empty', async () => {
@@ -20,11 +15,11 @@ describe('documentsApi.listDocuments', () => {
       page: 1,
       page_size: 10,
     };
-    vi.mocked(requestJson).mockResolvedValueOnce(mockResponse);
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce(mockResponse);
 
     const result = await documentsApi.listDocuments();
 
-    expect(requestJson).toHaveBeenCalledWith('/documents');
+    expect(spy).toHaveBeenCalledWith('/documents');
     expect(result).toEqual({
       items: [],
       total: 0,
@@ -62,7 +57,7 @@ describe('documentsApi.listDocuments', () => {
         failed: 1,
       },
     };
-    vi.mocked(requestJson).mockResolvedValueOnce(mockResponse);
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce(mockResponse);
 
     const result = await documentsApi.listDocuments({
       sourceType: 'slm',
@@ -73,7 +68,7 @@ describe('documentsApi.listDocuments', () => {
       status: 'ready',
     });
 
-    expect(requestJson).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       '/documents?source_type=slm&program=BSCS&page=2&page_size=10&search=Operating+Systems&status=ready',
     );
     expect(result.total).toBe(25);
@@ -98,26 +93,26 @@ describe('documentsApi.listDocuments', () => {
       page_size: 10,
       stats: { total: 5, ready: 3, processing: 2, failed: 0 },
     };
-    vi.mocked(requestJson).mockResolvedValueOnce(mockResponse);
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce(mockResponse);
 
     await documentsApi.listDocuments({
       status: 'processing',
     });
 
-    expect(requestJson).toHaveBeenCalledWith('/documents?status=processing');
+    expect(spy).toHaveBeenCalledWith('/documents?status=processing');
 
-    vi.mocked(requestJson).mockResolvedValueOnce(mockResponse);
+    spy.mockResolvedValueOnce(mockResponse);
     await documentsApi.listDocuments({
       status: 'failed',
     });
 
-    expect(requestJson).toHaveBeenCalledWith('/documents?status=failed');
+    expect(spy).toHaveBeenCalledWith('/documents?status=failed');
   });
 });
 
 describe('documentsApi.getCurriculumSuggestion', () => {
   beforeEach(() => {
-    vi.mocked(requestJson).mockReset();
+    vi.restoreAllMocks();
   });
 
   it('calls typed curriculum suggestion endpoint with properly encoded query and maps response', async () => {
@@ -154,11 +149,11 @@ describe('documentsApi.getCurriculumSuggestion', () => {
         },
       ],
     };
-    vi.mocked(requestJson).mockResolvedValueOnce(rawResponse);
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce(rawResponse);
 
     const result = await documentsApi.getCurriculumSuggestion('doc-123', 'BSCS');
 
-    expect(requestJson).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       '/documents/doc-123/curriculum-suggestion?program=BSCS',
     );
     expect(result).toEqual({
@@ -203,11 +198,11 @@ describe('documentsApi.getCurriculumSuggestion', () => {
       curriculum_suggestions: [],
       unavailable_curricula: [],
     };
-    vi.mocked(requestJson).mockResolvedValueOnce(rawResponse);
+    const spy = vi.spyOn(httpModule, 'requestJson').mockResolvedValueOnce(rawResponse);
 
     await documentsApi.getCurriculumSuggestion('doc-456', '  BS Info Tech  ');
 
-    expect(requestJson).toHaveBeenCalledWith(
+    expect(spy).toHaveBeenCalledWith(
       '/documents/doc-456/curriculum-suggestion?program=BS%20Info%20Tech',
     );
   });

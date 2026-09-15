@@ -1,4 +1,5 @@
 import { ShieldWarning } from '@phosphor-icons/react';
+import { lspuLogoUrl } from '@equiped/ui';
 
 export function BrandHero() {
   return (
@@ -8,7 +9,7 @@ export function BrandHero() {
     >
       {/* Authentic Institutional Watermark Seal */}
       <img
-        src="/lspu-logo.png"
+        src={lspuLogoUrl}
         alt=""
         aria-hidden="true"
         className="absolute -right-20 -bottom-20 w-96 h-96 object-contain pointer-events-none opacity-[0.05] select-none"
@@ -17,7 +18,7 @@ export function BrandHero() {
       <div className="relative z-10 flex flex-col gap-8">
         <div className="flex items-center gap-4 border-b border-white/10 pb-6">
           <img
-            src="/lspu-logo.png"
+            src={lspuLogoUrl}
             alt="Laguna State Polytechnic University Logo"
             className="w-16 h-16 lg:w-20 lg:h-20 object-contain shrink-0 drop-shadow-xs"
           />

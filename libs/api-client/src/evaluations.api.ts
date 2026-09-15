@@ -1,5 +1,5 @@
-import { requestJson } from '@/shared/api/http';
-import type { LatestEvaluationsResponse } from '@/shared/types/evaluations';
+import { requestJson } from './http';
+import type { LatestEvaluationsResponse } from '@equiped/types';
 
 export function buildLatestEvaluationsQuery(documentIds: string[]): string {
   const deduped = Array.from(new Set(documentIds.filter(Boolean))).sort();

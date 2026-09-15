@@ -4,7 +4,7 @@ import {
   LSPU_SCC_COLLEGE_PROGRAMS,
   isLspuSccProgram,
   normalizeProgram,
-} from '../programs';
+} from './programs';
 
 describe('LSPU SCC programs', () => {
   it('exposes only the two CCS programs in canonical order', () => {

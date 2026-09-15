@@ -1,22 +1,28 @@
 import { redirect } from '@tanstack/react-router';
-import type { AppRouterContext } from '../../../app/runtime';
-import type { UserRole } from '../types';
+import type { AppAuthUser, UserRole } from '../types';
+
+export type AuthRouterContext = {
+  auth: {
+    user: AppAuthUser | null;
+    status: 'anonymous' | 'authenticated';
+  };
+};
 
 export function requireRole(
   allowedRoles: readonly UserRole[],
   unauthenticatedRedirectTo = '/login',
   unauthorizedRedirectTo?: string,
 ) {
-  return ({ context }: { context: AppRouterContext }) => {
+  return ({ context }: { context: AuthRouterContext }) => {
     const user = context.auth.user;
 
     if (!user || context.auth.status !== 'authenticated') {
-      throw redirect({ to: unauthenticatedRedirectTo });
+      throw redirect({ to: unauthenticatedRedirectTo as any });
     }
 
     if (!allowedRoles.includes(user.role)) {
       const fallback = user.role === 'admin' ? '/admin' : '/dashboard';
-      throw redirect({ to: unauthorizedRedirectTo ?? fallback });
+      throw redirect({ to: (unauthorizedRedirectTo ?? fallback) as any });
     }
   };
 }
@@ -25,11 +31,11 @@ export function requireEvaluatorPermission(
   getAgentId: (params: Record<string, string>) => string,
   unauthorizedRedirectTo = '/dashboard',
 ) {
-  return ({ context, params }: { context: AppRouterContext; params: Record<string, string> }) => {
+  return ({ context, params }: { context: AuthRouterContext; params: Record<string, string> }) => {
     const user = context.auth.user;
 
     if (!user || context.auth.status !== 'authenticated') {
-      throw redirect({ to: '/login' });
+      throw redirect({ to: '/login' as any });
     }
 
     if (user.role === 'admin') {
@@ -46,7 +52,7 @@ export function requireEvaluatorPermission(
 
     const agentId = getAgentId(params);
     if (!user.evaluatorPermissions.includes(agentId)) {
-      throw redirect({ to: unauthorizedRedirectTo });
+      throw redirect({ to: unauthorizedRedirectTo as any });
     }
   };
 }
