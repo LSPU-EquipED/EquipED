@@ -31,6 +31,10 @@ function renderModal(criteria: readonly CriterionScoreItem[]) {
   );
 }
 
+function expandItemsChecklist() {
+  fireEvent.click(screen.getByRole('button', { name: /what counted toward this score/i }));
+}
+
 const criterionWithItems: CriterionScoreItem = {
   criterion_id: 'OP-01',
   criterion_text: 'Topic Coherence',
@@ -44,8 +48,15 @@ const criterionWithItems: CriterionScoreItem = {
 };
 
 describe('AgentReviewModal item-level correction', () => {
-  it('renders extracted items as checked checkboxes matching raw_items', () => {
+  it('collapses the checklist by default, showing only the disclosure button', () => {
     renderModal([criterionWithItems]);
+    expect(screen.getByRole('button', { name: /what counted toward this score/i })).toBeDefined();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('expanding the disclosure reveals checked checkboxes matching raw_items', () => {
+    renderModal([criterionWithItems]);
+    expandItemsChecklist();
 
     const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
     expect(checkboxes).toHaveLength(2);
@@ -55,6 +66,7 @@ describe('AgentReviewModal item-level correction', () => {
 
   it('unchecking an item and saving submits ITEM_REJECT for that item only', async () => {
     renderModal([criterionWithItems]);
+    expandItemsChecklist();
 
     const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
     fireEvent.click(checkboxes[1]);
@@ -82,6 +94,7 @@ describe('AgentReviewModal item-level correction', () => {
       corrected_score: 3,
     };
     renderModal([criterion]);
+    expandItemsChecklist();
 
     const checkboxes = screen.getAllByRole('checkbox') as HTMLInputElement[];
     expect(checkboxes[1].checked).toBe(false);
@@ -118,13 +131,23 @@ describe('AgentReviewModal item-level correction', () => {
     expect(evaluationApi.submitCriterionFeedback).not.toHaveBeenCalled();
   });
 
-  it('shows the corrected-score hint when corrected_score is present', () => {
+  it('shows the corrected-score hint on the collapsed disclosure button', () => {
     renderModal([{ ...criterionWithItems, corrected_score: 3 }]);
     expect(screen.getByText(/recalculates to 3\/4 on save/i)).toBeDefined();
   });
 
-  it('renders no checklist for criteria without raw_items', () => {
+  it('explains the checklist in terms of the criterion name once expanded', () => {
+    renderModal([criterionWithItems]);
+    expandItemsChecklist();
+    expect(
+      screen.getByText(/these are the specific things the ai found while checking/i),
+    ).toBeDefined();
+  });
+
+  it('renders no checklist disclosure for criteria without raw_items', () => {
     renderModal([{ ...criterionWithItems, raw_items: null }]);
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /what counted toward this score/i }),
+    ).toBeNull();
   });
 });

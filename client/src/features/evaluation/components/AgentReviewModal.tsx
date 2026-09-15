@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flag, X } from '@phosphor-icons/react';
+import { CaretRight, Flag, X } from '@phosphor-icons/react';
 import { cn } from '@/shared/components/utils';
 import { useSubmitCriterionFeedback } from '../hooks/useSubmitFeedback';
 import { formatScore } from '../utils/scoreHelpers';
@@ -10,6 +10,8 @@ type CriterionDraft = {
   justification: string;
   rejected: boolean;
   expanded: boolean;
+  /** Whether the "what counted toward this score" checklist is open. */
+  itemsExpanded: boolean;
   /** item_id -> locally rejected? Only populated for criteria with raw_items. */
   itemRejections: Record<string, boolean>;
 };
@@ -47,6 +49,7 @@ function initialDrafts(
           justification: baseline.justification,
           rejected: c.reviewer_correction?.action === 'REJECT',
           expanded: isEditBaseline,
+          itemsExpanded: false,
           itemRejections: Object.fromEntries(
             (c.raw_items ?? []).map((item) => [item.item_id, item.rejected]),
           ),
@@ -115,6 +118,11 @@ export function AgentReviewModal({
       rejected: nextRejected,
       expanded: nextRejected ? false : draft.expanded,
     });
+  }
+
+  function toggleItemsExpanded(criterion: CriterionScoreItem) {
+    const draft = drafts[criterion.criterion_id];
+    updateDraft(criterion.criterion_id, { itemsExpanded: !draft.itemsExpanded });
   }
 
   function toggleItem(criterion: CriterionScoreItem, itemId: string) {
@@ -385,40 +393,65 @@ export function AgentReviewModal({
 
                 {criterion.raw_items && criterion.raw_items.length > 0 && !draft.rejected && (
                   <div className="grid gap-1 rounded-sm border border-border/60 bg-surface-subtle p-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                      Extracted items
-                      {typeof criterion.corrected_score === 'number' && (
-                        <span className="ml-2 font-normal normal-case tracking-normal text-text-muted">
-                          (recalculates to {formatScore(criterion.corrected_score)}/4 on save)
-                        </span>
-                      )}
-                    </p>
-                    <ul className="grid gap-1">
-                      {criterion.raw_items.map((item) => {
-                        const isRejected = draft.itemRejections[item.item_id] ?? item.rejected;
-                        return (
-                          <li key={item.item_id} className="flex items-start gap-2 text-xs">
-                            <input
-                              type="checkbox"
-                              className="mt-0.5 shrink-0"
-                              checked={!isRejected}
-                              onChange={() => toggleItem(criterion, item.item_id)}
-                              aria-label={
-                                isRejected ? 'Mark item as counted' : 'Mark item as not counted'
-                              }
-                            />
-                            <span
-                              className={cn(
-                                'leading-snug',
-                                isRejected && 'text-text-muted line-through',
-                              )}
-                            >
-                              {item.text}
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-2 text-left"
+                      onClick={() => toggleItemsExpanded(criterion)}
+                      aria-expanded={draft.itemsExpanded}
+                    >
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                        What counted toward this score
+                        {typeof criterion.corrected_score === 'number' && (
+                          <span className="ml-2 font-normal normal-case tracking-normal text-text-muted">
+                            (recalculates to {formatScore(criterion.corrected_score)}/4 on save)
+                          </span>
+                        )}
+                      </span>
+                      <CaretRight
+                        className={cn(
+                          'size-3.5 shrink-0 text-text-muted transition-transform',
+                          draft.itemsExpanded && 'rotate-90',
+                        )}
+                      />
+                    </button>
+
+                    {draft.itemsExpanded && (
+                      <>
+                        <p className="text-[11px] normal-case tracking-normal text-text-muted">
+                          These are the specific things the AI found while checking &ldquo;
+                          {criterion.criterion_text}&rdquo;. Uncheck anything that shouldn&apos;t
+                          count toward this score.
+                        </p>
+                        <ul className="grid gap-1 mt-1">
+                          {criterion.raw_items.map((item) => {
+                            const isRejected = draft.itemRejections[item.item_id] ?? item.rejected;
+                            return (
+                              <li key={item.item_id} className="flex items-start gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 shrink-0"
+                                  checked={!isRejected}
+                                  onChange={() => toggleItem(criterion, item.item_id)}
+                                  aria-label={
+                                    isRejected
+                                      ? 'Mark item as counted'
+                                      : 'Mark item as not counted'
+                                  }
+                                />
+                                <span
+                                  className={cn(
+                                    'leading-snug',
+                                    isRejected && 'text-text-muted line-through',
+                                  )}
+                                >
+                                  {item.text}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
