@@ -9,13 +9,12 @@ import {
 import { AppShell } from './layout/AppShell';
 import { appRouterContext } from './runtime';
 import type { AppRouterContext } from './runtime';
-import { requireRole, requireEvaluatorPermission } from '../features/auth/guards/RoleGuard';
-import { useAuth } from '../features/auth/hooks/useAuth';
-import { isTargetAgent } from '@/shared/types/evaluations';
+import { requireRole, requireEvaluatorPermission, useAuth, navigateCrossApp } from '@equiped/auth';
+import { isTargetAgent } from '@equiped/types';
 
-// Lazy Feature Pages
+// Lazy Faculty Feature Pages
 const FacultyHomePage = lazyRouteComponent(
-  () => import('../features/home/pages/FacultyHomePage'),
+  () => import('./pages/FacultyHomePage'),
   'FacultyHomePage',
 );
 const DocumentsPage = lazyRouteComponent(
@@ -39,10 +38,6 @@ const SpecialistScoreboardPage = lazyRouteComponent(
   () => import('../features/evaluation/pages/SpecialistScoreboardPage'),
   'SpecialistScoreboardPage',
 );
-const MonitoringPage = lazyRouteComponent(
-  () => import('../features/admin/monitoring-matrix/pages/MonitoringPage'),
-  'MonitoringPage',
-);
 const AlignmentCheckPage = lazyRouteComponent(
   () => import('../features/curriculum-alignment/pages/AlignmentCheckPage'),
   'AlignmentCheckPage',
@@ -59,48 +54,6 @@ const SyllabusAlignmentReportPage = lazyRouteComponent(
   () => import('../features/syllabus-alignment/pages/SyllabusAlignmentReportPage'),
   'SyllabusAlignmentReportPage',
 );
-const EvaluationMapPage = lazyRouteComponent(
-  () => import('../features/admin/evaluation-map/pages/EvaluationMapPage'),
-  'EvaluationMapPage',
-);
-
-// Lazy Admin Pages
-const AdminHomePage = lazyRouteComponent(
-  () => import('../features/admin/home/pages/AdminHomePage'),
-  'AdminHomePage',
-);
-const UserManagementPage = lazyRouteComponent(
-  () => import('../features/admin/user-management/pages/UserManagementPage'),
-  'UserManagementPage',
-);
-const AdminUploadPage = lazyRouteComponent(
-  () => import('../features/admin/reference-ingestion/pages/AdminUploadPage'),
-  'AdminUploadPage',
-);
-const ReferenceLibraryPage = lazyRouteComponent(
-  () => import('../features/admin/reference-library/pages/ReferenceLibraryPage'),
-  'ReferenceLibraryPage',
-);
-const AgentPromptPage = lazyRouteComponent(
-  () => import('../features/admin/agent-prompt/pages/AgentPromptPage'),
-  'AgentPromptPage',
-);
-const PreferenceLogPage = lazyRouteComponent(
-  () => import('../features/admin/preference-log/pages/PreferenceLogPage'),
-  'PreferenceLogPage',
-);
-const RubricEditorPage = lazyRouteComponent(
-  () => import('../features/admin/rubric-editor/pages/RubricEditorPage'),
-  'RubricEditorPage',
-);
-const ModelValidationPage = lazyRouteComponent(
-  () => import('../features/admin/model-validation/pages/ModelValidationPage'),
-  'ModelValidationPage',
-);
-const MasterSynthesisPage = lazyRouteComponent(
-  () => import('../features/admin/monitoring-matrix/pages/MasterSynthesisPage'),
-  'MasterSynthesisPage',
-);
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -113,8 +66,11 @@ const indexRoute = createRoute({
     if (context.auth.status !== 'authenticated') {
       throw redirect({ to: '/login' });
     }
-    const target = context.auth.user?.role === 'admin' ? '/admin' : '/dashboard';
-    throw redirect({ to: target });
+    if (context.auth.user?.role === 'admin') {
+      navigateCrossApp('/admin');
+      return;
+    }
+    throw redirect({ to: '/dashboard' });
   },
   component: () => null,
 });
@@ -124,8 +80,11 @@ const loginRoute = createRoute({
   path: 'login',
   beforeLoad: ({ context }) => {
     if (context.auth.status === 'authenticated') {
-      const target = context.auth.user?.role === 'admin' ? '/admin' : '/dashboard';
-      throw redirect({ to: target });
+      if (context.auth.user?.role === 'admin') {
+        navigateCrossApp('/admin');
+        return;
+      }
+      throw redirect({ to: '/dashboard' });
     }
   },
   component: LoginPage,
@@ -135,7 +94,13 @@ const registrationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'register',
   beforeLoad: ({ context }) => {
-    if (context.auth.status === 'authenticated') throw redirect({ to: '/dashboard' });
+    if (context.auth.status === 'authenticated') {
+      if (context.auth.user?.role === 'admin') {
+        navigateCrossApp('/admin');
+        return;
+      }
+      throw redirect({ to: '/dashboard' });
+    }
   },
   component: RegistrationPage,
 });
@@ -157,6 +122,7 @@ const dashboardRoute = createRoute({
   beforeLoad: requireRole(['faculty']),
   component: FacultyHomePage,
 });
+
 function DocumentsRouteView() {
   const { user } = useAuth();
   const firstPermission = user?.evaluatorPermissions?.[0];
@@ -164,14 +130,12 @@ function DocumentsRouteView() {
   return <DocumentsPage targetAgent={targetAgent} />;
 }
 
-
 const documentsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'documents',
   beforeLoad: requireRole(['faculty']),
   component: DocumentsRouteView,
 });
-
 
 function EvaluationsRouteView() {
   const auth = useAuth();
@@ -190,13 +154,6 @@ const evaluationsRoute = createRoute({
   path: 'evaluations',
   beforeLoad: requireRole(['faculty']),
   component: EvaluationsRouteView,
-});
-
-const evaluationMapRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: 'evaluation-map',
-  beforeLoad: requireRole(['admin']),
-  component: EvaluationMapPage,
 });
 
 const documentEvaluationRoute = createRoute({
@@ -252,6 +209,7 @@ const storageRoute = createRoute({
     throw redirect({ to: '/documents' });
   },
 });
+
 const syllabusAlignmentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'syllabus-alignment',
@@ -273,103 +231,11 @@ const syllabusAlignmentReportRoute = createRoute({
   component: SyllabusAlignmentReportPage,
 });
 
-const matrixRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: 'matrix',
-  beforeLoad: requireRole(['admin']),
-  component: () => (
-    <div className="px-6 py-7">
-      <MonitoringPage />
-    </div>
-  ),
-});
-
 const alignmentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'alignment',
   beforeLoad: requireRole(['faculty']),
   component: AlignmentCheckPage,
-});
-
-const adminRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: 'admin',
-  beforeLoad: ({ context }) => {
-    requireRole(['admin'])({ context });
-  },
-  component: () => (
-    <div className="px-6 py-7">
-      <Outlet />
-    </div>
-  ),
-});
-
-const adminHomeRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: '/',
-  component: AdminHomePage,
-});
-
-const adminUsersRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'users',
-  component: UserManagementPage,
-});
-
-const adminIngestRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'ingest',
-  component: AdminUploadPage,
-});
-
-const adminReferencesRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'references',
-  component: ReferenceLibraryPage,
-});
-
-const adminPromptsRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'prompts',
-  beforeLoad: ({ location }) => {
-    if (location.pathname === '/admin/prompts') {
-      throw redirect({ to: '/admin/prompts/$agentId', params: { agentId: 'coordinator' } });
-    }
-  },
-  component: Outlet,
-});
-
-const adminPromptDetailRoute = createRoute({
-  getParentRoute: () => adminPromptsRoute,
-  path: '$agentId',
-  component: AgentPromptPage,
-});
-
-const adminPreferencesRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'preferences',
-  component: PreferenceLogPage,
-});
-
-const adminRubricsRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'rubrics',
-  component: RubricEditorPage,
-});
-
-const adminModelValidationRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'model-validation',
-  component: ModelValidationPage,
-});
-
-const adminSynthesisRoute = createRoute({
-  getParentRoute: () => adminRoute,
-  path: 'synthesis/$documentId',
-  beforeLoad: ({ context }) => {
-    requireRole(['admin'])({ context });
-  },
-  component: MasterSynthesisPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -380,7 +246,6 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     documentsRoute,
     evaluationsRoute,
-    evaluationMapRoute,
     documentEvaluationRoute,
     storageRoute,
     specialistScoreboardDocRoute,
@@ -389,19 +254,7 @@ const routeTree = rootRoute.addChildren([
     syllabusAlignmentRoute,
     syllabusAlignmentWorkspaceRoute,
     syllabusAlignmentReportRoute,
-    matrixRoute,
     alignmentRoute,
-    adminRoute.addChildren([
-      adminHomeRoute,
-      adminUsersRoute,
-      adminIngestRoute,
-      adminReferencesRoute,
-      adminPromptsRoute.addChildren([adminPromptDetailRoute]),
-      adminPreferencesRoute,
-      adminRubricsRoute,
-      adminModelValidationRoute,
-      adminSynthesisRoute,
-    ]),
   ]),
 ]);
 

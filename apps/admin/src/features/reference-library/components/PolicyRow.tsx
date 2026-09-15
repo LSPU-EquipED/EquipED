@@ -1,4 +1,4 @@
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 import type { PolicyLibraryItem } from '../types';
 import {
   formatDate,

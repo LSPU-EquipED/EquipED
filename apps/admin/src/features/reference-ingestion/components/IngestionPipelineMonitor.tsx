@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router';
 import { CheckCircle, Spinner, XCircle } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
-import type { DocumentUploadResponse } from '@/shared/types/documents';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES } from '@equiped/ui';
+import type { DocumentUploadResponse } from '@equiped/types';
 import type { AdminUploadSourceType } from '../types';
 import { sourceTypeLabels } from './ReferenceClassificationStep';
 

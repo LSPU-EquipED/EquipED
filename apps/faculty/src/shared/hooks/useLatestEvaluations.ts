@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { evaluationsApi } from '@/shared/api/evaluations.api';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import { evaluationsApi } from '@equiped/api-client';
+import type { LatestEvaluationItem } from '@equiped/types';
 import { isEvaluatingStatus } from '@/shared/utils/slmDisplayStatus';
 
 export function isEvaluationStatusActive(status: string | null | undefined): boolean {

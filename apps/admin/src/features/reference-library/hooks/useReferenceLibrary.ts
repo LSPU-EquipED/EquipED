@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getErrorMessage } from '@/shared/api/http';
+import { getErrorMessage } from '@equiped/api-client';
 import { referenceLibraryApi } from '../api/referenceLibrary.api';
 
 const QUERY_KEY = ['adminReferences'];

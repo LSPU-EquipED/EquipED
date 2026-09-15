@@ -1,4 +1,4 @@
-import { POLICY_AREA_LABELS, type PolicyArea } from '@/shared/types/documents';
+import { POLICY_AREA_LABELS, type PolicyArea } from '@equiped/types';
 
 export const referenceTypeLabels: Record<string, string> = {
   syllabus: 'Syllabus',

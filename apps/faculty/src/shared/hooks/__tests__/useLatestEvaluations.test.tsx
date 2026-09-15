@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import { evaluationsApi } from '@/shared/api/evaluations.api';
+import { evaluationsApi } from '@equiped/api-client';
 import { isEvaluationStatusActive, useLatestEvaluations } from '../useLatestEvaluations';
 
 function createWrapper() {

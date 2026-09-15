@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as httpModule from '@/shared/api/http';
+import * as httpModule from '@equiped/api-client';
 import { rubricEditorApi } from '../rubricEditor.api';
 import type { StrategyConfig } from '../../types';
 

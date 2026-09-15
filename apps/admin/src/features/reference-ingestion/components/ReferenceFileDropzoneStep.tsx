@@ -1,7 +1,7 @@
 import type { ChangeEvent, DragEvent, Ref } from 'react';
 import { UploadSimple } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 
 interface ReferenceFileDropzoneStepProps {
   title: string;

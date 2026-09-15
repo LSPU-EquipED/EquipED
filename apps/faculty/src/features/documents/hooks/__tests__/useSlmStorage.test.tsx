@@ -3,15 +3,19 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSlmStorage } from '../useSlmStorage';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { ClientDocument, DocumentListResponse } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import type { ClientDocument, DocumentListResponse } from '@equiped/types';
 
-vi.mock('@/shared/api/documents.api', () => ({
-  documentsApi: {
-    listDocuments: vi.fn(),
-    uploadDocument: vi.fn(),
-  },
-}));
+vi.mock('@equiped/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@equiped/api-client')>();
+  return {
+    ...actual,
+    documentsApi: {
+      listDocuments: vi.fn(),
+      uploadDocument: vi.fn(),
+    },
+  };
+});
 
 function createClientDocument(id: string, overrides: Partial<ClientDocument> = {}): ClientDocument {
   return {

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Play, Spinner, WarningCircle, X } from '@phosphor-icons/react';
-import { getErrorMessage } from '@/shared/api/http';
-import { documentsApi } from '@/shared/api/documents.api';
-import { Button } from '@/shared/components/Button';
-import { Badge } from '@/shared/components/Badge';
-import { CANONICAL_PROGRAMS, isLspuSccProgram, normalizeProgram } from '@/shared/constants/programs';
-import { TARGET_AGENT_META, type TargetAgent } from '@/shared/types/evaluations';
-import type { CurriculumSuggestionItem } from '@/shared/types/documents';
+import { getErrorMessage } from '@equiped/api-client';
+import { documentsApi } from '@equiped/api-client';
+import { Button } from '@equiped/ui';
+import { Badge } from '@equiped/ui';
+import { CANONICAL_PROGRAMS, isLspuSccProgram, normalizeProgram } from '@equiped/types';
+import { TARGET_AGENT_META, type TargetAgent } from '@equiped/types';
+import type { CurriculumSuggestionItem } from '@equiped/types';
 import { useSubmitEvaluation } from '../hooks/useSubmitEvaluation';
 import { buildTargetedEvaluationSubmitPayload } from '../utils/setupState';
 

@@ -1,4 +1,4 @@
-import type { StatusVariant } from '@/shared/constants/theme';
+import type { StatusVariant } from '@equiped/ui';
 import type { MatrixDomainScoreBlock } from './types';
 
 export function formatRevisionContext(

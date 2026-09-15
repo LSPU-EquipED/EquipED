@@ -1,6 +1,6 @@
 import { Clock, UserCheck, UserMinus, Users, type Icon } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { Skeleton } from '@/shared/components/Skeleton';
+import { cn } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
 export interface UserCounts {
   all: number;
   pending: number;

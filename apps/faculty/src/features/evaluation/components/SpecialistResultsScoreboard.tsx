@@ -1,9 +1,9 @@
 import { CheckCircle, NotePencil, Play } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { TargetAgent, TargetAgentMeta } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import type { ClientDocument } from '@equiped/types';
+import type { TargetAgent, TargetAgentMeta } from '@equiped/types';
 import type { DeskQueueItem, DomainScoreBlock, EvaluationResultsResponse } from '../types';
 import { SpecialistExportDownloadButton } from './ExportDocument';
 import {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import type { ClientDocument } from '@equiped/types';
+import type { LatestEvaluationItem } from '@equiped/types';
 import { DocumentTable, DocumentTableSkeleton } from '../DocumentTable';
 
 // Mock @tanstack/react-router Link & useNavigate

@@ -1,5 +1,5 @@
-import { isLspuSccProgram, normalizeProgram } from '@/shared/constants/programs';
-import { isTargetAgent, type TargetAgent } from '@/shared/types/evaluations';
+import { isLspuSccProgram, normalizeProgram } from '@equiped/types';
+import { isTargetAgent, type TargetAgent } from '@equiped/types';
 import type { EvaluationSubmitRequest } from '../types';
 
 export { normalizeProgram };

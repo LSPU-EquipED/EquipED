@@ -1,8 +1,8 @@
-import { requestJson } from '@/shared/api/http';
+import { requestJson } from '@equiped/api-client';
 import {
   mapDocumentUploadResponse,
   type RawDocumentUploadResponse,
-} from '@/shared/types/documents';
+} from '@equiped/types';
 import type { AdminUploadInput } from '../types';
 
 export const CANONICAL_REFERENCE_PROGRAMS = ['BSCS', 'BSInfoTech'] as const;

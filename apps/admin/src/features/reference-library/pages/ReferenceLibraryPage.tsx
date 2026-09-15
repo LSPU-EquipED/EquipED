@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Books, Scales, UploadSimple } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES } from '@equiped/ui';
 import { LibraryTabButton } from '../components/PageHeader';
 import { PolicyLibraryTab } from '../components/PolicyLibraryTab';
 import { ReferenceLibraryTab } from '../components/ReferenceLibraryTab';

@@ -1,6 +1,6 @@
 import { Warning, CheckCircle, ArrowSquareOut, Spinner, XCircle } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { buildApiUrl } from '@/shared/api/http';
+import { cn } from '@equiped/ui';
+import { buildApiUrl } from '@equiped/api-client';
 import type { AlignmentRun } from '../types';
 import { levelLabels, levelStyles } from '../utils/alignmentPresentation';
 

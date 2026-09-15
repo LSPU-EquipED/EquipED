@@ -1,11 +1,10 @@
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { SidebarSimple, X } from '@phosphor-icons/react';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useAuth } from '@equiped/auth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
-import { cn } from '@/shared/components/utils';
+import { cn, lspuLogoUrl } from '@equiped/ui';
 import {
-  adminNavGroups,
   facultyNavGroups,
   facultySecondaryNavItems,
   filterFacultyNavGroups,
@@ -89,7 +88,6 @@ export function Sidebar({
   useEffect(() => {
     if (!isMobile || !mobileOpen) return;
 
-    // Move initial focus into the drawer
     const focusTarget =
       closeButtonRef.current ??
       asideRef.current?.querySelector<HTMLElement>(
@@ -139,12 +137,12 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isMobile, mobileOpen, onMobileClose]);
 
-  const isAdmin = user?.role === 'admin';
   const { inert, ariaHidden } = getSidebarInertState(isMobile, mobileOpen);
   const handleItemNavigate = () => {
     onNavigate?.();
     onMobileClose?.();
   };
+
   return (
     <aside
       ref={asideRef}
@@ -168,7 +166,7 @@ export function Sidebar({
         )}
       >
         <div className="flex items-center gap-3">
-          <img src="/lspu-logo.png" alt="LSPU" className="size-9 shrink-0 object-contain" />
+          <img src={lspuLogoUrl} alt="LSPU" className="size-9 shrink-0 object-contain" />
           <div className={cn('flex flex-col leading-none', collapsed && 'md:hidden')}>
             <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
               LSPU
@@ -193,96 +191,58 @@ export function Sidebar({
         ) : null}
       </div>
 
-      {/* ── Navigation Container ───────────────────────────────────────── */}
+      {/* Navigation Container */}
       <div className="flex-1 overflow-y-auto py-4">
-        {!isAdmin ? (
+        <nav aria-label="Faculty Navigation" className="grid gap-3 px-3">
+          {filterFacultyNavGroups(facultyNavGroups, user?.evaluatorPermissions).map((group, groupIdx) => (
+            <div key={group.id} className="grid gap-1">
+              {collapsed && groupIdx > 0 ? (
+                <div
+                  className="hidden md:block my-1 border-t border-border mx-1"
+                  role="separator"
+                  aria-hidden="true"
+                />
+              ) : null}
+              <div
+                className={cn(
+                  'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
+                  collapsed && 'md:hidden',
+                )}
+              >
+                {group.label}
+              </div>
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  item={item}
+                  collapsed={collapsed}
+                  pathname={pathname}
+                  onNavigate={handleItemNavigate}
+                />
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        {facultySecondaryNavItems.length > 0 ? (
           <>
-            {/* Grouped Faculty Navigation */}
-            <nav aria-label="Faculty Navigation" className="grid gap-3 px-3">
-              {filterFacultyNavGroups(facultyNavGroups, user?.evaluatorPermissions).map((group, groupIdx) => (
-                <div key={group.id} className="grid gap-1">
-                  {collapsed && groupIdx > 0 ? (
-                    <div
-                      className="hidden md:block my-1 border-t border-border mx-1"
-                      role="separator"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                  <div
-                    className={cn(
-                      'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
-                      collapsed && 'md:hidden',
-                    )}
-                  >
-                    {group.label}
-                  </div>
-                  {group.items.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      item={item}
-                      collapsed={collapsed}
-                      pathname={pathname}
-                      onNavigate={handleItemNavigate}
-                    />
-                  ))}
-                </div>
+            <div className="mx-3 my-3 border-t border-border" role="separator" aria-hidden="true" />
+            <nav aria-label="Secondary Navigation" className="grid gap-1 px-3">
+              {facultySecondaryNavItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  item={item}
+                  collapsed={collapsed}
+                  pathname={pathname}
+                  onNavigate={handleItemNavigate}
+                />
               ))}
             </nav>
-
-            {facultySecondaryNavItems.length > 0 ? (
-              <>
-                <div className="mx-3 my-3 border-t border-border" role="separator" aria-hidden="true" />
-
-                {/* Secondary Faculty Navigation */}
-                <nav aria-label="Secondary Navigation" className="grid gap-1 px-3">
-                  {facultySecondaryNavItems.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      item={item}
-                      collapsed={collapsed}
-                      pathname={pathname}
-                      onNavigate={handleItemNavigate}
-                    />
-                  ))}
-                </nav>
-              </>
-            ) : null}
           </>
-        ) : (
-          <nav aria-label="Admin Navigation" className="grid gap-3 px-3">
-            {adminNavGroups.map((group, groupIdx) => (
-              <div key={group.id} className="grid gap-1">
-                {collapsed && groupIdx > 0 ? (
-                  <div
-                    className="hidden md:block my-1 border-t border-border mx-1"
-                    role="separator"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <div
-                  className={cn(
-                    'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
-                    collapsed && 'md:hidden',
-                  )}
-                >
-                  {group.label}
-                </div>
-                {group.items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    item={item}
-                    collapsed={collapsed}
-                    pathname={pathname}
-                    onNavigate={handleItemNavigate}
-                  />
-                ))}
-              </div>
-            ))}
-          </nav>
-        )}
+        ) : null}
       </div>
 
-      {/* ── Bottom Collapse Toggle (Desktop only) ───────────────────────── */}
+      {/* Bottom Collapse Toggle (Desktop only) */}
       <div
         className={cn(
           'hidden md:flex h-12 shrink-0 items-center px-3 border-t border-border bg-surface mt-auto',

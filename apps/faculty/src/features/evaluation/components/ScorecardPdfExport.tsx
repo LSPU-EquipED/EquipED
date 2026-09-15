@@ -12,6 +12,7 @@ import {
   type ReportModel,
 } from '../utils/pdfReport';
 import { PDF_PAGE_BOTTOM_MM, formatScore } from '../utils/scoreHelpers';
+import { lspuLogoUrl } from '@equiped/ui';
 import {
   registerOptionalUnicodeFont,
   safeFontWeight,
@@ -40,8 +41,7 @@ async function loadJsPdf(): Promise<new (options?: unknown) => JsPdfDocument> {
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const base = (import.meta.env?.BASE_URL as string | undefined) ?? '/';
-    const response = await fetch(`${base.replace(/\/?$/, '/')}lspu-logo.png`);
+    const response = await fetch(lspuLogoUrl);
     if (!response.ok) return null;
     const blob = await response.blob();
     return await new Promise<string | null>((resolve) => {

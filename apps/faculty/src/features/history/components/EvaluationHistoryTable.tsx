@@ -9,14 +9,14 @@ import {
   Spinner,
   Warning,
 } from '@phosphor-icons/react';
-import { TARGET_AGENT_META, isTargetAgent } from '@/shared/types/evaluations';
+import { TARGET_AGENT_META, isTargetAgent } from '@equiped/types';
 import { useEvaluationHistory } from '../hooks/useEvaluationHistory';
 import type { HistoryEvaluationItem } from '../types';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Statuses' },
   { value: 'COMPLETED', label: 'Completed' },

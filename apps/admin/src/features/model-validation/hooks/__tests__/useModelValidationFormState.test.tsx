@@ -5,9 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useModelValidationFormState } from '../useModelValidationFormState';
 import { modelValidationApi } from '../../api/modelValidation.api';
-import { documentsApi } from '@/shared/api/documents.api';
-import { ApiError } from '@/shared/api/http';
-import type { ClientDocument } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import { ApiError } from '@equiped/api-client';
+import type { ClientDocument } from '@equiped/types';
 import type {
   ModelValidationCreateBody,
   ModelValidationCriteriaResponse,

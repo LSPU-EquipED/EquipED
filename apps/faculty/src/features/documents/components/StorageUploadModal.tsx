@@ -1,9 +1,9 @@
 import { useState, useRef, type DragEvent, type FormEvent, useEffect } from 'react';
 import { CloudArrowUp, FileText, Spinner, WarningCircle, X } from '@phosphor-icons/react';
-import { documentsApi } from '@/shared/api/documents.api';
-import { CANONICAL_PROGRAMS } from '@/shared/constants/programs';
-import { Button } from '@/shared/components/Button';
-import { getErrorMessage } from '@/shared/api/http';
+import { documentsApi } from '@equiped/api-client';
+import { CANONICAL_PROGRAMS } from '@equiped/types';
+import { Button } from '@equiped/ui';
+import { getErrorMessage } from '@equiped/api-client';
 
 interface StorageUploadModalProps {
   isOpen: boolean;

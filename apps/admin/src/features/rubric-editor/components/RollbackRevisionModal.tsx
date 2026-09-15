@@ -1,5 +1,5 @@
 import { ClockCounterClockwise, ShieldCheck, Spinner, X } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 import { getRubricOperationError } from '../hooks/useRubrics';
 import type { RubricSet } from '../types';
 

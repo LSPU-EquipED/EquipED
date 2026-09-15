@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { ArrowSquareOut, BookOpen, CheckCircle, FileText, Info, X } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import type { ClientDocument } from '@/shared/types/documents';
+import { Badge } from '@equiped/ui';
+import type { ClientDocument } from '@equiped/types';
 
 interface ModuleInspectorDrawerProps {
   document: ClientDocument | null;

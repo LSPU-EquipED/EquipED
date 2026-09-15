@@ -6,7 +6,7 @@
 // ResetPasswordModal.tsx's existing pattern for consistency.
 import { useEffect, useRef } from 'react';
 import { Warning } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 
 type ConfirmDeleteModalProps = {
   title: string;

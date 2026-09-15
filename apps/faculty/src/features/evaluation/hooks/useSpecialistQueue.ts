@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { evaluationApi } from '../api/evaluation.api';
 import type { DeskQueueListResponse, DeskQueueItem } from '../types';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@equiped/types';
 
 export interface UseSpecialistQueueOptions {
   enabled?: boolean;

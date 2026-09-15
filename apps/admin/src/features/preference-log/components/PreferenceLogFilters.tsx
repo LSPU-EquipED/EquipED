@@ -1,5 +1,5 @@
 import { Funnel } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 
 export const ACTION_FILTERS = [
   { id: 'all', label: 'All Actions' },

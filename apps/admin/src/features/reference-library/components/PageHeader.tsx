@@ -1,5 +1,5 @@
 import type { Icon } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 
 interface LibraryTabButtonProps {
   id: string;

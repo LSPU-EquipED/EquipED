@@ -8,12 +8,12 @@ import {
   UploadSimple,
   Warning,
 } from '@phosphor-icons/react';
-import { getErrorMessage } from '@/shared/api/http';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { ProgramSelector } from '@/shared/components/ProgramSelector';
-import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
-import { cn } from '@/shared/components/utils';
+import { getErrorMessage } from '@equiped/api-client';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { ProgramSelector } from '@equiped/ui';
+import { LSPU_SCC_COLLEGE_PROGRAMS } from '@equiped/types';
+import { cn } from '@equiped/ui';
 import type { ModelValidationFormState } from '../hooks/useModelValidationFormState';
 import { criterionKey } from '../utils/helpers';
 

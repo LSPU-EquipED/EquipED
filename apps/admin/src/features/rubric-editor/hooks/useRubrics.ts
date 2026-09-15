@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getErrorMessage, isApiError } from '@/shared/api/http';
+import { getErrorMessage, isApiError } from '@equiped/api-client';
 import { rubricEditorApi } from '../api/rubricEditor.api';
 import type {
   CriterionUpdate,

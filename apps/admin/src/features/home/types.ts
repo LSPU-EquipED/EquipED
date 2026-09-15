@@ -1,4 +1,4 @@
-import type { DomainScoreBlock } from '@/shared/types/documents';
+import type { DomainScoreBlock } from '@equiped/types';
 
 export interface SystemSummaryResponse {
   total_documents: number;

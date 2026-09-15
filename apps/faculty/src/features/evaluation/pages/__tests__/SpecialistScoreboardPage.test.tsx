@@ -3,14 +3,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SpecialistScoreboardPage } from '../SpecialistScoreboardPage';
-import { documentsApi } from '@/shared/api/documents.api';
+import { documentsApi } from '@equiped/api-client';
 import { evaluationApi } from '../../api/evaluation.api';
-import type { ClientDocument } from '@/shared/types/documents';
+import type { ClientDocument } from '@equiped/types';
 import type {
   EvaluationListItem,
   EvaluationResultsResponse,
 } from '../../types';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@equiped/types';
 
 const mockNavigate = vi.fn();
 
@@ -36,12 +36,16 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }));
 
-vi.mock('@/shared/api/documents.api', () => ({
-  documentsApi: {
-    listDocuments: vi.fn(),
-    getCurriculumSuggestion: vi.fn(),
-  },
-}));
+vi.mock('@equiped/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@equiped/api-client')>();
+  return {
+    ...actual,
+    documentsApi: {
+      listDocuments: vi.fn(),
+      getCurriculumSuggestion: vi.fn(),
+    },
+  };
+});
 
 vi.mock('../../api/evaluation.api', () => ({
   evaluationApi: {

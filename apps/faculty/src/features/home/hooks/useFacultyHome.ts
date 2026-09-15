@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
-import type { ClientDocument, DocumentStats } from '@/shared/types/documents';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { ClientDocument, DocumentStats } from '@equiped/types';
+import type { TargetAgent } from '@equiped/types';
 import { homeApi } from '../api/home.api';
 import {
   deriveFacultyHomeData,

@@ -1,4 +1,4 @@
-import { isApiError } from '@/shared/api/http';
+import { isApiError } from '@equiped/api-client';
 import type {
   ModelValidationAgentCriteria,
   ModelValidationCriterionScore,

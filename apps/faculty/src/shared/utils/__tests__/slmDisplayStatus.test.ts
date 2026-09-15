@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import type { ClientDocument } from '@equiped/types';
+import type { LatestEvaluationItem } from '@equiped/types';
 import { getSlmDisplayStatus } from '../slmDisplayStatus';
 
 const baseDoc: ClientDocument = {

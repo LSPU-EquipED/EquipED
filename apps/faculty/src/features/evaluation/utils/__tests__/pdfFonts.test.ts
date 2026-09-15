@@ -330,7 +330,7 @@ describe('safeFontWeight', () => {
 describe('registerOptionalUnicodeFont with the real bundled font', () => {
   // The test harness only runs this block when the asset is present on
   // disk so a fresh checkout without the font still passes the suite.
-  it('loads and registers client/public/fonts/NotoSans-Regular.ttf', async () => {
+  it('loads and registers apps/faculty/public/fonts/NotoSans-Regular.ttf', async () => {
     _resetFontRegistrationCache();
     const fontPath = resolve(
       __dirname,

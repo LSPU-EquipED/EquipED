@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { DocumentApiStatus, ListDocumentsParams } from '@/shared/api/documents.api';
-import type { ClientDocument, DocumentStats } from '@/shared/types/documents';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import { documentsApi } from '@equiped/api-client';
+import type { DocumentApiStatus, ListDocumentsParams } from '@equiped/api-client';
+import type { ClientDocument, DocumentStats } from '@equiped/types';
+import type { TargetAgent } from '@equiped/types';
 
 export type StorageProgramFilter = 'ALL' | 'BSCS' | 'BSInfoTech';
 export type StorageStatusFilter = 'all' | 'PROCESSED' | 'PROCESSING' | 'FAILED';

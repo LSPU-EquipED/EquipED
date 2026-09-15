@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ClockCounterClockwise, FileText, Warning } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { TABLE_STYLES } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { TABLE_STYLES } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import type { ModelValidationListResponse } from '../types';
 import { HISTORY_COLSPAN } from '../utils/helpers';
 import { HistoryRow } from './ValidationDetail';

@@ -1,6 +1,6 @@
-import { requestJson } from '@/shared/api/http';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { DocumentListResponse } from '@/shared/types/documents';
+import { requestJson } from '@equiped/api-client';
+import { documentsApi } from '@equiped/api-client';
+import type { DocumentListResponse } from '@equiped/types';
 import type { HomeEvaluationsResponse } from '../types';
 
 export const homeApi = {

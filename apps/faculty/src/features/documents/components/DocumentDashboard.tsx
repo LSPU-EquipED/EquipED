@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { CheckCircle, FileText, Warning } from '@phosphor-icons/react';
 
-import { getErrorMessage } from '@/shared/api/http';
+import { getErrorMessage } from '@equiped/api-client';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@equiped/types';
 import { useSlmStorage } from '../hooks/useSlmStorage';
 import { StorageMetricsStrip } from './StorageMetricsStrip';
 import { StorageToolbar } from './StorageToolbar';

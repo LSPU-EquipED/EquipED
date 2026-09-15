@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Spinner, Trash, Warning, X } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 
 interface ConfirmationModalProps {
   isOpen: boolean;

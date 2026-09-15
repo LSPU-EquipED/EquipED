@@ -7,9 +7,9 @@ import {
   Spinner,
   UploadSimple,
 } from '@phosphor-icons/react';
-import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
+import { BUTTON_STYLES, TABLE_STYLES } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
 import {
   getReferenceFileUrl,
   getReferenceOperationError,

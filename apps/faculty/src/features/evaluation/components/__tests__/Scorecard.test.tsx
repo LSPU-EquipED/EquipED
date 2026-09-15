@@ -22,16 +22,20 @@ vi.mock('../../api/evaluation.api', () => ({
   },
 }));
 
-vi.mock('@/shared/api/documents.api', () => ({
-  documentsApi: {
-    getCurriculumSuggestion: vi.fn().mockResolvedValue({
-      documentId: 'doc-456',
-      detectedProgram: 'BSCS',
-      selectedProgram: 'BSCS',
-      curriculumSuggestions: [],
-    }),
-  },
-}));
+vi.mock('@equiped/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@equiped/api-client')>();
+  return {
+    ...actual,
+    documentsApi: {
+      getCurriculumSuggestion: vi.fn().mockResolvedValue({
+        documentId: 'doc-456',
+        detectedProgram: 'BSCS',
+        selectedProgram: 'BSCS',
+        curriculumSuggestions: [],
+      }),
+    },
+  };
+});
 vi.mock('../ScorecardPdfExport', () => ({
   ScorecardPdfExport: () => <button type="button">Export PDF Mock</button>,
 }));

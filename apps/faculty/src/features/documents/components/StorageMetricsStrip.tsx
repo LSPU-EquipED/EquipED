@@ -1,6 +1,6 @@
 import { BookOpen, CheckCircle, FileText, GraduationCap, ShieldCheck, Warning } from '@phosphor-icons/react';
 import type { StorageRepositoryMetrics } from '../hooks/useSlmStorage';
-import type { DocumentStats } from '@/shared/types/documents';
+import type { DocumentStats } from '@equiped/types';
 
 interface StorageMetricsStripProps {
   metrics: StorageRepositoryMetrics;

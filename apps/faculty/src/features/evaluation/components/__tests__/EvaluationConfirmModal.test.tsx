@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { EvaluationConfirmModal } from '../EvaluationConfirmModal';
 import { evaluationApi } from '../../api/evaluation.api';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { CurriculumSuggestionResponse } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import type { CurriculumSuggestionResponse } from '@equiped/types';
 
 vi.mock('../../api/evaluation.api', () => ({
   evaluationApi: {
@@ -18,11 +18,15 @@ vi.mock('../../api/evaluation.api', () => ({
   },
 }));
 
-vi.mock('@/shared/api/documents.api', () => ({
-  documentsApi: {
-    getCurriculumSuggestion: vi.fn(),
-  },
-}));
+vi.mock('@equiped/api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@equiped/api-client')>();
+  return {
+    ...actual,
+    documentsApi: {
+      getCurriculumSuggestion: vi.fn(),
+    },
+  };
+});
 
 const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({

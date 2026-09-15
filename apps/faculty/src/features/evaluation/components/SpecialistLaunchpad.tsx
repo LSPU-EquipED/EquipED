@@ -1,8 +1,8 @@
 import { BookOpen, Play } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { TargetAgentMeta } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import type { ClientDocument } from '@equiped/types';
+import type { TargetAgentMeta } from '@equiped/types';
 import type { DeskQueueItem } from '../types';
 
 function formatUploadDate(dateString?: string | null): string {

@@ -1,6 +1,6 @@
 import { CaretDown, MagnifyingGlass, Plus, UserMinus } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import type { UserCounts } from './UserMetricsBar';
 
 export type StatusFilter = 'all' | 'pending' | 'approved' | 'suspended' | 'rejected';

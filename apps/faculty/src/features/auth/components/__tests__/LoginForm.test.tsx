@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { LoginForm } from '../LoginForm';
-import * as useAuthModule from '../../hooks/useAuth';
-import type { AppAuthContext } from '../../types';
+import * as authModule from '@equiped/auth';
+import type { AppAuthContext } from '@equiped/auth';
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
@@ -22,7 +22,7 @@ describe('LoginForm Component', () => {
     vi.clearAllMocks();
     localStorage.clear();
 
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(authModule, 'useAuth').mockReturnValue({
       status: 'unauthenticated',
       user: null,
       error: null,
@@ -130,7 +130,7 @@ describe('LoginForm Component', () => {
   });
 
   it('displays authentication error banner when auth.error is set', () => {
-    vi.spyOn(useAuthModule, 'useAuth').mockReturnValue({
+    vi.spyOn(authModule, 'useAuth').mockReturnValue({
       status: 'unauthenticated',
       user: null,
       error: 'Invalid credentials. Please verify your email and password.',

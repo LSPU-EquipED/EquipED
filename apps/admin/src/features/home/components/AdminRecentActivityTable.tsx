@@ -4,10 +4,10 @@ import {
   ClipboardText,
   Warning,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
+import { Badge } from '@equiped/ui';
+import { BUTTON_STYLES, TABLE_STYLES, type StatusVariant } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
 import type { MonitoringMatrixRow } from '../types';
 
 function getStatusVariant(status: string): StatusVariant {

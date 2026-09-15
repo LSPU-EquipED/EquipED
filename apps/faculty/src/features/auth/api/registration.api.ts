@@ -1,4 +1,4 @@
-import { requestJson } from '@/shared/api/http';
+import { requestJson } from '@equiped/api-client';
 
 export type RegistrationBody = {
   name: string;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { DownloadSimple } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 import type { AlignmentRun } from '../types';
 import { exportAlignmentPdf } from '../utils/alignmentPdf';
 

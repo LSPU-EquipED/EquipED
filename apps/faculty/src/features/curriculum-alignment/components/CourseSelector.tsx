@@ -4,7 +4,7 @@
 // into colleges the way programs are.
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, CaretDown, MagnifyingGlass } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 import type { Course } from '../types';
 
 type CourseSelectorProps = {
