@@ -10,7 +10,10 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from .exceptions import EvaluationNotFoundError, InvalidFeedbackTargetError
+from .items import get_criterion_measurement, validate_item_id
 from .models import PreferenceLog
+
+_ITEM_LEVEL_ACTIONS = ("ITEM_REJECT", "ITEM_ACCEPT")
 
 
 def list_preference_logs(
@@ -46,6 +49,7 @@ def create_criterion_feedback(
     score: int | None = None,
     justification: str | None = None,
     notes: str | None = None,
+    item_id: str | None = None,
 ) -> PreferenceLog:
     """Persist one reviewer feedback action for one agent's criterion.
 
@@ -91,6 +95,12 @@ def create_criterion_feedback(
             f"agent '{agent_name}', criterion '{criterion_id}'"
         )
 
+    if action in _ITEM_LEVEL_ACTIONS:
+        measurement = get_criterion_measurement(
+            db, evaluation_id, agent_name, criterion_id
+        )
+        validate_item_id(measurement, item_id)
+
     edited_json = (
         {"score": score, "justification": justification} if action == "EDIT" else None
     )
@@ -100,6 +110,7 @@ def create_criterion_feedback(
         user_id=user_id,
         agent_name=agent_name,
         criterion_id=criterion_id,
+        item_id=item_id if action in _ITEM_LEVEL_ACTIONS else None,
         action=action,
         edited_json=edited_json,
         notes=notes,

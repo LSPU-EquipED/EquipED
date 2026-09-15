@@ -45,6 +45,7 @@ def submit_criterion_feedback(
             score=body.score,
             justification=body.justification,
             notes=body.notes,
+            item_id=body.item_id,
         )
     except EvaluationNotFoundError as exc:
         raise HTTPException(
@@ -61,6 +62,7 @@ def submit_criterion_feedback(
         user_id=log.user_id,
         agent_name=log.agent_name,
         criterion_id=log.criterion_id,
+        item_id=log.item_id,
         action=log.action,
         edited_json=log.edited_json,
         notes=log.notes,
