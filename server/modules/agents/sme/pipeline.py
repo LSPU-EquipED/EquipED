@@ -192,11 +192,12 @@ class EngineScoredAgent:
         all_scores: list[CriterionScore] = []
         envelope_prompts: dict[str, str] = {}
         envelope_responses: dict[str, dict[str, Any]] = {}
+        envelope_status: dict[str, str] = {}
         any_repair_occurred = False
 
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
-            scores, prompt, response_dict, repair_occurred = execute_envelope(
+            scores, prompt, response_dict, status = execute_envelope(
                 idx,
                 env_criteria,
                 client,
@@ -206,7 +207,8 @@ class EngineScoredAgent:
             all_scores.extend(scores)
             envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = response_dict
-            if repair_occurred:
+            envelope_status[env_key] = status
+            if status != "ok":
                 any_repair_occurred = True
 
         criterion_scores = tuple(all_scores)
@@ -265,6 +267,7 @@ class EngineScoredAgent:
             metadata={
                 "group_prompts": envelope_prompts,
                 "group_responses": envelope_responses,
+                "envelope_status": envelope_status,
             },
             provenance=sanitize_provenance(provenance_dict),
         )
