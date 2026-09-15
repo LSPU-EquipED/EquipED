@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CaretDown, Check, MagnifyingGlass } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import type { ProgramCollegeGroup, ProgramEntry } from '@/shared/constants/programs';
+import { cn } from '../utils';
+import type { ProgramCollegeGroup, ProgramEntry } from '@equiped/types';
 
 type FlatProgram = ProgramEntry & {
   groupCode: string;

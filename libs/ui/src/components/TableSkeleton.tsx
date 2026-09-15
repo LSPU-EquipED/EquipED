@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Skeleton } from './Skeleton';
-import { cn } from './utils';
-import { TABLE_STYLES } from '@/shared/constants/theme';
+import { cn } from '../utils';
+import { TABLE_STYLES } from '../theme';
 
 export interface TableSkeletonColumn {
   label: string;

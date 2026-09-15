@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
+import { cn } from '../utils';
+import { BUTTON_STYLES } from '../theme';
 
 export type ButtonVariant = keyof typeof BUTTON_STYLES.variants;
 export type ButtonSize = keyof typeof BUTTON_STYLES.sizes;

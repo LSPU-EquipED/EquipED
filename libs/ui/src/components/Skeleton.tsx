@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import { cn } from './utils';
+import { cn } from '../utils';
 
 export interface SkeletonProps extends HTMLAttributes<HTMLSpanElement> {
   className?: string;

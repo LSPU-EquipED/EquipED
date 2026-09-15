@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { getErrorMessage } from '@/shared/api/http';
+import { getErrorMessage } from '@equiped/api-client';
 import { authApi } from '../api/auth.api';
 import type { AppAuthContext, AppAuthUser, AuthCredentials, AuthStateResponse } from '../types';
 import { AuthContext } from './useAuth';

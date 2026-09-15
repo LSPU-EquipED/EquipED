@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
-import { cn } from '@/shared/components/utils';
-import { CARD_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
+import { cn } from '../utils';
+import { CARD_STYLES, TYPOGRAPHY } from '../theme';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'ledger' | 'flat';
