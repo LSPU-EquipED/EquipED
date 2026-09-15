@@ -229,6 +229,11 @@ def persist_agent_outputs(
                 if p_result.group_responses_json
                 else None
             ),
+            envelope_status=(
+                json.loads(p_result.envelope_status_json)
+                if p_result.envelope_status_json
+                else None
+            ),
             provenance=(
                 json.loads(p_result.provenance_json)
                 if p_result.provenance_json
@@ -523,6 +528,12 @@ def load_verified_persisted_agent_results(
             raise EvaluationResultIntegrityError(
                 "Persisted group_responses must be a dict"
             )
+        if row.envelope_status is not None and not isinstance(
+            row.envelope_status, dict
+        ):
+            raise EvaluationResultIntegrityError(
+                "Persisted envelope_status must be a dict"
+            )
         if row.provenance is not None and not isinstance(row.provenance, dict):
             raise EvaluationResultIntegrityError("Persisted provenance must be a dict")
 
@@ -585,6 +596,8 @@ def load_verified_persisted_agent_results(
             meta["group_prompts"] = row.group_prompts
         if row.group_responses is not None:
             meta["group_responses"] = row.group_responses
+        if row.envelope_status is not None:
+            meta["envelope_status"] = row.envelope_status
 
         reconstructed_result = AgentEvaluationResult(
             agent_name=row.agent_name,
@@ -654,6 +667,17 @@ def load_verified_persisted_agent_results(
                 if row.group_responses is not None:
                     raise EvaluationResultIntegrityError(
                         "Persisted group_responses mismatch"
+                    )
+
+            if persistable.envelope_status_json is not None:
+                if json.loads(persistable.envelope_status_json) != row.envelope_status:
+                    raise EvaluationResultIntegrityError(
+                        "Persisted envelope_status mismatch"
+                    )
+            else:
+                if row.envelope_status is not None:
+                    raise EvaluationResultIntegrityError(
+                        "Persisted envelope_status mismatch"
                     )
 
             if persistable.advisory_outputs_json is not None:
