@@ -1,4 +1,5 @@
 import type { jsPDF as JsPdfDocument } from 'jspdf';
+import { lspuLogoUrl } from '@equiped/ui';
 import type { AlignmentRun } from '../types';
 import { levelLabels } from './alignmentPresentation';
 
@@ -22,8 +23,7 @@ function safeFilename(value: string) {
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const base = (import.meta.env?.BASE_URL as string | undefined) ?? '/';
-    const response = await fetch(`${base.replace(/\/?$/, '/')}lspu-logo.png`);
+    const response = await fetch(lspuLogoUrl);
     if (!response.ok) return null;
     const blob = await response.blob();
     return await new Promise<string | null>((resolve) => {

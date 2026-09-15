@@ -8,11 +8,11 @@ import {
   Spinner,
   X,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { cn } from '@/shared/components/utils';
+import { Badge } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import { useSpecialistQueue } from '../hooks/useSpecialistQueue';
 import type { DeskQueueItem } from '../types';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@equiped/types';
 
 export interface SpecialistQueueSwitcherProps {
   targetAgent: TargetAgent;

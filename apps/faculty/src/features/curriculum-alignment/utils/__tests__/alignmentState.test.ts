@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
-import { ApiError } from '@/shared/api/http';
+import type { ClientDocument, DocumentProcessingStatus } from '@equiped/types';
+import { ApiError } from '@equiped/api-client';
 import type { AlignmentCheck } from '../../types';
 import {
   alignmentSelectionReducer,

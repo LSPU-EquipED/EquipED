@@ -6,7 +6,7 @@ import {
   UploadSimple,
   Users,
 } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 
 export function AdminQuickActions() {
   const navigate = useNavigate();

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest';
 import { appRouter } from '../router';
 import type { AppRouterContext } from '../runtime';
 
-describe('appRouter configuration and route splitting', () => {
+describe('faculty appRouter configuration and route splitting', () => {
   it('preserves the expected route tree structure and paths', () => {
     const flatRoutes = appRouter.routesById;
 
@@ -10,13 +11,13 @@ describe('appRouter configuration and route splitting', () => {
     expect(flatRoutes['__root__']).toBeDefined();
     expect(flatRoutes['/']).toBeDefined();
     expect(flatRoutes['/login']).toBeDefined();
+    expect(flatRoutes['/register']).toBeDefined();
     expect(flatRoutes['/shell']).toBeDefined();
 
     // Faculty routes
     expect(flatRoutes['/shell/dashboard']).toBeDefined();
     expect(flatRoutes['/shell/documents']).toBeDefined();
     expect(flatRoutes['/shell/evaluations']).toBeDefined();
-    expect(flatRoutes['/shell/evaluation-map']).toBeDefined();
     expect(flatRoutes['/shell/documents/$documentId/evaluation']).toBeDefined();
     expect(flatRoutes['/shell/specialists/$agentId']).toBeDefined();
     expect(flatRoutes['/shell/specialists/$agentId/$documentId']).toBeDefined();
@@ -24,20 +25,12 @@ describe('appRouter configuration and route splitting', () => {
     expect(flatRoutes['/shell/syllabus-alignment']).toBeDefined();
     expect(flatRoutes['/shell/syllabus-alignment/$documentId']).toBeDefined();
     expect(flatRoutes['/shell/syllabus-alignment/$documentId/report']).toBeDefined();
-    expect(flatRoutes['/shell/matrix']).toBeDefined();
     expect(flatRoutes['/shell/alignment']).toBeDefined();
 
-    // Admin routes
-    expect(flatRoutes['/shell/admin']).toBeDefined();
-    expect(flatRoutes['/shell/admin/']).toBeDefined();
-    expect(flatRoutes['/shell/admin/users']).toBeDefined();
-    expect(flatRoutes['/shell/admin/ingest']).toBeDefined();
-    expect(flatRoutes['/shell/admin/references']).toBeDefined();
-    expect(flatRoutes['/shell/admin/prompts']).toBeDefined();
-    expect(flatRoutes['/shell/admin/prompts/$agentId']).toBeDefined();
-    expect(flatRoutes['/shell/admin/preferences']).toBeDefined();
-    expect(flatRoutes['/shell/admin/rubrics']).toBeDefined();
-    expect(flatRoutes['/shell/admin/model-validation']).toBeDefined();
+    // Admin routes must NOT exist in faculty router
+    expect((flatRoutes as Record<string, unknown>)['/shell/admin']).toBeUndefined();
+    expect((flatRoutes as Record<string, unknown>)['/shell/matrix']).toBeUndefined();
+    expect((flatRoutes as Record<string, unknown>)['/shell/evaluation-map']).toBeUndefined();
   });
 
   it('runs eager role guards beforeLoad synchronously without loading lazy components', async () => {
@@ -59,7 +52,6 @@ describe('appRouter configuration and route splitting', () => {
       },
     };
 
-    // Faculty guard redirect on unauthenticated
     let redirectError: any;
     try {
       await dashboardRoute.options.beforeLoad!({
@@ -71,39 +63,6 @@ describe('appRouter configuration and route splitting', () => {
 
     expect(redirectError).toBeDefined();
     expect(redirectError.options?.to ?? redirectError.to).toBe('/login');
-
-    // Faculty guard redirect for admin role
-    const adminContext: AppRouterContext = {
-      queryClient: appRouter.options.context.queryClient,
-      auth: {
-        status: 'authenticated',
-        source: 'server',
-        ready: true,
-        error: null,
-        user: {
-          id: 'admin-1',
-          displayName: 'Admin User',
-          role: 'admin',
-          email: 'admin@lspu.edu.ph',
-        },
-        login: async () => undefined,
-        logout: async () => undefined,
-        refresh: async () => undefined,
-        clearError: () => undefined,
-      },
-    };
-
-    let forbiddenRedirect: any;
-    try {
-      await dashboardRoute.options.beforeLoad!({
-        context: adminContext,
-      } as any);
-    } catch (err) {
-      forbiddenRedirect = err;
-    }
-
-    expect(forbiddenRedirect).toBeDefined();
-    expect(forbiddenRedirect.options?.to ?? forbiddenRedirect.to).toBe('/admin');
   });
 
   it('allows authorized roles through beforeLoad guards', async () => {
@@ -128,11 +87,69 @@ describe('appRouter configuration and route splitting', () => {
       },
     };
 
-    // Should not throw
-    const result = await dashboardRoute.options.beforeLoad!({
-      context: facultyContext,
-    } as any);
-    expect(result).toBeUndefined();
+    let thrown = false;
+    try {
+      await dashboardRoute.options.beforeLoad!({
+        context: facultyContext,
+      } as any);
+    } catch {
+      thrown = true;
+    }
+
+    expect(thrown).toBe(false);
+  });
+
+  it('redirects cross-app admin user via document navigation on index and auth routes', async () => {
+    const assignMock = vi.fn();
+    const originalLocation = window.location;
+    // Mock window.location.assign
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      writable: true,
+      value: { ...originalLocation, assign: assignMock },
+    });
+
+    try {
+      const adminContext: AppRouterContext = {
+        queryClient: appRouter.options.context.queryClient,
+        auth: {
+          status: 'authenticated',
+          source: 'server',
+          ready: true,
+          error: null,
+          user: {
+            id: 'admin-1',
+            displayName: 'Admin User',
+            role: 'admin',
+            email: 'admin@lspu.edu.ph',
+          },
+          login: async () => undefined,
+          logout: async () => undefined,
+          refresh: async () => undefined,
+          clearError: () => undefined,
+        },
+      };
+
+      const indexRoute = appRouter.routesById['/'];
+      await indexRoute.options.beforeLoad!({ context: adminContext } as any);
+      expect(assignMock).toHaveBeenCalledWith('/admin');
+
+      assignMock.mockClear();
+      const loginRoute = appRouter.routesById['/login'];
+      await loginRoute.options.beforeLoad!({ context: adminContext } as any);
+      expect(assignMock).toHaveBeenCalledWith('/admin');
+
+      assignMock.mockClear();
+      const registerRoute = appRouter.routesById['/register'];
+      await registerRoute.options.beforeLoad!({ context: adminContext } as any);
+      expect(assignMock).toHaveBeenCalledWith('/admin');
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        writable: true,
+        value: originalLocation,
+      });
+    }
   });
 
   it('enforces specialist evaluator permissions on specialist route guards', async () => {

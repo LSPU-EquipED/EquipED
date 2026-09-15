@@ -7,9 +7,9 @@ import {
   Gear,
   X,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import { useCreatePrompt, usePromptVersions, useRevertPrompt } from '../hooks/usePromptVersions';
 import type { PromptVersionItem } from '../types';
 import { PromptVersionHistory } from './PromptVersionHistory';

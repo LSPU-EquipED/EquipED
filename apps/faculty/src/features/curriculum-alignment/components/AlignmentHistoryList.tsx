@@ -5,12 +5,12 @@
 // consistent, but this is its own implementation.
 import { useEffect, useState } from 'react';
 import { Warning, ArrowSquareOut, Trash } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
-import { cn } from '@/shared/components/utils';
-import { TABLE_STYLES } from '@/shared/constants/theme';
-import { getErrorMessage } from '@/shared/api/http';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TABLE_STYLES } from '@equiped/ui';
+import { getErrorMessage } from '@equiped/api-client';
 import { useDeleteAlignmentCheck } from '../hooks/useDeleteAlignmentCheck';
 import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';

@@ -6,9 +6,9 @@ import {
   GitFork,
   GraduationCap,
 } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { cn } from '@/shared/components/utils';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 
 export interface FacultyLaunchpadsProps {
   totalModules?: number;

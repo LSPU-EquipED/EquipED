@@ -1,7 +1,7 @@
 // Styled like evaluation/components/Scorecard.tsx's criterion table: same
 // column rhythm, same nested evidence box under a row with a quote.
-import { cn } from '@/shared/components/utils';
-import { TABLE_STYLES } from '@/shared/constants/theme';
+import { cn } from '@equiped/ui';
+import { TABLE_STYLES } from '@equiped/ui';
 import { statusBadgeClasses, statusLabel } from '../utils/alignmentHelpers';
 import {
   getEvidenceNavigation,

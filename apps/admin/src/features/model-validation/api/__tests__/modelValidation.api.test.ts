@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import * as httpModule from '@/shared/api/http';
+import * as httpModule from '@equiped/api-client';
 import { modelValidationApi } from '../modelValidation.api';
 import type { ModelValidationCreateBody } from '../../types';
 

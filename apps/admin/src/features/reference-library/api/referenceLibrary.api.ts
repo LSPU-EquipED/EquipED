@@ -1,4 +1,4 @@
-import { buildApiUrl, requestJson } from '@/shared/api/http';
+import { buildApiUrl, requestJson } from '@equiped/api-client';
 import {
   mapPolicyDeleteResponse,
   mapPolicyLibraryResponse,

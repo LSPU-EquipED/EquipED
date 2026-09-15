@@ -5,8 +5,8 @@ import {
   Plus,
   ShieldCheck,
 } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import { AgentProgressPanel } from '../components/AgentProgressPanel';
 import { ValidationHistoryTable } from '../components/ValidationHistoryTable';
 import { ValidationPerformanceMetrics } from '../components/ValidationPerformanceMetrics';

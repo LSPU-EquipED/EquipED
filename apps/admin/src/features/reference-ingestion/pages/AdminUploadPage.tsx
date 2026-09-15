@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES } from '@equiped/ui';
 import { IngestionPipelineMonitor } from '../components/IngestionPipelineMonitor';
 import { IngestionVerificationCard } from '../components/IngestionVerificationCard';
 import { ReferenceClassificationStep } from '../components/ReferenceClassificationStep';

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Spinner } from '@phosphor-icons/react';
-import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
+import type { ClientDocument, DocumentProcessingStatus } from '@equiped/types';
 
 export const sourceTypeLabels: Record<ClientDocument['sourceType'], string> = {
   slm: 'SLM',

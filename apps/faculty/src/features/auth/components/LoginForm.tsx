@@ -1,10 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '../hooks/useAuth';
+import { BrandHero, ResetPasswordModal, useAuth, navigateCrossApp } from '@equiped/auth';
 import { useLoginForm } from '../hooks/useLoginForm';
 import { ShieldWarning, ArrowRight, Spinner, Eye, EyeSlash } from '@phosphor-icons/react';
-import { BrandHero } from './BrandHero';
-import { ResetPasswordModal } from './ResetPasswordModal';
 import { Link } from '@tanstack/react-router';
 
 export function LoginForm() {
@@ -39,8 +37,11 @@ export function LoginForm() {
 
   useEffect(() => {
     if (auth.status === 'authenticated') {
-      const target = auth.user?.role === 'admin' ? '/admin' : '/dashboard';
-      void navigate({ to: target });
+      if (auth.user?.role === 'admin') {
+        navigateCrossApp('/admin');
+      } else {
+        void navigate({ to: '/dashboard' });
+      }
     }
   }, [auth.status, auth.user, navigate]);
 

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { TABLE_STYLES } from '@/shared/constants/theme';
+import { TABLE_STYLES } from '@equiped/ui';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import { UserFiltersToolbar, type RoleFilter, type StatusFilter } from '../components/UserFiltersToolbar';

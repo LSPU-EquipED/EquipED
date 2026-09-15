@@ -5,9 +5,9 @@ import {
   UserMinus,
   X,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { cn } from '@/shared/components/utils';
-import { TABLE_STYLES } from '@/shared/constants/theme';
+import { Badge } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TABLE_STYLES } from '@equiped/ui';
 import type { AdminUserResponse } from '../types';
 import { getUserStatusBadge } from '../utils/userStatus';
 

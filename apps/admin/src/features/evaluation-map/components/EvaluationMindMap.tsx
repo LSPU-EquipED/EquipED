@@ -13,8 +13,8 @@ import {
   ShieldCheck,
   Sparkle,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { cn } from '@/shared/components/utils';
+import { Badge } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import {
   evaluationMapEdges,
   evaluationMapNodes,

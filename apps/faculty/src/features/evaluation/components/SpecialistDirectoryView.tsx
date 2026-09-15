@@ -5,10 +5,10 @@ import {
   Play,
   Spinner,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
-import type { TargetAgentMeta } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES } from '@equiped/ui';
+import type { TargetAgentMeta } from '@equiped/types';
 import type { DeskQueueItem } from '../types';
 
 function formatUploadDate(dateString?: string | null): string {

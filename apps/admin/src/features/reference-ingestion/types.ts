@@ -1,4 +1,4 @@
-import type { PolicyArea, ReferenceSourceType } from '@/shared/types/documents';
+import type { PolicyArea, ReferenceSourceType } from '@equiped/types';
 
 export type AdminUploadSourceType = ReferenceSourceType | 'policy';
 

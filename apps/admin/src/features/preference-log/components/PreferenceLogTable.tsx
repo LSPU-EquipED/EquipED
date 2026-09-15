@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { BookOpen, FileText, ShieldCheck, Warning } from '@phosphor-icons/react';
-import { TABLE_STYLES } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
+import { TABLE_STYLES } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
 import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
 import type { PreferenceLogItem } from '../types';
 import { PreferenceLogFilters } from './PreferenceLogFilters';

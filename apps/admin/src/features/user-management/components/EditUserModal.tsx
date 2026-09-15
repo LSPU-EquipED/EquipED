@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { INPUT_STYLES } from '@/shared/constants/theme';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { INPUT_STYLES } from '@equiped/ui';
 import { useUpdateUser } from '../hooks/useAdminUsers';
 import type { AdminUserResponse, AdminUserUpdateBody } from '../types';
 

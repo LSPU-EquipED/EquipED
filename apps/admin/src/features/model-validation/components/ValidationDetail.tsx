@@ -8,11 +8,11 @@ import {
   Warning,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { getErrorMessage } from '@/shared/api/http';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { cn } from '@/shared/components/utils';
+import { getErrorMessage } from '@equiped/api-client';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import {
   useModelValidationDetail,
   useModelValidationEvaluation,

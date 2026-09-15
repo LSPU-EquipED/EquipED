@@ -1,4 +1,4 @@
-import type { TargetAgent } from '@/shared/types/evaluations';
+import type { TargetAgent } from '@equiped/types';
 
 import { DocumentDashboard } from '../components/DocumentDashboard';
 

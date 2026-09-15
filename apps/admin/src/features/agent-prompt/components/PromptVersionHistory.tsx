@@ -1,7 +1,7 @@
 import { ArrowCounterClockwise, ClockCounterClockwise, GitCommit } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
 import { usePromptVersions } from '../hooks/usePromptVersions';
 import type { PromptVersionItem } from '../types';
 

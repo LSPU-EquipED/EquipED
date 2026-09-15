@@ -1,4 +1,4 @@
-import type { StatusVariant } from '@/shared/constants/theme';
+import type { StatusVariant } from '@equiped/ui';
 import type { AdminUserResponse } from '../types';
 
 export function getUserStatusBadge(user: Pick<AdminUserResponse, 'account_status' | 'is_active'>): {

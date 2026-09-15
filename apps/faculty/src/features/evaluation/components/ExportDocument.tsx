@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { DownloadSimple } from '@phosphor-icons/react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { TARGET_AGENT_META, isTargetAgent, type TargetAgent } from '@/shared/types/evaluations';
-import type { ClientDocument } from '@/shared/types/documents';
+import { Button } from '@equiped/ui';
+import { cn, lspuLogoUrl } from '@equiped/ui';
+import { TARGET_AGENT_META, isTargetAgent, type TargetAgent } from '@equiped/types';
+import type { ClientDocument } from '@equiped/types';
 import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
 import {
   CANONICAL_MAX_SCORE,
@@ -99,8 +99,7 @@ async function loadJsPdf(): Promise<new (options?: unknown) => JsPdfDocument> {
 
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
-    const base = (import.meta.env?.BASE_URL as string | undefined) ?? '/';
-    const response = await fetch(`${base.replace(/\/?$/, '/')}lspu-logo.png`);
+    const response = await fetch(lspuLogoUrl);
     if (!response.ok) return null;
     const blob = await response.blob();
     return await new Promise<string | null>((resolve) => {
@@ -557,7 +556,7 @@ export function GadExportPreview(props: ExportDocumentProps) {
       <div className="flex items-center justify-center gap-4 pb-4 border-b border-border">
         <img
           className="size-16 object-contain"
-          src={`${(import.meta.env?.BASE_URL as string | undefined) ?? '/'}lspu-logo.png`}
+          src={lspuLogoUrl}
           alt="LSPU logo"
         />
         <div className="text-center">

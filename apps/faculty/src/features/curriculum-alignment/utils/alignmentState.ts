@@ -1,5 +1,5 @@
-import { isApiError, type ApiError } from '@/shared/api/http';
-import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
+import { isApiError, type ApiError } from '@equiped/api-client';
+import type { ClientDocument, DocumentProcessingStatus } from '@equiped/types';
 import type {
   AlignmentCheck,
   AlignmentCoverage,

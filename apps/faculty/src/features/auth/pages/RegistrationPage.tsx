@@ -9,9 +9,9 @@ import {
   ShieldWarning,
   Spinner,
 } from '@phosphor-icons/react';
-import { getErrorMessage } from '@/shared/api/http';
+import { getErrorMessage } from '@equiped/api-client';
 import { registrationApi, type RegistrationBody } from '../api/registration.api';
-import { BrandHero } from '../components/BrandHero';
+import { BrandHero } from '@equiped/auth';
 
 const initialForm: RegistrationBody = {
   name: '',

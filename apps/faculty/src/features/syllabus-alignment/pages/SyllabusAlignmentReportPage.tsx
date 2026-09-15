@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from '@tanstack/react-router';
 import { ArrowLeft, PencilSimple } from '@phosphor-icons/react';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES, CARD_STYLES } from '@/shared/constants/theme';
+import { Skeleton } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES, CARD_STYLES } from '@equiped/ui';
 import { alignmentApi } from '../api/syllabusAlignment.api';
 import { AlignmentReportActions } from '../components/AlignmentReportActions';
 import { AlignmentResultView } from '../components/AlignmentResultView';

@@ -1,7 +1,7 @@
 import { CaretDown, CaretRight, User } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { TABLE_STYLES, type StatusVariant } from '@/shared/constants/theme';
-import { cn } from '@/shared/components/utils';
+import { Badge } from '@equiped/ui';
+import { TABLE_STYLES, type StatusVariant } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import type { PreferenceLogItem } from '../types';
 import { PreferenceDiffDrawer } from './PreferenceDiffDrawer';
 

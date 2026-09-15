@@ -1,5 +1,5 @@
 import { CaretLeft, CaretRight } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 
 interface DocumentPaginationProps {
   page: number;

@@ -14,12 +14,12 @@ import {
   Spinner,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { TABLE_STYLES, TYPOGRAPHY } from '@/shared/constants/theme';
-import { isTargetAgent, TARGET_AGENT_META } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { TABLE_STYLES, TYPOGRAPHY } from '@equiped/ui';
+import { isTargetAgent, TARGET_AGENT_META } from '@equiped/types';
 import { useEvaluation } from '../hooks/useEvaluationStatus';
 import { evaluationApi } from '../api/evaluation.api';
 import {

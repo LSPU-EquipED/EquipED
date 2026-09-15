@@ -1,15 +1,13 @@
-import { Link, Outlet, useLocation, useMatches } from '@tanstack/react-router';
+import { Link, Outlet, useLocation } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { CaretRight, House, List, SignOut } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { cn } from '@equiped/ui';
+import { useAuth } from '@equiped/auth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
 import { Sidebar } from './Sidebar';
 import { getBreadcrumbs, getSidebarLayoutClasses } from './navigation.utils';
+
 export function AppShell() {
-  const matches = useMatches();
-  const currentMatch = matches[matches.length - 1];
-  const routeId = currentMatch?.routeId;
   const pathname = useLocation({ select: (loc) => loc.pathname });
   const isMobile = useIsMobile();
 
@@ -37,12 +35,10 @@ export function AppShell() {
     }
   };
 
-  // Automatically close mobile menu upon route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Account menu outside-click and Escape key handler
   useEffect(() => {
     if (!isAccountMenuOpen) {
       return;
@@ -77,7 +73,7 @@ export function AppShell() {
   };
 
   const layoutClasses = getSidebarLayoutClasses(isSidebarCollapsed);
-  const breadcrumbs = getBreadcrumbs(pathname, user?.role);
+  const breadcrumbs = getBreadcrumbs(pathname);
 
   return (
     <div className="min-h-screen bg-canvas text-text">
@@ -88,7 +84,6 @@ export function AppShell() {
         )}
       >
         <div className="flex flex-1 items-center gap-3 min-w-0">
-          {/* Mobile menu hamburger toggle */}
           <button
             type="button"
             ref={mobileMenuTriggerRef}
@@ -101,13 +96,12 @@ export function AppShell() {
             <List className="size-5" aria-hidden="true" />
           </button>
 
-          {/* Dynamic Breadcrumbs */}
           <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs sm:text-sm text-text-muted min-w-0 overflow-hidden">
             <Link
-              to={user?.role === 'admin' ? '/admin' : '/dashboard'}
+              to="/dashboard"
               className="flex items-center text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xs shrink-0"
-              title={user?.role === 'admin' ? 'Admin Dashboard' : 'Faculty Workspace'}
-              aria-label={user?.role === 'admin' ? 'Admin Dashboard' : 'Faculty Workspace'}
+              title="Faculty Workspace"
+              aria-label="Faculty Workspace"
             >
               <House className="size-4 shrink-0" aria-hidden="true" />
             </Link>
@@ -183,7 +177,6 @@ export function AppShell() {
         </div>
       </header>
 
-      {/* Mobile Drawer Backdrop */}
       {isMobileMenuOpen && (
         <div
           className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"

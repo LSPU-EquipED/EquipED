@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Warning, X } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 
 type ReplaceAlignmentModalProps = {
   open: boolean;

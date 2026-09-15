@@ -1,11 +1,11 @@
 import { CaretDown } from '@phosphor-icons/react';
-import { ProgramSelector } from '@/shared/components/ProgramSelector';
-import { LSPU_SCC_COLLEGE_PROGRAMS } from '@/shared/constants/programs';
+import { ProgramSelector } from '@equiped/ui';
+import { LSPU_SCC_COLLEGE_PROGRAMS } from '@equiped/types';
 import {
   POLICY_AREA_LABELS,
   POLICY_AREAS,
   type PolicyArea,
-} from '@/shared/types/documents';
+} from '@equiped/types';
 import type { AdminUploadSourceType } from '../types';
 
 export const sourceTypeLabels: Record<AdminUploadSourceType, string> = {

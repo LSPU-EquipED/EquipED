@@ -1,9 +1,9 @@
-import type { ClientDocument, DocumentProcessingStatus } from '@/shared/types/documents';
+import type { ClientDocument, DocumentProcessingStatus } from '@equiped/types';
 import {
   isTargetAgent,
   type LatestEvaluationItem,
   type TargetAgent,
-} from '@/shared/types/evaluations';
+} from '@equiped/types';
 
 export type SlmDisplayActionType =
   | 'view_progress'

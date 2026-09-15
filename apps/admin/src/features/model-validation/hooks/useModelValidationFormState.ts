@@ -1,7 +1,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { DocumentUploadResponse } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import type { DocumentUploadResponse } from '@equiped/types';
 import { modelValidationApi } from '../api/modelValidation.api';
 import type { ModelValidationCreateBody } from '../types';
 import {

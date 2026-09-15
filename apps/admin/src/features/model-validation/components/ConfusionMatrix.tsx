@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, WarningCircle } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { Skeleton } from '@/shared/components/Skeleton';
+import { cn } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
 import {
   calculateConfusionMatrixMetrics,
   emptyConfusionMatrix,

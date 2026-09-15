@@ -1,5 +1,5 @@
-import type { ClientDocument } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import type { ClientDocument } from '@equiped/types';
+import type { LatestEvaluationItem } from '@equiped/types';
 import type { AttentionItem, FacultyHomeData, HomeEvaluationItem } from '../types';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {

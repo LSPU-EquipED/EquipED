@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ArrowCounterClockwise, Spinner, X } from '@phosphor-icons/react';
-import { Button } from '@/shared/components/Button';
+import { Button } from '@equiped/ui';
 
 interface RevertPromptModalProps {
   isOpen: boolean;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type DragEvent } from 'react';
-import { documentsApi } from '@/shared/api/documents.api';
-import { normalizeProgram } from '@/shared/constants/programs';
-import type { DocumentUploadResponse, PolicyArea } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import { normalizeProgram } from '@equiped/types';
+import type { DocumentUploadResponse, PolicyArea } from '@equiped/types';
 import { useAdminUpload } from './useAdminUpload';
 import type { AdminUploadSourceType } from '../types';
 

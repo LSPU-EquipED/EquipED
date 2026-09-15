@@ -1,12 +1,12 @@
 import { CaretRight, FileText, Spinner } from '@phosphor-icons/react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { MouseEvent } from 'react';
-import { cn } from '@/shared/components/utils';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
-import { TARGET_AGENTS, TARGET_AGENT_META } from '@/shared/types/evaluations';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import { cn } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
+import type { ClientDocument } from '@equiped/types';
+import type { LatestEvaluationItem } from '@equiped/types';
+import { TARGET_AGENTS, TARGET_AGENT_META } from '@equiped/types';
+import type { TargetAgent } from '@equiped/types';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDate, sourceTypeLabels } from '../utils/document.utils';
 

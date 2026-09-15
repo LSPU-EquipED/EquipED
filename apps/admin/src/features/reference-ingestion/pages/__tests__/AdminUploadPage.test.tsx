@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { documentsApi } from '@/shared/api/documents.api';
-import type { ClientDocument } from '@/shared/types/documents';
+import { documentsApi } from '@equiped/api-client';
+import type { ClientDocument } from '@equiped/types';
 import { AdminUploadPage } from '../AdminUploadPage';
 
 const mockUploadDocument = vi.fn();

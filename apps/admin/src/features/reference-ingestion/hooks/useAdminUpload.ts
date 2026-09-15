@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { getErrorMessage } from '@/shared/api/http';
-import { useFetch } from '@/shared/hooks/useFetch';
+import { getErrorMessage } from '@equiped/api-client';
+import { useFetch } from './useFetch';
 import { referenceIngestionApi } from '../api/referenceIngestion.api';
 
 export function useAdminUpload() {

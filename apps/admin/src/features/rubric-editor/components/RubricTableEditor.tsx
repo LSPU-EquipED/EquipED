@@ -11,7 +11,7 @@ import {
   Plus,
   Trash,
 } from '@phosphor-icons/react';
-import { Skeleton } from '@/shared/components/Skeleton';
+import { Skeleton } from '@equiped/ui';
 import {
   getRubricOperationError,
   getValidationReportFromError,

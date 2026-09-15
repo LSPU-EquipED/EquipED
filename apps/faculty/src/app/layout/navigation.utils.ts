@@ -1,22 +1,15 @@
 import {
-  BookOpen,
   BookOpenText,
-  Books,
   ClipboardText,
   FolderOpen,
-  Gear,
-  GitFork,
   GraduationCap,
   type Icon,
   Lightbulb,
   ListChecks,
-  Scan,
-  Shield,
   ShieldCheck,
   SquaresFour,
-  UploadSimple,
-  Users,
 } from '@phosphor-icons/react';
+
 export interface NavItem {
   to: string;
   label: string;
@@ -28,6 +21,7 @@ export interface BreadcrumbItem {
   label: string;
   to?: string;
 }
+
 export interface NavGroup {
   id: string;
   label: string;
@@ -109,43 +103,6 @@ export function filterFacultyNavGroups(
     .filter((group) => group.items.length > 0);
 }
 
-export const adminNavGroups: readonly NavGroup[] = [
-  {
-    id: 'overview',
-    label: 'OVERVIEW',
-    items: [
-      { to: '/admin', label: 'Dashboard', icon: SquaresFour, exact: true },
-    ],
-  },
-  {
-    id: 'operations',
-    label: 'OPERATIONS',
-    items: [
-      { to: '/admin/users', label: 'User Management', icon: Users, exact: true },
-      { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
-    ],
-  },
-  {
-    id: 'knowledge-base',
-    label: 'KNOWLEDGE BASE',
-    items: [
-      { to: '/admin/ingest', label: 'Reference Ingestion', icon: UploadSimple, exact: true },
-      { to: '/admin/references', label: 'Reference Library', icon: Books, exact: true },
-      { to: '/admin/rubrics', label: 'Rubric Editor', icon: ClipboardText, exact: true },
-    ],
-  },
-  {
-    id: 'model-governance',
-    label: 'MODEL GOVERNANCE',
-    items: [
-      { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
-      { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
-      { to: '/admin/prompts', label: 'Agent Prompts', icon: Gear, exact: false },
-      { to: '/admin/preferences', label: 'Preference Logs', icon: BookOpen, exact: true },
-    ],
-  },
-] as const;
-
 export function isNavigationActive(
   currentPath: string,
   targetPath: string,
@@ -193,7 +150,7 @@ export function getSidebarInertState(
   };
 }
 
-export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbItem[] {
+export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
 
   if (cleanPath === '/dashboard' || cleanPath === '/') {
@@ -216,7 +173,6 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
       { label: 'SLM Storage' },
     ];
   }
-
 
   if (cleanPath.startsWith('/evaluations/') && cleanPath.endsWith('/report')) {
     return [
@@ -253,156 +209,63 @@ export function getBreadcrumbs(pathname: string, userRole?: string): BreadcrumbI
     ];
   }
 
-  if (cleanPath.startsWith('/evaluations/') && cleanPath !== '/evaluations') {
+  if (cleanPath === '/evaluations') {
     return [
-      { label: 'Evaluations', to: '/evaluations' },
-      { label: 'Scorecard' },
+      { label: 'Evaluations' },
+      { label: 'History' },
     ];
   }
 
-  if (cleanPath === '/evaluations') {
+  if (cleanPath.startsWith('/evaluations/')) {
     return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Evaluation History' },
+      { label: 'Evaluations', to: '/evaluations' },
+      { label: 'Evaluation Results' },
     ];
   }
 
   if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) {
     return [
+      { label: 'Faculty Workspace', to: '/dashboard' },
       { label: 'Syllabus Alignment', to: '/syllabus-alignment' },
       { label: 'Alignment Report' },
     ];
   }
 
-  if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath !== '/syllabus-alignment') {
+  if (cleanPath === '/syllabus-alignment') {
     return [
-      { label: 'Syllabus Alignment', to: '/syllabus-alignment' },
-      { label: 'Workspace' },
+      { label: 'Faculty Workspace', to: '/dashboard' },
+      { label: 'Syllabus Alignment' },
     ];
   }
 
-  if (cleanPath === '/syllabus-alignment') {
+  if (cleanPath.startsWith('/syllabus-alignment/')) {
     return [
-      { label: 'Alignment', to: '/dashboard' },
-      { label: 'Syllabus Alignment' },
+      { label: 'Faculty Workspace', to: '/dashboard' },
+      { label: 'Syllabus Alignment', to: '/syllabus-alignment' },
+      { label: 'Workstation' },
     ];
   }
 
   if (cleanPath === '/alignment') {
     return [
-      { label: 'Alignment', to: '/dashboard' },
+      { label: 'Faculty Workspace', to: '/dashboard' },
       { label: 'Curriculum Check' },
     ];
   }
 
-  if (cleanPath === '/matrix') {
-    return [
-      { label: 'Administration', to: userRole === 'admin' ? '/admin' : '/dashboard' },
-      { label: 'Monitoring Matrix' },
-    ];
-  }
-
-  if (cleanPath === '/evaluation-map') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Knowledge Map' },
-    ];
-  }
-
-  if (cleanPath === '/admin') {
-    return [
-      { label: 'Administration' },
-      { label: 'Dashboard' },
-    ];
-  }
-
-  if (cleanPath === '/admin/users') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'User Management' },
-    ];
-  }
-
-  if (cleanPath === '/admin/references') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Reference Library' },
-    ];
-  }
-
-  if (cleanPath === '/admin/ingest') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Reference Ingestion' },
-    ];
-  }
-
-  if (cleanPath === '/admin/rubrics') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Rubric Editor' },
-    ];
-  }
-
-  if (cleanPath === '/admin/model-validation') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Model Validation' },
-    ];
-  }
-
-  if (cleanPath === '/admin/prompts' || cleanPath.startsWith('/admin/prompts/')) {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Agent Prompts' },
-    ];
-  }
-
-  if (cleanPath === '/admin/preferences') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Preference Logs' },
-    ];
-  }
-
   return [
-    { label: 'EquipED' },
+    { label: 'Faculty Workspace', to: '/dashboard' },
+    { label: 'Portal' },
   ];
 }
 
-export function getRouteTitle(routeId?: string, userRole?: string): string {
-  if (!routeId) return 'EquipED';
-
-  if (routeId.includes('/dashboard')) return 'Home';
-  if (routeId.includes('/documents/') && routeId.includes('/evaluation'))
-    return 'Specialist Review';
-  if (routeId.includes('/documents')) return 'My SLMs';
-  if (routeId.includes('/evaluations') && routeId.includes('/report'))
-    return 'Evaluation Report';
-  if (routeId.includes('/evaluations/$id')) return 'Scorecard';
-  if (/^\/evaluations\/[^/]+$/.test(routeId)) return 'Scorecard';
-  if (routeId.includes('/specialists')) return 'Specialist Review';
-  if (routeId.includes('/evaluations')) return 'Evaluation History';
-  if (routeId.includes('/evaluation-map')) return 'Knowledge Map';
-  if (routeId.includes('/syllabus-alignment') && routeId.includes('/report'))
-    return 'Syllabus Alignment Report';
-  if (
-    routeId.includes('/syllabus-alignment/$documentId') ||
-    (routeId.startsWith('/syllabus-alignment/') && routeId !== '/syllabus-alignment')
-  ) {
-    return 'Syllabus Alignment Workspace';
-  }
-  if (routeId.includes('/syllabus-alignment')) return 'Syllabus Alignment';
-  if (routeId.includes('/alignment')) return 'Curriculum Check';
-  if (routeId.includes('/matrix')) return 'Monitoring Matrix';
-  if (routeId.includes('/admin/users')) return 'User Management';
-  if (routeId.includes('/admin/ingest')) return 'Reference Ingestion';
-  if (routeId.includes('/admin/references')) return 'Reference Library';
-  if (routeId.includes('/admin/prompts')) return 'Agent Prompts';
-  if (routeId.includes('/admin/preferences')) return 'Preference Logs';
-  if (routeId.includes('/admin/rubrics')) return 'Rubric Editor';
-  if (routeId.includes('/admin/model-validation')) return 'Model Validation';
-  if (routeId.includes('/admin')) return 'Admin Dashboard';
-
+export function getRouteTitle(pathname: string): string {
+  const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
+  if (cleanPath === '/dashboard' || cleanPath === '/') return 'Home';
+  if (cleanPath === '/documents') return 'My SLMs';
+  if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) return 'Specialist Review';
+  if (cleanPath === '/evaluations') return 'Evaluation History';
+  if (cleanPath.startsWith('/evaluations/')) return 'Scorecard';
+  if (cleanPath === '/alignment') return 'Curriculum Check';
   return 'EquipED';
 }

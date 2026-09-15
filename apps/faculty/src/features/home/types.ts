@@ -1,4 +1,4 @@
-import type { ClientDocument } from '@/shared/types/documents';
+import type { ClientDocument } from '@equiped/types';
 
 export interface HomeEvaluationItem {
   evaluation_id: string;

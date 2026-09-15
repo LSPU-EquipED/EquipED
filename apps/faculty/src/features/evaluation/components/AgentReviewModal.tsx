@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Flag, X } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 import { useSubmitCriterionFeedback } from '../hooks/useSubmitFeedback';
 import { formatScore } from '../utils/scoreHelpers';
 import type { CriterionScoreItem } from '../types';

@@ -1,7 +1,7 @@
 import { Warning } from '@phosphor-icons/react';
-import { cn } from '@/shared/components/utils';
-import { TABLE_STYLES } from '@/shared/constants/theme';
-import { TableSkeleton } from '@/shared/components/TableSkeleton';
+import { cn } from '@equiped/ui';
+import { TABLE_STYLES } from '@equiped/ui';
+import { TableSkeleton } from '@equiped/ui';
 import type { AdminUserResponse } from '../types';
 import { UserTableRow } from './UserTableRow';
 

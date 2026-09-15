@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useAuth } from './useAuth';
+import { useAuth } from '@equiped/auth';
 
 const LSPU_EMAIL_PATTERN = /^[^\s@]+@lspu\.edu\.ph$/i;
 const MAX_EMAIL_LENGTH = 40;

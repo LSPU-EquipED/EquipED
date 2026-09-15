@@ -9,10 +9,10 @@ import {
   ShieldCheck,
   Spinner,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES } from '@/shared/constants/theme';
-import type { TargetAgent } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES } from '@equiped/ui';
+import type { TargetAgent } from '@equiped/types';
 import { AgentReviewModal } from '../components/AgentReviewModal';
 import { EvaluationConfirmModal } from '../components/EvaluationConfirmModal';
 import { SpecialistDirectoryView } from '../components/SpecialistDirectoryView';

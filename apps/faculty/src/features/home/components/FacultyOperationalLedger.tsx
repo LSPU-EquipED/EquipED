@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { TARGET_AGENTS, TARGET_AGENT_META, type TargetAgent } from '@/shared/types/evaluations';
+import { TARGET_AGENTS, TARGET_AGENT_META, type TargetAgent } from '@equiped/types';
 import {
   ArrowsClockwise,
   CaretLeft,
@@ -12,13 +12,13 @@ import {
   Spinner,
   Warning,
 } from '@phosphor-icons/react';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { cn } from '@/shared/components/utils';
-import { BUTTON_STYLES, TABLE_STYLES } from '@/shared/constants/theme';
-import { Skeleton } from '@/shared/components/Skeleton';
-import type { ClientDocument } from '@/shared/types/documents';
-import type { LatestEvaluationItem } from '@/shared/types/evaluations';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { cn } from '@equiped/ui';
+import { BUTTON_STYLES, TABLE_STYLES } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import type { ClientDocument } from '@equiped/types';
+import type { LatestEvaluationItem } from '@equiped/types';
 import type { AttentionItem, HomeEvaluationItem } from '../types';
 import {
   formatDateTime,

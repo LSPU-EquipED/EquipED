@@ -1,11 +1,11 @@
 import { useMemo, useRef, useReducer } from 'react';
 import { Warning, CheckCircle, Clock, Spinner } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@/shared/api/documents.api';
-import { Badge } from '@/shared/components/Badge';
-import { Button } from '@/shared/components/Button';
-import { Skeleton } from '@/shared/components/Skeleton';
-import { cn } from '@/shared/components/utils';
+import { documentsApi } from '@equiped/api-client';
+import { Badge } from '@equiped/ui';
+import { Button } from '@equiped/ui';
+import { Skeleton } from '@equiped/ui';
+import { cn } from '@equiped/ui';
 import { AlignmentResultsTable } from '../components/AlignmentResultsTable';
 import { AlignmentHistoryList } from '../components/AlignmentHistoryList';
 import { SlmReadingPane, type SlmReadingPaneHandle } from '../components/SlmReadingPane';

@@ -2,7 +2,7 @@ import type {
   DocumentProcessingStatus,
   PolicySourceType,
   ReferenceSourceType,
-} from '@/shared/types/documents';
+} from '@equiped/types';
 
 export type RawPolicyLibraryItem = {
   document_id: string;

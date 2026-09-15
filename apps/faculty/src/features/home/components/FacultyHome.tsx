@@ -1,15 +1,16 @@
-import { useNavigate } from '@tanstack/react-router';
 import { Warning } from '@phosphor-icons/react';
-import { getErrorMessage } from '@/shared/api/http';
-import { Button } from '@/shared/components/Button';
+import { getErrorMessage } from '@equiped/api-client';
+import { Button } from '@equiped/ui';
+import type { ClientDocument, TargetAgent } from '@equiped/types';
 import { useFacultyHome } from '../hooks/useFacultyHome';
 import { FacultyLaunchpads } from './FacultyLaunchpads';
 import { FacultyOperationalLedger } from './FacultyOperationalLedger';
-import { EvaluationConfirmModal } from '@/features/evaluation/components/EvaluationConfirmModal';
 
-export function FacultyHome() {
-  const navigate = useNavigate();
+export interface FacultyHomeProps {
+  onEvaluate?: (doc: ClientDocument, agent: TargetAgent) => void;
+}
 
+export function FacultyHome({ onEvaluate }: FacultyHomeProps = {}) {
   const {
     isLoading,
     isError,
@@ -34,6 +35,14 @@ export function FacultyHome() {
   const readyModules = stats.ready;
   const inProgressCount = stats.processing;
   const actionRequiredCount = stats.failed + homeData.recentIssues.length;
+
+  const handleEvaluate = (doc: ClientDocument, agent: TargetAgent) => {
+    if (onEvaluate) {
+      onEvaluate(doc, agent);
+    } else {
+      setEvaluatingTarget({ doc, agent });
+    }
+  };
 
   return (
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
@@ -77,30 +86,9 @@ export function FacultyHome() {
         isLoading={isLoading}
         latestEvalsByDocId={latestEvalsByDocId}
         latestEvalsState={latestEvalsState}
-        onEvaluate={(doc, agent) => setEvaluatingTarget({ doc, agent })}
+        onEvaluate={handleEvaluate}
         onRefresh={refetch}
       />
-
-      {/* ── 5. In-Place Targeted Evaluation Modal ───────────────────── */}
-      {evaluatingTarget && (
-        <EvaluationConfirmModal
-          documentId={evaluatingTarget.doc.documentId}
-          documentTitle={evaluatingTarget.doc.title}
-          detectedProgram={evaluatingTarget.doc.program ?? null}
-          targetAgent={evaluatingTarget.agent}
-          onClose={() => setEvaluatingTarget(null)}
-          onSubmitted={(evalId) => {
-            setEvaluatingTarget(null);
-            void navigate({
-              to: '/specialists/$agentId/$documentId',
-              params: {
-                agentId: evaluatingTarget.agent,
-                documentId: evaluatingTarget.doc.documentId,
-              },
-            });
-          }}
-        />
-      )}
     </section>
   );
 }

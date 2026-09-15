@@ -1,15 +1,15 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@/shared/api/documents.api';
+import { documentsApi } from '@equiped/api-client';
 import { evaluationApi } from '../api/evaluation.api';
 import { useSpecialistQueue } from './useSpecialistQueue';
 import {
   isTargetAgent,
   TARGET_AGENT_META,
   type TargetAgent,
-} from '@/shared/types/evaluations';
-import type { ClientDocument } from '@/shared/types/documents';
+} from '@equiped/types';
+import type { ClientDocument } from '@equiped/types';
 import type { DeskQueueItem, DomainScoreBlock } from '../types';
 
 export interface UseSpecialistWorkspaceOptions {

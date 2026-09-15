@@ -1,4 +1,4 @@
-import { cn } from '@/shared/components/utils';
+import { cn } from '@equiped/ui';
 import type { ReferenceLibraryItem } from '../types';
 import {
   formatDate,

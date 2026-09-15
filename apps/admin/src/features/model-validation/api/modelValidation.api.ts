@@ -1,4 +1,4 @@
-import { requestJson } from '@/shared/api/http';
+import { requestJson } from '@equiped/api-client';
 import type {
   AdminEvaluationResponse,
   ModelValidationCreateBody,
