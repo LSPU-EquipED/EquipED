@@ -13,7 +13,7 @@ from server.core.config import get_settings
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..contracts import AgentEvaluationResult, CapturedGeneration
+from ..contracts import AdvisoryOutput, AgentEvaluationResult, CapturedGeneration
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient, call_llm, error_reference
@@ -421,7 +421,7 @@ class GADScoredAgent:
         # Phase 4: deterministic scoring through pure strategy calculators
         t0 = time.perf_counter()
         try:
-            criterion_scores, ev_candidates, ev_accepted, ev_rejected = (
+            criterion_scores, ev_candidates, ev_accepted, ev_rejected, ungrounded = (
                 registry.score_from_combined(
                     combined, frozen_chunks, form_snapshot=form_snapshot
                 )
@@ -533,6 +533,12 @@ class GADScoredAgent:
             envelope_status="repaired" if had_repair else "ok",
         )
 
+        advisory_outputs = (
+            AdvisoryOutput(ungrounded_criteria=tuple(ungrounded))
+            if ungrounded
+            else None
+        )
+
         return AgentEvaluationResult(
             agent_name=self.agent_name,
             evaluation_id=evaluation_id,
@@ -548,6 +554,7 @@ class GADScoredAgent:
             prompt_text=combined_prompt.render_flat(),
             raw_response=json.dumps(combined, ensure_ascii=False),
             provenance=merged_provenance if merged_provenance else None,
+            advisory_outputs=advisory_outputs,
             metadata={
                 "scoring_mode": "single_pass_snapshot_strategies",
                 "llm_call_count": 1 if not had_repair else 2,

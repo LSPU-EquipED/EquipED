@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-import pytest
-from server.modules.agents.exceptions import AgentExecutionError
+from server.modules.agents.contracts import UngroundedCriterionAdvisory
 from server.modules.agents.gad.registry import score_from_combined
 from server.modules.rubrics.contracts import (
     CriterionDefinition,
@@ -88,7 +87,7 @@ def test_score_from_combined_scores_grounded_llm_rubric_guidance() -> None:
             "reasoning": "Direct stereotype statement.",
         }
     }
-    scores, candidates, accepted, rejected = score_from_combined(
+    scores, candidates, accepted, rejected, advisories = score_from_combined(
         combined, _CHUNKS, form_snapshot=snapshot
     )
     assert len(scores) == 1
@@ -98,9 +97,12 @@ def test_score_from_combined_scores_grounded_llm_rubric_guidance() -> None:
     assert candidates == 1
     assert accepted == 1
     assert rejected == 0
+    assert advisories == []
 
 
-def test_score_from_combined_rejects_ungrounded_evidence() -> None:
+def test_score_from_combined_degrades_to_advisory_when_truly_ungrounded() -> None:
+    """Evidence not found in any chunk keeps the model's score, flags advisory,
+    and does not raise -- the whole evaluation must still complete."""
     snapshot = _snapshot_with_one_criterion()
     combined = {
         "gad-01": {
@@ -109,11 +111,30 @@ def test_score_from_combined_rejects_ungrounded_evidence() -> None:
             "chunk_id": "chunk_1",
         }
     }
-    with pytest.raises(AgentExecutionError, match="not grounded"):
-        score_from_combined(combined, _CHUNKS, form_snapshot=snapshot)
+    scores, candidates, accepted, rejected, advisories = score_from_combined(
+        combined, _CHUNKS, form_snapshot=snapshot
+    )
+    assert len(scores) == 1
+    assert scores[0].score == 2
+    assert scores[0].chunk_ids == ()
+    assert scores[0].evidence == ()
+    assert candidates == 1
+    assert accepted == 0
+    assert rejected == 1
+    assert advisories == [
+        UngroundedCriterionAdvisory(
+            criterion_id="GAD-01",
+            reason=(
+                "model evidence could not be grounded in any provided document chunk"
+            ),
+        )
+    ]
 
 
-def test_score_from_combined_rejects_unknown_chunk_id() -> None:
+def test_score_from_combined_grounds_via_fallback_on_wrong_claimed_chunk_id() -> None:
+    """Correct evidence text cited with the wrong chunk_id is now grounded
+    via the fallback search rather than rejected -- this is the exact case
+    this fix targets."""
     snapshot = _snapshot_with_one_criterion()
     combined = {
         "gad-01": {
@@ -122,5 +143,13 @@ def test_score_from_combined_rejects_unknown_chunk_id() -> None:
             "chunk_id": "does_not_exist",
         }
     }
-    with pytest.raises(AgentExecutionError, match="not grounded"):
-        score_from_combined(combined, _CHUNKS, form_snapshot=snapshot)
+    scores, candidates, accepted, rejected, advisories = score_from_combined(
+        combined, _CHUNKS, form_snapshot=snapshot
+    )
+    assert len(scores) == 1
+    assert scores[0].score == 2
+    assert scores[0].chunk_ids == ("chunk_1",)
+    assert scores[0].evidence == ("Women are inherently too emotional for leadership.",)
+    assert accepted == 1
+    assert rejected == 0
+    assert advisories == []

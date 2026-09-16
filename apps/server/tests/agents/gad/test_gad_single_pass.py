@@ -649,7 +649,7 @@ class TestScoreFromCombined:
             gad_04_count=0,
             gad_05_count=0,
         )
-        scores, candidates, accepted, rejected = score_from_combined(
+        scores, candidates, accepted, rejected, _ = score_from_combined(
             payload, _SAMPLE_CHUNKS, self.snap
         )
         score_map = {s.criterion_id: s.score for s in scores}
@@ -681,7 +681,7 @@ class TestScoreFromCombined:
                 {"excerpt": "This is not in any chunk.", "chunk_id": "unknown"},
             ],
         )
-        scores, candidates, accepted, rejected = score_from_combined(
+        scores, candidates, accepted, rejected, _ = score_from_combined(
             payload, _SAMPLE_CHUNKS, self.snap
         )
         score_map = {s.criterion_id: s.score for s in scores}
@@ -817,7 +817,7 @@ class TestScoreFromCombined:
                 {"excerpt": "Only boys should repair computers.", "chunk_id": "c2"},
             ],
         )
-        _, candidates, accepted, rejected = score_from_combined(
+        _, candidates, accepted, rejected, _adv = score_from_combined(
             payload, _SAMPLE_CHUNKS, self.snap
         )
         assert candidates == 2
@@ -1301,7 +1301,7 @@ class TestRepeatability:
             gad_05_count=0,
             gad_05_summary="No issues.",
         )
-        scores, candidates, accepted, rejected = score_from_combined(
+        scores, candidates, accepted, rejected, _ = score_from_combined(
             payload, self.SAMPLE_CHUNKS, make_gad_snapshot()
         )
         return (

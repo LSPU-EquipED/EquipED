@@ -103,3 +103,39 @@ def test_gad_v1_snapshot_still_scores_end_to_end_unchanged() -> None:
     assert result.success is True
     assert len(result.criterion_scores) == 5
     assert result.subtotal == 4.0
+
+
+def test_gad_v2_ungrounded_evidence_degrades_to_advisory_end_to_end() -> None:
+    """Regression guard for the grounding-fallback fix: evidence the model
+    cites that cannot be found in any chunk must NOT fail the whole
+    evaluation -- it degrades to an advisory flag and the run still
+    completes with a score."""
+    eval_id = uuid.uuid4()
+    doc_id = uuid.uuid4()
+    snapshot = make_gad_snapshot_v2(evaluation_id=eval_id)
+
+    response_payload = {
+        "gad-01": {
+            "score": 2,
+            "evidence": "This exact sentence never appears in the document.",
+            "chunk_id": "chunk_1",
+            "reasoning": "Model claims a stereotype but misquoted it.",
+            "summary": "One instance claimed.",
+        }
+    }
+    mock_llm = _MockLLM([json.dumps(response_payload)])
+    gad = GAD(llm_client=mock_llm)
+
+    result = gad.run(
+        evaluation_id=eval_id,
+        document_id=doc_id,
+        chunk_infos=_CHUNKS,
+        form_snapshot=snapshot,
+    )
+
+    assert result.success is True
+    assert len(result.criterion_scores) == 1
+    assert result.criterion_scores[0].score == 2
+    assert result.criterion_scores[0].evidence == ()
+    assert result.advisory_outputs is not None
+    assert result.advisory_outputs.ungrounded_criteria[0].criterion_id == "GAD-01"
