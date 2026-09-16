@@ -1,7 +1,7 @@
 """Shared qualitative llm_rubric_guidance rewrite table and migration runner.
 
 SME's and Coordinator's OP-01..OP-05/A-01..A-04 criteria share identical
-scoring rules (see server/scripts/seed_rubrics.py's SME_STRATEGY_CONFIGS
+scoring rules (see apps/server/scripts/seed_rubrics.py's SME_STRATEGY_CONFIGS
 and _COORDINATOR_STRATEGY_CONFIGS) -- Coordinator "judges each criterion
 the same way the Subject Matter Expert does" per its own prompt preamble.
 So the qualitative rewording is shared verbatim between the two agents'

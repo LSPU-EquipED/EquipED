@@ -1,10 +1,10 @@
 # DPO/LoRA training (standalone)
 
-This directory is intentionally **separate from `server/`** — it runs in
+This directory is intentionally **separate from `apps/server/`** — it runs in
 a different environment (a GPU machine or cloud instance), never inside
 the FastAPI server's own process. Its dependencies (PyTorch,
 `transformers`, `peft`, `trl`) are large and GPU-oriented; keeping them
-out of `server/pyproject.toml` keeps the API server's own install light.
+out of `apps/server/pyproject.toml` keeps the API server's own install light.
 
 ## What's here
 

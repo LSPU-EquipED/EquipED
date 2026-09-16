@@ -1,14 +1,14 @@
 """Standalone DPO/LoRA fine-tuning script for EquipED agent adapters.
 
-Deliberately standalone -- NOT part of the server/ FastAPI project. This
+Deliberately standalone -- NOT part of the apps/server/ FastAPI project. This
 script is meant to be copied to (or run from) a separate GPU training
 environment; see training/requirements.txt for its own, isolated
-dependency set. It has no import dependency on anything under server/.
+dependency set. It has no import dependency on anything under apps/server/.
 
 Input: a JSONL file of DPO pairs, one object per line with keys
 "prompt", "chosen", "rejected" -- exactly what
-server/scripts/export_score_level_dpo_pairs.py and
-server/scripts/export_item_level_dpo_pairs.py already produce.
+apps/server/scripts/export_score_level_dpo_pairs.py and
+apps/server/scripts/export_item_level_dpo_pairs.py already produce.
 
 Output: a LoRA adapter directory (not a merged model) that can be loaded
 alongside the frozen base model at inference time.

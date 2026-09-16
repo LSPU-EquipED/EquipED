@@ -1,6 +1,6 @@
 # Standalone requirements for the DPO/LoRA training script.
 #
-# Deliberately NOT part of server/pyproject.toml: training runs in a
+# Deliberately NOT part of apps/server/pyproject.toml: training runs in a
 # separate GPU environment, never inside the FastAPI server's own
 # process, so these (large, GPU-oriented) dependencies must not bloat
 # the API server's dependency tree.
