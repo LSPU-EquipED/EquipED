@@ -73,6 +73,11 @@ def test_capabilities_registry():
     assert cap_itso.supports_score_edit is True
     assert cap_itso.supports_item_rejection is False
 
+    cap_gad_scores = get_contract_capability("gad_scores.v1", 1)
+    assert cap_gad_scores.supports_score_edit is True
+    assert cap_gad_scores.supports_item_rejection is False
+    assert cap_gad_scores.skip_reason is None
+
     cap_unknown = get_contract_capability("unknown.v99", 1)
     assert cap_unknown.supports_score_edit is False
     assert "unsupported_contract" in (cap_unknown.skip_reason or "")
@@ -326,6 +331,85 @@ def test_export_itso_score_and_justification(db_session, seeded_user, tmp_path: 
     )
 
 
+def test_export_gad_scores_edit(db_session, seeded_user, tmp_path: Path):
+    job, doc = _setup_job_and_snapshots(db_session, seeded_user.user_id)
+    res_id = uuid4()
+    gen_id = uuid4()
+
+    orig_response = {
+        "gad-01": {
+            "score": 2,
+            "evidence": "Women are inherently too emotional for leadership.",
+            "chunk_id": "c1",
+            "reasoning": "Direct stereotype statement.",
+            "summary": "One instance found.",
+        }
+    }
+
+    db_session.add(
+        AgentResult(
+            agent_result_id=res_id,
+            evaluation_id=job.evaluation_id,
+            document_id=doc.document_id,
+            agent_name="gad",
+            model_name="gemma-3-4b",
+            success=True,
+            envelope_status={"envelope_0": "ok"},
+        )
+    )
+    db_session.add(
+        AgentGeneration(
+            generation_id=gen_id,
+            agent_result_id=res_id,
+            evaluation_id=job.evaluation_id,
+            document_id=doc.document_id,
+            agent_id="gad",
+            unit_key="envelope_0",
+            criterion_ids=["GAD-01"],
+            prompt_text="GAD Prompt",
+            response_text=json.dumps(orig_response),
+            response_json=orig_response,
+            response_contract_key="gad_scores.v1",
+            response_contract_version=1,
+            model_name="gemma-3-4b",
+            envelope_status="ok",
+            prompt_sha256="abc",
+            response_sha256="def",
+        )
+    )
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="gad",
+            criterion_id="GAD-01",
+            action="EDIT",
+            edited_json={
+                "score": 3,
+                "justification": "Only one isolated instance, not pervasive.",
+            },
+        )
+    )
+    db_session.commit()
+
+    output_dir = tmp_path / "gad_scores_package"
+    manifest = export_dpo_package(
+        session=db_session,
+        agent_id="gad",
+        output_dir=output_dir,
+    )
+
+    assert manifest.pair_count == 1
+    gad_lines = (output_dir / "pairs.jsonl").read_text().splitlines()
+    pairs_data = [json.loads(line) for line in gad_lines if line]
+    chosen_obj = json.loads(pairs_data[0]["chosen"])
+    assert chosen_obj["gad-01"]["score"] == 3
+    assert (
+        chosen_obj["gad-01"]["reasoning"]
+        == "Only one isolated instance, not pervasive."
+    )
+
+
 def test_export_gad_skip_behavior(db_session, seeded_user, tmp_path: Path):
     job, doc = _setup_job_and_snapshots(db_session, seeded_user.user_id)
     res_id = uuid4()
@@ -387,9 +471,7 @@ def test_export_gad_skip_behavior(db_session, seeded_user, tmp_path: Path):
 
     assert manifest.pair_count == 0
     assert (
-        manifest.skipped_counts.get(
-            "gad_score_edit_ineligible_for_extraction_contract"
-        )
+        manifest.skipped_counts.get("gad_score_edit_ineligible_for_extraction_contract")
         == 1
     )
 
@@ -531,6 +613,7 @@ def test_atomic_directory_write_and_dry_run(db_session, seeded_user, tmp_path: P
 
 def test_trainer_package_validation(tmp_path: Path):
     import sys
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "training"))
     try:
         from train_dpo_lora import _resolve_package

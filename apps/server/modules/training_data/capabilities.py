@@ -39,6 +39,13 @@ _CAPABILITIES: Final[dict[tuple[str, int], ContractCapability]] = {
         supports_item_rejection=False,
         skip_reason=None,
     ),
+    ("gad_scores.v1", 1): ContractCapability(
+        contract_key="gad_scores.v1",
+        version=1,
+        supports_score_edit=True,
+        supports_item_rejection=False,
+        skip_reason=None,
+    ),
 }
 
 

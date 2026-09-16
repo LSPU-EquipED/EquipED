@@ -74,6 +74,8 @@ def test_gad_v2_snapshot_scores_end_to_end() -> None:
     assert result.criterion_scores[0].criterion_id == "GAD-01"
     assert result.criterion_scores[0].score == 2
     assert result.subtotal == 2.0
+    assert len(result.generations) == 1
+    assert result.generations[0].response_contract_key == "gad_scores.v1"
 
 
 def test_gad_v1_snapshot_still_scores_end_to_end_unchanged() -> None:
@@ -103,6 +105,8 @@ def test_gad_v1_snapshot_still_scores_end_to_end_unchanged() -> None:
     assert result.success is True
     assert len(result.criterion_scores) == 5
     assert result.subtotal == 4.0
+    assert len(result.generations) == 1
+    assert result.generations[0].response_contract_key == "gad_extraction.v1"
 
 
 def test_gad_v2_ungrounded_evidence_degrades_to_advisory_end_to_end() -> None:

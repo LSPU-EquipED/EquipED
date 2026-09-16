@@ -11,6 +11,7 @@ from typing import Any
 
 from server.core.config import get_settings
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
+from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AdvisoryOutput, AgentEvaluationResult, CapturedGeneration
@@ -454,6 +455,9 @@ class GADScoredAgent:
         )
 
         criteria = [c for d in form_snapshot.form.domains for c in d.criteria]
+        is_score_shaped = all(
+            isinstance(c.strategy_config, LlmRubricGuidanceConfig) for c in criteria
+        )
         summaries_list: list[str] = []
         for crit in criteria:
             section = combined.get(crit.criterion_code.strip().casefold(), {})
@@ -527,7 +531,9 @@ class GADScoredAgent:
             ),
             response_text=json.dumps(combined, ensure_ascii=False),
             response_json=combined,
-            response_contract_key="gad_extraction.v1",
+            response_contract_key=(
+                "gad_scores.v1" if is_score_shaped else "gad_extraction.v1"
+            ),
             response_contract_version=1,
             model_name=run_client.model,
             envelope_status="repaired" if had_repair else "ok",
