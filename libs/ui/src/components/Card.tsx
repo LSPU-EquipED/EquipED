@@ -35,7 +35,7 @@ export const CardDescription = forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn(TYPOGRAPHY.labelMuted, className)} {...props} />
+  <p ref={ref} className={cn('text-xs text-text-muted leading-relaxed', className)} {...props} />
 ));
 CardDescription.displayName = 'CardDescription';
 

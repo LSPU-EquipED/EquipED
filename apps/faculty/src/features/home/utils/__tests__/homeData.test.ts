@@ -173,6 +173,23 @@ describe('homeData helpers', () => {
     expect(homeData.recentEvaluations).toHaveLength(4);
   });
 
+  it('preserves specialist provenance for active evaluations from latest status data', () => {
+    const latestEvals: Record<string, LatestEvaluationItem> = {
+      'doc-1': {
+        document_id: 'doc-1',
+        evaluation_id: 'eval-gad',
+        status: 'EVALUATING',
+        target_agent: 'gad',
+        submitted_at: '2026-08-21T09:30:00Z',
+      },
+    };
+
+    const homeData = deriveFacultyHomeData(mockDocuments, [], latestEvals, true);
+
+    expect(homeData.activeEvaluation?.evaluation_id).toBe('eval-gad');
+    expect(homeData.activeEvaluation?.target_agent).toBe('gad');
+  });
+
   it('selects unevaluated PROCESSED document as ready banner candidate after batch status succeeds', () => {
     // doc-1 is already evaluating (eval-1), doc-4 is PROCESSED with NO evaluation
     const latestEvals: Record<string, LatestEvaluationItem> = {

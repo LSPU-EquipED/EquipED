@@ -14,7 +14,7 @@ import { isTargetAgent } from '@equiped/types';
 
 // Lazy Faculty Feature Pages
 const FacultyHomePage = lazyRouteComponent(
-  () => import('./pages/FacultyHomePage'),
+  () => import('../features/home/pages/FacultyHomePage'),
   'FacultyHomePage',
 );
 const DocumentsPage = lazyRouteComponent(

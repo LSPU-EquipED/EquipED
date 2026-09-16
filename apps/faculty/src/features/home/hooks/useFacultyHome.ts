@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
-import type { ClientDocument, DocumentStats } from '@equiped/types';
-import type { TargetAgent } from '@equiped/types';
+import type { DocumentStats } from '@equiped/types';
 import { homeApi } from '../api/home.api';
 import {
   deriveFacultyHomeData,
@@ -11,11 +10,6 @@ import {
 } from '../utils/homeData';
 
 export function useFacultyHome() {
-  const [evaluatingTarget, setEvaluatingTarget] = useState<{
-    doc: ClientDocument;
-    agent: TargetAgent;
-  } | null>(null);
-
   const documentsQuery = useQuery({
     queryKey: ['documents', { sourceType: 'slm' }],
     queryFn: () => homeApi.listSlms(),
@@ -44,20 +38,9 @@ export function useFacultyHome() {
 
   const {
     latestEvalsByDocId,
-    isLoading: isLatestEvalsLoading,
-    isError: isLatestEvalsError,
     isSuccess: isLatestEvalsSuccess,
     refetch: refetchLatestEvals,
   } = useLatestEvaluations(documentIds);
-
-  const latestEvalsState = useMemo(
-    () => ({
-      isLoading: isLatestEvalsLoading,
-      isError: isLatestEvalsError,
-      isSuccess: isLatestEvalsSuccess,
-    }),
-    [isLatestEvalsLoading, isLatestEvalsError, isLatestEvalsSuccess],
-  );
 
   const isLoading =
     (documentsQuery.isLoading && !documentsQuery.data) ||
@@ -104,12 +87,7 @@ export function useFacultyHome() {
     error,
     stats,
     homeData,
-    documents,
     evaluations,
-    latestEvalsByDocId,
-    latestEvalsState,
-    evaluatingTarget,
-    setEvaluatingTarget,
     refetch,
   };
 }
