@@ -13,7 +13,7 @@ from server.core.config import get_settings
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..contracts import AgentEvaluationResult
+from ..contracts import AgentEvaluationResult, CapturedGeneration
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient, call_llm, error_reference
@@ -507,6 +507,32 @@ class GADScoredAgent:
             actual_model,
         )
 
+        generation = CapturedGeneration(
+            unit_key="envelope_0",
+            criterion_ids=tuple(
+                c.criterion_code for d in form_snapshot.form.domains for c in d.criteria
+            ),
+            prompt_text=(
+                combined_prompt.render_flat()
+                if hasattr(combined_prompt, "render_flat")
+                else str(combined_prompt)
+            ),
+            prompt_messages=(
+                tuple(
+                    {"role": m.role, "content": m.content}
+                    for m in combined_prompt.messages
+                )
+                if hasattr(combined_prompt, "messages")
+                else None
+            ),
+            response_text=json.dumps(combined, ensure_ascii=False),
+            response_json=combined,
+            response_contract_key="gad_extraction.v1",
+            response_contract_version=1,
+            model_name=run_client.model,
+            envelope_status="ok",
+        )
+
         return AgentEvaluationResult(
             agent_name=self.agent_name,
             evaluation_id=evaluation_id,
@@ -529,6 +555,7 @@ class GADScoredAgent:
                 "extraction_schema_version": envelope.EXTRACTION_SCHEMA_VERSION,
                 "registry_version": registry.REGISTRY_VERSION,
             },
+            generations=(generation,),
         )
 
 
@@ -598,6 +625,7 @@ def _failed_result(
             ),
             "prompt_version": str(prompt_version_id) if prompt_version_id else None,
         },
+        generations=(),
     )
 
 
