@@ -22,10 +22,16 @@ class PreferenceLog(Base):
         ),
         Index("idx_pref_logs_action", "action"),
         Index("idx_pref_logs_created_at", sa.text("created_at DESC")),
+        Index("idx_pref_logs_generation_id", "generation_id"),
     )
 
     log_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    generation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("agent_generations.generation_id", ondelete="SET NULL"),
+        nullable=True,
     )
     evaluation_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),

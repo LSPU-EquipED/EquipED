@@ -116,6 +116,22 @@ class CriterionScore:
 
 
 @dataclass(frozen=True, slots=True)
+class CapturedGeneration:
+    unit_key: str
+    criterion_ids: tuple[str, ...]
+    prompt_text: str
+    prompt_messages: tuple[dict[str, str], ...] | None
+    response_text: str
+    response_json: dict[str, Any] | None
+    response_contract_key: str
+    response_contract_version: int
+    model_name: str
+    envelope_status: str = "ok"
+    generation_provenance: dict[str, Any] | None = None
+    prompt_version_id: uuid.UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AgentEvaluationResult:
     """Normalized output produced by a single domain agent."""
 
@@ -136,6 +152,7 @@ class AgentEvaluationResult:
     metadata: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] | None = None
     advisory_outputs: AdvisoryOutput | None = None
+    generations: tuple[CapturedGeneration, ...] = ()
 
     @property
     def criterion_count(self) -> int:
@@ -145,6 +162,7 @@ class AgentEvaluationResult:
 __all__ = [
     "AdvisoryOutput",
     "AgentEvaluationResult",
+    "CapturedGeneration",
     "CriterionScore",
     "UngroundedCriterionAdvisory",
 ]

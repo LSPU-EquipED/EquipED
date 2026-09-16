@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -27,6 +28,7 @@ from server.modules.rubrics.snapshot_contracts import (
 from server.modules.rubrics.snapshots import load_verified_evaluation_snapshots
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.models import (
+    AgentGeneration,
     AgentResult,
     CriterionScore,
     EvaluationFlag,
@@ -247,6 +249,44 @@ def persist_agent_outputs(
             form_snapshot_id=p_result.form_snapshot_id,
         )
         db.add(result_row)
+        db.flush()
+
+        for gen in p_result.generations:
+            prompt_sha256 = hashlib.sha256(
+                gen.prompt_text.encode("utf-8")
+            ).hexdigest()
+            response_sha256 = hashlib.sha256(
+                gen.response_text.encode("utf-8")
+            ).hexdigest()
+            prompt_messages_data = (
+                [dict(m) for m in gen.prompt_messages]
+                if gen.prompt_messages is not None
+                else None
+            )
+            gen_row = AgentGeneration(
+                generation_id=uuid.uuid4(),
+                agent_result_id=result_row.agent_result_id,
+                form_snapshot_id=p_result.form_snapshot_id,
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                agent_id=p_result.agent_name,
+                unit_key=gen.unit_key,
+                criterion_ids=list(gen.criterion_ids),
+                prompt_text=gen.prompt_text,
+                prompt_messages=prompt_messages_data,
+                response_text=gen.response_text,
+                response_json=gen.response_json,
+                response_contract_key=gen.response_contract_key,
+                response_contract_version=gen.response_contract_version,
+                model_name=gen.model_name,
+                prompt_version_id=gen.prompt_version_id or p_result.prompt_version_id,
+                envelope_status=gen.envelope_status,
+                generation_provenance=gen.generation_provenance,
+                prompt_sha256=prompt_sha256,
+                response_sha256=response_sha256,
+                capture_origin="native",
+            )
+            db.add(gen_row)
         db.flush()
 
         if not p_result.success:

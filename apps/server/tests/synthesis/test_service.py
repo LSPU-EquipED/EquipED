@@ -643,3 +643,99 @@ def test_get_evaluation_results_surfaces_item_level_correction(db_session, seede
     # A criterion with no item rejections gets no item-level display at all.
     op02 = by_id["OP-02"]
     assert op02.corrected_score is None
+
+
+def test_persist_agent_outputs_saves_captured_generations(
+    db_session, seeded_user
+):
+    """Verify CapturedGeneration dataclasses are persisted to agent_generations."""
+    import hashlib
+
+    from server.modules.agents.contracts import CapturedGeneration
+    from server.modules.documents.models import Document
+    from server.modules.evaluations.models import EvaluationJob
+    from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
+    from server.modules.synthesis.models import AgentGeneration
+    from server.modules.synthesis.service import persist_agent_outputs
+    from server.tests.evaluations.snapshot_test_helpers import make_agent_result
+    from server.tests.rubrics.helpers import seed_all_rubrics
+
+    document_id = uuid4()
+    db_session.add(
+        Document(
+            document_id=document_id,
+            title="test_doc_gens",
+            program="BSCS",
+            source_type="slm",
+            file_path=f"uploads/{document_id}.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=datetime.now(UTC),
+            page_count=1,
+            has_ocr_pages=False,
+            processing_status="PROCESSED",
+        )
+    )
+    db_session.flush()
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=document_id,
+        submitted_by=seeded_user.user_id,
+        status="COMPLETED",
+        target_agent="sme",
+    )
+    db_session.add(job)
+    db_session.flush()
+
+    seed_all_rubrics(db_session)
+    resolve_or_reuse_evaluation_snapshots(db_session, job.evaluation_id, ("sme",))
+    db_session.commit()
+
+    p_text = "Prompt instructions for SME"
+    r_text = '{"criterion_measurements": []}'
+    captured_gen = CapturedGeneration(
+        unit_key="unit_1",
+        criterion_ids=("OP-01", "OP-02"),
+        prompt_text=p_text,
+        prompt_messages=({"role": "user", "content": p_text},),
+        response_text=r_text,
+        response_json={"criterion_measurements": []},
+        response_contract_key="sme_measurement_v1",
+        response_contract_version=1,
+        model_name="test-model",
+        envelope_status="ok",
+        generation_provenance={"time": 1.23},
+    )
+
+    sme_result = make_agent_result(
+        "sme",
+        job.evaluation_id,
+        document_id,
+        generations=(captured_gen,),
+    )
+
+    persist_agent_outputs(
+        db_session,
+        job.evaluation_id,
+        document_id,
+        [sme_result],
+        verify_ownership=lambda db: None,
+    )
+
+    gens = (
+        db_session.query(AgentGeneration)
+        .filter(AgentGeneration.evaluation_id == job.evaluation_id)
+        .all()
+    )
+    assert len(gens) == 1
+    g = gens[0]
+    assert g.unit_key == "unit_1"
+    assert g.criterion_ids == ["OP-01", "OP-02"]
+    assert g.prompt_text == p_text
+    assert g.prompt_sha256 == hashlib.sha256(p_text.encode("utf-8")).hexdigest()
+    assert g.response_text == r_text
+    assert g.response_sha256 == hashlib.sha256(r_text.encode("utf-8")).hexdigest()
+    assert g.capture_origin == "native"
+    assert g.envelope_status == "ok"
+    assert g.model_name == "test-model"
+    assert g.response_contract_key == "sme_measurement_v1"
+    assert g.agent_id == "sme"

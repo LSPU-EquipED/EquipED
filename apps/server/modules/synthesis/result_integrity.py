@@ -12,6 +12,7 @@ from typing import Any
 from server.modules.agents.contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
+    CapturedGeneration,
 )
 from server.modules.agents.contracts import (
     CriterionScore as InputCriterionScore,
@@ -146,6 +147,7 @@ class PersistableAgentResult:
     advisory_outputs_json: str | None
     advisory_output_dto: AdvisoryOutput | None
     criterion_scores: tuple[PersistableCriterionScore, ...]
+    generations: tuple[CapturedGeneration, ...] = ()
 
 
 def build_persistable_agent_result(
@@ -252,6 +254,7 @@ def build_persistable_agent_result(
             advisory_outputs_json=None,
             advisory_output_dto=None,
             criterion_scores=(),
+            generations=(),
         )
 
     # Success validations
@@ -526,6 +529,86 @@ def build_persistable_agent_result(
                 "ITSO advisory criteria mismatch against derived ungrounded set"
             )
 
+    if not isinstance(result.generations, tuple):
+        raise EvaluationResultIntegrityError("generations must be a tuple")
+
+    validated_generations: list[CapturedGeneration] = []
+    seen_unit_keys: set[str] = set()
+    for gen in result.generations:
+        if not isinstance(gen, CapturedGeneration):
+            raise EvaluationResultIntegrityError(
+                "Each generation must be a CapturedGeneration instance"
+            )
+        if not isinstance(gen.unit_key, str) or not gen.unit_key.strip():
+            raise EvaluationResultIntegrityError("unit_key must be a non-empty string")
+        if gen.unit_key in seen_unit_keys:
+            raise EvaluationResultIntegrityError(
+                f"Duplicate unit_key '{gen.unit_key}' in generations"
+            )
+        seen_unit_keys.add(gen.unit_key)
+
+        if (
+            not isinstance(gen.criterion_ids, tuple)
+            or len(gen.criterion_ids) == 0
+            or not all(
+                isinstance(cid, str) and cid.strip() for cid in gen.criterion_ids
+            )
+        ):
+            raise EvaluationResultIntegrityError(
+                "criterion_ids must be a non-empty tuple of non-empty strings"
+            )
+        for cid in gen.criterion_ids:
+            if cid not in snapshot.criterion_codes_set:
+                raise EvaluationResultIntegrityError(
+                    f"Unknown criterion_id '{cid}' in captured generation"
+                )
+
+        if not isinstance(gen.prompt_text, str) or not gen.prompt_text.strip():
+            raise EvaluationResultIntegrityError("prompt_text must be non-empty")
+
+        if not isinstance(gen.response_text, str) or not gen.response_text.strip():
+            raise EvaluationResultIntegrityError("response_text must be non-empty")
+
+        if gen.envelope_status not in _VALID_ENVELOPE_STATUSES:
+            raise EvaluationResultIntegrityError(
+                f"Invalid envelope_status '{gen.envelope_status}' in generation"
+            )
+
+        if (
+            not isinstance(gen.response_contract_key, str)
+            or not gen.response_contract_key.strip()
+        ):
+            raise EvaluationResultIntegrityError(
+                "response_contract_key must be non-empty"
+            )
+        if isinstance(gen.response_contract_version, bool) or not isinstance(
+            gen.response_contract_version, int
+        ):
+            raise EvaluationResultIntegrityError(
+                "response_contract_version must be an integer"
+            )
+        if not isinstance(gen.model_name, str) or not gen.model_name.strip():
+            raise EvaluationResultIntegrityError("model_name must be non-empty")
+
+        if gen.prompt_messages is not None:
+            if not isinstance(gen.prompt_messages, tuple) or not all(
+                isinstance(m, dict)
+                and isinstance(m.get("role"), str)
+                and isinstance(m.get("content"), str)
+                for m in gen.prompt_messages
+            ):
+                raise EvaluationResultIntegrityError(
+                    "prompt_messages must be a tuple of dicts with role and content"
+                )
+
+        if gen.response_json is not None:
+            _validate_json_depth_and_types(gen.response_json)
+
+        if gen.generation_provenance is not None:
+            _validate_json_depth_and_types(gen.generation_provenance)
+
+        validated_generations.append(gen)
+
     return PersistableAgentResult(
         agent_name=result.agent_name,
         evaluation_id=result.evaluation_id,
@@ -548,6 +631,7 @@ def build_persistable_agent_result(
         advisory_outputs_json=adv_json,
         advisory_output_dto=adv_dto,
         criterion_scores=tuple(scores_out),
+        generations=tuple(validated_generations),
     )
 
 
