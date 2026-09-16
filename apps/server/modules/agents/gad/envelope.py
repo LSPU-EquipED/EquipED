@@ -11,6 +11,7 @@ from typing import Any
 from server.modules.rubrics.contracts import (
     CountBandConfig,
     CriterionDefinition,
+    LlmRubricGuidanceConfig,
     RatioBandConfig,
 )
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
@@ -101,6 +102,38 @@ def extraction_schema(form_snapshot: EvaluationFormSnapshotDTO) -> dict[str, Any
                                 },
                             },
                         },
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000,
+                    },
+                },
+            }
+        elif isinstance(config, LlmRubricGuidanceConfig):
+            properties[section_key] = {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["score", "evidence", "chunk_id", "summary"],
+                "properties": {
+                    "score": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 4,
+                    },
+                    "evidence": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000,
+                    },
+                    "chunk_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 50,
+                    },
+                    "reasoning": {
+                        "type": "string",
+                        "maxLength": 4000,
                     },
                     "summary": {
                         "type": "string",
@@ -241,8 +274,13 @@ def parse_combined_response(
             f"GAD combined response missing required sections: {sorted(missing)}"
         )
 
-    # --- Reject numeric-score fields at every level ---
-    _reject_score_fields(normalised)
+    # --- Reject numeric-score fields at every level, except inside
+    # llm_rubric_guidance sections which legitimately carry "score" ---
+    for section_key, section_val in normalised.items():
+        crit_def = expected_by_key[section_key]
+        if isinstance(crit_def.strategy_config, LlmRubricGuidanceConfig):
+            continue
+        _reject_score_fields(section_val, path=section_key)
 
     # --- Validate each section's strict schema ---
     for section_key, crit_def in expected_by_key.items():
@@ -426,6 +464,55 @@ def _validate_section_for_criterion(
                 MAX_INSTANCES_PER_CRITERION,
             )
             section_val["instances"] = raw_instances[:MAX_INSTANCES_PER_CRITERION]
+    elif isinstance(config, LlmRubricGuidanceConfig):
+        allowed_fields = frozenset(
+            {"score", "evidence", "chunk_id", "reasoning", "summary"}
+        )
+        extra = set(section_val) - allowed_fields
+        if extra:
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' has unapproved field(s): {sorted(extra)}"
+            )
+        score = section_val.get("score")
+        if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 4:
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' field 'score' must be an integer "
+                f"1..4, got {score!r}"
+            )
+        evidence = section_val.get("evidence")
+        if (
+            not isinstance(evidence, str)
+            or not evidence.strip()
+            or len(evidence) > 4000
+        ):
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' requires a non-empty 'evidence' "
+                f"string (max 4000 chars)"
+            )
+        chunk_id = section_val.get("chunk_id")
+        if (
+            not isinstance(chunk_id, str)
+            or not chunk_id.strip()
+            or len(chunk_id) > 50
+        ):
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' requires a non-empty 'chunk_id' "
+                f"string (max 50 chars)"
+            )
+        reasoning = section_val.get("reasoning")
+        if reasoning is not None and (
+            not isinstance(reasoning, str) or len(reasoning) > 4000
+        ):
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' field 'reasoning' must be a "
+                f"string (max 4000 chars)"
+            )
+        summary = section_val.get("summary")
+        if not isinstance(summary, str) or not summary.strip() or len(summary) > 4000:
+            raise AgentExecutionError(
+                f"GAD section '{section_key}' requires a non-empty summary "
+                f"(max 4000 chars)"
+            )
     else:
         raise AgentExecutionError(
             f"Unsupported strategy config for criterion {crit_def.criterion_code}"
