@@ -252,17 +252,11 @@ def _extract_topic_batch(
     valid: list[dict[str, Any]] = []
     repairable: list[dict[str, Any]] = []
     for index, item in enumerate(data.get("topics", [])):
-        segment_id = str(
-            item.get("slm_segment_id") or item.get("slm_chunk_id") or ""
-        )
+        segment_id = str(item.get("slm_segment_id") or item.get("slm_chunk_id") or "")
         evidence = str(item.get("slm_evidence", "")).strip()
         topic = _normalize_topic_label(str(item.get("topic", "")))
         source = allowed.get(segment_id)
-        if (
-            not source
-            or not evidence
-            or evidence not in str(source.get("text", ""))
-        ):
+        if not source or not evidence or evidence not in str(source.get("text", "")):
             continue
         candidate = {
             "candidate_id": f"B{offset // _TOPIC_BATCH_SIZE + 1}C{index + 1}",

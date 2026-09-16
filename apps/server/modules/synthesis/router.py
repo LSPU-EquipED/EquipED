@@ -73,7 +73,6 @@ def get_monitoring_matrix(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-
 @router.get("/matrix/{document_id}", response_model=MasterSynthesisDetailResponse)
 def get_master_synthesis_detail(
     document_id: uuid.UUID,
@@ -84,5 +83,6 @@ def get_master_synthesis_detail(
         return service_get_master_synthesis_detail(db=db, document_id=document_id)
     except MonitoringMatrixNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
 
 __all__ = ["router"]

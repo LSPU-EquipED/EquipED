@@ -42,7 +42,7 @@ UPDATED_ITSO_PROMPT = (
     "4 = Very Satisfactory \u2014 proactively addresses data privacy, recommends secure "
     "tools, and models good digital safety practices\n\n"
     "OUTPUT FORMAT:\n"
-    'Return a JSON object with:\n'
+    "Return a JSON object with:\n"
     '- "summary": A 2-3 sentence assessment of the SLM\u2019s privacy, security, '
     "and technology guidance.\n"
     '- "criterion_scores": An array of objects, one per rubric criterion. Each must have:\n'
@@ -91,8 +91,10 @@ def upgrade() -> None:
     # Determine next version_number for ITSO
     conn = op.get_bind()
     max_version = conn.execute(
-        sa.text("SELECT COALESCE(MAX(version_number), 0) + 1 FROM prompt_versions"
-                " WHERE agent_id = 'itso'")
+        sa.text(
+            "SELECT COALESCE(MAX(version_number), 0) + 1 FROM prompt_versions"
+            " WHERE agent_id = 'itso'"
+        )
     ).scalar()
 
     # Insert new version with updated scoring labels
@@ -116,17 +118,20 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Delete the new ITSO prompt version
     op.execute(
-        "DELETE FROM prompt_versions"
-        " WHERE version_id = '{}'".format(ITSO_NEW_VERSION_ID)
+        "DELETE FROM prompt_versions WHERE version_id = '{}'".format(
+            ITSO_NEW_VERSION_ID
+        )
     )
 
     # Reactivate the previous version (the one with highest version_number before the new one)
     conn = op.get_bind()
     prev_version = conn.execute(
-        sa.text("SELECT version_id FROM prompt_versions"
-                " WHERE agent_id = 'itso'"
-                " ORDER BY version_number DESC"
-                " LIMIT 1")
+        sa.text(
+            "SELECT version_id FROM prompt_versions"
+            " WHERE agent_id = 'itso'"
+            " ORDER BY version_number DESC"
+            " LIMIT 1"
+        )
     ).scalar()
     if prev_version:
         op.execute(

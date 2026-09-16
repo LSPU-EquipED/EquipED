@@ -206,9 +206,7 @@ def _validate_evaluation_target(
 
             has_link = (
                 db.query(UserDocument)
-                .filter_by(
-                    user_id=current_user_id, document_id=document.document_id
-                )
+                .filter_by(user_id=current_user_id, document_id=document.document_id)
                 .first()
             )
             if has_link is None:

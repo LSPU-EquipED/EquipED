@@ -78,7 +78,12 @@ class DocumentPagesResponse(BaseModel):
 
 
 __all__ = [
-    "ObjectiveResultResponse", "AlignmentCheckSummary", "RunAlignmentCheckRequest",
-    "AlignmentCheckResponse", "AlignmentCheckListItemResponse",
-    "AlignmentCheckListResponse", "DocumentPageResponse", "DocumentPagesResponse",
+    "ObjectiveResultResponse",
+    "AlignmentCheckSummary",
+    "RunAlignmentCheckRequest",
+    "AlignmentCheckResponse",
+    "AlignmentCheckListItemResponse",
+    "AlignmentCheckListResponse",
+    "DocumentPageResponse",
+    "DocumentPagesResponse",
 ]

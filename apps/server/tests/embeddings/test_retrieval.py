@@ -38,7 +38,9 @@ def test_retrieve_context_with_embedding_delegates(monkeypatch) -> None:
 
     embedding = [0.1, 0.2, 0.3]
     results = retrieve_context_with_embedding(
-        embedding, "test_collection", n_results=3,
+        embedding,
+        "test_collection",
+        n_results=3,
     )
 
     assert len(results) == 1
@@ -58,9 +60,7 @@ def test_retrieve_context_logs_warning_and_returns_empty_on_failure(
 ) -> None:
     """A retrieval failure should still return [] (Phase 1 contract) but
     emit a warning that includes the collection name for triage."""
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.embeddings.retrieval"
-    )
+    caplog.set_level(logging.WARNING, logger="server.modules.embeddings.retrieval")
 
     def broken_model():
         raise RuntimeError("embedding model exploded")
@@ -74,8 +74,7 @@ def test_retrieve_context_logs_warning_and_returns_empty_on_failure(
 
     assert results == []
     assert any(
-        "retrieve_context failed" in r.message
-        and "test_collection" in r.message
+        "retrieve_context failed" in r.message and "test_collection" in r.message
         for r in caplog.records
     ), f"expected retrieval failure warning, got: {[r.message for r in caplog.records]}"
 
@@ -85,9 +84,7 @@ def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
 ) -> None:
     """A pre-embedded retrieval failure should still return [] (Phase 1
     contract) but emit a warning that includes the collection name."""
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.embeddings.retrieval"
-    )
+    caplog.set_level(logging.WARNING, logger="server.modules.embeddings.retrieval")
 
     class FakeChroma:
         def get_collection(self, name):
@@ -99,7 +96,9 @@ def test_retrieve_context_with_embedding_logs_warning_and_returns_empty(
     )
 
     results = retrieve_context_with_embedding(
-        [0.1, 0.2, 0.3], "test_collection", n_results=3,
+        [0.1, 0.2, 0.3],
+        "test_collection",
+        n_results=3,
     )
 
     assert results == []

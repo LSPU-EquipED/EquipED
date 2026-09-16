@@ -44,8 +44,7 @@ def _snapshot_with_one_criterion():
                 LlmScoreDescriptor(
                     score=3,
                     descriptor=(
-                        "At most one isolated instance of gender "
-                        "stereotyping or bias."
+                        "At most one isolated instance of gender stereotyping or bias."
                     ),
                 ),
                 LlmScoreDescriptor(
@@ -95,9 +94,7 @@ def test_score_from_combined_scores_grounded_llm_rubric_guidance() -> None:
     assert len(scores) == 1
     assert scores[0].score == 2
     assert scores[0].chunk_ids == ("chunk_1",)
-    assert scores[0].evidence == (
-        "Women are inherently too emotional for leadership.",
-    )
+    assert scores[0].evidence == ("Women are inherently too emotional for leadership.",)
     assert candidates == 1
     assert accepted == 1
     assert rejected == 0

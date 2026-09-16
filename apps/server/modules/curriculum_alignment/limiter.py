@@ -150,9 +150,7 @@ class AlignmentCheckLimiter:
 
     def _allocate_locked(self, user_key: str) -> None:
         self._global_inflight += 1
-        self._per_user_inflight[user_key] = (
-            self._per_user_inflight.get(user_key, 0) + 1
-        )
+        self._per_user_inflight[user_key] = self._per_user_inflight.get(user_key, 0) + 1
 
     def _drain_waiters_locked(self) -> None:
         # Best effort: grant earliest-compatible waiters until no capacity remains

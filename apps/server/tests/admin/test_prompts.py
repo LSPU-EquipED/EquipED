@@ -89,7 +89,9 @@ def test_admin_preferences_access_control(
     assert response.json() == {"items": [], "total": 0, "page": 1, "page_size": 20}
 
 
-def test_create_prompt_version(client: TestClient, auth_cookies_admin, db_session) -> None:
+def test_create_prompt_version(
+    client: TestClient, auth_cookies_admin, db_session
+) -> None:
     _auth(client, auth_cookies_admin)
     response = client.post(
         "/api/v1/admin/prompts/sme",
@@ -135,7 +137,9 @@ def test_create_prompt_deactivates_previous(
     assert sum(1 for v in versions if v.is_active) == 1
 
 
-def test_create_prompt_empty_text_rejected(client: TestClient, auth_cookies_admin) -> None:
+def test_create_prompt_empty_text_rejected(
+    client: TestClient, auth_cookies_admin
+) -> None:
     _auth(client, auth_cookies_admin)
     response = client.post("/api/v1/admin/prompts/sme", json={"prompt_text": ""})
     assert response.status_code == 422
@@ -158,7 +162,9 @@ def test_revert_prompt(client: TestClient, auth_cookies_admin, db_session) -> No
     )
     version_1 = created.json()
 
-    reverted = client.post(f"/api/v1/admin/prompts/sme/revert/{version_1['version_id']}")
+    reverted = client.post(
+        f"/api/v1/admin/prompts/sme/revert/{version_1['version_id']}"
+    )
     assert reverted.status_code == 201
 
     body = reverted.json()

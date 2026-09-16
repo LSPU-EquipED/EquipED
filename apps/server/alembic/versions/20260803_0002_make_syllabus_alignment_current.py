@@ -58,22 +58,22 @@ def upgrade() -> None:
             sa.column("slm_document_id", sa.Uuid()),
             sa.column("created_at", sa.DateTime(timezone=True)),
         )
-        rows = list(bind.execute(
-            sa.select(
-                runs.c.alignment_id,
-                runs.c.slm_document_id,
-                runs.c.created_at,
-            ).order_by(
-                runs.c.slm_document_id,
-                runs.c.created_at.desc(),
-                runs.c.alignment_id.desc(),
-            )
-        ).mappings())
+        rows = list(
+            bind.execute(
+                sa.select(
+                    runs.c.alignment_id,
+                    runs.c.slm_document_id,
+                    runs.c.created_at,
+                ).order_by(
+                    runs.c.slm_document_id,
+                    runs.c.created_at.desc(),
+                    runs.c.alignment_id.desc(),
+                )
+            ).mappings()
+        )
         obsolete_ids = _obsolete_alignment_ids(rows)
         if obsolete_ids:
-            bind.execute(
-                runs.delete().where(runs.c.alignment_id.in_(obsolete_ids))
-            )
+            bind.execute(runs.delete().where(runs.c.alignment_id.in_(obsolete_ids)))
 
     if _has_index(_OLD_INDEX):
         op.drop_index(

@@ -50,8 +50,10 @@ class AgentPrompt:
     def __len__(self) -> int:
         return len(self.system_instruction) + len(self.user_context) + 2
 
+
 class PromptEnvelopeBuilder:
     """Encapsulates instruction assembly, budgeting, and downsampling."""
+
     def __init__(
         self,
         *,

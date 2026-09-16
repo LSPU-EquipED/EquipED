@@ -295,9 +295,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
         json.dumps(
             {
                 "summary": f"Env {idx} summary",
-                "criterion_measurements": [
-                    _sme_criterion_payload(c) for c in env
-                ],
+                "criterion_measurements": [_sme_criterion_payload(c) for c in env],
             }
         )
         for idx, env in enumerate(envelopes)
@@ -315,9 +313,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
     # 2. Coordinator
     coord_snap = snapshots["coordinator"]
     titles = {
-        c.criterion_code: c.title
-        for d in coord_snap.form.domains
-        for c in d.criteria
+        c.criterion_code: c.title for d in coord_snap.form.domains for c in d.criteria
     }
     raw_responses = [
         _envelope_response(TEN[:5], titles),
@@ -378,9 +374,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
     itso_ctx = ITSOExecutionContext(
         evaluation_id=job.evaluation_id,
         document_id=document_id,
-        chunk_infos=(
-            {"chunk_id": chunk_id_str, "page_number": 1, "text": "security"},
-        ),
+        chunk_infos=({"chunk_id": chunk_id_str, "page_number": 1, "text": "security"},),
         form_snapshot=snapshots["itso"],
         llm_client=itso_client,
     )

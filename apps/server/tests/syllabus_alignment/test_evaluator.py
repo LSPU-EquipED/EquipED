@@ -20,8 +20,7 @@ def _chunks():
             "chunk_id": "11111111-1111-1111-1111-111111111111",
             "page_number": 3,
             "text": (
-                "Students configure a secure local area network using managed "
-                "switches."
+                "Students configure a secure local area network using managed switches."
             ),
         },
         {
@@ -403,8 +402,7 @@ def test_complete_syllabus_list_is_checked_in_bounded_batches():
     ]
     assert len(classification_prompts) == 2
     checked_content_count = sum(
-        len(prompt["syllabus_course_contents"])
-        for prompt in classification_prompts
+        len(prompt["syllabus_course_contents"]) for prompt in classification_prompts
     )
     assert checked_content_count == 21
 

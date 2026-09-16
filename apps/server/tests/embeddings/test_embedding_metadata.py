@@ -87,6 +87,7 @@ class TestToEmbeddingChunk:
 
     def test_embedding_chunk_from_dictlike(self):
         """Works with simple objects via getattr."""
+
         class FakeChunk:
             chunk_id = uuid.uuid4()
             document_id = uuid.uuid4()
@@ -106,6 +107,7 @@ class TestToEmbeddingChunk:
 
     def test_embedding_chunk_from_class_without_policy_area(self):
         """Chunks without policy_area attribute get None."""
+
         class BareChunk:
             chunk_id = uuid.uuid4()
             document_id = uuid.uuid4()
@@ -136,9 +138,7 @@ class TestEmbedAndStoreMetadata:
     def ephemeral_client(self):
         return chromadb.EphemeralClient()
 
-    def _check_metadata_key(
-        self, col, chunk_id: str, key: str, expected: object
-    ):
+    def _check_metadata_key(self, col, chunk_id: str, key: str, expected: object):
         """Helper: check the stored value for a metadata key."""
         result = col.get(ids=[chunk_id])
         if result and result.get("metadatas"):
@@ -151,6 +151,7 @@ class TestEmbedAndStoreMetadata:
     def _patch_embedding(self, monkeypatch):
         """Patch embedding model to a simple list-based stub so tests
         can run without sentence-transformers installed."""
+
         class FakeModel:
             def encode(self, texts, **kwargs):
                 return np.array([[0.0] * 384 for _ in texts])
@@ -161,7 +162,9 @@ class TestEmbedAndStoreMetadata:
         )
 
     def test_policy_chunk_metadata_omits_none(
-        self, ephemeral_client, monkeypatch,
+        self,
+        ephemeral_client,
+        monkeypatch,
     ):
         """Policy chunk metadata in Chroma omits keys with None values."""
         self._patch_embedding(monkeypatch)
@@ -192,7 +195,9 @@ class TestEmbedAndStoreMetadata:
         assert meta["chunk_id"] == chunk.chunk_id
 
     def test_non_policy_chunk_omits_none_metadata(
-        self, ephemeral_client, monkeypatch,
+        self,
+        ephemeral_client,
+        monkeypatch,
     ):
         """Non-policy chunk (syllabus) metadata omits policy_area=None."""
         self._patch_embedding(monkeypatch)
@@ -231,7 +236,9 @@ class TestEmbedAndStoreMetadata:
         assert meta["token_count"] == 5
 
     def test_rebuild_path_metadata_consistency(
-        self, ephemeral_client, monkeypatch,
+        self,
+        ephemeral_client,
+        monkeypatch,
     ):
         """Rebuild path (embed_and_store_chunks) produces same metadata shape."""
         self._patch_embedding(monkeypatch)

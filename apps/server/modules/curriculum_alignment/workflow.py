@@ -80,9 +80,7 @@ def run_curriculum_alignment_check(
         )
     validate_objective_programs(mapped)
 
-    evaluated_pages, coverage = select_pages_within_budget(
-        pages, _MAX_SLM_TEXT_CHARS
-    )
+    evaluated_pages, coverage = select_pages_within_budget(pages, _MAX_SLM_TEXT_CHARS)
     if not evaluated_pages:
         raise NoUsableDocumentTextError(
             f"Document {document_id} cannot fit even one complete page within "

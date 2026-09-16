@@ -387,9 +387,7 @@ def test_export_gad_skip_behavior(db_session, seeded_user, tmp_path: Path):
 
     assert manifest.pair_count == 0
     assert (
-        manifest.skipped_counts.get(
-            "gad_score_edit_ineligible_for_extraction_contract"
-        )
+        manifest.skipped_counts.get("gad_score_edit_ineligible_for_extraction_contract")
         == 1
     )
 
@@ -531,6 +529,7 @@ def test_atomic_directory_write_and_dry_run(db_session, seeded_user, tmp_path: P
 
 def test_trainer_package_validation(tmp_path: Path):
     import sys
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "training"))
     try:
         from train_dpo_lora import _resolve_package

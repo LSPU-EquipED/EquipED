@@ -108,9 +108,15 @@ def list_evals(
     target_agent: Literal["sme", "coordinator", "gad", "itso", "all"] | None = Query(
         default=None
     ),
-    status: Literal["SUBMITTED", "PREPROCESSING", "EVALUATING", "SYNTHESIZING", "COMPLETED", "FAILED"] | None = Query(
-        default=None
-    ),
+    status: Literal[
+        "SUBMITTED",
+        "PREPROCESSING",
+        "EVALUATING",
+        "SYNTHESIZING",
+        "COMPLETED",
+        "FAILED",
+    ]
+    | None = Query(default=None),
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationListResponse:
@@ -157,6 +163,7 @@ def list_evals(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         )
 
+
 @router.get("/latest", response_model=LatestEvaluationsResponse)
 def get_latest_evals(
     document_id: list[UUID] = Query(default=[]),
@@ -199,13 +206,12 @@ def get_desk_queue(
             page_size=page_size,
         )
     except ForbiddenEvaluationAccessError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         )
+
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_eval(

@@ -100,9 +100,7 @@ def upgrade() -> None:
 
     if not _has_column("preference_logs", "generation_id"):
         with op.batch_alter_table("preference_logs") as batch_op:
-            batch_op.add_column(
-                sa.Column("generation_id", sa.Uuid(), nullable=True)
-            )
+            batch_op.add_column(sa.Column("generation_id", sa.Uuid(), nullable=True))
             batch_op.create_foreign_key(
                 "fk_preference_logs_generation_id",
                 "agent_generations",

@@ -26,7 +26,8 @@ def _has_column(table: str, column: str) -> bool:
 def upgrade() -> None:
     if not _has_column("preference_logs", "agent_name"):
         op.add_column(
-            "preference_logs", sa.Column("agent_name", sa.String(length=32), nullable=True)
+            "preference_logs",
+            sa.Column("agent_name", sa.String(length=32), nullable=True),
         )
     if not _has_column("preference_logs", "criterion_id"):
         op.add_column(

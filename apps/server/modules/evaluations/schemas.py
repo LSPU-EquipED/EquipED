@@ -49,6 +49,7 @@ class EvaluationResponse(BaseModel):
     completed_at: datetime | None = None
     duration_seconds: float | None = None
 
+
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
     document_id: UUID
@@ -70,6 +71,7 @@ class EvaluationListResponse(BaseModel):
     total: int
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=200)
+
 
 class EvaluationStatusResponse(BaseModel):
     evaluation_id: UUID

@@ -882,6 +882,7 @@ def test_prompt_input_uses_only_evaluated_pages(db_session, monkeypatch) -> None
         )
 
     from server.modules.curriculum_alignment import workflow
+
     monkeypatch.setattr(workflow, "run_alignment_check", _stub)
     check = run_curriculum_alignment_check(
         document_id=document.document_id,

@@ -27,9 +27,7 @@ def _has_column(table: str, column: str) -> bool:
 def upgrade() -> None:
     if _has_column("agent_results", "group_prompts"):
         return
-    op.add_column(
-        "agent_results", sa.Column("group_prompts", sa.JSON(), nullable=True)
-    )
+    op.add_column("agent_results", sa.Column("group_prompts", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:

@@ -704,8 +704,7 @@ _COORDINATOR_V3_DOMAINS: list[dict[str, Any]] = [
                 "criterion_code": "OP-04",
                 "title": "Accurate Sections",
                 "description": (
-                    "Paragraphs and sections have clear and accurate "
-                    "information."
+                    "Paragraphs and sections have clear and accurate information."
                 ),
                 "display_order": 4,
             },
@@ -831,8 +830,7 @@ def build_coordinator_v3_rubric_set(
             strat, cfg = _resolve_criterion_strategy("coordinator", code, desc, {})
             if strat is None or cfg is None:
                 raise ValueError(
-                    f"Coordinator criterion {code} could not resolve a "
-                    "scoring strategy"
+                    f"Coordinator criterion {code} could not resolve a scoring strategy"
                 )
             session.add(
                 RubricCriterion(

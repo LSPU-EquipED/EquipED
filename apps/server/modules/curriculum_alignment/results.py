@@ -120,11 +120,7 @@ def build_failed_result(
     total_mapped_objectives: int,
 ) -> EvaluatedAlignmentResult:
     return EvaluatedAlignmentResult(
-        model_name=(
-            outcome.provenance.model
-            if outcome.provenance
-            else fallback_model
-        ),
+        model_name=(outcome.provenance.model if outcome.provenance else fallback_model),
         objective_results=[],
         summary=empty_summary(total_mapped_objectives),
         success=False,
@@ -193,11 +189,7 @@ def build_successful_result(
         )
 
     return EvaluatedAlignmentResult(
-        model_name=(
-            outcome.provenance.model
-            if outcome.provenance
-            else fallback_model
-        ),
+        model_name=(outcome.provenance.model if outcome.provenance else fallback_model),
         objective_results=objective_results,
         summary={"total_mapped_objectives": len(mapped), **status_counts},
         success=True,

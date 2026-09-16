@@ -74,8 +74,7 @@ def test_migration_upgrade_and_downgrade(tmp_path):
     _run(upgrade, _config(url), "20260820_0002")
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision()
-            == "20260820_0002"
+            MigrationContext.configure(conn).get_current_revision() == "20260820_0002"
         )
         cols = {c["name"] for c in inspect(engine).get_columns("agent_results")}
         assert "group_responses" in cols
@@ -90,8 +89,7 @@ def test_migration_upgrade_and_downgrade(tmp_path):
     _run(downgrade, _config(url), "20260820_0001")
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision()
-            == "20260820_0001"
+            MigrationContext.configure(conn).get_current_revision() == "20260820_0001"
         )
         cols = {c["name"] for c in inspect(engine).get_columns("agent_results")}
         assert "group_responses" not in cols

@@ -52,4 +52,5 @@ class CurriculumAlignmentCheck(Base):
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+
 __all__ = ["CurriculumAlignmentCheck"]

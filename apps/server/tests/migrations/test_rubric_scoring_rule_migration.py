@@ -96,8 +96,7 @@ def test_migration_upgrade_backfills_sme_and_downgrade_drops(tmp_path):
 
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision()
-            == "20260829_0001"
+            MigrationContext.configure(conn).get_current_revision() == "20260829_0001"
         )
         cols = {c["name"] for c in inspect(engine).get_columns("rubric_criteria")}
         assert "scoring_rule" in cols

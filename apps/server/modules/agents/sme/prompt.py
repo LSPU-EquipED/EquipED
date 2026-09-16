@@ -146,6 +146,7 @@ def _build_sme_preamble(criteria: tuple[CriterionDefinition, ...]) -> str:
         return _SME_PREAMBLE_BASE + _NO_SELF_SCORE_FOR_COUNT_RATIO
     return _SME_PREAMBLE_BASE
 
+
 _GAP_MARKER_WARNING = (
     "The source text may contain '[...]' markers where document sections were "
     "omitted to fit the budget; do NOT quote across a '[...]' marker and do NOT "

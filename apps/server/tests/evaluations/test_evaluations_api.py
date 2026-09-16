@@ -814,14 +814,10 @@ def test_list_evaluations_enforces_evaluator_permissions(
     )
     db_session.commit()
 
-    doc, job_sme = _create_document_and_job(
-        db_session, faculty.user_id, partial=False
-    )
+    doc, job_sme = _create_document_and_job(db_session, faculty.user_id, partial=False)
     job_sme.target_agent = "sme"
 
-    _, job_coord = _create_document_and_job(
-        db_session, faculty.user_id, partial=False
-    )
+    _, job_coord = _create_document_and_job(db_session, faculty.user_id, partial=False)
     job_coord.target_agent = "coordinator"
     db_session.commit()
 
@@ -899,9 +895,7 @@ def test_desk_queue_enforces_permissions(client: TestClient, db_session):
     assert "total" in data
 
 
-def test_desk_queue_item_lifecycle_and_peer_convergence(
-    client: TestClient, db_session
-):
+def test_desk_queue_item_lifecycle_and_peer_convergence(client: TestClient, db_session):
     admin = create_user(
         db_session,
         name="Admin Evaluator",
@@ -950,7 +944,8 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     resp_sme = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
     assert resp_sme.status_code == 200
     items_sme = [
-        it for it in resp_sme.json()["items"]
+        it
+        for it in resp_sme.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert len(items_sme) == 1
@@ -967,7 +962,8 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     resp_gad = client.get("/api/v1/evaluations/desk-queue?target_agent=gad")
     assert resp_gad.status_code == 200
     items_gad = [
-        it for it in resp_gad.json()["items"]
+        it
+        for it in resp_gad.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert len(items_gad) == 1
@@ -991,7 +987,8 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     resp_sme_eval = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
     assert resp_sme_eval.status_code == 200
     items_sme_eval = [
-        it for it in resp_sme_eval.json()["items"]
+        it
+        for it in resp_sme_eval.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert items_sme_eval[0]["my_status"] == "EVALUATING"

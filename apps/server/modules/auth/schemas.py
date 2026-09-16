@@ -61,6 +61,7 @@ class AuthUserResponse(BaseModel):
         serialization_alias="evaluatorPermissions",
     )
 
+
 class AuthStateResponse(BaseModel):
     authenticated: bool
     user: AuthUserResponse | None

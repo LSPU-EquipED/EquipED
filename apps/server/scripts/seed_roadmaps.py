@@ -81,8 +81,7 @@ def _validate_payload(payload: dict[str, Any]) -> None:
         semester = year.get("semester")
         if semester is not None and semester not in (1, 2):
             raise ValueError(
-                f"year {year_number} 'semester' must be None, 1, or 2, "
-                f"got {semester!r}"
+                f"year {year_number} 'semester' must be None, 1, or 2, got {semester!r}"
             )
 
         courses = year.get("courses")
@@ -221,9 +220,7 @@ def seed_roadmaps(db: Any, payload: dict[str, Any]) -> None:
             course_code = course_data["course_code"]
             payload_course_codes.add(course_code)
             course_status = course_data["course_status"]
-            course_id = _resolve_course_id(
-                db, program, course_code, course_status
-            )
+            course_id = _resolve_course_id(db, program, course_code, course_status)
 
             course = (
                 db.query(RoadmapCourse)
@@ -282,9 +279,7 @@ def seed_roadmaps(db: Any, payload: dict[str, Any]) -> None:
     # with them (deleted explicitly; already-pending course deletes are a
     # no-op for SQLAlchemy).
     for year in (
-        db.query(RoadmapYear)
-        .filter(RoadmapYear.roadmap_id == roadmap.roadmap_id)
-        .all()
+        db.query(RoadmapYear).filter(RoadmapYear.roadmap_id == roadmap.roadmap_id).all()
     ):
         if (year.year_number, year.semester) not in payload_year_keys:
             for course in (
