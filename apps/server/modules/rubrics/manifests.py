@@ -278,6 +278,27 @@ GAD_MANIFEST_V1 = AgentCapabilityManifest(
     default_prompt_budget_chars=32000,
 )
 
+GAD_MANIFEST_V2 = AgentCapabilityManifest(
+    agent_id="gad",
+    adapter_key="gad",
+    adapter_version=2,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=("llm_rubric_guidance",),
+    supported_count_modes=(),
+    supported_ratio_modes=(),
+    capabilities=(
+        StrategyCapability(
+            strategy="llm_rubric_guidance",
+            mode=None,
+            measurement_shape="grounded_score",
+        ),
+    ),
+    supported_measurement_shapes=("grounded_score",),
+    min_criteria=1,
+    max_criteria=10,
+    default_prompt_budget_chars=32000,
+)
+
 ITSO_MANIFEST_V1 = AgentCapabilityManifest(
     agent_id="itso",
     adapter_key="itso",
@@ -396,6 +417,7 @@ AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
     {
         ("sme", 1): SME_MANIFEST_V1,
         ("gad", 1): GAD_MANIFEST_V1,
+        ("gad", 2): GAD_MANIFEST_V2,
         ("itso", 1): ITSO_MANIFEST_V1,
         ("coordinator", 1): COORDINATOR_MANIFEST_V1,
         ("coordinator", 2): COORDINATOR_MANIFEST_V2,
@@ -771,6 +793,7 @@ __all__ = [
     "COORDINATOR_MANIFEST_V1",
     "COORDINATOR_MANIFEST_V2",
     "GAD_MANIFEST_V1",
+    "GAD_MANIFEST_V2",
     "ITSO_MANIFEST_V1",
     "SME_MANIFEST_V1",
     "AgentCapabilityManifest",
