@@ -8,11 +8,11 @@ from uuid import uuid4
 
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.feedback.dpo import export_item_level_dpo_pairs
 from server.modules.feedback.models import PreferenceLog
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import AgentResult
 from server.modules.synthesis.service import persist_agent_outputs
+from server.modules.training_data.dpo import export_item_level_dpo_pairs
 from server.tests.evaluations.snapshot_test_helpers import make_agent_result
 from server.tests.rubrics.helpers import seed_all_rubrics
 

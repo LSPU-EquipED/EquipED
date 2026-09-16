@@ -2,7 +2,7 @@
 
 Applies only to llm_rubric_guidance criteria, where the LLM outputs the
 score itself -- a plain score+justification EDIT is real, valid model
-output to pair against. See server/modules/feedback/dpo.py for the
+output to pair against. See server/modules/training_data/legacy.py for the
 item-level exporter this replaces for SME.
 
 Usage (from repo root):
@@ -22,13 +22,13 @@ from collections.abc import Iterator
 from typing import Any
 
 from server.core.database import get_session_factory
-from server.modules.feedback.dpo import DpoPair, export_score_level_dpo_pairs
+from server.modules.training_data.dpo import DpoPair, export_score_level_dpo_pairs
 
 logger = logging.getLogger(__name__)
 
 
 def export_pairs(db: Any, agent: str) -> Iterator[DpoPair]:
-    """Delegate to the feedback module's score-level DPO pair projection."""
+    """Delegate to the training_data module's score-level DPO pair projection."""
     return export_score_level_dpo_pairs(db, (agent,))
 
 

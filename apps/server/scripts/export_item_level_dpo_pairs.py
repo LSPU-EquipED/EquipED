@@ -17,13 +17,13 @@ from collections.abc import Iterator
 from typing import Any
 
 from server.core.database import get_session_factory
-from server.modules.feedback.dpo import DpoPair, export_item_level_dpo_pairs
+from server.modules.training_data.dpo import DpoPair, export_item_level_dpo_pairs
 
 logger = logging.getLogger(__name__)
 
 
 def export_pairs(db: Any, agent: str) -> Iterator[DpoPair]:
-    """Delegate to the feedback module's item-level DPO pair projection."""
+    """Delegate to the training_data module's item-level DPO pair projection."""
     return export_item_level_dpo_pairs(db, (agent,))
 
 

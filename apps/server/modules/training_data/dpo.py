@@ -1,4 +1,4 @@
-"""DPO training pair projection for SME/Coordinator feedback.
+"""DPO training pair projection for SME and Coordinator feedback.
 
 Two independent export paths, depending on whether the LLM outputs the
 score itself for a given criterion:
@@ -36,11 +36,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from server.modules.agents.envelope_map import get_envelope_criteria_map
+from server.modules.feedback.items import apply_item_rejections
+from server.modules.feedback.models import PreferenceLog
+from server.modules.feedback.state import get_effective_criterion_corrections
 from server.modules.synthesis.models import AgentResult
-
-from .items import apply_item_rejections
-from .models import PreferenceLog
-from .state import get_effective_criterion_corrections
 
 logger = logging.getLogger(__name__)
 
