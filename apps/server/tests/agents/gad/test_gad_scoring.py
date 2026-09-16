@@ -1124,9 +1124,7 @@ def test_validation_fails_boundedly_before_llm_call() -> None:
         ),
     )
     snap_unsupported = make_gad_snapshot(eval_id, criteria=unsupported_criteria)
-    with pytest.raises(
-        AgentExecutionError, match="Unsupported count mode 'minimum_count'"
-    ):
+    with pytest.raises(AgentExecutionError, match="UNSUPPORTED_COUNT_MODE"):
         agent.run(
             evaluation_id=eval_id,
             document_id=uuid4(),

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from server.modules.rubrics.contracts import CountBandConfig, RatioBandConfig
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AgentEvaluationResult
@@ -60,10 +60,27 @@ class GAD(GADScoredAgent):
                 f"form_snapshot evaluation_id mismatch: expected '{evaluation_id}', "
                 f"got '{form_snapshot.evaluation_id}'"
             )
-        if form_snapshot.adapter_key != "gad" or form_snapshot.adapter_version != 1:
+        if form_snapshot.adapter_key != self.agent_name:
             raise AgentExecutionError(
-                f"form_snapshot adapter mismatch: expected 'gad' v1, "
-                f"got '{form_snapshot.adapter_key}' v{form_snapshot.adapter_version}"
+                f"form_snapshot adapter_key mismatch: expected "
+                f"'{self.agent_name}', got '{form_snapshot.adapter_key}'"
+            )
+        try:
+            manifest = get_agent_manifest(
+                self.agent_name, form_snapshot.adapter_version
+            )
+        except ValueError as exc:
+            raise AgentExecutionError(
+                f"Unsupported GAD adapter version {form_snapshot.adapter_version}"
+            ) from exc
+        report = validate_form(form_snapshot.form, manifest)
+        if not report.is_valid:
+            codes = ", ".join(
+                issue.code for issue in report.issues if issue.severity == "error"
+            )
+            raise AgentExecutionError(
+                f"GAD snapshot violates adapter {form_snapshot.adapter_version}: "
+                f"{codes}"
             )
 
         criteria = [c for d in form_snapshot.form.domains for c in d.criteria]
@@ -73,35 +90,6 @@ class GAD(GADScoredAgent):
             raise AgentExecutionError(
                 f"form_snapshot criteria count {len(criteria)} exceeds maximum 10"
             )
-
-        seen_keys: set[str] = set()
-        for crit in criteria:
-            k = crit.criterion_code.strip().lower()
-            if k in seen_keys:
-                raise AgentExecutionError(
-                    f"Duplicate criterion section key in form_snapshot: '{k}'"
-                )
-            seen_keys.add(k)
-
-            config = crit.strategy_config
-            if isinstance(config, CountBandConfig):
-                if config.mode != "maximum_count":
-                    raise AgentExecutionError(
-                        f"Unsupported count mode '{config.mode}' for GAD criterion "
-                        f"'{crit.criterion_code}' (only 'maximum_count' supported)"
-                    )
-            elif isinstance(config, RatioBandConfig):
-                if config.mode != "absolute_difference":
-                    raise AgentExecutionError(
-                        f"Unsupported ratio mode '{config.mode}' for GAD criterion "
-                        f"'{crit.criterion_code}'"
-                    )
-            else:
-                strat_name = getattr(config, "strategy", type(config).__name__)
-                raise AgentExecutionError(
-                    f"Unsupported strategy config '{strat_name}' "
-                    f"for GAD criterion '{crit.criterion_code}'"
-                )
 
         has_text = any(str(chunk.get("text", "")).strip() for chunk in chunk_infos)
         if not chunk_infos or not has_text:
