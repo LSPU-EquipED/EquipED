@@ -379,7 +379,109 @@ def test_gad_rejects_unsupported_strategy_configuration() -> None:
     snapshot = build_evaluation_form_snapshot(eval_id, form)
 
     gad = GAD()
-    with pytest.raises(AgentExecutionError, match="Unsupported strategy config"):
+    with pytest.raises(AgentExecutionError, match="UNSUPPORTED_STRATEGY"):
+        gad.run(
+            evaluation_id=eval_id,
+            document_id=uuid.uuid4(),
+            chunk_infos=_CHUNKS,
+            form_snapshot=snapshot,
+        )
+
+
+def test_gad_accepts_v2_snapshot_via_manifest() -> None:
+    """A v2 snapshot with an llm_rubric_guidance criterion is accepted by
+    the manifest-driven gate (previously hardcoded to reject anything but
+    v1 count/ratio criteria)."""
+    eval_id = uuid.uuid4()
+    doc_id = uuid.uuid4()
+    crit = _make_criterion(
+        "GAD-01",
+        "Free from Stereotypes",
+        LlmRubricGuidanceConfig(
+            guidance="Judge freedom from gender stereotypes.",
+        ),
+    )
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="gad",
+        name="GAD Rubric v2",
+        version_number=2,
+        adapter_key="gad",
+        adapter_version=2,
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="GAD",
+                title="Inclusivity & Gender Sensitivity",
+                display_order=0,
+                criteria=(crit,),
+            ),
+        ),
+    )
+    snapshot = build_evaluation_form_snapshot(eval_id, form)
+
+    response_payload = {
+        "gad-01": {
+            "score": 4,
+            "evidence": (
+                "Section 1: The male doctor and female nurse treated the patients."
+            ),
+            "chunk_id": "chunk_1",
+            "reasoning": "No stereotypes found.",
+            "summary": "No stereotypes found.",
+        }
+    }
+    mock_llm = _MockLLM([json.dumps(response_payload)])
+    gad = GAD(llm_client=mock_llm)
+
+    result = gad.run(
+        evaluation_id=eval_id,
+        document_id=doc_id,
+        chunk_infos=_CHUNKS,
+        form_snapshot=snapshot,
+    )
+
+    assert result.success is True
+    assert len(result.criterion_scores) == 1
+    assert result.criterion_scores[0].score == 4
+
+
+def test_gad_rejects_unregistered_adapter_version() -> None:
+    """A snapshot claiming an adapter_version with no registered manifest
+    (e.g. 99) is rejected -- distinct from an unsupported strategy on a
+    known version."""
+    eval_id = uuid.uuid4()
+    crit = _make_criterion(
+        "GAD-01",
+        "Free from Stereotypes",
+        CountBandConfig(
+            strategy="count_band",
+            mode="maximum_count",
+            threshold_4=0,
+            threshold_3=1,
+            threshold_2=3,
+        ),
+    )
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="gad",
+        name="GAD Rubric vFuture",
+        version_number=99,
+        adapter_key="gad",
+        adapter_version=99,
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="GAD",
+                title="Inclusivity & Gender Sensitivity",
+                display_order=0,
+                criteria=(crit,),
+            ),
+        ),
+    )
+    snapshot = build_evaluation_form_snapshot(eval_id, form)
+    gad = GAD()
+    with pytest.raises(AgentExecutionError, match="adapter version"):
         gad.run(
             evaluation_id=eval_id,
             document_id=uuid.uuid4(),

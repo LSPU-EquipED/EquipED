@@ -222,6 +222,89 @@ def project_itso_scores_v1(
     return ProjectionResult(pair=pair, reviewer_ids=frozenset(reviewer_ids))
 
 
+def project_gad_scores_v1(
+    generation: AgentGeneration,
+    corrections_by_criterion: dict[str, EffectiveCriterionCorrection],
+) -> ProjectionResult:
+    """Project generation with contract 'gad_scores.v1'.
+
+    Supports score and reasoning edits on GAD llm_rubric_guidance criteria.
+
+    Unlike SME/Coordinator/ITSO, GAD's combined response is a dict keyed by
+    *casefolded* criterion code (e.g. ``{"gad-01": {...}}``, matching
+    ``envelope.py::parse_combined_response``'s section keys) rather than a
+    list of ``{"criterion_id": ...}`` entries. ``corrections_by_criterion``
+    is keyed by the canonical uppercase criterion code (e.g. ``"GAD-01"``,
+    matching ``CriterionScore.criterion_id``), so this function matches the
+    two case-insensitively.
+    """
+    if generation.envelope_status != "ok":
+        return ProjectionResult(
+            skip_reason=f"envelope_status_{generation.envelope_status}"
+        )
+
+    if any(corr.action == "REJECT" for corr in corrections_by_criterion.values()):
+        return ProjectionResult(skip_reason="envelope_contains_rejection")
+
+    raw_response = generation.response_json
+    if not raw_response and generation.response_text:
+        try:
+            raw_response = json.loads(generation.response_text)
+        except Exception:
+            raw_response = None
+
+    if not isinstance(raw_response, dict):
+        return ProjectionResult(skip_reason="invalid_generation_response_json")
+
+    corrections_by_upper = {
+        cid.upper(): corr for cid, corr in corrections_by_criterion.items()
+    }
+
+    chosen_response: dict[str, Any] = {}
+    reviewer_ids: set[uuid.UUID] = set()
+    real_change = False
+
+    for section_key, section in raw_response.items():
+        if not isinstance(section, dict):
+            chosen_response[section_key] = section
+            continue
+
+        corr = corrections_by_upper.get(section_key.upper())
+        if corr is not None and corr.action == "EDIT":
+            new_section = dict(section)
+            if corr.score is not None and corr.score != section.get("score"):
+                new_section["score"] = corr.score
+                real_change = True
+            if corr.justification:
+                trimmed = corr.justification.strip()
+                old_reasoning = (section.get("reasoning") or "").strip()
+                if trimmed and trimmed != old_reasoning:
+                    new_section["reasoning"] = trimmed
+                    real_change = True
+            if corr.user_id:
+                reviewer_ids.add(corr.user_id)
+            chosen_response[section_key] = new_section
+        else:
+            chosen_response[section_key] = section
+
+    if not real_change:
+        return ProjectionResult(skip_reason="no_real_change")
+
+    pair = DpoPair(
+        pair_id=str(generation.generation_id),
+        prompt=generation.prompt_text,
+        chosen=json.dumps(chosen_response, ensure_ascii=False),
+        rejected=generation.response_text,
+        generation_id=generation.generation_id,
+        evaluation_id=generation.evaluation_id,
+        document_id=generation.document_id,
+        agent_id=generation.agent_id,
+        model_name=generation.model_name,
+        reviewer_ids=frozenset(reviewer_ids),
+    )
+    return ProjectionResult(pair=pair, reviewer_ids=frozenset(reviewer_ids))
+
+
 def project_gad_extraction_v1(
     generation: AgentGeneration,
     corrections_by_criterion: dict[str, EffectiveCriterionCorrection],
@@ -240,5 +323,6 @@ __all__ = [
     "ProjectionResult",
     "project_criterion_measurements_v1",
     "project_gad_extraction_v1",
+    "project_gad_scores_v1",
     "project_itso_scores_v1",
 ]

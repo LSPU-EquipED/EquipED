@@ -11,6 +11,8 @@ from server.modules.rubrics.contracts import (
     CriterionDefinition,
     DomainDefinition,
     FormDefinition,
+    LlmRubricGuidanceConfig,
+    LlmScoreDescriptor,
     RatioBandConfig,
 )
 from server.modules.rubrics.snapshot_contracts import (
@@ -191,3 +193,88 @@ def make_gad_snapshot(
 @pytest.fixture
 def default_gad_snapshot() -> Any:
     return make_gad_snapshot()
+
+
+REVISION_2_GAD_CRITERIA: tuple[CriterionDefinition, ...] = (
+    CriterionDefinition(
+        rubric_criterion_id=uuid.UUID("00000000-0000-0000-0000-000000000011"),
+        criterion_code="GAD-01",
+        title="Free from Stereotypes",
+        description="The material is free from gender stereotypes.",
+        scoring_rule=(
+            "4 = none found. 3 = at most one isolated instance. 2 = a few "
+            "instances, not pervasive. 1 = frequent or pervasive."
+        ),
+        display_order=1,
+        strategy_config=LlmRubricGuidanceConfig(
+            guidance=(
+                "Judge how free the material is from gender stereotypes or "
+                "gender-biased portrayals."
+            ),
+            level_descriptors=(
+                LlmScoreDescriptor(
+                    score=4,
+                    descriptor=(
+                        "No gender stereotypes or biased portrayals found "
+                        "anywhere in the material."
+                    ),
+                ),
+                LlmScoreDescriptor(
+                    score=3,
+                    descriptor=(
+                        "At most one isolated instance of gender stereotyping or bias."
+                    ),
+                ),
+                LlmScoreDescriptor(
+                    score=2,
+                    descriptor=(
+                        "A few instances of gender stereotyping or bias, but "
+                        "not pervasive."
+                    ),
+                ),
+                LlmScoreDescriptor(
+                    score=1,
+                    descriptor=(
+                        "Gender stereotypes or biased portrayals are "
+                        "frequent or pervasive throughout the material."
+                    ),
+                ),
+            ),
+        ),
+    ),
+)
+
+
+def make_gad_snapshot_v2(
+    evaluation_id: uuid.UUID | None = None,
+    criteria: tuple[CriterionDefinition, ...] | list[CriterionDefinition] | None = None,
+    rubric_set_id: uuid.UUID | None = None,
+    name: str = "GAD Rubric v2",
+    version_number: int = 2,
+) -> EvaluationFormSnapshotDTO:
+    """Build a v2 (llm_rubric_guidance) EvaluationFormSnapshotDTO for GAD tests."""
+    eval_id = evaluation_id or uuid.uuid4()
+    set_id = rubric_set_id or uuid.uuid4()
+    crit_list = tuple(criteria) if criteria is not None else REVISION_2_GAD_CRITERIA
+    dom = DomainDefinition(
+        rubric_domain_id=uuid.uuid4(),
+        code="GAD",
+        title="Inclusivity & Gender Sensitivity",
+        display_order=1,
+        criteria=crit_list,
+    )
+    form = FormDefinition(
+        rubric_set_id=set_id,
+        agent_id="gad",
+        name=name,
+        version_number=version_number,
+        adapter_key="gad",
+        adapter_version=2,
+        domains=(dom,),
+    )
+    return build_evaluation_form_snapshot(eval_id, form)
+
+
+@pytest.fixture
+def default_gad_snapshot_v2() -> Any:
+    return make_gad_snapshot_v2()

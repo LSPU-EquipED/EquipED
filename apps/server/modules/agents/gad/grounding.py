@@ -76,3 +76,43 @@ def ground_instances(
             accepted_chunk_ids.append(chunk_id)
 
     return accepted_excerpts, accepted_chunk_ids, rejected
+
+
+def ground_single_excerpt(
+    excerpt: str,
+    claimed_chunk_id: str,
+    packed_chunks: list[dict[str, Any]],
+) -> tuple[str, str] | None:
+    """Ground one excerpt against packed chunks, with a fallback search.
+
+    Tries ``claimed_chunk_id`` first (exact substring match, same rule as
+    ``ground_instances``). If that fails, searches every other packed
+    chunk for the same excerpt before giving up. Mirrors ITSO's
+    ``itso/response.py::_normalize_evidence`` fallback pattern.
+
+    Returns ``(excerpt, actual_chunk_id)`` on success -- ``actual_chunk_id``
+    is whichever chunk the excerpt was actually found in, which may differ
+    from ``claimed_chunk_id``. Returns ``None`` if the excerpt is not found
+    verbatim in any provided chunk.
+    """
+    if not isinstance(excerpt, str) or not excerpt:
+        return None
+
+    chunk_map: dict[str, str] = {}
+    for chunk in packed_chunks:
+        cid = str(chunk.get("chunk_id", "")).strip()
+        text = str(chunk.get("text", ""))
+        if cid:
+            chunk_map[cid] = text
+
+    claimed_text = chunk_map.get(claimed_chunk_id)
+    if claimed_text is not None and excerpt in claimed_text:
+        return excerpt, claimed_chunk_id
+
+    for chunk_id, text in chunk_map.items():
+        if chunk_id == claimed_chunk_id:
+            continue
+        if excerpt in text:
+            return excerpt, chunk_id
+
+    return None

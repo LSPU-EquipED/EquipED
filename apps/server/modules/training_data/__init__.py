@@ -16,6 +16,7 @@ from .projectors import (
     ProjectionResult,
     project_criterion_measurements_v1,
     project_gad_extraction_v1,
+    project_gad_scores_v1,
     project_itso_scores_v1,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "get_contract_capability",
     "project_criterion_measurements_v1",
     "project_gad_extraction_v1",
+    "project_gad_scores_v1",
     "project_itso_scores_v1",
 ]

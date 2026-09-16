@@ -34,9 +34,11 @@ from server.modules.synthesis.models import (
     EvaluationFlag,
 )
 from server.modules.synthesis.result_integrity import (
+    ADVISORY_CAPABLE_AGENTS,
     PersistableAgentResult,
     build_persistable_agent_result,
-    derive_itso_ungrounded_criterion_ids,
+    derive_ungrounded_criterion_ids,
+    grounding_eligible_criterion_ids,
 )
 from sqlalchemy import or_
 
@@ -110,9 +112,7 @@ def persist_agent_outputs(
     scheduled_ids = _scheduled_ids_for_job(job)
     loader = _get_snapshot_loader()
     try:
-        verified_snapshots = loader(
-            db, evaluation_id, scheduled_ids
-        )
+        verified_snapshots = loader(db, evaluation_id, scheduled_ids)
     except SnapshotIntegrityError as exc:
         raise EvaluationResultIntegrityError(
             "Failed to load verified evaluation snapshots"
@@ -186,10 +186,13 @@ def persist_agent_outputs(
             )
             for score in p_result.criterion_scores
         }
-        if p_result.agent_name == "itso":
-            final_itso_ungrounded = derive_itso_ungrounded_criterion_ids(
+        if p_result.agent_name in ADVISORY_CAPABLE_AGENTS:
+            final_ungrounded = derive_ungrounded_criterion_ids(
                 p_result.criterion_scores,
-                chunk_id_map=final_owned_chunks_map["itso"],
+                chunk_id_map=final_owned_chunks_map[p_result.agent_name],
+                eligible_criterion_ids=grounding_eligible_criterion_ids(
+                    snapshot_by_agent[p_result.agent_name]
+                ),
             )
             adv_cids = (
                 {
@@ -199,9 +202,9 @@ def persist_agent_outputs(
                 if p_result.advisory_output_dto
                 else set()
             )
-            if final_itso_ungrounded != adv_cids:
+            if final_ungrounded != adv_cids:
                 raise EvaluationResultIntegrityError(
-                    "ITSO ungrounded criteria changed after chunk "
+                    "Advisory ungrounded criteria changed after chunk "
                     "ownership verification"
                 )
 
@@ -252,9 +255,7 @@ def persist_agent_outputs(
         db.flush()
 
         for gen in p_result.generations:
-            prompt_sha256 = hashlib.sha256(
-                gen.prompt_text.encode("utf-8")
-            ).hexdigest()
+            prompt_sha256 = hashlib.sha256(gen.prompt_text.encode("utf-8")).hexdigest()
             response_sha256 = hashlib.sha256(
                 gen.response_text.encode("utf-8")
             ).hexdigest()
@@ -371,9 +372,7 @@ def load_verified_persisted_agent_results(
     scheduled_ids = _scheduled_ids_for_job(job)
     loader = _get_snapshot_loader()
     try:
-        verified_snapshots = loader(
-            db, evaluation_id, scheduled_ids
-        )
+        verified_snapshots = loader(db, evaluation_id, scheduled_ids)
     except SnapshotIntegrityError as exc:
         raise EvaluationResultIntegrityError(
             "Failed to load verified evaluation snapshots"
@@ -734,19 +733,20 @@ def load_verified_persisted_agent_results(
                         "Persisted advisory_outputs mismatch"
                     )
 
-            if agent_id == "itso":
-                itso_null_flags = [
+            if agent_id in ADVISORY_CAPABLE_AGENTS:
+                advisory_null_flags = [
                     f
                     for f in flags
                     if f.agent_result_id == row.agent_result_id and f.chunk_id is None
                 ]
-                itso_ungrounded = derive_itso_ungrounded_criterion_ids(
-                    persistable.criterion_scores
+                derived_ungrounded = derive_ungrounded_criterion_ids(
+                    persistable.criterion_scores,
+                    eligible_criterion_ids=grounding_eligible_criterion_ids(
+                        snapshot_by_agent[agent_id]
+                    ),
                 )
-                if len(itso_null_flags) != len(itso_ungrounded):
-                    raise EvaluationResultIntegrityError(
-                        "ITSO advisory flag count mismatch"
-                    )
+                if len(advisory_null_flags) != len(derived_ungrounded):
+                    raise EvaluationResultIntegrityError("Advisory flag count mismatch")
                 seen_flag_cids = set()
                 db_score_by_cid = {s.criterion_id: s for s in db_scores}
                 adv_reason_by_cid = (
@@ -757,15 +757,11 @@ def load_verified_persisted_agent_results(
                     if persistable.advisory_output_dto
                     else {}
                 )
-                for flag in itso_null_flags:
-                    if flag.criterion_id not in itso_ungrounded:
-                        raise EvaluationResultIntegrityError(
-                            "Unexpected ITSO advisory flag"
-                        )
+                for flag in advisory_null_flags:
+                    if flag.criterion_id not in derived_ungrounded:
+                        raise EvaluationResultIntegrityError("Unexpected advisory flag")
                     if flag.criterion_id in seen_flag_cids:
-                        raise EvaluationResultIntegrityError(
-                            "Duplicate ITSO advisory flag"
-                        )
+                        raise EvaluationResultIntegrityError("Duplicate advisory flag")
                     seen_flag_cids.add(flag.criterion_id)
                     target_score = db_score_by_cid.get(flag.criterion_id)
                     if (
@@ -777,7 +773,7 @@ def load_verified_persisted_agent_results(
                         or flag.document_id != document_id
                     ):
                         raise EvaluationResultIntegrityError(
-                            "ITSO advisory flag metadata mismatch"
+                            "Advisory flag metadata mismatch"
                         )
             else:
                 if any(
@@ -785,7 +781,7 @@ def load_verified_persisted_agent_results(
                     for f in flags
                 ):
                     raise EvaluationResultIntegrityError(
-                        "Non-ITSO agent must not have null-chunk flags"
+                        "Non-advisory-capable agent must not have null-chunk flags"
                     )
 
     return [result_by_agent[agent_id] for agent_id in scheduled_ids]

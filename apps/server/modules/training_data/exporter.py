@@ -24,6 +24,7 @@ from server.modules.training_data.projectors import (
     ProjectionResult,
     project_criterion_measurements_v1,
     project_gad_extraction_v1,
+    project_gad_scores_v1,
     project_itso_scores_v1,
 )
 from sqlalchemy.orm import Session
@@ -72,9 +73,7 @@ def _effective_rejections_with_reviewers_for_evaluations(
             if log.user_id:
                 reviewers[eval_id][criterion_id].add(log.user_id)
 
-    result: dict[
-        uuid.UUID, dict[str, tuple[frozenset[str], frozenset[uuid.UUID]]]
-    ] = {}
+    result: dict[uuid.UUID, dict[str, tuple[frozenset[str], frozenset[uuid.UUID]]]] = {}
     for eval_id, criteria in rejected_items.items():
         result[eval_id] = {
             cid: (frozenset(items), frozenset(reviewers[eval_id][cid]))
@@ -183,6 +182,8 @@ def export_dpo_package(
             proj_result = project_itso_scores_v1(gen, corr_for_agent)
         elif contract_key == "gad_extraction.v1" and version == 1:
             proj_result = project_gad_extraction_v1(gen, corr_for_agent)
+        elif contract_key == "gad_scores.v1" and version == 1:
+            proj_result = project_gad_scores_v1(gen, corr_for_agent)
         else:
             proj_result = ProjectionResult(
                 skip_reason=f"unhandled_contract_{contract_key}_v{version}"
@@ -233,9 +234,7 @@ def export_dpo_package(
     pairs_sha256 = hashlib.sha256(pairs_content).hexdigest()
     pairs_bytes = len(pairs_content)
 
-    prov_lines = [
-        json.dumps(r, ensure_ascii=False) + "\n" for r in provenance_records
-    ]
+    prov_lines = [json.dumps(r, ensure_ascii=False) + "\n" for r in provenance_records]
     prov_content = "".join(prov_lines).encode("utf-8")
     prov_sha256 = hashlib.sha256(prov_content).hexdigest()
     prov_bytes = len(prov_content)

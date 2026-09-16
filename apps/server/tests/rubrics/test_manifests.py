@@ -17,6 +17,7 @@ from server.modules.rubrics.contracts import (
 )
 from server.modules.rubrics.manifests import (
     AGENT_MANIFEST_REGISTRY_V1,
+    AGENT_MANIFEST_VERSION_REGISTRY,
     COORDINATOR_MANIFEST_V1,
     COORDINATOR_MANIFEST_V2,
     GAD_MANIFEST_V1,
@@ -1211,6 +1212,34 @@ def test_no_duplicate_public_manifest_registry_remains():
     assert not hasattr(snap, "MANIFEST_BY_AGENT")
     assert not hasattr(snap, "get_manifest")
     assert not hasattr(pkg, "get_manifest")
+
+
+# ---------------------------------------------------------------------------
+# GAD Manifest V1 & V2 Tests
+# ---------------------------------------------------------------------------
+
+
+def test_gad_manifest_v1_is_current_default() -> None:
+    """GAD_MANIFEST_V1 remains the default until the DB activation is
+    flipped separately (out of scope for this plan)."""
+    manifest = get_agent_manifest("gad")
+    assert manifest.adapter_version == 1
+    assert manifest.supported_strategies == ("count_band", "ratio_band")
+
+
+def test_gad_manifest_v2_supports_only_llm_rubric_guidance() -> None:
+    manifest = get_agent_manifest("gad", 2)
+    assert manifest.adapter_version == 2
+    assert manifest.supported_strategies == ("llm_rubric_guidance",)
+    assert manifest.min_criteria == 1
+    assert manifest.max_criteria == 10
+
+
+def test_gad_manifest_v2_registered_in_both_registries() -> None:
+    assert ("gad", 2) in AGENT_MANIFEST_VERSION_REGISTRY
+    # AGENT_MANIFEST_REGISTRY_V1 is the "current" pointer keyed by agent_id
+    # only, and stays on V1 until DB activation is flipped separately.
+    assert AGENT_MANIFEST_REGISTRY_V1["gad"].adapter_version == 1
 
 
 # ---------------------------------------------------------------------------

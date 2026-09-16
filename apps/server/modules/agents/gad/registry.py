@@ -9,15 +9,25 @@ from server.modules.rubrics.contracts import (
     CountBandConfig,
     GroundedInstance,
     GroundedInstanceMeasurement,
+    GroundedScoreMeasurement,
+    LlmRubricGuidanceConfig,
     PairedCountsMeasurement,
     RatioBandConfig,
 )
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
-from server.modules.rubrics.strategies.calculators import score_count, score_ratio
+from server.modules.rubrics.strategies.calculators import (
+    normalize_llm_guidance_score,
+    score_count,
+    score_ratio,
+)
 
-from ..contracts import CriterionScore
+from ..contracts import CriterionScore, UngroundedCriterionAdvisory
 from ..exceptions import AgentExecutionError
-from .grounding import MAX_INSTANCES_PER_CRITERION, ground_instances
+from .grounding import (
+    MAX_INSTANCES_PER_CRITERION,
+    ground_instances,
+    ground_single_excerpt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +39,12 @@ def score_from_combined(
     combined: dict[str, Any],
     packed_chunks: list[dict[str, Any]],
     form_snapshot: EvaluationFormSnapshotDTO,
-) -> tuple[list[CriterionScore], int, int, int]:
+) -> tuple[list[CriterionScore], int, int, int, list[UngroundedCriterionAdvisory]]:
     """Adapt combined sections into ``CriterionScore`` values using snapshot configs.
 
-    Returns (scores, evidence_candidates, evidence_accepted, evidence_rejected).
-    Each section is passed to pure strategy calculators (score_count/score_ratio)
-    with snapshot thresholds.
+    Returns (scores, evidence_candidates, evidence_accepted, evidence_rejected,
+    ungrounded_advisories). Each section is passed to pure strategy calculators
+    (score_count/score_ratio) with snapshot thresholds.
     """
     if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
         raise TypeError("form_snapshot must be an EvaluationFormSnapshotDTO instance")
@@ -44,6 +54,7 @@ def score_from_combined(
     evidence_candidates = 0
     evidence_accepted = 0
     evidence_rejected = 0
+    ungrounded_advisories: list[UngroundedCriterionAdvisory] = []
 
     for crit in criteria:
         section_key = crit.criterion_code.strip().casefold()
@@ -133,12 +144,92 @@ def score_from_combined(
                     evidence=tuple(accepted_excerpts),
                 )
             )
+        elif isinstance(config, LlmRubricGuidanceConfig):
+            raw_score = section.get("score")
+            raw_evidence = str(section.get("evidence", "")).strip()
+            raw_chunk_id = str(section.get("chunk_id", "")).strip()
+            raw_reasoning = section.get("reasoning")
+            evidence_candidates += 1
+
+            grounded = ground_single_excerpt(raw_evidence, raw_chunk_id, packed_chunks)
+            reasoning = (
+                raw_reasoning.strip()
+                if isinstance(raw_reasoning, str) and raw_reasoning.strip()
+                else None
+            )
+
+            if grounded is None:
+                evidence_rejected += 1
+                ungrounded_advisories.append(
+                    UngroundedCriterionAdvisory(
+                        criterion_id=crit.criterion_code,
+                        reason=(
+                            "model evidence could not be grounded in any "
+                            "provided document chunk"
+                        ),
+                    )
+                )
+                measurement = GroundedScoreMeasurement(
+                    score=raw_score,
+                    evidence="(evidence could not be grounded)",
+                    reasoning=reasoning,
+                )
+                score_res = normalize_llm_guidance_score(config, measurement)
+                justification = reasoning or (
+                    f"Evaluated under {crit.title} guidance "
+                    f"(score {score_res.score}/4; evidence ungrounded)."
+                )
+                scores.append(
+                    CriterionScore(
+                        criterion_id=crit.criterion_code,
+                        criterion_title=crit.title,
+                        score=score_res.score,
+                        justification=justification,
+                        chunk_ids=(),
+                        evidence=(),
+                    )
+                )
+                continue
+
+            evidence_accepted += 1
+            grounded_evidence, grounded_chunk_id = grounded
+
+            measurement = GroundedScoreMeasurement(
+                score=raw_score,
+                evidence=grounded_evidence,
+                reasoning=reasoning,
+            )
+            score_res = normalize_llm_guidance_score(config, measurement)
+            justification = (
+                measurement.reasoning
+                if measurement.reasoning
+                else (
+                    f"Evaluated under {crit.title} guidance "
+                    f"(score {score_res.score}/4)."
+                )
+            )
+            scores.append(
+                CriterionScore(
+                    criterion_id=crit.criterion_code,
+                    criterion_title=crit.title,
+                    score=score_res.score,
+                    justification=justification,
+                    chunk_ids=(grounded_chunk_id,),
+                    evidence=(grounded_evidence,),
+                )
+            )
         else:
             raise AgentExecutionError(
                 f"Unsupported strategy config for criterion {crit.criterion_code}"
             )
 
-    return scores, evidence_candidates, evidence_accepted, evidence_rejected
+    return (
+        scores,
+        evidence_candidates,
+        evidence_accepted,
+        evidence_rejected,
+        ungrounded_advisories,
+    )
 
 
 __all__ = [
