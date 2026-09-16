@@ -103,12 +103,14 @@ def _effective_rejections_with_reviewers(
     }
 
 
-def export_item_level_dpo_pairs(db: Any) -> Iterator[DpoPair]:
+def export_item_level_dpo_pairs(
+    db: Any, agent_names: tuple[str, ...]
+) -> Iterator[DpoPair]:
     """Yield one DpoPair per envelope with an active item-level correction."""
     candidate_rows = (
         db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
         .filter(
-            PreferenceLog.agent_name.in_(_ITEM_LEVEL_AGENTS),
+            PreferenceLog.agent_name.in_(agent_names),
             PreferenceLog.action.in_(_ITEM_LEVEL_ACTIONS),
             PreferenceLog.item_id.isnot(None),
         )
@@ -139,6 +141,12 @@ def export_item_level_dpo_pairs(db: Any) -> Iterator[DpoPair]:
         try:
             envelope_map = get_envelope_criteria_map(db, evaluation_id, agent_name)
         except Exception:
+            logger.warning(
+                "Failed to get envelope criteria map for evaluation %s agent %s",
+                evaluation_id,
+                agent_name,
+                exc_info=True,
+            )
             continue
 
         code_to_envelope_key = {
@@ -154,6 +162,18 @@ def export_item_level_dpo_pairs(db: Any) -> Iterator[DpoPair]:
                 envelopes_touched[env_key].add(criterion_id)
 
         for env_key, criterion_ids in envelopes_touched.items():
+            status = (result.envelope_status or {}).get(env_key, "ok")
+            if status != "ok":
+                logger.warning(
+                    "Skipping envelope %s for evaluation %s agent %s: "
+                    "status is '%s' (not 'ok')",
+                    env_key,
+                    evaluation_id,
+                    agent_name,
+                    status,
+                )
+                continue
+
             prompt = (result.group_prompts or {}).get(env_key)
             envelope_response = (result.group_responses or {}).get(env_key)
             if not prompt or not envelope_response:
@@ -211,7 +231,7 @@ def _is_score_shaped(measurement: dict[str, Any]) -> bool:
 
 
 def export_score_level_dpo_pairs(
-    db: Any, agent_names: tuple[str, ...] = _SCORE_LEVEL_AGENTS
+    db: Any, agent_names: tuple[str, ...]
 ) -> Iterator[DpoPair]:
     """Yield one DpoPair per envelope with an active score-level EDIT.
 
@@ -258,6 +278,12 @@ def export_score_level_dpo_pairs(
         try:
             envelope_map = get_envelope_criteria_map(db, evaluation_id, agent_name)
         except Exception:
+            logger.warning(
+                "Failed to get envelope criteria map for evaluation %s agent %s",
+                evaluation_id,
+                agent_name,
+                exc_info=True,
+            )
             continue
 
         code_to_envelope_key = {
@@ -276,6 +302,18 @@ def export_score_level_dpo_pairs(
             # A REJECT in this envelope has no corrected text -- can't
             # build a "chosen" response for the whole envelope.
             if any(corr.action == "REJECT" for corr in crit_corrections.values()):
+                continue
+
+            status = (result.envelope_status or {}).get(env_key, "ok")
+            if status != "ok":
+                logger.warning(
+                    "Skipping envelope %s for evaluation %s agent %s: "
+                    "status is '%s' (not 'ok')",
+                    env_key,
+                    evaluation_id,
+                    agent_name,
+                    status,
+                )
                 continue
 
             prompt = (result.group_prompts or {}).get(env_key)

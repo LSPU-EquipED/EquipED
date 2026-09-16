@@ -65,7 +65,7 @@ def test_exports_pair_for_score_edit(db_session, evaluation_job, admin_user):
             ]
         },
     ):
-        pairs = list(export_score_level_dpo_pairs(db_session))
+        pairs = list(export_score_level_dpo_pairs(db_session, ("sme",)))
 
     assert len(pairs) == 1
     pair = pairs[0]
@@ -92,7 +92,7 @@ def test_exports_pair_for_score_edit(db_session, evaluation_job, admin_user):
 
 def test_no_export_without_feedback(db_session, evaluation_job):
     _sme_result_with_group_data(db_session, evaluation_job)
-    assert list(export_score_level_dpo_pairs(db_session)) == []
+    assert list(export_score_level_dpo_pairs(db_session, ("sme",))) == []
 
 
 def test_reject_skips_whole_envelope(db_session, evaluation_job, admin_user):
@@ -117,7 +117,7 @@ def test_reject_skips_whole_envelope(db_session, evaluation_job, admin_user):
             ]
         },
     ):
-        pairs = list(export_score_level_dpo_pairs(db_session))
+        pairs = list(export_score_level_dpo_pairs(db_session, ("sme",)))
 
     assert pairs == []
 
@@ -160,6 +160,46 @@ def test_skips_non_score_shaped_measurement(db_session, evaluation_job, admin_us
         "server.modules.feedback.dpo.get_envelope_criteria_map",
         return_value={"envelope_1": [type("C", (), {"criterion_code": "A-01"})()]},
     ):
-        pairs = list(export_score_level_dpo_pairs(db_session))
+        pairs = list(export_score_level_dpo_pairs(db_session, ("sme",)))
 
     assert pairs == []
+
+
+def test_export_envelope_status_filtering(db_session, evaluation_job, admin_user):
+    result = _sme_result_with_group_data(db_session, evaluation_job)
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=evaluation_job.evaluation_id,
+            user_id=admin_user.user_id,
+            agent_name="sme",
+            criterion_id="A-01",
+            action="EDIT",
+            edited_json={"score": 2, "justification": "Mostly recall-level tasks."},
+        )
+    )
+    db_session.commit()
+
+    with patch(
+        "server.modules.feedback.dpo.get_envelope_criteria_map",
+        return_value={
+            "envelope_1": [
+                type("C", (), {"criterion_code": "A-01"})(),
+                type("C", (), {"criterion_code": "A-02"})(),
+            ]
+        },
+    ):
+        # When envelope_status is 'fallback', envelope is NOT exported
+        result.envelope_status = {"envelope_1": "fallback"}
+        db_session.commit()
+        assert list(export_score_level_dpo_pairs(db_session, ("sme",))) == []
+
+        # When envelope_status is 'repaired', envelope is NOT exported
+        result.envelope_status = {"envelope_1": "repaired"}
+        db_session.commit()
+        assert list(export_score_level_dpo_pairs(db_session, ("sme",))) == []
+
+        # When envelope_status is 'ok', envelope IS exported
+        result.envelope_status = {"envelope_1": "ok"}
+        db_session.commit()
+        pairs = list(export_score_level_dpo_pairs(db_session, ("sme",)))
+        assert len(pairs) == 1

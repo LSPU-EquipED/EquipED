@@ -85,8 +85,8 @@ def test_get_envelope_criteria_map_reconstructs_sme_envelopes():
     snapshot = _sme_snapshot(eval_id)
 
     with patch(
-        "server.modules.agents.envelope_map.load_verified_evaluation_snapshots",
-        return_value=[snapshot],
+        "server.modules.agents.envelope_map.load_verified_agent_snapshot",
+        return_value=snapshot,
     ):
         envelope_map = get_envelope_criteria_map(
             db=object(), evaluation_id=eval_id, agent_id="sme"
@@ -97,13 +97,39 @@ def test_get_envelope_criteria_map_reconstructs_sme_envelopes():
     assert [c.criterion_code for c in envelope_map["envelope_1"]] == ["A-01"]
 
 
+def test_get_envelope_criteria_map_succeeds_with_multi_agent_evaluation():
+    """Verify that get_envelope_criteria_map succeeds when evaluation has snapshots
+
+    for multiple agents (e.g. sme, coordinator, gad, itso).
+    """
+    eval_id = uuid.uuid4()
+    sme_snap = _sme_snapshot(eval_id)
+
+    def fake_load_verified_agent_snapshot(db, evaluation_id, agent_id):
+        assert evaluation_id == eval_id
+        if agent_id == "sme":
+            return sme_snap
+        raise AssertionError(f"Unexpected agent requested: {agent_id}")
+
+    with patch(
+        "server.modules.agents.envelope_map.load_verified_agent_snapshot",
+        side_effect=fake_load_verified_agent_snapshot,
+    ):
+        envelope_map = get_envelope_criteria_map(
+            db=object(), evaluation_id=eval_id, agent_id="sme"
+        )
+
+    assert set(envelope_map.keys()) == {"envelope_0", "envelope_1"}
+    assert [c.criterion_code for c in envelope_map["envelope_0"]] == ["OP-01"]
+
+
 def test_get_criterion_envelope_key_finds_containing_envelope():
     eval_id = uuid.uuid4()
     snapshot = _sme_snapshot(eval_id)
 
     with patch(
-        "server.modules.agents.envelope_map.load_verified_evaluation_snapshots",
-        return_value=[snapshot],
+        "server.modules.agents.envelope_map.load_verified_agent_snapshot",
+        return_value=snapshot,
     ):
         key = get_criterion_envelope_key(
             db=object(), evaluation_id=eval_id, agent_id="sme", criterion_id="A-01"

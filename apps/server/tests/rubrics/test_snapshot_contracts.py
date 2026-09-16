@@ -29,6 +29,7 @@ from server.modules.rubrics.snapshot_contracts import (
     serialize_snapshot_payload,
     verify_evaluation_form_snapshot,
 )
+from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 
 
 def _sample_criterion(
@@ -829,3 +830,55 @@ def test_verifier_does_not_swallow_programming_defects(monkeypatch):
             snapshot_hash=dto.snapshot_hash,
             snapshot_payload=dto.snapshot_payload.model_dump(mode="json"),
         )
+
+
+def test_load_verified_agent_snapshot_missing_row():
+    eval_id = uuid.uuid4()
+
+    class FakeQuery:
+        def filter_by(self, **kwargs):
+            return self
+
+        def first(self):
+            return None
+
+    class FakeSession:
+        def query(self, *args, **kwargs):
+            return FakeQuery()
+
+    with pytest.raises(
+        SnapshotIntegrityError, match="Evaluation form snapshot missing for agent 'sme'"
+    ):
+        load_verified_agent_snapshot(FakeSession(), eval_id, "sme")
+
+
+def test_load_verified_agent_snapshot_success():
+    eval_id = uuid.uuid4()
+    form = _sample_form(agent_id="sme")
+    dto = build_evaluation_form_snapshot(eval_id, form)
+
+    class FakeRow:
+        snapshot_id = dto.snapshot_id
+        evaluation_id = dto.evaluation_id
+        agent_id = dto.agent_id
+        rubric_set_id = dto.rubric_set_id
+        adapter_key = dto.adapter_key
+        adapter_version = dto.adapter_version
+        snapshot_hash = dto.snapshot_hash
+        snapshot_payload = dto.snapshot_payload.model_dump(mode="json")
+
+    class FakeQuery:
+        def filter_by(self, **kwargs):
+            return self
+
+        def first(self):
+            return FakeRow()
+
+    class FakeSession:
+        def query(self, *args, **kwargs):
+            return FakeQuery()
+
+    loaded_dto = load_verified_agent_snapshot(FakeSession(), eval_id, "sme")
+    assert loaded_dto.snapshot_id == dto.snapshot_id
+    assert loaded_dto.agent_id == "sme"
+    assert loaded_dto.evaluation_id == eval_id

@@ -1,16 +1,15 @@
-"""Export DPO training pairs from SME score-level reviewer feedback.
+"""Export DPO training pairs from reviewer score-level feedback for a target agent.
 
-Applies only to llm_rubric_guidance criteria (SME's current scoring
-approach), where the LLM outputs the score itself -- a plain score+
-justification EDIT is real, valid model output to pair against. See
-server/modules/feedback/dpo.py for the item-level exporter this
-replaces for SME (its count_band/ratio_band criteria never had a score
-in the model's own output to correct).
+Applies only to llm_rubric_guidance criteria, where the LLM outputs the
+score itself -- a plain score+justification EDIT is real, valid model
+output to pair against. See server/modules/feedback/dpo.py for the
+item-level exporter this replaces for SME.
 
 Usage (from repo root):
 
     cd apps && uv run --project server python -m \
         server.scripts.export_score_level_dpo_pairs \
+        --agent sme \
         score_level_dpo_pairs.jsonl
 """
 
@@ -28,13 +27,19 @@ from server.modules.feedback.dpo import DpoPair, export_score_level_dpo_pairs
 logger = logging.getLogger(__name__)
 
 
-def export_pairs(db: Any) -> Iterator[DpoPair]:
+def export_pairs(db: Any, agent: str) -> Iterator[DpoPair]:
     """Delegate to the feedback module's score-level DPO pair projection."""
-    return export_score_level_dpo_pairs(db)
+    return export_score_level_dpo_pairs(db, (agent,))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--agent",
+        required=True,
+        choices=["sme", "coordinator"],
+        help="Target agent to export score-level DPO pairs for (sme or coordinator).",
+    )
     parser.add_argument(
         "output",
         help="Path to write the JSONL export to, e.g. score_level_dpo_pairs.jsonl",
@@ -48,7 +53,7 @@ def main() -> None:
         evaluations: set[Any] = set()
         reviewers: set[Any] = set()
         with open(args.output, "w", encoding="utf-8") as f:
-            for pair in export_pairs(session):
+            for pair in export_pairs(session, args.agent):
                 f.write(
                     json.dumps(
                         {
@@ -64,8 +69,10 @@ def main() -> None:
                 evaluations.add(pair.evaluation_id)
                 reviewers.update(pair.reviewer_ids)
         logger.info(
-            "Wrote %d score-level DPO pairs across %d evaluations, %d reviewers to %s",
+            "Wrote %d score-level DPO pairs for agent '%s' across %d "
+            "evaluations, %d reviewers to %s",
             count,
+            args.agent,
             len(evaluations),
             len(reviewers),
             args.output,

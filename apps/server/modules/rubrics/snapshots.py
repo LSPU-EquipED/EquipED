@@ -114,6 +114,35 @@ def _verify_snapshot_row_set(
     return tuple(verified_by_agent[agent_id] for agent_id in agents_tuple)
 
 
+def load_verified_agent_snapshot(
+    session: Session,
+    evaluation_id: uuid.UUID,
+    agent_id: str,
+) -> EvaluationFormSnapshotDTO:
+    """Load and verify evaluation form snapshot for a single agent.
+
+    Queries EvaluationFormSnapshot with evaluation_id and agent_id.
+    Raises SnapshotIntegrityError if row is missing or tampered.
+    """
+    if not isinstance(evaluation_id, uuid.UUID):
+        raise SnapshotIntegrityError("evaluation_id must be a valid UUID")
+
+    if not isinstance(agent_id, str) or not agent_id.strip():
+        raise SnapshotIntegrityError("agent_id must be a non-empty string")
+
+    row = (
+        session.query(EvaluationFormSnapshot)
+        .filter_by(evaluation_id=evaluation_id, agent_id=agent_id)
+        .first()
+    )
+    if row is None:
+        raise SnapshotIntegrityError(
+            f"Evaluation form snapshot missing for agent '{agent_id}'"
+        )
+
+    return _verify_and_validate_row(row)
+
+
 def load_verified_evaluation_snapshots(
     session: Session,
     evaluation_id: uuid.UUID,
@@ -312,6 +341,7 @@ def resolve_or_reuse_evaluation_snapshots(
 
 
 __all__ = [
+    "load_verified_agent_snapshot",
     "load_verified_evaluation_snapshots",
     "persist_evaluation_form_snapshots",
     "resolve_or_reuse_evaluation_snapshots",

@@ -16,7 +16,7 @@ from typing import Any
 
 from server.modules.rubrics.contracts import CriterionDefinition
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
-from server.modules.rubrics.snapshots import load_verified_evaluation_snapshots
+from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 
 _SUPPORTED_AGENTS = ("sme", "coordinator")
 
@@ -64,10 +64,7 @@ def get_envelope_criteria_map(
     """
     _pack_domains_for(agent_id)  # validate agent_id before any DB access
 
-    verified_snapshots = load_verified_evaluation_snapshots(
-        db, evaluation_id, (agent_id,)
-    )
-    snapshot = next(s for s in verified_snapshots if s.agent_id == agent_id)
+    snapshot = load_verified_agent_snapshot(db, evaluation_id, agent_id)
     return envelope_criteria_map_from_snapshot(snapshot, agent_id)
 
 

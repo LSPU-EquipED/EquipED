@@ -11,6 +11,7 @@ from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.dpo import export_item_level_dpo_pairs
 from server.modules.feedback.models import PreferenceLog
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
+from server.modules.synthesis.models import AgentResult
 from server.modules.synthesis.service import persist_agent_outputs
 from server.tests.evaluations.snapshot_test_helpers import make_agent_result
 from server.tests.rubrics.helpers import seed_all_rubrics
@@ -108,7 +109,7 @@ def test_export_yields_pair_for_envelope_with_real_change(db_session, seeded_use
     )
     db_session.commit()
 
-    pairs = list(export_item_level_dpo_pairs(db_session))
+    pairs = list(export_item_level_dpo_pairs(db_session, ("sme",)))
 
     assert len(pairs) == 1
     pair = pairs[0]
@@ -140,7 +141,7 @@ def test_export_yields_pair_for_envelope_with_real_change(db_session, seeded_use
 
 def test_export_yields_nothing_without_item_level_feedback(db_session, seeded_user):
     _seed_sme_evaluation_with_op01(db_session, seeded_user.user_id)
-    pairs = list(export_item_level_dpo_pairs(db_session))
+    pairs = list(export_item_level_dpo_pairs(db_session, ("sme",)))
     assert pairs == []
 
 
@@ -171,7 +172,43 @@ def test_export_skips_when_reject_then_accept_nets_no_real_change(
             created_at=datetime(2026, 1, 2, tzinfo=UTC),
         )
     )
+    pairs = list(export_item_level_dpo_pairs(db_session, ("sme",)))
+    assert pairs == []
+
+
+def test_export_envelope_status_filtering(db_session, seeded_user):
+    job, _ = _seed_sme_evaluation_with_op01(db_session, seeded_user.user_id)
+
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=job.evaluation_id,
+            user_id=seeded_user.user_id,
+            agent_name="sme",
+            criterion_id="OP-01",
+            item_id="u2",
+            action="ITEM_REJECT",
+        )
+    )
     db_session.commit()
 
-    pairs = list(export_item_level_dpo_pairs(db_session))
-    assert pairs == []
+    result = (
+        db_session.query(AgentResult)
+        .filter_by(evaluation_id=job.evaluation_id, agent_name="sme")
+        .one()
+    )
+
+    # When envelope_status is 'fallback', envelope is NOT exported
+    result.envelope_status = {"envelope_0": "fallback"}
+    db_session.commit()
+    assert list(export_item_level_dpo_pairs(db_session, ("sme",))) == []
+
+    # When envelope_status is 'repaired', envelope is NOT exported
+    result.envelope_status = {"envelope_0": "repaired"}
+    db_session.commit()
+    assert list(export_item_level_dpo_pairs(db_session, ("sme",))) == []
+
+    # When envelope_status is 'ok', envelope IS exported
+    result.envelope_status = {"envelope_0": "ok"}
+    db_session.commit()
+    pairs = list(export_item_level_dpo_pairs(db_session, ("sme",)))
+    assert len(pairs) == 1
