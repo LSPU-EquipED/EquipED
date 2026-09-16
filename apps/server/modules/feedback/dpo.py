@@ -107,6 +107,11 @@ def export_item_level_dpo_pairs(
     db: Any, agent_names: tuple[str, ...]
 ) -> Iterator[DpoPair]:
     """Yield one DpoPair per envelope with an active item-level correction."""
+    if len(agent_names) != 1:
+        raise ValueError(
+            "DPO exports require exactly one target agent to prevent dataset "
+            f"contamination, got {agent_names}"
+        )
     candidate_rows = (
         db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
         .filter(
@@ -245,6 +250,11 @@ def export_score_level_dpo_pairs(
     entirely: REJECT carries no corrected score/justification to build a
     "chosen" response from.
     """
+    if len(agent_names) != 1:
+        raise ValueError(
+            "DPO exports require exactly one target agent to prevent dataset "
+            f"contamination, got {agent_names}"
+        )
     candidate_rows = (
         db.query(PreferenceLog.evaluation_id, PreferenceLog.agent_name)
         .filter(

@@ -287,10 +287,19 @@ def export_dpo_package(
             f.flush()
             os.fsync(f.fileno())
 
-        # If output_dir already exists, remove it or overwrite cleanly
+        # If output_dir already exists, replace it safely with rollback
         if output_dir.exists():
-            shutil.rmtree(output_dir)
-        tmp_path.rename(output_dir)
+            backup_dir = tempfile.mkdtemp(prefix=".dpo_export_bak_", dir=parent_dir)
+            Path(backup_dir).rmdir()
+            output_dir.rename(backup_dir)
+            try:
+                tmp_path.rename(output_dir)
+                shutil.rmtree(backup_dir, ignore_errors=True)
+            except Exception:
+                Path(backup_dir).rename(output_dir)
+                raise
+        else:
+            tmp_path.rename(output_dir)
     except Exception:
         shutil.rmtree(tmp_path, ignore_errors=True)
         raise

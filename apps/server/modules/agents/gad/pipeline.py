@@ -530,7 +530,7 @@ class GADScoredAgent:
             response_contract_key="gad_extraction.v1",
             response_contract_version=1,
             model_name=run_client.model,
-            envelope_status="ok",
+            envelope_status="repaired" if had_repair else "ok",
         )
 
         return AgentEvaluationResult(

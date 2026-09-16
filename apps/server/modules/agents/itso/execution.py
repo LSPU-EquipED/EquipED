@@ -292,18 +292,22 @@ def execute(
 
     response_payload = parsed
     raw_completion = repaired if repair_occurred else raw
+    effective_prompt = repair_prompt if repair_occurred else prompt
     prompt_text = (
-        prompt.render_flat()
-        if hasattr(prompt, "render_flat")
-        else str(prompt)
+        effective_prompt.render_flat()
+        if hasattr(effective_prompt, "render_flat")
+        else str(effective_prompt)
     )
     generation = CapturedGeneration(
         unit_key="envelope_0",
         criterion_ids=tuple(s.criterion_id for s in scores),
         prompt_text=prompt_text,
         prompt_messages=(
-            tuple({"role": m.role, "content": m.content} for m in prompt.messages)
-            if hasattr(prompt, "messages")
+            tuple(
+                {"role": m.role, "content": m.content}
+                for m in effective_prompt.messages
+            )
+            if hasattr(effective_prompt, "messages")
             else None
         ),
         response_text=(
@@ -315,7 +319,7 @@ def execute(
         response_contract_key="itso_scores.v1",
         response_contract_version=1,
         model_name=adapter.model,
-        envelope_status="ok",
+        envelope_status="repaired" if repair_occurred else "ok",
     )
 
     return AgentEvaluationResult(
