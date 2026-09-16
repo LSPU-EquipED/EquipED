@@ -113,7 +113,7 @@ export const INPUT_STYLES = {
 export const TABLE_STYLES = {
   wrapper: 'w-full overflow-x-auto rounded-md border border-border bg-surface',
   table: 'w-full text-left border-collapse',
-  thead: 'border-b border-border bg-surface-subtle text-[11px] font-semibold uppercase tracking-wider text-text-muted',
+  thead: 'border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted',
   th: 'px-4 py-3 text-left font-semibold text-text-muted',
   tbody: 'divide-y divide-border bg-surface text-sm text-text',
   tr: 'transition-colors hover:bg-surface-subtle/70',

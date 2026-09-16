@@ -1,33 +1,31 @@
 import { Warning } from '@phosphor-icons/react';
 import { getErrorMessage } from '@equiped/api-client';
 import { Button } from '@equiped/ui';
-import type { ClientDocument, TargetAgent } from '@equiped/types';
 import { useFacultyHome } from '../hooks/useFacultyHome';
+import { FacultyActiveEvaluationBanner } from './FacultyActiveEvaluationBanner';
 import { FacultyLaunchpads } from './FacultyLaunchpads';
 import { FacultyOperationalLedger } from './FacultyOperationalLedger';
+import { FacultyPulseStrip } from './FacultyPulseStrip';
 
 export interface FacultyHomeProps {
-  onEvaluate?: (doc: ClientDocument, agent: TargetAgent) => void;
+  evaluatorPermissions?: readonly string[] | null;
+  userRole?: string;
 }
 
-export function FacultyHome({ onEvaluate }: FacultyHomeProps = {}) {
+export function FacultyHome({
+  evaluatorPermissions,
+  userRole,
+}: FacultyHomeProps = {}) {
   const {
     isLoading,
     isError,
     error,
     stats,
     homeData,
-    documents,
     evaluations,
-    latestEvalsByDocId,
-    latestEvalsState,
-    evaluatingTarget,
-    setEvaluatingTarget,
     refetch,
   } = useFacultyHome();
 
-  // Normalize documents and evaluations from either direct array or homeData
-  const documentsList = documents.length > 0 ? documents : homeData.recentSlms;
   const evaluationsList = evaluations.length > 0 ? evaluations : homeData.recentEvaluations;
 
   // Accurate metric computations bound to repository stats
@@ -36,17 +34,9 @@ export function FacultyHome({ onEvaluate }: FacultyHomeProps = {}) {
   const inProgressCount = stats.processing;
   const actionRequiredCount = stats.failed + homeData.recentIssues.length;
 
-  const handleEvaluate = (doc: ClientDocument, agent: TargetAgent) => {
-    if (onEvaluate) {
-      onEvaluate(doc, agent);
-    } else {
-      setEvaluatingTarget({ doc, agent });
-    }
-  };
-
   return (
     <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
-      {/* ── 1. Error State ───────────────────────────────────────────── */}
+      {/* ── 1. Error State Alert ─────────────────────────────────────── */}
       {isError ? (
         <div
           className="flex items-center justify-between rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive"
@@ -70,8 +60,11 @@ export function FacultyHome({ onEvaluate }: FacultyHomeProps = {}) {
         </div>
       ) : null}
 
-      {/* ── 2. Academic Workstation Bento Control Deck ────────────────── */}
-      <FacultyLaunchpads
+      {/* ── 2. Real-Time Active Evaluation Docket ────────────────────── */}
+      <FacultyActiveEvaluationBanner evaluation={homeData.activeEvaluation} />
+
+      {/* ── 3. Full-Width Repository Pulse Strip ─────────────────────── */}
+      <FacultyPulseStrip
         totalModules={totalModules}
         readyModules={readyModules}
         inProgressCount={inProgressCount}
@@ -79,14 +72,17 @@ export function FacultyHome({ onEvaluate }: FacultyHomeProps = {}) {
         isLoading={isLoading}
       />
 
-      {/* ── 3. Unified Operational Module Ledger ─────────────────────── */}
+      {/* ── 4. Academic Workstation Launchpads ───────────────────────── */}
+      <FacultyLaunchpads
+        evaluatorPermissions={evaluatorPermissions}
+        userRole={userRole}
+      />
+
+      {/* ── 5. Unified Faculty Command Ledger ───────────────────────── */}
       <FacultyOperationalLedger
         evaluations={evaluationsList}
         recentIssues={homeData.recentIssues}
         isLoading={isLoading}
-        latestEvalsByDocId={latestEvalsByDocId}
-        latestEvalsState={latestEvalsState}
-        onEvaluate={handleEvaluate}
         onRefresh={refetch}
       />
     </section>

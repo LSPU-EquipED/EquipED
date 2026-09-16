@@ -105,6 +105,7 @@ export function deriveFacultyHomeData(
           syllabus_id: '',
           curriculum_id: '',
           status: latest.status,
+          target_agent: latest.target_agent,
           submitted_at: latest.submitted_at,
           completed_at: latest.completed_at ?? undefined,
           error_message: latest.error_message ?? undefined,

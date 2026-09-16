@@ -1,139 +1,87 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { TARGET_AGENTS, TARGET_AGENT_META, type TargetAgent } from '@equiped/types';
+import { Link } from '@tanstack/react-router';
 import {
   ArrowsClockwise,
   CaretLeft,
   CaretRight,
   CheckCircle,
-  FileText,
   MagnifyingGlass,
-  PlayCircle,
-  Spinner,
-  Warning,
 } from '@phosphor-icons/react';
-import { Badge } from '@equiped/ui';
-import { Button } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import { BUTTON_STYLES, TABLE_STYLES } from '@equiped/ui';
-import { Skeleton } from '@equiped/ui';
-import type { ClientDocument } from '@equiped/types';
-import type { LatestEvaluationItem } from '@equiped/types';
+import { Badge, Button, cn } from '@equiped/ui';
 import type { AttentionItem, HomeEvaluationItem } from '../types';
-import {
-  formatDateTime,
-  getDocumentStatusBadge,
-  getEvaluationStatusBadge,
-} from '../utils/homeData';
+import { useOperationalLedger } from '../hooks/useOperationalLedger';
+import { formatDateTime, getEvaluationStatusBadge } from '../utils/homeData';
 
 export type LedgerTab = 'evaluations' | 'attention';
 
-interface FacultyOperationalLedgerProps {
-  evaluations: HomeEvaluationItem[];
-  recentIssues: AttentionItem[];
+export interface FacultyOperationalLedgerProps {
+  evaluations?: HomeEvaluationItem[];
+  recentIssues?: AttentionItem[];
   isLoading: boolean;
-  latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
-  latestEvalsState?: { isLoading?: boolean; isError?: boolean; isSuccess?: boolean };
-  onEvaluate?: (doc: ClientDocument, agent: TargetAgent) => void;
   onRefresh?: () => void;
 }
 
 export function FacultyOperationalLedger({
-  evaluations,
-  recentIssues,
+  evaluations = [],
+  recentIssues = [],
   isLoading,
-  latestEvalsByDocId = {},
-  latestEvalsState = {},
-  onEvaluate,
   onRefresh,
 }: FacultyOperationalLedgerProps) {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<LedgerTab>('evaluations');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
-
-
-  const filteredEvaluations = useMemo(() => {
-    return evaluations.filter((ev) => {
-      const title = ev.document_title || '';
-      const matchesSearch =
-        searchQuery === '' ||
-        title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ev.evaluation_id.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesSearch;
-    });
-  }, [evaluations, searchQuery]);
-
-  const filteredIssues = useMemo(() => {
-    return recentIssues.filter((issue) => {
-      const matchesSearch =
-        searchQuery === '' ||
-        issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        issue.detail.toLowerCase().includes(searchQuery.toLowerCase());
-
-      return matchesSearch;
-    });
-  }, [recentIssues, searchQuery]);
-  const totalItems =
-    activeTab === 'evaluations' ? filteredEvaluations.length : filteredIssues.length;
-
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safePage = Math.min(page, totalPages);
-
-  const paginatedEvaluations = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredEvaluations.slice(start, start + pageSize);
-  }, [filteredEvaluations, safePage, pageSize]);
-
-  const paginatedIssues = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredIssues.slice(start, start + pageSize);
-  }, [filteredIssues, safePage, pageSize]);
-
-  const handleTabChange = (tab: LedgerTab) => {
-    setActiveTab(tab);
-    setPage(1);
-  };
-
-  const handleSearchChange = (val: string) => {
-    setSearchQuery(val);
-    setPage(1);
-  };
-
+  const {
+    activeTab,
+    searchQuery,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    paginatedEvaluations,
+    paginatedIssues,
+    totalItems,
+    totalPages,
+    safePage,
+    handleTabChange,
+    handleSearchChange,
+  } = useOperationalLedger(evaluations, recentIssues);
 
   return (
-    <div className={TABLE_STYLES.wrapper}>
-      {/* ── Unified Ledger Toolbar (Single Tier) ──────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5">
-        {/* Left: Section Stamp & View Tabs */}
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 md:pb-0">
-          <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider text-primary font-mono bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-xs shrink-0 select-none">
+    <div
+      className="w-full rounded-md border border-border bg-surface overflow-hidden shadow-none"
+      role="region"
+      aria-label="Faculty Command Ledger"
+    >
+      {/* ── Toolbar: Level Header Strip ────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-3">
+        {/* Left: Section Stamp & Unified Segment Switcher */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-bold text-text tracking-tight shrink-0 select-none">
             Faculty Command Ledger
           </span>
 
-          <div className="h-4 w-px bg-border/80 shrink-0" aria-hidden="true" />
+          <div className="hidden sm:block h-4 w-px bg-border shrink-0" aria-hidden="true" />
 
-          <div className="flex items-center gap-1 -mb-[11px]" role="tablist" aria-label="Ledger views">
+          <div
+            role="tablist"
+            aria-label="Ledger views"
+            className="flex items-center gap-1 rounded-sm bg-surface-subtle p-1 border border-border/60"
+          >
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'evaluations'}
               onClick={() => handleTabChange('evaluations')}
               className={cn(
-                'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
+                'flex items-center gap-2 rounded-xs px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer select-none',
                 activeTab === 'evaluations'
-                  ? 'border-primary text-primary font-bold'
-                  : 'border-transparent text-text-muted hover:text-text hover:border-border',
+                  ? 'bg-surface text-primary font-bold shadow-xs border border-border/80'
+                  : 'text-text-muted hover:text-text',
               )}
             >
               <span>Recent Evaluations</span>
               <span
                 className={cn(
-                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold font-mono',
+                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold',
                   activeTab === 'evaluations'
                     ? 'bg-primary-soft text-primary'
-                    : 'bg-surface-subtle text-text-muted',
+                    : 'bg-surface text-text-muted',
                 )}
               >
                 {evaluations.length}
@@ -146,19 +94,19 @@ export function FacultyOperationalLedger({
               aria-selected={activeTab === 'attention'}
               onClick={() => handleTabChange('attention')}
               className={cn(
-                'flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer select-none',
+                'flex items-center gap-2 rounded-xs px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer select-none',
                 activeTab === 'attention'
-                  ? 'border-warning text-warning font-bold'
-                  : 'border-transparent text-text-muted hover:text-text hover:border-border',
+                  ? 'bg-surface text-warning font-bold shadow-xs border border-border/80'
+                  : 'text-text-muted hover:text-text',
               )}
             >
               <span>Requires Review</span>
               <span
                 className={cn(
-                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold font-mono',
+                  'rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold',
                   activeTab === 'attention'
                     ? 'bg-warning-soft text-warning'
-                    : 'bg-surface-subtle text-text-muted',
+                    : 'bg-surface text-text-muted',
                 )}
               >
                 {recentIssues.length}
@@ -166,7 +114,8 @@ export function FacultyOperationalLedger({
             </button>
           </div>
         </div>
-        {/* Controls: Refresh & Search */}
+
+        {/* Right: Search & Refresh */}
         <div className="flex items-center gap-2 shrink-0">
           {onRefresh && (
             <Button
@@ -189,7 +138,7 @@ export function FacultyOperationalLedger({
             />
             <input
               type="text"
-              placeholder="Search in ledger..."
+              placeholder="Search evaluations..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
@@ -198,33 +147,33 @@ export function FacultyOperationalLedger({
         </div>
       </div>
 
-      {/* Table Body according to Active Tab */}
+      {/* ── Table Body: Leveled Edge Padding ──────────────────────────── */}
       <div className="overflow-x-auto">
         {activeTab === 'evaluations' && (
-          <table className={TABLE_STYLES.table}>
-            <thead className={TABLE_STYLES.thead}>
+          <table className="w-full text-left border-collapse">
+            <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
               <tr>
-                <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
+                <th scope="col" className="pl-4 sm:pl-6 pr-4 py-3 min-w-[18rem] text-left">
                   Document / Evaluation ID
                 </th>
-                <th scope="col" className={TABLE_STYLES.th}>
+                <th scope="col" className="px-4 py-3 text-left">
                   Status
                 </th>
-                <th scope="col" className={TABLE_STYLES.th}>
+                <th scope="col" className="px-4 py-3 text-left">
                   Submitted
                 </th>
-                <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+                <th scope="col" className="pl-4 pr-4 sm:pr-6 py-3 text-right">
                   Action
                 </th>
               </tr>
             </thead>
-            <tbody className={TABLE_STYLES.tbody}>
+            <tbody className="divide-y divide-border bg-surface text-sm text-text">
               {paginatedEvaluations.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-sm text-text-muted">
                     <p className="font-semibold text-text">No evaluations on record</p>
                     <p className="text-xs text-text-muted mt-1">
-                      Completed evaluation scorecards will appear here.
+                      Completed and in-progress evaluation scorecards will appear here once submitted.
                     </p>
                   </td>
                 </tr>
@@ -232,18 +181,18 @@ export function FacultyOperationalLedger({
                 paginatedEvaluations.map((ev) => {
                   const evalBadge = getEvaluationStatusBadge(ev.status);
                   return (
-                    <tr key={ev.evaluation_id} className={TABLE_STYLES.tr}>
-                      <td className={TABLE_STYLES.td}>
+                    <tr key={ev.evaluation_id} className="transition-colors hover:bg-surface-subtle/70">
+                      <td className="pl-4 sm:pl-6 pr-4 py-3.5">
                         <div className="space-y-0.5">
-                          <span className="text-sm font-bold text-text block leading-snug">
+                          <span className="text-sm font-semibold text-text block leading-snug">
                             {ev.document_title || 'Untitled SLM'}
                           </span>
-                          <span className="text-[10px] font-mono text-text-muted/80 block tabular-nums">
+                          <span className="text-[11px] font-mono text-text-muted block tabular-nums">
                             {ev.evaluation_id}
                           </span>
                         </div>
                       </td>
-                      <td className={TABLE_STYLES.td}>
+                      <td className="px-4 py-3.5">
                         <span
                           className={cn(
                             'inline-flex items-center gap-1.5 rounded-xs px-2.5 py-0.5 text-xs font-semibold select-none',
@@ -253,10 +202,10 @@ export function FacultyOperationalLedger({
                           {evalBadge.label}
                         </span>
                       </td>
-                      <td className={cn(TABLE_STYLES.td, 'text-xs text-text-muted tabular-nums')}>
+                      <td className="px-4 py-3.5 text-xs text-text-muted tabular-nums">
                         {formatDateTime(ev.submitted_at)}
                       </td>
-                      <td className={cn(TABLE_STYLES.td, 'text-right')}>
+                      <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                         <Link
                           to="/evaluations/$id"
                           params={{ id: ev.evaluation_id }}
@@ -275,21 +224,21 @@ export function FacultyOperationalLedger({
         )}
 
         {activeTab === 'attention' && (
-          <table className={TABLE_STYLES.table}>
-            <thead className={TABLE_STYLES.thead}>
+          <table className="w-full text-left border-collapse">
+            <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
               <tr>
-                <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
+                <th scope="col" className="pl-4 sm:pl-6 pr-4 py-3 min-w-[18rem] text-left">
                   Module
                 </th>
-                <th scope="col" className={TABLE_STYLES.th}>
+                <th scope="col" className="px-4 py-3 text-left">
                   Attention Reason
                 </th>
-                <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+                <th scope="col" className="pl-4 pr-4 sm:pr-6 py-3 text-right">
                   Action
                 </th>
               </tr>
             </thead>
-            <tbody className={TABLE_STYLES.tbody}>
+            <tbody className="divide-y divide-border bg-surface text-sm text-text">
               {paginatedIssues.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-12 text-center text-sm text-text-muted">
@@ -297,24 +246,24 @@ export function FacultyOperationalLedger({
                       <CheckCircle className="size-6 text-success" aria-hidden="true" />
                       <p className="font-semibold text-text">No action items</p>
                       <p className="text-xs text-text-muted">
-                        All modules are processed and evaluated cleanly.
+                        All modules are processed and evaluated without active errors.
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 paginatedIssues.map((issue) => (
-                  <tr key={issue.id} className={TABLE_STYLES.tr}>
-                    <td className={TABLE_STYLES.td}>
+                  <tr key={issue.id} className="transition-colors hover:bg-surface-subtle/70">
+                    <td className="pl-4 sm:pl-6 pr-4 py-3.5">
                       <span className="font-semibold text-text">{issue.title}</span>
                       <span className="text-xs text-text-muted mt-0.5 block">{issue.detail}</span>
                     </td>
-                    <td className={TABLE_STYLES.td}>
+                    <td className="px-4 py-3.5">
                       <Badge variant="warning" withDot>
                         {issue.type === 'document_failed' ? 'Processing Issue' : 'Evaluation Issue'}
                       </Badge>
                     </td>
-                    <td className={cn(TABLE_STYLES.td, 'text-right')}>
+                    <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                       <Link
                         to={issue.targetUrl}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong hover:underline transition-colors"
@@ -331,12 +280,12 @@ export function FacultyOperationalLedger({
         )}
       </div>
 
-      {/* Ledger Footer with Compact Pagination */}
+      {/* ── Ledger Footer: Leveled Edge Padding ───────────────────────── */}
       {!isLoading && totalItems > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border bg-surface-subtle px-4 sm:px-6 py-2.5 text-xs text-text-muted">
           <div className="flex flex-wrap items-center gap-3">
             <span className="tabular-nums font-medium">
-              Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalItems)} of {totalItems} {activeTab === 'evaluations' ? 'evaluations' : 'issues'}
+              Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, totalItems)} of {totalItems} items
             </span>
             <span className="text-border">|</span>
             <div className="flex items-center gap-1.5">
