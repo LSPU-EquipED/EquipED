@@ -9,11 +9,17 @@ from server.modules.rubrics.contracts import (
     CountBandConfig,
     GroundedInstance,
     GroundedInstanceMeasurement,
+    GroundedScoreMeasurement,
+    LlmRubricGuidanceConfig,
     PairedCountsMeasurement,
     RatioBandConfig,
 )
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
-from server.modules.rubrics.strategies.calculators import score_count, score_ratio
+from server.modules.rubrics.strategies.calculators import (
+    normalize_llm_guidance_score,
+    score_count,
+    score_ratio,
+)
 
 from ..contracts import CriterionScore
 from ..exceptions import AgentExecutionError
@@ -131,6 +137,55 @@ def score_from_combined(
                     justification=justification,
                     chunk_ids=tuple(accepted_ids),
                     evidence=tuple(accepted_excerpts),
+                )
+            )
+        elif isinstance(config, LlmRubricGuidanceConfig):
+            raw_score = section.get("score")
+            raw_evidence = str(section.get("evidence", "")).strip()
+            raw_chunk_id = str(section.get("chunk_id", "")).strip()
+            raw_reasoning = section.get("reasoning")
+            evidence_candidates += 1
+
+            accepted_excerpts, accepted_ids, rejected = ground_instances(
+                section_key,
+                [{"excerpt": raw_evidence, "chunk_id": raw_chunk_id}],
+                packed_chunks,
+            )
+            if not accepted_excerpts:
+                evidence_rejected += 1
+                raise AgentExecutionError(
+                    f"GAD section '{section_key}' evidence is not grounded in "
+                    "any provided document chunk"
+                )
+            evidence_accepted += 1
+            grounded_evidence = accepted_excerpts[0]
+
+            measurement = GroundedScoreMeasurement(
+                score=raw_score,
+                evidence=grounded_evidence,
+                reasoning=(
+                    raw_reasoning.strip()
+                    if isinstance(raw_reasoning, str) and raw_reasoning.strip()
+                    else None
+                ),
+            )
+            score_res = normalize_llm_guidance_score(config, measurement)
+            justification = (
+                measurement.reasoning
+                if measurement.reasoning
+                else (
+                    f"Evaluated under {crit.title} guidance "
+                    f"(score {score_res.score}/4)."
+                )
+            )
+            scores.append(
+                CriterionScore(
+                    criterion_id=crit.criterion_code,
+                    criterion_title=crit.title,
+                    score=score_res.score,
+                    justification=justification,
+                    chunk_ids=tuple(accepted_ids),
+                    evidence=(grounded_evidence,),
                 )
             )
         else:
