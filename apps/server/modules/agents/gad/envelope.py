@@ -490,11 +490,7 @@ def _validate_section_for_criterion(
                 f"string (max 4000 chars)"
             )
         chunk_id = section_val.get("chunk_id")
-        if (
-            not isinstance(chunk_id, str)
-            or not chunk_id.strip()
-            or len(chunk_id) > 50
-        ):
+        if not isinstance(chunk_id, str) or not chunk_id.strip() or len(chunk_id) > 50:
             raise AgentExecutionError(
                 f"GAD section '{section_key}' requires a non-empty 'chunk_id' "
                 f"string (max 50 chars)"
