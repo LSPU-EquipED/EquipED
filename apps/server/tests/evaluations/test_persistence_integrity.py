@@ -675,7 +675,7 @@ def test_non_itso_advisory_rejected(db_session) -> None:
     ]
     with pytest.raises(
         EvaluationResultIntegrityError,
-        match="Non-ITSO agents must not have advisory_outputs",
+        match="Agent does not support advisory_outputs",
     ):
         persist_agent_outputs(
             db_session,
@@ -718,7 +718,7 @@ def test_itso_advisory_omission_and_extra_rejected(db_session) -> None:
     ]
     with pytest.raises(
         EvaluationResultIntegrityError,
-        match="ITSO advisory criteria mismatch against derived ungrounded set",
+        match="Advisory criteria mismatch against derived ungrounded set",
     ):
         persist_agent_outputs(
             db_session,
@@ -758,7 +758,7 @@ def test_itso_advisory_omission_and_extra_rejected(db_session) -> None:
     results[3] = bad_itso_extra
     with pytest.raises(
         EvaluationResultIntegrityError,
-        match="ITSO advisory criteria mismatch against derived ungrounded set",
+        match="Advisory criteria mismatch against derived ungrounded set",
     ):
         persist_agent_outputs(
             db_session,
@@ -808,7 +808,7 @@ def test_itso_unowned_chunk_changing_parity_rejected_before_writes(
     ]
     with pytest.raises(
         EvaluationResultIntegrityError,
-        match="ITSO ungrounded criteria changed after chunk ownership",
+        match="Advisory ungrounded criteria changed after chunk ownership",
     ):
         persist_agent_outputs(
             db_session,
@@ -877,7 +877,7 @@ def test_itso_advisory_flag_deletion_forgery_duplicate_recovery_rejected(
     db_session.commit()
 
     with pytest.raises(
-        EvaluationResultIntegrityError, match="ITSO advisory flag count mismatch"
+        EvaluationResultIntegrityError, match="Advisory flag count mismatch"
     ):
         load_verified_persisted_agent_results(
             db_session, job.evaluation_id, doc.document_id
@@ -918,7 +918,7 @@ def test_itso_advisory_flag_deletion_forgery_duplicate_recovery_rejected(
     db_session.commit()
 
     with pytest.raises(
-        EvaluationResultIntegrityError, match="ITSO advisory flag count mismatch"
+        EvaluationResultIntegrityError, match="Advisory flag count mismatch"
     ):
         load_verified_persisted_agent_results(
             db_session, job.evaluation_id, doc.document_id

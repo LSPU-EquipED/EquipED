@@ -18,6 +18,7 @@ from server.modules.agents.contracts import (
     CriterionScore as InputCriterionScore,
 )
 from server.modules.agents.provenance import sanitize_provenance
+from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 
@@ -46,6 +47,13 @@ MAX_PROVENANCE_BYTES = 64 * 1024
 MAX_JSON_DEPTH = 8
 MAX_ENVELOPE_STATUS_BYTES = 16 * 1024
 _VALID_ENVELOPE_STATUSES = frozenset({"ok", "repaired", "fallback"})
+
+# Agents whose evidence-grounding can legitimately fail per-criterion and
+# degrade to an advisory flag instead of failing the whole evaluation.
+# ITSO originated this pattern; GAD's llm_rubric_guidance criteria adopted
+# the same fallback-search-then-advisory design (see
+# docs/superpowers/specs/2026-09-16-gad-grounding-fallback-design.md).
+ADVISORY_CAPABLE_AGENTS = frozenset({"itso", "gad"})
 
 
 def _validate_json_depth_and_types(obj: Any, depth: int = 1) -> None:
@@ -85,19 +93,54 @@ def _serialize_bounded_json(obj: Any, max_bytes: int, name: str) -> str:
     return encoded_str
 
 
-def derive_itso_ungrounded_criterion_ids(
+def grounding_eligible_criterion_ids(snapshot: EvaluationFormSnapshotDTO) -> set[str]:
+    """Criterion codes whose strategy guarantees evidence when grounded.
+
+    Only ``llm_rubric_guidance`` criteria are eligible for the
+    empty-evidence-implies-ungrounded heuristic -- other strategies
+    (``ratio_band``, ``count_band``) can legitimately have no evidence
+    excerpts without being ungrounded.
+    """
+    return {
+        c.criterion_code
+        for d in snapshot.form.domains
+        for c in d.criteria
+        if isinstance(c.strategy_config, LlmRubricGuidanceConfig)
+    }
+
+
+def derive_ungrounded_criterion_ids(
     criterion_scores: tuple[PersistableCriterionScore, ...],
     chunk_id_map: dict[str, tuple[str, ...]] | None = None,
+    eligible_criterion_ids: set[str] | None = None,
 ) -> set[str]:
-    """Derive the deterministic set of ITSO ungrounded criterion IDs.
+    """Derive the deterministic set of ungrounded criterion IDs.
+
+    Shared by every agent in ``ADVISORY_CAPABLE_AGENTS`` (currently ITSO and
+    GAD) -- the logic itself has never been agent-specific, only its
+    original wiring was.
 
     A criterion is ungrounded if ANY of:
     - justification is blank / empty
     - evidence is empty / missing
     - chunk_ids are empty / missing (or empty after ownership filtering)
+
+    ``eligible_criterion_ids``, when given, restricts this classification to
+    only those criterion codes -- criteria outside it are never returned as
+    ungrounded regardless of empty evidence. This matters for agents like
+    GAD whose non-``llm_rubric_guidance`` strategies (``ratio_band``,
+    ``count_band`` with zero instances found) legitimately have no evidence
+    excerpts without being ungrounded -- unlike ITSO, where every criterion
+    uses ``llm_rubric_guidance`` and always expects evidence, so passing
+    ``None`` (the default) preserves ITSO's original unrestricted behavior.
     """
     ungrounded: set[str] = set()
     for score in criterion_scores:
+        if (
+            eligible_criterion_ids is not None
+            and score.criterion_id not in eligible_criterion_ids
+        ):
+            continue
         chunks = (
             chunk_id_map.get(score.criterion_id, ())
             if chunk_id_map is not None
@@ -339,13 +382,16 @@ def build_persistable_agent_result(
         else None
     )
 
-    if result.agent_name != "itso" and result.advisory_outputs is not None:
-        raise EvaluationResultIntegrityError(
-            "Non-ITSO agents must not have advisory_outputs"
-        )
+    if result.agent_name not in ADVISORY_CAPABLE_AGENTS and (
+        result.advisory_outputs is not None
+    ):
+        raise EvaluationResultIntegrityError("Agent does not support advisory_outputs")
 
     claimed_advisory_cids: set[str] = set()
-    if result.agent_name == "itso" and result.advisory_outputs is not None:
+    if (
+        result.agent_name in ADVISORY_CAPABLE_AGENTS
+        and result.advisory_outputs is not None
+    ):
         if not isinstance(result.advisory_outputs, AdvisoryOutput):
             raise EvaluationResultIntegrityError(
                 "advisory_outputs must be AdvisoryOutput or None"
@@ -418,10 +464,11 @@ def build_persistable_agent_result(
         ):
             raise EvaluationResultIntegrityError("criterion score out of bounds")
 
-        is_claimed_ungrounded_itso = (
-            result.agent_name == "itso" and score.criterion_id in claimed_advisory_cids
+        is_claimed_ungrounded = (
+            result.agent_name in ADVISORY_CAPABLE_AGENTS
+            and score.criterion_id in claimed_advisory_cids
         )
-        if is_claimed_ungrounded_itso:
+        if is_claimed_ungrounded:
             if not isinstance(score.justification, str):
                 raise EvaluationResultIntegrityError(
                     "Invalid criterion justification type"
@@ -520,13 +567,14 @@ def build_persistable_agent_result(
     if not math.isclose(result.subtotal, derived_subtotal, rel_tol=1e-5, abs_tol=1e-5):
         raise EvaluationResultIntegrityError("Subtotal mismatch against derived mean")
 
-    if result.agent_name == "itso":
-        derived_itso_ungrounded = derive_itso_ungrounded_criterion_ids(
-            tuple(scores_out)
+    if result.agent_name in ADVISORY_CAPABLE_AGENTS:
+        derived_ungrounded = derive_ungrounded_criterion_ids(
+            tuple(scores_out),
+            eligible_criterion_ids=grounding_eligible_criterion_ids(snapshot),
         )
-        if derived_itso_ungrounded != claimed_advisory_cids:
+        if derived_ungrounded != claimed_advisory_cids:
             raise EvaluationResultIntegrityError(
-                "ITSO advisory criteria mismatch against derived ungrounded set"
+                "Advisory criteria mismatch against derived ungrounded set"
             )
 
     if not isinstance(result.generations, tuple):
@@ -636,8 +684,10 @@ def build_persistable_agent_result(
 
 
 __all__ = [
+    "ADVISORY_CAPABLE_AGENTS",
     "PersistableCriterionScore",
     "PersistableAgentResult",
     "build_persistable_agent_result",
-    "derive_itso_ungrounded_criterion_ids",
+    "derive_ungrounded_criterion_ids",
+    "grounding_eligible_criterion_ids",
 ]
