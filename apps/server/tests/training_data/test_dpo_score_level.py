@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
-from server.modules.feedback.dpo import export_score_level_dpo_pairs
 from server.modules.feedback.models import PreferenceLog
 from server.modules.synthesis.models import AgentResult
+from server.modules.training_data.dpo import export_score_level_dpo_pairs
 
 _A01_MEASUREMENT = {
     "criterion_id": "A-01",
@@ -57,7 +57,7 @@ def test_exports_pair_for_score_edit(db_session, evaluation_job, admin_user):
     db_session.commit()
 
     with patch(
-        "server.modules.feedback.dpo.get_envelope_criteria_map",
+        "server.modules.training_data.dpo.get_envelope_criteria_map",
         return_value={
             "envelope_1": [
                 type("C", (), {"criterion_code": "A-01"})(),
@@ -109,7 +109,7 @@ def test_reject_skips_whole_envelope(db_session, evaluation_job, admin_user):
     db_session.commit()
 
     with patch(
-        "server.modules.feedback.dpo.get_envelope_criteria_map",
+        "server.modules.training_data.dpo.get_envelope_criteria_map",
         return_value={
             "envelope_1": [
                 type("C", (), {"criterion_code": "A-01"})(),
@@ -157,7 +157,7 @@ def test_skips_non_score_shaped_measurement(db_session, evaluation_job, admin_us
     db_session.commit()
 
     with patch(
-        "server.modules.feedback.dpo.get_envelope_criteria_map",
+        "server.modules.training_data.dpo.get_envelope_criteria_map",
         return_value={"envelope_1": [type("C", (), {"criterion_code": "A-01"})()]},
     ):
         pairs = list(export_score_level_dpo_pairs(db_session, ("sme",)))
@@ -180,7 +180,7 @@ def test_export_envelope_status_filtering(db_session, evaluation_job, admin_user
     db_session.commit()
 
     with patch(
-        "server.modules.feedback.dpo.get_envelope_criteria_map",
+        "server.modules.training_data.dpo.get_envelope_criteria_map",
         return_value={
             "envelope_1": [
                 type("C", (), {"criterion_code": "A-01"})(),
