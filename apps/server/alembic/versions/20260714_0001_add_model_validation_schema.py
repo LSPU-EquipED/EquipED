@@ -235,7 +235,9 @@ def _create_model_validations_table() -> None:
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["created_by"], ["users.user_id"]),
-        sa.ForeignKeyConstraint(["evaluation_id"], ["evaluation_jobs.evaluation_id"]),
+        sa.ForeignKeyConstraint(
+            ["evaluation_id"], ["evaluation_jobs.evaluation_id"]
+        ),
         sa.PrimaryKeyConstraint("validation_id"),
     )
     op.create_index(
@@ -274,7 +276,9 @@ def _create_criterion_scores_table() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.ForeignKeyConstraint(["validation_id"], ["model_validations.validation_id"]),
+        sa.ForeignKeyConstraint(
+            ["validation_id"], ["model_validations.validation_id"]
+        ),
         sa.PrimaryKeyConstraint("expected_score_id"),
     )
     op.create_index(

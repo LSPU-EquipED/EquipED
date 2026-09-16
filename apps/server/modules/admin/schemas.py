@@ -29,6 +29,7 @@ def _validate_evaluator_permissions(
     return permissions
 
 
+
 class PromptCreate(BaseModel):
     """Request body for creating a new prompt version."""
 
@@ -148,7 +149,6 @@ class AdminUserResponse(BaseModel):
         default_factory=list, serialization_alias="evaluatorPermissions"
     )
     created_at: datetime
-
     class Config:
         from_attributes = True
 

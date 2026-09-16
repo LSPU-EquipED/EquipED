@@ -79,9 +79,8 @@ def _healthy_doc(db_session, policy_area: str, tag: str) -> uuid.UUID:
     return doc_id
 
 
-def _chunk_in_db(
-    db_session, doc_id, *, chroma_stored: bool = True, policy_area: str | None = None
-) -> uuid.UUID:
+def _chunk_in_db(db_session, doc_id, *, chroma_stored: bool = True,
+                 policy_area: str | None = None) -> uuid.UUID:
     """Create one DocumentChunk row and return its UUID.
 
     Caller should ``session.commit()`` before post-validation tests.
@@ -113,10 +112,7 @@ def _chunk_in_db(
 
 
 def _seed_policy_chunks(
-    collection,
-    doc_id: str,
-    policy_area: str,
-    chunk_ids: list[uuid.UUID],
+    collection, doc_id: str, policy_area: str, chunk_ids: list[uuid.UUID],
 ):
     """Seed chunks into Chroma using the given SQL chunk IDs.
 
@@ -139,10 +135,7 @@ def _seed_policy_chunks(
     ]
     embeddings = [[0.1 + i * 0.01] * 384 for i in range(count)]
     collection.add(
-        ids=str_ids,
-        documents=docs_text,
-        metadatas=metas,
-        embeddings=embeddings,
+        ids=str_ids, documents=docs_text, metadatas=metas, embeddings=embeddings,
     )
 
 
@@ -215,20 +208,10 @@ class TestParsePolicyChunks:
             "documents": [["text a", "text b"]],
             "metadatas": [
                 [
-                    {
-                        "chunk_id": "c1",
-                        "document_id": "d1",
-                        "policy_area": "ip",
-                        "page_number": 2,
-                        "token_count": 50,
-                    },
-                    {
-                        "chunk_id": "c2",
-                        "document_id": "d2",
-                        "policy_area": "dp",
-                        "page_number": None,
-                        "token_count": None,
-                    },
+                    {"chunk_id": "c1", "document_id": "d1", "policy_area": "ip",
+                     "page_number": 2, "token_count": 50},
+                    {"chunk_id": "c2", "document_id": "d2", "policy_area": "dp",
+                     "page_number": None, "token_count": None},
                 ]
             ],
             "distances": [[0.5, 0.3]],
@@ -279,7 +262,6 @@ class TestRankingAndBounds:
         from server.modules.embeddings.policy_retrieval import (
             _DEFAULT_MAX_CHUNKS_PER_CRITERION,
         )
-
         assert _DEFAULT_MAX_CHUNKS_PER_CRITERION == 5
 
 
@@ -359,10 +341,7 @@ class TestRetrievePolicyContextIntegration:
     """
 
     def test_happy_path_returns_available(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         doc_id = _healthy_doc(db_session, "data_privacy", "happy")
         chunk_id = _chunk_in_db(db_session, doc_id)
@@ -377,10 +356,7 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=3,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=3,
         )
         assert result.status == "available"
         assert result.policy_area == "data_privacy"
@@ -389,10 +365,7 @@ class TestRetrievePolicyContextIntegration:
         assert len(result.provenance_hash) == 64
 
     def test_excludes_orphan_document(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         """Chunks from a doc not in the SQL allowlist must be excluded."""
         healthy_id = _healthy_doc(db_session, "data_privacy", "healthy")
@@ -412,20 +385,14 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=5,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=5,
         )
         assert result.status == "available"
         for chunk in result.chunks:
             assert chunk.document_id == str(healthy_id)
 
     def test_excludes_stale_vector_no_chroma_stored(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         """Stale vector in Chroma for a doc lacking chroma_stored chunks is excluded."""
         doc_id = _healthy_doc(db_session, "intellectual_property", "stale")
@@ -441,18 +408,12 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-03",
-            [0.1] * 384,
-            db_session,
-            max_chunks=3,
+            "ITSO-03", [0.1] * 384, db_session, max_chunks=3,
         )
         assert result.status == "unavailable"
 
     def test_falls_back_to_general_itso(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         gen_id = _healthy_doc(db_session, "general_itso", "gen")
         gen_chunk = _chunk_in_db(db_session, gen_id)
@@ -467,19 +428,13 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-03",
-            [0.1] * 384,
-            db_session,
-            max_chunks=3,
+            "ITSO-03", [0.1] * 384, db_session, max_chunks=3,
         )
         assert result.status == "available"
         assert result.policy_area == "general_itso"
 
     def test_max_chunks_clamped_to_5(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         doc_id = _healthy_doc(db_session, "academic_rights", "clamp")
         chunk_ids = [_chunk_in_db(db_session, doc_id) for _ in range(10)]
@@ -494,19 +449,13 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-05",
-            [0.1] * 384,
-            db_session,
-            max_chunks=100,
+            "ITSO-05", [0.1] * 384, db_session, max_chunks=100,
         )
         assert result.status == "available"
         assert result.chunk_count <= 5
 
     def test_min_chunks_clamped_to_1(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         doc_id = _healthy_doc(db_session, "data_privacy", "minclamp")
         chunk_ids = [_chunk_in_db(db_session, doc_id) for _ in range(5)]
@@ -521,19 +470,13 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=0,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=0,
         )
         assert result.status == "available"
         assert result.chunk_count == 1
 
     def test_excludes_wrong_document_tuple(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         """Chunk with valid chunk_id but wrong document_id in Chroma metadata."""
         doc_a = _healthy_doc(db_session, "data_privacy", "docA")
@@ -558,9 +501,7 @@ class TestRetrievePolicyContextIntegration:
         ]
         embeddings = [[0.1] * 384]
         col.add(
-            ids=str_ids,
-            documents=docs_text,
-            metadatas=metas,
+            ids=str_ids, documents=docs_text, metadatas=metas,
             embeddings=embeddings,
         )
 
@@ -570,18 +511,12 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=5,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=5,
         )
         assert result.status == "unavailable"
 
     def test_excludes_wrong_policy_area_tuple(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
+        self, db_session, ephemeral_client, monkeypatch,
     ):
         """Chunk with valid chunk_id but wrong policy_area in Chroma metadata."""
         doc_id = _healthy_doc(db_session, "data_privacy", "areaMismatch")
@@ -602,9 +537,7 @@ class TestRetrievePolicyContextIntegration:
         ]
         embeddings = [[0.1] * 384]
         col.add(
-            ids=str_ids,
-            documents=docs_text,
-            metadatas=metas,
+            ids=str_ids, documents=docs_text, metadatas=metas,
             embeddings=embeddings,
         )
 
@@ -614,19 +547,12 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=5,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=5,
         )
         assert result.status == "unavailable"
 
     def test_logs_use_category_only_no_raw_ids(
-        self,
-        db_session,
-        ephemeral_client,
-        monkeypatch,
-        caplog,
+        self, db_session, ephemeral_client, monkeypatch, caplog,
     ):
         """All log messages use fixed category labels; no raw criterion or doc IDs."""
         caplog.set_level(
@@ -648,10 +574,7 @@ class TestRetrievePolicyContextIntegration:
         )
 
         result = retrieve_policy_context(
-            "ITSO-04",
-            [0.1] * 384,
-            db_session,
-            max_chunks=3,
+            "ITSO-04", [0.1] * 384, db_session, max_chunks=3,
         )
         assert result.status == "unavailable"
 
@@ -664,9 +587,7 @@ class TestRetrievePolicyContextIntegration:
             assert _SENTINEL not in record.message
 
     def test_logs_unknown_criterion_no_raw_id(
-        self,
-        db_session,
-        caplog,
+        self, db_session, caplog,
     ):
         """Unknown criterion log uses category-only message, no raw ID."""
         caplog.set_level(

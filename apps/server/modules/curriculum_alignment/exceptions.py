@@ -1,6 +1,5 @@
 """Exceptions for curriculum alignment."""
 
-
 class CourseNotFoundError(Exception):
     """Raised when the requested course does not exist.
 

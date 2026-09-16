@@ -274,8 +274,7 @@ def test_get_corrected_criterion_score_returns_none_without_rejections(
 
 
 def test_get_corrected_criterion_score_returns_none_for_non_item_correctable_strategy(
-    db_session,
-    evaluation_job,
+    db_session, evaluation_job,
 ):
     from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 

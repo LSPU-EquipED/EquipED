@@ -96,19 +96,16 @@ def test_backfill_sets_gad_rules_and_downgrade_clears_them(tmp_path):
     _run(upgrade, _config(url), "20260829_0002")
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision() == "20260829_0002"
+            MigrationContext.configure(conn).get_current_revision()
+            == "20260829_0002"
         )
         gad_rule = conn.execute(
-            text(
-                "SELECT scoring_rule FROM rubric_criteria "
-                "WHERE rubric_criterion_id='c-gad'"
-            )
+            text("SELECT scoring_rule FROM rubric_criteria "
+                 "WHERE rubric_criterion_id='c-gad'")
         ).scalar()
         sme_rule = conn.execute(
-            text(
-                "SELECT scoring_rule FROM rubric_criteria "
-                "WHERE rubric_criterion_id='c-sme'"
-            )
+            text("SELECT scoring_rule FROM rubric_criteria "
+                 "WHERE rubric_criterion_id='c-sme'")
         ).scalar()
     assert gad_rule is not None and "unique instance" in gad_rule
     assert sme_rule is not None  # set by 20260829_0001, untouched here
@@ -117,16 +114,12 @@ def test_backfill_sets_gad_rules_and_downgrade_clears_them(tmp_path):
     _run(downgrade, _config(url), "20260829_0001")
     with engine.connect() as conn:
         gad_after = conn.execute(
-            text(
-                "SELECT scoring_rule FROM rubric_criteria "
-                "WHERE rubric_criterion_id='c-gad'"
-            )
+            text("SELECT scoring_rule FROM rubric_criteria "
+                 "WHERE rubric_criterion_id='c-gad'")
         ).scalar()
         sme_after = conn.execute(
-            text(
-                "SELECT scoring_rule FROM rubric_criteria "
-                "WHERE rubric_criterion_id='c-sme'"
-            )
+            text("SELECT scoring_rule FROM rubric_criteria "
+                 "WHERE rubric_criterion_id='c-sme'")
         ).scalar()
     assert gad_after is None
     assert sme_after is not None  # 0001's backfill still stands

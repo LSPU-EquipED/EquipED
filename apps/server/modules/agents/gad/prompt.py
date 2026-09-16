@@ -139,8 +139,7 @@ def build_combined_prompt(
                     f"    Score {d.score}: {d.descriptor}" for d in sorted_descs
                 )
             criterion_details.append(
-                header
-                + f"    {config.guidance}\n"
+                header + f"    {config.guidance}\n"
                 + (f"{descriptor_lines}\n" if descriptor_lines else "")
                 + "    Return a JSON object for this section with EXACTLY "
                 "these fields and no others:\n"

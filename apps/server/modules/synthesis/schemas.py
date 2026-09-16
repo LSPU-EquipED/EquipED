@@ -140,6 +140,7 @@ class MatrixListResponse(BaseModel):
     page_size: int
 
 
+
 class EvaluatorAttribution(BaseModel):
     user_id: UUID | None = None
     name: str = "Unknown Author"
@@ -169,7 +170,6 @@ class MasterSynthesisDetailResponse(BaseModel):
     pillars: dict[str, MasterSynthesisPillar]
     flags: list[EvaluationFlagItem] = Field(default_factory=list)
     can_certify: bool
-
 
 __all__ = [
     "CriterionScoreItem",

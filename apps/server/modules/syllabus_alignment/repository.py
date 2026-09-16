@@ -147,7 +147,9 @@ def mark_run_completed(
     if level == SyllabusAlignmentLevel.UNAVAILABLE.value:
         run.status = SyllabusAlignmentStatus.FAILED.value
         run.alignment_level = SyllabusAlignmentLevel.UNAVAILABLE.value
-        run.error_message = run.justification or "Alignment analysis was unavailable."
+        run.error_message = (
+            run.justification or "Alignment analysis was unavailable."
+        )
     else:
         run.status = SyllabusAlignmentStatus.COMPLETED.value
         run.alignment_level = level
@@ -190,7 +192,9 @@ def mark_interrupted_runs_failed(session: Any) -> int:
             "The alignment run was interrupted by an application restart. "
             "Start a new run to retry."
         )
-        run.error_message = "Background alignment interrupted by application restart."
+        run.error_message = (
+            "Background alignment interrupted by application restart."
+        )
         run.completed_at = now
         run.updated_at = now
     session.commit()

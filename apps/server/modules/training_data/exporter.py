@@ -72,7 +72,9 @@ def _effective_rejections_with_reviewers_for_evaluations(
             if log.user_id:
                 reviewers[eval_id][criterion_id].add(log.user_id)
 
-    result: dict[uuid.UUID, dict[str, tuple[frozenset[str], frozenset[uuid.UUID]]]] = {}
+    result: dict[
+        uuid.UUID, dict[str, tuple[frozenset[str], frozenset[uuid.UUID]]]
+    ] = {}
     for eval_id, criteria in rejected_items.items():
         result[eval_id] = {
             cid: (frozenset(items), frozenset(reviewers[eval_id][cid]))
@@ -231,7 +233,9 @@ def export_dpo_package(
     pairs_sha256 = hashlib.sha256(pairs_content).hexdigest()
     pairs_bytes = len(pairs_content)
 
-    prov_lines = [json.dumps(r, ensure_ascii=False) + "\n" for r in provenance_records]
+    prov_lines = [
+        json.dumps(r, ensure_ascii=False) + "\n" for r in provenance_records
+    ]
     prov_content = "".join(prov_lines).encode("utf-8")
     prov_sha256 = hashlib.sha256(prov_content).hexdigest()
     prov_bytes = len(prov_content)

@@ -395,3 +395,4 @@ def test_response_format_downgraded_provenance_allowlisted_and_preserved():
         {"response_format_downgraded": "not_a_bool"}
     )
     assert sanitized_invalid is None
+

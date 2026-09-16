@@ -34,7 +34,7 @@ PROMPTS = {
         "3 = Meets expectations \u2014 solid content with minor areas for improvement\n"
         "4 = Exceeds expectations \u2014 exemplary accuracy, depth, and pedagogical quality\n\n"
         "OUTPUT FORMAT:\n"
-        "Return a JSON object with:\n"
+        'Return a JSON object with:\n'
         '- "summary": A 2-3 sentence overall assessment of the SLM\u2019s subject matter quality.\n'
         '- "criterion_scores": An array of objects, one per rubric criterion. Each must have:\n'
         '  - "criterion_id": The exact criterion_id from the rubric_context\n'
@@ -70,7 +70,7 @@ PROMPTS = {
         "4 = Excellent alignment \u2014 fully coherent with program outcomes and "
         "learning objectives\n\n"
         "OUTPUT FORMAT:\n"
-        "Return a JSON object with:\n"
+        'Return a JSON object with:\n'
         '- "summary": A 2-3 sentence assessment of curriculum alignment and coherence.\n'
         '- "criterion_scores": An array of objects, one per rubric criterion. Each must have:\n'
         '  - "criterion_id": The exact criterion_id from the rubric_context\n'
@@ -110,7 +110,7 @@ PROMPTS = {
         "4 = Excellent \u2014 actively promotes gender equality, uses inclusive language "
         "throughout, represents diverse perspectives\n\n"
         "OUTPUT FORMAT:\n"
-        "Return a JSON object with:\n"
+        'Return a JSON object with:\n'
         '- "summary": A 2-3 sentence assessment of the SLM\u2019s gender sensitivity '
         "and inclusivity.\n"
         '- "criterion_scores": An array of objects, one per rubric criterion. Each must have:\n'
@@ -150,7 +150,7 @@ PROMPTS = {
         "4 = Excellent \u2014 proactively addresses data privacy, recommends secure tools, "
         "and models good digital safety practices\n\n"
         "OUTPUT FORMAT:\n"
-        "Return a JSON object with:\n"
+        'Return a JSON object with:\n'
         '- "summary": A 2-3 sentence assessment of the SLM\u2019s privacy, security, '
         "and technology guidance.\n"
         '- "criterion_scores": An array of objects, one per rubric criterion. Each must have:\n'

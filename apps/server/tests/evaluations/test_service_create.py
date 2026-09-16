@@ -822,7 +822,6 @@ def test_create_evaluation_primary_document_masking_precedes_program_validation(
 
     assert db_session.query(EvaluationJob).count() == 0
 
-
 @pytest.mark.parametrize("target_agent", ["sme", "gad", "itso"])
 def test_create_evaluation_single_agent_succeeds_without_curriculum(
     db_session, target_agent: str

@@ -42,9 +42,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "idx_pref_logs_created_at", table_name="preference_logs", if_exists=True
-    )
+    op.drop_index("idx_pref_logs_created_at", table_name="preference_logs", if_exists=True)
     op.drop_index("idx_pref_logs_action", table_name="preference_logs", if_exists=True)
     op.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_preference_logs"))
     with op.batch_alter_table("preference_logs") as batch_op:
@@ -65,62 +63,24 @@ def downgrade() -> None:
 def _rebuild_prompt_versions_to_varchar(bind) -> None:
     """SQLite-safe prompt_text Text→VARCHAR via manual table rebuild."""
     (existing,) = bind.execute(
-        sa.text(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='prompt_versions'"
-        )
+        sa.text("SELECT sql FROM sqlite_master WHERE type='table' AND name='prompt_versions'")
     ).fetchone()
-    new_sql = existing.replace(
-        "prompt_text TEXT NOT NULL", "prompt_text VARCHAR(10000) NOT NULL"
-    )
+    new_sql = existing.replace("prompt_text TEXT NOT NULL", "prompt_text VARCHAR(10000) NOT NULL")
     bind.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_prompt_versions"))
-    bind.execute(
-        sa.text(
-            re.sub(
-                r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?prompt_versions"?',
-                "CREATE TABLE _alembic_tmp_prompt_versions",
-                new_sql,
-                count=1,
-            )
-        )
-    )
-    bind.execute(
-        sa.text(
-            "INSERT INTO _alembic_tmp_prompt_versions SELECT * FROM prompt_versions"
-        )
-    )
+    bind.execute(sa.text(re.sub(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?prompt_versions"?', "CREATE TABLE _alembic_tmp_prompt_versions", new_sql, count=1)))
+    bind.execute(sa.text("INSERT INTO _alembic_tmp_prompt_versions SELECT * FROM prompt_versions"))
     bind.execute(sa.text("DROP TABLE prompt_versions"))
-    bind.execute(
-        sa.text("ALTER TABLE _alembic_tmp_prompt_versions RENAME TO prompt_versions")
-    )
+    bind.execute(sa.text("ALTER TABLE _alembic_tmp_prompt_versions RENAME TO prompt_versions"))
 
 
 def _rebuild_prompt_versions_to_text(bind) -> None:
     """SQLite-safe prompt_text VARCHAR→TEXT via manual table rebuild."""
     (existing,) = bind.execute(
-        sa.text(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='prompt_versions'"
-        )
+        sa.text("SELECT sql FROM sqlite_master WHERE type='table' AND name='prompt_versions'")
     ).fetchone()
-    new_sql = existing.replace(
-        "prompt_text VARCHAR(10000) NOT NULL", "prompt_text TEXT NOT NULL"
-    )
+    new_sql = existing.replace("prompt_text VARCHAR(10000) NOT NULL", "prompt_text TEXT NOT NULL")
     bind.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_prompt_versions"))
-    bind.execute(
-        sa.text(
-            re.sub(
-                r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?prompt_versions"?',
-                "CREATE TABLE _alembic_tmp_prompt_versions",
-                new_sql,
-                count=1,
-            )
-        )
-    )
-    bind.execute(
-        sa.text(
-            "INSERT INTO _alembic_tmp_prompt_versions SELECT * FROM prompt_versions"
-        )
-    )
+    bind.execute(sa.text(re.sub(r'CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?prompt_versions"?', "CREATE TABLE _alembic_tmp_prompt_versions", new_sql, count=1)))
+    bind.execute(sa.text("INSERT INTO _alembic_tmp_prompt_versions SELECT * FROM prompt_versions"))
     bind.execute(sa.text("DROP TABLE prompt_versions"))
-    bind.execute(
-        sa.text("ALTER TABLE _alembic_tmp_prompt_versions RENAME TO prompt_versions")
-    )
+    bind.execute(sa.text("ALTER TABLE _alembic_tmp_prompt_versions RENAME TO prompt_versions"))

@@ -67,9 +67,7 @@ def upgrade() -> None:
         sa.Column("token_count", sa.Integer(), nullable=False),
         sa.Column("model_name", sa.String(length=200), nullable=False),
         sa.Column("summary", sa.Text(), nullable=False),
-        sa.Column(
-            "success", sa.Boolean(), nullable=False, server_default=sa.text("true")
-        ),
+        sa.Column("success", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("raw_response", sa.Text(), nullable=True),
         sa.Column(
@@ -101,9 +99,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
-        sa.CheckConstraint(
-            "score BETWEEN 1 AND 4", name="ck_criterion_scores_score_range"
-        ),
+        sa.CheckConstraint("score BETWEEN 1 AND 4", name="ck_criterion_scores_score_range"),
         sa.ForeignKeyConstraint(["agent_result_id"], ["agent_results.agent_result_id"]),
         sa.ForeignKeyConstraint(["document_id"], ["documents.document_id"]),
         sa.ForeignKeyConstraint(["evaluation_id"], ["evaluation_jobs.evaluation_id"]),
@@ -129,9 +125,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["agent_result_id"], ["agent_results.agent_result_id"]),
         sa.ForeignKeyConstraint(["chunk_id"], ["document_chunks.chunk_id"]),
-        sa.ForeignKeyConstraint(
-            ["criterion_score_id"], ["criterion_scores.criterion_score_id"]
-        ),
+        sa.ForeignKeyConstraint(["criterion_score_id"], ["criterion_scores.criterion_score_id"]),
         sa.ForeignKeyConstraint(["document_id"], ["documents.document_id"]),
         sa.ForeignKeyConstraint(["evaluation_id"], ["evaluation_jobs.evaluation_id"]),
         sa.PrimaryKeyConstraint("evaluation_flag_id"),

@@ -22,18 +22,9 @@ def upgrade():
         sa.Column("agent_id", sa.String(length=50), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
         sa.Column("version_number", sa.Integer(), nullable=False),
-        sa.Column(
-            "status", sa.String(length=20), nullable=False, server_default="draft"
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.UniqueConstraint(
-            "agent_id", "version_number", name="uq_rubric_sets_agent_version"
-        ),
+        sa.Column("status", sa.String(length=20), nullable=False, server_default="draft"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("agent_id", "version_number", name="uq_rubric_sets_agent_version"),
     )
 
     op.create_table(
@@ -55,12 +46,8 @@ def upgrade():
         sa.Column("title", sa.String(length=300), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("display_order", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["rubric_domain_id"], ["rubric_domains.rubric_domain_id"]
-        ),
-        sa.UniqueConstraint(
-            "rubric_domain_id", "criterion_code", name="uq_rubric_criteria_domain_code"
-        ),
+        sa.ForeignKeyConstraint(["rubric_domain_id"], ["rubric_domains.rubric_domain_id"]),
+        sa.UniqueConstraint("rubric_domain_id", "criterion_code", name="uq_rubric_criteria_domain_code"),
     )
 
 

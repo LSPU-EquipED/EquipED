@@ -36,7 +36,9 @@ def _has_index(name: str) -> bool:
     table_names = inspect(bind).get_table_names()
     if _TABLE_NAME not in table_names:
         return False
-    return name in [i["name"] for i in inspect(bind).get_indexes(_TABLE_NAME)]
+    return name in [
+        i["name"] for i in inspect(bind).get_indexes(_TABLE_NAME)
+    ]
 
 
 def upgrade() -> None:

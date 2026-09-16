@@ -645,7 +645,9 @@ def test_get_evaluation_results_surfaces_item_level_correction(db_session, seede
     assert op02.corrected_score is None
 
 
-def test_persist_agent_outputs_saves_captured_generations(db_session, seeded_user):
+def test_persist_agent_outputs_saves_captured_generations(
+    db_session, seeded_user
+):
     """Verify CapturedGeneration dataclasses are persisted to agent_generations."""
     import hashlib
 

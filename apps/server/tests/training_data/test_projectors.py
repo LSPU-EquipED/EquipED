@@ -127,7 +127,9 @@ def test_project_criterion_measurements_item_rejection():
         response_sha256="def",
     )
 
-    rejections = {"OP-01": (frozenset(["instance_1"]), frozenset([rev_id]))}
+    rejections = {
+        "OP-01": (frozenset(["instance_1"]), frozenset([rev_id]))
+    }
 
     res = project_criterion_measurements_v1(gen, {}, rejections)
     assert res.skip_reason is None

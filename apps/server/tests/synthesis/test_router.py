@@ -25,7 +25,6 @@ def _login(
     )
     assert response.status_code == 200
 
-
 def _add_matrix(db_session, user_id, title: str, program: str) -> None:
     document = Document(
         title=title,
@@ -80,6 +79,7 @@ def test_matrix_preserves_historical_program_rows(matrix_client_data) -> None:
     response = matrix_client_data.get("/api/v1/evaluations/matrix")
     assert response.status_code == 200
     assert "historical" in {item["document_title"] for item in response.json()["items"]}
+
 
 
 def test_matrix_route_delegates_to_service(
@@ -254,7 +254,9 @@ def test_master_synthesis_detail_not_found(client, db_session, seeded_user):
     assert response.status_code == 404
 
 
-def test_master_synthesis_detail_admin_only_forbidden_for_faculty(client, db_session):
+def test_master_synthesis_detail_admin_only_forbidden_for_faculty(
+    client, db_session
+):
     faculty = create_user(
         db_session,
         name="Faculty Member",

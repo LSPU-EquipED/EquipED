@@ -75,7 +75,8 @@ def test_migration_upgrade_and_downgrade(tmp_path):
     _run(upgrade, _config(url), "20260915_0001")
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision() == "20260915_0001"
+            MigrationContext.configure(conn).get_current_revision()
+            == "20260915_0001"
         )
         cols = {c["name"] for c in inspect(engine).get_columns("agent_results")}
         assert "envelope_status" in cols
@@ -90,7 +91,8 @@ def test_migration_upgrade_and_downgrade(tmp_path):
     _run(downgrade, _config(url), "20260911_0001")
     with engine.connect() as conn:
         assert (
-            MigrationContext.configure(conn).get_current_revision() == "20260911_0001"
+            MigrationContext.configure(conn).get_current_revision()
+            == "20260911_0001"
         )
         cols = {c["name"] for c in inspect(engine).get_columns("agent_results")}
         assert "envelope_status" not in cols

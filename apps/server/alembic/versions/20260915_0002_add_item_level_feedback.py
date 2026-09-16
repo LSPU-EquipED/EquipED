@@ -21,7 +21,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 _OLD_ACTIONS = "action IN ('ACCEPT', 'REJECT', 'EDIT')"
-_NEW_ACTIONS = "action IN ('ACCEPT', 'REJECT', 'EDIT', 'ITEM_REJECT', 'ITEM_ACCEPT')"
+_NEW_ACTIONS = (
+    "action IN ('ACCEPT', 'REJECT', 'EDIT', 'ITEM_REJECT', 'ITEM_ACCEPT')"
+)
 
 
 def _has_column(table: str, column: str) -> bool:

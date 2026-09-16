@@ -190,6 +190,7 @@ class RoadmapCourse(Base):
     )
 
 
+
 __all__ = [
     "Course",
     "CurriculumObjective",

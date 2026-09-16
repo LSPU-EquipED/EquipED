@@ -193,7 +193,6 @@ def test_absent_activation_fails_closed(db_session) -> None:
     assert get_active_rubric_context("sme", db=db_session) == []
     assert get_active_rubric_scoring_rules("sme", db=db_session) == {}
 
-
 def test_invalid_activation_draft_or_retired_fails_closed(db_session) -> None:
     """When activation points to draft or retired set, queries fail closed."""
     _seed_from_json(db_session)

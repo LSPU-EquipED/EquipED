@@ -8,7 +8,9 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 from server.tests.admin.conftest import _auth
 
 
-def test_criterion_feedback_requires_authentication(client: TestClient, evaluation_job):
+def test_criterion_feedback_requires_authentication(
+    client: TestClient, evaluation_job
+):
     url = f"/api/v1/feedback/{evaluation_job.evaluation_id}/criteria/itso-03"
     body = {"agent_name": "itso", "action": "ACCEPT"}
 

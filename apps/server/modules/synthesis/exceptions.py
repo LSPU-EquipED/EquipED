@@ -28,7 +28,6 @@ class EvaluationResultIntegrityError(SynthesisError):
 class MonitoringMatrixNotFoundError(SynthesisError):
     """Raised when a monitoring matrix row does not exist for a document."""
 
-
 __all__ = [
     "SynthesisError",
     "EvaluationResultsNotFoundError",

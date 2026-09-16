@@ -32,6 +32,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("idx_prompts_agent_active_unique", table_name="prompt_versions")
-    op.create_index(
-        "idx_prompts_agent_active", "prompt_versions", ["agent_id", "is_active"]
-    )
+    op.create_index("idx_prompts_agent_active", "prompt_versions", ["agent_id", "is_active"])

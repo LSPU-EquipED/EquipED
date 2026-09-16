@@ -110,7 +110,9 @@ def persist_agent_outputs(
     scheduled_ids = _scheduled_ids_for_job(job)
     loader = _get_snapshot_loader()
     try:
-        verified_snapshots = loader(db, evaluation_id, scheduled_ids)
+        verified_snapshots = loader(
+            db, evaluation_id, scheduled_ids
+        )
     except SnapshotIntegrityError as exc:
         raise EvaluationResultIntegrityError(
             "Failed to load verified evaluation snapshots"
@@ -250,7 +252,9 @@ def persist_agent_outputs(
         db.flush()
 
         for gen in p_result.generations:
-            prompt_sha256 = hashlib.sha256(gen.prompt_text.encode("utf-8")).hexdigest()
+            prompt_sha256 = hashlib.sha256(
+                gen.prompt_text.encode("utf-8")
+            ).hexdigest()
             response_sha256 = hashlib.sha256(
                 gen.response_text.encode("utf-8")
             ).hexdigest()
@@ -367,7 +371,9 @@ def load_verified_persisted_agent_results(
     scheduled_ids = _scheduled_ids_for_job(job)
     loader = _get_snapshot_loader()
     try:
-        verified_snapshots = loader(db, evaluation_id, scheduled_ids)
+        verified_snapshots = loader(
+            db, evaluation_id, scheduled_ids
+        )
     except SnapshotIntegrityError as exc:
         raise EvaluationResultIntegrityError(
             "Failed to load verified evaluation snapshots"

@@ -62,7 +62,8 @@ def upgrade() -> None:
     if existing is not None:
         op.execute(
             sa.text(
-                "UPDATE prompt_versions SET is_active = :active WHERE version_id = :id"
+                "UPDATE prompt_versions SET is_active = :active "
+                "WHERE version_id = :id"
             ).bindparams(active=True, id=GAD_VERSION_ID)
         )
         return

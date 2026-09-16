@@ -20,7 +20,6 @@ from .models import (
 _CANONICAL_PROGRAM = "BSInfoTech"
 _PROGRAM_ALIASES = ("BSINFOTECH", "BSIT")
 
-
 def normalize_program(program: str | None) -> str | None:
     if program is None:
         return None
@@ -107,12 +106,15 @@ def list_roadmap_courses(
     )
     if semester is not None:
         query = query.filter(RoadmapYear.semester == semester)
-    return query.order_by(
-        RoadmapYear.year_number,
-        RoadmapYear.semester.is_(None),
-        RoadmapYear.semester,
-        RoadmapCourse.course_code,
-    ).all()
+    return (
+        query.order_by(
+            RoadmapYear.year_number,
+            RoadmapYear.semester.is_(None),
+            RoadmapYear.semester,
+            RoadmapCourse.course_code,
+        )
+        .all()
+    )
 
 
 def resolve_roadmap_course_context(
@@ -172,6 +174,7 @@ def resolve_roadmap_course_context(
     }
 
 
+
 def get_course(course_id: uuid.UUID, db: Any) -> Course | None:
     course = db.get(Course, course_id)
     if course is None:
@@ -204,13 +207,7 @@ def get_mapped_objectives(course_id: uuid.UUID, db: Any) -> list[dict[str, Any]]
 
 
 __all__ = [
-    "normalize_program",
-    "get_course",
-    "get_mapped_objectives",
-    "list_courses",
-    "list_roadmaps",
-    "get_roadmap",
-    "get_roadmap_detail",
-    "list_roadmap_courses",
+    "normalize_program", "get_course", "get_mapped_objectives", "list_courses",
+    "list_roadmaps", "get_roadmap", "get_roadmap_detail", "list_roadmap_courses",
     "resolve_roadmap_course_context",
 ]

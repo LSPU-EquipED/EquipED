@@ -35,18 +35,14 @@ def upgrade() -> None:
         ),
         sa.Column("synthesized_score", sa.Numeric(precision=5, scale=2), nullable=True),
         sa.Column("domain_scores_json", sa.JSON(), nullable=True),
-        sa.Column(
-            "flag_count", sa.Integer(), nullable=False, server_default=sa.text("0")
-        ),
+        sa.Column("flag_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column(
             "feedback_status",
             sa.String(length=50),
             nullable=False,
             server_default=sa.text("'NO_FEEDBACK'"),
         ),
-        sa.Column(
-            "last_updated", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("last_updated", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("matrix_id"),
         sa.UniqueConstraint("document_id"),
         sa.ForeignKeyConstraint(["document_id"], ["documents.document_id"]),

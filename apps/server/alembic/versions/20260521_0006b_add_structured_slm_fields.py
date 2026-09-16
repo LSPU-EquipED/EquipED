@@ -4,7 +4,6 @@ Revision ID: 20260521_0006b
 Revises: 20260521_0006
 Create Date: 2026-05-21 00:06:00
 """
-
 from __future__ import annotations
 
 import sqlalchemy as sa
@@ -17,17 +16,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "documents", sa.Column("structured_summary", sa.Text(), nullable=True)
-    )
-    op.add_column(
-        "documents", sa.Column("structured_outline", sa.JSON(), nullable=True)
-    )
+    op.add_column("documents", sa.Column("structured_summary", sa.Text(), nullable=True))
+    op.add_column("documents", sa.Column("structured_outline", sa.JSON(), nullable=True))
     op.add_column("documents", sa.Column("section_summaries", sa.JSON(), nullable=True))
     op.add_column("documents", sa.Column("key_facts", sa.JSON(), nullable=True))
-    op.add_column(
-        "documents", sa.Column("processing_warnings", sa.JSON(), nullable=True)
-    )
+    op.add_column("documents", sa.Column("processing_warnings", sa.JSON(), nullable=True))
     op.add_column(
         "documents",
         sa.Column(

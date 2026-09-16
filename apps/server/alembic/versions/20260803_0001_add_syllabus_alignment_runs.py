@@ -91,8 +91,6 @@ def _create_table() -> None:
         sa.ForeignKeyConstraint(["syllabus_document_id"], ["documents.document_id"]),
         sa.PrimaryKeyConstraint("alignment_id"),
     )
-
-
 def _create_indexes() -> None:
     if not _has_index("idx_syllabus_alignment_owner_created"):
         op.create_index(

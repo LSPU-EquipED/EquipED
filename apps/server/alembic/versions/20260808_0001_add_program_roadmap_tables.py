@@ -64,7 +64,9 @@ def upgrade():
             "roadmap_id", "year_number", "semester", name="uq_roadmap_years_position"
         ),
     )
-    op.create_index("idx_roadmap_years_roadmap_id", "roadmap_years", ["roadmap_id"])
+    op.create_index(
+        "idx_roadmap_years_roadmap_id", "roadmap_years", ["roadmap_id"]
+    )
 
     op.create_table(
         "roadmap_courses",
@@ -101,7 +103,9 @@ def upgrade():
         "roadmap_courses",
         ["roadmap_id", "course_code"],
     )
-    op.create_index("idx_roadmap_courses_year_id", "roadmap_courses", ["year_id"])
+    op.create_index(
+        "idx_roadmap_courses_year_id", "roadmap_courses", ["year_id"]
+    )
 
 
 def downgrade():

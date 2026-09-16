@@ -21,7 +21,9 @@ def _role_str(user) -> str:
     return user.role.value if hasattr(user.role, "value") else str(user.role)
 
 
-def test_create_criterion_feedback_valid_itso(db_session, evaluation_job, admin_user):
+def test_create_criterion_feedback_valid_itso(
+    db_session, evaluation_job, admin_user
+):
     log = create_criterion_feedback(
         db_session,
         evaluation_id=evaluation_job.evaluation_id,
@@ -36,7 +38,9 @@ def test_create_criterion_feedback_valid_itso(db_session, evaluation_job, admin_
     assert log.action == "ACCEPT"
 
 
-def test_create_criterion_feedback_valid_sme(db_session, evaluation_job, admin_user):
+def test_create_criterion_feedback_valid_sme(
+    db_session, evaluation_job, admin_user
+):
     log = create_criterion_feedback(
         db_session,
         evaluation_id=evaluation_job.evaluation_id,
@@ -54,7 +58,9 @@ def test_create_criterion_feedback_valid_sme(db_session, evaluation_job, admin_u
     assert log.edited_json == {"score": 3, "justification": "Revised justification"}
 
 
-def test_create_criterion_feedback_unknown_evaluation(db_session, admin_user):
+def test_create_criterion_feedback_unknown_evaluation(
+    db_session, admin_user
+):
     with pytest.raises(EvaluationNotFoundError):
         create_criterion_feedback(
             db_session,
@@ -97,7 +103,9 @@ def test_create_criterion_feedback_unknown_criterion(
         )
 
 
-def test_create_criterion_feedback_wrong_agent(db_session, evaluation_job, admin_user):
+def test_create_criterion_feedback_wrong_agent(
+    db_session, evaluation_job, admin_user
+):
     with pytest.raises(InvalidFeedbackTargetError):
         create_criterion_feedback(
             db_session,
@@ -147,7 +155,9 @@ def test_create_criterion_feedback_wrong_document(
         )
 
 
-def test_create_criterion_feedback_wrong_result(db_session, evaluation_job, admin_user):
+def test_create_criterion_feedback_wrong_result(
+    db_session, evaluation_job, admin_user
+):
     # CriterionScore has agent_result_id pointing to another result
     sme_result = (
         db_session.query(AgentResult)

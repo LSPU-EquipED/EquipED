@@ -276,10 +276,9 @@ def test_fallback_used_when_repair_also_fails_grounding() -> None:
     # Fallback measurements must never claim grounded instances/units.
     envelope_0_response = result.metadata["group_responses"]["envelope_0"]
     for measurement in envelope_0_response["criterion_measurements"]:
-        assert (
-            measurement.get("instances", []) == []
-            or measurement.get("total_units", []) == []
-        )
+        assert measurement.get("instances", []) == [] or measurement.get(
+            "total_units", []
+        ) == []
 
 
 def test_repair_failure_raises() -> None:
