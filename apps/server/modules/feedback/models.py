@@ -15,15 +15,23 @@ class PreferenceLog(Base):
     __tablename__ = "preference_logs"
     __table_args__ = (
         CheckConstraint(
-            sa.column("action").in_(["ACCEPT", "REJECT", "EDIT"]),
+            sa.column("action").in_(
+                ["ACCEPT", "REJECT", "EDIT", "ITEM_REJECT", "ITEM_ACCEPT"]
+            ),
             name="ck_preference_logs_action",
         ),
         Index("idx_pref_logs_action", "action"),
         Index("idx_pref_logs_created_at", sa.text("created_at DESC")),
+        Index("idx_pref_logs_generation_id", "generation_id"),
     )
 
     log_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    generation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("agent_generations.generation_id", ondelete="SET NULL"),
+        nullable=True,
     )
     evaluation_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -37,6 +45,7 @@ class PreferenceLog(Base):
     )
     agent_name: Mapped[str | None] = mapped_column(String(32), nullable=True)
     criterion_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    item_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     edited_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -15,6 +15,7 @@ Entry point:
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -25,7 +26,7 @@ from server.modules.rubrics.contracts import DomainDefinition
 from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..contracts import AgentEvaluationResult, CriterionScore
+from ..contracts import AgentEvaluationResult, CapturedGeneration, CriterionScore
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient
@@ -194,6 +195,8 @@ class Coordinator:
         any_repair = False
         grounding_rejected = 0
 
+        envelope_status: dict[str, str] = {}
+        generations: list[CapturedGeneration] = []
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
             scores, prompt, parsed, repaired = execute_envelope(
@@ -207,12 +210,35 @@ class Coordinator:
             all_scores.extend(scores)
             envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = parsed
+            envelope_status[env_key] = "repaired" if repaired else "ok"
             any_repair = any_repair or repaired
             for m in parsed.get("criterion_measurements", []):
                 grounding_rejected += int(m.get("_grounding_rejected_count", 0))
                 # Strip the private grounding key so it never leaks into the
                 # serialised ``metadata["group_responses"]`` / DPO snapshot.
                 m.pop("_grounding_rejected_count", None)
+
+            generations.append(
+                CapturedGeneration(
+                    unit_key=env_key,
+                    criterion_ids=tuple(c.criterion_code for c in env_criteria),
+                    prompt_text=prompt.render_flat(),
+                    prompt_messages=(
+                        tuple(
+                            {"role": m.role, "content": m.content}
+                            for m in prompt.messages
+                        )
+                        if hasattr(prompt, "messages")
+                        else None
+                    ),
+                    response_text=json.dumps(parsed, ensure_ascii=False),
+                    response_json=parsed,
+                    response_contract_key="criterion_measurements.v1",
+                    response_contract_version=1,
+                    model_name=adapter.model,
+                    envelope_status=envelope_status[env_key],
+                )
+            )
 
         criterion_scores = tuple(all_scores)
         expected = tuple(c.criterion_code for d in domains for c in d.criteria)
@@ -261,8 +287,10 @@ class Coordinator:
             metadata={
                 "group_prompts": envelope_prompts,
                 "group_responses": envelope_responses,
+                "envelope_status": envelope_status,
             },
             provenance=sanitize_provenance(provenance),
+            generations=tuple(generations),
         )
 
 

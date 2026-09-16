@@ -88,6 +88,7 @@ def make_agent_result(
     model_name: str = "test-model",
     processing_seconds: float = 1.0,
     token_count: int = 100,
+    generations: tuple[Any, ...] = (),
 ) -> AgentEvaluationResult:
     """Construct an AgentEvaluationResult with exact criterion codes for the agent."""
     if not success:
@@ -110,6 +111,7 @@ def make_agent_result(
             metadata=metadata or {},
             provenance=provenance,
             advisory_outputs=None,
+            generations=generations,
         )
 
     codes = SEEDED_FIXTURE_CRITERION_CODES.get(agent_id, ())
@@ -176,6 +178,7 @@ def make_agent_result(
         metadata=metadata or {},
         provenance=provenance,
         advisory_outputs=advisory_outputs,
+        generations=generations,
     )
 
 

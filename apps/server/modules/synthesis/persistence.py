@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -27,6 +28,7 @@ from server.modules.rubrics.snapshot_contracts import (
 from server.modules.rubrics.snapshots import load_verified_evaluation_snapshots
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.models import (
+    AgentGeneration,
     AgentResult,
     CriterionScore,
     EvaluationFlag,
@@ -229,6 +231,11 @@ def persist_agent_outputs(
                 if p_result.group_responses_json
                 else None
             ),
+            envelope_status=(
+                json.loads(p_result.envelope_status_json)
+                if p_result.envelope_status_json
+                else None
+            ),
             provenance=(
                 json.loads(p_result.provenance_json)
                 if p_result.provenance_json
@@ -242,6 +249,44 @@ def persist_agent_outputs(
             form_snapshot_id=p_result.form_snapshot_id,
         )
         db.add(result_row)
+        db.flush()
+
+        for gen in p_result.generations:
+            prompt_sha256 = hashlib.sha256(
+                gen.prompt_text.encode("utf-8")
+            ).hexdigest()
+            response_sha256 = hashlib.sha256(
+                gen.response_text.encode("utf-8")
+            ).hexdigest()
+            prompt_messages_data = (
+                [dict(m) for m in gen.prompt_messages]
+                if gen.prompt_messages is not None
+                else None
+            )
+            gen_row = AgentGeneration(
+                generation_id=uuid.uuid4(),
+                agent_result_id=result_row.agent_result_id,
+                form_snapshot_id=p_result.form_snapshot_id,
+                evaluation_id=evaluation_id,
+                document_id=document_id,
+                agent_id=p_result.agent_name,
+                unit_key=gen.unit_key,
+                criterion_ids=list(gen.criterion_ids),
+                prompt_text=gen.prompt_text,
+                prompt_messages=prompt_messages_data,
+                response_text=gen.response_text,
+                response_json=gen.response_json,
+                response_contract_key=gen.response_contract_key,
+                response_contract_version=gen.response_contract_version,
+                model_name=gen.model_name,
+                prompt_version_id=gen.prompt_version_id or p_result.prompt_version_id,
+                envelope_status=gen.envelope_status,
+                generation_provenance=gen.generation_provenance,
+                prompt_sha256=prompt_sha256,
+                response_sha256=response_sha256,
+                capture_origin="native",
+            )
+            db.add(gen_row)
         db.flush()
 
         if not p_result.success:
@@ -523,6 +568,12 @@ def load_verified_persisted_agent_results(
             raise EvaluationResultIntegrityError(
                 "Persisted group_responses must be a dict"
             )
+        if row.envelope_status is not None and not isinstance(
+            row.envelope_status, dict
+        ):
+            raise EvaluationResultIntegrityError(
+                "Persisted envelope_status must be a dict"
+            )
         if row.provenance is not None and not isinstance(row.provenance, dict):
             raise EvaluationResultIntegrityError("Persisted provenance must be a dict")
 
@@ -585,6 +636,8 @@ def load_verified_persisted_agent_results(
             meta["group_prompts"] = row.group_prompts
         if row.group_responses is not None:
             meta["group_responses"] = row.group_responses
+        if row.envelope_status is not None:
+            meta["envelope_status"] = row.envelope_status
 
         reconstructed_result = AgentEvaluationResult(
             agent_name=row.agent_name,
@@ -654,6 +707,17 @@ def load_verified_persisted_agent_results(
                 if row.group_responses is not None:
                     raise EvaluationResultIntegrityError(
                         "Persisted group_responses mismatch"
+                    )
+
+            if persistable.envelope_status_json is not None:
+                if json.loads(persistable.envelope_status_json) != row.envelope_status:
+                    raise EvaluationResultIntegrityError(
+                        "Persisted envelope_status mismatch"
+                    )
+            else:
+                if row.envelope_status is not None:
+                    raise EvaluationResultIntegrityError(
+                        "Persisted envelope_status mismatch"
                     )
 
             if persistable.advisory_outputs_json is not None:

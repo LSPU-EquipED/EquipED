@@ -40,6 +40,7 @@ uploads/*
 !uploads/.gitkeep
 chroma_data/*
 !chroma_data/.gitkeep
+*.jsonl
 
 # Local Tesseract language data
 tessdata_local/

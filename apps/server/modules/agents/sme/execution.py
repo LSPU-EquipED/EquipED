@@ -95,8 +95,14 @@ def execute_envelope(
     prompt_preamble: str | None = None,
     temperature: float | None = None,
     deadline: float | None = None,
-) -> tuple[tuple[CriterionScore, ...], AgentPrompt, dict[str, Any], bool]:
-    """Execute a single SME envelope call with one repair on validation failure."""
+) -> tuple[tuple[CriterionScore, ...], AgentPrompt, dict[str, Any], str]:
+    """Execute a single SME envelope call with one repair on validation failure.
+
+    The returned status is one of ``"ok"`` (first attempt validated),
+    ``"repaired"`` (validation failed once, the repair attempt produced a
+    real, validated LLM response), or ``"fallback"`` (both attempts failed
+    and the response is a synthetic placeholder, not real model output).
+    """
     settings = get_settings()
     prompt_budget = settings.sme_total_prompt_budget_chars
 
@@ -145,7 +151,7 @@ def execute_envelope(
             raise
         validation_error = AgentExecutionError("SME response was truncated")
 
-    repair_occurred = False
+    envelope_status = "ok"
     if validation_error is not None:
         logger.info(
             "[SME_REPAIR] envelope=%d category=%s reference=%s",
@@ -168,6 +174,7 @@ def execute_envelope(
             parsed = parse_and_validate_envelope_response(
                 repaired_completion.content, criteria, source_packet
             )
+            envelope_status = "repaired"
         except AgentExecutionError as second_exc:
             if "invalid JSON" in str(second_exc) or "JSON" in str(second_exc):
                 raise
@@ -178,12 +185,12 @@ def execute_envelope(
                 error_reference(second_exc),
             )
             parsed = _build_fallback_parsed(criteria, source_packet)
-        repair_occurred = True
+            envelope_status = "fallback"
 
     if parsed is None:
         raise AgentExecutionError("SME response validation produced no result")
     scores = score_envelope(criteria, parsed)
-    return scores, prompt, parsed, repair_occurred
+    return scores, prompt, parsed, envelope_status
 
 
 __all__ = ["execute_envelope"]

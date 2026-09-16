@@ -10,7 +10,11 @@ from server.modules.feedback.exceptions import (
     InvalidFeedbackTargetError,
 )
 from server.modules.feedback.service import create_criterion_feedback
-from server.modules.synthesis.models import AgentResult, CriterionScore
+from server.modules.synthesis.models import (
+    AgentGeneration,
+    AgentResult,
+    CriterionScore,
+)
 
 
 def _role_str(user) -> str:
@@ -185,3 +189,45 @@ def test_create_criterion_feedback_wrong_result(
             user_id=admin_user.user_id,
             user_role="admin",
         )
+
+
+def test_create_criterion_feedback_links_generation_id(
+    db_session, evaluation_job, admin_user
+):
+    itso_result = (
+        db_session.query(AgentResult)
+        .filter(
+            AgentResult.evaluation_id == evaluation_job.evaluation_id,
+            AgentResult.agent_name == "itso",
+        )
+        .first()
+    )
+    gen = AgentGeneration(
+        generation_id=uuid4(),
+        agent_result_id=itso_result.agent_result_id,
+        evaluation_id=evaluation_job.evaluation_id,
+        document_id=evaluation_job.document_id,
+        agent_id="itso",
+        unit_key="unit-itso-03",
+        criterion_ids=["itso-03", "itso-04"],
+        prompt_text="Test prompt text",
+        response_text="Test response text",
+        response_contract_key="contract_v1",
+        response_contract_version=1,
+        model_name="test-model",
+        prompt_sha256="fake-prompt-sha",
+        response_sha256="fake-response-sha",
+    )
+    db_session.add(gen)
+    db_session.commit()
+
+    log = create_criterion_feedback(
+        db_session,
+        evaluation_id=evaluation_job.evaluation_id,
+        criterion_id="itso-03",
+        agent_name="itso",
+        action="ACCEPT",
+        user_id=admin_user.user_id,
+        user_role=_role_str(admin_user),
+    )
+    assert log.generation_id == gen.generation_id

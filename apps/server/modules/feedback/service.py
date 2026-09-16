@@ -5,12 +5,19 @@ from __future__ import annotations
 import uuid
 
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.synthesis.models import AgentResult, CriterionScore
+from server.modules.synthesis.models import (
+    AgentGeneration,
+    AgentResult,
+    CriterionScore,
+)
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from .exceptions import EvaluationNotFoundError, InvalidFeedbackTargetError
+from .items import get_criterion_measurement, validate_item_id
 from .models import PreferenceLog
+
+_ITEM_LEVEL_ACTIONS = ("ITEM_REJECT", "ITEM_ACCEPT")
 
 
 def list_preference_logs(
@@ -46,6 +53,7 @@ def create_criterion_feedback(
     score: int | None = None,
     justification: str | None = None,
     notes: str | None = None,
+    item_id: str | None = None,
 ) -> PreferenceLog:
     """Persist one reviewer feedback action for one agent's criterion.
 
@@ -91,15 +99,37 @@ def create_criterion_feedback(
             f"agent '{agent_name}', criterion '{criterion_id}'"
         )
 
+    if action in _ITEM_LEVEL_ACTIONS:
+        measurement = get_criterion_measurement(
+            db, evaluation_id, agent_name, criterion_id
+        )
+        validate_item_id(measurement, item_id)
+
     edited_json = (
         {"score": score, "justification": justification} if action == "EDIT" else None
     )
 
+    candidate_generations = (
+        db.query(AgentGeneration)
+        .filter(
+            AgentGeneration.evaluation_id == evaluation_id,
+            AgentGeneration.agent_id == agent_name,
+        )
+        .all()
+    )
+    matching_gen_id: uuid.UUID | None = None
+    for gen in candidate_generations:
+        if gen.criterion_ids and criterion_id in gen.criterion_ids:
+            matching_gen_id = gen.generation_id
+            break
+
     log = PreferenceLog(
         evaluation_id=evaluation_id,
         user_id=user_id,
+        generation_id=matching_gen_id,
         agent_name=agent_name,
         criterion_id=criterion_id,
+        item_id=item_id if action in _ITEM_LEVEL_ACTIONS else None,
         action=action,
         edited_json=edited_json,
         notes=notes,

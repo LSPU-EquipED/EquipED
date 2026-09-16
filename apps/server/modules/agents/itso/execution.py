@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import time
 from typing import Any
@@ -17,7 +18,7 @@ from server.modules.rubrics.contracts import (
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.rubrics.strategies.calculators import normalize_llm_guidance_score
 
-from ..contracts import AgentEvaluationResult
+from ..contracts import AgentEvaluationResult, CapturedGeneration
 from ..exceptions import AgentExecutionError, AgentLLMError
 from ..provenance import sanitize_provenance
 from ..runtime.context import ITSOExecutionContext, thaw
@@ -288,6 +289,39 @@ def execute(
     )
     safe = sanitize_provenance(provenance) or None
     timer.log_summary(prompt_chars=len(prompt))
+
+    response_payload = parsed
+    raw_completion = repaired if repair_occurred else raw
+    effective_prompt = repair_prompt if repair_occurred else prompt
+    prompt_text = (
+        effective_prompt.render_flat()
+        if hasattr(effective_prompt, "render_flat")
+        else str(effective_prompt)
+    )
+    generation = CapturedGeneration(
+        unit_key="envelope_0",
+        criterion_ids=tuple(s.criterion_id for s in scores),
+        prompt_text=prompt_text,
+        prompt_messages=(
+            tuple(
+                {"role": m.role, "content": m.content}
+                for m in effective_prompt.messages
+            )
+            if hasattr(effective_prompt, "messages")
+            else None
+        ),
+        response_text=(
+            json.dumps(response_payload, ensure_ascii=False)
+            if isinstance(response_payload, dict)
+            else str(raw_completion)
+        ),
+        response_json=response_payload if isinstance(response_payload, dict) else None,
+        response_contract_key="itso_scores.v1",
+        response_contract_version=1,
+        model_name=adapter.model,
+        envelope_status="repaired" if repair_occurred else "ok",
+    )
+
     return AgentEvaluationResult(
         agent_name="itso",
         evaluation_id=context.evaluation_id,
@@ -326,6 +360,7 @@ def execute(
             ),
             "response_schema_version": ITSO_RESPONSE_SCHEMA_VERSION,
         },
+        generations=(generation,),
     )
 
 

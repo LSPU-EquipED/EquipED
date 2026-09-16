@@ -50,6 +50,7 @@ class AgentResult(Base):
     prompt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_prompts: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     group_responses: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    envelope_status: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     advisory_outputs: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     form_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -148,4 +149,72 @@ class MonitoringMatrix(Base):
     )
 
 
-__all__ = ["AgentResult", "CriterionScore", "EvaluationFlag", "MonitoringMatrix"]
+class AgentGeneration(Base):
+    __tablename__ = "agent_generations"
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "agent_result_id",
+            "unit_key",
+            name="uq_agent_generations_result_unit",
+        ),
+    )
+
+    generation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    agent_result_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("agent_results.agent_result_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    form_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("evaluation_form_snapshots.snapshot_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    evaluation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), nullable=False, index=True
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), nullable=False, index=True
+    )
+    agent_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    unit_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    criterion_ids: Mapped[list[str]] = mapped_column(sa.JSON, nullable=False)
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_messages: Mapped[list[dict[str, str]] | None] = mapped_column(
+        sa.JSON, nullable=True
+    )
+    response_text: Mapped[str] = mapped_column(Text, nullable=False)
+    response_json: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    response_contract_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_contract_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
+    envelope_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="ok"
+    )
+    generation_provenance: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    prompt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    capture_origin: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default="native"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+__all__ = [
+    "AgentGeneration",
+    "AgentResult",
+    "CriterionScore",
+    "EvaluationFlag",
+    "MonitoringMatrix",
+]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -16,7 +17,7 @@ from server.modules.rubrics.contracts import (
 )
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..contracts import AgentEvaluationResult, CriterionScore
+from ..contracts import AgentEvaluationResult, CapturedGeneration, CriterionScore
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient
@@ -192,11 +193,13 @@ class EngineScoredAgent:
         all_scores: list[CriterionScore] = []
         envelope_prompts: dict[str, str] = {}
         envelope_responses: dict[str, dict[str, Any]] = {}
+        envelope_status: dict[str, str] = {}
+        generations: list[CapturedGeneration] = []
         any_repair_occurred = False
 
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
-            scores, prompt, response_dict, repair_occurred = execute_envelope(
+            scores, prompt, response_dict, status = execute_envelope(
                 idx,
                 env_criteria,
                 client,
@@ -206,8 +209,31 @@ class EngineScoredAgent:
             all_scores.extend(scores)
             envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = response_dict
-            if repair_occurred:
+            envelope_status[env_key] = status
+            if status != "ok":
                 any_repair_occurred = True
+
+            generations.append(
+                CapturedGeneration(
+                    unit_key=env_key,
+                    criterion_ids=tuple(c.criterion_code for c in env_criteria),
+                    prompt_text=prompt.render_flat(),
+                    prompt_messages=(
+                        tuple(
+                            {"role": m.role, "content": m.content}
+                            for m in prompt.messages
+                        )
+                        if hasattr(prompt, "messages")
+                        else None
+                    ),
+                    response_text=json.dumps(response_dict, ensure_ascii=False),
+                    response_json=response_dict,
+                    response_contract_key="criterion_measurements.v1",
+                    response_contract_version=1,
+                    model_name=client.model,
+                    envelope_status=status,
+                )
+            )
 
         criterion_scores = tuple(all_scores)
         expected_codes = tuple(
@@ -265,8 +291,10 @@ class EngineScoredAgent:
             metadata={
                 "group_prompts": envelope_prompts,
                 "group_responses": envelope_responses,
+                "envelope_status": envelope_status,
             },
             provenance=sanitize_provenance(provenance_dict),
+            generations=tuple(generations),
         )
 
 

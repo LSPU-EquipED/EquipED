@@ -1,0 +1,21 @@
+# Standalone requirements for the DPO/LoRA training script.
+#
+# Deliberately NOT part of apps/server/pyproject.toml: training runs in a
+# separate GPU environment, never inside the FastAPI server's own
+# process, so these (large, GPU-oriented) dependencies must not bloat
+# the API server's dependency tree.
+#
+# Pin exact versions once a target training environment is chosen --
+# left as minimum-version constraints for now since the actual GPU/CUDA
+# setup isn't finalized yet.
+
+torch>=2.2
+transformers>=4.44
+peft>=0.12
+trl>=0.9
+datasets>=2.20
+accelerate>=0.33
+
+# Only needed if training must fit a memory-constrained GPU via 4-bit
+# quantized loading of the base model (QLoRA). Uncomment if required:
+# bitsandbytes>=0.43
