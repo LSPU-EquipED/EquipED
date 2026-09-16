@@ -75,6 +75,21 @@ def test_prompt_renders_guidance_and_level_descriptors() -> None:
     assert '"chunk_id"' in system_text
 
 
-def test_prompt_omits_do_not_assign_scores_when_all_llm_rubric_guidance() -> None:
+def test_prompt_omits_do_not_include_score_when_all_llm_rubric_guidance() -> None:
+    """Regression test for the final-review finding: for an all-
+    llm_rubric_guidance envelope, the CRITICAL RULES block must not tell the
+    model to omit 'score' while the per-criterion instructions (asserted in
+    test_prompt_renders_guidance_and_level_descriptors above) simultaneously
+    require one. The original version of this test asserted against the
+    literal substring "Do not assign scores", which never appeared in either
+    branch of the code and so passed regardless of whether the contradictory
+    "Do NOT include 'score', 'criterion_score', 'band', ..." CRITICAL RULES
+    bullet was actually excluded -- it let the real bug ship undetected."""
     prompt = build_combined_prompt(packed_chunks=_CHUNKS, form_snapshot=_snapshot())
-    assert "Do not assign scores" not in prompt.system_instruction
+    system_text = prompt.system_instruction
+    assert "Do NOT include 'score'" not in system_text
+    assert "do NOT include 'score'" not in system_text
+    assert "FACT-ONLY EXTRACTION INSTRUCTIONS" not in system_text
+    # The per-criterion "score" requirement must still be present and
+    # uncontradicted.
+    assert '"score": an integer from 1 to 4' in system_text
