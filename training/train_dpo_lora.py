@@ -40,6 +40,7 @@ treating any resulting adapter as more than a wiring check.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import sys
@@ -60,9 +61,15 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--data",
-        required=True,
+        default=None,
         type=Path,
         help="Path to a JSONL file of {prompt, chosen, rejected} pairs.",
+    )
+    parser.add_argument(
+        "--package",
+        default=None,
+        type=Path,
+        help="Path to an exported DPO package directory containing manifest.json and pairs.jsonl.",
     )
     parser.add_argument(
         "--output-dir",
@@ -98,7 +105,56 @@ def _parse_args() -> argparse.Namespace:
 
     if args.num_train_epochs is None and args.max_steps is None:
         parser.error("Specify either --num-train-epochs or --max-steps.")
+    if args.data is None and args.package is None:
+        parser.error("Specify either --data or --package.")
+    if args.data is not None and args.package is not None:
+        parser.error("Specify --data or --package, not both.")
     return args
+
+
+def _resolve_package(package_dir: Path) -> Path:
+    """Validate package directory and manifest, returning path to pairs.jsonl."""
+    if not package_dir.exists():
+        raise FileNotFoundError(f"Package directory not found: {package_dir}")
+    if not package_dir.is_dir():
+        raise NotADirectoryError(f"Package path is not a directory: {package_dir}")
+
+    manifest_path = package_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"manifest.json not found in package: {package_dir}")
+
+    with manifest_path.open("r", encoding="utf-8") as f:
+        try:
+            manifest = json.load(f)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in manifest: {manifest_path}") from exc
+
+    expected_sha256 = manifest.get("pairs_sha256")
+    if not expected_sha256:
+        raise ValueError(f"Manifest missing 'pairs_sha256': {manifest_path}")
+
+    pair_count = manifest.get("pair_count", 0)
+    if pair_count <= 0:
+        raise ValueError(
+            f"Package manifest reports {pair_count} pairs -- nothing to train on."
+        )
+
+    pairs_file = package_dir / "pairs.jsonl"
+    if not pairs_file.exists():
+        raise FileNotFoundError(f"pairs.jsonl not found in package: {package_dir}")
+
+    hasher = hashlib.sha256()
+    with pairs_file.open("rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    actual_sha256 = hasher.hexdigest()
+
+    if actual_sha256 != expected_sha256:
+        raise ValueError(
+            f"SHA256 mismatch for {pairs_file}: expected {expected_sha256}, got {actual_sha256}"
+        )
+
+    return pairs_file
 
 
 def _validate_jsonl(path: Path) -> int:
@@ -137,8 +193,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = _parse_args()
 
-    pair_count = _validate_jsonl(args.data)
-    logger.info("Loaded %d DPO pair(s) from %s", pair_count, args.data)
+    data_path = _resolve_package(args.package) if args.package else args.data
+    pair_count = _validate_jsonl(data_path)
+    logger.info("Loaded %d DPO pair(s) from %s", pair_count, data_path)
     if pair_count < 20:
         logger.warning(
             "Only %d pair(s) found -- this is a wiring/smoke test, not a "
@@ -160,7 +217,7 @@ def main() -> None:
         )
         sys.exit(1)
 
-    dataset = load_dataset("json", data_files=str(args.data), split="train")
+    dataset = load_dataset("json", data_files=str(data_path), split="train")
 
     logger.info("Loading tokenizer and base model: %s", args.base_model)
     tokenizer = AutoTokenizer.from_pretrained(args.base_model)

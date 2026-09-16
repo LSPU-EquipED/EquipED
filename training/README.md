@@ -13,11 +13,13 @@ out of `apps/server/pyproject.toml` keeps the API server's own install light.
 
 ## Prerequisites before a real (non-smoke-test) run
 
-1. **A JSONL export.** Produced by either:
-   - `cd apps && uv run --project server python -m server.scripts.export_score_level_dpo_pairs <output>.jsonl` (SME)
-   - `cd apps && uv run --project server python -m server.scripts.export_item_level_dpo_pairs <output>.jsonl` (Coordinator)
+1. **A JSONL export or unified DPO package.**
+   Produced by either:
+   - `cd apps && uv run --project server python -m server.scripts.export_dpo_package --agent <sme|coordinator|gad|itso> --output <package_dir>` (unified package with manifest and provenance)
+   - `cd apps && uv run --project server python -m server.scripts.export_score_level_dpo_pairs --agent sme <output>.jsonl` (SME)
+   - `cd apps && uv run --project server python -m server.scripts.export_item_level_dpo_pairs --agent coordinator <output>.jsonl` (Coordinator)
 
-   Copy the resulting file to the training machine.
+   Copy the resulting package directory or file to the training machine.
 
 2. **An unresolved question: the correct base checkpoint.** The server
    serves a quantized model (`equiped-gemma3-4b-qat-q4`) for inference.
@@ -38,12 +40,22 @@ python -m venv .venv
 source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 
+# Option A: training from an exported DPO package directory
+python train_dpo_lora.py \
+    --base-model <hf-checkpoint-or-local-path> \
+    --package ./exports/sme-dpo-package \
+    --output-dir ./adapters/sme-v1 \
+    --max-steps 5
+
+# Option B: training directly from a raw pairs JSONL file
 python train_dpo_lora.py \
     --base-model <hf-checkpoint-or-local-path> \
     --data score_level_dpo_pairs.jsonl \
     --output-dir ./adapters/sme-v1 \
     --max-steps 5
 ```
+
+When `--package` is supplied, `train_dpo_lora.py` checks `manifest.json`, validates its SHA256 against `pairs.jsonl`, ensures `pair_count > 0`, and points the dataset loader to `pairs.jsonl`. `--data` and `--package` are mutually exclusive.
 
 Use `--max-steps` for a quick smoke test; use `--num-train-epochs`
 instead for a real training run over the full dataset (the two are
