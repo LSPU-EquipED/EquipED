@@ -2,21 +2,33 @@
 
 from __future__ import annotations
 
+import io
 import json
 import shutil
 import tempfile
 import uuid
+import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from server.modules.training_data.exceptions import InvalidAgentIdError
+from server.modules.training_data.exceptions import (
+    InvalidAgentIdError,
+    TrainingJobNotFoundError,
+)
 from server.modules.training_data.exporter import export_dpo_package
 from server.modules.training_data.models import DpoTrainingJob
 from server.modules.training_data.tokens import generate_raw_token, hash_token
 from sqlalchemy.orm import Session
 
 VALID_AGENT_IDS: frozenset[str] = frozenset({"sme", "coordinator", "gad", "itso"})
+
+
+def _utc(value: datetime) -> datetime:
+    """Normalize a possibly tz-naive datetime (e.g. read back from a
+    SQLite test DB, which drops tzinfo) to UTC-aware for safe comparison."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
 
 _DOWNLOAD_TOKEN_LIFETIME = timedelta(hours=24)
 _UPLOAD_TOKEN_LIFETIME = timedelta(days=7)
@@ -87,4 +99,40 @@ def create_training_job(
     )
 
 
-__all__ = ["VALID_AGENT_IDS", "TrainingJobCreated", "create_training_job"]
+def get_job_download_package(
+    session: Session, job_id: uuid.UUID, raw_token: str
+) -> bytes:
+    """Validate the download token and return the frozen package as zip
+    bytes. Raises TrainingJobNotFoundError for any invalid-token condition
+    -- callers must map this to HTTP 404, never 403."""
+    job = session.get(DpoTrainingJob, job_id)
+    if job is None:
+        raise TrainingJobNotFoundError("job not found")
+
+    now = datetime.now(UTC)
+    if (
+        job.download_used_at is not None
+        or _utc(job.download_expires_at) < now
+        or hash_token(raw_token) != job.download_token_hash
+    ):
+        raise TrainingJobNotFoundError("invalid or expired download token")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("pairs.jsonl", job.pairs_content)
+        zf.writestr("provenance.jsonl", job.provenance_content)
+        zf.writestr("manifest.json", json.dumps(job.manifest_json, indent=2))
+
+    job.download_used_at = now
+    job.status = "downloaded"
+    session.commit()
+
+    return buffer.getvalue()
+
+
+__all__ = [
+    "VALID_AGENT_IDS",
+    "TrainingJobCreated",
+    "create_training_job",
+    "get_job_download_package",
+]

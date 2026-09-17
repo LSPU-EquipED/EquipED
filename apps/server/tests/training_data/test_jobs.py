@@ -1,14 +1,22 @@
 from __future__ import annotations
 
+import io
 import uuid
 import uuid as uuid_module
-from datetime import UTC, datetime
+import zipfile
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.synthesis.models import AgentGeneration, AgentResult
-from server.modules.training_data.exceptions import InvalidAgentIdError
-from server.modules.training_data.jobs import create_training_job
+from server.modules.training_data.exceptions import (
+    InvalidAgentIdError,
+    TrainingJobNotFoundError,
+)
+from server.modules.training_data.jobs import (
+    create_training_job,
+    get_job_download_package,
+)
 from server.modules.training_data.models import DpoTrainingJob, TrainedAdapter
 from server.modules.training_data.tokens import hash_token
 from server.tests.evaluations.conftest import _add_document
@@ -141,3 +149,61 @@ def test_create_training_job_freezes_dataset_and_mints_tokens(db_session, admin_
     fetched = db_session.get(DpoTrainingJob, result.job.job_id)
     assert fetched is not None
     assert fetched.status == "pending"
+
+
+def test_get_job_download_package_returns_zip_with_expected_files(
+    db_session, admin_user
+):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    zip_bytes = get_job_download_package(
+        db_session, result.job.job_id, result.raw_download_token
+    )
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        names = set(zf.namelist())
+        assert names == {"pairs.jsonl", "provenance.jsonl", "manifest.json"}
+
+    refreshed = db_session.get(DpoTrainingJob, result.job.job_id)
+    assert refreshed.status == "downloaded"
+    assert refreshed.download_used_at is not None
+
+
+def test_get_job_download_package_rejects_reuse(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    get_job_download_package(db_session, result.job.job_id, result.raw_download_token)
+
+    with pytest.raises(TrainingJobNotFoundError):
+        get_job_download_package(
+            db_session, result.job.job_id, result.raw_download_token
+        )
+
+
+def test_get_job_download_package_rejects_wrong_token(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    with pytest.raises(TrainingJobNotFoundError):
+        get_job_download_package(db_session, result.job.job_id, "wrong-token")
+
+
+def test_get_job_download_package_rejects_unknown_job(db_session, admin_user):
+    with pytest.raises(TrainingJobNotFoundError):
+        get_job_download_package(db_session, uuid_module.uuid4(), "wrong-token")
+
+
+def test_get_job_download_package_rejects_expired_token(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    job = db_session.get(DpoTrainingJob, result.job.job_id)
+    job.download_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db_session.commit()
+
+    with pytest.raises(TrainingJobNotFoundError):
+        get_job_download_package(
+            db_session, result.job.job_id, result.raw_download_token
+        )
