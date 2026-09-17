@@ -1,5 +1,5 @@
 import { CaretLeft, CaretRight } from '@phosphor-icons/react';
-import { cn } from '@equiped/ui';
+import { Dropdown, cn } from '@equiped/ui';
 
 interface DocumentPaginationProps {
   page: number;
@@ -17,32 +17,30 @@ export function DocumentPagination({
   totalPages,
 }: DocumentPaginationProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border bg-surface-subtle px-4 sm:px-6 py-3">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border bg-surface-subtle px-4 sm:px-6 py-2.5 text-xs text-text-muted">
       <div className="flex items-center gap-2">
-        <label
-          htmlFor="document-page-size"
-          className="text-xs text-text-muted font-semibold uppercase tracking-wider"
-        >
-          Show
-        </label>
-        <select
+        <Dropdown
           id="document-page-size"
+          label="Show"
+          inlineLabel
           aria-label="Rows per page"
           value={pageSize}
-          onChange={(e) => {
-            setPageSize(Number(e.target.value));
+          onChange={(val) => {
+            setPageSize(Number(val));
             setPage(1);
           }}
-          className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-        >
-          <option value={10}>10 rows</option>
-          <option value={25}>25 rows</option>
-          <option value={50}>50 rows</option>
-        </select>
+          size="sm"
+          options={[
+            { value: 10, label: '10 rows' },
+            { value: 25, label: '25 rows' },
+            { value: 50, label: '50 rows' },
+          ]}
+        />
+        <span className="text-xs text-text-muted font-medium">per page</span>
       </div>
 
       <div
-        className="text-xs font-semibold text-text-muted uppercase tracking-wider tabular-nums"
+        className="text-xs font-medium text-text-muted tabular-nums"
         aria-live="polite"
       >
         Page {page} of {totalPages}

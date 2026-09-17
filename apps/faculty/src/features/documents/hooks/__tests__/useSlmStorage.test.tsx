@@ -116,7 +116,7 @@ describe('useSlmStorage Hook', () => {
     expect(result.current.page).toBe(1);
   });
 
-  it('manages modal and drawer states', async () => {
+  it('manages modal and drawer states and invalidates queries on upload complete', async () => {
     vi.mocked(documentsApi.listDocuments).mockResolvedValue({
       items: [],
       total: 0,
@@ -125,7 +125,14 @@ describe('useSlmStorage Hook', () => {
       stats: { total: 0, ready: 0, processing: 0, failed: 0 },
     });
 
-    const wrapper = createQueryWrapper();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
     const { result } = renderHook(() => useSlmStorage(), { wrapper });
 
     const dummyDoc = createClientDocument('doc-99');
@@ -133,17 +140,16 @@ describe('useSlmStorage Hook', () => {
     act(() => {
       result.current.setInspectingDoc(dummyDoc);
       result.current.setIsUploadOpen(true);
-      result.current.setEvaluatingTarget({ doc: dummyDoc, agent: 'sme' });
     });
 
     expect(result.current.inspectingDoc?.documentId).toBe('doc-99');
     expect(result.current.isUploadOpen).toBe(true);
-    expect(result.current.evaluatingTarget?.agent).toBe('sme');
 
     act(() => {
       result.current.handleUploadComplete();
     });
 
     expect(result.current.isUploadOpen).toBe(false);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['slm-storage-repository'] });
   });
 });

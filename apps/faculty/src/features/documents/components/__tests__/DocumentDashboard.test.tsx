@@ -94,8 +94,6 @@ describe('DocumentDashboard - SLM Storage Repository', () => {
     setInspectingDoc: vi.fn(),
     isUploadOpen: false,
     setIsUploadOpen: vi.fn(),
-    evaluatingTarget: null,
-    setEvaluatingTarget: vi.fn(),
     handleUploadComplete: vi.fn(),
   };
 
