@@ -40,9 +40,7 @@ class DpoTrainingJob(Base):
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     agent_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending"
-    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.user_id", ondelete="RESTRICT"),

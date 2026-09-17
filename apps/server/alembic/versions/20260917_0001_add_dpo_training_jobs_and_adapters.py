@@ -31,7 +31,7 @@ def upgrade() -> None:
         op.create_table(
             "dpo_training_jobs",
             sa.Column("job_id", sa.Uuid(), primary_key=True),
-            sa.Column("agent_id", sa.String(32), nullable=False, index=True),
+            sa.Column("agent_id", sa.String(32), nullable=False),
             sa.Column(
                 "status", sa.String(20), nullable=False, server_default="pending"
             ),
@@ -54,18 +54,17 @@ def upgrade() -> None:
             sa.Column(
                 "download_expires_at", sa.DateTime(timezone=True), nullable=False
             ),
-            sa.Column(
-                "download_used_at", sa.DateTime(timezone=True), nullable=True
-            ),
+            sa.Column("download_used_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("upload_token_hash", sa.String(64), nullable=False),
-            sa.Column(
-                "upload_expires_at", sa.DateTime(timezone=True), nullable=False
-            ),
+            sa.Column("upload_expires_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("upload_used_at", sa.DateTime(timezone=True), nullable=True),
             sa.CheckConstraint(
                 "status IN ('pending', 'downloaded', 'completed')",
                 name="ck_dpo_training_jobs_status",
             ),
+        )
+        op.create_index(
+            "idx_dpo_training_jobs_agent_id", "dpo_training_jobs", ["agent_id"]
         )
         op.create_index(
             "idx_dpo_training_jobs_created_at",
@@ -77,13 +76,12 @@ def upgrade() -> None:
         op.create_table(
             "trained_adapters",
             sa.Column("adapter_id", sa.Uuid(), primary_key=True),
-            sa.Column("agent_id", sa.String(32), nullable=False, index=True),
+            sa.Column("agent_id", sa.String(32), nullable=False),
             sa.Column(
                 "job_id",
                 sa.Uuid(),
                 sa.ForeignKey("dpo_training_jobs.job_id", ondelete="RESTRICT"),
                 nullable=False,
-                index=True,
             ),
             sa.Column("version", sa.Integer(), nullable=False),
             sa.Column("file_path", sa.String(512), nullable=False),
@@ -96,10 +94,18 @@ def upgrade() -> None:
                 server_default=sa.func.now(),
             ),
         )
+        op.create_index(
+            "idx_trained_adapters_agent_id", "trained_adapters", ["agent_id"]
+        )
+        op.create_index("idx_trained_adapters_job_id", "trained_adapters", ["job_id"])
 
 
 def downgrade() -> None:
     if _has_table("trained_adapters"):
+        op.drop_index("idx_trained_adapters_job_id", "trained_adapters")
+        op.drop_index("idx_trained_adapters_agent_id", "trained_adapters")
         op.drop_table("trained_adapters")
     if _has_table("dpo_training_jobs"):
+        op.drop_index("idx_dpo_training_jobs_created_at", "dpo_training_jobs")
+        op.drop_index("idx_dpo_training_jobs_agent_id", "dpo_training_jobs")
         op.drop_table("dpo_training_jobs")
