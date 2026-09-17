@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import uuid
+import uuid as uuid_module
 from datetime import UTC, datetime
 
+import pytest
+from server.modules.evaluations.models import EvaluationJob
+from server.modules.synthesis.models import AgentGeneration, AgentResult
+from server.modules.training_data.exceptions import InvalidAgentIdError
+from server.modules.training_data.jobs import create_training_job
 from server.modules.training_data.models import DpoTrainingJob, TrainedAdapter
+from server.modules.training_data.tokens import hash_token
+from server.tests.evaluations.conftest import _add_document
 
 
 def test_dpo_training_job_round_trips(db_session, admin_user):
@@ -62,3 +70,74 @@ def test_trained_adapter_round_trips(db_session, admin_user):
     assert fetched is not None
     assert fetched.job_id == job.job_id
     assert fetched.version == 1
+
+
+def _make_gad_generation(db_session, owner_id, agent_id="gad"):
+    """Seed one evaluation with an AgentResult + AgentGeneration for
+    agent_id. AgentGeneration.agent_result_id is NOT nullable (see
+    server/modules/synthesis/models.py) -- an AgentResult row must exist
+    first and its agent_result_id passed through, or this raises an
+    IntegrityError."""
+    document_id = _add_document(db_session, owner_id=owner_id, source_type="slm")
+    job = EvaluationJob(evaluation_id=uuid_module.uuid4(), document_id=document_id)
+    db_session.add(job)
+    db_session.flush()
+
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name=agent_id,
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="GAD evaluation summary",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
+    generation = AgentGeneration(
+        generation_id=uuid_module.uuid4(),
+        agent_result_id=agent_result.agent_result_id,
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_id=agent_id,
+        unit_key="gad-01",
+        criterion_ids=["GAD-01"],
+        prompt_text="prompt",
+        response_text='{"gad-01": {"score": 2, "reasoning": "r"}}',
+        response_json={"gad-01": {"score": 2, "reasoning": "r"}},
+        response_contract_key="gad_scores.v1",
+        response_contract_version=1,
+        model_name="test-model",
+        envelope_status="ok",
+        prompt_sha256="p" * 64,
+        response_sha256="r" * 64,
+    )
+    db_session.add(generation)
+    db_session.commit()
+    return job.evaluation_id
+
+
+def test_create_training_job_rejects_unknown_agent(db_session, admin_user):
+    with pytest.raises(InvalidAgentIdError):
+        create_training_job(db_session, "not-a-real-agent", admin_user.user_id)
+
+
+def test_create_training_job_freezes_dataset_and_mints_tokens(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    assert result.job.agent_id == "gad"
+    assert result.job.status == "pending"
+    assert result.job.created_by == admin_user.user_id
+    assert isinstance(result.job.manifest_json, dict)
+    assert result.job.download_token_hash == hash_token(result.raw_download_token)
+    assert result.job.upload_token_hash == hash_token(result.raw_upload_token)
+    assert result.raw_download_token != result.raw_upload_token
+
+    fetched = db_session.get(DpoTrainingJob, result.job.job_id)
+    assert fetched is not None
+    assert fetched.status == "pending"
