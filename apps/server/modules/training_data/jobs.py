@@ -130,9 +130,19 @@ def get_job_download_package(
     return buffer.getvalue()
 
 
+def list_training_jobs(session: Session, agent_id: str) -> list[DpoTrainingJob]:
+    return (
+        session.query(DpoTrainingJob)
+        .filter(DpoTrainingJob.agent_id == agent_id)
+        .order_by(DpoTrainingJob.created_at.desc())
+        .all()
+    )
+
+
 __all__ = [
     "VALID_AGENT_IDS",
     "TrainingJobCreated",
     "create_training_job",
     "get_job_download_package",
+    "list_training_jobs",
 ]

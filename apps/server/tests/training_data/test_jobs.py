@@ -16,6 +16,7 @@ from server.modules.training_data.exceptions import (
 from server.modules.training_data.jobs import (
     create_training_job,
     get_job_download_package,
+    list_training_jobs,
 )
 from server.modules.training_data.models import DpoTrainingJob, TrainedAdapter
 from server.modules.training_data.tokens import hash_token
@@ -207,3 +208,30 @@ def test_get_job_download_package_rejects_expired_token(db_session, admin_user):
         get_job_download_package(
             db_session, result.job.job_id, result.raw_download_token
         )
+
+
+def test_list_training_jobs_returns_newest_first(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    first = create_training_job(db_session, "gad", admin_user.user_id)
+    second = create_training_job(db_session, "gad", admin_user.user_id)
+
+    # server_default=func.now() resolves to SQLite's CURRENT_TIMESTAMP,
+    # which has 1-second resolution -- two jobs created milliseconds apart
+    # in-test can land on an identical created_at. Force a deterministic
+    # ordering the same way test_get_job_download_package_rejects_expired_token
+    # writes timestamps directly, rather than relying on wall-clock separation.
+    first.job.created_at = datetime.now(UTC) - timedelta(seconds=1)
+    second.job.created_at = datetime.now(UTC)
+    db_session.commit()
+
+    jobs = list_training_jobs(db_session, "gad")
+
+    assert [j.job_id for j in jobs] == [second.job.job_id, first.job.job_id]
+
+
+def test_list_training_jobs_filters_by_agent(db_session, admin_user):
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    create_training_job(db_session, "gad", admin_user.user_id)
+
+    itso_jobs = list_training_jobs(db_session, "itso")
+    assert itso_jobs == []
