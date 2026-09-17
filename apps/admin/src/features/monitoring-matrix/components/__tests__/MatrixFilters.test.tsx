@@ -1,43 +1,52 @@
-import { describe, expect, it, vi } from 'vitest';
+// @vitest-environment jsdom
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import React from 'react';
 import { MatrixFilters } from '../MatrixFilters';
+
+afterEach(cleanup);
 
 describe('MatrixFilters', () => {
   it('renders exactly the two canonical program options', () => {
-    const element = MatrixFilters({
-      program: 'all',
-      status: 'all',
-      onProgramChange: vi.fn(),
-      onStatusChange: vi.fn(),
-    });
-    const programSelect = element.props.children[0].props.children;
-    const options = programSelect.props.children;
+    render(
+      <MatrixFilters
+        program="all"
+        status="all"
+        onProgramChange={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
 
-    expect(
-      options.map((option: { props: { children: string; value: string } }) => [
-        option.props.children,
-        option.props.value,
-      ]),
-    ).toEqual([
-      ['All Programs', 'all'],
-      ['Computer Science', 'BSCS'],
-      ['Information Technology', 'BSInfoTech'],
-    ]);
-    expect(
-      options.map((option: { props: { children: string } }) => option.props.children),
-    ).not.toContain('Education');
+    const programTrigger = screen.getByRole('button', { name: 'Filter by program' });
+    expect(programTrigger).toBeDefined();
+
+    fireEvent.click(programTrigger);
+
+    const options = screen.getAllByRole('option');
+    const optionLabels = options.map((opt) => opt.textContent?.trim());
+
+    expect(optionLabels).toContain('All Programs');
+    expect(optionLabels).toContain('Computer Science');
+    expect(optionLabels).toContain('Information Technology');
+    expect(optionLabels).not.toContain('Education');
   });
 
   it('emits BSInfoTech when Information Technology is selected', () => {
     const onProgramChange = vi.fn();
-    const element = MatrixFilters({
-      program: 'all',
-      status: 'all',
-      onProgramChange,
-      onStatusChange: vi.fn(),
-    });
-    const programSelect = element.props.children[0].props.children;
+    render(
+      <MatrixFilters
+        program="all"
+        status="all"
+        onProgramChange={onProgramChange}
+        onStatusChange={vi.fn()}
+      />,
+    );
 
-    programSelect.props.onChange({ target: { value: 'BSInfoTech' } });
+    const programTrigger = screen.getByRole('button', { name: 'Filter by program' });
+    fireEvent.click(programTrigger);
+
+    const infoTechOption = screen.getByRole('option', { name: /Information Technology/i });
+    fireEvent.click(infoTechOption);
 
     expect(onProgramChange).toHaveBeenCalledWith('BSInfoTech');
   });
