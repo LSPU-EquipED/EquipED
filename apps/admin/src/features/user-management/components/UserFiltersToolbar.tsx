@@ -1,6 +1,5 @@
-import { CaretDown, MagnifyingGlass, Plus, UserMinus } from '@phosphor-icons/react';
-import { Button } from '@equiped/ui';
-import { cn } from '@equiped/ui';
+import { MagnifyingGlass, Plus, UserMinus } from '@phosphor-icons/react';
+import { Button, Dropdown, cn } from '@equiped/ui';
 import type { UserCounts } from './UserMetricsBar';
 
 export type StatusFilter = 'all' | 'pending' | 'approved' | 'suspended' | 'rejected';
@@ -177,22 +176,17 @@ export function UserFiltersToolbar({
             />
           </div>
 
-          <div className="relative shrink-0">
-            <select
-              aria-label="Filter by role"
-              value={roleFilter}
-              onChange={(e) => onRoleFilterChange(e.target.value as RoleFilter)}
-              className="h-10 appearance-none rounded-sm border border-input bg-surface pl-3.5 pr-9 text-xs sm:text-sm font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-            >
-              <option value="all">All Roles</option>
-              <option value="faculty">Faculty</option>
-              <option value="admin">Admin</option>
-            </select>
-            <CaretDown
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-text-muted"
-              aria-hidden="true"
-            />
-          </div>
+          <Dropdown
+            aria-label="Filter by role"
+            size="md"
+            value={roleFilter}
+            onChange={(val) => onRoleFilterChange(val as RoleFilter)}
+            options={[
+              { value: 'all', label: 'All Roles' },
+              { value: 'faculty', label: 'Faculty' },
+              { value: 'admin', label: 'Admin' },
+            ]}
+          />
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
