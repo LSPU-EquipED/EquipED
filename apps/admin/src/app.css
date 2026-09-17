@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '@equiped/ui/theme/fonts.css';
+@import '@equiped/ui/theme/motion.css';
 
 @source "./**/*.{ts,tsx}";
 @source "../../../libs/ui/src/**/*.{ts,tsx}";

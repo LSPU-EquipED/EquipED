@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CaretDown, Check, MagnifyingGlass } from '@phosphor-icons/react';
 import { cn } from '../utils';
+import { useClickOutside } from '../hooks';
 import type { ProgramCollegeGroup, ProgramEntry } from '@equiped/types';
 
 type FlatProgram = ProgramEntry & {
@@ -120,18 +121,9 @@ export function ProgramSelector({
     active?.scrollIntoView({ block: 'nearest' });
   }, [isOpen, safeHighlightedIndex]);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
+  useClickOutside(containerRef, () => {
+    setIsOpen(false);
+  }, { enabled: isOpen });
 
   const handleSelect = (programCode: string) => {
     onChange(programCode);

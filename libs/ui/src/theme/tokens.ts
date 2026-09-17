@@ -110,6 +110,24 @@ export const INPUT_STYLES = {
   error: 'mt-1.5 text-xs font-medium text-destructive',
 } as const;
 
+export const SELECT_STYLES = {
+  base: 'appearance-none rounded-sm border border-border bg-surface text-text font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer',
+  sizes: {
+    sm: 'h-8 text-xs pl-2.5 pr-7',
+    md: 'h-9.5 text-xs sm:text-sm pl-3 pr-8.5',
+    lg: 'h-11 text-sm pl-3.5 pr-10',
+  },
+  variants: {
+    default: 'border-border bg-surface hover:bg-surface-subtle hover:border-border-strong',
+    subtle: 'border-border/70 bg-surface-subtle hover:bg-surface hover:border-border',
+    ghost: 'border-transparent bg-transparent hover:bg-surface-subtle',
+  },
+  label: 'mb-1.5 block text-xs font-semibold text-text',
+  inlineLabel: 'text-xs text-text-muted font-medium select-none shrink-0',
+  hint: 'mt-1.5 text-xs text-text-muted',
+  error: 'mt-1.5 text-xs font-medium text-destructive',
+} as const;
+
 export const TABLE_STYLES = {
   wrapper: 'w-full overflow-x-auto rounded-md border border-border bg-surface',
   table: 'w-full text-left border-collapse',
@@ -119,4 +137,55 @@ export const TABLE_STYLES = {
   tr: 'transition-colors hover:bg-surface-subtle/70',
   td: 'px-4 py-3 text-sm text-text',
   tdData: 'px-4 py-3 text-sm tabular-nums text-text',
+} as const;
+
+export const DROPDOWN_STYLES = {
+  trigger: 'inline-flex items-center justify-between gap-2 rounded-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 select-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50',
+  sizes: {
+    sm: 'h-8 px-2.5 text-xs',
+    md: 'h-10 px-3 text-xs sm:text-sm',
+    lg: 'h-11 px-3.5 text-sm',
+  },
+  variants: {
+    default: 'border border-border bg-surface hover:bg-surface-subtle hover:border-border-strong text-text',
+    subtle: 'border border-border/70 bg-surface-subtle hover:bg-surface hover:border-border text-text',
+    ghost: 'border border-transparent bg-transparent hover:bg-surface-subtle text-text',
+  },
+  menu: 'absolute top-full mt-1 z-50 min-w-full rounded-sm border border-border bg-surface py-1 shadow-md animate-ledger-dropdown-in focus:outline-none max-h-72 overflow-y-auto',
+  item: 'flex w-full items-center justify-between gap-2 text-left cursor-pointer transition-colors duration-100 select-none',
+  itemSizes: {
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-3.5 py-2 text-xs sm:text-sm',
+    lg: 'px-4 py-2.5 text-sm',
+  },
+  itemSelected: 'bg-primary-soft/70 text-primary font-semibold',
+  itemHighlighted: 'bg-surface-subtle text-text',
+  itemDefault: 'text-text hover:bg-surface-subtle',
+  label: 'mb-1.5 block text-xs font-semibold text-text',
+  inlineLabel: 'text-xs text-text-muted font-medium select-none shrink-0',
+  hint: 'mt-1.5 text-xs text-text-muted',
+  error: 'mt-1.5 text-xs font-medium text-destructive',
+} as const;
+
+export const MOTION_TOKENS = {
+  timing: {
+    out: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    in: 'cubic-bezier(0.4, 0, 1, 1)',
+    standard: 'cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  durations: {
+    micro: '120ms',
+    compact: '180ms',
+    surface: '240ms',
+    decay: '1400ms',
+  },
+  classes: {
+    drawerIn: 'animate-ledger-drawer-in',
+    drawerOut: 'animate-ledger-drawer-out',
+    modalIn: 'animate-ledger-modal-in',
+    modalOut: 'animate-ledger-modal-out',
+    bannerIn: 'animate-ledger-banner-in',
+    flashDecay: 'animate-ledger-flash-decay',
+    dropdownIn: 'animate-ledger-dropdown-in',
+  },
 } as const;

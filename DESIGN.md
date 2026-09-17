@@ -99,6 +99,17 @@ rounded:
   sm: 4px
   md: 6px
 
+motion:
+  timing:
+    ledger-out: "cubic-bezier(0.16, 1, 0.3, 1)"
+    ledger-in: "cubic-bezier(0.4, 0, 1, 1)"
+    ledger-standard: "cubic-bezier(0.4, 0, 0.2, 1)"
+  duration:
+    micro: 120ms
+    compact: 180ms
+    surface: 240ms
+    decay: 1400ms
+
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
@@ -154,6 +165,26 @@ components:
     typography: "{typography.body-sm}"
     borderColor: "{colors.border}"
     padding: "10px 12px"
+
+  dropdown:
+    trigger:
+      backgroundColor: "{colors.surface}"
+      textColor: "{colors.text}"
+      borderColor: "{colors.border}"
+      typography: "{typography.body-sm}"
+      rounded: "{rounded.sm}"
+      height: "32px (sm) / 40px (md)"
+    menu:
+      backgroundColor: "{colors.surface}"
+      borderColor: "{colors.border}"
+      rounded: "{rounded.sm}"
+      shadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)"
+      motion: "var(--duration-compact) var(--ease-ledger-out)"
+    item:
+      typography: "{typography.body-sm}"
+      padding: "6px 12px (sm) / 8px 14px (md)"
+      activeColor: "{colors.primary-soft}"
+      activeTextColor: "{colors.primary}"
 ---
 
 # Design System: EquipED
@@ -293,8 +324,9 @@ Shapes prioritize structural discipline:
 - **Destructive**: Solid Red (`#b42318`), white text, 4px radius. Used exclusively for permanent actions (deleting document, canceling active run).
 
 ### Form Controls
-- **Text Inputs & Selects**: 40px height (`h-10`), 1px border (`#c8d2e1`), white surface, 4px radius, 12px horizontal padding.
-- **Labels**: Rendered above inputs in sentence case using `label-sm` (`12px`, semibold, `#172033`).
+- **Text Inputs**: 40px height (`h-10`), 1px border (`#c8d2e1`), white surface, 4px radius, 12px horizontal padding.
+- **Dropdown & Popover Menus**: Custom styled institutional listbox component shared across Admin and Faculty (`@equiped/ui`). Replaces OS native select pickers. Features 4px radius (`rounded-sm`), 1px border (`#d6deea`), subtle elevation shadow (`shadow-md`), active item highlight (`#edf2ff`) with `Check` icon, full keyboard traversal (ArrowUp, ArrowDown, Enter, Space, Escape), and compact hardware-accelerated entrance motion (`var(--duration-compact) var(--ease-ledger-out)`).
+- **Labels**: Rendered above inputs in sentence case using `label-sm` (`12px`, semibold, `#172033`), or inline for compact filter bars (`inlineLabel`).
 - **Hint Text**: Rendered below inputs using `#596579` (`12px`).
 
 ### Status Badges
@@ -309,17 +341,41 @@ Shapes prioritize structural discipline:
 
 ---
 
+## Functional Motion & Spatial Choreography
+
+EquipED employs a functional, zero-dependency motion system grounded in civic restraint. Motion is purposeful, informative, and fast—never decorative, bouncy, or distracting:
+
+### 1. Motion Principles
+- **Fast Deceleration (`--ease-ledger-out: cubic-bezier(0.16, 1, 0.3, 1)`)**: Overlays, dropdown menus, and sheets enter briskly and decelerate smoothly into place, establishing spatial context without perceived latency.
+- **Snappy Exits (`--ease-ledger-in: cubic-bezier(0.4, 0, 1, 1)`)**: Elements leaving the viewport accelerate out rapidly, prioritizing immediate responsiveness.
+- **Hardware-Only Acceleration**: Dynamic transitions are strictly constrained to `transform` and `opacity` properties. Animating `height`, `width`, `top`, or `padding` is prohibited to prevent layout thrashing.
+- **Zero Third-Party Runtime**: All animations are implemented with pure CSS keyframes (`@equiped/ui/theme/motion.css`) and native React presence lifecycles (`usePresence`). External animation libraries (Framer Motion, GSAP, Lottie) are prohibited.
+
+### 2. Duration Tiers
+- **Micro (`120ms`)**: Interactive control feedback—button hover tints, active tab switches, tactile button clicks (`active:scale-95`).
+- **Compact (`180ms`)**: Dialog popups, dropdown popover menus (`animate-ledger-dropdown-in`), upload modals, targeted confirmation windows.
+- **Surface (`240ms`)**: Large slide-out inspection sheets, technical reference drawers, and split-pane view toggles.
+- **Decay (`1400ms`)**: Temporary row highlight decay for newly indexed documents (`animate-ledger-flash-decay`), ensuring immediate user orientation before returning to neutral surface.
+
+### 3. Reduced Motion Strictness (WCAG 2.2 AA)
+All CSS transitions and keyframes automatically collapse to `0.01ms` when `@media (prefers-reduced-motion: reduce)` is signaled by the operating system. Modals, drawers, and highlights mount and unmount instantaneously without layout delay.
+
+---
+
 ## Do's and Don'ts
 
 ### Do:
+- **Do** use the shared `@equiped/ui` `Dropdown` component for all filtering, sorting, and form selections across Faculty and Admin surfaces to ensure visual consistency and avoid OS-dependent popup windows.
 - **Do** use crisp 1px borders (`#d6deea`) to structure cards, split panes, and tables.
 - **Do** maintain a strict line-height of 1.6 on evaluation prose and comments for long-term readability.
 - **Do** enable `tabular-nums` on all numbers, scores, weights, and dates.
 - **Do** respect the 6px maximum border-radius limit across all UI components.
 - **Do** pair all status indicators with descriptive text and icons for accessibility.
-- **Do** keep button and form interactive heights at a minimum of 40px for touch and click precision.
+- **Do** keep button and form interactive heights at a minimum of 40px for touch and click precision (or 32px for compact toolbars).
 
 ### Don't:
+- **Don't** use unstyled native `<select>` elements for desktop workstations that pop open native OS context menus.
+- **Don't** nest containers inside containers on toolbars and filter rows (e.g. gray sub-boxes inside white toolbars); use clean button pills and inline dropdowns directly on the surface plane.
 - **Don't** use purple, violet, or blue-purple gradient meshes anywhere in the application.
 - **Don't** apply floating card shadows (blur > 16px) or glassmorphic blur filters.
 - **Don't** use pure black (`#000000`) for text or backgrounds; use `#172033` and `#f4f7fb`.

@@ -15,6 +15,7 @@ export interface TableSkeletonProps {
   rows?: number;
   ariaLabel?: string;
   className?: string;
+  tableClassName?: string;
   renderCell?: (column: TableSkeletonColumn, rowIndex: number, columnIndex: number) => ReactNode;
 }
 
@@ -23,11 +24,12 @@ export function TableSkeleton({
   rows = 5,
   ariaLabel = 'Loading table',
   className,
+  tableClassName,
   renderCell,
 }: TableSkeletonProps) {
   return (
     <div className={cn('overflow-x-auto', className)} role="status" aria-label={ariaLabel} aria-busy="true">
-      <table className={TABLE_STYLES.table}>
+      <table className={cn(TABLE_STYLES.table, tableClassName)}>
         <thead className={TABLE_STYLES.thead}>
           <tr>
             {columns.map((column) => (
