@@ -35,9 +35,9 @@ describe('document.utils', () => {
     expect(fallback.badgeClass).toContain('text-text-muted');
   });
 
-  it('formats dates consistently', () => {
+  it('formats dates consistently as MMM d, yyyy', () => {
     const formatted = formatDate('2026-08-15T14:30:00Z');
-    expect(formatted).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    expect(formatted).toBe('Aug 15, 2026');
   });
 
   it('defines source type labels for all expected document types', () => {

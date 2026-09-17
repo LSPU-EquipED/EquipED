@@ -1,45 +1,51 @@
-import { MagnifyingGlass, Plus, UploadSimple } from '@phosphor-icons/react';
-import { Button } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import type { StorageProgramFilter, StorageStatusFilter } from '../hooks/useSlmStorage';
+import { ArrowCounterClockwise, SlidersHorizontal, SortAscending } from '@phosphor-icons/react';
+import { cn, Dropdown } from '@equiped/ui';
+import type { DocumentSortOption, StorageProgramFilter, StorageStatusFilter } from '../utils/storage.utils';
+
+export type { DocumentSortOption };
+
 
 interface StorageToolbarProps {
   programFilter: StorageProgramFilter;
   setProgramFilter: (val: StorageProgramFilter) => void;
   statusFilter: StorageStatusFilter;
   setStatusFilter: (val: StorageStatusFilter) => void;
-  search: string;
-  setSearch: (val: string) => void;
-  totalModules: number;
-  onOpenUpload: () => void;
+  sortOption?: DocumentSortOption;
+  setSortOption?: (val: DocumentSortOption) => void;
+  totalModules?: number;
+  bscsCount?: number;
+  bsInfoTechCount?: number;
+  onResetFilters?: () => void;
 }
-
-const PROGRAM_TABS: { id: StorageProgramFilter; label: string }[] = [
-  { id: 'ALL', label: 'All Modules' },
-  { id: 'BSCS', label: 'BSCS (Comp Sci)' },
-  { id: 'BSInfoTech', label: 'BSInfoTech (IT)' },
-];
 
 export function StorageToolbar({
   programFilter,
   setProgramFilter,
   statusFilter,
   setStatusFilter,
-  search,
-  setSearch,
+  sortOption = 'uploaded-desc',
+  setSortOption,
   totalModules,
-  onOpenUpload,
+  bscsCount,
+  bsInfoTechCount,
+  onResetFilters,
 }: StorageToolbarProps) {
+  const hasActiveFilters = programFilter !== 'ALL' || statusFilter !== 'all';
+
   return (
-    <div className="rounded-md border border-border bg-surface overflow-hidden shadow-none space-y-0">
-      {/* ── Top Bar: Program Filter Tabs & Action Button ───────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface-subtle px-4 sm:px-6 py-2.5">
+    <div className="rounded-md border border-border bg-surface px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-none">
+      {/* ── Left: Program Pills ────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
         <div
           role="tablist"
           aria-label="Filter modules by academic program"
-          className="flex flex-wrap items-center gap-1"
+          className="flex items-center gap-1.5"
         >
-          {PROGRAM_TABS.map((tab) => {
+          {([
+            { id: 'ALL' as const, label: 'All Modules', count: totalModules },
+            { id: 'BSCS' as const, label: 'BSCS', count: bscsCount },
+            { id: 'BSInfoTech' as const, label: 'BSInfoTech', count: bsInfoTechCount },
+          ] as const).map((tab) => {
             const isActive = programFilter === tab.id;
             return (
               <button
@@ -49,72 +55,83 @@ export function StorageToolbar({
                 aria-selected={isActive}
                 onClick={() => setProgramFilter(tab.id)}
                 className={cn(
-                  'rounded-xs px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer select-none',
+                  'inline-flex items-center rounded-sm px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer select-none',
                   isActive
-                    ? 'bg-primary text-primary-foreground font-bold shadow-xs'
-                    : 'text-text-muted hover:text-text hover:bg-surface',
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-text-muted hover:text-text hover:bg-surface-subtle border border-transparent hover:border-border font-medium',
                 )}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.count != null ? (
+                  <span
+                    className={cn(
+                      'ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-mono tabular-nums font-bold leading-none',
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-surface-subtle border border-border/80 text-text-muted',
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                ) : null}
               </button>
             );
           })}
         </div>
 
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={onOpenUpload}
-          className="h-8.5 px-3.5 text-xs font-bold uppercase tracking-wider gap-1.5 shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="size-3.5" aria-hidden="true" />
-          <span>Upload SLM</span>
-        </Button>
+        {/* Clear Filters Button (Visible when filters are active) */}
+        {hasActiveFilters && onResetFilters ? (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex items-center gap-1 rounded-sm px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-destructive hover:bg-destructive-soft/50 transition-colors cursor-pointer"
+            title="Reset filters"
+          >
+            <ArrowCounterClockwise className="size-3" aria-hidden="true" />
+            <span>Reset</span>
+          </button>
+        ) : null}
       </div>
 
-      {/* ── Bottom Bar: Status Filter & Search Input ───────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-2.5 bg-surface">
-        <div className="flex items-center gap-2">
-          <label
-            htmlFor="storage-status-filter"
-            className="text-xs font-semibold uppercase tracking-wider text-text-muted whitespace-nowrap"
-          >
-            Status:
-          </label>
-          <select
-            id="storage-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StorageStatusFilter)}
-            className="h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            <option value="PROCESSED">Ready for Review</option>
-            <option value="PROCESSING">Parsing & Ingestion</option>
-            <option value="FAILED">Processing Failed</option>
-          </select>
-        </div>
+      {/* ── Right: Filter & Sorter Controls ────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Sorter Dropdown */}
+        {setSortOption ? (
+          <Dropdown
+            id="storage-sort-select"
+            aria-label="Sort documents"
+            label="Sort:"
+            inlineLabel
+            icon={<SortAscending className="size-3.5" />}
+            value={sortOption}
+            onChange={(val) => setSortOption(val as DocumentSortOption)}
+            options={[
+              { value: 'uploaded-desc', label: 'Newest Uploaded' },
+              { value: 'uploaded-asc', label: 'Oldest Uploaded' },
+              { value: 'title-asc', label: 'Title (A–Z)' },
+              { value: 'title-desc', label: 'Title (Z–A)' },
+              { value: 'course-asc', label: 'Course Code' },
+              { value: 'pages-desc', label: 'Page Count' },
+            ]}
+          />
+        ) : null}
 
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="relative min-w-[14rem] sm:min-w-[18rem]">
-            <MagnifyingGlass
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              placeholder="Search module, CS101, title…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
-              aria-label="Search course modules"
-            />
-          </div>
-
-          <span className="text-xs text-text-muted tabular-nums font-semibold whitespace-nowrap">
-            {totalModules} module{totalModules === 1 ? '' : 's'}
-          </span>
-        </div>
+        {/* Status Filter Dropdown */}
+        <Dropdown
+          id="storage-status-filter"
+          aria-label="Filter by status"
+          label="Status:"
+          inlineLabel
+          icon={<SlidersHorizontal className="size-3.5" />}
+          value={statusFilter}
+          onChange={(val) => setStatusFilter(val as StorageStatusFilter)}
+          options={[
+            { value: 'all', label: 'All Statuses' },
+            { value: 'PROCESSED', label: 'Evaluated' },
+            { value: 'PROCESSING', label: 'Processing' },
+            { value: 'FAILED', label: 'Failed' },
+          ]}
+        />
       </div>
     </div>
   );

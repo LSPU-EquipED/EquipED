@@ -1,19 +1,13 @@
 import { CaretRight, FileText, Spinner } from '@phosphor-icons/react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import type { MouseEvent } from 'react';
+import { Link } from '@tanstack/react-router';
+import type { MouseEvent, KeyboardEvent } from 'react';
 import { cn } from '@equiped/ui';
 import { TableSkeleton } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
 import type { LatestEvaluationItem } from '@equiped/types';
-import { TARGET_AGENTS, TARGET_AGENT_META } from '@equiped/types';
 import type { TargetAgent } from '@equiped/types';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDate, sourceTypeLabels } from '../utils/document.utils';
-
-export type DocumentEvaluateHandler = (
-  document: ClientDocument,
-  targetAgent: TargetAgent,
-) => void;
 
 interface DocumentTableProps {
   documents: ClientDocument[];
@@ -21,12 +15,6 @@ interface DocumentTableProps {
   latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
   latestEvalsState?: SlmStatusQueryState;
   targetAgent?: TargetAgent;
-  /**
-   * Optional targeted-evaluation trigger. When omitted, role actions
-   * navigate to the evaluation workspace with `?target_agent=` so the
-   * workspace renders the confirmation modal for that role.
-   */
-  onEvaluate?: DocumentEvaluateHandler;
   onInspect?: (document: ClientDocument) => void;
 }
 
@@ -36,57 +24,91 @@ export function DocumentTable({
   latestEvalsByDocId = {},
   latestEvalsState = {},
   targetAgent = 'sme',
-  onEvaluate,
   onInspect,
 }: DocumentTableProps) {
-  const navigate = useNavigate();
+  const hasMultipleTypes = documents.some((d) => d.sourceType !== 'slm');
+
+  const handleRowClick = (e: MouseEvent<HTMLTableRowElement>, doc: ClientDocument) => {
+    // If the user clicked an interactive inner element (link, button, etc.), don't trigger row inspection
+    if ((e.target as HTMLElement).closest('a, button, details')) {
+      return;
+    }
+    // Prevent opening if the user is selecting text to copy
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+    onInspect?.(doc);
+  };
+
+  const handleRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>, doc: ClientDocument) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      if ((e.target as HTMLElement).closest('a, button, details')) {
+        return;
+      }
+      e.preventDefault();
+      onInspect?.(doc);
+    }
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse border-spacing-0">
-        <thead className="border-b border-border bg-surface-subtle">
+    <div className="overflow-x-auto min-w-0 w-full">
+      <table className="w-full text-left border-collapse border-spacing-0 min-w-[60rem] table-fixed">
+        <caption className="sr-only">Course Modules and Indexed Content repository ledger</caption>
+        <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
           <tr>
             <th
               scope="col"
-              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+              className="py-3 pl-4 sm:pl-6 pr-3 text-left align-middle w-44 min-w-[11rem]"
             >
               Status
             </th>
             <th
               scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[35%] min-w-[18rem]"
+              className={cn(
+                'py-3 px-3.5 text-left align-middle',
+                hasMultipleTypes ? 'w-[32%] min-w-[16rem]' : 'w-[36%] min-w-[16rem]',
+              )}
             >
-              Name
+              Module Name
             </th>
             <th
               scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-[25%] min-w-[14rem]"
+              className={cn(
+                'py-3 px-3.5 text-left align-middle',
+                hasMultipleTypes ? 'w-[24%] min-w-[12rem]' : 'w-[28%] min-w-[13rem]',
+              )}
             >
               Course
             </th>
             <th
               scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
+              className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]"
             >
               Program
             </th>
+            {hasMultipleTypes && (
+              <th
+                scope="col"
+                className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]"
+              >
+                Type
+              </th>
+            )}
             <th
               scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-28"
-            >
-              Type
-            </th>
-            <th
-              scope="col"
-              className="py-2.5 px-4 text-xs font-semibold uppercase tracking-wider text-text-muted w-36"
+              className={cn(
+                'py-3 px-3.5 text-left align-middle',
+                hasMultipleTypes ? 'w-32 min-w-[7.5rem]' : 'w-36 min-w-[8.5rem]',
+              )}
             >
               Uploaded
             </th>
             <th
               scope="col"
-              className="py-2.5 px-6 md:px-8 text-xs font-semibold uppercase tracking-wider text-text-muted text-right w-12"
+              className="py-3 pl-2 pr-4 sm:pr-6 text-right align-middle w-24 min-w-[6rem]"
             >
-              <span className="sr-only">Actions</span>
+              Action
             </th>
           </tr>
         </thead>
@@ -101,36 +123,26 @@ export function DocumentTable({
             );
             const isFlashing = flashId === document.documentId;
 
-            const primaryUrl = display.actionUrl;
-
-            const handleRowClick = (e: MouseEvent<HTMLTableRowElement>) => {
-              if ((e.target as HTMLElement).closest('a, button, details')) {
-                return;
-              }
-              const selection = window.getSelection();
-              if (selection && selection.toString().length > 0) {
-                return;
-              }
-              if (display.isClickable && primaryUrl) {
-                void navigate({ to: primaryUrl });
-              }
-            };
-
             return (
               <tr
                 key={document.documentId}
+                tabIndex={onInspect ? 0 : undefined}
+                role={onInspect ? 'button' : undefined}
+                aria-label={onInspect ? `View details for ${document.title}` : undefined}
+                onKeyDown={onInspect ? (e) => handleRowKeyDown(e, document) : undefined}
+                onClick={onInspect ? (e) => handleRowClick(e, document) : undefined}
                 className={cn(
                   'group transition-colors',
-                  isFlashing && 'bg-surface-subtle',
-                  display.isClickable && 'cursor-pointer hover:bg-surface-subtle/80',
+                  isFlashing && 'animate-ledger-flash-decay',
+                  onInspect && 'cursor-pointer hover:bg-surface-subtle/70 focus-visible:outline-none focus-visible:bg-surface-subtle/80',
                   !display.isClickable && 'opacity-75',
                 )}
-                onClick={display.isClickable && primaryUrl ? handleRowClick : undefined}
               >
-                <td className="py-3.5 px-6 md:px-8 w-36">
+                {/* 1. Status */}
+                <td className="py-3 pl-4 sm:pl-6 pr-3 align-middle w-44 min-w-[11rem]">
                   <span
                     className={cn(
-                      'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold tracking-wide select-none',
+                      'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold tracking-wide select-none whitespace-nowrap',
                       display.badgeClass,
                     )}
                   >
@@ -140,64 +152,91 @@ export function DocumentTable({
                     {display.badgeLabel}
                   </span>
                 </td>
-                <td className="py-3.5 px-4 text-sm font-semibold text-text w-[35%] min-w-[18rem]">
-                  {display.isClickable && primaryUrl ? (
-                    <Link
-                      to={primaryUrl}
-                      aria-label={display.ariaLabel}
-                      className="block truncate font-semibold text-text hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                    >
-                      {document.title}
-                    </Link>
-                  ) : (
-                    <span
-                      className="block truncate font-semibold text-text-muted cursor-not-allowed"
-                      title={display.tooltip}
-                    >
-                      {document.title}
-                    </span>
+
+                {/* 2. Module Name */}
+                <td
+                  className={cn(
+                    'py-3 px-3.5 align-middle',
+                    hasMultipleTypes ? 'w-[32%] min-w-[16rem]' : 'w-[36%] min-w-[16rem]',
                   )}
-                </td>
-                <td className="py-3.5 px-4 text-sm text-text-muted font-medium w-[25%] min-w-[14rem]">
+                >
                   <span
-                    className="block truncate"
+                    className="block truncate font-semibold text-sm text-text group-hover:text-primary transition-colors"
+                    title={document.title}
+                  >
+                    {document.title}
+                  </span>
+                </td>
+
+                {/* 3. Course */}
+                <td
+                  className={cn(
+                    'py-3 px-3.5 align-middle',
+                    hasMultipleTypes ? 'w-[24%] min-w-[12rem]' : 'w-[28%] min-w-[13rem]',
+                  )}
+                >
+                  <span
+                    className="block truncate text-xs sm:text-sm text-text-muted font-medium"
                     title={[document.courseCode, document.courseTitle].filter(Boolean).join(' — ') || undefined}
                   >
                     {document.courseCode
                       ? document.courseTitle
                         ? `${document.courseCode} — ${document.courseTitle}`
                         : document.courseCode
-                      : document.courseTitle ?? '—'}
+                      : document.courseTitle ?? 'Not specified'}
                   </span>
                 </td>
-                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap w-28">
-                  {document.program ?? '—'}
+
+                {/* 4. Program */}
+                <td className="py-3 px-3.5 align-middle w-28 min-w-[6.5rem]">
+                  {document.program ? (
+                    <span className="inline-flex items-center rounded-xs border border-border bg-surface-subtle px-1.5 py-0.5 font-mono text-[11px] font-semibold text-text select-none">
+                      {document.program}
+                    </span>
+                  ) : (
+                    <span className="text-text-muted/60 select-none font-mono text-xs">Not specified</span>
+                  )}
                 </td>
-                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap w-28">
-                  {sourceTypeLabels[document.sourceType]}
-                </td>
-                <td className="py-3.5 px-4 text-sm text-text-muted font-medium whitespace-nowrap tabular-nums w-36">
+
+                {/* 5. Type (conditionally rendered only if multiple types exist) */}
+                {hasMultipleTypes && (
+                  <td className="py-3 px-3.5 align-middle text-xs text-text-muted font-medium whitespace-nowrap w-28 min-w-[6.5rem]">
+                    {sourceTypeLabels[document.sourceType]}
+                  </td>
+                )}
+
+                {/* 6. Uploaded */}
+                <td
+                  className={cn(
+                    'py-3 px-3.5 align-middle text-xs text-text-muted font-medium whitespace-nowrap tabular-nums',
+                    hasMultipleTypes ? 'w-32 min-w-[7.5rem]' : 'w-36 min-w-[8.5rem]',
+                  )}
+                >
                   {formatDate(document.uploadedAt)}
                 </td>
-                <td className="py-3.5 px-6 md:px-8 text-right w-12">
-                  <div className="flex items-center justify-end gap-1">
-                    {onInspect ? (
-                      <button
-                        type="button"
-                        aria-label={`Inspect ${document.title} dossier`}
-                        title="Inspect file dossier"
-                        onClick={() => onInspect(document)}
-                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors cursor-pointer"
-                      >
-                        <FileText className="size-3.5" aria-hidden="true" />
-                      </button>
-                    ) : null}
+
+                {/* 7. Actions */}
+                <td className="py-3 pl-2 pr-4 sm:pr-6 align-middle text-right w-24 min-w-[6rem]">
+                  <div className="flex items-center justify-end gap-1.5">
+                    {/* Document Icon (Open PDF with tooltip) */}
+                    <a
+                      href={`/api/v1/documents/${document.documentId}/file`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open PDF"
+                      aria-label={`Open ${document.title} PDF`}
+                      className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-all active:scale-95 cursor-pointer border border-transparent hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <FileText className="size-3.5" aria-hidden="true" />
+                    </a>
+
+                    {/* Launch / View Evaluation Action */}
                     {display.isClickable && display.actionUrl ? (
                       <Link
                         to={display.actionUrl}
                         aria-label={display.ariaLabel}
                         title={display.actionLabel}
-                        className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-transparent hover:border-border"
                       >
                         <CaretRight
                           className="size-4 text-text-muted group-hover:text-text transition-colors"
@@ -216,54 +255,61 @@ export function DocumentTable({
   );
 }
 
-export function DocumentTableSkeleton() {
+export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipleTypes?: boolean }) {
+  const columns = [
+    {
+      label: 'Status',
+      headerClassName: 'w-44 min-w-[11rem] pl-4 sm:pl-6 pr-3 align-middle',
+      cellClassName: 'w-44 min-w-[11rem] pl-4 sm:pl-6 pr-3 align-middle',
+      skeletonClassName: 'h-5 w-24',
+    },
+    {
+      label: 'Module Name',
+      headerClassName: hasMultipleTypes ? 'w-[32%] min-w-[16rem] px-3.5 align-middle' : 'w-[36%] min-w-[16rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes ? 'w-[32%] min-w-[16rem] px-3.5 align-middle' : 'w-[36%] min-w-[16rem] px-3.5 align-middle',
+      skeletonClassName: 'h-4 w-48',
+    },
+    {
+      label: 'Course',
+      headerClassName: hasMultipleTypes ? 'w-[24%] min-w-[12rem] px-3.5 align-middle' : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes ? 'w-[24%] min-w-[12rem] px-3.5 align-middle' : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
+      skeletonClassName: 'h-4 w-36',
+    },
+    {
+      label: 'Program',
+      headerClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
+      cellClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
+      skeletonClassName: 'h-5 w-14',
+    },
+    ...(hasMultipleTypes
+      ? [
+          {
+            label: 'Type',
+            headerClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
+            cellClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
+            skeletonClassName: 'h-4 w-20',
+          },
+        ]
+      : []),
+    {
+      label: 'Uploaded',
+      headerClassName: hasMultipleTypes ? 'w-32 min-w-[7.5rem] px-3.5 align-middle' : 'w-36 min-w-[8.5rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes ? 'w-32 min-w-[7.5rem] px-3.5 align-middle' : 'w-36 min-w-[8.5rem] px-3.5 align-middle',
+      skeletonClassName: 'h-4 w-20',
+    },
+    {
+      label: 'Action',
+      headerClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 text-right align-middle',
+      cellClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 align-middle',
+      skeletonClassName: 'h-7 w-16 ml-auto',
+    },
+  ];
+
   return (
     <TableSkeleton
       ariaLabel="Loading document inventory"
-      columns={[
-        {
-          label: 'Status',
-          headerClassName: 'w-36',
-          cellClassName: 'w-36',
-          skeletonClassName: 'h-5 w-16',
-        },
-        {
-          label: 'Name',
-          headerClassName: 'w-[35%] min-w-[18rem]',
-          cellClassName: 'w-[35%] min-w-[18rem]',
-          skeletonClassName: 'h-4 w-48',
-        },
-        {
-          label: 'Course',
-          headerClassName: 'w-[25%] min-w-[14rem]',
-          cellClassName: 'w-[25%] min-w-[14rem]',
-          skeletonClassName: 'h-4 w-36',
-        },
-        {
-          label: 'Program',
-          headerClassName: 'w-28',
-          cellClassName: 'w-28',
-          skeletonClassName: 'h-4 w-12',
-        },
-        {
-          label: 'Type',
-          headerClassName: 'w-28',
-          cellClassName: 'w-28',
-          skeletonClassName: 'h-4 w-12',
-        },
-        {
-          label: 'Uploaded',
-          headerClassName: 'w-36',
-          cellClassName: 'w-36',
-          skeletonClassName: 'h-4 w-20',
-        },
-        {
-          label: 'Actions',
-          headerClassName: 'w-12 text-right',
-          cellClassName: 'w-12',
-          skeletonClassName: 'h-4 w-8 ml-auto',
-        },
-      ]}
+      tableClassName="table-fixed min-w-[60rem]"
+      columns={columns}
     />
   );
 }

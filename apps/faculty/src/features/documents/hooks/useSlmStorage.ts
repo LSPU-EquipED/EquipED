@@ -1,33 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@equiped/api-client';
-import type { DocumentApiStatus, ListDocumentsParams } from '@equiped/api-client';
+import type { ListDocumentsParams } from '@equiped/api-client';
 import type { ClientDocument, DocumentStats } from '@equiped/types';
-import type { TargetAgent } from '@equiped/types';
+import {
+  calculateStorageMetrics,
+  mapStatusToApi,
+  type StorageProgramFilter,
+  type StorageRepositoryMetrics,
+  type StorageStatusFilter,
+} from '../utils/storage.utils';
 
-export type StorageProgramFilter = 'ALL' | 'BSCS' | 'BSInfoTech';
-export type StorageStatusFilter = 'all' | 'PROCESSED' | 'PROCESSING' | 'FAILED';
+export type { StorageProgramFilter, StorageStatusFilter, StorageRepositoryMetrics };
 
-export interface StorageRepositoryMetrics {
-  totalModules: number;
-  totalIndexedPages: number;
-  bscsCount: number;
-  bsInfoTechCount: number;
-  ocrVerifiedCount: number;
-}
-
-function mapStatusToApi(filter: StorageStatusFilter): DocumentApiStatus | undefined {
-  switch (filter) {
-    case 'PROCESSED':
-      return 'ready';
-    case 'PROCESSING':
-      return 'processing';
-    case 'FAILED':
-      return 'failed';
-    default:
-      return undefined;
-  }
-}
+const EMPTY_DOCUMENTS: ClientDocument[] = [];
+const DEFAULT_STATS: DocumentStats = {
+  total: 0,
+  ready: 0,
+  processing: 0,
+  failed: 0,
+};
 
 export function useSlmStorage() {
   const queryClient = useQueryClient();
@@ -40,10 +32,6 @@ export function useSlmStorage() {
   // Modals & Drawer state
   const [inspectingDoc, setInspectingDoc] = useState<ClientDocument | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [evaluatingTarget, setEvaluatingTarget] = useState<{
-    doc: ClientDocument;
-    agent: TargetAgent;
-  } | null>(null);
 
   const handleSetSearch = (val: string) => {
     setSearch(val);
@@ -73,48 +61,22 @@ export function useSlmStorage() {
     };
   }, [search, programFilter, statusFilter, page, pageSize]);
 
-  const { data, error, isLoading, isFetching, refetch } = useQuery({
+  const { data, error, isLoading } = useQuery({
     queryKey: ['slm-storage-repository', queryParams],
     queryFn: () => documentsApi.listDocuments(queryParams),
     placeholderData: keepPreviousData,
   });
 
-  const documents = data?.items ?? [];
+  const documents = data?.items ?? EMPTY_DOCUMENTS;
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / pageSize) || 1;
 
   // Derive repository summary metrics across all available modules
   const metrics: StorageRepositoryMetrics = useMemo(() => {
-    const items = documents;
-    let totalPages = 0;
-    let bscs = 0;
-    let bsInfoTech = 0;
-    let ocrCount = 0;
-
-    for (const doc of items) {
-      totalPages += doc.pageCount ?? 0;
-      if (doc.program === 'BSCS') bscs += 1;
-      else if (doc.program === 'BSInfoTech') bsInfoTech += 1;
-      if (doc.hasOcrPages) ocrCount += 1;
-    }
-
-    return {
-      totalModules: total,
-      totalIndexedPages: totalPages,
-      bscsCount: bscs,
-      bsInfoTechCount: bsInfoTech,
-      ocrVerifiedCount: ocrCount,
-    };
+    return calculateStorageMetrics(documents, total);
   }, [documents, total]);
 
-  const stats: DocumentStats = useMemo(() => {
-    return {
-      total: data?.stats?.total ?? 0,
-      ready: data?.stats?.ready ?? 0,
-      processing: data?.stats?.processing ?? 0,
-      failed: data?.stats?.failed ?? 0,
-    };
-  }, [data?.stats]);
+  const stats: DocumentStats = data?.stats ?? DEFAULT_STATS;
 
   // Adjust page boundary if total reduced
   useEffect(() => {
@@ -126,7 +88,6 @@ export function useSlmStorage() {
   const handleUploadComplete = () => {
     setIsUploadOpen(false);
     void queryClient.invalidateQueries({ queryKey: ['slm-storage-repository'] });
-    void refetch();
   };
 
   return {
@@ -141,9 +102,7 @@ export function useSlmStorage() {
     setPageSize,
     totalPages,
     isLoading,
-    isFetching,
     error,
-    refetch,
     // Filters & Search
     search,
     setSearch: handleSetSearch,
@@ -156,8 +115,6 @@ export function useSlmStorage() {
     setInspectingDoc,
     isUploadOpen,
     setIsUploadOpen,
-    evaluatingTarget,
-    setEvaluatingTarget,
     handleUploadComplete,
   };
 }

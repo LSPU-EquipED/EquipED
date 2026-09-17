@@ -75,7 +75,7 @@ const sampleDocuments: ClientDocument[] = [
 ];
 
 describe('DocumentTable', () => {
-  it('adds scope="col" to all table headers', () => {
+  it('adds scope="col" to all table headers and renders Module Name', () => {
     const markup = renderToStaticMarkup(
       <DocumentTable
         documents={sampleDocuments}
@@ -85,10 +85,34 @@ describe('DocumentTable', () => {
     );
 
     const thMatches = markup.match(/<th\b[^>]*>/g) || [];
-    expect(thMatches.length).toBe(7);
+    // Since all sampleDocuments are SLM, the Type column is omitted (6 columns)
+    expect(thMatches.length).toBe(6);
     for (const th of thMatches) {
       expect(th).toContain('scope="col"');
     }
+    expect(markup).toContain('Module Name');
+  });
+
+  it('renders Type column when non-SLM document types are present', () => {
+    const mixedDocs: ClientDocument[] = [
+      ...sampleDocuments,
+      {
+        ...sampleDocuments[0],
+        documentId: 'doc-syllabus-1',
+        sourceType: 'syllabus',
+      },
+    ];
+    const markup = renderToStaticMarkup(
+      <DocumentTable
+        documents={mixedDocs}
+        flashId={null}
+        latestEvalsState={{ isSuccess: true }}
+      />,
+    );
+
+    const thMatches = markup.match(/<th\b[^>]*>/g) || [];
+    expect(thMatches.length).toBe(7);
+    expect(markup).toContain('Type');
   });
 
   it('renders Ready to Evaluate and links to workspace when processed with no evaluation', () => {
@@ -102,12 +126,12 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Ready to Evaluate');
-    // Title link and action link target the specialist workspace directly
+    // Action link targets the specialist workspace directly
     expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).toContain('aria-label="Start evaluation for Data Structures SLM"');
   });
 
-  it('links title and right action to the workspace when a completed partial evaluation exists', () => {
+  it('links action to the workspace when a completed partial evaluation exists', () => {
     const latestEvals: Record<string, LatestEvaluationItem> = {
       'doc-1': {
         document_id: 'doc-1',
@@ -129,11 +153,11 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluated');
-    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
+    expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).not.toContain('href="/evaluations/eval-done-1"');
   });
 
-  it('links title and right action to the workspace when an active evaluation is running', () => {
+  it('links action to the workspace when an active evaluation is running', () => {
     const latestEvals: Record<string, LatestEvaluationItem> = {
       'doc-1': {
         document_id: 'doc-1',
@@ -154,11 +178,11 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluating');
-    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
+    expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).toContain('aria-label="View evaluation progress for Data Structures SLM"');
   });
 
-  it('links title and right action to the workspace when an evaluation failed', () => {
+  it('links action to the workspace when an evaluation failed', () => {
     const latestEvals: Record<string, LatestEvaluationItem> = {
       'doc-1': {
         document_id: 'doc-1',
@@ -180,7 +204,7 @@ describe('DocumentTable', () => {
     );
 
     expect(markup).toContain('Evaluation Failed');
-    expect(markup.match(/href="\/specialists\/sme\/doc-1"/g)).toHaveLength(2);
+    expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).toContain('aria-label="Inspect evaluation for Data Structures SLM"');
   });
 
@@ -231,13 +255,13 @@ describe('DocumentTable', () => {
   it('renders scope="col" on skeleton headers as well', () => {
     const markup = renderToStaticMarkup(<DocumentTableSkeleton />);
     const thMatches = markup.match(/<th\b[^>]*>/g) || [];
-    expect(thMatches.length).toBe(7);
+    expect(thMatches.length).toBe(6);
     for (const th of thMatches) {
       expect(th).toContain('scope="col"');
     }
   });
 
-  it('serves clean storage records with dossier inspection and without evaluate action dropdown', () => {
+  it('serves clean storage records with Open PDF tooltip on document icon and row clickability', () => {
     const markup = renderToStaticMarkup(
       <DocumentTable
         documents={sampleDocuments}
@@ -247,7 +271,9 @@ describe('DocumentTable', () => {
       />,
     );
 
-    expect(markup).toContain('Inspect Data Structures SLM dossier');
+    expect(markup).toContain('title="Open PDF"');
+    expect(markup).toContain('href="/api/v1/documents/doc-1/file"');
+    expect(markup).toContain('aria-label="View details for Data Structures SLM"');
     expect(markup).not.toContain('Evaluate as SME');
     expect(markup).not.toContain('Evaluate as Coordinator');
   });

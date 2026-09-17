@@ -52,9 +52,11 @@ export function getStatusMeta(status: string | null | undefined) {
 }
 
 export function formatDate(value: string) {
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return 'Not specified';
   return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
+    month: 'short',
+    day: 'numeric',
     year: 'numeric',
-  }).format(new Date(value));
+  }).format(date);
 }

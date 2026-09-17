@@ -1,9 +1,15 @@
-import { useState, useRef, type DragEvent, type FormEvent, useEffect } from 'react';
-import { CloudArrowUp, FileText, Spinner, WarningCircle, X } from '@phosphor-icons/react';
-import { documentsApi } from '@equiped/api-client';
+import { useEffect } from 'react';
+import {
+  CloudArrowUp,
+  FileText,
+  Spinner,
+  Trash,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { CANONICAL_PROGRAMS } from '@equiped/types';
-import { Button } from '@equiped/ui';
-import { getErrorMessage } from '@equiped/api-client';
+import { Button, Dropdown, cn, usePresence } from '@equiped/ui';
+import { useStorageUpload } from '../hooks/useStorageUpload';
+import { formatFileSize } from '../utils/storage.utils';
 
 interface StorageUploadModalProps {
   isOpen: boolean;
@@ -12,190 +18,215 @@ interface StorageUploadModalProps {
 }
 
 export function StorageUploadModal({ isOpen, onClose, onSuccess }: StorageUploadModalProps) {
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState('');
-  const [program, setProgram] = useState('BSCS');
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isMounted, isAnimating } = usePresence({ isOpen, durationMs: 180 });
+
+  const {
+    file,
+    title,
+    setTitle,
+    program,
+    setProgram,
+    isDragging,
+    setIsDragging,
+    isUploading,
+    error,
+    fileInputRef,
+    handleFileChange,
+    handleDrop,
+    handleSubmit,
+  } = useStorageUpload({ isOpen, onSuccess });
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !isUploading) onClose();
     };
-    if (isOpen) {
+    if (isMounted) {
       window.addEventListener('keydown', handleKey);
       return () => window.removeEventListener('keydown', handleKey);
     }
-  }, [isOpen, onClose]);
+  }, [isMounted, isUploading, onClose]);
 
-  if (!isOpen) return null;
-
-  const handleFileChange = (selected: File | null) => {
-    setError(null);
-    if (!selected) {
-      setFile(null);
-      return;
-    }
-    if (!selected.name.toLowerCase().endsWith('.pdf') && selected.type !== 'application/pdf') {
-      setError('Only PDF files are supported for course SLMs.');
-      setFile(null);
-      return;
-    }
-    setFile(selected);
-    if (!title.trim()) {
-      setTitle(selected.name.replace(/\.pdf$/i, ''));
-    }
-  };
-
-  const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped) handleFileChange(dropped);
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!file || !title.trim() || !program) return;
-    setIsUploading(true);
-    setError(null);
-
-    try {
-      await documentsApi.uploadDocument({
-        file,
-        sourceType: 'slm',
-        title: title.trim(),
-        program,
-      });
-      setIsUploading(false);
-      onSuccess();
-    } catch (err) {
-      setIsUploading(false);
-      setError(getErrorMessage(err, 'Failed to upload SLM document.'));
-    }
-  };
+  if (!isMounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-xs p-4"
-      onClick={onClose}
+      className={cn(
+        'fixed inset-0 z-50 flex items-center justify-center bg-foreground/45 p-4 transition-opacity duration-180 ease-out overflow-hidden backdrop-blur-2xs',
+        isAnimating ? 'opacity-100' : 'opacity-0',
+      )}
+      onClick={() => {
+        if (!isUploading) onClose();
+      }}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Upload Course SLM to Storage"
-        className="w-full max-w-lg rounded-md border border-border bg-surface shadow-xl overflow-hidden"
+        aria-labelledby="slm-upload-dialog-title"
+        className={cn(
+          'w-full max-w-lg rounded-md border border-border bg-surface p-6 sm:p-7 shadow-xl overflow-hidden',
+          isAnimating ? 'animate-ledger-modal-in' : 'animate-ledger-modal-out',
+        )}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-6 py-4">
+        {/* Modal Header without divider or eyebrow badge */}
+        <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-base font-bold text-text">Upload to SLM Storage</h2>
-            <p className="text-xs text-text-muted mt-0.5">
-              Add a Self-Paced Learning Module PDF to the institutional repository.
+            <h2 id="slm-upload-dialog-title" className="text-base sm:text-lg font-bold text-text tracking-tight">
+              Upload Course Learning Module
+            </h2>
+            <p className="text-xs text-text-muted mt-1">
+              Add a Self-Paced Learning Module (PDF) to the repository for parsing and evaluation.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close upload dialog"
-            className="rounded-xs p-1 text-text-muted hover:text-text hover:bg-surface cursor-pointer"
-          >
-            <X className="size-4.5" aria-hidden="true" />
-          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        {/* Modal Form */}
+        <form onSubmit={handleSubmit} className="mt-5 space-y-4.5">
           {error && (
-            <div className="rounded-sm border border-destructive/30 bg-destructive-soft p-3 text-xs text-destructive flex items-center gap-2">
-              <WarningCircle className="size-4 shrink-0" />
-              <span>{error}</span>
+            <div
+              role="alert"
+              className="rounded-sm border border-destructive/30 bg-destructive-soft px-3.5 py-2.5 text-xs font-medium text-destructive flex items-start gap-2.5"
+            >
+              <WarningCircle className="size-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="flex-1 min-w-0">
+                <span className="font-semibold block">Upload Failed</span>
+                <span>{error}</span>
+              </div>
             </div>
           )}
 
-          {/* Drag and drop zone */}
+          {/* Drag & Drop Zone or Selected File Card */}
           <div>
-            <label
-              htmlFor="slm-upload-file-input"
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md transition-colors cursor-pointer text-center ${
-                isDragging
-                  ? 'border-primary bg-primary-soft/30'
-                  : 'border-border hover:border-primary/50 bg-surface-subtle/50'
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                id="slm-upload-file-input"
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-                className="sr-only"
-              />
-              <CloudArrowUp className="size-8 text-primary mb-2" aria-hidden="true" />
-              {file ? (
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-text block">{file.name}</span>
-                  <span className="text-[11px] text-text-muted font-mono">
-                    {(file.size / 1024).toFixed(1)} KB · PDF Document
-                  </span>
+            <input
+              ref={fileInputRef}
+              id="slm-upload-file-input"
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+              className="sr-only"
+            />
+
+            {!file ? (
+              <label
+                htmlFor="slm-upload-file-input"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={cn(
+                  'group flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-md cursor-pointer transition-all duration-150 text-center select-none',
+                  isDragging
+                    ? 'border-primary bg-primary-soft/40 shadow-xs'
+                    : 'border-border hover:border-primary/50 bg-surface-subtle/40 hover:bg-surface-subtle',
+                )}
+              >
+                <div className="size-10 rounded-full bg-primary-soft group-hover:bg-primary-soft/80 flex items-center justify-center text-primary mb-2.5 transition-transform group-hover:scale-105">
+                  <CloudArrowUp className="size-5" aria-hidden="true" />
                 </div>
-              ) : (
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-text block">
-                    Click to browse or drag & drop SLM PDF
+                <p className="text-xs font-semibold text-text">
+                  Drag & drop your SLM PDF here, or{' '}
+                  <span className="text-primary underline underline-offset-2 decoration-primary/40 group-hover:decoration-primary">
+                    browse files
                   </span>
-                  <span className="text-[11px] text-text-muted block">
-                    Standard PDF course module (up to 50 MB)
-                  </span>
+                </p>
+                <p className="text-[11px] text-text-muted mt-1 font-mono">
+                  PDF format only (up to 50 MB)
+                </p>
+              </label>
+            ) : (
+              <div className="rounded-md border border-border bg-surface p-3 sm:p-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="size-9 rounded-sm bg-destructive-soft text-destructive border border-destructive/20 flex flex-col items-center justify-center shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider">
+                    <FileText className="size-3.5 mb-0.5" aria-hidden="true" />
+                    <span>PDF</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-text truncate" title={file.name}>
+                      {file.name}
+                    </p>
+                    <p className="text-[11px] text-text-muted font-mono tabular-nums mt-0.5">
+                      {formatFileSize(file.size)}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </label>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="px-2.5 py-1 text-xs font-medium text-text-muted hover:text-text hover:bg-surface-subtle border border-border rounded-sm transition-colors cursor-pointer disabled:opacity-40"
+                    title="Replace selected PDF"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFileChange(null)}
+                    disabled={isUploading}
+                    className="p-1 text-text-muted hover:text-destructive hover:bg-destructive-soft rounded-sm transition-colors cursor-pointer disabled:opacity-40"
+                    title="Remove file"
+                    aria-label="Remove selected file"
+                  >
+                    <Trash className="size-4" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Module Title */}
           <div className="space-y-1.5">
-            <label htmlFor="modal-slm-title" className="text-xs font-bold uppercase tracking-wider text-text block">
+            <label htmlFor="modal-slm-title" className="block text-xs font-semibold text-text">
               Module Title <span className="text-destructive">*</span>
             </label>
             <input
               id="modal-slm-title"
               type="text"
               required
+              disabled={isUploading}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Data Structures & Algorithms Module"
-              className="h-9 w-full rounded-sm border border-input bg-surface px-3 text-xs text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-10 w-full rounded-sm border border-input bg-surface px-3 text-xs sm:text-sm font-medium text-text placeholder:text-text-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <p className="text-[11px] text-text-muted">
+              Auto-filled from file name. Adjust to match the syllabus title if needed.
+            </p>
+          </div>
+
+          {/* Academic Program Dropdown */}
+          <div className="space-y-1.5">
+            <Dropdown
+              id="modal-slm-program"
+              label="Academic Program"
+              required
+              disabled={isUploading}
+              size="md"
+              value={program}
+              onChange={(val) => setProgram(val as string)}
+              options={CANONICAL_PROGRAMS.map((prog) => ({
+                value: prog,
+                label:
+                  prog === 'BSCS'
+                    ? 'BSCS — Bachelor of Science in Computer Science'
+                    : 'BSInfoTech — Bachelor of Science in Information Technology',
+              }))}
+              className="w-full"
             />
           </div>
 
-          {/* Academic Program */}
-          <div className="space-y-1.5">
-            <label htmlFor="modal-slm-program" className="text-xs font-bold uppercase tracking-wider text-text block">
-              Academic Program <span className="text-destructive">*</span>
-            </label>
-            <select
-              id="modal-slm-program"
-              value={program}
-              onChange={(e) => setProgram(e.target.value)}
-              className="h-9 w-full rounded-sm border border-input bg-surface px-3 text-xs font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+          {/* Footer Action Bar (No divider line) */}
+          <div className="flex items-center justify-end gap-2.5 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={onClose}
+              disabled={isUploading}
             >
-              {CANONICAL_PROGRAMS.map((prog) => (
-                <option key={prog} value={prog}>
-                  {prog === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">
-            <Button type="button" variant="secondary" size="md" onClick={onClose} disabled={isUploading}>
               Cancel
             </Button>
             <Button
@@ -203,15 +234,18 @@ export function StorageUploadModal({ isOpen, onClose, onSuccess }: StorageUpload
               variant="primary"
               size="md"
               disabled={!file || !title.trim() || isUploading}
-              className="gap-2 font-bold uppercase tracking-wider text-xs"
+              className="gap-2 font-medium text-xs"
             >
               {isUploading ? (
                 <>
                   <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
-                  <span>Indexing…</span>
+                  <span>Indexing Module…</span>
                 </>
               ) : (
-                <span>Upload & Index</span>
+                <>
+                  <CloudArrowUp className="size-4" aria-hidden="true" />
+                  <span>Upload & Index</span>
+                </>
               )}
             </Button>
           </div>
