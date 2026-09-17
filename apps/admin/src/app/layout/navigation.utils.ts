@@ -4,6 +4,7 @@ import {
   ClipboardText,
   Gear,
   GitFork,
+  GraduationCap,
   type Icon,
   Scan,
   Shield,
@@ -62,6 +63,7 @@ export const adminNavGroups: readonly NavGroup[] = [
       { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
       { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
       { to: '/admin/prompts', label: 'Agent Prompts', icon: Gear, exact: false },
+      { to: '/admin/training-data', label: 'Training Data', icon: GraduationCap, exact: false },
       { to: '/admin/preferences', label: 'Preference Logs', icon: BookOpen, exact: true },
     ],
   },
@@ -173,6 +175,13 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
     ];
   }
 
+  if (cleanPath === '/admin/training-data' || cleanPath.startsWith('/admin/training-data/')) {
+    return [
+      { label: 'Administration', to: '/admin' },
+      { label: 'Training Data' },
+    ];
+  }
+
   if (cleanPath.startsWith('/admin/synthesis/')) {
     return [
       { label: 'Administration', to: '/admin' },
@@ -219,6 +228,7 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/admin/rubrics') return 'Rubric Editor';
   if (cleanPath === '/admin/model-validation') return 'Model Validation';
   if (cleanPath.startsWith('/admin/prompts')) return 'Agent Prompts';
+  if (cleanPath.startsWith('/admin/training-data')) return 'Training Data';
   if (cleanPath === '/admin/preferences') return 'Preference Logs';
   return 'EquipED Admin';
 }
