@@ -11,7 +11,9 @@
     "./theme": "./src/theme/index.ts",
     "./utils": "./src/utils/index.ts",
     "./assets": "./src/assets/index.ts",
-    "./theme/fonts.css": "./src/theme/fonts.css"
+    "./hooks": "./src/hooks/index.ts",
+    "./theme/fonts.css": "./src/theme/fonts.css",
+    "./theme/motion.css": "./src/theme/motion.css"
   },
   "scripts": {
     "test": "vitest run",

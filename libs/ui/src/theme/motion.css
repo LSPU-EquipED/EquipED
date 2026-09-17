@@ -1,0 +1,143 @@
+/* -------------------------------------------------------------------------- */
+/* Design Tokens: Functional Motion (Contemporary Faculty Ledger)              */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  /* Fast deceleration entrance that settles with institutional restraint (no bounce) */
+  --ease-ledger-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Snappy exit acceleration */
+  --ease-ledger-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Standard symmetrical transition */
+  --ease-ledger-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Duration Tiers */
+  --duration-micro: 120ms;   /* Buttons, active tabs, toggle switches */
+  --duration-compact: 180ms; /* Dialogs, confirmation popups, dropdowns */
+  --duration-surface: 240ms; /* Slide-out drawers, large sheets, side panels */
+  --duration-decay: 1400ms;  /* Upload highlight decay */
+}
+
+/* Prevent layout shift during overlay mount/dismount and scrollbar appearance */
+html {
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* ── Hardware-Accelerated Keyframes ────────────────────────────────────── */
+
+@keyframes ledger-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes ledger-slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes ledger-modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes ledger-modal-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98) translateY(2px);
+  }
+}
+
+@keyframes ledger-banner-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ledger-flash-decay {
+  0% {
+    background-color: rgba(237, 242, 255, 0.9); /* primary-soft */
+  }
+  100% {
+    background-color: transparent;
+  }
+@keyframes ledger-dropdown-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Motion Utility Classes ────────────────────────────────────────────── */
+
+.animate-ledger-dropdown-in {
+  animation: ledger-dropdown-enter var(--duration-compact) var(--ease-ledger-out) forwards;
+  transform-origin: top;
+}
+
+.animate-ledger-drawer-in {
+  animation: ledger-slide-in-right var(--duration-surface) var(--ease-ledger-out) forwards;
+}
+
+.animate-ledger-drawer-out {
+  animation: ledger-slide-out-right var(--duration-compact) var(--ease-ledger-in) forwards;
+}
+
+.animate-ledger-modal-in {
+  animation: ledger-modal-enter var(--duration-compact) var(--ease-ledger-out) forwards;
+}
+
+.animate-ledger-modal-out {
+  animation: ledger-modal-exit var(--duration-compact) var(--ease-ledger-in) forwards;
+}
+
+.animate-ledger-banner-in {
+  animation: ledger-banner-drop var(--duration-compact) var(--ease-ledger-out) forwards;
+}
+
+.animate-ledger-flash-decay {
+  animation: ledger-flash-decay var(--duration-decay) ease-out forwards;
+}
+
+/* ── Accessibility & Reduced Motion Strictness ─────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
