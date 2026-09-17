@@ -697,18 +697,38 @@ from server.modules.training_data.models import DpoTrainingJob
 from server.modules.training_data.tokens import hash_token
 from server.tests.evaluations.conftest import _add_document
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.synthesis.models import AgentGeneration
+from server.modules.synthesis.models import AgentGeneration, AgentResult
 import uuid as uuid_module
 
 
 def _make_gad_generation(db_session, owner_id, agent_id="gad"):
+    """Seed one evaluation with an AgentResult + AgentGeneration for
+    agent_id. AgentGeneration.agent_result_id is NOT nullable (see
+    server/modules/synthesis/models.py) -- an AgentResult row must exist
+    first and its agent_result_id passed through, or this raises an
+    IntegrityError."""
     document_id = _add_document(db_session, owner_id=owner_id, source_type="slm")
     job = EvaluationJob(evaluation_id=uuid_module.uuid4(), document_id=document_id)
     db_session.add(job)
     db_session.flush()
 
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name=agent_id,
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="GAD evaluation summary",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
     generation = AgentGeneration(
         generation_id=uuid_module.uuid4(),
+        agent_result_id=agent_result.agent_result_id,
         evaluation_id=job.evaluation_id,
         document_id=document_id,
         agent_id=agent_id,
@@ -1077,7 +1097,7 @@ import uuid as uuid_module
 
 import pytest
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.synthesis.models import AgentGeneration
+from server.modules.synthesis.models import AgentGeneration, AgentResult
 from server.modules.training_data.adapters import list_trained_adapters, store_adapter_upload
 from server.modules.training_data.exceptions import (
     AdapterUploadError,
@@ -1090,13 +1110,30 @@ from server.tests.evaluations.conftest import _add_document
 
 
 def _make_gad_generation(db_session, owner_id, agent_id="gad"):
+    """See the identical helper's docstring in test_jobs.py (Task 4) for
+    why AgentResult must be created first."""
     document_id = _add_document(db_session, owner_id=owner_id, source_type="slm")
     job = EvaluationJob(evaluation_id=uuid_module.uuid4(), document_id=document_id)
     db_session.add(job)
     db_session.flush()
 
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name=agent_id,
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="GAD evaluation summary",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
     generation = AgentGeneration(
         generation_id=uuid_module.uuid4(),
+        agent_result_id=agent_result.agent_result_id,
         evaluation_id=job.evaluation_id,
         document_id=document_id,
         agent_id=agent_id,
@@ -1566,19 +1603,36 @@ import uuid as uuid_module
 
 from fastapi.testclient import TestClient
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.synthesis.models import AgentGeneration
+from server.modules.synthesis.models import AgentGeneration, AgentResult
 from server.tests.admin.conftest import _auth
 from server.tests.evaluations.conftest import _add_document
 
 
 def _make_gad_generation(db_session, owner_id, agent_id="gad"):
+    """See the identical helper's docstring in test_jobs.py (Task 4) for
+    why AgentResult must be created first."""
     document_id = _add_document(db_session, owner_id=owner_id, source_type="slm")
     job = EvaluationJob(evaluation_id=uuid_module.uuid4(), document_id=document_id)
     db_session.add(job)
     db_session.flush()
 
+    agent_result = AgentResult(
+        evaluation_id=job.evaluation_id,
+        document_id=document_id,
+        agent_name=agent_id,
+        subtotal=2.0,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="GAD evaluation summary",
+        success=True,
+    )
+    db_session.add(agent_result)
+    db_session.flush()
+
     generation = AgentGeneration(
         generation_id=uuid_module.uuid4(),
+        agent_result_id=agent_result.agent_result_id,
         evaluation_id=job.evaluation_id,
         document_id=document_id,
         agent_id=agent_id,
