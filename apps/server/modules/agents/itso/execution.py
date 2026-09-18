@@ -15,6 +15,7 @@ from server.modules.rubrics.contracts import (
     GroundedScoreMeasurement,
     LlmRubricGuidanceConfig,
 )
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.rubrics.strategies.calculators import normalize_llm_guidance_score
 
@@ -55,10 +56,24 @@ def _extract_and_validate_snapshot(
             f"(expected eval={context.evaluation_id!r})"
         )
 
-    if snapshot.adapter_key != "itso" or snapshot.adapter_version != 1:
+    if snapshot.adapter_key != "itso":
         raise AgentExecutionError(
-            f"ITSO snapshot adapter mismatch: adapter_key={snapshot.adapter_key!r}, "
-            f"adapter_version={snapshot.adapter_version!r} (expected 'itso', 1)"
+            f"ITSO snapshot adapter mismatch: adapter_key={snapshot.adapter_key!r} "
+            "(expected 'itso')"
+        )
+    try:
+        manifest = get_agent_manifest("itso", snapshot.adapter_version)
+    except ValueError as exc:
+        raise AgentExecutionError(
+            f"Unsupported ITSO adapter version {snapshot.adapter_version}"
+        ) from exc
+    report = validate_form(snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
+        )
+        raise AgentExecutionError(
+            f"ITSO snapshot violates adapter {snapshot.adapter_version}: {codes}"
         )
 
     ordered_criteria: list[CriterionDefinition] = []

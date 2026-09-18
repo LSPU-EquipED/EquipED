@@ -15,6 +15,7 @@ from server.modules.rubrics.contracts import (
     LlmRubricGuidanceConfig,
     RatioBandConfig,
 )
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AgentEvaluationResult, CapturedGeneration, CriterionScore
@@ -97,10 +98,24 @@ def validate_sme_snapshot(
             f"Snapshot evaluation_id '{form_snapshot.evaluation_id}' does not "
             f"match '{evaluation_id}'"
         )
-    if form_snapshot.adapter_key != agent_name or form_snapshot.adapter_version != 1:
+    if form_snapshot.adapter_key != agent_name:
         raise AgentExecutionError(
             f"Invalid snapshot adapter key '{form_snapshot.adapter_key}' "
-            f"or version {form_snapshot.adapter_version}"
+            f"expected '{agent_name}'"
+        )
+    try:
+        manifest = get_agent_manifest(agent_name, form_snapshot.adapter_version)
+    except ValueError as exc:
+        raise AgentExecutionError(
+            f"Unsupported SME adapter version {form_snapshot.adapter_version}"
+        ) from exc
+    report = validate_form(form_snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
+        )
+        raise AgentExecutionError(
+            f"SME snapshot violates adapter {form_snapshot.adapter_version}: {codes}"
         )
 
     domains = form_snapshot.form.domains

@@ -658,6 +658,18 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
     with pytest.raises(AgentExecutionError, match="adapter_key"):
         execution.execute(context_wrong_adapter)
 
+    # Snapshot with unsupported adapter_version (manifest-driven gate, not a
+    # hardcoded literal -- regression test for the version-check itself)
+    wrong_version_snap = make_itso_test_snapshot(eval_id, adapter_version=99)
+    context_wrong_version = ITSOExecutionContext(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=({"chunk_id": "c1", "text": "sec"},),
+        form_snapshot=wrong_version_snap,
+    )
+    with pytest.raises(AgentExecutionError, match="Unsupported ITSO adapter version"):
+        execution.execute(context_wrong_version)
+
     # Snapshot with evaluation_id mismatch
     itso_snap_other_eval = make_itso_test_snapshot(evaluation_id=uuid4())
     context_wrong_eval = ITSOExecutionContext(

@@ -921,3 +921,27 @@ def test_snapshot_precheck_validations() -> None:
             chunk_infos=[{"text": "chunk"}],
             canonical_source_text="",
         )
+
+    # 4. Unsupported adapter_version (manifest-driven gate, not a hardcoded
+    # literal -- regression test for the version-check itself)
+    unsupported_version_form = _full_rev1_form()
+    unsupported_version_snap = build_evaluation_form_snapshot(
+        eval_id,
+        FormDefinition(
+            rubric_set_id=unsupported_version_form.rubric_set_id,
+            agent_id=unsupported_version_form.agent_id,
+            adapter_key=unsupported_version_form.adapter_key,
+            adapter_version=99,
+            version_number=unsupported_version_form.version_number,
+            name=unsupported_version_form.name,
+            domains=unsupported_version_form.domains,
+        ),
+    )
+    with pytest.raises(AgentExecutionError, match="Unsupported SME adapter version"):
+        agent.run(
+            evaluation_id=eval_id,
+            document_id=uuid.uuid4(),
+            form_snapshot=unsupported_version_snap,
+            chunk_infos=[{"text": "chunk"}],
+            canonical_source_text="source",
+        )
