@@ -68,7 +68,7 @@ export const validationAgents = [
   { id: 'sme', label: 'Subject Matter Expert' },
   { id: 'coordinator', label: 'Program Coordinator' },
   { id: 'gad', label: 'GAD Evaluator' },
-  { id: 'itso', label: 'IT Security Officer' },
+  { id: 'itso', label: 'Innovation and Technology Support Office' },
 ] as const;
 
 export type ValidationAgentId = (typeof validationAgents)[number]['id'];

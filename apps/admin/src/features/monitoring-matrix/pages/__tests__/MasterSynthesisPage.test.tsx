@@ -128,7 +128,7 @@ const mockSynthesisDetail: MasterSynthesisDetailResponse = {
         user_id: 'user-eval-itso',
         name: 'Atty. Sofia Ramos',
         email: 'sofia.ramos@university.edu',
-        department: 'Innovation & Technology Support Office',
+        department: 'Innovation and Technology Support Office',
       },
     },
   },
