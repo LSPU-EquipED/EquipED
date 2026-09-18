@@ -87,6 +87,8 @@ body {
   100% {
     background-color: transparent;
   }
+}
+
 @keyframes ledger-dropdown-enter {
   from {
     opacity: 0;
