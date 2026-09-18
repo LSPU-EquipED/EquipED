@@ -25,6 +25,7 @@ from server.modules.training_data.adapters import (
 )
 from server.modules.training_data.exceptions import (
     AdapterUploadError,
+    EmptyTrainingDatasetError,
     InvalidAgentIdError,
     TrainingJobNotFoundError,
 )
@@ -33,6 +34,7 @@ from server.modules.training_data.jobs import (
     get_job_download_package,
     list_training_jobs,
 )
+from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.schemas import (
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
@@ -75,6 +77,10 @@ def start_training_job(
     except InvalidAgentIdError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except EmptyTrainingDatasetError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
     download_path = (
@@ -125,10 +131,16 @@ def upload_trained_adapter(
     file: UploadFile = File(...),
     db: Session = Depends(get_db_session),
 ) -> TrainedAdapterResponse:
-    content = file.file.read()
+    # This metadata check is only an early rejection. The artifact layer
+    # independently enforces the authoritative limit while streaming.
+    if file.size is not None and file.size > MAX_ADAPTER_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"file exceeds max size of {MAX_ADAPTER_UPLOAD_BYTES} bytes",
+        )
     try:
         adapter = store_adapter_upload(
-            db, job_id, token, filename=file.filename or "", content=content
+            db, job_id, token, filename=file.filename or "", source=file.file
         )
     except TrainingJobNotFoundError as exc:
         raise HTTPException(
