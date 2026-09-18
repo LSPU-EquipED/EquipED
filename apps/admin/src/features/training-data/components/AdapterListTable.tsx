@@ -2,13 +2,7 @@ import { Package, Warning } from '@phosphor-icons/react';
 import { CARD_STYLES, TABLE_STYLES, TableSkeleton, cn } from '@equiped/ui';
 import { useTrainedAdapters } from '../hooks/useTrainedAdapters';
 import type { TrainedAdapterItem } from '../types';
-
-function formatSize(bytes: number): string {
-  const mb = bytes / (1024 * 1024);
-  if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
-  return `${mb.toFixed(1)} MB`;
-}
+import { formatSize } from '../utils/trainingData.utils';
 
 export function AdapterListTable({ agentId }: { agentId: string }) {
   const { data, isLoading, isError } = useTrainedAdapters(agentId);

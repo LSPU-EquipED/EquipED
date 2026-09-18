@@ -51,7 +51,7 @@ describe('TrainingJobsPanel', () => {
     expect(screen.getByRole('button', { name: /start training job/i })).toBeDefined();
   });
 
-  it('shows download and upload URLs after starting a job', () => {
+  it('orchestrates starting a job and delegates credential rendering on success', () => {
     const result: TrainingJobCreateResponse = {
       job_id: 'job-1',
       agent_id: 'gad',
@@ -80,7 +80,51 @@ describe('TrainingJobsPanel', () => {
     fireEvent.click(button);
 
     expect(mutate).toHaveBeenCalled();
+    expect(
+      screen.getByText(/Paste these into your Colab notebook now — each is shown only once\./),
+    ).toBeDefined();
     expect(screen.getByText(/https:\/\/example\.test\/download/)).toBeDefined();
     expect(screen.getByText(/https:\/\/example\.test\/upload/)).toBeDefined();
+  });
+
+  it('renders mutation error message when job creation fails', () => {
+    vi.spyOn(useStartTrainingJobModule, 'useStartTrainingJob').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: true,
+      error: new Error('Failed to reach server'),
+    } as unknown as ReturnType<typeof useStartTrainingJobModule.useStartTrainingJob>);
+
+    renderPanel();
+
+    expect(screen.getByText('Failed to reach server')).toBeDefined();
+  });
+
+  it('renders job history when jobs are returned', () => {
+    vi.spyOn(useTrainingJobsModule, 'useTrainingJobs').mockReturnValue({
+      data: {
+        agent_id: 'gad',
+        jobs: [
+          {
+            job_id: 'job-abc-123',
+            agent_id: 'gad',
+            status: 'completed',
+            created_at: '2026-03-01T10:00:00.000Z',
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
+
+    vi.spyOn(useStartTrainingJobModule, 'useStartTrainingJob').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useStartTrainingJobModule.useStartTrainingJob>);
+
+    renderPanel();
+
+    expect(screen.getByText('job-abc-123')).toBeDefined();
+    expect(screen.getByText('Completed')).toBeDefined();
   });
 });

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Check, Clock, Copy, Database, Rocket, Warning } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { Database, Rocket, Warning } from '@phosphor-icons/react';
 import { Badge, Button, CARD_STYLES, TABLE_STYLES, TableSkeleton, cn } from '@equiped/ui';
 import type { StatusVariant } from '@equiped/ui';
 import { useStartTrainingJob } from '../hooks/useStartTrainingJob';
 import { useTrainingJobs } from '../hooks/useTrainingJobs';
 import type { TrainingJobCreateResponse, TrainingJobItem } from '../types';
+import { TrainingJobCredentials } from './TrainingJobCredentials';
 
 function getJobStatusVariant(status: string): StatusVariant {
   if (status === 'completed') return 'success';
@@ -16,96 +17,16 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function formatCountdown(expiresAtIso: string, now: number): string {
-  const diffMs = new Date(expiresAtIso).getTime() - now;
-  if (diffMs <= 0) return 'Expired';
-  const totalMinutes = Math.floor(diffMs / 60_000);
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-  if (days > 0) return `${days}d ${hours}h remaining`;
-  if (hours > 0) return `${hours}h ${minutes}m remaining`;
-  return `${minutes}m remaining`;
-}
-
-function CredentialField({
-  label,
-  url,
-  expiresAt,
-  now,
-}: {
-  label: string;
-  url: string;
-  expiresAt: string;
-  now: number;
-}) {
-  const [copied, setCopied] = useState(false);
-  const expired = new Date(expiresAt).getTime() <= now;
-
-  const handleCopy = () => {
-    void navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-semibold text-text">{label}</span>
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums',
-            expired ? 'text-destructive' : 'text-text-muted',
-          )}
-        >
-          <Clock className="size-3" aria-hidden="true" />
-          {formatCountdown(expiresAt, now)}
-        </span>
-      </div>
-      <div className="flex items-stretch gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-sm border border-input bg-surface px-3 py-2 font-mono text-xs text-text">
-          {url}
-        </code>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-semibold text-primary transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {copied ? (
-            <>
-              <Check className="size-3.5 text-success" aria-hidden="true" />
-              <span className="text-success">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="size-3.5" aria-hidden="true" />
-              <span>Copy</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function TrainingJobsPanel({ agentId }: { agentId: string }) {
   const { data, isLoading, isError } = useTrainingJobs(agentId);
   const startJob = useStartTrainingJob(agentId);
   const [lastCreated, setLastCreated] = useState<TrainingJobCreateResponse | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!lastCreated) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [lastCreated]);
 
   const handleStart = () => {
     setLastCreated(null);
     startJob.mutate(undefined, {
       onSuccess: (result) => {
         setLastCreated(result);
-        setNow(Date.now());
       },
     });
   };
@@ -135,25 +56,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
         </div>
       ) : null}
 
-      {lastCreated ? (
-        <div className="space-y-4 border-b border-border bg-surface-subtle p-4 sm:p-5">
-          <p className="text-xs font-semibold text-text-muted">
-            Paste these into your Colab notebook now — each is shown only once.
-          </p>
-          <CredentialField
-            label="Download URL (notebook cell 1)"
-            url={lastCreated.download_url}
-            expiresAt={lastCreated.download_expires_at}
-            now={now}
-          />
-          <CredentialField
-            label="Upload URL (notebook final cell)"
-            url={lastCreated.upload_url}
-            expiresAt={lastCreated.upload_expires_at}
-            now={now}
-          />
-        </div>
-      ) : null}
+      {lastCreated ? <TrainingJobCredentials credentials={lastCreated} /> : null}
 
       {isLoading ? (
         <TableSkeleton

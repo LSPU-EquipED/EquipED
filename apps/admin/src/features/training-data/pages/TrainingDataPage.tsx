@@ -3,19 +3,14 @@ import { GraduationCap } from '@phosphor-icons/react';
 import { TYPOGRAPHY, cn } from '@equiped/ui';
 import { AdapterListTable } from '../components/AdapterListTable';
 import { TrainingJobsPanel } from '../components/TrainingJobsPanel';
-
-const AGENTS = [
-  { id: 'coordinator', label: 'Program Coordinator' },
-  { id: 'sme', label: 'Subject Matter Expert' },
-  { id: 'gad', label: 'Gender & Development (GAD)' },
-  { id: 'itso', label: 'Intellectual Property (ITSO)' },
-] as const;
+import { DEFAULT_TRAINING_AGENT_ID, TRAINING_AGENTS } from '../trainingAgents';
 
 export function TrainingDataPage() {
   const { agentId } = useParams({ strict: false }) as { agentId?: string };
   const navigate = useNavigate();
-  const activeAgent = agentId ?? 'coordinator';
-  const activeAgentMeta = AGENTS.find((a) => a.id === activeAgent) ?? AGENTS[0];
+  const activeAgent = agentId ?? DEFAULT_TRAINING_AGENT_ID;
+  const activeAgentMeta =
+    TRAINING_AGENTS.find((a) => a.id === activeAgent) ?? TRAINING_AGENTS[0];
 
   return (
     <section key={activeAgent} className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-8">
@@ -24,7 +19,7 @@ export function TrainingDataPage() {
           className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle"
           aria-label="Specialist Agents"
         >
-          {AGENTS.map((agent) => {
+          {TRAINING_AGENTS.map((agent) => {
             const isTabSelected = activeAgent === agent.id;
             return (
               <button
