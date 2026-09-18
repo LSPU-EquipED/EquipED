@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@equiped/api-client';
 import {
+  agentLabel,
   areAllCriterionScoresComplete,
   criterionKey,
   formatTimestamp,
   groupCriteriaByAgent,
   isPartialValidationAgent,
   isStaleBindingError,
+  validationAgents,
 } from '../helpers';
 import type { ModelValidationAgentCriteria, ModelValidationCriterionScore } from '../../types';
 
@@ -138,6 +140,15 @@ const dynamicPartialCatalog: ModelValidationAgentCriteria[] = [
     ],
   },
 ];
+
+describe('validationAgents and agentLabel', () => {
+  it('maps itso to canonical Innovation and Technology Support Office label', () => {
+    const itsoAgent = validationAgents.find((a) => a.id === 'itso');
+    expect(itsoAgent).toBeDefined();
+    expect(itsoAgent?.label).toBe('Innovation and Technology Support Office');
+    expect(agentLabel('itso')).toBe('Innovation and Technology Support Office');
+  });
+});
 
 describe('isPartialValidationAgent', () => {
   it('identifies partial validation agents correctly', () => {

@@ -10,7 +10,7 @@ EquipED evaluates Self-Paced Learning Materials (SLMs) from Laguna State Polytec
 1. **SME (Subject Matter Expert)**: Pedagogical coherence, content accuracy, and assessment quality.
 2. **Coordinator (Program Coordinator)**: Curriculum alignment and Outcomes-Based Education (OBE) compliance.
 3. **GAD (Gender & Development)**: Inclusivity, non-discriminatory language, and gender-responsive representation.
-4. **ITSO (Innovation & Technology Support Office)**: Intellectual property, citations, and digital/data privacy compliance.
+4. **ITSO (Innovation and Technology Support Office)**: Intellectual property, citations, and digital/data privacy compliance.
 
 ### Non-Negotiable System Invariants
 

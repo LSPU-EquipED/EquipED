@@ -591,7 +591,7 @@ export function MasterSynthesisPage() {
               <p>
                 This Master Synthesis Scorecard compiles and weights formal assessments from the 4 institutional
                 curriculum review desks: Subject Matter Expert (35%), Program Coordinator (30%), Gender & Development
-                (20%), and Innovation & Technology Support Office (15%).
+                (20%), and Innovation and Technology Support Office (15%).
               </p>
               <div className="flex flex-wrap items-center gap-4 text-[11px] font-mono pt-1">
                 <span>Document: {data.document_title || 'Untitled SLM'}</span>
