@@ -47,6 +47,11 @@ def _has_index(name: str) -> bool:
     return name in [i["name"] for i in inspect(bind).get_indexes(_TABLE_NAME)]
 
 
+def _has_column(table: str, column: str) -> bool:
+    bind = op.get_bind()
+    return column in [c["name"] for c in inspect(bind).get_columns(table)]
+
+
 def _create_table() -> None:
     op.create_table(
         "syllabus_alignment_runs",
@@ -122,6 +127,15 @@ def _create_indexes() -> None:
 
 
 def _backfill_legacy_alignment_artifacts() -> None:
+    # agent_results.advisory_outputs is only guaranteed to exist once
+    # 20260808_0000 (later in the chain) has run. On a database that was
+    # never bootstrapped from empty (e.g. the shared dev DB) it was already
+    # present out-of-band; on a genuinely fresh database there are no
+    # agent_results rows yet anyway, so skipping is correct, not a
+    # loss of data.
+    if not _has_column("agent_results", "advisory_outputs"):
+        return
+
     bind = op.get_bind()
     agent_results = sa.table(
         "agent_results",
