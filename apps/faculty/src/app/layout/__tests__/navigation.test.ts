@@ -58,7 +58,7 @@ describe('navigation group structure', () => {
     expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'Subject Matter Expert', exact: false });
     expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Program Coordinator', exact: false });
     expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'Gender & Development', exact: false });
-    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'Innovation & IP (ITSO)', exact: false });
+    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'Innovation and Technology Support Office', exact: false });
 
     expect(alignmentGroup.id).toBe('alignment');
     expect(alignmentGroup.label).toBe('ALIGNMENT & AUDIT');

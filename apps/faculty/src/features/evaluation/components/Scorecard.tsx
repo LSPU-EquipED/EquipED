@@ -164,7 +164,7 @@ export function Scorecard() {
       sme: 'Subject Matter Expert (SME)',
       coordinator: 'Program Coordinator',
       gad: 'Gender and Development (GAD)',
-      itso: 'Innovation and IP (ITSO)',
+      itso: 'Innovation and Technology Support Office',
     }),
     [],
   );

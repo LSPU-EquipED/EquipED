@@ -242,7 +242,7 @@ describe('FacultyHome', () => {
     expect(markup).toContain('Subject Matter Expert');
     expect(markup).toContain('Program Coordinator');
     expect(markup).toContain('Gender &amp; Development');
-    expect(markup).toContain('Innovation &amp; IP (ITSO)');
+    expect(markup).toContain('Innovation and Technology Support Office');
 
     // Anti-slop check: verify decorative meta-tags are purged
     expect(markup).not.toContain('[CORE STORAGE]');

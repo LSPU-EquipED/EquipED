@@ -77,7 +77,7 @@ describe('AgentPromptEditor', () => {
     expect(screen.getByRole('tab', { name: /Program Coordinator/i })).toBeDefined();
     expect(screen.getByRole('tab', { name: /Subject Matter Expert/i })).toBeDefined();
     expect(screen.getByRole('tab', { name: /Gender & Development/i })).toBeDefined();
-    expect(screen.getByRole('tab', { name: /Intellectual Property/i })).toBeDefined();
+    expect(screen.getByRole('tab', { name: /Innovation and Technology Support Office/i })).toBeDefined();
 
     // Active version badge and textarea placeholder
     expect(screen.getByText('v2 Active')).toBeDefined();

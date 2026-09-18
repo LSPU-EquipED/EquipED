@@ -50,7 +50,7 @@ export const facultyNavGroups: readonly NavGroup[] = [
       { to: '/specialists/sme', label: 'Subject Matter Expert', icon: GraduationCap, exact: false },
       { to: '/specialists/coordinator', label: 'Program Coordinator', icon: ListChecks, exact: false },
       { to: '/specialists/gad', label: 'Gender & Development', icon: ShieldCheck, exact: false },
-      { to: '/specialists/itso', label: 'Innovation & IP (ITSO)', icon: Lightbulb, exact: false },
+      { to: '/specialists/itso', label: 'Innovation and Technology Support Office', icon: Lightbulb, exact: false },
     ],
   },
   {
@@ -205,7 +205,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/itso')) {
     return [
       { label: 'Specialists', to: '/dashboard' },
-      { label: 'Innovation & IP (ITSO)' },
+      { label: 'Innovation and Technology Support Office' },
     ];
   }
 

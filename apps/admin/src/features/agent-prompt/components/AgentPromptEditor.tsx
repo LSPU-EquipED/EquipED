@@ -19,7 +19,7 @@ const AGENTS = [
   { id: 'coordinator', label: 'Program Coordinator' },
   { id: 'sme', label: 'Subject Matter Expert' },
   { id: 'gad', label: 'Gender & Development (GAD)' },
-  { id: 'itso', label: 'Intellectual Property (ITSO)' },
+  { id: 'itso', label: 'Innovation and Technology Support Office' },
 ] as const;
 
 export function AgentPromptEditor() {
