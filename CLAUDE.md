@@ -115,3 +115,5 @@ shared code is promoted to `libs/*`. `libs/` packages must never import from `ap
 - When ambiguous, stop and ask rather than guessing.
 - Surfaced conflicts between code, tests, migrations, and product documentation
   must be reconciled explicitly, never chosen silently.
+- Do not add `Co-Authored-By` or `Claude-Session` attribution trailers to git
+  commit messages or pull request descriptions in this repo.

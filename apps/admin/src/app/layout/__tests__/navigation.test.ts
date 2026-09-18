@@ -42,6 +42,7 @@ describe('admin navigation group structure', () => {
       { to: '/evaluation-map', label: 'Knowledge Map' },
       { to: '/admin/model-validation', label: 'Model Validation' },
       { to: '/admin/prompts', label: 'Agent Prompts' },
+      { to: '/admin/training-data', label: 'Training Data' },
       { to: '/admin/preferences', label: 'Preference Logs' },
     ]);
   });

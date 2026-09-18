@@ -56,6 +56,10 @@ const EvaluationMapPage = lazyRouteComponent(
   () => import('../features/evaluation-map/pages/EvaluationMapPage'),
   'EvaluationMapPage',
 );
+const TrainingDataPage = lazyRouteComponent(
+  () => import('../features/training-data/pages/TrainingDataPage'),
+  'TrainingDataPage',
+);
 
 const rootRoute = createRootRouteWithContext<AppRouterContext>()({
   component: Outlet,
@@ -146,6 +150,23 @@ const adminPromptDetailRoute = createRoute({
   component: AgentPromptPage,
 });
 
+const adminTrainingDataRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'training-data',
+  beforeLoad: ({ location }) => {
+    if (location.pathname === '/admin/training-data') {
+      throw redirect({ to: '/admin/training-data/$agentId', params: { agentId: 'coordinator' } });
+    }
+  },
+  component: Outlet,
+});
+
+const adminTrainingDataDetailRoute = createRoute({
+  getParentRoute: () => adminTrainingDataRoute,
+  path: '$agentId',
+  component: TrainingDataPage,
+});
+
 const adminPreferencesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'preferences',
@@ -205,6 +226,7 @@ const routeTree = rootRoute.addChildren([
       adminIngestRoute,
       adminReferencesRoute,
       adminPromptsRoute.addChildren([adminPromptDetailRoute]),
+      adminTrainingDataRoute.addChildren([adminTrainingDataDetailRoute]),
       adminPreferencesRoute,
       adminRubricsRoute,
       adminModelValidationRoute,
