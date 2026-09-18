@@ -274,7 +274,7 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
     expect(screen.queryByRole('tab', { name: 'Subject Matter Expert' })).toBeNull();
     expect(screen.queryByRole('tab', { name: 'Gender & Development' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeNull();
 
     // Query was triggered for coordinator
     expect(useHistorySpy).toHaveBeenCalledWith(
@@ -290,7 +290,7 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeDefined();
   });
   it('shows all role tabs for admin user even if permissions are empty', () => {
     renderTable({ evaluatorPermissions: [], userRole: 'admin' });
@@ -298,6 +298,6 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
     expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Innovation & IP (ITSO)' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeDefined();
   });
 });

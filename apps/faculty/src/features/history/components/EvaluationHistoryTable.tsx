@@ -31,7 +31,7 @@ const ROLE_TABS = [
   { id: 'sme', label: 'Subject Matter Expert' },
   { id: 'coordinator', label: 'Program Coordinator' },
   { id: 'gad', label: 'Gender & Development' },
-  { id: 'itso', label: 'Innovation & IP (ITSO)' },
+  { id: 'itso', label: 'Innovation and Technology Support Office' },
 ] as const;
 
 function getStatusVariant(status: string): StatusVariant {

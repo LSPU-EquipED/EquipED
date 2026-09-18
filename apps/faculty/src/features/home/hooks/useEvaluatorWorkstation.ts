@@ -39,7 +39,7 @@ export const ALL_SPECIALISTS: EvaluatorSpecialist[] = [
   },
   {
     id: 'itso',
-    label: 'Innovation & IP (ITSO)',
+    label: 'Innovation and Technology Support Office',
     short: 'ITSO',
     desc: 'Copyright & citation rigor',
     icon: Lightbulb,

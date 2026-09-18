@@ -58,7 +58,7 @@ export const TARGET_AGENT_META: Record<TargetAgent, TargetAgentMeta> = {
   itso: {
     id: 'itso',
     shortLabel: 'ITSO',
-    fullName: 'ITSO',
+    fullName: 'Innovation and Technology Support Office',
     requirement: 'Reviews intellectual property and citation practice directly from the SLM text. No curriculum reference required.',
     requiresCurriculum: false,
   },

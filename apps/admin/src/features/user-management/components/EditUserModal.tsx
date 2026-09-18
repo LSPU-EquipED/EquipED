@@ -159,7 +159,7 @@ function EditUserModalDialog({ user, open, onOpenChange }: EditUserModalProps) {
                     { id: 'sme', label: 'Subject Matter Expert (SME)' },
                     { id: 'coordinator', label: 'Program Coordinator (PC)' },
                     { id: 'gad', label: 'Gender & Development (GAD)' },
-                    { id: 'itso', label: 'Innovation & IP (ITSO)' },
+                    { id: 'itso', label: 'Innovation and Technology Support Office' },
                   ].map((spec) => {
                     const isChecked = (formData.evaluator_permissions || []).includes(spec.id);
                     return (
