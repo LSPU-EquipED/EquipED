@@ -68,7 +68,10 @@ def _make_gad_generation(db_session, owner_id, agent_id="gad"):
 def test_store_adapter_upload_writes_file_and_row(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     result = create_training_job(db_session, "gad", admin_user.user_id)
 
@@ -93,7 +96,10 @@ def test_store_adapter_upload_writes_file_and_row(
 def test_store_adapter_upload_rejects_reuse(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     result = create_training_job(db_session, "gad", admin_user.user_id)
 
@@ -118,7 +124,10 @@ def test_store_adapter_upload_rejects_reuse(
 def test_store_adapter_upload_rejects_wrong_token(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     result = create_training_job(db_session, "gad", admin_user.user_id)
 
@@ -135,9 +144,28 @@ def test_store_adapter_upload_rejects_wrong_token(
 def test_store_adapter_upload_rejects_bad_extension(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    next_version_called = False
+    original_next_version = None
+
+    from server.modules.training_data import adapters
+
+    original_next_version = adapters._next_version
+
+    def _spy_next_version(*args, **kwargs):
+        nonlocal next_version_called
+        next_version_called = True
+        return original_next_version(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "server.modules.training_data.adapters._next_version", _spy_next_version
+    )
 
     with pytest.raises(AdapterUploadError):
         store_adapter_upload(
@@ -148,16 +176,37 @@ def test_store_adapter_upload_rejects_bad_extension(
             content=b"one",
         )
 
+    assert not next_version_called
+    assert list(tmp_path.iterdir()) == []
+
 
 def test_store_adapter_upload_rejects_oversized_file(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
     monkeypatch.setattr(
-        "server.modules.training_data.adapters.MAX_ADAPTER_UPLOAD_BYTES", 10
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.MAX_ADAPTER_UPLOAD_BYTES",
+        10,
     )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     result = create_training_job(db_session, "gad", admin_user.user_id)
+
+    next_version_called = False
+    from server.modules.training_data import adapters
+
+    original_next_version = adapters._next_version
+
+    def _spy_next_version(*args, **kwargs):
+        nonlocal next_version_called
+        next_version_called = True
+        return original_next_version(*args, **kwargs)
+
+    monkeypatch.setattr(
+        "server.modules.training_data.adapters._next_version", _spy_next_version
+    )
 
     with pytest.raises(AdapterUploadError):
         store_adapter_upload(
@@ -168,11 +217,17 @@ def test_store_adapter_upload_rejects_oversized_file(
             content=b"x" * 11,
         )
 
+    assert not next_version_called
+    assert list(tmp_path.iterdir()) == []
+
 
 def test_list_trained_adapters_returns_newest_first(
     db_session, admin_user, tmp_path, monkeypatch
 ):
-    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     first = create_training_job(db_session, "gad", admin_user.user_id)
     store_adapter_upload(
