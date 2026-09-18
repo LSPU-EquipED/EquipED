@@ -17,6 +17,10 @@ class TrainingJobNotFoundError(TrainingDataError):
     cannot use error variants to probe for valid tokens/job IDs."""
 
 
+class EmptyTrainingDatasetError(TrainingDataError):
+    """Raised when no eligible preference pairs exist for a training job."""
+
+
 class AdapterUploadError(TrainingDataError):
     """Raised when an uploaded adapter file fails size or extension checks."""
 
@@ -25,5 +29,6 @@ __all__ = [
     "TrainingDataError",
     "InvalidAgentIdError",
     "TrainingJobNotFoundError",
+    "EmptyTrainingDatasetError",
     "AdapterUploadError",
 ]

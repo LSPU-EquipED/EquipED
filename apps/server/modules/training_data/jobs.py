@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 from server.modules.training_data.agents import VALID_AGENT_IDS, validate_agent_id
 from server.modules.training_data.exceptions import (
+    EmptyTrainingDatasetError,
     TrainingJobNotFoundError,
 )
 from server.modules.training_data.job_packages import (
@@ -16,6 +17,7 @@ from server.modules.training_data.job_packages import (
 )
 from server.modules.training_data.models import DpoTrainingJob
 from server.modules.training_data.tokens import generate_raw_token, hash_token
+from sqlalchemy import case, update
 from sqlalchemy.orm import Session
 
 
@@ -45,6 +47,11 @@ def create_training_job(
     validate_agent_id(agent_id)
 
     frozen = freeze_job_dataset(session, agent_id)
+    pair_count = frozen.manifest_json.get("pair_count")
+    if not isinstance(pair_count, int) or pair_count <= 0:
+        raise EmptyTrainingDatasetError(
+            f"no eligible DPO preference pairs exist for agent {agent_id!r}"
+        )
 
     raw_download_token = generate_raw_token()
     raw_upload_token = generate_raw_token()
@@ -97,8 +104,26 @@ def get_job_download_package(
         manifest_json=job.manifest_json,
     )
 
-    job.download_used_at = now
-    job.status = "downloaded"
+    claim = session.execute(
+        update(DpoTrainingJob)
+        .where(
+            DpoTrainingJob.job_id == job_id,
+            DpoTrainingJob.download_token_hash == hash_token(raw_token),
+            DpoTrainingJob.download_used_at.is_(None),
+            DpoTrainingJob.download_expires_at >= now,
+        )
+        .values(
+            download_used_at=now,
+            status=case(
+                (DpoTrainingJob.status == "completed", "completed"),
+                else_="downloaded",
+            ),
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if claim.rowcount != 1:
+        session.rollback()
+        raise TrainingJobNotFoundError("invalid or expired download token")
     session.commit()
 
     return zip_bytes

@@ -5,18 +5,19 @@
 **Goal:** Replace the `# TODO` training-loop placeholder in
 `docs/colab/dpo_training_template.ipynb` with a real, runnable LoRA/DPO
 training loop (Unsloth + TRL `DPOTrainer` against `unsloth/gemma-3-4b-it`,
-4-bit QLoRA) that consumes the notebook's already-working fetch cell output
-and feeds the already-working push-back cell.
+4-bit QLoRA) that consumes the notebook's fetch cell output (which also
+validates package integrity) and feeds the hardened push-back cell.
 
-**Architecture:** Five new/replaced notebook cells inserted between the
-existing fetch cell and push-back cell: dependency install, data prep
-(dataset build + 90/10 split with a small-dataset guard), model+LoRA setup,
-`DPOTrainer` train, eval/sanity print (soft warning, never blocks), and a
-provenance-manifest cell that writes `training_manifest.json` alongside the
-trained adapter before it gets zipped. The notebook is edited by a small
-Python script (via stdlib `json`) that loads the `.ipynb` as JSON, splices
-in new cell dicts, and writes it back — hand-editing raw notebook JSON is
-error-prone, and there is no other tooling dependency needed for this.
+**Architecture:** Six new/replaced notebook cells inserted between the
+fetch cell (cell index 2, hardened with archive and package validation)
+and the push-back cell (now cell index 10, hardened with client-side output
+and relative-path validation): markdown header (cell 3), dependency install
+(cell 4), data prep (cell 5: dataset build + 90/10 split with a small-dataset
+guard), model+LoRA setup (cell 6), `DPOTrainer` train (cell 7), eval/sanity
+print (cell 8: soft warning, never blocks), and a provenance-manifest cell
+(cell 9) that writes `training_manifest.json` alongside the trained adapter
+before cell 10 verifies and zips the output directory. Total notebook cell
+count is 11 cells (cells 0 through 10).
 
 **Tech Stack:** Jupyter notebook (`.ipynb`, nbformat 4.5) edited via Python
 stdlib `json`; Python stdlib `ast` for a syntax-only verification pass (no
@@ -28,34 +29,36 @@ the training code itself targets Unsloth + `trl.DPOTrainer` + `peft` +
 
 ## Global Constraints
 
-- Single file changes only: `docs/colab/dpo_training_template.ipynb`. Do
-  not modify `export_dpo_package()`, the training-data router/endpoints, or
-  the `dpo_training_jobs`/`trained_adapters` tables — this plan is notebook
-  content only.
-- Base model: `unsloth/gemma-3-4b-it`, loaded 4-bit (QLoRA) via
-  `load_in_4bit=True`. Training stack: Unsloth's `FastLanguageModel` +
-  `trl.DPOTrainer`.
-- No CI test coverage is possible (GPU-dependent, external to this
-  environment). Every task's verification step is a syntax/structure check
-  run locally via Python stdlib (`json.load` for notebook validity,
-  `ast.parse` for each code cell after stripping any `!shell` magic lines)
-  — this catches typos and syntax errors but does NOT prove the training
-  loop actually trains; a manual end-to-end Colab run (Task 6) is required
-  before considering this done.
+- Scope separation:
+  - Notebook workflow in `docs/colab/dpo_training_template.ipynb` covers package fetch & validation, dependency installation, data preparation, model+LoRA setup, DPO training, provenance manifest generation, deterministic relative-path archiving, and push-back upload.
+  - Backend upload hardening (zip-slip defense, symlink/corrupt archive rejection, safe staging, checksum validation, and non-empty pair requirements) is treated as prerequisite/separate scope implemented and tested in `apps/server/modules/training_data/` and `apps/server/tests/training_data/`.
+  - No live inference auto-promotion: storing an uploaded adapter updates database and filesystem state only; activation remains strictly manual.
+- Truthful dependency & revision pinning status:
+  - Notebook dependencies and base model revision are pinned to exact versions:
+    `unsloth==2025.3.10`, `trl==0.15.2`, `peft==0.14.0`, `bitsandbytes==0.45.3`,
+    `datasets==3.3.2`, `transformers==4.50.0`, `accelerate==1.4.0`, and base model
+    revision `BASE_MODEL_REVISION = "21bc97b90507086e76f0d256fee672973085d905"`.
+    These exact pins and model revision are pinned for late review but have not yet
+    been revalidated together in a fresh Colab GPU runtime; they must never be called tested.
+- Test coverage & verification:
+  - Automated offline contract tests (e.g. in `apps/server/tests/training_data/test_dpo_colab_contract.py`) verify that Cell 2 (package fetch & validation) correctly enforces `DpoPackageManifest` schema, rejects corrupted/missing archive members, enforces positional pair/provenance count alignment, validates strengthened provenance attributes (UUID formats, SHA-256 digests, agent consistency, unique `pair_id`, exporter relationships: `pair_id == generation_id`, `prompt_sha256 == sha256(prompt)`, `response_sha256 == sha256(rejected)`), and that Cell 10 (push-back) validates required outputs and weights and creates deterministic forward-slash relative paths in archives.
+  - Prerequisite backend upload hardening suites in `apps/server/tests/training_data/` (`test_adapter_artifacts.py`, `test_adapters.py`, `test_jobs.py`, `test_router.py`) verify zip-slip rejection, symlink safety, staging cleanup, and job token semantics.
+  - No synthetic/ast test named `test_notebook_valid_json_and_syntax` exists; notebook syntax verification is conducted via python/pytest passes on the contract test suite and manual end-to-end Colab validation.
+  - Interactive GPU training execution is verified manually in Google Colab (Task 6); while earlier end-to-end runs succeeded, the exact pinned dependency versions and model revision have not yet been revalidated together in a fresh Colab GPU runtime and must never be called tested.
 - Small-dataset guard: if `len(pairs) < 20`, skip the train/val split
   (train on 100%, `eval_dataset = None`) and print a warning instead of
   producing a meaningless few-example "validation" split.
-- Eval metrics in Cell 7 are informational only — never raise, never skip
-  the push-back cell. This was an explicit user decision during
-  brainstorming (soft warning, not a hard gate).
-- `docs/colab/dpo_training_template.ipynb` currently has 6 cells (indices
-  0-5): 0=intro markdown, 1=config code, 2=fetch code, 3=training-section
-  markdown, 4=TODO placeholder code, 5=push-back code. Cells 3 and 4 are
-  replaced; cell 5 (push-back) is left byte-for-byte unchanged; cells 0-2
-  are left byte-for-byte unchanged.
-- Work happens on a new branch `feat/dpo-colab-notebook-training-loop`,
-  created off `main` before Task 1.
+- Eval metrics in Cell 8 are informational only — never raise, never skip
+  the push-back cell (Cell 10). This was an explicit user decision during
+  brainstorming (soft warning, not a hard gate). Exception handling ensures
+  callback quirks do not interrupt execution.
 - Commit after each task, per the Step "Commit" instructions below.
+
+> **Historical execution note:** The task-by-task scripts below preserve the
+> intermediate cell counts that existed while the notebook was being built.
+> They are an implementation record, not instructions for regenerating the
+> current notebook. The checked-in 11-cell notebook and its contract tests are
+> authoritative.
 
 ---
 
@@ -63,13 +66,26 @@ the training code itself targets Unsloth + `trl.DPOTrainer` + `peft` +
 
 ```
 docs/colab/
-  dpo_training_template.ipynb   [modify] insert/replace cells 3-4 with
-                                 six new cells (Tasks 1-5); cell that was
-                                 index 5 (push-back) shifts to the end,
-                                 unchanged in content
+  dpo_training_template.ipynb   [modify] notebook training workflow (11 cells total):
+                                 package fetch & contract validation (cell 2),
+                                 dependency install (cell 4), data prep (cell 5),
+                                 model+LoRA setup (cell 6), DPOTrainer loop (cell 7),
+                                 eval sanity-check (cell 8), provenance manifest (cell 9),
+                                 and safe relative-path zip push-back (cell 10)
+apps/server/modules/training_data/
+  adapter_artifacts.py          [prerequisite/separate backend scope] archive inspection,
+                                 zip-slip defenses, symlink rejection, safe staging
+  adapters.py                   [prerequisite/separate backend scope] adapter upload ingestion
+  jobs.py                       [prerequisite/separate backend scope] empty dataset guard
+apps/server/tests/training_data/
+  test_dpo_colab_contract.py    [automated contract suite] notebook offline contract tests:
+                                 cell 2 package integrity validation and cell 10 adapter
+                                 packaging and deterministic relative-path archiving (exact test names/counts flexible)
+  test_adapter_artifacts.py     [prerequisite backend test suite] archive security & validation tests
+  test_adapters.py              [prerequisite backend test suite] upload handling & ordering tests
+  test_jobs.py                  [prerequisite backend test suite] dataset freeze & empty dataset tests
+  test_router.py                [prerequisite backend test suite] router token & size rejection tests
 ```
-
-No other files are created or modified by this plan.
 
 ---
 
@@ -80,10 +96,14 @@ No other files are created or modified by this plan.
 
 **Interfaces:**
 - Consumes: `pairs` (list of `{prompt, chosen, rejected}` dicts) and
-  `manifest` (dict), both already produced by existing cell index 2 (the
-  fetch cell — unchanged by this plan).
+  `manifest` (dict), both produced by cell index 2 (the fetch cell, which
+  enforces full package, checksum integrity, and strengthened provenance
+  validation: exporter fields, UUID/hash formats, agent consistency, unique
+  pair_id, positional pair/provenance count alignment, and exporter
+  relationships: `pair_id == generation_id`, `prompt_sha256`, and
+  `response_sha256`).
 - Produces: `train_dataset` (`datasets.Dataset`), `eval_dataset`
-  (`datasets.Dataset | None`) — consumed by Task 3's `DPOTrainer` call.
+  (`datasets.Dataset | None`) — consumed by Task 3's `DPOTrainer` call (cell 7).
 
 - [ ] **Step 1: Write the notebook-editing script for this task**
 
@@ -113,7 +133,7 @@ result — edit them directly in the cells if you have reason to.
 
 Cell B (code) — dependency install:
 ```python
-!pip install -q unsloth trl peft bitsandbytes datasets
+!pip install -q unsloth==2025.3.10 trl==0.15.2 peft==0.14.0 bitsandbytes==0.45.3 datasets==3.3.2 transformers==4.50.0 accelerate==1.4.0
 ```
 
 Cell C (code) — data prep:
@@ -173,7 +193,7 @@ cell_a = markdown_cell([
 ])
 
 cell_b = code_cell([
-    "!pip install -q unsloth trl peft bitsandbytes datasets",
+    "!pip install -q unsloth==2025.3.10 trl==0.15.2 peft==0.14.0 bitsandbytes==0.45.3 datasets==3.3.2 transformers==4.50.0 accelerate==1.4.0",
 ])
 
 cell_c = code_cell([
@@ -367,8 +387,11 @@ def code_cell(source_lines):
 
 cell = code_cell([
     "from trl import DPOConfig, DPOTrainer\n",
+    "from unsloth import is_bfloat16_supported\n",
     "\n",
     "ADAPTER_DIR = \"./trained_adapter\"\n",
+    "USE_BF16 = bool(is_bfloat16_supported())\n",
+    "USE_FP16 = not USE_BF16\n",
     "\n",
     "training_args = DPOConfig(\n",
     "    output_dir=ADAPTER_DIR,\n",
@@ -377,10 +400,16 @@ cell = code_cell([
     "    learning_rate=5e-6,\n",
     "    num_train_epochs=1,\n",
     "    beta=0.1,\n",
+    "    seed=42,\n",
+    "    max_length=2048,\n",
+    "    max_prompt_length=1536,\n",
     "    eval_strategy=\"steps\" if eval_dataset is not None else \"no\",\n",
     "    eval_steps=20,\n",
     "    logging_steps=5,\n",
-    "    bf16=True,\n",
+    "    save_strategy=\"no\",\n",
+    "    report_to=\"none\",\n",
+    "    fp16=USE_FP16,\n",
+    "    bf16=USE_BF16,\n",
     ")\n",
     "trainer = DPOTrainer(\n",
     "    model=model,\n",
@@ -460,19 +489,16 @@ def code_cell(source_lines):
 
 cell = code_cell([
     "if eval_dataset is not None:\n",
-    "    metrics = trainer.evaluate()\n",
-    "    print(f\"eval_loss: {metrics['eval_loss']:.4f}\")\n",
-    "    print(\n",
-    "        \"reward accuracy (chosen > rejected): \"\n",
-    "        f\"{metrics.get('eval_rewards/accuracies', 'n/a')}\"\n",
-    "    )\n",
-    "    print(\n",
-    "        \"NOTE: this is an in-run sanity check on a random 10% split of \"\n",
-    "        \"THIS training run's own data -- it is not the project's \"\n",
-    "        \"held-out test set, and does not compare against the base model. \"\n",
-    "        \"A low accuracy here is a strong signal something went wrong; a \"\n",
-    "        \"high accuracy is not by itself a green light to deploy.\"\n",
-    "    )\n",
+    "    try:\n",
+    "        metrics = trainer.evaluate()\n",
+    "        print(f\"eval_loss: {metrics['eval_loss']:.4f}\")\n",
+    "        print(\n",
+    "            \"reward accuracy (chosen > rejected): \"\n",
+    "            f\"{metrics.get('eval_rewards/accuracies', 'n/a')}\"\n",
+    "        )\n",
+    "    except Exception as exc:\n",
+    "        metrics = None\n",
+    "        print(f\"Eval sanity check failed ({exc!r}); continuing to upload.\")\n",
     "else:\n",
     "    metrics = None\n",
     "    print(\"Skipped eval (too few pairs for a meaningful held-out split).\")",
@@ -589,7 +615,7 @@ with open(path, "w", encoding="utf-8") as f:
 PYEOF
 ```
 
-- [ ] **Step 2: Verify notebook validity, syntax, and that the original push-back cell is unchanged**
+- [ ] **Step 2: Verify notebook validity, syntax, and that the push-back cell (cell 10) is intact**
 
 ```bash
 python - <<'PYEOF'
@@ -638,7 +664,7 @@ the training loop actually trains, since that requires a GPU runtime this
 environment does not have. Per the spec's Testing section, a manual run is
 required before this feature is considered complete.
 
-- [x] **Step 1: Run a real training job end-to-end in Colab**
+- [ ] **Step 1: Revalidate the exact committed pins end-to-end in fresh Colab**
 
 1. In the EquipED admin panel, go to Training Data for an agent with at
    least a handful of exported DPO pairs, click "Start Training Job", copy
@@ -663,12 +689,16 @@ required before this feature is considered complete.
 
 - [x] **Step 2: Record the outcome**
 
-**Completed 2026-09-18.** Full end-to-end run succeeded on a real Colab T4
-GPU runtime, against 25 synthetic SME DPO pairs generated by
-`apps/server/scripts/seed_synthetic_dpo_pairs.py` (real prompts via the
-actual SME prompt builder) and served through a `cloudflared` tunnel to a
-locally-run backend pointed at the shared dev DB. Ended with a successful
-adapter upload and a new `TrainedAdapter` row confirmed in the admin panel.
+**Historical run completed 2026-09-18.** An end-to-end run succeeded on a
+real Colab T4 against 25 synthetic SME DPO pairs and uploaded a registered
+adapter through the development backend. The runtime's resolved dependency
+versions and model revision were not captured, so that run does not validate
+the exact configuration now committed. Automated contract and backend tests
+guard package, archive, and staging behavior, but a fresh Colab GPU run is
+still required for `unsloth==2025.3.10`, `trl==0.15.2`, `peft==0.14.0`,
+`bitsandbytes==0.45.3`, `datasets==3.3.2`, `transformers==4.50.0`,
+`accelerate==1.4.0`, and model revision
+`21bc97b90507086e76f0d256fee672973085d905`.
 
 Two real, previously-unverified issues surfaced during the live run and
 were fixed on this branch:
@@ -684,12 +714,10 @@ were fixed on this branch:
   never blocks execution" behavior. Fixed by wrapping `trainer.evaluate()`
   in a try/except (commit `6411425`).
 
-Everything else — dependency install, data prep (22/3 train/eval split),
-Unsloth loading `unsloth/gemma-3-4b-it` 4-bit, `DPOTrainer` training,
-`model.save_pretrained()`, the provenance manifest, and the upload —
-worked on the first real attempt with no further changes needed. The
-Unsloth/Gemma-3 API-surface risk flagged in the final whole-branch review
-as "never verified live" did NOT materialize.
+In that historical runtime, dependency installation, the 22/3 data split,
+4-bit model loading, DPO training, adapter saving, provenance generation,
+and upload all completed. This is evidence that the workflow shape works,
+not evidence that the newly pinned dependency/model matrix is compatible.
 
 Test job/adapter left in place in the shared dev DB per user's explicit
 choice (visible proof-of-work in the admin panel), not cleaned up.

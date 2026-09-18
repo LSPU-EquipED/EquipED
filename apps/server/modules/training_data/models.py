@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -78,6 +79,9 @@ class TrainedAdapter(Base):
     __table_args__ = (
         Index("idx_trained_adapters_agent_id", "agent_id"),
         Index("idx_trained_adapters_job_id", "job_id"),
+        UniqueConstraint(
+            "agent_id", "version", name="uq_trained_adapters_agent_version"
+        ),
     )
 
     adapter_id: Mapped[uuid.UUID] = mapped_column(
