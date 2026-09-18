@@ -33,6 +33,7 @@ from server.modules.training_data.jobs import (
     get_job_download_package,
     list_training_jobs,
 )
+from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.schemas import (
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
@@ -125,6 +126,13 @@ def upload_trained_adapter(
     file: UploadFile = File(...),
     db: Session = Depends(get_db_session),
 ) -> TrainedAdapterResponse:
+    # Reject on the client-declared size before buffering the body into
+    # memory -- avoids fully reading an oversized upload just to discard it.
+    if file.size is not None and file.size > MAX_ADAPTER_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"file exceeds max size of {MAX_ADAPTER_UPLOAD_BYTES} bytes",
+        )
     content = file.file.read()
     try:
         adapter = store_adapter_upload(

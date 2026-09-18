@@ -117,8 +117,14 @@ def test_download_endpoint_rejects_bad_token(
 
 
 def test_upload_endpoint_stores_adapter_and_list_reflects_it(
-    client: TestClient, auth_cookies_admin, admin_user, db_session
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    tmp_path,
+    monkeypatch,
 ):
+    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
     _make_gad_generation(db_session, owner_id=admin_user.user_id)
     _auth(client, auth_cookies_admin)
     create_response = client.post("/api/v1/admin/training-data/gad/jobs")
@@ -139,6 +145,39 @@ def test_upload_endpoint_stores_adapter_and_list_reflects_it(
     adapters = list_response.json()["adapters"]
     assert len(adapters) == 1
     assert adapters[0]["job_id"] == job_id
+
+
+def test_upload_endpoint_rejects_oversized_file_without_buffering_it(
+    client: TestClient,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    tmp_path,
+    monkeypatch,
+):
+    """The router must reject an oversized upload using the client-declared
+    Content-Length (via UploadFile.size) before reading the body into
+    memory -- not just enforce the cap after fully buffering it."""
+    monkeypatch.setattr("server.modules.training_data.adapters.ADAPTER_ROOT", tmp_path)
+    monkeypatch.setattr(
+        "server.modules.training_data.router.MAX_ADAPTER_UPLOAD_BYTES", 10
+    )
+    _make_gad_generation(db_session, owner_id=admin_user.user_id)
+    _auth(client, auth_cookies_admin)
+    create_response = client.post("/api/v1/admin/training-data/gad/jobs")
+    body = create_response.json()
+    upload_path = body["upload_url"].split("/api/v1", 1)[1]
+
+    client.cookies.clear()
+    upload_response = client.post(
+        f"/api/v1{upload_path}",
+        files={"file": ("adapter.zip", b"x" * 11, "application/zip")},
+    )
+    assert upload_response.status_code == 422
+
+    _auth(client, auth_cookies_admin)
+    list_response = client.get("/api/v1/admin/training-data/gad/adapters")
+    assert list_response.json()["adapters"] == []
 
 
 def test_jobs_list_requires_admin(client: TestClient, auth_cookies_faculty):
