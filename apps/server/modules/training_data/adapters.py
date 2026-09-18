@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
+from server.modules.training_data.adapter_artifacts import (
+    validate_adapter_upload,
+    write_adapter_artifact,
+)
 from server.modules.training_data.exceptions import (
-    AdapterUploadError,
     TrainingJobNotFoundError,
 )
 from server.modules.training_data.jobs import _utc
 from server.modules.training_data.models import DpoTrainingJob, TrainedAdapter
-from server.modules.training_data.paths import (
-    ADAPTER_ROOT,
-    ALLOWED_ADAPTER_EXTENSIONS,
-    MAX_ADAPTER_UPLOAD_BYTES,
-)
 from server.modules.training_data.tokens import hash_token
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -56,29 +52,22 @@ def store_adapter_upload(
     ):
         raise TrainingJobNotFoundError("invalid or expired upload token")
 
-    extension = Path(filename).suffix.lower()
-    if extension not in ALLOWED_ADAPTER_EXTENSIONS:
-        raise AdapterUploadError(f"disallowed file extension: {extension!r}")
-    if len(content) > MAX_ADAPTER_UPLOAD_BYTES:
-        raise AdapterUploadError(
-            f"file exceeds max size of {MAX_ADAPTER_UPLOAD_BYTES} bytes"
-        )
+    validated_extension = validate_adapter_upload(filename, content)
 
     version = _next_version(session, job.agent_id)
     adapter_id = uuid.uuid4()
-    target_dir = ADAPTER_ROOT / job.agent_id / str(adapter_id)
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_path = target_dir / f"adapter{extension}"
-    target_path.write_bytes(content)
+    artifact = write_adapter_artifact(
+        job.agent_id, adapter_id, validated_extension, content
+    )
 
     adapter = TrainedAdapter(
-        adapter_id=adapter_id,
+        adapter_id=artifact.adapter_id,
         agent_id=job.agent_id,
         job_id=job.job_id,
         version=version,
-        file_path=str(target_path),
-        file_sha256=hashlib.sha256(content).hexdigest(),
-        size_bytes=len(content),
+        file_path=artifact.file_path,
+        file_sha256=artifact.file_sha256,
+        size_bytes=artifact.size_bytes,
     )
     session.add(adapter)
 
@@ -98,4 +87,7 @@ def list_trained_adapters(session: Session, agent_id: str) -> list[TrainedAdapte
     )
 
 
-__all__ = ["store_adapter_upload", "list_trained_adapters"]
+__all__ = [
+    "list_trained_adapters",
+    "store_adapter_upload",
+]

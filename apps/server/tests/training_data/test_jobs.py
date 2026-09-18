@@ -161,6 +161,8 @@ def test_get_job_download_package_returns_zip_with_expected_files(
     zip_bytes = get_job_download_package(
         db_session, result.job.job_id, result.raw_download_token
     )
+    assert isinstance(zip_bytes, bytes)
+    assert len(zip_bytes) > 0
 
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         names = set(zf.namelist())
