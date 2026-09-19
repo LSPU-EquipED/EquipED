@@ -1,19 +1,46 @@
 """Smoke test a llama-server that has a GGUF LoRA adapter loaded.
 
-Sends the same real SME prompts to the server with the adapter switched off
-and then on, and checks that every reply is JSON in the shape the SME agent
-expects. Full usage notes are added with the command-line entry point.
+Sends the same real SME prompts to the server twice -- once with the adapter
+switched off (scale 0) and once on (scale 1) -- and checks that every reply is
+JSON in the shape the SME agent expects. It proves the adapter loads and the
+server still behaves; it does NOT judge whether the adapter is any good.
+
+Usage:
+    python training/smoke_test_lora_serving.py training/sample_pairs.jsonl \
+        --base-url http://127.0.0.1:8080/v1 --limit 2
+
+The base URL falls back to LLM_API_BASE, the API key to LLM_API_KEY (prefer the
+environment: command-line arguments end up in shell history), and the model to
+LLM_MODEL_NAME. The key is never printed.
+
+Scale modes: "request" (default) sends the scale in each chat request; "global"
+sets it once through POST /lora-adapters, for servers that ignore the
+per-request field.
+
+Exit code: 0 all replies valid, 1 some reply invalid, 2 could not run (server
+unreachable, no adapter loaded, bad input).
+
+Prompts are sent as a single user message: pairs.jsonl stores each prompt
+already flattened (system + user text), and Gemma's chat template folds system
+text into the user turn anyway.
 """
 
 from __future__ import annotations
 
+import argparse
+import http.client
 import json
+import os
+import sys
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
 MIN_SCORE = 1
 MAX_SCORE = 4
+DEFAULT_MODEL = "gemma-3-4b-it"
 
 
 @dataclass(frozen=True)
@@ -208,3 +235,189 @@ def format_report(report: Report) -> str:
 
 def exit_code(report: Report) -> int:
     return 0 if report.all_valid else 1
+
+
+def server_root(base_url: str) -> str:
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[: -len("/v1")]
+    return root
+
+
+def _headers(api_key: str | None) -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _get_json(url: str, api_key: str | None, timeout: float) -> object:
+    request = urllib.request.Request(url, headers=_headers(api_key), method="GET")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _post_json(
+    url: str, payload: object, api_key: str | None, timeout: float
+) -> object:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=_headers(api_key),
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def build_chat_payload(
+    model: str,
+    prompt: str,
+    *,
+    adapter_id: int,
+    scale: float,
+    scale_mode: str,
+    max_tokens: int,
+) -> dict:
+    payload: dict = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+        "max_tokens": max_tokens,
+    }
+    if scale_mode == "request":
+        payload["lora"] = [{"id": adapter_id, "scale": scale}]
+    return payload
+
+
+def extract_reply_text(response: object) -> str:
+    try:
+        content = response["choices"][0]["message"]["content"]  # type: ignore[index]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError("unexpected chat completion response shape") from exc
+    if not isinstance(content, str):
+        raise ValueError("unexpected chat completion response: no text content")
+    return content
+
+
+def list_adapters(base_url: str, api_key: str | None, timeout: float) -> list[dict]:
+    data = _get_json(f"{server_root(base_url)}/lora-adapters", api_key, timeout)
+    if not isinstance(data, list):
+        raise ValueError("unexpected response from GET /lora-adapters")
+    return data
+
+
+def choose_adapter_id(adapters: list[dict], requested: int | None) -> int:
+    ids = [adapter.get("id") for adapter in adapters if isinstance(adapter, dict)]
+    ids = [adapter_id for adapter_id in ids if isinstance(adapter_id, int)]
+    if not ids:
+        raise ValueError(
+            "no LoRA adapter is loaded on the server; start llama-server with "
+            "--lora <file.gguf> --lora-init-without-apply"
+        )
+    if requested is None:
+        return ids[0]
+    if requested not in ids:
+        raise ValueError(f"adapter id {requested} is not loaded (loaded ids: {ids})")
+    return requested
+
+
+def set_global_scale(
+    base_url: str,
+    api_key: str | None,
+    adapter_id: int,
+    scale: float,
+    timeout: float,
+) -> None:
+    _post_json(
+        f"{server_root(base_url)}/lora-adapters",
+        [{"id": adapter_id, "scale": scale}],
+        api_key,
+        timeout,
+    )
+
+
+def make_complete(
+    *,
+    base_url: str,
+    api_key: str | None,
+    model: str,
+    adapter_id: int,
+    scale_mode: str,
+    max_tokens: int,
+    timeout: float,
+) -> Callable[[str, float], str]:
+    current: dict[str, float | None] = {"scale": None}
+
+    def complete(prompt: str, scale: float) -> str:
+        if scale_mode == "global" and current["scale"] != scale:
+            set_global_scale(base_url, api_key, adapter_id, scale, timeout)
+            current["scale"] = scale
+        payload = build_chat_payload(
+            model,
+            prompt,
+            adapter_id=adapter_id,
+            scale=scale,
+            scale_mode=scale_mode,
+            max_tokens=max_tokens,
+        )
+        response = _post_json(
+            f"{base_url.rstrip('/')}/chat/completions", payload, api_key, timeout
+        )
+        return extract_reply_text(response)
+
+    return complete
+
+
+def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Smoke test a llama-server with a GGUF LoRA adapter loaded."
+    )
+    parser.add_argument("pairs", type=Path, help="pairs.jsonl to take prompts from")
+    parser.add_argument("--limit", type=int, default=2, help="prompts to send")
+    parser.add_argument("--base-url", default=None, help="default: $LLM_API_BASE")
+    parser.add_argument("--api-key", default=None, help="default: $LLM_API_KEY")
+    parser.add_argument("--model", default=None, help="default: $LLM_MODEL_NAME")
+    parser.add_argument("--adapter-id", type=int, default=None)
+    parser.add_argument(
+        "--scale-mode", choices=("request", "global"), default="request"
+    )
+    parser.add_argument("--max-tokens", type=int, default=1024)
+    parser.add_argument("--timeout", type=float, default=300.0)
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
+    base_url = args.base_url or os.environ.get("LLM_API_BASE")
+    if not base_url:
+        print(
+            "error: no server base URL; pass --base-url or set LLM_API_BASE",
+            file=sys.stderr,
+        )
+        return 2
+    api_key = args.api_key or os.environ.get("LLM_API_KEY")
+    model = args.model or os.environ.get("LLM_MODEL_NAME") or DEFAULT_MODEL
+    try:
+        prompts = load_prompts(args.pairs, args.limit)
+        adapters = list_adapters(base_url, api_key, args.timeout)
+        adapter_id = choose_adapter_id(adapters, args.adapter_id)
+        complete = make_complete(
+            base_url=base_url,
+            api_key=api_key,
+            model=model,
+            adapter_id=adapter_id,
+            scale_mode=args.scale_mode,
+            max_tokens=args.max_tokens,
+            timeout=args.timeout,
+        )
+        report = run_smoke_test(prompts, complete)
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(format_report(report))
+    return exit_code(report)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
