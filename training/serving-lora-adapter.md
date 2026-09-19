@@ -24,13 +24,18 @@ certutil -hashfile F:\Dev\Models\gemma\adapters\sme-adapter-f16.gguf SHA256
 
 ## 2. Check your llama-server supports the flags
 
-```
-F:\Dev\Servers\llama.cpp\build-cuda\bin\Release\llama-server.exe --help | findstr /i lora
+Run the same `llama-server.exe` that `start-gemma.bat` starts, with `--help`,
+and search the output for `lora`:
+
+```powershell
+& "<the llama-server.exe path from your start-gemma.bat>" --help | findstr /i lora
 ```
 
 You should see `--lora` and `--lora-init-without-apply`. If
 `--lora-init-without-apply` is missing, use
-`--lora-scaled <file> 0.0` instead of the two flags in step 3.
+`--lora-scaled <file> 0.0` instead of the two flags in step 3. That fallback is
+one flag taking two values (the file, then `0.0`), and it **replaces** both
+flags.
 
 ## 3. Add two arguments to the launch command
 
@@ -43,7 +48,8 @@ existing flag as is):
 
 `--lora-init-without-apply` loads the adapter but starts with it switched
 **off**, so the server behaves exactly as it does today until a request asks
-for the adapter.
+for the adapter. (If `start-gemma.bat` breaks the command over several lines
+with `^` at the line ends, add the new arguments in the same style.)
 
 Restart the server. Restarting is your call and briefly interrupts anything
 using it.
@@ -55,6 +61,11 @@ Invoke-RestMethod http://127.0.0.1:8080/lora-adapters
 ```
 
 Expected: one entry with `id` 0, the path to your file, and `scale` 0.
+
+If `scale` is not 0, the adapter is being applied to every request right now.
+Set it back with the POST command in step 6 (scale 0.0), then fix the launch
+flags (use the `--lora-scaled <file> 0.0` fallback from step 2) and restart
+before continuing.
 
 ## 5. Turn it on for a request
 
@@ -73,7 +84,8 @@ Invoke-RestMethod -Uri http://127.0.0.1:8080/v1/chat/completions -Method Post -C
 Use `scale = 0.0` (or leave `lora` out) for the plain model.
 
 If the per-request field seems to be ignored, set the scale for the whole
-server instead (this affects every request until you set it back):
+server instead (this affects every request until you set it back; the command
+to set it back is in step 6):
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Body '[{"id":0,"scale":1.0}]'
@@ -91,21 +103,25 @@ Through the tunnel, set `LLM_API_BASE` (and `LLM_API_KEY` if your endpoint
 needs one) in the environment instead of passing them on the command line. Add
 `--scale-mode global` if step 5's per-request field was ignored.
 
-A global-mode run leaves the adapter switched on for every request. When it finishes, set the scale back to 0:
-
-```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Body '[{"id":0,"scale":0.0}]'
-```
-
 It sends the same real SME prompts with the adapter off and then on, and
 checks every reply is valid SME JSON. `RESULT: PASS` means the adapter loads
 and the server still behaves. It does **not** say the adapter is good: the
 stored adapter was trained on only 25 synthetic pairs.
 
+In global mode the script changes the server-wide scale, so it resets the scale
+to 0.0 itself when it finishes or fails and prints a note saying so. If it
+prints a warning that the reset failed, the adapter may still be on for every
+request; run this yourself (on the server machine, or swap in the tunnel URL):
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Body '[{"id":0,"scale":0.0}]'
+```
+
 ## 7. Roll back
 
-Remove the two arguments from `start-gemma.bat` and restart. The base model
-file was never touched.
+Remove the `--lora`/`--lora-init-without-apply` arguments (or the
+`--lora-scaled` argument, if you used the fallback) from `start-gemma.bat` and
+restart. The base model file was never touched.
 
 ## Notes
 

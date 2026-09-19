@@ -254,6 +254,10 @@ def fake_server(monkeypatch):
         "requests": [],
         "global_scale": 0.0,
         "bad_on": False,
+        "chat_500_when_on": False,
+        "chat_400": False,
+        "fail_reset": False,
+        "scale_on_seen": False,
     }
 
     class Handler(BaseHTTPRequestHandler):
@@ -290,12 +294,24 @@ def fake_server(monkeypatch):
             payload = json.loads(self.rfile.read(length) or b"null")
             self._record(payload)
             if self.path == "/lora-adapters":
-                state["global_scale"] = payload[0]["scale"]
+                new_scale = payload[0]["scale"]
+                if new_scale > 0:
+                    state["scale_on_seen"] = True
+                if new_scale == 0 and state["fail_reset"] and state["scale_on_seen"]:
+                    self._send(500, {"error": "cannot reset"})
+                    return
+                state["global_scale"] = new_scale
                 self._send(200, {"success": True})
             elif self.path == "/v1/chat/completions":
+                if state["chat_400"]:
+                    self._send(400, {"error": {"message": "context too long"}})
+                    return
                 scale = state["global_scale"]
                 if "lora" in payload:
                     scale = payload["lora"][0]["scale"]
+                if scale > 0 and state["chat_500_when_on"]:
+                    self._send(500, {"error": "boom"})
+                    return
                 if scale > 0 and state["bad_on"]:
                     content = "definitely not json"
                 else:
@@ -373,11 +389,14 @@ def test_cli_global_mode_sets_scale_through_the_adapter_endpoint(fake_server, ca
     assert [p["body"] for p in posts] == [
         [{"id": 0, "scale": 0.0}],
         [{"id": 0, "scale": 1.0}],
+        [{"id": 0, "scale": 0.0}],
     ]
     chats = [r for r in fake_server["requests"] if r["path"] == "/v1/chat/completions"]
     assert len(chats) == 4
     assert all("lora" not in c["body"] for c in chats)
     assert "score changed with adapter ON: 2/2 comparable prompt(s)" in out
+    assert "adapter scale reset to 0.0" in out
+    assert fake_server["global_scale"] == 0.0
 
 
 def test_cli_exits_1_when_an_adapter_on_reply_is_invalid(fake_server, capsys):
@@ -436,3 +455,90 @@ def test_cli_exits_2_when_no_base_url_is_given(fake_server, capsys):
     code, _, err = _run_cli([SAMPLE_PAIRS, "--limit", "1"], capsys)
     assert code == 2
     assert "base URL" in err
+
+
+def _global_argv(fake_server):
+    return [
+        SAMPLE_PAIRS,
+        "--base-url",
+        fake_server["base_url"],
+        "--limit",
+        "1",
+        "--scale-mode",
+        "global",
+    ]
+
+
+def _lora_posts(fake_server):
+    return [
+        r["body"]
+        for r in fake_server["requests"]
+        if r["method"] == "POST" and r["path"] == "/lora-adapters"
+    ]
+
+
+def test_cli_global_mode_resets_scale_when_a_chat_request_fails(fake_server, capsys):
+    fake_server["chat_500_when_on"] = True
+    code, out, err = _run_cli(_global_argv(fake_server), capsys)
+
+    assert code == 2
+    assert err.startswith("error:")
+    assert _lora_posts(fake_server)[-1] == [{"id": 0, "scale": 0.0}]
+    assert _lora_posts(fake_server)[-2] == [{"id": 0, "scale": 1.0}]
+    assert fake_server["global_scale"] == 0.0
+    assert "adapter scale reset to 0.0" in out
+
+
+def test_cli_global_mode_resets_scale_when_replies_are_invalid(fake_server, capsys):
+    fake_server["bad_on"] = True
+    code, _, _ = _run_cli(_global_argv(fake_server), capsys)
+
+    assert code == 1
+    assert _lora_posts(fake_server)[-1] == [{"id": 0, "scale": 0.0}]
+
+
+def test_cli_global_reset_failure_warns_loudly_and_keeps_exit_code(
+    fake_server, capsys, monkeypatch
+):
+    monkeypatch.setenv("LLM_API_KEY", "secret-key-123")
+    fake_server["fail_reset"] = True
+    code, out, err = _run_cli(_global_argv(fake_server), capsys)
+
+    assert code == 0
+    assert "RESULT: PASS" in out
+    assert "may still be ON" in err
+    assert "/lora-adapters" in err
+    assert '"scale":0.0' in err
+    assert "secret-key-123" not in out + err
+
+
+def test_cli_request_mode_never_posts_to_the_adapter_endpoint(fake_server, capsys):
+    code, out, _ = _run_cli(
+        [SAMPLE_PAIRS, "--base-url", fake_server["base_url"], "--limit", "1"], capsys
+    )
+    assert code == 0
+    assert _lora_posts(fake_server) == []
+    assert "reset" not in out
+
+
+def test_cli_global_mode_does_not_reset_when_the_server_was_never_touched(
+    fake_server, capsys
+):
+    fake_server["adapters"] = []
+    code, out, err = _run_cli(_global_argv(fake_server), capsys)
+
+    assert code == 2
+    assert _lora_posts(fake_server) == []
+    assert "may still be ON" not in err
+    assert "reset" not in out
+
+
+def test_cli_reports_the_http_error_body(fake_server, capsys):
+    fake_server["chat_400"] = True
+    code, _, err = _run_cli(
+        [SAMPLE_PAIRS, "--base-url", fake_server["base_url"], "--limit", "1"], capsys
+    )
+
+    assert code == 2
+    assert "HTTP Error 400" in err
+    assert "context too long" in err

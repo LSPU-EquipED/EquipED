@@ -14,8 +14,10 @@ environment: command-line arguments end up in shell history), and the model to
 LLM_MODEL_NAME. The key is never printed.
 
 Scale modes: "request" (default) sends the scale in each chat request; "global"
-sets it once through POST /lora-adapters, for servers that ignore the
-per-request field.
+sets it through POST /lora-adapters, for servers that ignore the per-request
+field. Global mode changes the server-wide scale, so the script resets it to 0.0
+when it finishes or fails and prints a note (or a warning on stderr if that
+reset itself fails).
 
 Exit code: 0 all replies valid, 1 some reply invalid, 2 could not run (server
 unreachable, no adapter loaded, bad input).
@@ -346,11 +348,14 @@ def make_complete(
     scale_mode: str,
     max_tokens: int,
     timeout: float,
+    scale_touched: list[bool] | None = None,
 ) -> Callable[[str, float], str]:
     current: dict[str, float | None] = {"scale": None}
 
     def complete(prompt: str, scale: float) -> str:
         if scale_mode == "global" and current["scale"] != scale:
+            if scale_touched is not None:
+                scale_touched.append(True)
             set_global_scale(base_url, api_key, adapter_id, scale, timeout)
             current["scale"] = scale
         payload = build_chat_payload(
@@ -378,13 +383,67 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--base-url", default=None, help="default: $LLM_API_BASE")
     parser.add_argument("--api-key", default=None, help="default: $LLM_API_KEY")
     parser.add_argument("--model", default=None, help="default: $LLM_MODEL_NAME")
-    parser.add_argument("--adapter-id", type=int, default=None)
     parser.add_argument(
-        "--scale-mode", choices=("request", "global"), default="request"
+        "--adapter-id",
+        type=int,
+        default=None,
+        help="adapter id to test (default: the first loaded adapter)",
     )
-    parser.add_argument("--max-tokens", type=int, default=1024)
-    parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--scale-mode",
+        choices=("request", "global"),
+        default="request",
+        help="request: send the scale in each chat request (default). global: "
+        "set it through POST /lora-adapters; this changes the server-wide "
+        "scale, and the script resets it to 0.0 afterwards",
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=1024,
+        help="max tokens per reply (default: 1024)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=300.0,
+        help="seconds to wait for each HTTP request (default: 300)",
+    )
     return parser.parse_args(argv)
+
+
+def describe_error(exc: BaseException) -> str:
+    """One-line description of a failure; adds the server's body for HTTP errors."""
+    text = str(exc)
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read(500).decode("utf-8", errors="replace").strip()
+        except (OSError, http.client.HTTPException):
+            body = ""
+        if body:
+            text = f"{text} - {body}"
+    return text
+
+
+def reset_global_scale(
+    base_url: str, api_key: str | None, adapter_id: int, timeout: float
+) -> None:
+    """Put the server-wide adapter scale back to 0.0 and say how it went."""
+    try:
+        set_global_scale(base_url, api_key, adapter_id, 0.0, timeout)
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        print(
+            f"WARNING: could not reset the adapter scale ({describe_error(exc)}). "
+            "The adapter may still be ON for every request. Reset it yourself: "
+            f"POST {server_root(base_url)}/lora-adapters "
+            f'[{{"id":{adapter_id},"scale":0.0}}]',
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "note: adapter scale reset to 0.0 "
+            "(global mode changes the server-wide scale)"
+        )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -398,25 +457,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     api_key = args.api_key or os.environ.get("LLM_API_KEY")
     model = args.model or os.environ.get("LLM_MODEL_NAME") or DEFAULT_MODEL
+    adapter_id: int | None = None
+    scale_touched: list[bool] = []
     try:
-        prompts = load_prompts(args.pairs, args.limit)
-        adapters = list_adapters(base_url, api_key, args.timeout)
-        adapter_id = choose_adapter_id(adapters, args.adapter_id)
-        complete = make_complete(
-            base_url=base_url,
-            api_key=api_key,
-            model=model,
-            adapter_id=adapter_id,
-            scale_mode=args.scale_mode,
-            max_tokens=args.max_tokens,
-            timeout=args.timeout,
-        )
-        report = run_smoke_test(prompts, complete)
-    except (OSError, ValueError, http.client.HTTPException) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-    print(format_report(report))
-    return exit_code(report)
+        try:
+            prompts = load_prompts(args.pairs, args.limit)
+            adapters = list_adapters(base_url, api_key, args.timeout)
+            adapter_id = choose_adapter_id(adapters, args.adapter_id)
+            complete = make_complete(
+                base_url=base_url,
+                api_key=api_key,
+                model=model,
+                adapter_id=adapter_id,
+                scale_mode=args.scale_mode,
+                max_tokens=args.max_tokens,
+                timeout=args.timeout,
+                scale_touched=scale_touched,
+            )
+            report = run_smoke_test(prompts, complete)
+        except (OSError, ValueError, http.client.HTTPException) as exc:
+            print(f"error: {describe_error(exc)}", file=sys.stderr)
+            return 2
+        print(format_report(report))
+        return exit_code(report)
+    finally:
+        if args.scale_mode == "global" and scale_touched and adapter_id is not None:
+            reset_global_scale(base_url, api_key, adapter_id, args.timeout)
 
 
 if __name__ == "__main__":
