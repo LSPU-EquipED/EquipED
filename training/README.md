@@ -91,3 +91,12 @@ directly (valid file, missing key, empty file) and behave correctly.
 neither of which are available in the environment this script was
 written in. Run it on your target machine and confirm before trusting
 it further.
+
+## Serving and evaluating a trained adapter
+
+The scripts above train an adapter. To use and judge one:
+
+- `serving-lora-adapter.md`: how the host owner loads the adapter on llama.cpp.
+- `smoke_test_lora_serving.py`: checks a served adapter still returns valid SME JSON.
+- `evaluate_adapter.py`: compares the adapter with the plain model on held-out
+  corrected cases and prints a verdict; see `evaluating-an-adapter.md`.
