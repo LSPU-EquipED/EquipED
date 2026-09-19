@@ -10,6 +10,14 @@ You will receive two files from the training side:
 - `adapter-f16.gguf` (about 60 MB), the adapter converted for llama.cpp
 - `adapter-f16.gguf.sha256`, its checksum
 
+The training notebook (`docs/colab/dpo_training_template.ipynb`) now produces
+both of these at the end of a run, plus an optional `adapter-f16.gguf.json`
+that records which llama.cpp commit made the file and which uploaded adapter it
+came from. You can ignore the JSON; it is a record for whoever trains. The
+standalone conversion notebook (`docs/colab/adapter_to_gguf_template.ipynb`,
+for re-converting an adapter that is already stored) produces only the first
+two.
+
 **Verified 2026-09-19 on llama-server build 10430:** loading the adapter with
 `--lora-scaled <file>:0.0` starts it switched **off** (scale 0.0), and a
 request can switch it on. Loading it with `--lora <file>
