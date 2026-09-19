@@ -8,6 +8,7 @@ expects. Full usage notes are added with the command-line entry point.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,3 +93,118 @@ def load_prompts(path: Path, limit: int) -> list[str]:
     if not prompts:
         raise ValueError(f"no prompts found in {path}")
     return prompts
+
+
+@dataclass(frozen=True)
+class PromptResult:
+    index: int
+    off: ValidationResult
+    on: ValidationResult
+
+    @property
+    def score_changed(self) -> bool | None:
+        if not (self.off.valid and self.on.valid):
+            return None
+        shared = self.off.scores.keys() & self.on.scores.keys()
+        return any(self.off.scores[key] != self.on.scores[key] for key in shared)
+
+
+@dataclass(frozen=True)
+class Report:
+    results: tuple[PromptResult, ...]
+
+    @property
+    def total(self) -> int:
+        return len(self.results)
+
+    @property
+    def valid_off(self) -> int:
+        return sum(1 for result in self.results if result.off.valid)
+
+    @property
+    def valid_on(self) -> int:
+        return sum(1 for result in self.results if result.on.valid)
+
+    @property
+    def comparable(self) -> int:
+        return sum(1 for result in self.results if result.score_changed is not None)
+
+    @property
+    def changed(self) -> int:
+        return sum(1 for result in self.results if result.score_changed is True)
+
+    @property
+    def all_valid(self) -> bool:
+        return self.valid_off == self.total and self.valid_on == self.total
+
+
+def run_smoke_test(
+    prompts: Sequence[str], complete: Callable[[str, float], str]
+) -> Report:
+    """Run every prompt with the adapter off (scale 0), then every prompt on.
+
+    All "off" replies come first so a server that needs a global scale change
+    between the two passes only has to switch once.
+    """
+    off_replies = [complete(prompt, 0.0) for prompt in prompts]
+    on_replies = [complete(prompt, 1.0) for prompt in prompts]
+    results = tuple(
+        PromptResult(
+            index=index,
+            off=validate_sme_reply(off_text),
+            on=validate_sme_reply(on_text),
+        )
+        for index, (off_text, on_text) in enumerate(
+            zip(off_replies, on_replies, strict=True), start=1
+        )
+    )
+    return Report(results)
+
+
+def _status(result: ValidationResult) -> str:
+    return "ok" if result.valid else "INVALID"
+
+
+def _detail(result: PromptResult) -> str:
+    if result.off.valid and result.on.valid:
+        return "scores changed" if result.score_changed else "scores unchanged"
+    parts = []
+    if not result.off.valid:
+        parts.append(f"off: {result.off.reason}")
+    if not result.on.valid:
+        parts.append(f"on: {result.on.reason}")
+    return "; ".join(parts)
+
+
+def format_report(report: Report) -> str:
+    lines = [
+        f"Adapter smoke test: {report.total} prompt(s)",
+        f"  adapter OFF: {report.valid_off}/{report.total} valid JSON",
+        f"  adapter ON : {report.valid_on}/{report.total} valid JSON",
+        f"  score changed with adapter ON: {report.changed}/{report.comparable}"
+        " comparable prompt(s)",
+        "",
+        "Per prompt:",
+    ]
+    for result in report.results:
+        lines.append(
+            f"  #{result.index}  off={_status(result.off):<7}  "
+            f"on={_status(result.on):<7}  {_detail(result)}"
+        )
+    lines.append("")
+    invalid = (report.total - report.valid_off) + (report.total - report.valid_on)
+    if invalid:
+        lines.append(f"RESULT: FAIL - {invalid} invalid reply(ies)")
+    else:
+        lines.append("RESULT: PASS - every reply was valid JSON")
+    if report.comparable and report.changed == 0:
+        lines.append(
+            "NOTE: no score changed between OFF and ON. Either the adapter's "
+            "effect is small or the per-request scale was ignored; check "
+            "GET /lora-adapters and try --scale-mode global."
+        )
+    return "\n".join(lines)
+
+
+def exit_code(report: Report) -> int:
+    return 0 if report.all_valid else 1

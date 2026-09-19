@@ -111,3 +111,89 @@ def test_bundled_sample_pairs_hold_real_sme_prompts():
     for prompt in prompts:
         assert "REQUIRED JSON OUTPUT STRUCTURE" in prompt
         assert "criterion_measurements" in prompt
+
+
+def test_run_smoke_test_calls_off_then_on_and_compares_scores():
+    calls: list[tuple[str, float]] = []
+
+    def complete(prompt: str, scale: float) -> str:
+        calls.append((prompt, scale))
+        return _reply(2 if scale == 0.0 else 3)
+
+    report = smoke.run_smoke_test(["p1", "p2"], complete)
+
+    assert calls == [("p1", 0.0), ("p2", 0.0), ("p1", 1.0), ("p2", 1.0)]
+    assert report.total == 2
+    assert report.valid_off == 2
+    assert report.valid_on == 2
+    assert report.comparable == 2
+    assert report.changed == 2
+    assert report.all_valid is True
+    assert smoke.exit_code(report) == 0
+
+
+def test_run_smoke_test_reports_unchanged_scores():
+    report = smoke.run_smoke_test(["p1"], lambda prompt, scale: _reply(2))
+    assert report.comparable == 1
+    assert report.changed == 0
+    assert report.results[0].score_changed is False
+
+
+def test_invalid_on_reply_fails_the_run_and_is_not_comparable():
+    def complete(prompt: str, scale: float) -> str:
+        return "garbage" if scale == 1.0 else _reply(2)
+
+    report = smoke.run_smoke_test(["p1"], complete)
+
+    assert report.valid_off == 1
+    assert report.valid_on == 0
+    assert report.comparable == 0
+    assert report.results[0].score_changed is None
+    assert report.all_valid is False
+    assert smoke.exit_code(report) == 1
+
+
+def test_scores_are_only_compared_on_shared_criteria():
+    def complete(prompt: str, scale: float) -> str:
+        criterion = "A" if scale == 0.0 else "B"
+        return _measurements({"criterion_id": criterion, "score": 2})
+
+    report = smoke.run_smoke_test(["p1"], complete)
+    assert report.results[0].score_changed is False
+
+
+def test_format_report_summarises_counts_and_lists_each_prompt():
+    def complete(prompt: str, scale: float) -> str:
+        if prompt == "bad" and scale == 1.0:
+            return _measurements({"criterion_id": "OP-01", "score": 9})
+        return _reply(2 if scale == 0.0 else 3)
+
+    text = smoke.format_report(smoke.run_smoke_test(["good", "bad"], complete))
+
+    assert "Adapter smoke test: 2 prompt(s)" in text
+    assert "adapter OFF: 2/2 valid JSON" in text
+    assert "adapter ON : 1/2 valid JSON" in text
+    assert "score changed with adapter ON: 1/1 comparable prompt(s)" in text
+    assert "RESULT: FAIL - 1 invalid reply(ies)" in text
+    first = next(line for line in text.splitlines() if line.startswith("  #1"))
+    assert "off=ok" in first and "on=ok" in first
+    assert first.rstrip().endswith("scores changed")
+    second = next(line for line in text.splitlines() if line.startswith("  #2"))
+    assert "off=ok" in second and "on=INVALID" in second
+    assert "on: measurement 0 score 9 out of range" in second
+
+
+def test_format_report_passes_and_warns_when_no_score_changed():
+    text = smoke.format_report(
+        smoke.run_smoke_test(["p1"], lambda prompt, scale: _reply(2))
+    )
+    assert "RESULT: PASS - every reply was valid JSON" in text
+    assert "NOTE: no score changed between OFF and ON" in text
+    assert "--scale-mode global" in text
+
+
+def test_format_report_has_no_note_when_scores_changed():
+    text = smoke.format_report(
+        smoke.run_smoke_test(["p1"], lambda prompt, scale: _reply(2 + int(scale)))
+    )
+    assert "NOTE:" not in text
