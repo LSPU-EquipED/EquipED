@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -948,3 +949,234 @@ def test_notebook_validation_rejects_corrupted_response_sha256_relationship():
     )
     with pytest.raises(ValueError, match=r"Record 1: response_sha256 mismatch"):
         _execute_notebook_validation_cell(package_bytes)
+
+
+# --- grouped held-out split (cell 5) and held-out artifact (cells 8-10) -------
+
+
+class _FakeDatasetsModule:
+    """Stands in for `datasets` (not installed in the CPU test environment)."""
+
+    class Dataset:
+        @staticmethod
+        def from_list(rows):
+            return list(rows)
+
+
+def _pairs_and_provenance(n_evaluations: int, pairs_per_evaluation: int):
+    pairs: list[dict[str, str]] = []
+    records: list[dict[str, Any]] = []
+    for e in range(n_evaluations):
+        for p in range(pairs_per_evaluation):
+            n = e * pairs_per_evaluation + p
+            pair = {
+                "prompt": f"prompt {n}",
+                "chosen": f"chosen {n}",
+                "rejected": f"rejected {n}",
+            }
+            pairs.append(pair)
+            records.append(
+                {
+                    "pair_id": f"{n + 1:08x}-1111-1111-1111-111111111111",
+                    "evaluation_id": f"{e + 1:08x}-2222-2222-2222-222222222222",
+                }
+            )
+    return pairs, list(zip(pairs, records, strict=True))
+
+
+def _run_split_cell(monkeypatch, pairs, pair_provenance_records) -> dict[str, Any]:
+    monkeypatch.setitem(sys.modules, "datasets", _FakeDatasetsModule)
+    ctx: dict[str, Any] = {
+        "pairs": pairs,
+        "pair_provenance_records": pair_provenance_records,
+    }
+    exec(_get_notebook_cell_code(5), ctx)  # noqa: S102
+    return ctx
+
+
+def test_split_cell_holds_out_whole_evaluations(monkeypatch):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    ctx = _run_split_cell(monkeypatch, pairs, records)
+
+    heldout_rows = ctx["heldout_rows"]
+    heldout_evals = {row["evaluation_id"] for row in heldout_rows}
+    assert len(heldout_evals) == 2  # ceil(20% of 10 evaluations)
+    assert len(heldout_rows) == 6  # every pair of a held-out evaluation
+    assert len(ctx["train_dataset"]) == 24
+    assert len(ctx["eval_dataset"]) == 6
+    train_evals = {prov["evaluation_id"] for _, prov in ctx["train_items"]}
+    assert train_evals.isdisjoint(heldout_evals)
+
+
+def test_split_cell_rows_carry_ids_and_datasets_carry_only_training_columns(
+    monkeypatch,
+):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    ctx = _run_split_cell(monkeypatch, pairs, records)
+
+    for row in ctx["heldout_rows"]:
+        assert set(row) == {
+            "pair_id",
+            "evaluation_id",
+            "prompt",
+            "chosen",
+            "rejected",
+        }
+    for row in [*ctx["train_dataset"], *ctx["eval_dataset"]]:
+        assert set(row) == {"prompt", "chosen", "rejected"}
+
+
+def test_split_cell_is_deterministic(monkeypatch):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    first = _run_split_cell(monkeypatch, pairs, records)["heldout_rows"]
+    second = _run_split_cell(monkeypatch, pairs, records)["heldout_rows"]
+    assert first == second
+
+
+def test_split_cell_holds_out_one_of_two_evaluations(monkeypatch):
+    pairs, records = _pairs_and_provenance(n_evaluations=2, pairs_per_evaluation=10)
+    ctx = _run_split_cell(monkeypatch, pairs, records)
+
+    assert len({row["evaluation_id"] for row in ctx["heldout_rows"]}) == 1
+    assert len(ctx["heldout_rows"]) == 10
+    assert len(ctx["train_dataset"]) == 10
+
+
+def test_split_cell_holds_nothing_out_below_twenty_pairs(monkeypatch, capsys):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=1)
+    ctx = _run_split_cell(monkeypatch, pairs, records)
+
+    assert ctx["eval_dataset"] is None
+    assert ctx["heldout_rows"] == []
+    assert len(ctx["train_dataset"]) == 10
+    assert "Holding nothing out" in capsys.readouterr().out
+
+
+def test_split_cell_holds_nothing_out_for_a_single_evaluation(monkeypatch, capsys):
+    pairs, records = _pairs_and_provenance(n_evaluations=1, pairs_per_evaluation=25)
+    ctx = _run_split_cell(monkeypatch, pairs, records)
+
+    assert ctx["eval_dataset"] is None
+    assert ctx["heldout_rows"] == []
+    assert len(ctx["train_dataset"]) == 25
+    assert "single evaluation" in capsys.readouterr().out
+
+
+class _FakePeftConfig:
+    def to_dict(self):
+        return {
+            "r": 16,
+            "lora_alpha": 32,
+            "lora_dropout": 0,
+            "target_modules": {"q_proj", "v_proj"},
+        }
+
+
+class _FakeModel:
+    peft_config = {"default": _FakePeftConfig()}
+
+
+class _FakeTrainingArgs:
+    seed = 42
+    learning_rate = 5e-6
+    num_train_epochs = 1
+    beta = 0.1
+    per_device_train_batch_size = 1
+    gradient_accumulation_steps = 8
+
+
+def _run_manifest_cell(split_ctx: dict[str, Any], adapter_dir: Path) -> dict[str, Any]:
+    ctx = dict(split_ctx)
+    ctx.update(
+        {
+            "ADAPTER_DIR": str(adapter_dir),
+            "manifest": {"pairs_sha256": "a" * 64, "provenance_sha256": "b" * 64},
+            "BASE_MODEL_NAME": "unsloth/gemma-3-4b-it",
+            "BASE_MODEL_REVISION": "rev",
+            "training_args": _FakeTrainingArgs(),
+            "TRAINING_SEED": 42,
+            "PRECISION_NAME": "float16",
+            "USE_FP16": True,
+            "USE_BF16": False,
+            "MAX_SEQ_LENGTH": 2048,
+            "model": _FakeModel(),
+            "metrics": None,
+        }
+    )
+    exec(_get_notebook_cell_code(9), ctx)  # noqa: S102
+    return ctx
+
+
+def test_manifest_cell_writes_heldout_file_and_records_its_hash(monkeypatch, tmp_path):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    split_ctx = _run_split_cell(monkeypatch, pairs, records)
+    adapter_dir = tmp_path / "trained_adapter"
+    adapter_dir.mkdir()
+
+    _run_manifest_cell(split_ctx, adapter_dir)
+
+    heldout_path = adapter_dir / "heldout_pairs.jsonl"
+    heldout_bytes = heldout_path.read_bytes()
+    lines = heldout_bytes.decode("utf-8").splitlines()
+    assert [json.loads(line) for line in lines] == split_ctx["heldout_rows"]
+
+    training_manifest = json.loads(
+        (adapter_dir / "training_manifest.json").read_text(encoding="utf-8")
+    )
+    assert training_manifest["heldout"] == {
+        "method": "group_by_evaluation_id",
+        "seed": 42,
+        "fraction": 0.2,
+        "pair_count": 6,
+        "evaluation_count": 2,
+        "sha256": hashlib.sha256(heldout_bytes).hexdigest(),
+    }
+
+
+def test_manifest_cell_records_null_heldout_when_nothing_was_held_out(
+    monkeypatch, tmp_path
+):
+    pairs, records = _pairs_and_provenance(n_evaluations=5, pairs_per_evaluation=1)
+    split_ctx = _run_split_cell(monkeypatch, pairs, records)
+    adapter_dir = tmp_path / "trained_adapter"
+    adapter_dir.mkdir()
+
+    _run_manifest_cell(split_ctx, adapter_dir)
+
+    assert not (adapter_dir / "heldout_pairs.jsonl").exists()
+    training_manifest = json.loads(
+        (adapter_dir / "training_manifest.json").read_text(encoding="utf-8")
+    )
+    assert training_manifest["heldout"] is None
+
+
+def test_packaging_cell_archives_the_heldout_file(monkeypatch, tmp_path):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    split_ctx = _run_split_cell(monkeypatch, pairs, records)
+    adapter_dir = tmp_path / "trained_adapter"
+    adapter_dir.mkdir()
+    (adapter_dir / "adapter_config.json").write_text("{}", encoding="utf-8")
+    (adapter_dir / "adapter_model.safetensors").write_bytes(b"weights")
+    _run_manifest_cell(split_ctx, adapter_dir)
+
+    mock_requests = (
+        "class _MockRequests:\n"
+        "    @staticmethod\n"
+        "    def post(url, files=None):\n"
+        "        class _Resp:\n"
+        "            def raise_for_status(self): pass\n"
+        "            def json(self): return {}\n"
+        "        return _Resp()\n"
+        "requests = _MockRequests()\n"
+    )
+    code = _get_notebook_cell_code(10).replace("import requests\n", mock_requests)
+    zip_path = tmp_path / "out.zip"
+    code = code.replace(
+        'ADAPTER_ZIP_PATH = "trained_adapter.zip"',
+        f"ADAPTER_ZIP_PATH = {str(zip_path)!r}",
+    )
+    exec(code, {"ADAPTER_DIR": str(adapter_dir), "UPLOAD_URL": "http://mock"})  # noqa: S102
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert "heldout_pairs.jsonl" in zf.namelist()
+        assert "training_manifest.json" in zf.namelist()

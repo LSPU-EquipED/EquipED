@@ -43,6 +43,7 @@ chroma_data/*
 adapters/*
 !adapters/.gitkeep
 *.jsonl
+!training/*.jsonl
 
 # Local Tesseract language data
 tessdata_local/
