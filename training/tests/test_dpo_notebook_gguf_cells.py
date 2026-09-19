@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -73,11 +74,22 @@ def test_every_new_code_cell_parses_as_python():
 
 
 def test_conversion_happens_after_the_upload_and_download_after_verification():
-    assert "requests.post(" in _source(UPLOAD_CELL)
-    assert UPLOAD_CELL < PREPARE < CONVERT < VERIFY < DOWNLOAD
-    assert "convert_lora_to_gguf.py" in _source(CONVERT)
-    assert "check_lora_fields(" in _source(VERIFY)
-    assert "files.download" in _source(DOWNLOAD)
+    sources = ["".join(cell["source"]) for cell in _cells(TRAINING_NOTEBOOK)]
+
+    def first(predicate):
+        return next(i for i, source in enumerate(sources) if predicate(source))
+
+    upload = first(lambda s: "UPLOAD_URL" in s and "requests.post(" in s)
+    first_conversion = first(
+        lambda s: "conversion_step" in s or "convert_lora_to_gguf" in s
+    )
+    verify = first(
+        lambda s: "check_lora_fields(" in s and "def check_lora_fields" not in s
+    )
+    download = first(lambda s: "files.download" in s)
+    assert upload == UPLOAD_CELL
+    assert upload < first_conversion
+    assert verify < download
 
 
 def _run_calls(source: str) -> list[list[ast.expr]]:
@@ -442,3 +454,63 @@ def test_download_cell_outside_colab_names_the_files(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "Not running in Colab" in out
     assert "adapter-f16.gguf.json" in out
+
+
+# --- the converter environment and the source hygiene ---------------------------------
+
+
+def _prepare_namespace(tmp_path, monkeypatch, failing_venv: bool):
+    monkeypatch.chdir(tmp_path)
+    requirements = tmp_path / "llama.cpp" / "requirements"
+    requirements.mkdir(parents=True)
+    (requirements / "requirements-convert_lora_to_gguf.txt").write_text("numpy\n")
+    ns = _helpers()
+    commands: list[list[str]] = []
+
+    def fake_run(command):
+        command = [str(part) for part in command]
+        commands.append(command)
+        if failing_venv and command[1:4] == ["-m", "venv", "converter-venv"]:
+            raise subprocess.CalledProcessError(1, command)
+
+    fake_subprocess = types.SimpleNamespace(
+        run=lambda *args, **kwargs: types.SimpleNamespace(stdout="c0ffee\n"),
+        CalledProcessError=subprocess.CalledProcessError,
+    )
+    ns.update(run=fake_run, subprocess=fake_subprocess)
+    return ns, commands
+
+
+def test_prepare_cell_creates_the_venv_and_installs_requirements_into_it(
+    tmp_path, monkeypatch
+):
+    ns, commands = _prepare_namespace(tmp_path, monkeypatch, failing_venv=False)
+    _run_cell(PREPARE, ns)
+
+    assert ns["LLAMA_CPP_COMMIT"] == "c0ffee"
+    assert commands[0][1:] == ["-m", "venv", "converter-venv"]
+    assert commands[1][0] == ns["venv_python"]()
+    assert commands[1][1:5] == ["-m", "pip", "install", "-q"]
+    assert commands[1][5] == "-r"
+    assert not any("virtualenv" in part for c in commands for part in c)
+
+
+def test_prepare_cell_falls_back_to_virtualenv_when_venv_fails(
+    tmp_path, monkeypatch, capsys
+):
+    ns, commands = _prepare_namespace(tmp_path, monkeypatch, failing_venv=True)
+    _run_cell(PREPARE, ns)
+
+    assert [c[1:] for c in commands[:3]] == [
+        ["-m", "venv", "converter-venv"],
+        ["-m", "pip", "install", "-q", "virtualenv"],
+        ["-m", "virtualenv", "converter-venv"],
+    ]
+    assert commands[3][0] == ns["venv_python"]()
+    assert commands[3][5] == "-r"
+    assert "falling back to virtualenv" in capsys.readouterr().out
+
+
+def test_new_cell_sources_are_ascii_only():
+    for cell in _cells(TRAINING_NOTEBOOK)[FIRST_NEW_CELL:]:
+        "".join(cell["source"]).encode("ascii")
