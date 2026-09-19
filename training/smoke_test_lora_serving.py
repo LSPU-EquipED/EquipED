@@ -318,7 +318,7 @@ def choose_adapter_id(adapters: list[dict], requested: int | None) -> int:
     if not ids:
         raise ValueError(
             "no LoRA adapter is loaded on the server; start llama-server with "
-            "--lora <file.gguf> --lora-init-without-apply"
+            "--lora-scaled <file.gguf>:0.0 (see training/serving-lora-adapter.md)"
         )
     if requested is None:
         return ids[0]
