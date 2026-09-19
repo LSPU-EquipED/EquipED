@@ -278,6 +278,7 @@ def fake_server(monkeypatch):
                     "method": self.command,
                     "path": self.path,
                     "auth": self.headers.get("Authorization"),
+                    "user_agent": self.headers.get("User-Agent"),
                     "body": payload,
                 }
             )
@@ -364,6 +365,19 @@ def test_cli_sends_bearer_key_and_never_prints_it(fake_server, capsys, monkeypat
     assert code == 0, err
     assert all(r["auth"] == "Bearer secret-key-123" for r in fake_server["requests"])
     assert "secret-key-123" not in out + err
+
+
+def test_cli_sends_a_custom_user_agent(fake_server, capsys):
+    # Cloudflare (used for the host's tunnel) answers Python's default
+    # "Python-urllib/x.y" identity with 403 / error 1010.
+    code, _, err = _run_cli(
+        [SAMPLE_PAIRS, "--base-url", fake_server["base_url"], "--limit", "1"], capsys
+    )
+
+    assert code == 0, err
+    agents = {r["user_agent"] for r in fake_server["requests"]}
+    assert agents == {smoke.USER_AGENT}
+    assert not smoke.USER_AGENT.startswith("Python-urllib")
 
 
 def test_cli_global_mode_sets_scale_through_the_adapter_endpoint(fake_server, capsys):

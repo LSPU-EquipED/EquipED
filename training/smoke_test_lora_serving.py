@@ -43,6 +43,9 @@ from pathlib import Path
 MIN_SCORE = 1
 MAX_SCORE = 4
 DEFAULT_MODEL = "gemma-3-4b-it"
+# Cloudflare tunnels reject Python's default "Python-urllib/x.y" identity
+# with HTTP 403 (error 1010), so always send our own.
+USER_AGENT = "equiped-lora-smoke-test/1.0"
 
 
 @dataclass(frozen=True)
@@ -247,7 +250,7 @@ def server_root(base_url: str) -> str:
 
 
 def _headers(api_key: str | None) -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     return headers
