@@ -361,6 +361,41 @@ def test_create_adapter_comparison_creates_a_linked_pair(
     assert base_job.target_agent == adapter_job.target_agent == "sme"
 
 
+def test_create_model_validation_sets_compare_fields_when_provided(
+    admin_user, db_session
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    group_id = uuid.uuid4()
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        }
+    )
+
+    response = create_model_validation(
+        req,
+        created_by=admin_user.user_id,
+        created_by_role="admin",
+        db=db_session,
+        model_variant="base",
+        compare_group_id=group_id,
+        lora_scale=0.0,
+    )
+
+    validation = db_session.get(ModelValidation, response.validation_id)
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert validation.model_variant == "base"
+    assert validation.compare_group_id == group_id
+    assert job.lora_scale == 0.0
+
+
 def test_create_adapter_comparison_rejects_all_agents(admin_user, db_session) -> None:
     from pydantic import ValidationError
     from server.modules.admin.schemas import AdapterComparisonCreateRequest

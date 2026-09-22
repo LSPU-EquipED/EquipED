@@ -181,6 +181,9 @@ def create_model_validation(
     created_by: uuid.UUID,
     created_by_role: str | None = None,
     db: Any,
+    model_variant: str | None = None,
+    compare_group_id: uuid.UUID | None = None,
+    lora_scale: float | None = None,
 ) -> ModelValidationResponse:
     """Create an evaluation job with private criterion-level benchmarks.
 
@@ -334,6 +337,15 @@ def create_model_validation(
             )
         # Persist the FK parent before adding snapshots and benchmark children.
         db.flush()
+        if lora_scale is not None:
+            # The session may not autoflush, so `_bench_job` fetched above can
+            # still be unpersisted at that point; re-fetch now that the flush
+            # above guarantees the job row exists.
+            job_for_scale = _bench_job or db.get(
+                EvaluationJob, evaluation.evaluation_id
+            )
+            if job_for_scale is not None:
+                job_for_scale.lora_scale = lora_scale
 
         # Precreate exact standard snapshots from locked forms
         persist_evaluation_form_snapshots(
@@ -344,6 +356,8 @@ def create_model_validation(
             validation_id=validation_id,
             evaluation_id=evaluation.evaluation_id,
             created_by=created_by,
+            model_variant=model_variant,
+            compare_group_id=compare_group_id,
         )
         db.add(validation)
         db.flush()
@@ -397,19 +411,15 @@ def create_adapter_comparison(
                 ],
             }
         )
-        response = create_model_validation(
+        return create_model_validation(
             base_request,
             created_by=created_by,
             created_by_role=created_by_role,
             db=db,
+            model_variant=model_variant,
+            compare_group_id=compare_group_id,
+            lora_scale=lora_scale,
         )
-        validation = db.get(ModelValidation, response.validation_id)
-        job = db.get(EvaluationJob, response.evaluation_id)
-        validation.model_variant = model_variant
-        validation.compare_group_id = compare_group_id
-        job.lora_scale = lora_scale
-        db.commit()
-        return response
 
     base_response = _one_run(model_variant="base", lora_scale=0.0)
     adapter_response = _one_run(model_variant="adapter", lora_scale=1.0)
