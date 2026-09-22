@@ -1,6 +1,7 @@
 import {
   BookOpenText,
-  ClipboardText,
+  ClockCounterClockwise,
+  FileText,
   FolderOpen,
   GraduationCap,
   type Icon,
@@ -31,35 +32,41 @@ export interface NavGroup {
 export const facultyNavGroups: readonly NavGroup[] = [
   {
     id: 'home',
-    label: 'HOME',
+    label: 'Home',
     items: [
-      { to: '/dashboard', label: 'Home', icon: SquaresFour, exact: true },
+      { to: '/dashboard', label: 'Overview', icon: SquaresFour, exact: true },
     ],
   },
   {
     id: 'storage',
-    label: 'SLM REPOSITORY',
+    label: 'Documents',
     items: [
-      { to: '/documents', label: 'SLM Storage', icon: FolderOpen, exact: false },
+      { to: '/documents', label: 'Documents', icon: FolderOpen, exact: false },
     ],
   },
   {
     id: 'specialists',
-    label: 'EVALUATION SPECIALISTS',
+    label: 'Evaluations',
     items: [
-      { to: '/specialists/sme', label: 'Subject Matter Expert', icon: GraduationCap, exact: false },
-      { to: '/specialists/coordinator', label: 'Program Coordinator', icon: ListChecks, exact: false },
-      { to: '/specialists/gad', label: 'Gender & Development', icon: ShieldCheck, exact: false },
-      { to: '/specialists/itso', label: 'Innovation and Technology Support Office', icon: Lightbulb, exact: false },
+      { to: '/specialists/sme', label: 'SME', icon: GraduationCap, exact: false },
+      { to: '/specialists/coordinator', label: 'Coordinator', icon: ListChecks, exact: false },
+      { to: '/specialists/gad', label: 'GAD', icon: ShieldCheck, exact: false },
+      { to: '/specialists/itso', label: 'ITSO', icon: Lightbulb, exact: false },
     ],
   },
   {
     id: 'alignment',
-    label: 'ALIGNMENT & AUDIT',
+    label: 'Alignment',
     items: [
-      { to: '/syllabus-alignment', label: 'Syllabus Alignment', icon: ListChecks, exact: false },
-      { to: '/alignment', label: 'Curriculum Check', icon: BookOpenText, exact: false },
-      { to: '/evaluations', label: 'Evaluation History', icon: ClipboardText, exact: true },
+      { to: '/syllabus-alignment', label: 'Syllabus', icon: FileText, exact: false },
+      { to: '/curriculum-alignment', label: 'Curriculum', icon: BookOpenText, exact: false },
+    ],
+  },
+  {
+    id: 'logs',
+    label: 'Logs',
+    items: [
+      { to: '/evaluations', label: 'History', icon: ClockCounterClockwise, exact: true },
     ],
   },
 ] as const;
@@ -85,6 +92,8 @@ export function filterFacultyNavGroups(
     '/specialists/itso': 'itso',
   };
 
+  const permSet = new Set(permissions);
+
   return groups
     .map((group) => {
       if (group.id !== 'specialists') {
@@ -93,7 +102,7 @@ export function filterFacultyNavGroups(
       const filteredItems = group.items.filter((item) => {
         const requiredPerm = SPECIALIST_PERMS[item.to];
         if (!requiredPerm) return true;
-        return permissions.includes(requiredPerm);
+        return permSet.has(requiredPerm);
       });
       return {
         ...group,
@@ -128,9 +137,9 @@ export function getSidebarLayoutClasses(isCollapsed: boolean): {
   sidebarDesktopWidth: string;
 } {
   return {
-    headerLeft: isCollapsed ? 'left-0 md:left-[5.75rem]' : 'left-0 md:left-72',
-    mainPadding: isCollapsed ? 'pl-0 md:pl-[5.75rem]' : 'pl-0 md:pl-72',
-    sidebarDesktopWidth: isCollapsed ? 'md:w-[5.75rem]' : 'md:w-72',
+    headerLeft: isCollapsed ? 'left-0 md:left-[4.5rem]' : 'left-0 md:left-64',
+    mainPadding: isCollapsed ? 'pl-0 md:pl-[4.5rem]' : 'pl-0 md:pl-64',
+    sidebarDesktopWidth: isCollapsed ? 'md:w-[4.5rem]' : 'md:w-64',
   };
 }
 
@@ -154,118 +163,128 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
 
   if (cleanPath === '/dashboard' || cleanPath === '/') {
-    return [
-      { label: 'Faculty Workspace' },
-      { label: 'Overview' },
-    ];
+    return [{ label: 'Overview' }];
+  }
+
+  if (cleanPath === '/documents' || cleanPath === '/storage') {
+    return [{ label: 'Documents' }];
   }
 
   if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) {
     return [
-      { label: 'SLM Storage', to: '/documents' },
-      { label: 'Specialist Review' },
+      { label: 'Documents', to: '/documents' },
+      { label: 'Review' },
     ];
   }
 
-  if (cleanPath === '/documents' || cleanPath === '/storage') {
+  if (cleanPath.startsWith('/specialists/sme/')) {
     return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'SLM Storage' },
+      { label: 'SME', to: '/specialists/sme' },
+      { label: 'Scoreboard' },
     ];
+  }
+
+  if (cleanPath === '/specialists/sme') {
+    return [{ label: 'SME' }];
+  }
+
+  if (cleanPath.startsWith('/specialists/coordinator/')) {
+    return [
+      { label: 'Coordinator', to: '/specialists/coordinator' },
+      { label: 'Scoreboard' },
+    ];
+  }
+
+  if (cleanPath === '/specialists/coordinator') {
+    return [{ label: 'Coordinator' }];
+  }
+
+  if (cleanPath.startsWith('/specialists/gad/')) {
+    return [
+      { label: 'GAD', to: '/specialists/gad' },
+      { label: 'Scoreboard' },
+    ];
+  }
+
+  if (cleanPath === '/specialists/gad') {
+    return [{ label: 'GAD' }];
+  }
+
+  if (cleanPath.startsWith('/specialists/itso/')) {
+    return [
+      { label: 'ITSO', to: '/specialists/itso' },
+      { label: 'Scoreboard' },
+    ];
+  }
+
+  if (cleanPath === '/specialists/itso') {
+    return [{ label: 'ITSO' }];
+  }
+
+  if (cleanPath === '/evaluations') {
+    return [{ label: 'History' }];
   }
 
   if (cleanPath.startsWith('/evaluations/') && cleanPath.endsWith('/report')) {
     return [
-      { label: 'Evaluations', to: '/evaluations' },
-      { label: 'Evaluation Report' },
-    ];
-  }
-
-  if (cleanPath.startsWith('/specialists/sme')) {
-    return [
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Subject Matter Expert' },
-    ];
-  }
-
-  if (cleanPath.startsWith('/specialists/coordinator')) {
-    return [
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Program Coordinator' },
-    ];
-  }
-
-  if (cleanPath.startsWith('/specialists/gad')) {
-    return [
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Gender & Development' },
-    ];
-  }
-
-  if (cleanPath.startsWith('/specialists/itso')) {
-    return [
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Innovation and Technology Support Office' },
-    ];
-  }
-
-  if (cleanPath === '/evaluations') {
-    return [
-      { label: 'Evaluations' },
-      { label: 'History' },
+      { label: 'History', to: '/evaluations' },
+      { label: 'Report' },
     ];
   }
 
   if (cleanPath.startsWith('/evaluations/')) {
     return [
-      { label: 'Evaluations', to: '/evaluations' },
-      { label: 'Evaluation Results' },
+      { label: 'History', to: '/evaluations' },
+      { label: 'Scorecard' },
     ];
   }
 
   if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) {
     return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Syllabus Alignment', to: '/syllabus-alignment' },
-      { label: 'Alignment Report' },
-    ];
-  }
-
-  if (cleanPath === '/syllabus-alignment') {
-    return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Syllabus Alignment' },
+      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Report' },
     ];
   }
 
   if (cleanPath.startsWith('/syllabus-alignment/')) {
     return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Syllabus Alignment', to: '/syllabus-alignment' },
+      { label: 'Syllabus', to: '/syllabus-alignment' },
       { label: 'Workstation' },
     ];
   }
 
-  if (cleanPath === '/alignment') {
+  if (cleanPath === '/syllabus-alignment') {
+    return [{ label: 'Syllabus' }];
+  }
+
+  if (cleanPath.startsWith('/curriculum-alignment/')) {
     return [
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'Curriculum Check' },
+      { label: 'Curriculum', to: '/curriculum-alignment' },
+      { label: 'Matrix' },
     ];
   }
 
-  return [
-    { label: 'Faculty Workspace', to: '/dashboard' },
-    { label: 'Portal' },
-  ];
+  if (cleanPath === '/curriculum-alignment') {
+    return [{ label: 'Curriculum' }];
+  }
+
+  return [{ label: 'Portal' }];
 }
 
 export function getRouteTitle(pathname: string): string {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
-  if (cleanPath === '/dashboard' || cleanPath === '/') return 'Home';
-  if (cleanPath === '/documents') return 'My SLMs';
-  if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) return 'Specialist Review';
-  if (cleanPath === '/evaluations') return 'Evaluation History';
+  if (cleanPath === '/dashboard' || cleanPath === '/') return 'Overview';
+  if (cleanPath === '/documents') return 'Documents';
+  if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) return 'Review';
+  if (cleanPath === '/specialists/sme') return 'SME';
+  if (cleanPath === '/specialists/coordinator') return 'Coordinator';
+  if (cleanPath === '/specialists/gad') return 'GAD';
+  if (cleanPath === '/specialists/itso') return 'ITSO';
+  if (cleanPath === '/evaluations') return 'History';
   if (cleanPath.startsWith('/evaluations/')) return 'Scorecard';
-  if (cleanPath === '/alignment') return 'Curriculum Check';
+  if (cleanPath === '/syllabus-alignment') return 'Syllabus';
+  if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) return 'Report';
+  if (cleanPath.startsWith('/syllabus-alignment/')) return 'Workstation';
+  if (cleanPath === '/curriculum-alignment') return 'Curriculum';
   return 'EquipED';
 }

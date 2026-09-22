@@ -7,7 +7,7 @@
 @source "../../../libs/auth/src/**/*.{ts,tsx}";
 
 /* -------------------------------------------------------------------------- */
-/* Design Tokens (Contemporary Faculty Ledger)                                 */
+/* Design Tokens (Institutional Workbench)                                      */
 /* -------------------------------------------------------------------------- */
 
 @theme inline {
@@ -67,47 +67,47 @@
   --radius: 0.25rem;
 
   /* Brand Colors */
-  --primary: #1b3b87;
-  --primary-strong: #142f70;
-  --primary-soft: #edf2ff;
+  --primary: #16445d;
+  --primary-strong: #0d3044;
+  --primary-soft: #e4eff3;
   --primary-foreground: #ffffff;
 
-  --secondary: #f2c811;
-  --secondary-foreground: #172033;
+  --secondary: #d9ad1d;
+  --secondary-foreground: #1b2b33;
 
-  --accent: #f2c811;
-  --accent-soft: #fff8cf;
-  --accent-foreground: #172033;
+  --accent: #d9ad1d;
+  --accent-soft: #fbf3cf;
+  --accent-foreground: #493b08;
 
   /* Semantic Status */
-  --success: #2f7d32;
-  --success-soft: #edf7ed;
+  --success: #28754b;
+  --success-soft: #e8f3ec;
   --success-foreground: #ffffff;
 
-  --info: #1f718f;
-  --info-soft: #eaf7fb;
+  --info: #28758a;
+  --info-soft: #e4f1f4;
   --info-foreground: #ffffff;
 
-  --warning: #8a5a00;
-  --warning-soft: #fff7db;
+  --warning: #86620a;
+  --warning-soft: #fbf3d9;
   --warning-foreground: #ffffff;
 
-  --destructive: #b42318;
-  --destructive-soft: #fff0ee;
+  --destructive: #b13b32;
+  --destructive-soft: #fbeceb;
   --destructive-foreground: #ffffff;
 
   /* Surfaces and Neutrals */
-  --canvas: #f4f7fb;
-  --surface: #ffffff;
-  --surface-subtle: #f8fafc;
-  --background: #f4f7fb;
-  --foreground: #172033;
-  --text: #172033;
-  --text-muted: #596579;
-  --border: #d6deea;
-  --border-strong: #94a3b8;
-  --input: #c8d2e1;
-  --ring: #1b3b87;
+  --canvas: #eef2f3;
+  --surface: #fbfcfc;
+  --surface-subtle: #e7edef;
+  --background: #eef2f3;
+  --foreground: #1b2b33;
+  --text: #1b2b33;
+  --text-muted: #60717a;
+  --border: #cad6da;
+  --border-strong: #91a5ad;
+  --input: #b7c7cc;
+  --ring: #28758a;
 }
 
 * {
@@ -163,16 +163,15 @@ body {
 }
 
 .skeleton-shimmer {
-  background: linear-gradient(
-    105deg,
-    var(--surface-subtle) 0%,
-    var(--surface-subtle) 38%,
-    #e9eef6 50%,
-    var(--surface-subtle) 62%,
-    var(--surface-subtle) 100%
+  background-color: var(--surface-subtle);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  animation: skeleton-shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

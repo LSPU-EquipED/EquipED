@@ -9,7 +9,7 @@ export function AppLoadingSkeleton() {
       aria-busy="true"
     >
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[108rem] overflow-hidden rounded-md border border-border bg-surface">
-        <aside className="hidden w-64 shrink-0 border-r border-border bg-surface-subtle p-5 lg:flex lg:flex-col">
+        <aside className="hidden w-64 shrink-0 border-r border-border bg-surface p-5 lg:flex lg:flex-col">
           <div className="flex items-center gap-3 border-b border-border pb-5">
             <Skeleton className="size-10 rounded-sm" />
             <div className="flex-1 space-y-2">
@@ -26,12 +26,12 @@ export function AppLoadingSkeleton() {
         </aside>
 
         <main className="min-w-0 flex-1">
-          <div className="flex h-16 items-center justify-between border-b border-border px-5 sm:px-8">
+          <div className="flex h-14 items-center justify-between border-b border-border px-5 sm:px-8">
             <div className="space-y-2">
               <Skeleton className="h-2.5 w-20" />
               <Skeleton className="h-4 w-40" />
             </div>
-            <Skeleton className="size-9 rounded-full" />
+            <Skeleton className="size-9 rounded-sm" />
           </div>
           <div className="space-y-6 p-5 sm:p-8">
             <div className="space-y-3">

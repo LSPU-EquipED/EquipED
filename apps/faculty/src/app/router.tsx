@@ -140,12 +140,10 @@ const documentsRoute = createRoute({
 function EvaluationsRouteView() {
   const auth = useAuth();
   return (
-    <div className="px-6 py-7">
-      <HistoryPage
-        evaluatorPermissions={auth.user?.evaluatorPermissions}
-        userRole={auth.user?.role}
-      />
-    </div>
+    <HistoryPage
+      evaluatorPermissions={auth.user?.evaluatorPermissions}
+      userRole={auth.user?.role}
+    />
   );
 }
 
@@ -180,7 +178,14 @@ const specialistScoreboardDocRoute = createRoute({
   path: 'specialists/$agentId/$documentId',
   beforeLoad: ({ context, params }) => {
     requireRole(['faculty'])({ context });
-    requireEvaluatorPermission((p) => p.agentId)({ context, params });
+    if (!isTargetAgent(params.agentId)) {
+      throw redirect({ to: '/dashboard' });
+    }
+    try {
+      requireEvaluatorPermission((p) => p.agentId)({ context, params });
+    } catch {
+      throw redirect({ to: '/dashboard' });
+    }
   },
   component: SpecialistScoreboardPage,
 });
@@ -190,7 +195,14 @@ const specialistScoreboardRoute = createRoute({
   path: 'specialists/$agentId',
   beforeLoad: ({ context, params }) => {
     requireRole(['faculty'])({ context });
-    requireEvaluatorPermission((p) => p.agentId)({ context, params });
+    if (!isTargetAgent(params.agentId)) {
+      throw redirect({ to: '/dashboard' });
+    }
+    try {
+      requireEvaluatorPermission((p) => p.agentId)({ context, params });
+    } catch {
+      throw redirect({ to: '/dashboard' });
+    }
   },
   component: SpecialistScoreboardPage,
 });
@@ -231,11 +243,25 @@ const syllabusAlignmentReportRoute = createRoute({
   component: SyllabusAlignmentReportPage,
 });
 
+const curriculumAlignmentRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: 'curriculum-alignment',
+  beforeLoad: requireRole(['faculty']),
+  component: AlignmentCheckPage,
+});
+
 const alignmentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'alignment',
-  beforeLoad: requireRole(['faculty']),
-  component: AlignmentCheckPage,
+  beforeLoad: ({ context, search, location }) => {
+    requireRole(['faculty'])({ context });
+    throw redirect({
+      to: '/curriculum-alignment',
+      search: (search ?? {}) as Record<string, unknown>,
+      hash: location.hash,
+      replace: true,
+    });
+  },
 });
 
 const routeTree = rootRoute.addChildren([
@@ -254,6 +280,7 @@ const routeTree = rootRoute.addChildren([
     syllabusAlignmentRoute,
     syllabusAlignmentWorkspaceRoute,
     syllabusAlignmentReportRoute,
+    curriculumAlignmentRoute,
     alignmentRoute,
   ]),
 ]);
