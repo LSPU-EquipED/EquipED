@@ -63,11 +63,20 @@ export type AlignmentSlmItem = {
   current_result?: AlignmentRun | null;
 };
 
+export type AlignmentSlmStats = {
+  total: number;
+  meets: number;
+  partially_meets: number;
+  needs_attention: number;
+  pending: number;
+};
+
 export type AlignmentSlmListResponse = {
   items: AlignmentSlmItem[];
   total: number;
   page: number;
   page_size: number;
+  stats?: AlignmentSlmStats;
 };
 
 export type SyllabusReferenceOption = {

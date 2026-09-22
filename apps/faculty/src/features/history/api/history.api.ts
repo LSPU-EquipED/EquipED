@@ -1,20 +1,20 @@
-import { requestJson } from '@equiped/api-client';
-import type { HistoryListResponse } from '../types';
+import { evaluationsApi } from '@equiped/api-client';
+import type { EvaluationListResponse, TargetAgent } from '@equiped/types';
 
 export interface HistoryQueryParams {
   status?: string;
-  target_agent?: string;
+  target_agent?: TargetAgent | 'all';
   page?: number;
   page_size?: number;
 }
 
 export const historyApi = {
-  getHistory: (params: HistoryQueryParams = {}) => {
-    const searchParams = new URLSearchParams();
-    if (params.status) searchParams.set('status', params.status);
-    if (params.target_agent) searchParams.set('target_agent', params.target_agent);
-    if (params.page) searchParams.set('page', String(params.page));
-    if (params.page_size) searchParams.set('page_size', String(params.page_size));
-    return requestJson<HistoryListResponse>(`/evaluations/?${searchParams.toString()}`);
+  getHistory: (params: HistoryQueryParams = {}): Promise<EvaluationListResponse> => {
+    return evaluationsApi.listEvaluations({
+      status: params.status,
+      targetAgent: params.target_agent,
+      page: params.page,
+      pageSize: params.page_size,
+    });
   },
 };

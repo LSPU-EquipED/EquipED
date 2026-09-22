@@ -32,50 +32,59 @@ export function AlignmentResultsTable({
 
   return (
     <table className={TABLE_STYLES.table}>
-      <thead className={TABLE_STYLES.thead}>
+      <thead className={cn(TABLE_STYLES.thead, 'sticky top-0 z-10 bg-surface border-b border-border')}>
         <tr>
-          <th className={TABLE_STYLES.th}>Objective</th>
-          <th className={TABLE_STYLES.th}>Expected</th>
-          <th className={TABLE_STYLES.th}>Observed</th>
-          <th className={TABLE_STYLES.th}>Status</th>
+          <th className={cn(TABLE_STYLES.th, 'w-[55%] min-w-[14rem]')}>Objective</th>
+          <th className={cn(TABLE_STYLES.th, 'w-[15%] text-center')}>Expected</th>
+          <th className={cn(TABLE_STYLES.th, 'w-[15%] text-center')}>Observed</th>
+          <th className={cn(TABLE_STYLES.th, 'w-[15%] text-right')}>Status</th>
         </tr>
       </thead>
       <tbody className={TABLE_STYLES.tbody}>
         {objectiveResults.map((result) => {
           const normalizedStatus = normalizeBoundedStatus(result.status, coverageScope);
           const downgradeNote = getResultDowngradeNote(result.status, normalizedStatus);
+          const target = getEvidenceNavigation(result.evidence_page, result.evidence);
 
           return (
-            <tr key={result.code} className="border-t border-border align-top transition-colors hover:bg-surface-subtle/50">
+            <tr key={result.code} className="border-t border-border align-top transition-colors hover:bg-surface-subtle/40">
               <td className={TABLE_STYLES.td}>
-                <div className="text-sm font-semibold text-text">{result.code}</div>
-                <div className="text-xs text-text-muted">{result.description}</div>
-                {result.evidence ? (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-xs font-bold text-text bg-surface-subtle border border-border px-1.5 py-0.5 rounded-xs">
+                    {result.code}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs leading-relaxed text-text-muted">{result.description}</div>
+                {result.evidence && target ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      const target = getEvidenceNavigation(result.evidence_page, result.evidence);
-                      if (target) {
-                        onEvidenceClick?.(target.pageNumber, target.evidence);
-                      }
-                    }}
-                    className="mt-2 block w-full rounded-sm border border-border bg-surface-subtle p-2.5 text-left text-xs font-medium leading-[1.6] text-text transition-colors hover:bg-surface hover:border-border"
+                    onClick={() => onEvidenceClick?.(target.pageNumber, target.evidence)}
+                    className="mt-2.5 block w-full rounded-xs border border-border/80 bg-surface-subtle/50 p-2.5 text-left text-xs font-medium leading-relaxed text-text transition-colors hover:bg-surface hover:border-primary/40 focus-visible:outline-2 focus-visible:outline-ring"
+                    title={`Jump to SLM page ${target.pageNumber}`}
                   >
-                    &ldquo;{result.evidence}&rdquo;
+                    <span className="flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1">
+                      <span>SLM Evidence (Page {target.pageNumber})</span>
+                      <span className="text-primary hover:underline">View in reader →</span>
+                    </span>
+                    <span className="block italic text-text [overflow-wrap:anywhere]">&ldquo;{result.evidence}&rdquo;</span>
                   </button>
                 ) : null}
                 {downgradeNote ? (
-                  <p className="mt-2 rounded-sm border border-warning/30 bg-warning-soft px-2 py-1.5 text-xs font-medium text-warning">
+                  <p className="mt-2 rounded-xs border border-warning/30 bg-warning-soft px-2.5 py-1.5 text-xs font-medium text-warning">
                     {downgradeNote}
                   </p>
                 ) : null}
               </td>
-              <td className={cn(TABLE_STYLES.tdData, 'font-bold')}>{result.expected_level}</td>
-              <td className={cn(TABLE_STYLES.tdData, 'font-bold')}>{result.observed_level ?? '—'}</td>
-              <td className={TABLE_STYLES.td}>
+              <td className={cn(TABLE_STYLES.tdData, 'text-center')}>
+                <span className="font-mono text-xs font-bold text-text tabular-nums">{result.expected_level}</span>
+              </td>
+              <td className={cn(TABLE_STYLES.tdData, 'text-center')}>
+                <span className="font-mono text-xs font-bold text-text tabular-nums">{result.observed_level ?? '—'}</span>
+              </td>
+              <td className={cn(TABLE_STYLES.td, 'text-right')}>
                 <span
                   className={cn(
-                    'inline-flex items-center rounded-xs border px-2 py-0.5 text-xs font-semibold tracking-wide select-none',
+                    'inline-flex items-center rounded-xs border px-2 py-0.5 text-xs font-semibold tabular-nums select-none',
                     statusBadgeClasses(normalizedStatus),
                   )}
                 >

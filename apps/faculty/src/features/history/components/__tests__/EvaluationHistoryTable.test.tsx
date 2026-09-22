@@ -102,8 +102,12 @@ describe('EvaluationHistoryTable Component', () => {
           syllabus_id: 'syl-1',
           curriculum_id: 'curr-1',
           status: 'COMPLETED',
+          target_agent: 'all',
+          error_message: null,
+          confirmed_program: 'BSCS',
           submitted_at: '2026-08-20T10:00:00Z',
           completed_at: '2026-08-20T10:05:00Z',
+          duration_seconds: 300,
         },
       ],
       total: 1,
@@ -139,8 +143,11 @@ describe('EvaluationHistoryTable Component', () => {
           curriculum_id: 'curr-1',
           status: 'COMPLETED',
           target_agent: 'sme',
+          error_message: null,
+          confirmed_program: 'BSCS',
           submitted_at: '2026-08-20T10:00:00Z',
           completed_at: '2026-08-20T10:05:00Z',
+          duration_seconds: 300,
         },
       ],
       total: 1,
@@ -174,8 +181,11 @@ describe('EvaluationHistoryTable Component', () => {
           curriculum_id: 'curr-2',
           status: 'COMPLETED',
           target_agent: 'all',
+          error_message: null,
+          confirmed_program: 'BSCS',
           submitted_at: '2026-08-20T10:00:00Z',
           completed_at: '2026-08-20T10:05:00Z',
+          duration_seconds: 300,
         },
       ],
       total: 1,
@@ -206,8 +216,9 @@ describe('EvaluationHistoryTable Component', () => {
     } as unknown as UseQueryResult<HistoryListResponse, Error>);
 
     renderTable();
-    const roleTab = screen.getByRole('tab', { name: /Gender & Development/i });
-    fireEvent.click(roleTab);
+    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    fireEvent.click(roleSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'Gender & Development' }));
     expect(useHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({
         target_agent: 'gad',
@@ -224,8 +235,9 @@ describe('EvaluationHistoryTable Component', () => {
 
     renderTable();
 
-    const statusSelect = screen.getByLabelText(/Status:/i);
-    fireEvent.change(statusSelect, { target: { value: 'FAILED' } });
+    const statusSelect = screen.getByRole('button', { name: 'Status' });
+    fireEvent.click(statusSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'Failed' }));
 
     expect(useHistorySpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -261,7 +273,7 @@ describe('EvaluationHistoryTable Component', () => {
     }
   });
 
-  it('filters role tabs and defaults target_agent query to permitted evaluator desks', () => {
+  it('hides role filter dropdown when user only has a single permitted desk and defaults query to it', () => {
     const useHistorySpy = vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
       data: { items: [], total: 0, page: 1, page_size: 10 },
       isLoading: false,
@@ -270,11 +282,8 @@ describe('EvaluationHistoryTable Component', () => {
 
     renderTable({ evaluatorPermissions: ['coordinator'] });
 
-    // Only Program Coordinator tab should be present
-    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
-    expect(screen.queryByRole('tab', { name: 'Subject Matter Expert' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Gender & Development' })).toBeNull();
-    expect(screen.queryByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeNull();
+    // Single-desk users don't see a redundant role dropdown
+    expect(screen.queryByRole('button', { name: 'Role' })).toBeNull();
 
     // Query was triggered for coordinator
     expect(useHistorySpy).toHaveBeenCalledWith(
@@ -284,20 +293,149 @@ describe('EvaluationHistoryTable Component', () => {
     );
   });
 
-  it('shows all role tabs when faculty has empty permissions (unrestricted default)', () => {
+  it('shows all role options when faculty has empty permissions (unrestricted default)', () => {
     renderTable({ evaluatorPermissions: [], userRole: 'faculty' });
 
-    expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeDefined();
+    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    expect(roleSelect).toBeDefined();
+    fireEvent.click(roleSelect);
+    expect(screen.getByRole('option', { name: 'Subject Matter Expert' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Program Coordinator' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Gender & Development' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Innovation and Technology Support Office' })).toBeDefined();
   });
-  it('shows all role tabs for admin user even if permissions are empty', () => {
+  it('shows all role options for admin user even if permissions are empty', () => {
     renderTable({ evaluatorPermissions: [], userRole: 'admin' });
 
-    expect(screen.getByRole('tab', { name: 'Subject Matter Expert' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Program Coordinator' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Gender & Development' })).toBeDefined();
-    expect(screen.getByRole('tab', { name: 'Innovation and Technology Support Office' })).toBeDefined();
+    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    expect(roleSelect).toBeDefined();
+    fireEvent.click(roleSelect);
+    expect(screen.getByRole('option', { name: 'Subject Matter Expert' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Program Coordinator' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Gender & Development' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Innovation and Technology Support Office' })).toBeDefined();
+  });
+
+  it('renders metric cards from server stats when present', () => {
+    const mockDataWithStats: HistoryListResponse = {
+      items: [
+        {
+          evaluation_id: 'eval-1',
+          document_id: 'doc-1',
+          document_title: 'Doc 1',
+          syllabus_id: 'syl-1',
+          curriculum_id: 'curr-1',
+          status: 'COMPLETED',
+          target_agent: 'sme',
+          error_message: null,
+          confirmed_program: 'BSCS',
+          submitted_at: '2026-08-20T10:00:00Z',
+          completed_at: '2026-08-20T10:05:00Z',
+          duration_seconds: 300,
+        },
+      ],
+      total: 100,
+      page: 1,
+      page_size: 1,
+      stats: {
+        total: 100,
+        completed: 85,
+        in_progress: 12,
+        average_duration_seconds: 125,
+      },
+    };
+
+    vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: mockDataWithStats,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    // Stats values: total 100, completed 85, in_progress 12, avg duration 2m 5s
+    expect(screen.getByText('100')).toBeDefined();
+    expect(screen.getByText('85')).toBeDefined();
+    expect(screen.getByText('12')).toBeDefined();
+    expect(screen.getByText('2m 5s')).toBeDefined();
+  });
+
+  it('renders stats.total when stats.total differs from response total, and treats average_duration_seconds=0 as 0s', () => {
+    const mockDataWithZeroDuration: HistoryListResponse = {
+      items: [],
+      total: 50, // e.g. filtered count
+      page: 1,
+      page_size: 10,
+      stats: {
+        total: 200, // server-scoped aggregate
+        completed: 150,
+        in_progress: 25,
+        average_duration_seconds: 0,
+      },
+    };
+
+    vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: mockDataWithZeroDuration,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    expect(screen.getByText('200')).toBeDefined();
+    expect(screen.getByText('150')).toBeDefined();
+    expect(screen.getByText('25')).toBeDefined();
+    expect(screen.getByText('0s')).toBeDefined();
+  });
+
+  it('falls back to page-derived values when server stats are absent', () => {
+    const mockDataWithoutStats: HistoryListResponse = {
+      items: [
+        {
+          evaluation_id: 'eval-1',
+          document_id: 'doc-1',
+          document_title: 'Doc 1',
+          syllabus_id: 'syl-1',
+          curriculum_id: 'curr-1',
+          status: 'COMPLETED',
+          target_agent: 'sme',
+          error_message: null,
+          confirmed_program: 'BSCS',
+          submitted_at: '2026-08-20T10:00:00Z',
+          completed_at: '2026-08-20T10:02:00Z',
+          duration_seconds: 120,
+        },
+        {
+          evaluation_id: 'eval-2',
+          document_id: 'doc-2',
+          document_title: 'Doc 2',
+          syllabus_id: 'syl-2',
+          curriculum_id: 'curr-2',
+          status: 'EVALUATING',
+          target_agent: 'sme',
+          error_message: null,
+          confirmed_program: 'BSCS',
+          submitted_at: '2026-08-20T10:10:00Z',
+          completed_at: null,
+          duration_seconds: null,
+        },
+      ],
+      total: 2,
+      page: 1,
+      page_size: 10,
+    };
+
+    vi.spyOn(useEvaluationHistoryModule, 'useEvaluationHistory').mockReturnValue({
+      data: mockDataWithoutStats,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<HistoryListResponse, Error>);
+
+    renderTable();
+
+    // Fallback: total 2, completed 1, in_progress 1, avg duration 2m 0s
+    expect(screen.getByText('2')).toBeDefined();
+    expect(screen.getAllByText('1')).toHaveLength(2); // One for completed, one for in_progress
+    expect(screen.getAllByText('2m 0s').length).toBeGreaterThanOrEqual(1);
   });
 });

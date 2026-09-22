@@ -31,22 +31,21 @@ export function useSpecialistWorkspace({
   const routeDocId = propDocId ?? params.documentId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(routeDocId ?? null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
 
-  useEffect(() => {
-    if (routeDocId) {
-      setSelectedDocId(routeDocId);
-    }
-  }, [routeDocId]);
-
   // 1. Fetch specialist desk queue
+  // When routeDocId is provided, fetch authoritative desk status via documentId option;
+  // otherwise fetch the full queue for this agent.
   const {
     data: queueData,
     isLoading: isLoadingQueue,
     refetch: refetchQueue,
-  } = useSpecialistQueue(validAgent);
+  } = useSpecialistQueue(
+    validAgent,
+    undefined,
+    routeDocId ? { documentId: routeDocId } : undefined,
+  );
 
   // 2. Fetch available processed SLMs from Storage to identify modules in storage
   const { data: docsData, isLoading: isLoadingDocs } = useQuery({
@@ -55,70 +54,71 @@ export function useSpecialistWorkspace({
     staleTime: 30000,
   });
 
+  // 3. If routeDocId is provided, fetch exact document through ownership-scoped getDocument
+  const {
+    data: exactDocData,
+    isLoading: isLoadingExactDoc,
+    isError: _isExactDocError,
+  } = useQuery({
+    queryKey: ['storage-document', routeDocId],
+    queryFn: () => documentsApi.getDocument(routeDocId!),
+    enabled: Boolean(routeDocId),
+    staleTime: 30000,
+    retry: false,
+  });
+
+  const targetedDoc: ClientDocument | null = useMemo(() => {
+    if (!routeDocId || !exactDocData) return null;
+    if (exactDocData.sourceType === 'slm' && exactDocData.processingStatus === 'PROCESSED') {
+      return exactDocData;
+    }
+    return null;
+  }, [routeDocId, exactDocData]);
+
   const slmDocuments: ClientDocument[] = useMemo(() => {
-    return (docsData?.items ?? []).filter((d: ClientDocument) => d.processingStatus === 'PROCESSED');
-  }, [docsData]);
+    const list = (docsData?.items ?? []).filter((d: ClientDocument) => d.processingStatus === 'PROCESSED');
+    if (targetedDoc && !list.some((doc) => doc.documentId === targetedDoc.documentId)) {
+      return [targetedDoc, ...list];
+    }
+    return list;
+  }, [docsData, targetedDoc]);
 
-  // Merge desk queue with storage SLMs
+  // Desk queue items from the server are the authoritative source of truth.
+  // Do NOT synthesize READY status for storage documents that are missing from desk queue!
   const allQueueItems = useMemo<DeskQueueItem[]>(() => {
-    if (queueData?.items && queueData.items.length > 0) {
-      const queueDocIds = new Set(queueData.items.map((i) => i.document_id));
-      const extraItems: DeskQueueItem[] = slmDocuments
-        .filter((doc) => !queueDocIds.has(doc.documentId))
-        .map((doc) => ({
-          document_id: doc.documentId,
-          title: doc.title,
-          course_code: doc.courseCode ?? null,
-          program: doc.program ?? null,
-          uploaded_at: doc.uploadedAt ?? '',
-          my_status: 'READY',
-          my_score: null,
-          my_adjectival: null,
-          peer_completed_count: 0,
-          peer_completed_desks: [],
-        }));
-      return [...queueData.items, ...extraItems];
-    }
-    if (slmDocuments.length > 0) {
-      return slmDocuments.map((doc) => ({
-        document_id: doc.documentId,
-        title: doc.title,
-        course_code: doc.courseCode ?? null,
-        program: doc.program ?? null,
-        uploaded_at: doc.uploadedAt ?? '',
-        my_status: 'READY',
-        my_score: null,
-        my_adjectival: null,
-        peer_completed_count: 0,
-        peer_completed_desks: [],
-      }));
-    }
-    return [];
-  }, [queueData, slmDocuments]);
+    return queueData?.items ?? [];
+  }, [queueData]);
 
-  // Filter queue to show pending files that need evaluation by this specialist
-  const pendingItems = useMemo(() => {
-    return allQueueItems.filter(
-      (item) => (item.my_status || '').toUpperCase() !== 'COMPLETED',
-    );
-  }, [allQueueItems]);
-
-  // Determine active document ID: selected > routeDocId > first pending > first item
+  // A targeted route must resolve to an owned queue item; never substitute another module.
   const activeDocId = useMemo(() => {
-    if (selectedDocId) {
-      const found = allQueueItems.find((item) => item.document_id === selectedDocId);
-      if (found) return found.document_id;
-    }
     if (routeDocId) {
-      const found = allQueueItems.find((item) => item.document_id === routeDocId);
-      if (found) return found.document_id;
+      return allQueueItems.find((item) => item.document_id === routeDocId)?.document_id ?? null;
     }
     const firstPending = allQueueItems.find(
       (item) => (item.my_status || '').toUpperCase() !== 'COMPLETED',
     );
     if (firstPending) return firstPending.document_id;
     return allQueueItems[0]?.document_id ?? null;
-  }, [selectedDocId, routeDocId, allQueueItems]);
+  }, [routeDocId, allQueueItems]);
+
+  useEffect(() => {
+    if (!routeDocId) return;
+    if (isLoadingDocs || isLoadingQueue || isLoadingExactDoc) return;
+
+    // If routeDocId is provided and the desk returns no item for that document, redirect to /specialists/$agentId
+    const isPresentInQueue = allQueueItems.some((item) => item.document_id === routeDocId);
+    if (!isPresentInQueue) {
+      void navigate({ to: '/specialists/$agentId', params: { agentId: validAgent } });
+    }
+  }, [
+    routeDocId,
+    allQueueItems,
+    isLoadingDocs,
+    isLoadingQueue,
+    isLoadingExactDoc,
+    navigate,
+    validAgent,
+  ]);
 
   const activeItem = useMemo(() => {
     if (!activeDocId) return null;
@@ -161,8 +161,7 @@ export function useSpecialistWorkspace({
     latestJob?.status === 'SYNTHESIZING';
   const isJobCompleted = latestJob?.status === 'COMPLETED';
 
-  const isCompleted =
-    isJobCompleted || (activeItem?.my_status || '').toUpperCase() === 'COMPLETED';
+  const isCompleted = Boolean(latestJobId && isJobCompleted);
   const isEvaluating =
     !isCompleted &&
     (isJobEvaluating || (activeItem?.my_status || '').toUpperCase() === 'EVALUATING');
@@ -171,6 +170,7 @@ export function useSpecialistWorkspace({
   const {
     data: results,
     isLoading: isLoadingResults,
+    isError: isResultsError,
     refetch: refetchResults,
   } = useQuery({
     queryKey: ['specialist-results', latestJobId],
@@ -197,16 +197,6 @@ export function useSpecialistWorkspace({
     void refetchQueue();
   }, [queryClient, refetchResults, refetchQueue]);
 
-  const handleDocumentChange = useCallback(
-    (docId: string) => {
-      void navigate({
-        to: '/specialists/$agentId/$documentId',
-        params: { agentId: validAgent, documentId: docId },
-      });
-    },
-    [navigate, validAgent],
-  );
-
   const handleModalSubmitted = useCallback(
     (_newEvalId?: string) => {
       setShowConfirmModal(false);
@@ -225,14 +215,13 @@ export function useSpecialistWorkspace({
     [queryClient, refetchQueue, refetchEvals, activeDocId, validAgent, navigate],
   );
 
-  const isLoading = isLoadingDocs && isLoadingQueue;
+  const isLoading = isLoadingDocs || isLoadingQueue || (Boolean(routeDocId) && isLoadingExactDoc);
 
   return {
     validAgent,
     meta,
     routeDocId,
     allQueueItems,
-    pendingItems,
     activeItem,
     activeDocument,
     activeDocId,
@@ -242,13 +231,14 @@ export function useSpecialistWorkspace({
     isEvaluating,
     isLoading,
     isLoadingResults,
+    isResultsError,
+    refetchResults,
     results,
     domainScore,
     showConfirmModal,
     showReviewModal,
     setShowConfirmModal,
     setShowReviewModal,
-    handleDocumentChange,
     handleModalSubmitted,
     handleReviewModalClose,
   };

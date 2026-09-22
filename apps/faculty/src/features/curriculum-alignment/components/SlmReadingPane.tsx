@@ -106,66 +106,66 @@ export const SlmReadingPane = forwardRef<SlmReadingPaneHandle, SlmReadingPanePro
 
     return (
       <div className="flex h-full flex-col bg-canvas">
-        <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2">
+        <div className="flex h-11 items-center justify-between border-b border-border bg-surface px-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-            SLM Content
+            SLM Document Reader
           </span>
-          <div className="flex items-center border border-border rounded-sm bg-surface p-0.5">
+
+          <div className="flex items-center gap-1 rounded-xs border border-border bg-surface-subtle/60 p-0.5">
             <button
               type="button"
               onClick={handlePrevPage}
               disabled={currentIndex <= 0}
-              className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              className="inline-flex size-6.5 items-center justify-center rounded-xs text-text-muted hover:bg-surface hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
               aria-label="Previous page"
+              title="Previous page"
             >
-              <CaretLeft className="size-4" />
+              <CaretLeft className="size-3.5" />
             </button>
-            <div className="px-2">
-              <select
-                value={currentPage}
-                onChange={(e) => setCurrentPage(Number(e.target.value))}
-                className="bg-transparent text-xs font-semibold text-text outline-none cursor-pointer focus:ring-0 border-0 p-0"
-              >
-                {pages.map((page) => (
-                  <option key={page.page_number} value={page.page_number}>
-                    Page {page.page_number}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <span className="px-2 text-xs font-semibold tabular-nums text-text-muted">
+              Page {activePage.page_number} of {pages.length}
+            </span>
             <button
               type="button"
               onClick={handleNextPage}
               disabled={currentIndex < 0 || currentIndex >= pages.length - 1}
-              className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
+              className="inline-flex size-6.5 items-center justify-center rounded-xs text-text-muted hover:bg-surface hover:text-text disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
               aria-label="Next page"
+              title="Next page"
             >
-              <CaretRight className="size-4" />
+              <CaretRight className="size-3.5" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div
-            className={`rounded-sm border border-border bg-surface p-4 transition-colors ${
-              flashed ? 'bg-warning-soft/40' : ''
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+          <article
+            className={`min-h-[32rem] rounded-sm border border-border bg-surface p-6 sm:p-8 transition-colors ${
+              flashed ? 'bg-warning-soft/30 ring-1 ring-warning/50' : ''
             }`}
           >
-            <div className="mb-2 text-[9px] font-bold uppercase tracking-wider text-text-muted">
-              Page {activePage.page_number}
-            </div>
-            <div className="whitespace-pre-wrap text-sm leading-relaxed text-text">
+            <header className="mb-4 pb-2 border-b border-border/60 flex items-center justify-between text-xs text-text-muted">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">
+                SLM Content — Page {activePage.page_number}
+              </span>
+              <span className="text-[11px] tabular-nums">
+                {activePage.text.length} characters
+              </span>
+            </header>
+            <div className="whitespace-pre-wrap text-sm leading-[1.75] text-text font-normal [overflow-wrap:anywhere]">
               {match ? (
                 <>
                   {match.before}
-                  <mark className="rounded-xs bg-warning-soft text-warning font-medium px-0.5">{match.match}</mark>
+                  <mark className="rounded-xs bg-warning-soft text-warning font-semibold px-1 py-0.5 border border-warning/40">
+                    {match.match}
+                  </mark>
                   {match.after}
                 </>
               ) : (
                 activePage.text
               )}
             </div>
-          </div>
+          </article>
         </div>
       </div>
     );

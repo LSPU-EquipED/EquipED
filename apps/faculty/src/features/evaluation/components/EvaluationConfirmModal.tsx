@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Play, Spinner, WarningCircle, X } from '@phosphor-icons/react';
-import { getErrorMessage } from '@equiped/api-client';
-import { documentsApi } from '@equiped/api-client';
-import { Button } from '@equiped/ui';
-import { Badge } from '@equiped/ui';
-import { CANONICAL_PROGRAMS, isLspuSccProgram, normalizeProgram } from '@equiped/types';
-import { TARGET_AGENT_META, type TargetAgent } from '@equiped/types';
-import type { CurriculumSuggestionItem } from '@equiped/types';
-import { useSubmitEvaluation } from '../hooks/useSubmitEvaluation';
-import { buildTargetedEvaluationSubmitPayload } from '../utils/setupState';
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Play, WarningCircle, X } from "@phosphor-icons/react";
+import { getErrorMessage } from "@equiped/api-client";
+import { documentsApi } from "@equiped/api-client";
+import { Badge, Button, Skeleton } from "@equiped/ui";
+import {
+  CANONICAL_PROGRAMS,
+  isLspuSccProgram,
+  normalizeProgram,
+} from "@equiped/types";
+import { TARGET_AGENT_META, type TargetAgent } from "@equiped/types";
+import type { CurriculumSuggestionItem } from "@equiped/types";
+import { useSubmitEvaluation } from "../hooks/useSubmitEvaluation";
+import { buildEvaluationSubmitPayload } from "../utils/setupState";
 
 export interface EvaluationConfirmModalProps {
   documentId: string;
@@ -19,7 +22,6 @@ export interface EvaluationConfirmModalProps {
   onClose: () => void;
   onSubmitted?: (evaluationId: string) => void;
 }
-
 
 export function EvaluationConfirmModal({
   documentId,
@@ -32,21 +34,23 @@ export function EvaluationConfirmModal({
   const meta = TARGET_AGENT_META[targetAgent];
   const submitEvaluation = useSubmitEvaluation();
   const [program, setProgram] = useState(
-    detectedProgram && isLspuSccProgram(detectedProgram) ? detectedProgram : 'BSCS',
+    detectedProgram && isLspuSccProgram(detectedProgram)
+      ? detectedProgram
+      : "BSCS",
   );
   const [curriculumId, setCurriculumId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === "Escape") onClose();
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
   const programValid = isLspuSccProgram(program);
   const { data: curriculumData, isLoading: isLoadingCurricula } = useQuery({
-    queryKey: ['curriculum-suggestion', documentId, program],
+    queryKey: ["curriculum-suggestion", documentId, program],
     queryFn: () => documentsApi.getCurriculumSuggestion(documentId, program),
     enabled: meta.requiresCurriculum && programValid,
     staleTime: 30000,
@@ -60,11 +64,12 @@ export function EvaluationConfirmModal({
       : null;
   const canSubmit =
     !submitEvaluation.isPending &&
-    (!meta.requiresCurriculum || (programValid && Boolean(effectiveCurriculumId)));
+    (!meta.requiresCurriculum ||
+      (programValid && Boolean(effectiveCurriculumId)));
 
   const handleConfirm = () => {
     if (!canSubmit) return;
-    const payload = buildTargetedEvaluationSubmitPayload({
+    const payload = buildEvaluationSubmitPayload({
       documentId,
       program,
       targetAgent,
@@ -95,12 +100,17 @@ export function EvaluationConfirmModal({
             <p className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
               Confirm Targeted Evaluation
             </p>
-            <h2 className="mt-0.5 truncate text-base font-bold text-text" title={documentTitle}>
+            <h2
+              className="mt-0.5 truncate text-base font-bold text-text"
+              title={documentTitle}
+            >
               {documentTitle}
             </h2>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <Badge variant="info">{meta.shortLabel}</Badge>
-              <span className="text-xs font-semibold text-text">{meta.fullName}</span>
+              <span className="text-xs font-semibold text-text">
+                {meta.fullName}
+              </span>
             </div>
           </div>
           <button
@@ -114,7 +124,9 @@ export function EvaluationConfirmModal({
         </div>
 
         <div className="space-y-4 px-5 py-4">
-          <p className="text-xs leading-relaxed text-text-muted">{meta.requirement}</p>
+          <p className="text-xs leading-relaxed text-text-muted">
+            {meta.requirement}
+          </p>
 
           {meta.requiresCurriculum ? (
             <div className="space-y-4 pt-1">
@@ -137,7 +149,9 @@ export function EvaluationConfirmModal({
                   <option value="">Select program</option>
                   {CANONICAL_PROGRAMS.map((option) => (
                     <option key={option} value={option}>
-                      {option === 'BSCS' ? 'BSCS — Computer Science' : 'BSInfoTech — Information Technology'}
+                      {option === "BSCS"
+                        ? "BSCS — Computer Science"
+                        : "BSInfoTech — Information Technology"}
                     </option>
                   ))}
                 </select>
@@ -148,16 +162,29 @@ export function EvaluationConfirmModal({
                   Curriculum Reference *
                 </span>
                 {isLoadingCurricula ? (
-                  <p className="mt-1.5 flex items-center gap-2 text-xs text-text-muted">
-                    <Spinner className="size-3.5 animate-spin" aria-hidden="true" />
-                    Loading verified curricula…
-                  </p>
+                  <div
+                    className="mt-2 space-y-2"
+                    role="status"
+                    aria-label="Loading verified curricula"
+                  >
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-3 w-3/5" />
+                  </div>
                 ) : readyCurricula.length === 0 ? (
-                  <p className="mt-1.5 rounded-xs border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning" role="alert">
-                    No verified curriculum found for {normalizeProgram(program) || 'this program'}. Coordinator evaluation requires one.
+                  <p
+                    className="mt-1.5 rounded-xs border border-warning/30 bg-warning-soft px-3 py-2 text-xs font-medium text-warning"
+                    role="alert"
+                  >
+                    No verified curriculum found for{" "}
+                    {normalizeProgram(program) || "this program"}. Coordinator
+                    evaluation requires one.
                   </p>
                 ) : (
-                  <div className="mt-1.5 space-y-1.5" role="radiogroup" aria-label="Select curriculum reference">
+                  <div
+                    className="mt-1.5 space-y-1.5"
+                    role="radiogroup"
+                    aria-label="Select curriculum reference"
+                  >
                     {readyCurricula.map((item) => (
                       <label
                         key={item.documentId}
@@ -172,7 +199,9 @@ export function EvaluationConfirmModal({
                           className="mt-0.5 accent-primary"
                         />
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-text">{item.title}</span>
+                          <span className="block truncate font-semibold text-text">
+                            {item.title}
+                          </span>
                           <span className="block text-[11px] text-text-muted">
                             {item.program} · {item.matchReason}
                           </span>
@@ -185,11 +214,16 @@ export function EvaluationConfirmModal({
             </div>
           ) : null}
 
-
           {submitEvaluation.error ? (
-            <p className="flex items-center gap-2 rounded-xs border border-destructive/30 bg-destructive-soft px-3 py-2 text-xs font-semibold text-destructive" role="alert">
+            <p
+              className="flex items-center gap-2 rounded-xs border border-destructive/30 bg-destructive-soft px-3 py-2 text-xs font-semibold text-destructive"
+              role="alert"
+            >
               <WarningCircle className="size-4 shrink-0" aria-hidden="true" />
-              {getErrorMessage(submitEvaluation.error, 'Unable to submit evaluation.')}
+              {getErrorMessage(
+                submitEvaluation.error,
+                "Unable to submit evaluation.",
+              )}
             </p>
           ) : null}
         </div>
@@ -203,10 +237,13 @@ export function EvaluationConfirmModal({
             size="sm"
             onClick={handleConfirm}
             disabled={!canSubmit}
-            isLoading={submitEvaluation.isPending}
           >
             <Play className="size-3.5" aria-hidden="true" />
-            <span>Run {meta.shortLabel} Evaluation</span>
+            <span>
+              {submitEvaluation.isPending
+                ? "Preparing review…"
+                : `Run ${meta.shortLabel} Evaluation`}
+            </span>
           </Button>
         </div>
       </div>

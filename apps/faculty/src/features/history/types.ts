@@ -1,20 +1,9 @@
-export interface HistoryEvaluationItem {
-  evaluation_id: string;
-  document_id: string;
-  document_title?: string;
-  syllabus_id: string;
-  curriculum_id: string;
-  status: string;
-  target_agent?: string;
-  error_message?: string;
-  submitted_by?: string;
-  submitted_at: string;
-  completed_at?: string;
-}
+import type {
+  EvaluationListItem,
+  EvaluationListResponse,
+  EvaluationListStats,
+} from '@equiped/types';
 
-export interface HistoryListResponse {
-  items: HistoryEvaluationItem[];
-  total: number;
-  page: number;
-  page_size: number;
-}
+export type HistoryEvaluationItem = EvaluationListItem;
+export type HistoryListResponse = EvaluationListResponse;
+export type { EvaluationListStats };

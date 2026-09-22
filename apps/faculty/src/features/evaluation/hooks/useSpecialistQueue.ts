@@ -6,6 +6,7 @@ import type { TargetAgent } from '@equiped/types';
 export interface UseSpecialistQueueOptions {
   enabled?: boolean;
   refetchInterval?: number | false;
+  documentId?: string;
 }
 
 export function useSpecialistQueue(
@@ -14,12 +15,9 @@ export function useSpecialistQueue(
   options?: UseSpecialistQueueOptions,
 ): UseQueryResult<DeskQueueListResponse, Error> {
   return useQuery<DeskQueueListResponse, Error>({
-    queryKey: ['specialist-queue', targetAgent, program],
+    queryKey: ['specialist-queue', targetAgent, program, options?.documentId],
     queryFn: async () => {
-      if (typeof evaluationApi?.getDeskQueue !== 'function') {
-        return { items: [], total: 0 };
-      }
-      return evaluationApi.getDeskQueue(targetAgent, program);
+      return evaluationApi.getDeskQueue(targetAgent, program, options?.documentId);
     },
     enabled: options?.enabled ?? Boolean(targetAgent),
     staleTime: 10000,

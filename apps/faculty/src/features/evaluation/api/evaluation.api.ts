@@ -61,11 +61,15 @@ export const evaluationApi = {
   getDeskQueue: async (
     targetAgent: TargetAgent,
     program?: string,
+    documentId?: string,
   ): Promise<DeskQueueListResponse> => {
     const params = new URLSearchParams({ target_agent: targetAgent });
     if (program) {
       params.set('program', program);
-     }
+    }
+    if (documentId) {
+      params.set('document_id', documentId);
+    }
     return requestJson<DeskQueueListResponse>(`/evaluations/desk-queue?${params.toString()}`);
   },
 };

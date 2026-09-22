@@ -46,7 +46,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
   beforeEach(() => {
     queryClient = new QueryClient({
       defaultOptions: {
-        queries: { retry: false },
+        queries: { retry: false, retryDelay: 0 },
       },
     });
     vi.clearAllMocks();
@@ -132,6 +132,29 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     expect(screen.queryByText(/Legacy — form snapshot unavailable/i)).toBeNull();
   });
 
+  it('shows a retry state when completed results cannot be retrieved', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-123',
+        document_id: 'doc-456',
+        status: 'COMPLETED',
+        submitted_at: '2026-08-20T10:00:00Z',
+      } as unknown as EvaluationResponse,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useEvaluationModule.useEvaluation>);
+
+    vi.mocked(evaluationApi.getEvaluationResults).mockRejectedValue(
+      new Error('Temporary results outage'),
+    );
+
+    renderScorecard();
+
+    expect(await screen.findByText('Results could not be loaded')).toBeDefined();
+    expect(screen.getByRole('alert')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+  });
+
   it('renders explicit ungrounded status for criteria marked as ungrounded', async () => {
     vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
       data: {
@@ -184,6 +207,51 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
 
     expect(screen.getByText('ITSO-NOVEL')).toBeDefined();
     expect(screen.getByText('Ungrounded Innovation Citation')).toBeDefined();
+  });
+
+  it('renders short label SME in scorecard domain navigation', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-bundle-123',
+        document_id: 'doc-456',
+        status: 'COMPLETED',
+        target_agent: 'all',
+        submitted_at: '2026-08-20T10:00:00Z',
+      } as unknown as EvaluationResponse,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<EvaluationResponse, Error>);
+
+    const mockResults: EvaluationResultsResponse = {
+      evaluation_id: 'eval-bundle-123',
+      document_id: 'doc-456',
+      synthesized_score: 3.8,
+      overall_score: 3.8,
+      adjectival_rating: 'Very Satisfactory',
+      active_agents: ['sme', 'coordinator'],
+      failed_agents: [],
+      is_partial: false,
+      evaluation_status: 'COMPLETED',
+      domain_scores: {
+        sme: {
+          subtotal: 3.8,
+          max_score: 4,
+          status: 'OK',
+          adjectival_rating: 'Very Satisfactory',
+          criteria: [],
+        },
+      },
+      flags: [],
+    };
+
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue(mockResults);
+
+    renderScorecard();
+
+    await waitFor(() => {
+      // In the 2-column sidebar navigation tab for SME, it should display "SME", not "Subject"
+      expect(screen.getByText('SME')).toBeDefined();
+    });
   });
 
   it('renders exact legacy notice without inventing a revision', async () => {
@@ -290,13 +358,13 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
 
     await waitFor(() => {
       expect(screen.getByLabelText('Specialist Evaluation Dossier')).toBeDefined();
-      expect(screen.getByText(/GAD Unit Review/i)).toBeDefined();
+      expect(screen.getByRole('heading', { name: /GAD Unit performance score/i })).toBeDefined();
       expect(screen.getByText('Gender-Fair Language & Terms')).toBeDefined();
     });
 
     // Confirms 2-column multi-domain sidebar is collapsed
     expect(screen.queryByLabelText('Executive Dossier & Review Domains')).toBeNull();
-    expect(screen.getByRole('button', { name: /Review & Correct Scores/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Review scores/i })).toBeDefined();
     expect(screen.getByRole('button', { name: /Re-evaluate/i })).toBeDefined();
     expect(screen.getByText(/All developers must verify their code/i)).toBeDefined();
     expect(screen.getByText(/Inclusive language throughout/i)).toBeDefined();
@@ -350,7 +418,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
 
     renderScorecard();
 
-    const reviewButton = await screen.findByRole('button', { name: /Review & Correct Scores/i });
+    const reviewButton = await screen.findByRole('button', { name: /Review scores/i });
     fireEvent.click(reviewButton);
 
     await waitFor(() => {
