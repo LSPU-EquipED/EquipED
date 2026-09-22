@@ -396,6 +396,59 @@ def test_create_model_validation_sets_compare_fields_when_provided(
     assert job.lora_scale == 0.0
 
 
+def test_create_adapter_comparison_supports_coordinator_with_curriculum_id(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_adapter_comparison
+    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+
+    expected_scores, slm = _setup_validation(
+        db_session, admin_user, include_coordinator=True
+    )
+    coordinator_only = [
+        item for item in expected_scores if item["agent_id"] == "coordinator"
+    ]
+    curriculum_doc = _seed_document(
+        db_session,
+        owner_id=admin_user.user_id,
+        source_type="curriculum",
+        chroma_stored=True,
+        program="BSCS",
+    )
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "server.modules.documents.curriculum_readiness.check_chroma_availability",
+        lambda doc_id, domain: True,
+    )
+
+    req = AdapterComparisonCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "curriculum_id": str(curriculum_doc.document_id),
+            "target_agent": "coordinator",
+            "expected_scores": coordinator_only,
+        }
+    )
+
+    response = create_adapter_comparison(
+        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
+    )
+
+    base = db_session.get(ModelValidation, response.base_validation_id)
+    adapter = db_session.get(ModelValidation, response.adapter_validation_id)
+    base_job = db_session.get(EvaluationJob, base.evaluation_id)
+    adapter_job = db_session.get(EvaluationJob, adapter.evaluation_id)
+    assert base_job.target_agent == adapter_job.target_agent == "coordinator"
+    assert base_job.curriculum_id == curriculum_doc.document_id
+    assert adapter_job.curriculum_id == curriculum_doc.document_id
+    assert base_job.lora_scale == 0.0
+    assert adapter_job.lora_scale == 1.0
+
+
 def test_create_adapter_comparison_rejects_all_agents(admin_user, db_session) -> None:
     from pydantic import ValidationError
     from server.modules.admin.schemas import AdapterComparisonCreateRequest
