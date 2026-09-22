@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from server.core.config import get_settings
+from server.core.llm import check_lora_adapter_loaded
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
@@ -34,6 +35,8 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
+    AdapterComparisonCreateRequest,
+    AdapterComparisonResponse,
     AdminEvaluationResponse,
     ModelValidationAgentCriteria,
     ModelValidationBoundForm,
@@ -60,6 +63,7 @@ _TOXICITY_INPUT_CHARS = 6000
 
 __all__ = [
     "create_model_validation",
+    "create_adapter_comparison",
     "list_model_validations",
     "get_model_validation_detail",
     "get_admin_evaluation",
@@ -359,6 +363,59 @@ def create_model_validation(
     )
     return _model_validation_response(
         validation, job, document, criterion_rows, snapshots
+    )
+
+
+def create_adapter_comparison(
+    request: AdapterComparisonCreateRequest,
+    *,
+    created_by: uuid.UUID,
+    created_by_role: str | None = None,
+    db: Any,
+) -> AdapterComparisonResponse:
+    """Create two linked single-agent benchmark runs: one at LoRA scale 0.0
+    (base), one at scale 1.0 (adapter). Refuses up front -- before any row
+    exists -- if the configured LLM endpoint reports no loaded adapter."""
+    if not check_lora_adapter_loaded():
+        raise InvalidEvaluationTargetError(
+            "no adapter is loaded on the server; ask the host owner to load "
+            "one first (see training/serving-lora-adapter.md)"
+        )
+
+    compare_group_id = uuid.uuid4()
+
+    def _one_run(*, model_variant: str, lora_scale: float) -> ModelValidationResponse:
+        base_request = ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": request.document_id,
+                "syllabus_id": request.syllabus_id,
+                "target_agent": request.target_agent,
+                "expected_scores": [
+                    item.model_dump() for item in request.expected_scores
+                ],
+            }
+        )
+        response = create_model_validation(
+            base_request,
+            created_by=created_by,
+            created_by_role=created_by_role,
+            db=db,
+        )
+        validation = db.get(ModelValidation, response.validation_id)
+        job = db.get(EvaluationJob, response.evaluation_id)
+        validation.model_variant = model_variant
+        validation.compare_group_id = compare_group_id
+        job.lora_scale = lora_scale
+        db.commit()
+        return response
+
+    base_response = _one_run(model_variant="base", lora_scale=0.0)
+    adapter_response = _one_run(model_variant="adapter", lora_scale=1.0)
+
+    return AdapterComparisonResponse(
+        compare_group_id=compare_group_id,
+        base_validation_id=base_response.validation_id,
+        adapter_validation_id=adapter_response.validation_id,
     )
 
 

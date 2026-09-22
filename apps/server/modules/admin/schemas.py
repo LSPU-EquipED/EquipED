@@ -211,6 +211,23 @@ class ModelValidationCreateRequest(BaseModel):
         return self
 
 
+class AdapterComparisonCreateRequest(BaseModel):
+    """Create a linked base-vs-adapter pair of single-agent benchmark runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: uuid.UUID
+    syllabus_id: uuid.UUID | None = None
+    target_agent: Literal["sme", "coordinator", "gad", "itso"]
+    expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
+
+
+class AdapterComparisonResponse(BaseModel):
+    compare_group_id: uuid.UUID
+    base_validation_id: uuid.UUID
+    adapter_validation_id: uuid.UUID
+
+
 class ModelValidationCriterionScoreResponse(BaseModel):
     expected_score_id: uuid.UUID
     agent_id: str
@@ -333,6 +350,8 @@ __all__ = [
     "SystemSummaryResponse",
     "ModelValidationCreateRequest",
     "ModelValidationExpectedScoreInput",
+    "AdapterComparisonCreateRequest",
+    "AdapterComparisonResponse",
     "ModelValidationCriterionScoreResponse",
     "ModelValidationCriterionDefinition",
     "ModelValidationDomainDefinition",
