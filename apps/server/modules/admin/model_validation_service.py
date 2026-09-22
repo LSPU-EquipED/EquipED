@@ -147,6 +147,8 @@ def _model_validation_response(
         latency_seconds = (job.completed_at - job.submitted_at).total_seconds()
     return ModelValidationResponse(
         validation_id=validation.validation_id,
+        model_variant=validation.model_variant,
+        compare_group_id=validation.compare_group_id,
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
         document_title=document.title if document is not None else None,
