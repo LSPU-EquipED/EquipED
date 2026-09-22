@@ -288,6 +288,95 @@ def test_create_model_validation_targets_one_agent(admin_user, db_session) -> No
     assert {item.agent_id for item in response.criterion_scores} == {"sme"}
 
 
+def test_create_adapter_comparison_refuses_when_no_adapter_loaded(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_adapter_comparison
+    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: False,
+    )
+
+    req = AdapterComparisonCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        }
+    )
+
+    with pytest.raises(InvalidEvaluationTargetError, match="no adapter is loaded"):
+        create_adapter_comparison(
+            req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
+        )
+
+    assert db_session.query(EvaluationJob).count() == 0
+    assert db_session.query(ModelValidation).count() == 0
+
+
+def test_create_adapter_comparison_creates_a_linked_pair(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_adapter_comparison
+    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: True,
+    )
+
+    req = AdapterComparisonCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        }
+    )
+
+    response = create_adapter_comparison(
+        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
+    )
+
+    assert response.compare_group_id is not None
+    base = db_session.get(ModelValidation, response.base_validation_id)
+    adapter = db_session.get(ModelValidation, response.adapter_validation_id)
+    assert base.model_variant == "base"
+    assert adapter.model_variant == "adapter"
+    assert (
+        base.compare_group_id == adapter.compare_group_id == response.compare_group_id
+    )
+    base_job = db_session.get(EvaluationJob, base.evaluation_id)
+    adapter_job = db_session.get(EvaluationJob, adapter.evaluation_id)
+    assert base_job.lora_scale == 0.0
+    assert adapter_job.lora_scale == 1.0
+    assert base_job.target_agent == adapter_job.target_agent == "sme"
+
+
+def test_create_adapter_comparison_rejects_all_agents(admin_user, db_session) -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    with pytest.raises(ValidationError):
+        AdapterComparisonCreateRequest.model_validate(
+            {
+                "document_id": slm.document_id,
+                "target_agent": "all",
+                "expected_scores": expected_scores,
+            }
+        )
+
+
 def test_create_model_validation_single_agent_coordinator_requires_curriculum(
     admin_user, db_session
 ) -> None:
