@@ -9,6 +9,7 @@ import {
   isPartialValidationAgent,
   isStaleBindingError,
   validationAgents,
+  variantLabel,
 } from '../helpers';
 import type { ModelValidationAgentCriteria, ModelValidationCriterionScore } from '../../types';
 
@@ -315,5 +316,13 @@ describe('formatTimestamp', () => {
     const formatted = formatTimestamp('2026-07-30T10:00:00Z');
     expect(formatted).not.toBe('—');
     expect(typeof formatted).toBe('string');
+  });
+});
+
+describe('variantLabel', () => {
+  it('labels base and adapter variants, and returns null for neither', () => {
+    expect(variantLabel('base')).toBe('Base');
+    expect(variantLabel('adapter')).toBe('Adapter');
+    expect(variantLabel(null)).toBeNull();
   });
 });
