@@ -8,7 +8,7 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
 
   const scoredAgentIds = new Set(validation.criterion_scores.map((score) => score.agent_id));
   const agentsToRender =
-    scoredAgentIds.size > 0
+    scoredAgentIds.size === 1
       ? validationAgents.filter((agent) => scoredAgentIds.has(agent.id))
       : validationAgents;
 

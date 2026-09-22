@@ -71,4 +71,59 @@ describe('AgentProgressPanel', () => {
     expect(screen.getByText('GAD Evaluator')).toBeDefined();
     expect(screen.getByText('Innovation and Technology Support Office')).toBeDefined();
   });
+
+  it('still renders all four agent cards, including a skipped Coordinator, for an ordinary partial 3-agent bundle', () => {
+    const item: ModelValidationItem = {
+      ...baseItem,
+      partial_without_curriculum: true,
+      criterion_scores: [
+        {
+          expected_score_id: 'exp-1',
+          agent_id: 'sme',
+          rubric_set_id: 'set-sme-1',
+          rubric_version: 1,
+          rubric_criterion_id: 'crit-sme-1',
+          criterion_id: 'SME_1',
+          criterion_title: 'Content accuracy',
+          expected_score: 4,
+          actual_score: null,
+          absolute_error: null,
+        },
+        {
+          expected_score_id: 'exp-2',
+          agent_id: 'gad',
+          rubric_set_id: 'set-gad-1',
+          rubric_version: 2,
+          rubric_criterion_id: 'crit-gad-1',
+          criterion_id: 'GAD_1',
+          criterion_title: 'Gender sensitivity',
+          expected_score: 3,
+          actual_score: null,
+          absolute_error: null,
+        },
+        {
+          expected_score_id: 'exp-3',
+          agent_id: 'itso',
+          rubric_set_id: 'set-itso-1',
+          rubric_version: 1,
+          rubric_criterion_id: 'crit-itso-1',
+          criterion_id: 'ITSO_1',
+          criterion_title: 'IP compliance',
+          expected_score: 4,
+          actual_score: null,
+          absolute_error: null,
+        },
+      ],
+    };
+
+    render(<AgentProgressPanel validation={item} />);
+
+    expect(screen.getByText('Subject Matter Expert')).toBeDefined();
+    expect(screen.getByText('GAD Evaluator')).toBeDefined();
+    expect(
+      screen.getByText('Innovation and Technology Support Office'),
+    ).toBeDefined();
+    expect(screen.getByText('Program Coordinator')).toBeDefined();
+    expect(screen.getByText('Skipped — no curriculum')).toBeDefined();
+  });
 });

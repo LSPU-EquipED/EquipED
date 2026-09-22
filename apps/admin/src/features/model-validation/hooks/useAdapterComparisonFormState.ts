@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@equiped/api-client';
 import type { DocumentUploadResponse } from '@equiped/types';
 import { modelValidationApi } from '../api/modelValidation.api';
+import { useModelValidationCriteria } from './useModelValidationQueries';
 import { criterionKey, isPartialValidationAgent } from '../utils/helpers';
 
 type CompareAgentId = 'sme' | 'gad' | 'itso';
@@ -17,10 +18,7 @@ export function useAdapterComparisonFormState() {
   const [expectedScores, setExpectedScores] = useState<Record<string, string>>({});
   const [uploaded, setUploaded] = useState<DocumentUploadResponse | null>(null);
 
-  const criterionCatalog = useQuery({
-    queryKey: ['admin', 'model-validation-criteria'],
-    queryFn: modelValidationApi.getModelValidationCriteria,
-  });
+  const criterionCatalog = useModelValidationCriteria();
 
   const uploadedDocument = useQuery({
     queryKey: ['documents', uploaded?.documentId],
