@@ -17,7 +17,7 @@ export function DocumentPagination({
   totalPages,
 }: DocumentPaginationProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-border bg-surface-subtle px-4 sm:px-6 py-2.5 text-xs text-text-muted">
+    <div className="flex flex-col justify-between gap-3 border-t border-border bg-surface-subtle px-4 py-3 text-xs text-text-muted sm:flex-row sm:items-center sm:px-6">
       <div className="flex items-center gap-2">
         <Dropdown
           id="document-page-size"

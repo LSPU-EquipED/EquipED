@@ -71,7 +71,7 @@ export function StorageUploadModal({ isOpen, onClose, onSuccess }: StorageUpload
         {/* Modal Header without divider or eyebrow badge */}
         <div className="flex items-start justify-between">
           <div>
-            <h2 id="slm-upload-dialog-title" className="text-base sm:text-lg font-bold text-text tracking-tight">
+            <h2 id="slm-upload-dialog-title" className="text-base font-semibold text-text sm:text-lg">
               Upload Course Learning Module
             </h2>
             <p className="text-xs text-text-muted mt-1">
@@ -122,7 +122,7 @@ export function StorageUploadModal({ isOpen, onClose, onSuccess }: StorageUpload
                     : 'border-border hover:border-primary/50 bg-surface-subtle/40 hover:bg-surface-subtle',
                 )}
               >
-                <div className="size-10 rounded-full bg-primary-soft group-hover:bg-primary-soft/80 flex items-center justify-center text-primary mb-2.5 transition-transform group-hover:scale-105">
+                <div className="mb-2.5 flex size-10 items-center justify-center rounded-sm border border-primary/15 bg-primary-soft text-primary transition-transform group-hover:scale-105 group-hover:bg-primary-soft/80">
                   <CloudArrowUp className="size-5" aria-hidden="true" />
                 </div>
                 <p className="text-xs font-semibold text-text">

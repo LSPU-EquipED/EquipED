@@ -27,11 +27,11 @@ describe('useEvaluatorWorkstation', () => {
     expect(result.current.singleSpecialist.id).toBe('sme');
   });
 
-  it('returns empty array when permissions are explicitly empty', () => {
+  it('treats an empty permission list as unrestricted until the backend provides scoped permissions', () => {
     const { result } = renderHook(() => useEvaluatorWorkstation([], 'faculty'));
-    expect(result.current.allowedSpecialists).toHaveLength(0);
+    expect(result.current.allowedSpecialists).toEqual(ALL_SPECIALISTS);
     expect(result.current.hasSingleSpecialist).toBe(false);
-    expect(result.current.singleSpecialist).toBeUndefined();
+    expect(result.current.singleSpecialist).toBe(ALL_SPECIALISTS[0]);
   });
 
   it('filters to multiple granted permissions', () => {

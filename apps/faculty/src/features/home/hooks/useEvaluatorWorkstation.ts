@@ -54,12 +54,10 @@ export function useEvaluatorWorkstation(
     if (
       userRole === 'admin' ||
       evaluatorPermissions === undefined ||
-      evaluatorPermissions === null
+      evaluatorPermissions === null ||
+      evaluatorPermissions.length === 0
     ) {
       return ALL_SPECIALISTS;
-    }
-    if (evaluatorPermissions.length === 0) {
-      return [];
     }
     return ALL_SPECIALISTS.filter((spec) => evaluatorPermissions.includes(spec.id));
   }, [userRole, evaluatorPermissions]);

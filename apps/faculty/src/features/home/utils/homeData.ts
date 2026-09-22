@@ -167,52 +167,52 @@ export function getEvaluationStatusBadge(status: string): {
     case 'COMPLETED':
       return {
         label: 'Completed',
-        className: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
+        className: 'bg-success-soft text-success border border-success/30',
       };
     case 'COMPLETED_PARTIAL':
       return {
         label: 'Completed (Partial)',
-        className: 'bg-[#f2c811]/20 text-[#854d0e] border border-[#f2c811]/40',
+        className: 'bg-warning-soft text-warning border border-warning/30',
       };
     case 'FAILED':
       return {
         label: 'Failed',
-        className: 'bg-[#b91c1c]/10 text-[#b91c1c] border border-[#b91c1c]/30',
+        className: 'bg-destructive-soft text-destructive border border-destructive/30',
       };
     case 'PREPROCESSING':
       return {
         label: 'Preprocessing',
-        className: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
+        className: 'bg-info-soft text-info border border-info/30',
       };
     case 'EVALUATING':
       return {
         label: 'Evaluating',
-        className: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
+        className: 'bg-info-soft text-info border border-info/30',
       };
     case 'SYNTHESIZING':
       return {
         label: 'Synthesizing',
-        className: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
+        className: 'bg-info-soft text-info border border-info/30',
       };
     case 'SUBMITTED':
       return {
         label: 'Submitted',
-        className: 'bg-slate-100 text-slate-700 border border-slate-300',
+        className: 'bg-surface-subtle text-text-muted border border-border',
       };
     case 'PROCESSING':
       return {
         label: 'Processing',
-        className: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
+        className: 'bg-info-soft text-info border border-info/30',
       };
     case 'PENDING':
       return {
         label: 'Queued',
-        className: 'bg-slate-100 text-slate-700 border border-slate-300',
+        className: 'bg-surface-subtle text-text-muted border border-border',
       };
     default:
       return {
         label: status.replace(/_/g, ' '),
-        className: 'bg-slate-100 text-slate-700 border border-slate-200',
+        className: 'bg-surface-subtle text-text-muted border border-border',
       };
   }
 }
@@ -225,24 +225,24 @@ export function getDocumentStatusBadge(status: ClientDocument['processingStatus'
     case 'PROCESSED':
       return {
         label: 'Ready',
-        className: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
+        className: 'bg-success-soft text-success border border-success/30',
       };
     case 'FAILED':
       return {
         label: 'Failed',
-        className: 'bg-[#b91c1c]/10 text-[#b91c1c] border border-[#b91c1c]/30',
+        className: 'bg-destructive-soft text-destructive border border-destructive/30',
       };
     case 'PENDING':
     case 'PROCESSING':
     case 'CLEANUP_PENDING':
       return {
         label: 'Processing',
-        className: 'bg-[#f2c811]/20 text-[#854d0e] border border-[#f2c811]/40',
+        className: 'bg-warning-soft text-warning border border-warning/30',
       };
     default:
       return {
         label: status,
-        className: 'bg-slate-100 text-slate-700 border border-slate-200',
+        className: 'bg-surface-subtle text-text-muted border border-border',
       };
   }
 }

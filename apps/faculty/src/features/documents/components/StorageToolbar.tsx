@@ -33,13 +33,14 @@ export function StorageToolbar({
   const hasActiveFilters = programFilter !== 'ALL' || statusFilter !== 'all';
 
   return (
-    <div className="rounded-md border border-border bg-surface px-4 sm:px-6 py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-none">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-border bg-surface px-4 py-3 sm:px-6">
       {/* ── Left: Program Pills ────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-medium text-text-muted">Program</span>
         <div
           role="tablist"
           aria-label="Filter modules by academic program"
-          className="flex items-center gap-1.5"
+          className="flex flex-wrap items-center gap-1.5"
         >
           {([
             { id: 'ALL' as const, label: 'All Modules', count: totalModules },
@@ -55,20 +56,20 @@ export function StorageToolbar({
                 aria-selected={isActive}
                 onClick={() => setProgramFilter(tab.id)}
                 className={cn(
-                  'inline-flex items-center rounded-sm px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer select-none',
+                  'inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-sm border px-3 text-xs font-medium transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'text-text-muted hover:text-text hover:bg-surface-subtle border border-transparent hover:border-border font-medium',
+                    ? 'border-primary/30 bg-primary-soft text-primary'
+                    : 'border-transparent text-text-muted hover:border-border hover:bg-surface-subtle hover:text-text',
                 )}
               >
                 <span>{tab.label}</span>
                 {tab.count != null ? (
                   <span
                     className={cn(
-                      'ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-mono tabular-nums font-bold leading-none',
+                      'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1.5 text-[11px] tabular-nums font-semibold leading-5',
                       isActive
-                        ? 'bg-white/20 text-white'
-                        : 'bg-surface-subtle border border-border/80 text-text-muted',
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-surface-subtle text-text-muted',
                     )}
                   >
                     {tab.count}
@@ -84,7 +85,7 @@ export function StorageToolbar({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex items-center gap-1 rounded-sm px-2.5 py-1.5 text-xs font-medium text-text-muted hover:text-destructive hover:bg-destructive-soft/50 transition-colors cursor-pointer"
+            className="inline-flex h-8 items-center gap-1 rounded-sm px-2 text-xs font-medium text-text-muted transition-colors hover:bg-destructive-soft/50 hover:text-destructive cursor-pointer"
             title="Reset filters"
           >
             <ArrowCounterClockwise className="size-3" aria-hidden="true" />
@@ -94,13 +95,15 @@ export function StorageToolbar({
       </div>
 
       {/* ── Right: Filter & Sorter Controls ────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 xl:ml-auto">
         {/* Sorter Dropdown */}
         {setSortOption ? (
           <Dropdown
             id="storage-sort-select"
             aria-label="Sort documents"
             label="Sort:"
+            size="md"
+            align="right"
             inlineLabel
             icon={<SortAscending className="size-3.5" />}
             value={sortOption}
@@ -121,6 +124,8 @@ export function StorageToolbar({
           id="storage-status-filter"
           aria-label="Filter by status"
           label="Status:"
+          size="md"
+          align="right"
           inlineLabel
           icon={<SlidersHorizontal className="size-3.5" />}
           value={statusFilter}

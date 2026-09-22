@@ -19,10 +19,10 @@ export function FacultyActiveEvaluationBanner({ evaluation }: FacultyActiveEvalu
     <div
       role="status"
       aria-live="polite"
-      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary-soft/60 px-5 py-3.5 text-xs text-text"
+      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-md border border-primary/25 bg-primary-soft/30 px-4 sm:px-5 py-3 text-xs text-text shadow-none"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground">
+        <div className="flex size-7.5 shrink-0 items-center justify-center rounded-xs border border-primary/30 bg-primary-soft text-primary">
           <Spinner className="size-4 animate-spin" aria-hidden="true" />
         </div>
         <div className="min-w-0 space-y-0.5">
@@ -45,7 +45,7 @@ export function FacultyActiveEvaluationBanner({ evaluation }: FacultyActiveEvalu
         <Link
           to="/specialists/$agentId/$documentId"
           params={{ agentId: agentKey, documentId: evaluation.document_id }}
-          className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-strong hover:underline shrink-0 text-xs transition-colors"
+          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-primary/30 bg-surface px-3 text-xs font-semibold text-primary hover:bg-primary-soft/40 transition-colors shrink-0"
         >
           <span>Open Specialist Scoreboard</span>
           <CaretRight className="size-3.5" aria-hidden="true" />
@@ -54,7 +54,7 @@ export function FacultyActiveEvaluationBanner({ evaluation }: FacultyActiveEvalu
         <Link
           to="/evaluations/$id"
           params={{ id: evaluation.evaluation_id }}
-          className="inline-flex items-center gap-1.5 font-semibold text-primary hover:text-primary-strong hover:underline shrink-0 text-xs transition-colors"
+          className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-primary/30 bg-surface px-3 text-xs font-semibold text-primary hover:bg-primary-soft/40 transition-colors shrink-0"
         >
           <span>Open Evaluation Scorecard</span>
           <CaretRight className="size-3.5" aria-hidden="true" />

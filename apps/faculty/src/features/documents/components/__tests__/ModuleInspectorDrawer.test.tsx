@@ -150,7 +150,7 @@ describe('ModuleInspectorDrawer Component', () => {
       <ModuleInspectorDrawer document={docWithOutline} onClose={vi.fn()} />,
     );
 
-    expect(screen.getByText('Module Outline')).toBeDefined();
+    expect(screen.getByText('Module outline')).toBeDefined();
     expect(screen.getByText('2 sections')).toBeDefined();
     expect(screen.getByText('Unit 1: Introduction to Graphs')).toBeDefined();
     expect(
@@ -175,10 +175,10 @@ describe('ModuleInspectorDrawer Component', () => {
   it('renders document summary with total pages, text format, and processing status', () => {
     render(<ModuleInspectorDrawer document={mockDocument} onClose={vi.fn()} />);
 
-    expect(screen.getByText('Document Information')).toBeDefined();
-    expect(screen.getByText('Total Pages')).toBeDefined();
-    expect(screen.getByText('Text Format')).toBeDefined();
-    expect(screen.getByText('Processing Status')).toBeDefined();
+    expect(screen.getByText('Document information')).toBeDefined();
+    expect(screen.getByText('Total pages')).toBeDefined();
+    expect(screen.getByText('Text format')).toBeDefined();
+    expect(screen.getByText('Processing status')).toBeDefined();
     expect(screen.getByText('Searchable PDF')).toBeDefined();
     expect(screen.getByText('Indexed')).toBeDefined();
     // Accreditation is removed from this summary section
@@ -195,7 +195,7 @@ describe('ModuleInspectorDrawer Component', () => {
     );
 
     expect(
-      screen.getByText('Multi-Agent Evaluation'),
+      screen.getByText('Multi-agent evaluation'),
     ).toBeDefined();
     expect(screen.getByRole('link', { name: /Launch Evaluation/i })).toBeDefined();
   });
@@ -210,7 +210,7 @@ describe('ModuleInspectorDrawer Component', () => {
 
     render(<ModuleInspectorDrawer document={mockDocument} onClose={vi.fn()} />);
 
-    expect(screen.getByText('Document File')).toBeDefined();
+    expect(screen.getByText('Document file')).toBeDefined();
     expect(screen.getByText('doc-abc-123')).toBeDefined();
 
     const copyBtn = screen.getByRole('button', { name: /Copy document ID/i });
