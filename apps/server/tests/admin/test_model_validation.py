@@ -1098,6 +1098,52 @@ def test_create_model_validation_rejects_unknown_fields(
     assert db_session.query(ModelValidationCriterionScore).count() == 0
 
 
+def test_target_agent_defaults_to_all() -> None:
+    from server.modules.admin.schemas import (
+        ModelValidationCreateRequest,
+        ModelValidationExpectedScoreInput,
+    )
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": str(uuid.uuid4()),
+            "partial_without_curriculum": True,
+            "expected_scores": [
+                {
+                    "agent_id": "sme",
+                    "rubric_set_id": str(uuid.uuid4()),
+                    "rubric_criterion_id": str(uuid.uuid4()),
+                    "expected_score": 3,
+                }
+            ],
+        }
+    )
+    assert req.target_agent == "all"
+
+
+def test_target_agent_rejects_invalid_value() -> None:
+    from pydantic import ValidationError
+
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    with pytest.raises(ValidationError):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": str(uuid.uuid4()),
+                "partial_without_curriculum": True,
+                "expected_scores": [
+                    {
+                        "agent_id": "sme",
+                        "rubric_set_id": str(uuid.uuid4()),
+                        "rubric_criterion_id": str(uuid.uuid4()),
+                        "expected_score": 3,
+                    }
+                ],
+                "target_agent": "not-a-real-agent",
+            }
+        )
+
+
 def test_create_model_validation_rollback_on_snapshot_failure(
     admin_user, db_session, monkeypatch
 ) -> None:

@@ -183,7 +183,11 @@ class ModelValidationCreateRequest(BaseModel):
 
     Curriculum selection is required for full evaluations
     (partial_without_curriculum=False) and must be omitted for partial
-    evaluations (partial_without_curriculum=True).
+    evaluations (partial_without_curriculum=True). target_agent="all" (the
+    default) keeps this historical full/partial-bundle behavior; any other
+    value runs exactly that one agent, matching how ordinary evaluations
+    already support single-agent targeting (only Coordinator then requires
+    curriculum_id).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -192,6 +196,7 @@ class ModelValidationCreateRequest(BaseModel):
     syllabus_id: uuid.UUID | None = None
     curriculum_id: uuid.UUID | None = None
     partial_without_curriculum: StrictBool = False
+    target_agent: Literal["all", "sme", "coordinator", "gad", "itso"] = "all"
     expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
 
 
