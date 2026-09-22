@@ -76,6 +76,12 @@ export type ValidationAgentId = (typeof validationAgents)[number]['id'];
 export const agentLabel = (id: string) =>
   validationAgents.find((agent) => agent.id === id)?.label ?? id.toUpperCase();
 
+export function variantLabel(variant: 'base' | 'adapter' | null): string | null {
+  if (variant === 'base') return 'Base';
+  if (variant === 'adapter') return 'Adapter';
+  return null;
+}
+
 export const HISTORY_COLSPAN = 7;
 
 export function statusClass(status: ModelValidationItem['status']) {
