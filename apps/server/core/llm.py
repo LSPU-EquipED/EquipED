@@ -689,10 +689,9 @@ def check_lora_adapter_loaded() -> bool:
     if settings.llm_api_key:
         headers["Authorization"] = f"Bearer {settings.llm_api_key}"
     req = request.Request(root + "/lora-adapters", headers=headers)
+    timeout = min(max(float(settings.llm_readiness_timeout_seconds), 1.0), 30.0)
     try:
-        with request.urlopen(
-            req, timeout=min(max(float(settings.llm_readiness_timeout_seconds), 1.0), 30.0)
-        ) as response:
+        with request.urlopen(req, timeout=timeout) as response:
             adapters = json.loads(response.read(1_000_000))
     except Exception as exc:
         raise InfrastructureUnavailableError(

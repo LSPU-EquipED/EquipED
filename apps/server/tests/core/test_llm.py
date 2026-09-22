@@ -441,18 +441,21 @@ def test_missing_keys_200_raises_clear_error(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
+_LORA_TEST_RESPONSE_BODY = json.dumps(
+    {
+        "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+        "model": "m",
+    }
+)
+
+
 def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
-    """By default (lora_scale=None), the lora field should not be added to the payload."""
+    """Default lora_scale=None: the lora field is not added to the payload."""
     captured = {}
 
     def fake_urlopen(req, **kwargs):
         captured["body"] = json.loads(req.data)
-        return _FakeHTTPResponse(
-            200,
-            json.dumps(
-                {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "model": "m"}
-            ),
-        )
+        return _FakeHTTPResponse(200, _LORA_TEST_RESPONSE_BODY)
 
     monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
     client = _make_client()
@@ -461,17 +464,12 @@ def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
 
 
 def test_with_lora_scale_adds_lora_field(monkeypatch) -> None:
-    """with_lora_scale should produce a client that sends a lora field in the payload."""
+    """with_lora_scale produces a client that sends a lora field in the payload."""
     captured = {}
 
     def fake_urlopen(req, **kwargs):
         captured["body"] = json.loads(req.data)
-        return _FakeHTTPResponse(
-            200,
-            json.dumps(
-                {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "model": "m"}
-            ),
-        )
+        return _FakeHTTPResponse(200, _LORA_TEST_RESPONSE_BODY)
 
     monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
     client = _make_client()
