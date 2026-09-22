@@ -1,0 +1,246 @@
+import { Link, Outlet, useLocation } from '@tanstack/react-router';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { CaretRight, House, List, SignOut } from '@phosphor-icons/react';
+import { SHELL_STYLES } from '../theme/tokens';
+import { cn } from '../utils';
+import { Sidebar } from './Sidebar';
+import type { BreadcrumbItem, NavGroup, NavItem } from './navigation.types';
+import { getSidebarLayoutClasses } from './navigation.utils';
+
+export interface AppShellProps {
+  homeRoute: string;
+  homeLabel?: string;
+  brandSubtitle?: string;
+  brandTitle?: string;
+  navGroups: readonly NavGroup[];
+  secondaryNavItems?: readonly NavItem[];
+  breadcrumbs: readonly BreadcrumbItem[];
+  user?: {
+    displayName?: string | null;
+    email?: string | null;
+    role?: string | null;
+  } | null;
+  onLogout: () => void | Promise<void>;
+  defaultInitials?: string;
+  defaultUserName?: string;
+  defaultUserEmail?: string;
+  userRole?: string;
+  children?: ReactNode;
+}
+
+export function AppShell({
+  homeRoute,
+  homeLabel = 'Home',
+  brandSubtitle = 'LSPU',
+  brandTitle = 'EquipED',
+  navGroups,
+  secondaryNavItems = [],
+  breadcrumbs,
+  user,
+  onLogout,
+  defaultInitials = 'EA',
+  defaultUserName = 'EquipEd User',
+  defaultUserEmail = 'No email available',
+  userRole = 'user',
+  children,
+}: AppShellProps) {
+  const pathname = useLocation({ select: (loc) => loc.pathname });
+
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  const initials =
+    user?.displayName
+      ?.split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('')
+      .slice(0, 2) || defaultInitials;
+
+  const closeMobileMenu = (restoreFocus = true) => {
+    setIsMobileMenuOpen(false);
+    if (restoreFocus) {
+      mobileMenuTriggerRef.current?.focus();
+    }
+  };
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsAccountMenuOpen(false);
+        accountTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAccountMenuOpen]);
+
+  const handleLogout = async () => {
+    setIsAccountMenuOpen(false);
+    await onLogout();
+  };
+
+  const layoutClasses = getSidebarLayoutClasses(isSidebarCollapsed);
+
+  return (
+    <div className="min-h-screen bg-canvas text-text">
+      <header
+        className={cn(
+          'fixed right-0 top-0 z-40 flex h-14 items-center px-4 sm:px-6 transition-[left] duration-200',
+          SHELL_STYLES.topbar,
+          layoutClasses.headerLeft,
+        )}
+      >
+        <div className="flex flex-1 items-center gap-3 min-w-0">
+          <button
+            type="button"
+            ref={mobileMenuTriggerRef}
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="md:hidden -ml-1 mr-1 flex size-9 items-center justify-center rounded-sm text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+            aria-label="Open navigation menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="app-sidebar"
+          >
+            <List className="size-5" aria-hidden="true" />
+          </button>
+
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs sm:text-sm text-text-muted min-w-0 overflow-hidden">
+            <Link
+              to={homeRoute}
+              className="flex items-center text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xs shrink-0"
+              title={homeLabel}
+              aria-label={homeLabel}
+            >
+              <House className="size-4 shrink-0" aria-hidden="true" />
+            </Link>
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <div key={`${crumb.label}-${idx}`} className="flex items-center gap-1.5 min-w-0">
+                  <CaretRight className="size-3 shrink-0 text-text-muted/60" aria-hidden="true" />
+                  {crumb.to && !isLast ? (
+                    <Link
+                      to={crumb.to}
+                      className="truncate font-medium text-text-muted transition-colors hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xs"
+                    >
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span
+                      className={cn(
+                        'truncate',
+                        isLast ? 'font-semibold text-text' : 'font-medium text-text-muted',
+                      )}
+                    >
+                      {crumb.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <div ref={accountMenuRef} className="relative">
+            <button
+              type="button"
+              ref={accountTriggerRef}
+              className="flex size-8 items-center justify-center rounded-sm border border-primary/20 bg-primary-soft text-xs font-semibold text-primary hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              aria-haspopup="menu"
+              aria-expanded={isAccountMenuOpen}
+              aria-label={`User account menu for ${user?.displayName ?? user?.email ?? userRole}`}
+              onClick={() => setIsAccountMenuOpen((value) => !value)}
+            >
+              {initials}
+            </button>
+
+            {isAccountMenuOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 top-11 z-50 w-60 rounded-sm border border-border bg-surface p-1.5 text-xs shadow-sm"
+              >
+                <div className="border-b border-border px-3 py-2">
+                  <p className="truncate font-semibold text-text">
+                    {user?.displayName ?? defaultUserName}
+                  </p>
+                  <p className="truncate text-[11px] text-text-muted">
+                    {user?.email ?? defaultUserEmail}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex h-9 w-full items-center gap-2 rounded-sm px-2.5 text-left text-destructive transition-colors hover:bg-destructive-soft"
+                  onClick={() => {
+                    void handleLogout();
+                  }}
+                >
+                  <SignOut className="size-4" aria-hidden="true" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"
+          aria-hidden="true"
+          onClick={() => closeMobileMenu(true)}
+        />
+      )}
+
+      <Sidebar
+        collapsed={isSidebarCollapsed}
+        onToggle={() => setIsSidebarCollapsed((value) => !value)}
+        mobileOpen={isMobileMenuOpen}
+        onMobileClose={() => closeMobileMenu(true)}
+        onNavigate={() => closeMobileMenu(true)}
+        navGroups={navGroups}
+        secondaryNavItems={secondaryNavItems}
+        brandSubtitle={brandSubtitle}
+        brandTitle={brandTitle}
+      />
+
+      <div
+        className={cn(
+          'min-h-screen min-w-0 bg-canvas pt-14 transition-[padding] duration-200',
+          layoutClasses.mainPadding,
+        )}
+      >
+        <main className="min-w-0">
+          {children ?? <Outlet />}
+        </main>
+      </div>
+    </div>
+  );
+}

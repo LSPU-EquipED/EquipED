@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { PageContainer } from '@equiped/ui';
 import { AdminKpiMetrics } from '../components/AdminKpiMetrics';
 import { AdminQuickActions } from '../components/AdminQuickActions';
 import { AdminRecentActivityTable } from '../components/AdminRecentActivityTable';
@@ -18,7 +19,9 @@ export function AdminHomePage() {
   }, [matrixData]);
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
+    <PageContainer as="section">
+      <h1 className="sr-only">Admin workspace overview</h1>
+
       {/* ── 1. Top Institutional Metrics Strip ───────────────────────── */}
       <AdminKpiMetrics
         summary={summary}
@@ -35,6 +38,6 @@ export function AdminHomePage() {
         isLoading={matrixLoading}
         isError={matrixError}
       />
-    </section>
+    </PageContainer>
   );
 }

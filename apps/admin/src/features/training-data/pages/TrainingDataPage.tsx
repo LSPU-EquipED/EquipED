@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { GraduationCap } from '@phosphor-icons/react';
-import { TYPOGRAPHY, cn } from '@equiped/ui';
+import { TYPOGRAPHY, cn, PageContainer } from '@equiped/ui';
 import { AdapterListTable } from '../components/AdapterListTable';
 import { TrainingJobsPanel } from '../components/TrainingJobsPanel';
 import { DEFAULT_TRAINING_AGENT_ID, TRAINING_AGENTS } from '../trainingAgents';
@@ -13,7 +13,7 @@ export function TrainingDataPage() {
     TRAINING_AGENTS.find((a) => a.id === activeAgent) ?? TRAINING_AGENTS[0];
 
   return (
-    <section key={activeAgent} className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-8">
+    <PageContainer as="section" key={activeAgent}>
       <div className="rounded-md border border-border bg-surface shadow-none overflow-hidden">
         <nav
           className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle"
@@ -58,6 +58,6 @@ export function TrainingDataPage() {
 
       <TrainingJobsPanel agentId={activeAgent} />
       <AdapterListTable agentId={activeAgent} />
-    </section>
+    </PageContainer>
   );
 }

@@ -24,12 +24,12 @@ describe('isNavigationActive', () => {
 });
 
 describe('admin navigation group structure', () => {
-  it('organizes admin navigation by responsibility without losing routes', () => {
+  it('organizes admin navigation with descriptive institutional two-word names', () => {
     expect(adminNavGroups.map(({ id, label }) => ({ id, label }))).toEqual([
       { id: 'overview', label: 'Overview' },
       { id: 'operations', label: 'Operations' },
-      { id: 'knowledge-base', label: 'Knowledge base' },
-      { id: 'model-governance', label: 'Model governance' },
+      { id: 'knowledge-base', label: 'Knowledge Base' },
+      { id: 'model-governance', label: 'Model Governance' },
     ]);
 
     expect(adminNavGroups.flatMap((group) => group.items).map(({ to, label }) => ({ to, label }))).toEqual([
@@ -64,27 +64,54 @@ describe('getRouteTitle', () => {
   it('returns Knowledge Map for /evaluation-map', () => {
     expect(getRouteTitle('/evaluation-map')).toBe('Knowledge Map');
   });
+
+  it('returns Reference Ingestion for /admin/ingest', () => {
+    expect(getRouteTitle('/admin/ingest')).toBe('Reference Ingestion');
+  });
+
+  it('returns Reference Library for /admin/references', () => {
+    expect(getRouteTitle('/admin/references')).toBe('Reference Library');
+  });
+
+  it('returns Rubric Editor for /admin/rubrics', () => {
+    expect(getRouteTitle('/admin/rubrics')).toBe('Rubric Editor');
+  });
+
+  it('returns Model Validation for /admin/model-validation', () => {
+    expect(getRouteTitle('/admin/model-validation')).toBe('Model Validation');
+  });
 });
 
 describe('getBreadcrumbs', () => {
-  it('returns Administration > Dashboard for /admin', () => {
+  it('returns Dashboard for /admin without duplicate root', () => {
     expect(getBreadcrumbs('/admin')).toEqual([
-      { label: 'Administration' },
       { label: 'Dashboard' },
     ]);
   });
 
-  it('returns Administration > User Management for /admin/users', () => {
+  it('returns User Management for /admin/users', () => {
     expect(getBreadcrumbs('/admin/users')).toEqual([
-      { label: 'Administration', to: '/admin' },
       { label: 'User Management' },
     ]);
   });
 
-  it('returns Administration > Monitoring Matrix for /matrix', () => {
+  it('returns Monitoring Matrix for /matrix', () => {
     expect(getBreadcrumbs('/matrix')).toEqual([
-      { label: 'Administration', to: '/admin' },
       { label: 'Monitoring Matrix' },
+    ]);
+  });
+
+  it('returns Monitoring Matrix > Master Synthesis for /matrix/:documentId', () => {
+    expect(getBreadcrumbs('/matrix/doc-123')).toEqual([
+      { label: 'Monitoring Matrix', to: '/matrix' },
+      { label: 'Master Synthesis' },
+    ]);
+  });
+
+  it('returns Agent Prompts > Coordinator for /admin/prompts/coordinator', () => {
+    expect(getBreadcrumbs('/admin/prompts/coordinator')).toEqual([
+      { label: 'Agent Prompts', to: '/admin/prompts' },
+      { label: 'Coordinator' },
     ]);
   });
 });

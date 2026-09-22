@@ -12,12 +12,7 @@ import {
   Warning,
   WarningCircle,
 } from '@phosphor-icons/react';
-import { Badge } from '@equiped/ui';
-import { Button } from '@equiped/ui';
-import { Card, CardContent, CardHeader, CardTitle } from '@equiped/ui';
-import { Skeleton } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import { TYPOGRAPHY } from '@equiped/ui';
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, cn, TYPOGRAPHY } from '@equiped/ui';
 import { useMasterSynthesisDetail } from '../hooks/useMasterSynthesisDetail';
 import type { MasterSynthesisPillar } from '../types';
 import {

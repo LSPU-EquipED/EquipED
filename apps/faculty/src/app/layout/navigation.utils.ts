@@ -11,23 +11,9 @@ import {
   SquaresFour,
 } from '@phosphor-icons/react';
 
-export interface NavItem {
-  to: string;
-  label: string;
-  icon: Icon;
-  exact: boolean;
-}
+import type { BreadcrumbItem, NavGroup, NavItem } from '@equiped/ui';
 
-export interface BreadcrumbItem {
-  label: string;
-  to?: string;
-}
-
-export interface NavGroup {
-  id: string;
-  label: string;
-  items: readonly NavItem[];
-}
+export type { NavItem, BreadcrumbItem, NavGroup } from '@equiped/ui';
 
 export const facultyNavGroups: readonly NavGroup[] = [
   {
@@ -112,52 +98,12 @@ export function filterFacultyNavGroups(
     .filter((group) => group.items.length > 0);
 }
 
-export function isNavigationActive(
-  currentPath: string,
-  targetPath: string,
-  exact: boolean,
-): boolean {
-  if (exact) {
-    return currentPath === targetPath;
-  }
-  if (currentPath === targetPath) {
-    return true;
-  }
-  const prefix = targetPath.endsWith('/') ? targetPath : `${targetPath}/`;
-  return currentPath.startsWith(prefix);
-}
-
-export function getAriaCurrent(isActive: boolean): 'page' | undefined {
-  return isActive ? 'page' : undefined;
-}
-
-export function getSidebarLayoutClasses(isCollapsed: boolean): {
-  headerLeft: string;
-  mainPadding: string;
-  sidebarDesktopWidth: string;
-} {
-  return {
-    headerLeft: isCollapsed ? 'left-0 md:left-[4.5rem]' : 'left-0 md:left-64',
-    mainPadding: isCollapsed ? 'pl-0 md:pl-[4.5rem]' : 'pl-0 md:pl-64',
-    sidebarDesktopWidth: isCollapsed ? 'md:w-[4.5rem]' : 'md:w-64',
-  };
-}
-
-export function getSidebarInertState(
-  isMobile: boolean,
-  mobileOpen: boolean,
-): {
-  inert: boolean;
-  ariaHidden: boolean;
-} {
-  if (!isMobile) {
-    return { inert: false, ariaHidden: false };
-  }
-  return {
-    inert: !mobileOpen,
-    ariaHidden: !mobileOpen,
-  };
-}
+export {
+  isNavigationActive,
+  getAriaCurrent,
+  getSidebarLayoutClasses,
+  getSidebarInertState,
+} from '@equiped/ui';
 
 export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
