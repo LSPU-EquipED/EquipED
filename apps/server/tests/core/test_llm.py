@@ -430,3 +430,50 @@ def test_missing_keys_200_raises_clear_error(monkeypatch) -> None:
     msg = str(exc_info.value)
     assert "malformed" in msg.lower() or "invalid" in msg.lower()
     assert "client could not be created" not in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# LoRA adapter scale
+# ---------------------------------------------------------------------------
+
+
+def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
+    """By default (lora_scale=None), the lora field should not be added to the payload."""
+    captured = {}
+
+    def fake_urlopen(req, **kwargs):
+        captured["body"] = json.loads(req.data)
+        return _FakeHTTPResponse(
+            200,
+            json.dumps(
+                {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "model": "m"}
+            ),
+        )
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    client = _make_client()
+    client.generate_result("hi")
+    assert "lora" not in captured["body"]
+
+
+def test_with_lora_scale_adds_lora_field(monkeypatch) -> None:
+    """with_lora_scale should produce a client that sends a lora field in the payload."""
+    captured = {}
+
+    def fake_urlopen(req, **kwargs):
+        captured["body"] = json.loads(req.data)
+        return _FakeHTTPResponse(
+            200,
+            json.dumps(
+                {"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}], "model": "m"}
+            ),
+        )
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    client = _make_client()
+    scaled = client.with_lora_scale(1.0)
+    scaled.generate_result("hi")
+    assert captured["body"]["lora"] == [{"id": 0, "scale": 1.0}]
+    # The original, unscaled client is untouched.
+    assert scaled is not client
+    assert client.lora_scale is None

@@ -287,6 +287,7 @@ class LocalLLMClient:
         initial_backoff=2.0,
         max_backoff=60.0,
         request_timeout=None,
+        lora_scale: float | None = None,
     ):
         self.provider, self.model, self.api_base, self.api_key = (
             provider,
@@ -300,6 +301,21 @@ class LocalLLMClient:
             max_backoff,
         )
         self.request_timeout = request_timeout
+        self.lora_scale = lora_scale
+
+    def with_lora_scale(self, scale: float) -> LocalLLMClient:
+        """A copy of this client that sends the given adapter scale on every request."""
+        return LocalLLMClient(
+            self.provider,
+            self.model,
+            self.api_base,
+            self.api_key,
+            max_attempts=self.max_attempts,
+            initial_backoff=self.initial_backoff,
+            max_backoff=self.max_backoff,
+            request_timeout=self.request_timeout,
+            lora_scale=scale,
+        )
 
     @staticmethod
     def _parse_retry_after(exc):
@@ -368,6 +384,8 @@ class LocalLLMClient:
             "temperature": temperature,
             "max_tokens": max_new_tokens,
         }
+        if self.lora_scale is not None:
+            payload["lora"] = [{"id": 0, "scale": self.lora_scale}]
         if contract.mode == "json_schema":
             payload["response_format"]["json_schema"] = {
                 "name": contract.schema_name,
