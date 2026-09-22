@@ -258,6 +258,70 @@ def _setup_validation(
     return expected_scores, slm
 
 
+def test_create_model_validation_targets_one_agent(
+    admin_user, db_session
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    assert sme_only  # sanity: _seed_active_rubrics always seeds an SME criterion
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        }
+    )
+
+    response = create_model_validation(
+        req,
+        created_by=admin_user.user_id,
+        created_by_role="admin",
+        db=db_session,
+    )
+
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert job.target_agent == "sme"
+    assert job.partial_without_curriculum is False
+    assert job.partial_reason is None
+    assert {item.agent_id for item in response.criterion_scores} == {"sme"}
+
+
+def test_create_model_validation_single_agent_coordinator_requires_curriculum(
+    admin_user, db_session
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
+
+    expected_scores, slm = _setup_validation(
+        db_session, admin_user, include_coordinator=True
+    )
+    coordinator_only = [
+        item for item in expected_scores if item["agent_id"] == "coordinator"
+    ]
+    assert coordinator_only
+
+    req = ModelValidationCreateRequest.model_validate(
+        {
+            "document_id": slm.document_id,
+            "target_agent": "coordinator",
+            "expected_scores": coordinator_only,
+        }
+    )
+
+    with pytest.raises(InvalidEvaluationTargetError):
+        create_model_validation(
+            req,
+            created_by=admin_user.user_id,
+            created_by_role="admin",
+            db=db_session,
+        )
+
+
 def test_model_validation_requires_admin(
     client: TestClient, auth_cookies_faculty
 ) -> None:

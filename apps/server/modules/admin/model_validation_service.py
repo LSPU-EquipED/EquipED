@@ -183,7 +183,10 @@ def create_model_validation(
     step never leaves an orphan job.
     """
     is_partial = bool(request.partial_without_curriculum)
-    if is_partial:
+    single_agent = request.target_agent != "all"
+    if single_agent:
+        expected_agents = {request.target_agent}
+    elif is_partial:
         if request.curriculum_id is not None:
             raise InvalidEvaluationTargetError(
                 "Partial evaluation without curriculum cannot specify a curriculum_id."
@@ -301,8 +304,11 @@ def create_model_validation(
             EvaluationSubmitRequest(
                 document_id=request.document_id,
                 syllabus_id=request.syllabus_id,
-                curriculum_id=request.curriculum_id if not is_partial else None,
-                partial_without_curriculum=is_partial,
+                curriculum_id=(
+                    request.curriculum_id if single_agent or not is_partial else None
+                ),
+                target_agent=(request.target_agent if single_agent else "sme"),
+                partial_without_curriculum=(False if single_agent else is_partial),
                 confirmed_program=confirmed_program,
             ),
             submitted_by=created_by,
@@ -310,9 +316,9 @@ def create_model_validation(
             db=db,
             with_commit=False,
         )
-        # Model-validation benchmarks remain historical multi-agent bundles.
         _bench_job = db.get(EvaluationJob, evaluation.evaluation_id)
-        if _bench_job is not None:
+        if _bench_job is not None and not single_agent:
+            # Model-validation benchmarks remain historical multi-agent bundles.
             _bench_job.target_agent = "all"
             _bench_job.partial_without_curriculum = bool(is_partial)
             _bench_job.partial_reason = (
