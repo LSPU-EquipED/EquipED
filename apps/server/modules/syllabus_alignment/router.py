@@ -57,11 +57,18 @@ def start_alignment(
 def list_slms(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    search: str | None = Query(None),
+    status_filter: str | None = Query(None),
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> SyllabusAlignmentSlmListResponse:
     return list_alignment_slms(
-        db, requested_by=current_user.id, page=page, page_size=page_size
+        db,
+        requested_by=current_user.id,
+        page=page,
+        page_size=page_size,
+        search=search,
+        status_filter=status_filter,
     )
 
 

@@ -72,7 +72,7 @@ describe('RoleGuard and EvaluatorPermission guards', () => {
       }
 
       expect(thrown).toBeDefined();
-      expect(thrown.options?.to ?? thrown.to).toBe('/admin');
+      expect(thrown.options?.href ?? thrown.options?.to ?? thrown.to).toBe('/admin');
     });
 
     it('redirects unauthorized faculty user to /dashboard fallback', () => {

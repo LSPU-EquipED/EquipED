@@ -1,12 +1,12 @@
 /**
  * Reusable Design System Tokens & Tailwind Class Mappings
- * Conforms to Google-spec DESIGN.md ("The Contemporary Faculty Ledger")
+ * EquipED institutional workbench tokens.
  */
 
 export const TYPOGRAPHY = {
-  display: 'text-[32px] font-bold leading-[1.15] tracking-[-0.02em] text-text',
-  headingLg: 'text-[28px] font-bold leading-[1.25] tracking-[-0.015em] text-text',
-  headingMd: 'text-[20px] font-semibold leading-[1.35] tracking-[-0.01em] text-text',
+  display: 'text-[32px] font-bold leading-[1.15] tracking-normal text-text',
+  headingLg: 'text-[28px] font-bold leading-[1.25] tracking-normal text-text',
+  headingMd: 'text-[20px] font-semibold leading-[1.35] tracking-normal text-text',
   headingSm: 'text-[16px] font-semibold leading-[1.4] tracking-normal text-text',
   bodyMd: 'text-[15px] font-normal leading-[1.6] tracking-normal text-text',
   bodySm: 'text-[14px] font-medium leading-[1.4] tracking-normal text-text',
@@ -28,6 +28,14 @@ export const SPACING_TIERS = {
     section: 'space-y-6',
     flow: 'space-y-8',
   },
+} as const;
+
+export const SHELL_STYLES = {
+  sidebar: 'bg-surface border-r border-border',
+  topbar: 'bg-canvas border-b border-border',
+  content: 'bg-canvas',
+  navGroup: 'text-[11px] font-medium tracking-[0.08em] text-text-muted',
+  navItem: 'h-10 rounded-sm text-sm transition-colors',
 } as const;
 
 export const BORDER_STYLES = {
@@ -78,7 +86,7 @@ export const STATUS_VARIANTS = {
 export type StatusVariant = keyof typeof STATUS_VARIANTS;
 
 export const BUTTON_STYLES = {
-  base: 'inline-flex items-center justify-center gap-2 rounded-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer',
+  base: 'inline-flex items-center justify-center gap-2 rounded-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer active:translate-y-px',
   variants: {
     primary: 'bg-primary text-primary-foreground hover:bg-primary-strong shadow-none active:bg-primary-strong',
     secondary: 'bg-surface text-text border border-border hover:bg-surface-subtle shadow-none active:bg-surface-subtle',

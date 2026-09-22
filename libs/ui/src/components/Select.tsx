@@ -70,7 +70,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const selectElement = (
       <div
         className={cn(
-          'relative inline-flex items-center',
+          'relative inline-flex items-center w-full',
           !hasFieldWrapper && containerClassName,
         )}
       >

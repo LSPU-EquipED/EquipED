@@ -36,6 +36,8 @@ describe('getCrossAppUrl', () => {
     expect(getCrossAppUrl('/dashboard')).toBe('http://localhost:5173/dashboard');
     expect(getCrossAppUrl('/documents')).toBe('http://localhost:5173/documents');
     expect(getCrossAppUrl('/evaluations/123')).toBe('http://localhost:5173/evaluations/123');
+    expect(getCrossAppUrl('/curriculum-alignment')).toBe('http://localhost:5173/curriculum-alignment');
+    expect(getCrossAppUrl('/alignment')).toBe('http://localhost:5173/alignment');
   });
 
   it('preserves relative URLs when running on Caddy :3000 or production port', () => {

@@ -49,6 +49,14 @@ class EvaluationResponse(BaseModel):
     completed_at: datetime | None = None
     duration_seconds: float | None = None
 
+
+class EvaluationListStats(BaseModel):
+    total: int
+    completed: int
+    in_progress: int
+    average_duration_seconds: float | None = None
+
+
 class EvaluationListItem(BaseModel):
     evaluation_id: UUID
     document_id: UUID
@@ -56,6 +64,7 @@ class EvaluationListItem(BaseModel):
     syllabus_id: UUID | None
     curriculum_id: UUID | None
     status: EvaluationStatus
+    error_message: str | None = None
     target_agent: str = "all"
     partial_without_curriculum: bool = False
     partial_reason: str | None = None
@@ -70,6 +79,8 @@ class EvaluationListResponse(BaseModel):
     total: int
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=200)
+    stats: EvaluationListStats
+
 
 class EvaluationStatusResponse(BaseModel):
     evaluation_id: UUID
@@ -118,6 +129,7 @@ __all__ = [
     "EvaluationSubmitRequest",
     "EvaluationResponse",
     "EvaluationListItem",
+    "EvaluationListStats",
     "EvaluationListResponse",
     "EvaluationStatusResponse",
     "LatestEvaluationItem",

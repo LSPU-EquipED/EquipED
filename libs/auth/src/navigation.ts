@@ -35,6 +35,7 @@ export function getCrossAppUrl(path: string): string {
       path.startsWith('/evaluations') ||
       path.startsWith('/specialists') ||
       path.startsWith('/syllabus-alignment') ||
+      path.startsWith('/curriculum-alignment') ||
       path.startsWith('/storage') ||
       path.startsWith('/alignment'))
   ) {

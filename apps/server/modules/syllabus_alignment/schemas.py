@@ -47,16 +47,26 @@ class SyllabusAlignmentSlmItem(BaseModel):
     current_result: SyllabusAlignmentRunResponse | None = None
 
 
+class SyllabusAlignmentStats(BaseModel):
+    total: int
+    meets: int
+    partially_meets: int
+    needs_attention: int
+    pending: int
+
+
 class SyllabusAlignmentSlmListResponse(BaseModel):
     items: list[SyllabusAlignmentSlmItem]
     total: int
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=100)
+    stats: SyllabusAlignmentStats
 
 
 __all__ = [
     "SyllabusAlignmentCreateRequest",
     "SyllabusAlignmentRunResponse",
     "SyllabusAlignmentSlmItem",
+    "SyllabusAlignmentStats",
     "SyllabusAlignmentSlmListResponse",
 ]
