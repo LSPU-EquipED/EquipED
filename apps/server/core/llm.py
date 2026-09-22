@@ -667,6 +667,44 @@ def probe_local_model_readiness(*, probe=None, canary=None, required_contract=No
         ) from exc
 
 
+def check_lora_adapter_loaded() -> bool:
+    """True if the configured LLM endpoint reports at least one loaded LoRA
+    adapter. Raises InfrastructureUnavailableError if the endpoint itself
+    cannot be reached -- a compare run must never treat "server is down" as
+    "no adapter loaded" and silently skip the adapter half."""
+    settings = get_settings()
+    base = settings.llm_api_base or "http://localhost:11434/v1"
+    allowed_hosts = getattr(settings, "llm_allowed_endpoints", ())
+    allowed, _ = (
+        is_private_endpoint(base, allowed_hosts=allowed_hosts)
+        if allowed_hosts
+        else is_private_endpoint(base)
+    )
+    if not allowed:
+        raise InfrastructureUnavailableError("Local model is unavailable")
+    root = base.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[: -len("/v1")]
+    headers = {"Content-Type": "application/json", "User-Agent": "EquipED/0.1.0"}
+    if settings.llm_api_key:
+        headers["Authorization"] = f"Bearer {settings.llm_api_key}"
+    req = request.Request(root + "/lora-adapters", headers=headers)
+    try:
+        with request.urlopen(
+            req, timeout=min(max(float(settings.llm_readiness_timeout_seconds), 1.0), 30.0)
+        ) as response:
+            adapters = json.loads(response.read(1_000_000))
+    except Exception as exc:
+        raise InfrastructureUnavailableError(
+            "Could not reach the LLM endpoint to check for a loaded adapter"
+        ) from exc
+    if not isinstance(adapters, list):
+        raise InfrastructureUnavailableError(
+            "Unexpected response from the LLM endpoint's adapter list"
+        )
+    return len(adapters) > 0
+
+
 @lru_cache(maxsize=1)
 def get_llm_client():
     s = get_settings()
@@ -706,4 +744,5 @@ __all__ = [
     "get_llm_client_for_agent",
     "get_llm_model_name",
     "probe_local_model_readiness",
+    "check_lora_adapter_loaded",
 ]
