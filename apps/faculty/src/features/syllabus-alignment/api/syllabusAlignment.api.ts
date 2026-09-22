@@ -6,10 +6,19 @@ import type {
 } from '../types';
 
 export const alignmentApi = {
-  listSlms: (page = 1, pageSize = 100) =>
-    requestJson<AlignmentSlmListResponse>(
-      `/syllabus-alignments/slms?page=${page}&page_size=${pageSize}`,
-    ),
+  listSlms: async (
+    page = 1,
+    pageSize = 20,
+    options?: { search?: string; status_filter?: string },
+  ): Promise<AlignmentSlmListResponse> => {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    if (options?.search) params.set('search', options.search);
+    if (options?.status_filter) params.set('status_filter', options.status_filter);
+    return requestJson<AlignmentSlmListResponse>(`/syllabus-alignments/slms?${params.toString()}`);
+  },
 
   getCurrent: (slmDocumentId: string) =>
     requestJson<AlignmentRun | null>(

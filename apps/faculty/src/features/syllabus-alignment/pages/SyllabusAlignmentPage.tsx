@@ -1,20 +1,18 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import {
   Warning,
   CaretLeft,
   CaretRight,
   MagnifyingGlass,
+  Books,
+  CheckCircle,
+  Clock,
+  FileText,
 } from '@phosphor-icons/react';
 import { getErrorMessage } from '@equiped/api-client';
-import { Badge } from '@equiped/ui';
-import { Button } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import { TableSkeleton } from '@equiped/ui';
-import { BUTTON_STYLES, TABLE_STYLES } from '@equiped/ui';
-import { alignmentApi } from '../api/syllabusAlignment.api';
+import { Badge, Button, cn, TableSkeleton, Skeleton, BUTTON_STYLES, TABLE_STYLES } from '@equiped/ui';
 import type { AlignmentLevel, AlignmentProcessingStatus } from '../types';
+import { useSyllabusAlignmentList } from '../hooks/useSyllabusAlignmentList';
 
 const levelLabels: Record<AlignmentLevel, string> = {
   MEETS: 'Meets',
@@ -40,38 +38,108 @@ function getLevelBadgeVariant(status: AlignmentProcessingStatus, level?: Alignme
 }
 
 export function SyllabusAlignmentPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const pageSize = 10;
-
-  const slms = useQuery({
-    queryKey: ['syllabus-alignment-slms', page],
-    queryFn: () => alignmentApi.listSlms(page, pageSize),
-    refetchInterval: (query) =>
-      (query.state.data?.items ?? []).some((item) =>
-        ['QUEUED', 'RUNNING'].includes(item.current_result?.status ?? ''),
-      )
-        ? 3000
-        : false,
-  });
-
-  const total = slms.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const items = slms.data?.items ?? [];
-  const filteredItems = items.filter((item) => {
-    if (!search.trim()) return true;
-    const query = search.toLowerCase();
-    return (
-      item.title.toLowerCase().includes(query) ||
-      (item.course_title && item.course_title.toLowerCase().includes(query)) ||
-      (item.lesson_title && item.lesson_title.toLowerCase().includes(query)) ||
-      (item.program && item.program.toLowerCase().includes(query))
-    );
-  });
+  const {
+    page,
+    setPage,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    slms,
+    total,
+    totalPages,
+    items,
+    metrics,
+    filteredItems,
+  } = useSyllabusAlignmentList(10);
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
+    <section className="mx-auto max-w-[108rem] space-y-7 px-4 py-6 sm:px-7 sm:py-8">
+      {/* 4-Cell Divided Metrics Strip */}
+      <div
+        className="grid grid-cols-2 divide-x divide-y divide-border overflow-hidden rounded-md border border-border bg-surface sm:grid-cols-4 sm:divide-y-0 shadow-none"
+        role="region"
+        aria-label="Syllabus alignment overview metrics"
+      >
+        <div className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-text-muted">
+            <span>Course Modules</span>
+            <Books className="size-3.5 text-primary" aria-hidden="true" />
+          </div>
+          <div className="mt-2">
+            {slms.isLoading && !slms.data ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold tabular-nums text-text">
+                  {total}
+                </span>
+                <span className="ml-1.5 text-[11px] text-text-muted">on record</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-text-muted">
+            <span>Meets Syllabus</span>
+            <CheckCircle className="size-3.5 text-success" aria-hidden="true" />
+          </div>
+          <div className="mt-2">
+            {slms.isLoading && !slms.data ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold tabular-nums text-success">
+                  {metrics.meets}
+                </span>
+                <span className="ml-1.5 text-[11px] text-text-muted">aligned</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-text-muted">
+            <span>Partially Meets</span>
+            <Warning className="size-3.5 text-warning" aria-hidden="true" />
+          </div>
+          <div className="mt-2">
+            {slms.isLoading && !slms.data ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold tabular-nums text-warning">
+                  {metrics.partiallyMeets}
+                </span>
+                <span className="ml-1.5 text-[11px] text-text-muted">partial</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4">
+          <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-text-muted">
+            <span>Needs Attention</span>
+            <Clock className="size-3.5 text-destructive" aria-hidden="true" />
+          </div>
+          <div className="mt-2">
+            {slms.isLoading && !slms.data ? (
+              <Skeleton className="h-7 w-12" />
+            ) : (
+              <>
+                <span className="text-2xl font-semibold tabular-nums text-destructive">
+                  {metrics.attention}
+                </span>
+                <span className="ml-1.5 text-[11px] text-text-muted">
+                  {metrics.pending > 0 ? `+ ${metrics.pending} pending` : 'divergent'}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Loading state */}
       {slms.isLoading && !slms.data && (
         <TableSkeleton
@@ -97,50 +165,80 @@ export function SyllabusAlignmentPage() {
       {/* Empty state */}
       {!slms.isLoading && !slms.isError && items.length === 0 && (
         <div className="rounded-md border border-dashed border-border bg-surface p-12 text-center">
+          <FileText className="mx-auto size-8 text-text-muted mb-2" aria-hidden="true" />
           <p className="font-semibold text-text">No SLM documents available</p>
-          <p className="text-xs text-text-muted mt-1">Upload course learning modules to begin syllabus alignment checks.</p>
+          <p className="text-xs text-text-muted mt-1">Upload course learning modules in SLM Storage to begin syllabus alignment checks.</p>
         </div>
       )}
 
       {/* Unified Table Container */}
       {!slms.isLoading && !slms.isError && items.length > 0 && (
         <div className={TABLE_STYLES.wrapper}>
-          {/* Table Search Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-2.5">
-            <div className="relative min-w-[14rem] sm:min-w-[18rem]">
+          {/* Table Search & Status Filter Tabs Toolbar */}
+          <div className="flex flex-col gap-3 border-b border-border bg-surface px-4 sm:px-5 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Status Filter Tabs */}
+              <div className="flex flex-wrap items-center gap-1">
+                {(
+                  [
+                    ['ALL', `All (${items.length})`],
+                    ['MEETS', `Meets (${metrics.meets})`],
+                    ['PARTIALLY_MEETS', `Partially meets (${metrics.partiallyMeets})`],
+                    ['ATTENTION', `Needs attention (${metrics.attention})`],
+                    ['PENDING', `Pending (${metrics.pending})`],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setStatusFilter(key)}
+                    className={cn(
+                      'rounded-xs px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-ring',
+                      statusFilter === key
+                        ? 'bg-surface-subtle text-text border border-border shadow-2xs'
+                        : 'text-text-muted hover:text-text hover:bg-surface-subtle/50',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <span className="text-xs text-text-muted tabular-nums">
+                {filteredItems.length} of {total} modules shown
+              </span>
+            </div>
+
+            <div className="relative w-full sm:max-w-md">
               <MagnifyingGlass
                 className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
                 aria-hidden="true"
               />
               <input
                 type="text"
-                placeholder="Search by SLM title, course, or program…"
+                placeholder="Search by SLM title, course, program, or syllabus…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
                 aria-label="Search syllabus alignments"
               />
             </div>
-
-            <span className="text-xs text-text-muted tabular-nums font-semibold">
-              {total} SLM module{total === 1 ? '' : 's'} on record
-            </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className={TABLE_STYLES.table}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-[40%] min-w-[16rem]')}>
                     SLM Document / Module
                   </th>
-                  <th scope="col" className={TABLE_STYLES.th}>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-[20%]')}>
                     Program / Course
                   </th>
-                  <th scope="col" className={TABLE_STYLES.th}>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-[25%]')}>
                     Syllabus Alignment
                   </th>
-                  <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-[15%] text-right')}>
                     Action
                   </th>
                 </tr>
@@ -167,8 +265,8 @@ export function SyllabusAlignmentPage() {
                             {statusLabel(item.current_result.status, item.current_result.alignment_level)}
                           </Badge>
                           {item.current_result.syllabus_title ? (
-                            <span className="text-[11px] text-text-muted truncate max-w-xs">
-                              {item.current_result.syllabus_title}
+                            <span className="text-[11px] text-text-muted truncate max-w-xs" title={item.current_result.syllabus_title}>
+                              Ref: {item.current_result.syllabus_title}
                             </span>
                           ) : null}
                         </div>

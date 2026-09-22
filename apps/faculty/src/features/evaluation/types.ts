@@ -1,6 +1,16 @@
-import type { TargetAgent } from '@equiped/types';
+import type {
+  TargetAgent,
+  EvaluationListItem,
+  EvaluationListResponse,
+  EvaluationListStats,
+} from '@equiped/types';
 
-export type { TargetAgent };
+export type {
+  TargetAgent,
+  EvaluationListItem,
+  EvaluationListResponse,
+  EvaluationListStats,
+};
 
 export type TargetAgentOrLegacy = TargetAgent | 'all';
 
@@ -136,29 +146,6 @@ export interface EvaluationStatusResponse {
   partial_reason?: string | null;
   completed_at?: string;
   duration_seconds?: number | null;
-}
-
-export interface EvaluationListItem {
-  evaluation_id: string;
-  document_id: string;
-  document_title?: string | null;
-  syllabus_id?: string | null;
-  curriculum_id?: string | null;
-  /** Target specialist agent. Legacy bundle jobs report 'all'. */
-  target_agent?: TargetAgentOrLegacy;
-  status: EvaluationStatus;
-  partial_without_curriculum?: boolean;
-  partial_reason?: string | null;
-  submitted_at: string;
-  completed_at?: string | null;
-  duration_seconds?: number | null;
-}
-
-export interface EvaluationListResponse {
-  items: EvaluationListItem[];
-  total: number;
-  page: number;
-  page_size: number;
 }
 
 export type DeskQueueStatus = 'READY' | 'EVALUATING' | 'COMPLETED' | 'FAILED';

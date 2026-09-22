@@ -1,3 +1,5 @@
+import type { CriterionScoreItem, EvaluationFormPresentation } from '../types';
+
 // Canonical helpers shared by the interactive scorecard and the PDF export.
 //
 // Keeping these rules in one place guarantees the on-screen scorecard, the
@@ -70,6 +72,25 @@ export function monitoringPercentage(subtotal: number, maxScore: number = CANONI
   return Math.round((subtotal / maxScore) * 100);
 }
 
+/**
+ * Harmonized adjectival rating badge classes across the evaluation workspace.
+ */
+export function getAdjectivalRatingClasses(rating: string | undefined): string {
+  switch (rating) {
+    case 'Very Satisfactory':
+      return 'bg-success-soft text-success border-success/30';
+    case 'Satisfactory':
+      return 'bg-info-soft text-info border-info/30';
+    case 'Needs Improvement':
+      return 'bg-warning-soft text-warning border-warning/30';
+    case 'Poor':
+    case 'Unsatisfactory':
+      return 'bg-destructive-soft text-destructive border-destructive/30';
+    default:
+      return 'bg-surface-subtle text-text-muted border-border';
+  }
+}
+
 // Strip raw chunk-id tokens from narrative / justification strings. Falls
 // back to the input unchanged when there is nothing to clean.
 export function cleanJustification(text: string | null | undefined): string {
@@ -82,6 +103,33 @@ export function cleanJustification(text: string | null | undefined): string {
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([,.;:!?])/g, '$1')
     .trim();
+}
+
+// Format raw quoted SLM evidence: parses JSON string arrays (e.g. ["item 1", "item 2"]),
+// unescapes literal \n and quotes, and cleans RAG chunk tokens.
+export function formatEvidenceText(raw: string | null | undefined): string {
+  if (!raw) return '';
+  let text = raw.trim();
+
+  // Parse JSON-serialized string arrays if present
+  if (text.startsWith('[') && text.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        text = parsed
+          .map((item) => (typeof item === 'string' ? item : JSON.stringify(item)))
+          .join('\n\n');
+      }
+    } catch {
+      // If parsing fails, strip outer bracket artifacts
+      text = text.replace(/^\[\s*"?/, '').replace(/"?\s*\]$/, '');
+    }
+  }
+
+  // Unescape literal escaped newlines and escaped quotes
+  text = text.replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\"/g, '"');
+
+  return cleanJustification(text);
 }
 
 // Bound narrative length for export. Trims on a word boundary when possible
@@ -196,4 +244,110 @@ export function scoreTier(score: number | null | undefined): 'strong' | 'moderat
   if (score >= 3) return 'strong';
   if (score >= 2) return 'moderate';
   return 'weak';
+}
+
+/**
+ * Sort criteria so they are grouped by rubric domain/category and ordered within their group,
+ * rather than interleaved/alternating across domains with matching display_order indices.
+ */
+export function sortCriteriaGrouped(
+  criteria: readonly CriterionScoreItem[],
+  formPresentation?: EvaluationFormPresentation | null,
+): CriterionScoreItem[] {
+  if (!criteria || criteria.length <= 1) {
+    return criteria ? [...criteria] : [];
+  }
+
+  // 1. If dynamic form snapshot presentation is available, use official domain and criterion display order
+  if (formPresentation?.domains && formPresentation.domains.length > 0) {
+    const criterionDomainMeta = new Map<
+      string,
+      { domainOrder: number; criterionOrder: number }
+    >();
+
+    formPresentation.domains.forEach((domain, domainIndex) => {
+      const domainOrder = domain.display_order ?? domainIndex;
+      domain.criteria.forEach((crit, critIndex) => {
+        const criterionOrder = crit.display_order ?? critIndex;
+        if (crit.rubric_criterion_id) {
+          criterionDomainMeta.set(crit.rubric_criterion_id, {
+            domainOrder,
+            criterionOrder,
+          });
+        }
+        if (crit.criterion_code) {
+          criterionDomainMeta.set(crit.criterion_code.toUpperCase(), {
+            domainOrder,
+            criterionOrder,
+          });
+        }
+      });
+    });
+
+    return [...criteria].sort((a, b) => {
+      const metaA =
+        (a.rubric_criterion_id && criterionDomainMeta.get(a.rubric_criterion_id)) ||
+        (a.criterion_id && criterionDomainMeta.get(a.criterion_id.toUpperCase()));
+      const metaB =
+        (b.rubric_criterion_id && criterionDomainMeta.get(b.rubric_criterion_id)) ||
+        (b.criterion_id && criterionDomainMeta.get(b.criterion_id.toUpperCase()));
+
+      if (metaA && metaB) {
+        if (metaA.domainOrder !== metaB.domainOrder) {
+          return metaA.domainOrder - metaB.domainOrder;
+        }
+        if (metaA.criterionOrder !== metaB.criterionOrder) {
+          return metaA.criterionOrder - metaB.criterionOrder;
+        }
+      } else if (metaA && !metaB) {
+        return -1;
+      } else if (!metaA && metaB) {
+        return 1;
+      }
+
+      if (a.display_order != null && b.display_order != null && a.display_order !== b.display_order) {
+        return a.display_order - b.display_order;
+      }
+      return a.criterion_id.localeCompare(b.criterion_id, undefined, {
+        numeric: true,
+      });
+    });
+  }
+
+  // 2. Fallback when form presentation is not provided (e.g. test mocks, legacy):
+  // Group by category/domain prefix (e.g. "OP" from "OP-01", "A" from "A-01") preserving
+  // original domain appearance order from the backend.
+  const extractPrefix = (criterion: CriterionScoreItem): string => {
+    const id = criterion.criterion_id || '';
+    const match = id.match(/^([A-Za-z]+)/);
+    if (match) return match[1].toUpperCase();
+    return id.replace(/[-_]?\d+$/, '').toUpperCase() || id;
+  };
+
+  const groupFirstSeen = new Map<string, number>();
+  criteria.forEach((criterion, idx) => {
+    const prefix = extractPrefix(criterion);
+    if (!groupFirstSeen.has(prefix)) {
+      groupFirstSeen.set(prefix, idx);
+    }
+  });
+
+  return [...criteria].sort((a, b) => {
+    const prefixA = extractPrefix(a);
+    const prefixB = extractPrefix(b);
+
+    if (prefixA !== prefixB) {
+      const orderA = groupFirstSeen.get(prefixA) ?? 0;
+      const orderB = groupFirstSeen.get(prefixB) ?? 0;
+      return orderA - orderB;
+    }
+
+    if (a.display_order != null && b.display_order != null && a.display_order !== b.display_order) {
+      return a.display_order - b.display_order;
+    }
+
+    return a.criterion_id.localeCompare(b.criterion_id, undefined, {
+      numeric: true,
+    });
+  });
 }

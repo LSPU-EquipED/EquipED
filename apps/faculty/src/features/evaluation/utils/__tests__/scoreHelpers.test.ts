@@ -17,6 +17,8 @@ import {
   monitoringPercentage,
   overallScoreDisplay,
   scoreTier,
+  sortCriteriaGrouped,
+  getAdjectivalRatingClasses,
 } from '../scoreHelpers';
 
 describe('formatScore', () => {
@@ -85,6 +87,32 @@ describe('formatCanonicalScore and formatMonitoringPercent', () => {
   it('falls back gracefully when a value is missing', () => {
     expect(formatCanonicalScore(null)).toBe('—');
     expect(formatMonitoringPercent(NaN, 4)).toBe('0%');
+  });
+});
+
+describe('getAdjectivalRatingClasses', () => {
+  it('returns canonical style classes across rating buckets', () => {
+    expect(getAdjectivalRatingClasses('Very Satisfactory')).toBe(
+      'bg-success-soft text-success border-success/30',
+    );
+    expect(getAdjectivalRatingClasses('Satisfactory')).toBe(
+      'bg-info-soft text-info border-info/30',
+    );
+    expect(getAdjectivalRatingClasses('Needs Improvement')).toBe(
+      'bg-warning-soft text-warning border-warning/30',
+    );
+    expect(getAdjectivalRatingClasses('Poor')).toBe(
+      'bg-destructive-soft text-destructive border-destructive/30',
+    );
+    expect(getAdjectivalRatingClasses('Unsatisfactory')).toBe(
+      'bg-destructive-soft text-destructive border-destructive/30',
+    );
+    expect(getAdjectivalRatingClasses(undefined)).toBe(
+      'bg-surface-subtle text-text-muted border-border',
+    );
+    expect(getAdjectivalRatingClasses('Unknown')).toBe(
+      'bg-surface-subtle text-text-muted border-border',
+    );
   });
 });
 
@@ -242,5 +270,83 @@ describe('scoreTier', () => {
 describe('CANONICAL_MAX_SCORE', () => {
   it('is fixed at 4', () => {
     expect(CANONICAL_MAX_SCORE).toBe(4);
+  });
+});
+
+describe('sortCriteriaGrouped', () => {
+  it('groups criteria by domain/category instead of alternating by display_order', () => {
+    // Alternating input (e.g. OP-01, A-01, OP-02, A-02) with identical display_order numbers
+    const alternating = [
+      { criterion_id: 'OP-01', criterion_text: 'Topic Coherence', display_order: 1, score: 4, justification: '' },
+      { criterion_id: 'A-01', criterion_text: 'Learner Transformation', display_order: 1, score: 3, justification: '' },
+      { criterion_id: 'OP-02', criterion_text: 'Interactivity', display_order: 2, score: 4, justification: '' },
+      { criterion_id: 'A-02', criterion_text: 'Varied Assessment Tools', display_order: 2, score: 3, justification: '' },
+      { criterion_id: 'OP-03', criterion_text: 'Clear Directions', display_order: 3, score: 4, justification: '' },
+      { criterion_id: 'A-03', criterion_text: 'Progress Monitoring', display_order: 3, score: 2, justification: '' },
+    ];
+
+    const grouped = sortCriteriaGrouped(alternating);
+    expect(grouped.map((c) => c.criterion_id)).toEqual([
+      'OP-01',
+      'OP-02',
+      'OP-03',
+      'A-01',
+      'A-02',
+      'A-03',
+    ]);
+  });
+
+  it('uses form snapshot presentation domain hierarchy when available', () => {
+    const criteria = [
+      { criterion_id: 'A-02', criterion_text: 'Varied Assessment', display_order: 2, score: 3, justification: '' },
+      { criterion_id: 'OP-01', criterion_text: 'Topic Coherence', display_order: 1, score: 4, justification: '' },
+      { criterion_id: 'A-01', criterion_text: 'Transformation', display_order: 1, score: 4, justification: '' },
+      { criterion_id: 'OP-02', criterion_text: 'Interactivity', display_order: 2, score: 3, justification: '' },
+    ];
+
+    const formPresentation = {
+      form_snapshot_id: 'snap-1',
+      rubric_set_id: 'rubric-1',
+      version: 1,
+      snapshot_hash: 'hash-1',
+      adapter_key: 'sme_adapter',
+      adapter_version: 1,
+      domains: [
+        {
+          rubric_domain_id: 'dom-op',
+          code: 'OP',
+          title: 'Organization & Presentation',
+          display_order: 1,
+          criteria: [
+            { rubric_criterion_id: 'c-op-1', criterion_code: 'OP-01', title: 'Topic Coherence', description: '', display_order: 1 },
+            { rubric_criterion_id: 'c-op-2', criterion_code: 'OP-02', title: 'Interactivity', description: '', display_order: 2 },
+          ],
+        },
+        {
+          rubric_domain_id: 'dom-a',
+          code: 'A',
+          title: 'Assessment',
+          display_order: 2,
+          criteria: [
+            { rubric_criterion_id: 'c-a-1', criterion_code: 'A-01', title: 'Transformation', description: '', display_order: 1 },
+            { rubric_criterion_id: 'c-a-2', criterion_code: 'A-02', title: 'Varied Assessment', description: '', display_order: 2 },
+          ],
+        },
+      ],
+    };
+
+    const grouped = sortCriteriaGrouped(criteria, formPresentation);
+    expect(grouped.map((c) => c.criterion_id)).toEqual([
+      'OP-01',
+      'OP-02',
+      'A-01',
+      'A-02',
+    ]);
+  });
+
+  it('handles empty or single item arrays gracefully', () => {
+    expect(sortCriteriaGrouped([])).toEqual([]);
+    const single = [{ criterion_id: 'OP-01', criterion_text: 'Test', score: 4, justification: '' }];
+    expect(sortCriteriaGrouped(single)).toEqual(single);
   });
 });

@@ -3,7 +3,7 @@ import { DownloadSimple } from '@phosphor-icons/react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
 import { Button } from '@equiped/ui';
 import { cn, lspuLogoUrl } from '@equiped/ui';
-import { TARGET_AGENT_META, isTargetAgent, type TargetAgent } from '@equiped/types';
+import { TARGET_AGENT_META, isTargetAgent } from '@equiped/types';
 import type { ClientDocument } from '@equiped/types';
 import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
 import {
@@ -11,7 +11,6 @@ import {
   EXPORT_NARRATIVE_MAX_CHARS,
   PDF_PAGE_BOTTOM_MM,
   adjectivalRating,
-  agentDisplayLabel,
   boundNarrative,
   cleanJustification,
   formatScore,
@@ -532,148 +531,3 @@ export function SpecialistExportDownloadButton({
 }
 
 export const GadExportDownloadButton = SpecialistExportDownloadButton;
-
-export function GadExportPreview(props: ExportDocumentProps) {
-  const domainData = getExportDomainData(props);
-  const config = AGENT_CONFIGS[domainData.agentId] || {
-    code: 'LSPU-CID-SF-004',
-    sectionTitle: 'EVALUATION CRITERIA',
-    unitName: domainData.agentId.toString().toUpperCase(),
-  };
-  const subtotal = Number.isFinite(domainData.subtotal) ? domainData.subtotal : 0;
-  const maxScore =
-    Number.isFinite(domainData.max_score) && domainData.max_score > 0
-      ? domainData.max_score
-      : CANONICAL_MAX_SCORE;
-  const rating = domainData.adjectival_rating || adjectivalRating(subtotal);
-  const monitoring = monitoringPercentage(subtotal, maxScore);
-  const comments = buildComments(domainData);
-  const headerLines = buildHeaderLines(domainData);
-
-  return (
-    <div className="mx-auto min-h-[297mm] w-full max-w-4xl overflow-auto border border-border bg-surface p-6 sm:p-10 text-xs text-text shadow-sm rounded-md space-y-6">
-      {/* Institutional Letterhead */}
-      <div className="flex items-center justify-center gap-4 pb-4 border-b border-border">
-        <img
-          className="size-16 object-contain"
-          src={lspuLogoUrl}
-          alt="LSPU logo"
-        />
-        <div className="text-center">
-          <div className="text-xs font-medium text-text-muted">Republic of the Philippines</div>
-          <div className="text-sm font-bold text-text">Laguna State Polytechnic University</div>
-          <div className="text-xs text-text-muted">Curriculum and Instruction Division · Gender and Development Unit</div>
-        </div>
-      </div>
-
-      <div className="text-center space-y-1">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-text">
-          Criteria for Evaluation of Instructional Materials
-        </h2>
-        <p className="text-xs font-semibold text-primary uppercase tracking-wide">
-          {config.code} · {config.unitName} Review Form
-        </p>
-      </div>
-
-      {domainData.isPartial && (
-        <div className="rounded-sm border border-warning/30 bg-warning-soft p-3 text-xs text-warning">
-          <p className="font-bold uppercase tracking-wider">
-            Partial evaluation - Advisory only
-          </p>
-          {domainData.partialReason && <p className="mt-0.5">{domainData.partialReason}</p>}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-xs border border-border rounded-sm p-4 bg-surface-subtle">
-        {headerLines.map((row) => (
-          <div key={row.label} className="flex items-baseline justify-between border-b border-border/60 pb-1">
-            <span className="font-semibold text-text-muted">{row.label}:</span>
-            <span className="font-bold text-text truncate max-w-[14rem]">{row.value}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-text">GAD Rubric Evaluation Matrix</span>
-          <span className="text-text-muted">
-            Scale: <strong>4</strong> = Very Satisfactory, <strong>3</strong> = Satisfactory, <strong>2</strong> = Needs Improvement, <strong>1</strong> = Poor
-          </span>
-        </div>
-
-        <div className="overflow-x-auto rounded-sm border border-border">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead className="bg-surface-subtle border-b border-border text-[11px] font-bold uppercase tracking-wider text-text-muted">
-              <tr>
-                <th scope="col" className="w-10 p-2.5 text-center border-r border-border">#</th>
-                <th scope="col" className="p-2.5 border-r border-border">{config.sectionTitle}</th>
-                <th scope="col" className="w-10 p-2.5 text-center border-r border-border">4</th>
-                <th scope="col" className="w-10 p-2.5 text-center border-r border-border">3</th>
-                <th scope="col" className="w-10 p-2.5 text-center border-r border-border">2</th>
-                <th scope="col" className="w-10 p-2.5 text-center">1</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border bg-surface">
-              {domainData.criteria.map((row, idx) => (
-                <tr key={row.criterion_id || idx} className="hover:bg-surface-subtle/50">
-                  <td className="w-10 p-2.5 text-center font-mono font-bold text-text-muted border-r border-border tabular-nums">
-                    {idx + 1}
-                  </td>
-                  <td className="p-2.5 text-text font-medium border-r border-border">
-                    {cleanJustification(row.criterion_text)}
-                  </td>
-                  {['4', '3', '2', '1'].map((rating) => (
-                    <td key={rating} className={cn("w-10 p-2.5 text-center font-bold border-r border-border last:border-r-0", row.score.toString() === rating ? 'text-primary bg-primary-soft/30' : 'text-transparent')}>
-                      {row.score.toString() === rating ? '✓' : ''}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="rounded-sm border border-border p-4 bg-surface-subtle space-y-2 text-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <span className="font-semibold text-text-muted">Subtotal (1-4 scale): </span>
-            <strong className="text-text tabular-nums">{formatScore(subtotal)} / {formatScore(maxScore)}</strong>
-          </div>
-          <div>
-            <span className="font-semibold text-text-muted">Adjectival Rating: </span>
-            <strong className="text-text">{rating}</strong>
-          </div>
-          <div>
-            <span className="font-semibold text-text-muted">Monitoring Score: </span>
-            <strong className="text-primary tabular-nums">{monitoring}%</strong>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5 text-xs">
-        <span className="font-bold text-text uppercase tracking-wider">
-          Specialist Comments & Actionable Recommendations:
-        </span>
-        <div className="min-h-16 rounded-sm border border-border bg-surface p-3 text-xs leading-relaxed text-text">
-          {comments || 'All evaluated criteria verified compliant.'}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-12 text-center text-xs pt-8 border-t border-border">
-        <div className="border-t border-border pt-1.5 font-medium text-text">
-          GAD Focal Person / Evaluator Signature
-        </div>
-        <div className="border-t border-border pt-1.5 font-medium text-text">
-          Date Verified
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-[10px] text-text-muted border-t border-border pt-2">
-        <span>{config.code}</span>
-        <span>EquipED Quality Assurance · LSPU Santa Cruz Campus</span>
-        <span>Advisory Instrument</span>
-      </div>
-    </div>
-  );
-}
