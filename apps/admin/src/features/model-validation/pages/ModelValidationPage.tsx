@@ -215,6 +215,10 @@ export function ModelValidationPage() {
 
       {activeTab === 'compare' && (
         <div className="space-y-6">
+          {activeValidations.map((validation) => (
+            <AgentProgressPanel key={validation.validation_id} validation={validation} />
+          ))}
+
           <AdapterComparisonForm form={compareFormState} />
         </div>
       )}

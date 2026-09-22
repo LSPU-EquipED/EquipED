@@ -161,5 +161,29 @@ describe('ModelValidationPage', () => {
     fireEvent.click(compareTab);
 
     expect(screen.getByText('Compare base vs adapter')).toBeDefined();
+
+    // An in-flight validation should show progress under the Compare tab too, same as New Benchmark Run.
+    const inFlightHistoryData: ModelValidationListResponse = {
+      items: [
+        {
+          ...mockHistoryData.items[0],
+          validation_id: 'val-2',
+          status: 'EVALUATING',
+        },
+      ],
+      total: 1,
+    };
+
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: inFlightHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+
+    cleanup();
+    renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: /Compare/i }));
+
+    expect(screen.getByLabelText(/Agent progress for/i)).toBeDefined();
   });
 });
