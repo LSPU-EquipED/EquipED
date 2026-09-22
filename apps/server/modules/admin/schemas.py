@@ -283,6 +283,8 @@ class ModelValidationBoundForm(BaseModel):
 
 class ModelValidationResponse(BaseModel):
     validation_id: uuid.UUID
+    model_variant: str | None = None
+    compare_group_id: uuid.UUID | None = None
     evaluation_id: uuid.UUID
     document_id: uuid.UUID
     document_title: str | None = None
