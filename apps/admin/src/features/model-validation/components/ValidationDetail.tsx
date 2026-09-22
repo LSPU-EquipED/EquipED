@@ -24,6 +24,7 @@ import {
   groupCriteriaByAgent,
   HISTORY_COLSPAN,
   statusClass,
+  variantLabel,
 } from '../utils/helpers';
 
 export type HistoryRowProps = {
@@ -103,18 +104,32 @@ export function HistoryRow({
         </td>
         {/* Status */}
         <td className="px-4 py-3 whitespace-nowrap">
-          <Badge
-            variant={
-              item.status === 'COMPLETED'
-                ? 'success'
-                : item.status === 'FAILED'
-                  ? 'destructive'
-                  : 'warning'
-            }
-            withDot
-          >
-            {item.status}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge
+              variant={
+                item.status === 'COMPLETED'
+                  ? 'success'
+                  : item.status === 'FAILED'
+                    ? 'destructive'
+                    : 'warning'
+              }
+              withDot
+            >
+              {item.status}
+            </Badge>
+            {variantLabel(item.model_variant) ? (
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-xs px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider border',
+                  item.model_variant === 'adapter'
+                    ? 'bg-primary-soft text-primary border-primary/20'
+                    : 'bg-surface-subtle text-text-muted border-border',
+                )}
+              >
+                {variantLabel(item.model_variant)}
+              </span>
+            ) : null}
+          </div>
         </td>
         {/* Accuracy (Exact Matches / Total Criteria) */}
         <td className="px-4 py-3 text-right whitespace-nowrap">

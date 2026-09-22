@@ -6,6 +6,12 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
   const isEvaluating = validation.status === 'EVALUATING';
   const agentsEvaluated = validation.status === 'SYNTHESIZING';
 
+  const scoredAgentIds = new Set(validation.criterion_scores.map((score) => score.agent_id));
+  const agentsToRender =
+    scoredAgentIds.size > 0
+      ? validationAgents.filter((agent) => scoredAgentIds.has(agent.id))
+      : validationAgents;
+
   return (
     <section
       aria-live="polite"
@@ -30,7 +36,7 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
       </div>
 
       <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
-        {validationAgents.map((agent) => {
+        {agentsToRender.map((agent) => {
           const isSkipped = agent.id === 'coordinator' && validation.partial_without_curriculum;
           const label = isSkipped
             ? 'Skipped — no curriculum'
