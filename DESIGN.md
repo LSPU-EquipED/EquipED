@@ -1,384 +1,150 @@
 ---
 version: alpha
 name: EquipED
-description: Academic SLM Evaluation Workspace — Contemporary Faculty Ledger
+description: Institutional SLM evaluation workbench for LSPU faculty and CID reviewers
 
 colors:
-  primary: "#1b3b87"
-  primary-strong: "#142f70"
-  primary-soft: "#edf2ff"
+  primary: "#16445d"
+  primary-strong: "#0d3044"
+  primary-soft: "#e4eff3"
   primary-foreground: "#ffffff"
-  secondary: "#f2c811"
-  secondary-foreground: "#172033"
-  accent: "#f2c811"
-  accent-soft: "#fff8cf"
-  accent-foreground: "#172033"
-  success: "#2f7d32"
-  success-soft: "#edf7ed"
+  secondary: "#d9ad1d"
+  secondary-foreground: "#1b2b33"
+  accent: "#d9ad1d"
+  accent-soft: "#fbf3cf"
+  accent-foreground: "#493b08"
+  success: "#28754b"
+  success-soft: "#e8f3ec"
   success-foreground: "#ffffff"
-  info: "#1f718f"
-  info-soft: "#eaf7fb"
+  info: "#28758a"
+  info-soft: "#e4f1f4"
   info-foreground: "#ffffff"
-  warning: "#8a5a00"
-  warning-soft: "#fff7db"
+  warning: "#86620a"
+  warning-soft: "#fbf3d9"
   warning-foreground: "#ffffff"
-  destructive: "#b42318"
-  destructive-soft: "#fff0ee"
+  destructive: "#b13b32"
+  destructive-soft: "#fbeceb"
   destructive-foreground: "#ffffff"
-  canvas: "#f4f7fb"
-  surface: "#ffffff"
-  surface-subtle: "#f8fafc"
-  text: "#172033"
-  text-muted: "#596579"
-  border: "#d6deea"
-  border-strong: "#94a3b8"
-  input: "#c8d2e1"
-  ring: "#1b3b87"
+  canvas: "#eef2f3"
+  surface: "#fbfcfc"
+  surface-subtle: "#e7edef"
+  text: "#1b2b33"
+  text-muted: "#60717a"
+  border: "#cad6da"
+  border-strong: "#91a5ad"
+  input: "#b7c7cc"
+  ring: "#28758a"
 
 typography:
-  display:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 32px
-    fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: -0.02em
-  heading-lg:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 28px
-    fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: -0.015em
-  heading-md:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 20px
-    fontWeight: 600
-    lineHeight: 1.35
-    letterSpacing: -0.01em
-  heading-sm:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 16px
-    fontWeight: 600
-    lineHeight: 1.4
-    letterSpacing: normal
-  body-md:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 15px
-    fontWeight: 400
-    lineHeight: 1.6
-    letterSpacing: normal
-  body-sm:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 14px
-    fontWeight: 500
-    lineHeight: 1.4
-    letterSpacing: normal
-  label-sm:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 12px
-    fontWeight: 600
-    lineHeight: 1.4
-    letterSpacing: 0.04em
-  data-md:
-    fontFamily: "'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-    fontSize: 13px
-    fontWeight: 500
-    lineHeight: 1.35
-    letterSpacing: normal
+  family: "Public Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+  tracking: normal
+  body: "15px / 1.6"
+  label: "12px / 1.4 / 600"
+  data: "13px / 1.35 / 500"
 
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 16px
-  lg: 24px
-  xl: 32px
-  2xl: 48px
+  unit: 4px
+  control: 40px
+  topbar: 56px
+  sidebar: 256px
+  sidebar-collapsed: 72px
 
 rounded:
   none: 0px
-  xs: 2px
-  sm: 4px
-  md: 6px
-
-motion:
-  timing:
-    ledger-out: "cubic-bezier(0.16, 1, 0.3, 1)"
-    ledger-in: "cubic-bezier(0.4, 0, 1, 1)"
-    ledger-standard: "cubic-bezier(0.4, 0, 0.2, 1)"
-  duration:
-    micro: 120ms
-    compact: 180ms
-    surface: 240ms
-    decay: 1400ms
-
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
-    typography: "{typography.body-sm}"
-    rounded: "{rounded.sm}"
-    padding: "8px 16px"
-    height: 40px
-
-  button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    borderColor: "{colors.border}"
-    typography: "{typography.body-sm}"
-    rounded: "{rounded.sm}"
-    padding: "8px 16px"
-    height: 40px
-
-  button-destructive:
-    backgroundColor: "{colors.destructive}"
-    textColor: "{colors.destructive-foreground}"
-    typography: "{typography.body-sm}"
-    rounded: "{rounded.sm}"
-    padding: "8px 16px"
-    height: 40px
-
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    borderColor: "{colors.input}"
-    typography: "{typography.body-sm}"
-    rounded: "{rounded.sm}"
-    padding: "8px 12px"
-    height: 40px
-
-  card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    borderColor: "{colors.border}"
-    rounded: "{rounded.md}"
-    padding: "16px"
-
-  table-header:
-    backgroundColor: "{colors.surface-subtle}"
-    textColor: "{colors.text-muted}"
-    typography: "{typography.label-sm}"
-    borderColor: "{colors.border}"
-    padding: "8px 12px"
-
-  table-cell:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    typography: "{typography.body-sm}"
-    borderColor: "{colors.border}"
-    padding: "10px 12px"
-
-  dropdown:
-    trigger:
-      backgroundColor: "{colors.surface}"
-      textColor: "{colors.text}"
-      borderColor: "{colors.border}"
-      typography: "{typography.body-sm}"
-      rounded: "{rounded.sm}"
-      height: "32px (sm) / 40px (md)"
-    menu:
-      backgroundColor: "{colors.surface}"
-      borderColor: "{colors.border}"
-      rounded: "{rounded.sm}"
-      shadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)"
-      motion: "var(--duration-compact) var(--ease-ledger-out)"
-    item:
-      typography: "{typography.body-sm}"
-      padding: "6px 12px (sm) / 8px 14px (md)"
-      activeColor: "{colors.primary-soft}"
-      activeTextColor: "{colors.primary}"
+  sm: 2px
+  md: 4px
+  lg: 6px
 ---
 
-# Design System: EquipED
+# EquipED Design System
 
-## Overview
+## Direction
 
-**Creative North Star: "The Contemporary Faculty Ledger"**
+**Institutional Workbench** is the visual direction for EquipED: a calm, evidence-first workspace for evaluating Self-Paced Learning Modules (SLMs). It should feel dependable during long review sessions, closer to a well-made academic records system than a marketing dashboard.
 
-EquipED is an institutional evaluation and compliance workstation for Laguna State Polytechnic University (LSPU) faculty members and Curriculum Instruction Division (CID) staff reviewing Self-Paced Learning Modules (SLMs).
+The interface uses a cool blue-gray canvas, ink-colored typography, compact controls, and clear structural borders. LSPU teal is the action color; amber is reserved for review attention and institutional emphasis. The product should never depend on gradients, glass effects, decorative blobs, or stacked floating cards to create hierarchy.
 
-The visual language, "The Contemporary Faculty Ledger," treats evaluations as formal academic instruments. It pairs civic restraint with modern data density:
-- **Tabular Rigor**: High-density grid cells, crisp 1px borders, and tabular figures for numbers, ratings, and weights.
-- **Document-First Hierarchy**: Clean editorial typography using self-hosted Public Sans with sentence-case structure instead of shouting uppercase labels.
-- **Quiet Trust**: Soft, calm canvas backgrounds (`#f4f7fb`) and white ledger surfaces that eliminate eye strain during multi-hour grading and review sessions.
-- **Anti-Slop Discipline**: Rejection of generic AI templates, purple-blue gradients, floating glassmorphism cards, noisy textured backgrounds, and decorative micro-interactions.
+## Foundations
 
----
+### Color
 
-## Colors
+- **Canvas** `#eef2f3` is the page background.
+- **Surface** `#fbfcfc` is used for panels, tables, and the reading workspace.
+- **Surface subtle** `#e7edef` supports quiet grouping and loading states.
+- **Primary** `#16445d` is for links, active navigation, and primary actions.
+- **Primary strong** `#0d3044` is for pressed and high-emphasis states.
+- **Amber** `#d9ad1d` is for review attention, not general decoration.
+- **Text** `#1b2b33` and **text muted** `#60717a` provide the reading hierarchy.
+- Semantic colors use their matching soft background tokens. Status must never be conveyed by color alone.
 
-The palette is rooted in the official Laguna State Polytechnic University identity while strictly adhering to WCAG 2.1 AA contrast requirements across all semantic pairings.
+### Type
 
-### Brand Colors
-- **LSPU Royal Blue (`#1b3b87`)**: The primary institutional color. Used for high-priority actions, active navigation boundaries, and focus rings. High-contrast white text is mandatory.
-- **SCC Amber Gold (`#f2c811`)**: The secondary academic emblem color. Reserved for attention-attracting accents, alert banners, and active indicators. Amber text is paired with dark slate (`#172033`)—it must never be rendered against white backgrounds.
+Use Public Sans throughout the product. Headings are sentence case, compact, and left aligned. Letter spacing is normal; do not use negative tracking or all-caps labels to manufacture hierarchy. Use tabular numerals for scores, counts, dates, and evaluation IDs.
 
-### Neutrals & Surfaces
-- **Canvas (`#f4f7fb`)**: Cool institutional page backdrop that distinguishes floating modals and ledger cards without resorting to warm beige or harsh stark white.
-- **Surface (`#ffffff`)**: Primary background for ledger tables, evaluation cards, and document reader panes.
-- **Surface Subtle (`#f8fafc`)**: Neutral tint for table headers, inactive panel borders, and disabled controls.
-- **Text / Foreground (`#172033`)**: Deep slate navy providing 15.1:1 contrast against canvas for high-fatigue reading sessions.
-- **Text Muted (`#596579`)**: Muted secondary text providing 5.9:1 contrast on white surfaces for captions, timestamps, and column titles.
-- **Border (`#d6deea`)**: 1px structural separator separating ledger cells and panel boundaries.
-- **Input Border (`#c8d2e1`)**: Focused control boundary for form inputs and selectors.
+### Shape and spacing
 
-### Semantic Status Pairings (WCAG 2.1 AA Verified)
-All status badges and callouts must use paired foreground and soft background tokens:
-- **Success (`#2f7d32` on `#edf7ed`)**: Passing criteria, verified curricula, compliant status (4.66:1 contrast).
-- **Info (`#1f718f` on `#eaf7fb`)**: Informational notices, document metadata, reference indicators (5.03:1 contrast).
-- **Warning (`#8a5a00` on `#fff7db`)**: Incomplete criteria, partial-mode notices, review reminders (5.53:1 contrast).
-- **Destructive (`#b42318` on `#fff0ee`)**: Failed evaluations, non-compliant criteria, critical deletion warnings (5.93:1 contrast).
+Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px tall. Borders are structural: use one-pixel separators and modest contrast instead of heavy shadows. Cards are reserved for genuinely framed tools, repeated records, and dialogs; page sections should remain full-width and unframed.
 
----
+## Application shell
 
-## Typography
+- The desktop top bar is 56px tall and uses the canvas color with a bottom border.
+- The desktop sidebar is 256px wide; the collapsed rail is 72px wide. Mobile uses a drawer.
+- Main content uses the canvas background and begins below the top bar and beside the sidebar.
+- The top bar carries breadcrumbs, the mobile menu control, and the account control. The account control is a compact square workbench affordance, not a decorative avatar bubble.
+- Sidebar navigation is grouped by responsibility. Group labels use sentence case, 11px text, and modest tracking. Active items use primary-soft, primary text, and a clear leading rule.
+- Keep navigation labels short and operational: `Home`, `Documents`, `Evaluations`, `Curriculum`, and `Logs` in Faculty; `Overview`, `Operations`, `Knowledge base`, and `Model governance` in Admin.
 
-EquipED uses **Public Sans**—an open-source, civic typeface created by the United States Web Design System (USWDS)—self-hosted locally for data privacy and zero external network calls.
+## Page composition
 
-### Typographic Roles
-- **Display (`32px / 700 / -0.02em / lh 1.15`)**: Evaluation score overview headers and landing metrics.
-- **Heading LG (`28px / 700 / -0.015em / lh 1.25`)**: Screen page titles (e.g., "Evaluation Setup", "Document Dashboard").
-- **Heading MD (`20px / 600 / -0.01em / lh 1.35`)**: Major section dividers, card ledger headers, modal titles.
-- **Heading SM (`16px / 600 / normal / lh 1.4`)**: Sub-sections, form groups, criterion domain labels.
-- **Body MD (`15px / 400 / normal / lh 1.6`)**: Reading canvas narratives, evaluation reasoning, and rubric descriptors. Maximum reading measure is constrained to 65–75 characters.
-- **Body SM (`14px / 500 / normal / lh 1.4`)**: Interactive controls, buttons, input text, and table body data.
-- **Label SM (`12px / 600 / 0.04em / lh 1.4`)**: Form labels, status badge text, table column headers. Defaults to sentence case; uppercase is restricted to formal academic codes (e.g., "BSCS", "ITSO").
-- **Data MD (`13px / 500 / normal / lh 1.35`)**: Scores, weights, percentages, timestamps, and matrix rows. Must render with `font-variant-numeric: tabular-nums` for precise vertical decimal alignment.
+### Faculty overview
 
----
+The first viewport should answer: what needs attention, what is active, and what can I do next? Use this order:
 
-## Layout & Page Archetypes
+1. Page heading and top-level context with operational upload affordances available directly within primary workflows (such as the SLM Storage toolbar action).
+2. Compact metrics for owned modules and evaluation state.
+3. Active evaluation or attention-required work.
+4. Recent evaluation activity and a link to the full history.
+5. Secondary tools only after the operational content.
 
-Layouts reflect an authentic academic ledger workspace structured around two definitive page archetypes:
+Avoid a grid of identical metric cards. Give the active workflow the strongest visual weight and keep the activity ledger scannable.
 
-### Archetype A: The Overview Ledger (Full-Width Containerized)
-Applied to: Dashboard (`/dashboard`), SLM Storage Repository (`/documents`), User Management, Monitoring Matrix.
-* **Container Constraint**: `max-w-[108rem] (1728px)` with horizontal auto-margins (`mx-auto px-4 sm:px-6 py-6`).
-* **Grid Discipline**: Strict 12-column grid or responsive 4-column cards (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4`).
-* **Anti-Empty Margin Rule**: Elements must span their full container width with balanced internal data density. Never center narrow `max-w-3xl` columns on expansive desktop screens leaving wide empty canvas margins.
-* **Structural Layer Sequencing**:
-  1. Workstation Hero Header (Heading LG title, primary eyebrow, primary action CTA)
-  2. Repository Pulse / Metrics Strip (Full width, dense tabular numbers, semantic status icons)
-  3. Workstation Launchpads or Filter Toolbars
-  4. Primary Tabular Ledger (Sticky headers, compact rows, right-aligned data)
+### Visual anchors for low-data states
 
-### Archetype B: The Inspection Workstation (Split-Pane, Full-Height)
-Applied to: Specialist Scoreboards (`/specialists/$agentId/$documentId`), Syllabus Alignment Workspace, Evaluation Scorecards.
-* **Viewport Constraint**: Full viewport height `min-h-[calc(100vh-4rem)] flex flex-col bg-canvas`.
-* **Pane Distribution**:
-  - **Left Pane (Reference Dossier)**: Fixed width (`22rem` to `28rem`), border-right separator (`border-r border-border`), dedicated scroll container (`overflow-y-auto p-4 sm:p-5`). Houses read-only reference facts (metadata matrix, unit outline).
-  - **Right Pane (Action Docket / Scoreboard)**: Fluid width (`flex-1 min-w-0`), independent scroll container (`overflow-y-auto p-6 sm:p-8`). Houses interactive criteria, domain tabs, and authoritative review actions.
-* **Responsive Collapse**: Screens below `1024px` (`lg`) stack panes sequentially with tabbed navigation.
+Whitespace should clarify the workflow, not look unfinished. When a page has no records, few records, or a quiet secondary rail, use a restrained diagrammatic visual that explains the evidence path: module, review, decision. Prefer thin connectors, document or rubric glyphs, and existing semantic colors over decorative illustrations, gradients, or unrelated imagery. These anchors should disappear or recede once operational content takes over the viewport.
 
----
+### Review and inspection
 
-## Spacing Architecture (Macro vs. Micro Rhythm)
+Specialist launchpad whitespace should use a compact scorecard preview instead of a decorative illustration. Show the evidence layers that will be produced—source excerpts, rubric criteria, and the review record—with quiet bars and document glyphs. Keep the visual inside the launch surface, secondary to the action, and light enough to preserve the institutional surface language.
 
-EquipED structures spatial intervals around a 4px base unit grouped into three functional tiers:
+When a specialist queue is clear, let the workstation occupy the available viewport height. Use a small queue snapshot inside the empty state to make the space operationally useful; do not place a separate illustration below the workstation.
 
-* **Micro Spacing (`4px`–`8px`)**:
-  - `4px` (`gap-1`, `space-y-1`): Micro badge padding, inline icon gaps, tabular suffix offsets.
-  - `8px` (`gap-2`, `space-y-2`): Form label to control offset (`mb-1.5`), list item separation in drawers, metadata key-value row spacing.
-* **Component Padding (`16px`–`24px`)**:
-  - `16px` (`p-4` / `p-4.5`): Standard interior padding for ledger cards, compact dossiers, and table headers.
-  - `24px` (`p-6`): Primary workstation cards, modal interiors, and dashboard containers.
-  - *Anti-Pattern*: Do not apply arbitrary padding (e.g. `p-12` or `p-2`) to standard ledger containers.
-* **Macro Spacing & Section Rhythm (`24px`–`32px`)**:
-  - `24px` (`space-y-6`): Standard vertical interval separating screen zones (Header → Metrics Strip → Launchpads → Ledger).
-  - `32px` (`space-y-8`): Dedicated section margins in complex configuration flows.
+Evaluation screens should privilege the document, criterion, and reviewer decision. Use split panes or clear sequential sections, persistent context, and explicit advisory labels for generated guidance. Human review remains authoritative.
 
-## Elevation, Depth & Tonal Layering
+Specialist results use a criteria-first layout: one module title and action toolbar, a narrow left metadata rail, and a compact score/rating strip above the criteria. Keep the specialist summary and record IDs behind disclosures. Criteria begin collapsed as compact rows, with evidence warnings and reviewer corrections visible before expansion. On smaller screens, metadata is collapsed instead of stacking a full panel above the scorecard. Avoid repeated metadata, nested cards, and large introductory headers; several criteria should be visible in the first desktop viewport.
 
-EquipED employs a **flat-by-default** elevation model. Depth is established through intentional tonal recession and layered borders rather than floating drop shadows:
+### Admin operations
 
-### The 3-Plane Tonal Depth Model
-* **Plane 0 (Canvas Backdrop `#f4f7fb`)**: The cool institutional foundation separating panels.
-* **Plane 1 (Surface Sheets `#ffffff`)**: Primary ledger cards and tables bounded by crisp 1px borders (`#d6deea`).
-* **Plane 2 (Recessed Sunken Trays `#f8fafc` / `#edf2ff`)**: Embedded trays inside cards for key-value ledgers, filter toolbars, and metadata blocks (`bg-surface-subtle p-3.5 rounded-sm`), creating physical depth without drop shadows.
+Admin pages are dense operational tools: tables, filters, status summaries, and focused forms. Preserve the same shell and tokens as Faculty; vary hierarchy through content and layout, not a second visual language.
 
-### 3-Tier Border Hierarchy
-* **Structural Border (`#d6deea`)**: 1px outer perimeters of cards, split-pane dividers, primary table edges.
-* **Interior Hairlines (`#d6deea` at 50%–60% opacity / `#e2e8f0`)**: Subtle separation inside cards and between compact key-value pairs, eliminating harsh heavy lines.
-* **Interactive Focus / Hover Border (`#1b3b87` at 40%–60%)**: Subtle brand glow when hovering over actionable workstation cards or active tabs.
+## Component rules
 
-### Modals & Interactive Focus
-* **Modals & Dialogs**: Centered over a dimmed backdrop (`rgba(15, 23, 42, 0.45)`) with a subtle 1px border and minimal functional shadow (`0 4px 12px rgba(15, 23, 42, 0.08)`). Large blurred halos (blur > 16px) are forbidden.
-* **State-Only Focus**: Active interactive elements display a 2px royal blue outline (`ring-2 ring-[#1b3b87]`) with a 1px offset.
----
+- Primary buttons use primary fill, white text, a 2-4px radius, and a visible pressed state.
+- Secondary buttons use a surface fill with a border. Icon-only controls require an accessible label and tooltip.
+- Inputs, selects, and tabs share the 40px control height and use the input border token.
+- Tables use strong column alignment, compact rows, sticky context only when it improves review, and tabular numerals for data.
+- Status badges pair a semantic color with text and an icon or label. Do not rely on hue alone.
+- Empty, loading, error, and partial states are first-class layouts with clear next actions. Loading states use geometry-matched skeletons that preserve the final layout; do not use freestanding loading spinners.
 
-## Shapes
+## Motion and accessibility
 
-Shapes prioritize structural discipline:
-- **Border Radius**: Strictly capped between `0px` and `6px`.
-  - `0px` (`none`): Table headers, split-pane dividers, full-width canvas panels.
-  - `2px` (`xs`): Checkboxes, micro status chips, tabular data badges.
-  - `4px` (`sm`): Buttons, text inputs, dropdown triggers, search bars.
-  - `6px` (`md`): Primary cards, floating modal windows, dialog containers.
-- **No Circular Bubbles**: Pill buttons and large capsule tags are prohibited for primary controls.
+Motion is short and functional: 120ms micro interactions, 180ms compact transitions, and 240ms surface transitions. Respect `prefers-reduced-motion`. Preserve visible focus rings, keyboard navigation, semantic landmarks, and sufficient contrast. Mobile drawers must manage focus and expose their open state to assistive technology.
 
----
+## Product content
 
-## Components
+Use direct, institutional language. Say what is ready, what is blocked, and who owns the next decision. Generated evaluations and recommendations are advisory; reviewer decisions and ownership boundaries are authoritative. Keep data local and avoid exposing SLM content outside configured institutional workflows.
 
-### Buttons
-- **Primary**: Solid LSPU Royal Blue (`#1b3b87`), white text, 4px radius, 40px standard height (`h-10 px-4`). Focus: 2px offset ring.
-- **Secondary**: White surface, 1px border (`#d6deea`), slate text (`#172033`). Hover: subtle slate tint (`#f8fafc`).
-- **Destructive**: Solid Red (`#b42318`), white text, 4px radius. Used exclusively for permanent actions (deleting document, canceling active run).
+## Do and do not
 
-### Form Controls
-- **Text Inputs**: 40px height (`h-10`), 1px border (`#c8d2e1`), white surface, 4px radius, 12px horizontal padding.
-- **Dropdown & Popover Menus**: Custom styled institutional listbox component shared across Admin and Faculty (`@equiped/ui`). Replaces OS native select pickers. Features 4px radius (`rounded-sm`), 1px border (`#d6deea`), subtle elevation shadow (`shadow-md`), active item highlight (`#edf2ff`) with `Check` icon, full keyboard traversal (ArrowUp, ArrowDown, Enter, Space, Escape), and compact hardware-accelerated entrance motion (`var(--duration-compact) var(--ease-ledger-out)`).
-- **Labels**: Rendered above inputs in sentence case using `label-sm` (`12px`, semibold, `#172033`), or inline for compact filter bars (`inlineLabel`).
-- **Hint Text**: Rendered below inputs using `#596579` (`12px`).
+**Do:** use sentence case, evidence-led hierarchy, compact controls, structural borders, clear status text, and generous breathing room around important review decisions.
 
-### Status Badges
-- Compact rectangular chips with 2px radius and 1px borders.
-- Always combine a foreground text color, a soft tinted background, and an icon or explicit label (never rely on color alone).
-
-### Tables & Ledgers
-- Table headers use `surface-subtle` (`#f8fafc`), 1px bottom border, and semibold sentence-case labels.
-- Rows use 1px horizontal dividers (`divide-y divide-[#d6deea]`).
-- Hover states on interactive rows apply a subtle tint (`hover:bg-[#f8fafc]`).
-- Scores and numbers use `data-md` with tabular numbers enabled.
-
----
-
-## Functional Motion & Spatial Choreography
-
-EquipED employs a functional, zero-dependency motion system grounded in civic restraint. Motion is purposeful, informative, and fast—never decorative, bouncy, or distracting:
-
-### 1. Motion Principles
-- **Fast Deceleration (`--ease-ledger-out: cubic-bezier(0.16, 1, 0.3, 1)`)**: Overlays, dropdown menus, and sheets enter briskly and decelerate smoothly into place, establishing spatial context without perceived latency.
-- **Snappy Exits (`--ease-ledger-in: cubic-bezier(0.4, 0, 1, 1)`)**: Elements leaving the viewport accelerate out rapidly, prioritizing immediate responsiveness.
-- **Hardware-Only Acceleration**: Dynamic transitions are strictly constrained to `transform` and `opacity` properties. Animating `height`, `width`, `top`, or `padding` is prohibited to prevent layout thrashing.
-- **Zero Third-Party Runtime**: All animations are implemented with pure CSS keyframes (`@equiped/ui/theme/motion.css`) and native React presence lifecycles (`usePresence`). External animation libraries (Framer Motion, GSAP, Lottie) are prohibited.
-
-### 2. Duration Tiers
-- **Micro (`120ms`)**: Interactive control feedback—button hover tints, active tab switches, tactile button clicks (`active:scale-95`).
-- **Compact (`180ms`)**: Dialog popups, dropdown popover menus (`animate-ledger-dropdown-in`), upload modals, targeted confirmation windows.
-- **Surface (`240ms`)**: Large slide-out inspection sheets, technical reference drawers, and split-pane view toggles.
-- **Decay (`1400ms`)**: Temporary row highlight decay for newly indexed documents (`animate-ledger-flash-decay`), ensuring immediate user orientation before returning to neutral surface.
-
-### 3. Reduced Motion Strictness (WCAG 2.2 AA)
-All CSS transitions and keyframes automatically collapse to `0.01ms` when `@media (prefers-reduced-motion: reduce)` is signaled by the operating system. Modals, drawers, and highlights mount and unmount instantaneously without layout delay.
-
----
-
-## Do's and Don'ts
-
-### Do:
-- **Do** use the shared `@equiped/ui` `Dropdown` component for all filtering, sorting, and form selections across Faculty and Admin surfaces to ensure visual consistency and avoid OS-dependent popup windows.
-- **Do** use crisp 1px borders (`#d6deea`) to structure cards, split panes, and tables.
-- **Do** maintain a strict line-height of 1.6 on evaluation prose and comments for long-term readability.
-- **Do** enable `tabular-nums` on all numbers, scores, weights, and dates.
-- **Do** respect the 6px maximum border-radius limit across all UI components.
-- **Do** pair all status indicators with descriptive text and icons for accessibility.
-- **Do** keep button and form interactive heights at a minimum of 40px for touch and click precision (or 32px for compact toolbars).
-
-### Don't:
-- **Don't** use unstyled native `<select>` elements for desktop workstations that pop open native OS context menus.
-- **Don't** nest containers inside containers on toolbars and filter rows (e.g. gray sub-boxes inside white toolbars); use clean button pills and inline dropdowns directly on the surface plane.
-- **Don't** use purple, violet, or blue-purple gradient meshes anywhere in the application.
-- **Don't** apply floating card shadows (blur > 16px) or glassmorphic blur filters.
-- **Don't** use pure black (`#000000`) for text or backgrounds; use `#172033` and `#f4f7fb`.
-- **Don't** render SCC Amber Gold (`#f2c811`) text on white or light backgrounds.
-- **Don't** use ALL-CAPS text for long headings, table cell values, or paragraphs.
-- **Don't** use decorative animations or micro-bounces that delay faculty access to evaluation data.
+**Do not:** introduce gradients, glassmorphism, oversized hero typography, circular avatar decoration, dense uppercase navigation, unrelated color themes, or nested card stacks.

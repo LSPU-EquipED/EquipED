@@ -13,8 +13,9 @@ from server.modules.syllabus_alignment.schemas import (
     SyllabusAlignmentRunResponse,
     SyllabusAlignmentSlmItem,
     SyllabusAlignmentSlmListResponse,
+    SyllabusAlignmentStats,
 )
-from sqlalchemy import func
+from sqlalchemy import case, func, or_
 
 
 def to_run_response(
@@ -81,12 +82,130 @@ def get_current_syllabus_alignment(
 
 
 def list_alignment_slms(
-    db: Any, *, requested_by: uuid.UUID, page: int, page_size: int
+    db: Any,
+    *,
+    requested_by: uuid.UUID,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    status_filter: str | None = None,
 ) -> SyllabusAlignmentSlmListResponse:
-    query = db.query(Document).filter_by(source_type="slm", uploaded_by=requested_by)
+    base_query = db.query(Document).filter_by(
+        source_type="slm", uploaded_by=requested_by
+    )
+
+    # Compute repository-wide stats before pagination across all owned SLMs
+    # Left outer join with SyllabusAlignmentRun for this requested_by
+    stats_row = (
+        db.query(
+            func.count(Document.document_id),
+            func.count(
+                case(
+                    (
+                        (SyllabusAlignmentRun.status == "COMPLETED")
+                        & (SyllabusAlignmentRun.alignment_level == "MEETS"),
+                        1,
+                    )
+                )
+            ),
+            func.count(
+                case(
+                    (
+                        (SyllabusAlignmentRun.status == "COMPLETED")
+                        & (SyllabusAlignmentRun.alignment_level == "PARTIALLY_MEETS"),
+                        1,
+                    )
+                )
+            ),
+            func.count(
+                case(
+                    (
+                        (
+                            (SyllabusAlignmentRun.status == "COMPLETED")
+                            & (SyllabusAlignmentRun.alignment_level == "DOES_NOT_MEET")
+                        )
+                        | (SyllabusAlignmentRun.status == "FAILED"),
+                        1,
+                    )
+                )
+            ),
+            func.count(
+                case(
+                    (
+                        SyllabusAlignmentRun.alignment_id.is_(None)
+                        | SyllabusAlignmentRun.status.in_(["QUEUED", "RUNNING"]),
+                        1,
+                    )
+                )
+            ),
+        )
+        .select_from(Document)
+        .outerjoin(
+            SyllabusAlignmentRun,
+            (SyllabusAlignmentRun.slm_document_id == Document.document_id)
+            & (SyllabusAlignmentRun.requested_by == requested_by),
+        )
+        .filter(Document.source_type == "slm", Document.uploaded_by == requested_by)
+        .one()
+    )
+    stats = SyllabusAlignmentStats(
+        total=int(stats_row[0] or 0),
+        meets=int(stats_row[1] or 0),
+        partially_meets=int(stats_row[2] or 0),
+        needs_attention=int(stats_row[3] or 0),
+        pending=int(stats_row[4] or 0),
+    )
+
+    # Apply search and status_filter to document query before pagination
+    query = base_query
+    if search:
+        search_pattern = f"%{search.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(Document.title).like(search_pattern),
+                func.lower(Document.course_title).like(search_pattern),
+                func.lower(Document.lesson_title).like(search_pattern),
+                func.lower(Document.program).like(search_pattern),
+                func.lower(Document.course_code).like(search_pattern),
+            )
+        )
+
+    if status_filter:
+        normalized_status = status_filter.strip().upper()
+        query = query.outerjoin(
+            SyllabusAlignmentRun,
+            (SyllabusAlignmentRun.slm_document_id == Document.document_id)
+            & (SyllabusAlignmentRun.requested_by == requested_by),
+        )
+        if normalized_status == "MEETS":
+            query = query.filter(
+                SyllabusAlignmentRun.status == "COMPLETED",
+                SyllabusAlignmentRun.alignment_level == "MEETS",
+            )
+        elif normalized_status == "PARTIALLY_MEETS":
+            query = query.filter(
+                SyllabusAlignmentRun.status == "COMPLETED",
+                SyllabusAlignmentRun.alignment_level == "PARTIALLY_MEETS",
+            )
+        elif normalized_status == "ATTENTION":
+            query = query.filter(
+                or_(
+                    (SyllabusAlignmentRun.status == "COMPLETED")
+                    & (SyllabusAlignmentRun.alignment_level == "DOES_NOT_MEET"),
+                    SyllabusAlignmentRun.status == "FAILED",
+                )
+            )
+        elif normalized_status == "PENDING":
+            query = query.filter(
+                or_(
+                    SyllabusAlignmentRun.alignment_id.is_(None),
+                    SyllabusAlignmentRun.status.in_(["QUEUED", "RUNNING"]),
+                )
+            )
+
     total = query.count()
     documents = (
-        query.order_by(Document.uploaded_at.desc())
+        query.order_by(Document.uploaded_at.desc(), Document.document_id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -145,6 +264,7 @@ def list_alignment_slms(
         total=total,
         page=page,
         page_size=page_size,
+        stats=stats,
     )
 
 

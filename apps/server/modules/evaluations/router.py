@@ -8,7 +8,16 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+)
+from fastapi import (
+    status as http_status,
+)
 from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
@@ -46,10 +55,10 @@ router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
 
 @router.post(
-    "", response_model=EvaluationResponse, status_code=status.HTTP_202_ACCEPTED
+    "", response_model=EvaluationResponse, status_code=http_status.HTTP_202_ACCEPTED
 )
 @router.post(
-    "/", response_model=EvaluationResponse, status_code=status.HTTP_202_ACCEPTED
+    "/", response_model=EvaluationResponse, status_code=http_status.HTTP_202_ACCEPTED
 )
 def submit_evaluation(
     background_tasks: BackgroundTasks,
@@ -63,7 +72,7 @@ def submit_evaluation(
         and req.target_agent not in current_user.evaluator_permissions
     ):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=http_status.HTTP_403_FORBIDDEN,
             detail=f"User does not have evaluator permission for '{req.target_agent}'.",
         )
     try:
@@ -82,35 +91,42 @@ def submit_evaluation(
         return response
     except InfrastructureUnavailableError:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Local model readiness is unavailable.",
         )
     except DocumentNotFoundError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found."
+            status_code=http_status.HTTP_404_NOT_FOUND, detail="Document not found."
         )
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         )
     except EvaluationPipelineUnavailableError as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+            status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         )
 
 
 @router.get("", response_model=EvaluationListResponse)
 @router.get("/", response_model=EvaluationListResponse)
 def list_evals(
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
     document_id: UUID | None = None,
     target_agent: Literal["sme", "coordinator", "gad", "itso", "all"] | None = Query(
         default=None
     ),
-    status: Literal["SUBMITTED", "PREPROCESSING", "EVALUATING", "SYNTHESIZING", "COMPLETED", "FAILED"] | None = Query(
-        default=None
-    ),
+    status: Literal[
+        "SUBMITTED",
+        "PREPROCESSING",
+        "EVALUATING",
+        "SYNTHESIZING",
+        "COMPLETED",
+        "FAILED",
+        "IN_PROGRESS",
+    ]
+    | None = Query(default=None),
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> EvaluationListResponse:
@@ -154,8 +170,9 @@ def list_evals(
         )
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         )
+
 
 @router.get("/latest", response_model=LatestEvaluationsResponse)
 def get_latest_evals(
@@ -166,7 +183,7 @@ def get_latest_evals(
     deduped_ids = list(dict.fromkeys(document_id))
     if len(deduped_ids) > 100:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Maximum of 100 document IDs allowed.",
         )
     return get_latest_evaluations(
@@ -184,6 +201,9 @@ def get_desk_queue(
         ..., description="Specialist desk agent identifier."
     ),
     program: str | None = Query(None, description="Optional program filter."),
+    document_id: UUID | None = Query(
+        default=None, description="Optional document ID filter."
+    ),
     page: int = Query(1, ge=1, description="Page number."),
     page_size: int = Query(50, ge=1, le=100, description="Page size."),
     current_user: AuthenticatedUser = Depends(require_authenticated_user),
@@ -195,17 +215,17 @@ def get_desk_queue(
             target_agent=target_agent,
             current_user=current_user,
             program=program,
+            document_id=document_id,
             page=page,
             page_size=page_size,
         )
     except ForbiddenEvaluationAccessError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        )
+        raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(exc))
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         )
+
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
 def get_eval(
@@ -222,7 +242,10 @@ def get_eval(
             evaluator_permissions=current_user.evaluator_permissions,
         )
     except EvaluationNotFoundError:
-        raise HTTPException(status_code=404, detail="Evaluation not found.")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Evaluation not found.",
+        )
 
 
 @router.get("/{evaluation_id}/status", response_model=EvaluationStatusResponse)
@@ -240,7 +263,10 @@ def get_eval_status(
             evaluator_permissions=current_user.evaluator_permissions,
         )
     except EvaluationNotFoundError:
-        raise HTTPException(status_code=404, detail="Evaluation not found.")
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Evaluation not found.",
+        )
 
 
 __all__ = ["router"]

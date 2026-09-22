@@ -1,4 +1,5 @@
 import { redirect } from '@tanstack/react-router';
+import { getCrossAppUrl, navigateCrossApp } from '../navigation';
 import type { AppAuthUser, UserRole } from '../types';
 
 export type AuthRouterContext = {
@@ -21,8 +22,12 @@ export function requireRole(
     }
 
     if (!allowedRoles.includes(user.role)) {
-      const fallback = user.role === 'admin' ? '/admin' : '/dashboard';
-      throw redirect({ to: (unauthorizedRedirectTo ?? fallback) as any });
+      if (user.role === 'admin') {
+        const dest = unauthorizedRedirectTo ?? '/admin';
+        navigateCrossApp(dest);
+        throw redirect({ href: getCrossAppUrl(dest) as any });
+      }
+      throw redirect({ to: (unauthorizedRedirectTo ?? '/dashboard') as any });
     }
   };
 }

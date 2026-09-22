@@ -16,12 +16,13 @@ from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import (
     EvaluationListItem,
     EvaluationListResponse,
+    EvaluationListStats,
     EvaluationResponse,
     EvaluationStatusResponse,
     LatestEvaluationItem,
     LatestEvaluationsResponse,
 )
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 
 def _duration_seconds(
@@ -99,28 +100,99 @@ def list_evaluations(
         raise InvalidEvaluationTargetError(
             f"Invalid target_agent '{target_agent}'. Must be one of {valid_targets}."
         )
-    valid_statuses = tuple(s.value for s in EvaluationStatus)
+    valid_statuses = tuple(s.value for s in EvaluationStatus) + ("IN_PROGRESS",)
     if status is not None and status not in valid_statuses:
         raise InvalidEvaluationTargetError(
             f"Invalid status '{status}'. Must be one of {valid_statuses}."
         )
     if db is not None:
-        query = db.query(EvaluationJob)
-        query = query.filter(EvaluationJob.submitted_by == current_user_id)
+        # Base query scoped by owner, document_id, and evaluator permissions
+        base_query = db.query(EvaluationJob).filter(
+            EvaluationJob.submitted_by == current_user_id
+        )
         if document_id is not None:
-            query = query.filter(EvaluationJob.document_id == document_id)
+            base_query = base_query.filter(EvaluationJob.document_id == document_id)
         if target_agent is not None:
-            query = query.filter(EvaluationJob.target_agent == target_agent)
+            base_query = base_query.filter(EvaluationJob.target_agent == target_agent)
         elif allowed_target_agents is not None:
             allowed = list(allowed_target_agents)
             if set(VALID_TARGET_AGENTS).issubset(set(allowed_target_agents)):
                 allowed.append("all")
-            query = query.filter(EvaluationJob.target_agent.in_(allowed))
-        if status is not None:
+            base_query = base_query.filter(EvaluationJob.target_agent.in_(allowed))
+
+        # Compute repository-wide stats before status filtering
+        bind = db.get_bind()
+        dialect_name = bind.dialect.name if bind is not None else ""
+
+        if dialect_name == "postgresql":
+            seconds_diff = func.extract(
+                "epoch", EvaluationJob.completed_at - EvaluationJob.submitted_at
+            )
+        else:
+            # SQLite julianday returns days, multiply by 86400 to get seconds
+            seconds_diff = (
+                func.julianday(EvaluationJob.completed_at)
+                - func.julianday(EvaluationJob.submitted_at)
+            ) * 86400.0
+
+        active_statuses = [
+            EvaluationStatus.SUBMITTED.value,
+            EvaluationStatus.PREPROCESSING.value,
+            EvaluationStatus.EVALUATING.value,
+            EvaluationStatus.SYNTHESIZING.value,
+        ]
+
+        duration_expr = case(
+            (
+                EvaluationJob.status.in_(
+                    [EvaluationStatus.COMPLETED.value, EvaluationStatus.FAILED.value]
+                )
+                & EvaluationJob.completed_at.is_not(None)
+                & EvaluationJob.submitted_at.is_not(None)
+                & (EvaluationJob.completed_at >= EvaluationJob.submitted_at),
+                seconds_diff,
+            ),
+            else_=None,
+        )
+
+        stats_query = base_query.with_entities(
+            func.count(EvaluationJob.evaluation_id),
+            func.count(
+                case(
+                    (EvaluationJob.status == EvaluationStatus.COMPLETED.value, 1),
+                )
+            ),
+            func.count(
+                case(
+                    (EvaluationJob.status.in_(active_statuses), 1),
+                )
+            ),
+            func.avg(duration_expr),
+        )
+        stats_row = stats_query.one()
+        raw_avg_dur = stats_row[3]
+        stats = EvaluationListStats(
+            total=int(stats_row[0] or 0),
+            completed=int(stats_row[1] or 0),
+            in_progress=int(stats_row[2] or 0),
+            average_duration_seconds=(
+                round(float(raw_avg_dur), 2) if raw_avg_dur is not None else None
+            ),
+        )
+
+        # Apply status filter to list query if requested
+        query = base_query
+        if status == "IN_PROGRESS":
+            query = query.filter(EvaluationJob.status.in_(active_statuses))
+        elif status is not None:
             query = query.filter(EvaluationJob.status == status)
+
         total = query.count()
         rows = (
-            query.order_by(EvaluationJob.submitted_at.desc())
+            query.order_by(
+                EvaluationJob.submitted_at.desc(),
+                EvaluationJob.evaluation_id.desc(),
+            )
             .offset((page - 1) * page_size)
             .limit(page_size)
             .all()
@@ -138,6 +210,7 @@ def list_evaluations(
                 syllabus_id=row.syllabus_id,
                 curriculum_id=row.curriculum_id,
                 status=EvaluationStatus(row.status),
+                error_message=row.error_message,
                 target_agent=getattr(row, "target_agent", "all") or "all",
                 partial_without_curriculum=row.partial_without_curriculum,
                 partial_reason=row.partial_reason,
@@ -149,9 +222,24 @@ def list_evaluations(
             for row in rows
         ]
         return EvaluationListResponse(
-            items=items, total=total, page=page, page_size=page_size
+            items=items,
+            total=total,
+            page=page,
+            page_size=page_size,
+            stats=stats,
         )
-    return EvaluationListResponse(items=[], total=0, page=page, page_size=page_size)
+    return EvaluationListResponse(
+        items=[],
+        total=0,
+        page=page,
+        page_size=page_size,
+        stats=EvaluationListStats(
+            total=0,
+            completed=0,
+            in_progress=0,
+            average_duration_seconds=None,
+        ),
+    )
 
 
 def get_evaluation_status(

@@ -354,6 +354,14 @@ def test_list_evaluations_filters_by_status(db_session) -> None:
                 submitted_by=owner.user_id,
                 submitted_at=datetime.now(UTC),
             ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=EvaluationStatus.EVALUATING.value,
+                target_agent="sme",
+                submitted_by=owner.user_id,
+                submitted_at=datetime.now(UTC),
+            ),
         ]
     )
     db_session.commit()
@@ -363,6 +371,12 @@ def test_list_evaluations_filters_by_status(db_session) -> None:
     )
     assert completed_resp.total == 1
     assert completed_resp.items[0].status == EvaluationStatus.COMPLETED
+
+    in_progress_resp = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, status="IN_PROGRESS"
+    )
+    assert in_progress_resp.total == 1
+    assert in_progress_resp.items[0].status == EvaluationStatus.EVALUATING
 
     combined_resp = list_evaluations(
         1,
@@ -802,3 +816,292 @@ def test_get_latest_evaluations_preserves_status_semantics(db_session) -> None:
 
     assert lookup[doc_active].status == EvaluationStatus.PREPROCESSING
     assert lookup[doc_active].completed_at is None
+
+
+def test_list_evaluations_status_in_progress_covers_all_four_active_states(
+    db_session,
+) -> None:
+    """status=IN_PROGRESS must include all 4 active states and exclude terminal."""
+    owner = create_user(
+        db_session,
+        name="Active State User",
+        email="active-states@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    t = datetime.now(UTC)
+
+    active_statuses = [
+        EvaluationStatus.SUBMITTED.value,
+        EvaluationStatus.PREPROCESSING.value,
+        EvaluationStatus.EVALUATING.value,
+        EvaluationStatus.SYNTHESIZING.value,
+    ]
+    excluded_statuses = [
+        EvaluationStatus.COMPLETED.value,
+        EvaluationStatus.FAILED.value,
+    ]
+
+    for st in active_statuses + excluded_statuses:
+        db_session.add(
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc,
+                status=st,
+                submitted_by=owner.user_id,
+                submitted_at=t,
+                completed_at=t + timedelta(seconds=5)
+                if st in excluded_statuses
+                else None,
+            )
+        )
+    db_session.commit()
+
+    resp = list_evaluations(
+        1,
+        20,
+        owner.user_id,
+        UserRole.FACULTY.value,
+        db_session,
+        status="IN_PROGRESS",
+    )
+    assert resp.total == 4
+    assert len(resp.items) == 4
+    returned_statuses = {item.status.value for item in resp.items}
+    assert returned_statuses == set(active_statuses)
+    assert EvaluationStatus.COMPLETED.value not in returned_statuses
+    assert EvaluationStatus.FAILED.value not in returned_statuses
+
+
+def test_list_evaluations_list_item_error_message_and_confirmed_program(
+    db_session,
+) -> None:
+    """EvaluationListItem accurately surfaces error_message and confirmed_program."""
+    owner = create_user(
+        db_session,
+        name="Error Program User",
+        email="err-prog@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    t = datetime.now(UTC)
+
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=doc,
+        status=EvaluationStatus.FAILED.value,
+        submitted_by=owner.user_id,
+        submitted_at=t,
+        completed_at=t + timedelta(seconds=12),
+        error_message="LLM provider timed out during evaluation.",
+        confirmed_program="BSInfoTech",
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    resp = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    assert resp.total == 1
+    item = resp.items[0]
+    assert item.error_message == "LLM provider timed out during evaluation."
+    assert item.confirmed_program == "BSInfoTech"
+
+
+def test_list_evaluations_stats_scope_excludes_status_but_includes_other_filters(
+    db_session,
+) -> None:
+    """Stats must reflect the repository scope: unaffected by status filter,
+    but restricted by owner, document_id, and target_agent."""
+    owner = create_user(
+        db_session,
+        name="Stats Owner",
+        email="stats-owner@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    other = create_user(
+        db_session,
+        name="Stats Other",
+        email="stats-other@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_a = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    doc_b = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    t0 = datetime(2026, 1, 1, 10, 0, 0, tzinfo=UTC)
+
+    # Owner jobs on doc_a:
+    # 1. SME COMPLETED, dur = 100s
+    # 2. SME FAILED, dur = 200s (terminal -> included in avg: (100+200)/2 = 150s)
+    # 3. SME EVALUATING, not terminal -> no completed_at
+    # 4. GAD COMPLETED, dur = 50s
+    db_session.add_all(
+        [
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                submitted_by=owner.user_id,
+                status=EvaluationStatus.COMPLETED.value,
+                target_agent="sme",
+                submitted_at=t0,
+                completed_at=t0 + timedelta(seconds=100),
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                submitted_by=owner.user_id,
+                status=EvaluationStatus.FAILED.value,
+                target_agent="sme",
+                submitted_at=t0,
+                completed_at=t0 + timedelta(seconds=200),
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                submitted_by=owner.user_id,
+                status=EvaluationStatus.EVALUATING.value,
+                target_agent="sme",
+                submitted_at=t0,
+                completed_at=None,
+            ),
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                submitted_by=owner.user_id,
+                status=EvaluationStatus.COMPLETED.value,
+                target_agent="gad",
+                submitted_at=t0,
+                completed_at=t0 + timedelta(seconds=50),
+            ),
+            # Owner job on doc_b
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_b,
+                submitted_by=owner.user_id,
+                status=EvaluationStatus.COMPLETED.value,
+                target_agent="sme",
+                submitted_at=t0,
+                completed_at=t0 + timedelta(seconds=300),
+            ),
+            # Other user's job on doc_a (must not leak)
+            EvaluationJob(
+                evaluation_id=uuid4(),
+                document_id=doc_a,
+                submitted_by=other.user_id,
+                status=EvaluationStatus.COMPLETED.value,
+                target_agent="sme",
+                submitted_at=t0,
+                completed_at=t0 + timedelta(seconds=1000),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    # 1. Unfiltered by status, document, or target
+    res_all = list_evaluations(1, 20, owner.user_id, UserRole.FACULTY.value, db_session)
+    # Total owner jobs = 5 (3 COMPLETED, 1 FAILED, 1 EVALUATING)
+    assert res_all.stats.total == 5
+    assert res_all.stats.completed == 3
+    assert res_all.stats.in_progress == 1
+    # Durations: (100 + 200 + 50 + 300) / 4 = 162.5
+    assert res_all.stats.average_duration_seconds == 162.5
+
+    # 2. Status filter applied (e.g. status=COMPLETED)
+    # Stats MUST NOT change when status filter changes!
+    res_status = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, status="COMPLETED"
+    )
+    assert res_status.total == 3  # 3 items matched the filter
+    assert len(res_status.items) == 3
+    assert res_status.stats.total == 5  # stats still spans all 5
+    assert res_status.stats.completed == 3
+    assert res_status.stats.in_progress == 1
+    assert res_status.stats.average_duration_seconds == 162.5
+
+    # 3. Document filter applied (document_id=doc_a)
+    # Stats MUST be restricted to doc_a (2 completed, 1 failed, 1 evaluating)
+    res_doc = list_evaluations(
+        1, 20, owner.user_id, UserRole.FACULTY.value, db_session, document_id=doc_a
+    )
+    assert res_doc.stats.total == 4
+    assert res_doc.stats.completed == 2
+    assert res_doc.stats.in_progress == 1
+    # doc_a terminal: 100, 200, 50 -> (100+200+50)/3 = 116.67
+    assert res_doc.stats.average_duration_seconds == 116.67
+
+    # 4. Target agent filter applied (document_id=doc_a, target_agent=sme)
+    # Stats MUST be restricted to doc_a AND target_agent=sme
+    res_target = list_evaluations(
+        1,
+        20,
+        owner.user_id,
+        UserRole.FACULTY.value,
+        db_session,
+        document_id=doc_a,
+        target_agent="sme",
+    )
+    assert res_target.stats.total == 3
+    assert res_target.stats.completed == 1
+    assert res_target.stats.in_progress == 1
+    # doc_a sme terminal: 100, 200 -> avg = 150.0
+    assert res_target.stats.average_duration_seconds == 150.0
+
+
+def test_list_evaluations_pagination_deterministic_tie_breaking(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Deterministic Eval User",
+        email="determ-eval@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    same_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+
+    # Create 4 jobs with identical submitted_at and predetermined UUIDs
+    id1 = UUID("00000000-0000-0000-0000-000000000001")
+    id2 = UUID("00000000-0000-0000-0000-000000000002")
+    id3 = UUID("00000000-0000-0000-0000-000000000003")
+    id4 = UUID("00000000-0000-0000-0000-000000000004")
+
+    jobs = [
+        EvaluationJob(
+            evaluation_id=id,
+            document_id=doc_id,
+            submitted_by=owner.user_id,
+            status=EvaluationStatus.COMPLETED.value,
+            target_agent="sme",
+            submitted_at=same_time,
+            completed_at=same_time + timedelta(seconds=10),
+        )
+        for id in [id2, id4, id1, id3]
+    ]
+    db_session.add_all(jobs)
+    db_session.commit()
+
+    page1 = list_evaluations(
+        page=1,
+        page_size=2,
+        current_user_id=owner.user_id,
+        current_user_role=UserRole.FACULTY.value,
+        db=db_session,
+    )
+    page2 = list_evaluations(
+        page=2,
+        page_size=2,
+        current_user_id=owner.user_id,
+        current_user_role=UserRole.FACULTY.value,
+        db=db_session,
+    )
+
+    assert [j.evaluation_id for j in page1.items] == [id4, id3]
+    assert [j.evaluation_id for j in page2.items] == [id2, id1]

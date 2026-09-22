@@ -8,6 +8,39 @@ export type EvaluationLifecycleStatus =
   | 'PENDING'
   | 'PROCESSING';
 
+export interface EvaluationListStats {
+  total: number;
+  completed: number;
+  in_progress: number;
+  average_duration_seconds: number | null;
+}
+
+export interface EvaluationListItem {
+  evaluation_id: string;
+  document_id: string;
+  document_title?: string | null;
+  syllabus_id: string | null;
+  curriculum_id: string | null;
+  status: EvaluationLifecycleStatus | string;
+  error_message: string | null;
+  target_agent: TargetAgent | 'all';
+  partial_without_curriculum?: boolean;
+  partial_reason?: string | null;
+  confirmed_program: string | null;
+  submitted_by?: string | null;
+  submitted_at: string;
+  completed_at: string | null;
+  duration_seconds: number | null;
+}
+
+export interface EvaluationListResponse {
+  items: EvaluationListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  stats?: EvaluationListStats;
+}
+
 export interface LatestEvaluationItem {
   document_id: string;
   evaluation_id: string;

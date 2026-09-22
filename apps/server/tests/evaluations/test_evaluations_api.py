@@ -814,14 +814,10 @@ def test_list_evaluations_enforces_evaluator_permissions(
     )
     db_session.commit()
 
-    doc, job_sme = _create_document_and_job(
-        db_session, faculty.user_id, partial=False
-    )
+    doc, job_sme = _create_document_and_job(db_session, faculty.user_id, partial=False)
     job_sme.target_agent = "sme"
 
-    _, job_coord = _create_document_and_job(
-        db_session, faculty.user_id, partial=False
-    )
+    _, job_coord = _create_document_and_job(db_session, faculty.user_id, partial=False)
     job_coord.target_agent = "coordinator"
     db_session.commit()
 
@@ -899,9 +895,7 @@ def test_desk_queue_enforces_permissions(client: TestClient, db_session):
     assert "total" in data
 
 
-def test_desk_queue_item_lifecycle_and_peer_convergence(
-    client: TestClient, db_session
-):
+def test_desk_queue_item_lifecycle_and_peer_convergence(client: TestClient, db_session):
     admin = create_user(
         db_session,
         name="Admin Evaluator",
@@ -947,10 +941,13 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     _login(client, admin)
 
     # 1. SME desk: no job submitted -> READY status
+    # Note: desk queue derives peer completion and scores strictly from
+    # the authenticated user's own latest EvaluationJob + AgentResult.
     resp_sme = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
     assert resp_sme.status_code == 200
     items_sme = [
-        it for it in resp_sme.json()["items"]
+        it
+        for it in resp_sme.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert len(items_sme) == 1
@@ -958,16 +955,80 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     assert item["my_status"] == "READY"
     assert item["my_score"] is None
     assert item["my_adjectival"] is None
-    assert item["peer_completed_count"] == 2
-    assert set(item["peer_completed_desks"]) == {"gad", "itso"}
+    assert item["peer_completed_count"] == 0
+    assert set(item["peer_completed_desks"]) == set()
     assert item["course_code"] == "CS101"
     assert item["program"] == "BSCS"
 
-    # 2. GAD desk: already completed in matrix -> COMPLETED status with score
+    # Now add completed jobs + AgentResults for GAD and ITSO submitted by admin
+    from server.modules.synthesis.models import AgentResult
+
+    eval_id_gad = uuid.uuid4()
+    job_gad = EvaluationJob(
+        evaluation_id=eval_id_gad,
+        document_id=doc.document_id,
+        submitted_by=admin.user_id,
+        status=EvaluationStatus.COMPLETED.value,
+        target_agent="gad",
+        submitted_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    ar_gad = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=eval_id_gad,
+        document_id=doc.document_id,
+        agent_name="gad",
+        subtotal=3.75,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="GAD output",
+        success=True,
+    )
+    eval_id_itso = uuid.uuid4()
+    job_itso = EvaluationJob(
+        evaluation_id=eval_id_itso,
+        document_id=doc.document_id,
+        submitted_by=admin.user_id,
+        status=EvaluationStatus.COMPLETED.value,
+        target_agent="itso",
+        submitted_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    ar_itso = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=eval_id_itso,
+        document_id=doc.document_id,
+        agent_name="itso",
+        subtotal=3.20,
+        processing_seconds=1.0,
+        token_count=10,
+        model_name="test-model",
+        summary="ITSO output",
+        success=True,
+    )
+    db_session.add_all([job_gad, ar_gad, job_itso, ar_itso])
+    db_session.commit()
+
+    # Re-check SME desk now that GAD and ITSO jobs exist for admin
+    resp_sme2 = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert resp_sme2.status_code == 200
+    items_sme2 = [
+        it
+        for it in resp_sme2.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert len(items_sme2) == 1
+    item2 = items_sme2[0]
+    assert item2["peer_completed_count"] == 2
+    assert set(item2["peer_completed_desks"]) == {"gad", "itso"}
+
+    # 2. GAD desk: already completed -> COMPLETED status with score
     resp_gad = client.get("/api/v1/evaluations/desk-queue?target_agent=gad")
     assert resp_gad.status_code == 200
     items_gad = [
-        it for it in resp_gad.json()["items"]
+        it
+        for it in resp_gad.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert len(items_gad) == 1
@@ -975,7 +1036,8 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     assert gad_item["my_status"] == "COMPLETED"
     assert gad_item["my_score"] == 3.75
     assert gad_item["my_adjectival"] == "Very Satisfactory"
-    assert gad_item["peer_completed_count"] == 2
+    assert gad_item["peer_completed_count"] == 1
+    assert gad_item["peer_completed_desks"] == ["itso"]
 
     # 3. Add job in EVALUATING state for SME
     job_sme = EvaluationJob(
@@ -991,7 +1053,8 @@ def test_desk_queue_item_lifecycle_and_peer_convergence(
     resp_sme_eval = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
     assert resp_sme_eval.status_code == 200
     items_sme_eval = [
-        it for it in resp_sme_eval.json()["items"]
+        it
+        for it in resp_sme_eval.json()["items"]
         if it["document_id"] == str(doc.document_id)
     ]
     assert items_sme_eval[0]["my_status"] == "EVALUATING"
@@ -1053,3 +1116,231 @@ def test_desk_queue_program_filtering(client: TestClient, db_session):
         "/api/v1/evaluations/desk-queue?target_agent=coordinator&program=BSEd"
     )
     assert unsupported_resp.status_code == 422
+
+
+def test_list_evaluations_status_and_pagination_validation(
+    client: TestClient, db_session
+):
+    faculty = create_user(
+        db_session,
+        name="Validation User",
+        email="validation-bounds@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["sme", "coordinator", "gad", "itso"],
+    )
+    db_session.commit()
+    _login(client, faculty)
+
+    # Malformed / invalid status returns 422 (not 500)
+    resp_invalid_status = client.get("/api/v1/evaluations/?status=INVALID_STATUS")
+    assert resp_invalid_status.status_code == 422
+
+    # Malformed page bounds (page < 1) returns 422
+    resp_page_zero = client.get("/api/v1/evaluations/?page=0")
+    assert resp_page_zero.status_code == 422
+
+    # Malformed page_size bounds (page_size < 1 or page_size > 200) returns 422
+    resp_size_zero = client.get("/api/v1/evaluations/?page_size=0")
+    assert resp_size_zero.status_code == 422
+
+    resp_size_overflow = client.get("/api/v1/evaluations/?page_size=201")
+    assert resp_size_overflow.status_code == 422
+
+    # Valid pagination returns 200
+    resp_valid = client.get("/api/v1/evaluations/?page=1&page_size=20")
+    assert resp_valid.status_code == 200
+
+
+def test_specialist_desk_two_user_isolation_and_exact_agent_result_ownership(
+    client: TestClient, db_session
+):
+    """Two specialist users evaluate the same document:
+    - User 1 has completed SME evaluation with score and adjectival
+    - User 2 has no SME evaluation
+    User 2's specialist desk queue MUST show READY, score=None, adjectival=None,
+    and peer_completed_count=0 without any foreign status/score/peer leakage."""
+    user1 = create_user(
+        db_session,
+        name="Specialist One",
+        email="spec1@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["sme", "gad"],
+    )
+    user2 = create_user(
+        db_session,
+        name="Specialist Two",
+        email="spec2@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+        evaluator_permissions=["sme", "gad"],
+    )
+    # Admin uploads doc so both faculty can access if linked or shared,
+    # or user1 and user2 both have UserDocument access
+    from server.modules.documents.models import UserDocument
+
+    doc = Document(
+        document_id=uuid.uuid4(),
+        title="Shared Desk SLM",
+        program="BSCS",
+        course_code="CS202",
+        source_type="slm",
+        file_path="/tmp/shared_slm.pdf",
+        uploaded_by=user1.user_id,
+        uploaded_at=datetime.now(UTC),
+        processing_status="PROCESSED",
+    )
+    ud1 = UserDocument(
+        user_document_id=uuid.uuid4(),
+        user_id=user1.user_id,
+        document_id=doc.document_id,
+    )
+    ud2 = UserDocument(
+        user_document_id=uuid.uuid4(),
+        user_id=user2.user_id,
+        document_id=doc.document_id,
+    )
+    db_session.add_all([doc, ud1, ud2])
+    db_session.flush()
+
+    # User 1 submits and completes SME job and GAD job with exact AgentResults
+    eval_id_u1_sme = uuid.uuid4()
+    job_u1_sme = EvaluationJob(
+        evaluation_id=eval_id_u1_sme,
+        document_id=doc.document_id,
+        submitted_by=user1.user_id,
+        status=EvaluationStatus.COMPLETED.value,
+        target_agent="sme",
+        submitted_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    ar_u1_sme = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=eval_id_u1_sme,
+        document_id=doc.document_id,
+        agent_name="sme",
+        subtotal=3.85,
+        processing_seconds=2.0,
+        token_count=15,
+        model_name="test-model",
+        summary="SME evaluation passed",
+        success=True,
+    )
+
+    eval_id_u1_gad = uuid.uuid4()
+    job_u1_gad = EvaluationJob(
+        evaluation_id=eval_id_u1_gad,
+        document_id=doc.document_id,
+        submitted_by=user1.user_id,
+        status=EvaluationStatus.COMPLETED.value,
+        target_agent="gad",
+        submitted_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    ar_u1_gad = AgentResult(
+        agent_result_id=uuid.uuid4(),
+        evaluation_id=eval_id_u1_gad,
+        document_id=doc.document_id,
+        agent_name="gad",
+        subtotal=3.50,
+        processing_seconds=2.0,
+        token_count=15,
+        model_name="test-model",
+        summary="GAD evaluation passed",
+        success=True,
+    )
+    db_session.add_all([job_u1_sme, ar_u1_sme, job_u1_gad, ar_u1_gad])
+    db_session.commit()
+
+    # Verify User 1 sees their own completed SME job with score and GAD peer completed
+    _login(client, user1)
+    resp_u1 = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert resp_u1.status_code == 200
+    u1_items = [
+        it
+        for it in resp_u1.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert len(u1_items) == 1
+    assert u1_items[0]["my_status"] == "COMPLETED"
+    assert u1_items[0]["my_score"] == 3.85
+    assert u1_items[0]["my_adjectival"] is not None
+    assert u1_items[0]["peer_completed_count"] == 1
+    assert u1_items[0]["peer_completed_desks"] == ["gad"]
+
+    # Verify User 2 sees READY with NO score, NO adjectival, NO peer leakage
+    _login(client, user2)
+    resp_u2 = client.get("/api/v1/evaluations/desk-queue?target_agent=sme")
+    assert resp_u2.status_code == 200
+    u2_items = [
+        it
+        for it in resp_u2.json()["items"]
+        if it["document_id"] == str(doc.document_id)
+    ]
+    assert len(u2_items) == 1
+    assert u2_items[0]["my_status"] == "READY"
+    assert u2_items[0]["my_score"] is None
+    assert u2_items[0]["my_adjectival"] is None
+    assert u2_items[0]["peer_completed_count"] == 0
+    assert u2_items[0]["peer_completed_desks"] == []
+
+
+def test_specialist_desk_queue_document_id_filter(
+    client: TestClient, db_session
+) -> None:
+    user = create_user(
+        db_session,
+        name="Desk Queue Filter User",
+        email="desk-filter-user@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+
+    doc1 = Document(
+        document_id=uuid.uuid4(),
+        title="SLM One",
+        program="BSCS",
+        course_code="CS101",
+        source_type="slm",
+        file_path="/tmp/slm1.pdf",
+        uploaded_by=user.user_id,
+        uploaded_at=datetime.now(UTC),
+        processing_status="PROCESSED",
+    )
+    doc2 = Document(
+        document_id=uuid.uuid4(),
+        title="SLM Two",
+        program="BSCS",
+        course_code="CS102",
+        source_type="slm",
+        file_path="/tmp/slm2.pdf",
+        uploaded_by=user.user_id,
+        uploaded_at=datetime.now(UTC),
+        processing_status="PROCESSED",
+    )
+    db_session.add_all([doc1, doc2])
+    db_session.commit()
+
+    _login(client, user)
+
+    # Query with matching document_id
+    resp = client.get(
+        f"/api/v1/evaluations/desk-queue?target_agent=sme&document_id={doc1.document_id}"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["document_id"] == str(doc1.document_id)
+
+    # Query with non-existent document_id
+    non_existent_id = uuid.uuid4()
+    resp_missing = client.get(
+        f"/api/v1/evaluations/desk-queue?target_agent=sme&document_id={non_existent_id}"
+    )
+    assert resp_missing.status_code == 200
+    data_missing = resp_missing.json()
+    assert data_missing["total"] == 0
+    assert data_missing["items"] == []
