@@ -121,6 +121,7 @@ class EvaluationJob(Base):
     # Targeted single-agent evaluation: which specialist this job executes.
     # Historical multi-agent bundle rows are backfilled with 'all'.
     target_agent: Mapped[str] = mapped_column(String(32), nullable=False, default="all")
+    lora_scale: Mapped[float | None] = mapped_column(sa.Float(), nullable=True)
     confirmed_program: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_pre_snapshot_legacy: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, default=False
