@@ -34,14 +34,14 @@ export interface NavGroup {
 export const adminNavGroups: readonly NavGroup[] = [
   {
     id: 'overview',
-    label: 'OVERVIEW',
+    label: 'Overview',
     items: [
       { to: '/admin', label: 'Dashboard', icon: SquaresFour, exact: true },
     ],
   },
   {
     id: 'operations',
-    label: 'OPERATIONS',
+    label: 'Operations',
     items: [
       { to: '/admin/users', label: 'User Management', icon: Users, exact: true },
       { to: '/matrix', label: 'Monitoring Matrix', icon: Shield, exact: true },
@@ -49,7 +49,7 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
   {
     id: 'knowledge-base',
-    label: 'KNOWLEDGE BASE',
+    label: 'Knowledge base',
     items: [
       { to: '/admin/ingest', label: 'Reference Ingestion', icon: UploadSimple, exact: true },
       { to: '/admin/references', label: 'Reference Library', icon: Books, exact: true },
@@ -58,7 +58,7 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
   {
     id: 'model-governance',
-    label: 'MODEL GOVERNANCE',
+    label: 'Model governance',
     items: [
       { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
       { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
@@ -94,9 +94,9 @@ export function getSidebarLayoutClasses(isCollapsed: boolean): {
   sidebarDesktopWidth: string;
 } {
   return {
-    headerLeft: isCollapsed ? 'left-0 md:left-[5.75rem]' : 'left-0 md:left-72',
-    mainPadding: isCollapsed ? 'pl-0 md:pl-[5.75rem]' : 'pl-0 md:pl-72',
-    sidebarDesktopWidth: isCollapsed ? 'md:w-[5.75rem]' : 'md:w-72',
+    headerLeft: isCollapsed ? 'left-0 md:left-[4.5rem]' : 'left-0 md:left-64',
+    mainPadding: isCollapsed ? 'pl-0 md:pl-[4.5rem]' : 'pl-0 md:pl-64',
+    sidebarDesktopWidth: isCollapsed ? 'md:w-[4.5rem]' : 'md:w-64',
   };
 }
 

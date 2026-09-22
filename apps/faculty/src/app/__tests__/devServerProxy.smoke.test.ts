@@ -123,7 +123,7 @@ describe('Vite Dev Proxy and Route Smoke Tests', () => {
   }
 
   it('serves Faculty HTML for canonical faculty routes', async () => {
-    const facultyRoutes = ['/', '/login', '/dashboard', '/documents', '/evaluations'];
+    const facultyRoutes = ['/', '/login', '/dashboard', '/documents', '/evaluations', '/curriculum-alignment', '/alignment'];
     for (const route of facultyRoutes) {
       const { status, text } = await fetchThroughFaculty(route);
       expect(status).toBe(200);

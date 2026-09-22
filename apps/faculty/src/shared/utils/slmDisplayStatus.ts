@@ -83,7 +83,7 @@ export function getSlmDisplayStatus(
   if (isProcessingDocumentStatus(processingStatus)) {
     return {
       badgeLabel: 'Processing',
-      badgeClass: 'bg-[#f2c811]/20 text-[#854d0e] border border-[#f2c811]/40',
+      badgeClass: 'bg-warning-soft text-warning border border-warning/30',
       showSpinner: true,
       isClickable: false,
       actionType: 'processing',
@@ -98,7 +98,7 @@ export function getSlmDisplayStatus(
   if (processingStatus === 'FAILED') {
     return {
       badgeLabel: 'Upload Failed',
-      badgeClass: 'bg-[#b91c1c]/10 text-[#b91c1c] border border-[#b91c1c]/30',
+      badgeClass: 'bg-destructive-soft text-destructive border border-destructive/30',
       showSpinner: false,
       isClickable: false,
       actionType: 'upload_failed',
@@ -114,7 +114,7 @@ export function getSlmDisplayStatus(
   if (queryState.isLoading) {
     return {
       badgeLabel: 'Checking Status',
-      badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200',
+      badgeClass: 'bg-surface-subtle text-text-muted border border-border',
       showSpinner: true,
       isClickable: false,
       actionType: 'checking_status',
@@ -129,7 +129,7 @@ export function getSlmDisplayStatus(
   if (queryState.isError) {
     return {
       badgeLabel: 'Status Unavailable',
-      badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200',
+      badgeClass: 'bg-surface-subtle text-text-muted border border-border',
       showSpinner: false,
       isClickable: false,
       actionType: 'status_unavailable',
@@ -146,7 +146,7 @@ export function getSlmDisplayStatus(
     if (isEvaluatingStatus(latestEval.status)) {
       return {
         badgeLabel: 'Evaluating',
-        badgeClass: 'bg-[#1b3b87]/10 text-[#1b3b87] border border-[#1b3b87]/30',
+        badgeClass: 'bg-info-soft text-info border border-info/30',
         showSpinner: true,
         isClickable: existingEvaluationUrl !== null,
         actionType: 'view_progress',
@@ -160,7 +160,7 @@ export function getSlmDisplayStatus(
     if (isEvaluationFailedStatus(latestEval.status)) {
       return {
         badgeLabel: 'Evaluation Failed',
-        badgeClass: 'bg-[#b91c1c]/10 text-[#b91c1c] border border-[#b91c1c]/30',
+        badgeClass: 'bg-destructive-soft text-destructive border border-destructive/30',
         showSpinner: false,
         isClickable: existingEvaluationUrl !== null,
         actionType: 'inspect_failure',
@@ -174,7 +174,7 @@ export function getSlmDisplayStatus(
     if (isEvaluationCompletedStatus(latestEval.status)) {
       return {
         badgeLabel: 'Evaluated',
-        badgeClass: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
+        badgeClass: 'bg-success-soft text-success border border-success/30',
         showSpinner: false,
         isClickable: existingEvaluationUrl !== null,
         actionType: 'view_results',
@@ -188,7 +188,7 @@ export function getSlmDisplayStatus(
   // Precedence 6: Processed + no eval after successful batch response => Ready to Evaluate.
   return {
     badgeLabel: 'Ready to Evaluate',
-    badgeClass: 'bg-[#15803d]/10 text-[#15803d] border border-[#15803d]/30',
+    badgeClass: 'bg-success-soft text-success border border-success/30',
     showSpinner: false,
     isClickable: true,
     actionType: 'start_evaluation',

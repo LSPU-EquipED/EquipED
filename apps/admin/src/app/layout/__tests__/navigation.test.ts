@@ -26,10 +26,10 @@ describe('isNavigationActive', () => {
 describe('admin navigation group structure', () => {
   it('organizes admin navigation by responsibility without losing routes', () => {
     expect(adminNavGroups.map(({ id, label }) => ({ id, label }))).toEqual([
-      { id: 'overview', label: 'OVERVIEW' },
-      { id: 'operations', label: 'OPERATIONS' },
-      { id: 'knowledge-base', label: 'KNOWLEDGE BASE' },
-      { id: 'model-governance', label: 'MODEL GOVERNANCE' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'operations', label: 'Operations' },
+      { id: 'knowledge-base', label: 'Knowledge base' },
+      { id: 'model-governance', label: 'Model governance' },
     ]);
 
     expect(adminNavGroups.flatMap((group) => group.items).map(({ to, label }) => ({ to, label }))).toEqual([
@@ -102,16 +102,16 @@ describe('getAriaCurrent', () => {
 describe('getSidebarLayoutClasses', () => {
   it('returns uncollapsed desktop layout classes when isCollapsed is false', () => {
     const classes = getSidebarLayoutClasses(false);
-    expect(classes.headerLeft).toBe('left-0 md:left-72');
-    expect(classes.mainPadding).toBe('pl-0 md:pl-72');
-    expect(classes.sidebarDesktopWidth).toBe('md:w-72');
+    expect(classes.headerLeft).toBe('left-0 md:left-64');
+    expect(classes.mainPadding).toBe('pl-0 md:pl-64');
+    expect(classes.sidebarDesktopWidth).toBe('md:w-64');
   });
 
   it('returns collapsed desktop layout classes when isCollapsed is true', () => {
     const classes = getSidebarLayoutClasses(true);
-    expect(classes.headerLeft).toBe('left-0 md:left-[5.75rem]');
-    expect(classes.mainPadding).toBe('pl-0 md:pl-[5.75rem]');
-    expect(classes.sidebarDesktopWidth).toBe('md:w-[5.75rem]');
+    expect(classes.headerLeft).toBe('left-0 md:left-[4.5rem]');
+    expect(classes.mainPadding).toBe('pl-0 md:pl-[4.5rem]');
+    expect(classes.sidebarDesktopWidth).toBe('md:w-[4.5rem]');
   });
 });
 

@@ -26,8 +26,8 @@ describe('isNavigationActive', () => {
     expect(isNavigationActive('/evaluations/eval-456/report', '/evaluations', false)).toBe(true);
     expect(isNavigationActive('/syllabus-alignment', '/syllabus-alignment', false)).toBe(true);
     expect(isNavigationActive('/syllabus-alignment/doc-789', '/syllabus-alignment', false)).toBe(true);
-    expect(isNavigationActive('/alignment', '/alignment', false)).toBe(true);
-    expect(isNavigationActive('/alignment/check-1', '/alignment', false)).toBe(true);
+    expect(isNavigationActive('/curriculum-alignment', '/curriculum-alignment', false)).toBe(true);
+    expect(isNavigationActive('/curriculum-alignment/check-1', '/curriculum-alignment', false)).toBe(true);
     expect(isNavigationActive('/evaluation-map', '/evaluation-map', false)).toBe(true);
   });
 
@@ -39,111 +39,161 @@ describe('isNavigationActive', () => {
 
 describe('navigation group structure', () => {
   it('defines the required faculty grouped hierarchy', () => {
-    expect(facultyNavGroups).toHaveLength(4);
+    expect(facultyNavGroups).toHaveLength(5);
 
-    const [homeGroup, storageGroup, specialistsGroup, alignmentGroup] = facultyNavGroups;
+    const [homeGroup, storageGroup, specialistsGroup, alignmentGroup, logsGroup] = facultyNavGroups;
     expect(homeGroup.id).toBe('home');
-    expect(homeGroup.label).toBe('HOME');
+    expect(homeGroup.label).toBe('Home');
     expect(homeGroup.items).toHaveLength(1);
-    expect(homeGroup.items[0]).toMatchObject({ to: '/dashboard', label: 'Home', exact: true });
+    expect(homeGroup.items[0]).toMatchObject({ to: '/dashboard', label: 'Overview', exact: true });
 
     expect(storageGroup.id).toBe('storage');
-    expect(storageGroup.label).toBe('SLM REPOSITORY');
+    expect(storageGroup.label).toBe('Documents');
     expect(storageGroup.items).toHaveLength(1);
-    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'SLM Storage', exact: false });
+    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'Documents', exact: false });
 
     expect(specialistsGroup.id).toBe('specialists');
-    expect(specialistsGroup.label).toBe('EVALUATION SPECIALISTS');
+    expect(specialistsGroup.label).toBe('Evaluations');
     expect(specialistsGroup.items).toHaveLength(4);
-    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'Subject Matter Expert', exact: false });
-    expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Program Coordinator', exact: false });
-    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'Gender & Development', exact: false });
-    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'Innovation and Technology Support Office', exact: false });
+    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'SME', exact: false });
+    expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Coordinator', exact: false });
+    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'GAD', exact: false });
+    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'ITSO', exact: false });
 
     expect(alignmentGroup.id).toBe('alignment');
-    expect(alignmentGroup.label).toBe('ALIGNMENT & AUDIT');
-    expect(alignmentGroup.items).toHaveLength(3);
+    expect(alignmentGroup.label).toBe('Alignment');
+    expect(alignmentGroup.items).toHaveLength(2);
     expect(alignmentGroup.items[0]).toMatchObject({
       to: '/syllabus-alignment',
-      label: 'Syllabus Alignment',
+      label: 'Syllabus',
       exact: false,
     });
     expect(alignmentGroup.items[1]).toMatchObject({
-      to: '/alignment',
-      label: 'Curriculum Check',
+      to: '/curriculum-alignment',
+      label: 'Curriculum',
       exact: false,
     });
-    expect(alignmentGroup.items[2]).toMatchObject({
+
+    expect(logsGroup.id).toBe('logs');
+    expect(logsGroup.label).toBe('Logs');
+    expect(logsGroup.items).toHaveLength(1);
+    expect(logsGroup.items[0]).toMatchObject({
       to: '/evaluations',
-      label: 'Evaluation History',
+      label: 'History',
       exact: true,
     });
   });
+
   it('leaves faculty secondary nav empty after moving Evaluation Map to admin', () => {
     expect(facultySecondaryNavItems).toHaveLength(0);
   });
 });
 
 describe('getRouteTitle', () => {
-  it('returns Home for /dashboard', () => {
-    expect(getRouteTitle('/dashboard')).toBe('Home');
+  it('returns Overview for /dashboard', () => {
+    expect(getRouteTitle('/dashboard')).toBe('Overview');
   });
 
-  it('returns My SLMs for /documents', () => {
-    expect(getRouteTitle('/documents')).toBe('My SLMs');
+  it('returns Documents for /documents', () => {
+    expect(getRouteTitle('/documents')).toBe('Documents');
   });
 
-  it('returns Specialist Review for /documents/$documentId/evaluation (redirect)', () => {
-    expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Specialist Review');
+  it('returns Review for /documents/$documentId/evaluation (redirect)', () => {
+    expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Review');
   });
 
+  it('returns SME for /specialists/sme', () => {
+    expect(getRouteTitle('/specialists/sme')).toBe('SME');
+  });
 
-  it('returns Evaluation History for /evaluations', () => {
-    expect(getRouteTitle('/evaluations')).toBe('Evaluation History');
+  it('returns History for /evaluations', () => {
+    expect(getRouteTitle('/evaluations')).toBe('History');
   });
 
   it('returns Scorecard for /evaluations/$id', () => {
     expect(getRouteTitle('/evaluations/eval-1')).toBe('Scorecard');
   });
 
-  it('returns Curriculum Check for /alignment', () => {
-    expect(getRouteTitle('/alignment')).toBe('Curriculum Check');
+  it('returns Syllabus for /syllabus-alignment', () => {
+    expect(getRouteTitle('/syllabus-alignment')).toBe('Syllabus');
+  });
+
+  it('returns Curriculum for /curriculum-alignment', () => {
+    expect(getRouteTitle('/curriculum-alignment')).toBe('Curriculum');
   });
 });
+
 describe('getBreadcrumbs', () => {
-  it('returns Faculty Workspace > Overview for /dashboard', () => {
+  it('returns Overview for /dashboard', () => {
     expect(getBreadcrumbs('/dashboard')).toEqual([
-      { label: 'Faculty Workspace' },
       { label: 'Overview' },
     ]);
   });
 
-  it('returns Faculty Workspace > SLM Storage for /documents and /storage', () => {
+  it('returns Documents for /documents and /storage', () => {
     expect(getBreadcrumbs('/documents')).toEqual([
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'SLM Storage' },
+      { label: 'Documents' },
     ]);
     expect(getBreadcrumbs('/storage')).toEqual([
-      { label: 'Faculty Workspace', to: '/dashboard' },
-      { label: 'SLM Storage' },
+      { label: 'Documents' },
     ]);
   });
 
-  it('returns Specialists breadcrumbs for specialist routes', () => {
+  it('returns Documents > Review for /documents/doc-123/evaluation', () => {
+    expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
+      { label: 'Documents', to: '/documents' },
+      { label: 'Review' },
+    ]);
+  });
+
+  it('returns direct specialist breadcrumbs for specialist routes', () => {
     expect(getBreadcrumbs('/specialists/sme')).toEqual([
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Subject Matter Expert' },
+      { label: 'SME' },
+    ]);
+    expect(getBreadcrumbs('/specialists/sme/doc-1')).toEqual([
+      { label: 'SME', to: '/specialists/sme' },
+      { label: 'Scoreboard' },
     ]);
     expect(getBreadcrumbs('/specialists/gad')).toEqual([
-      { label: 'Specialists', to: '/dashboard' },
-      { label: 'Gender & Development' },
+      { label: 'GAD' },
     ]);
   });
 
-  it('returns SLM Storage > Specialist Review for /documents/doc-123/evaluation (redirect)', () => {
-    expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
-      { label: 'SLM Storage', to: '/documents' },
-      { label: 'Specialist Review' },
+  it('returns History breadcrumbs for evaluation routes', () => {
+    expect(getBreadcrumbs('/evaluations')).toEqual([
+      { label: 'History' },
+    ]);
+    expect(getBreadcrumbs('/evaluations/eval-1')).toEqual([
+      { label: 'History', to: '/evaluations' },
+      { label: 'Scorecard' },
+    ]);
+    expect(getBreadcrumbs('/evaluations/eval-1/report')).toEqual([
+      { label: 'History', to: '/evaluations' },
+      { label: 'Report' },
+    ]);
+  });
+
+  it('returns Syllabus breadcrumbs for syllabus routes', () => {
+    expect(getBreadcrumbs('/syllabus-alignment')).toEqual([
+      { label: 'Syllabus' },
+    ]);
+    expect(getBreadcrumbs('/syllabus-alignment/doc-1')).toEqual([
+      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Workstation' },
+    ]);
+    expect(getBreadcrumbs('/syllabus-alignment/doc-1/report')).toEqual([
+      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Report' },
+    ]);
+  });
+
+  it('returns Curriculum breadcrumbs for curriculum routes', () => {
+    expect(getBreadcrumbs('/curriculum-alignment')).toEqual([
+      { label: 'Curriculum' },
+    ]);
+    expect(getBreadcrumbs('/curriculum-alignment/check-1')).toEqual([
+      { label: 'Curriculum', to: '/curriculum-alignment' },
+      { label: 'Matrix' },
     ]);
   });
 });
@@ -161,16 +211,16 @@ describe('getAriaCurrent', () => {
 describe('getSidebarLayoutClasses', () => {
   it('returns uncollapsed desktop layout classes when isCollapsed is false', () => {
     const classes = getSidebarLayoutClasses(false);
-    expect(classes.headerLeft).toBe('left-0 md:left-72');
-    expect(classes.mainPadding).toBe('pl-0 md:pl-72');
-    expect(classes.sidebarDesktopWidth).toBe('md:w-72');
+    expect(classes.headerLeft).toBe('left-0 md:left-64');
+    expect(classes.mainPadding).toBe('pl-0 md:pl-64');
+    expect(classes.sidebarDesktopWidth).toBe('md:w-64');
   });
 
   it('returns collapsed desktop layout classes when isCollapsed is true', () => {
     const classes = getSidebarLayoutClasses(true);
-    expect(classes.headerLeft).toBe('left-0 md:left-[5.75rem]');
-    expect(classes.mainPadding).toBe('pl-0 md:pl-[5.75rem]');
-    expect(classes.sidebarDesktopWidth).toBe('md:w-[5.75rem]');
+    expect(classes.headerLeft).toBe('left-0 md:left-[4.5rem]');
+    expect(classes.mainPadding).toBe('pl-0 md:pl-[4.5rem]');
+    expect(classes.sidebarDesktopWidth).toBe('md:w-[4.5rem]');
   });
 });
 
@@ -205,6 +255,7 @@ describe('filterFacultyNavGroups', () => {
     expect(specialistGroup).toBeDefined();
     expect(specialistGroup?.items).toHaveLength(1);
     expect(specialistGroup?.items[0].to).toBe('/specialists/sme');
+    expect(result.find((g) => g.id === 'logs')?.items).toHaveLength(1);
   });
 
   it('supports multiple specialist permissions', () => {

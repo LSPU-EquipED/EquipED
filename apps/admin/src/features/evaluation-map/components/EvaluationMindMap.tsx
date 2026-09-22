@@ -370,7 +370,7 @@ export function EvaluationMindMap() {
                 markerHeight="4.5"
                 orient="auto-start-reverse"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#1b3b87" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#16445d" />
               </marker>
             </defs>
             {evaluationMapEdges.map((edge) => {

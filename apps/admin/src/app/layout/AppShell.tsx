@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { CaretRight, House, List, SignOut } from '@phosphor-icons/react';
-import { cn } from '@equiped/ui';
+import { cn, SHELL_STYLES } from '@equiped/ui';
 import { useAuth, navigateCrossApp } from '@equiped/auth';
 import { useIsMobile } from '../../use-mobile';
 import { Sidebar } from './Sidebar';
@@ -80,7 +80,8 @@ export function AppShell() {
     <div className="min-h-screen bg-canvas text-text">
       <header
         className={cn(
-          'fixed right-0 top-0 z-40 flex h-16 items-center border-b border-border bg-surface px-4 sm:px-6 transition-[left] duration-200',
+          'fixed right-0 top-0 z-40 flex h-14 items-center px-4 sm:px-6 transition-[left] duration-200',
+          SHELL_STYLES.topbar,
           layoutClasses.headerLeft,
         )}
       >
@@ -139,7 +140,7 @@ export function AppShell() {
             <button
               type="button"
               ref={accountTriggerRef}
-              className="flex size-8 items-center justify-center rounded-full bg-primary hover:bg-primary-strong text-xs font-semibold text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex size-8 items-center justify-center rounded-sm border border-primary/20 bg-primary-soft text-xs font-semibold text-primary hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
               aria-label={`User account menu for ${user?.displayName ?? user?.email ?? 'admin'}`}
@@ -197,7 +198,7 @@ export function AppShell() {
 
       <div
         className={cn(
-          'min-h-screen min-w-0 pt-16 transition-[padding] duration-200',
+          'min-h-screen min-w-0 bg-canvas pt-14 transition-[padding] duration-200',
           layoutClasses.mainPadding,
         )}
       >

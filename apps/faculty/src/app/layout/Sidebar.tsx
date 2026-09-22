@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { SidebarSimple, X } from '@phosphor-icons/react';
 import { useAuth } from '@equiped/auth';
 import { useIsMobile } from '@/shared/hooks/use-mobile';
-import { cn, lspuLogoUrl } from '@equiped/ui';
+import { cn, lspuLogoUrl, SHELL_STYLES } from '@equiped/ui';
 import {
   facultyNavGroups,
   facultySecondaryNavItems,
@@ -38,10 +38,11 @@ function NavLink({
   const isActive = isNavigationActive(pathname, item.to, item.exact);
 
   const baseClass = cn(
-    'group flex h-10 items-center rounded-sm text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    SHELL_STYLES.navItem,
+    'group flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isActive
       ? 'font-semibold text-primary bg-primary-soft border-l-2 border-primary'
-      : 'font-medium text-text-muted hover:bg-surface-subtle hover:text-text',
+      : 'font-medium text-text-muted hover:bg-surface hover:text-text',
     collapsed ? 'md:justify-center md:px-0 max-md:gap-3 max-md:pl-3 max-md:pr-3' : 'gap-3 pl-3 pr-3',
   );
   return (
@@ -151,27 +152,28 @@ export function Sidebar({
       {...(inert ? { inert: '' } : {})}
       aria-hidden={ariaHidden ? 'true' : undefined}
       className={cn(
-        'fixed bottom-0 left-0 top-0 z-50 flex flex-col border-r border-border bg-surface-subtle transition-all duration-200',
-        'w-72 max-md:shadow-xl',
+        'fixed bottom-0 left-0 top-0 z-50 flex flex-col transition-all duration-200',
+        SHELL_STYLES.sidebar,
+        'w-64 max-md:shadow-xl',
         mobileOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
         'md:translate-x-0',
-        collapsed ? 'md:w-[5.75rem]' : 'md:w-72',
+        collapsed ? 'md:w-[4.5rem]' : 'md:w-64',
       )}
     >
       {/* Brand / Logo */}
       <div
         className={cn(
-          'flex h-16 shrink-0 items-center border-b border-border bg-surface',
+          'flex h-14 shrink-0 items-center border-b border-border bg-canvas',
           collapsed ? 'md:justify-center md:px-2 max-md:justify-between max-md:px-4' : 'justify-between px-4',
         )}
       >
         <div className="flex items-center gap-3">
           <img src={lspuLogoUrl} alt="LSPU" className="size-9 shrink-0 object-contain" />
           <div className={cn('flex flex-col leading-none', collapsed && 'md:hidden')}>
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
+            <span className="text-[10px] font-medium tracking-[0.08em] text-text-muted">
               LSPU
             </span>
-            <span className="text-base font-bold tracking-tight text-text mt-0.5">
+            <span className="text-base font-semibold text-text mt-0.5">
               EquipED
             </span>
           </div>
@@ -205,7 +207,8 @@ export function Sidebar({
               ) : null}
               <div
                 className={cn(
-                  'px-3 pt-2 pb-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted select-none',
+                  'px-3 pt-2 pb-0.5 select-none',
+                  SHELL_STYLES.navGroup,
                   collapsed && 'md:hidden',
                 )}
               >
