@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import {
+  ArrowsLeftRight,
   ChartLineUp,
   ClockCounterClockwise,
   Plus,
   ShieldCheck,
 } from '@phosphor-icons/react';
 import { Button, cn, PageContainer } from '@equiped/ui';
+import { AdapterComparisonForm } from '../components/AdapterComparisonForm';
 import { AgentProgressPanel } from '../components/AgentProgressPanel';
 import { ValidationHistoryTable } from '../components/ValidationHistoryTable';
 import { ValidationPerformanceMetrics } from '../components/ValidationPerformanceMetrics';
 import { ValidationPreparationForm } from '../components/ValidationPreparationForm';
+import { useAdapterComparisonFormState } from '../hooks/useAdapterComparisonFormState';
 import { useModelValidationFormState } from '../hooks/useModelValidationFormState';
 import {
   useModelValidationHistory,
@@ -17,7 +20,7 @@ import {
 } from '../hooks/useModelValidationQueries';
 import { terminalStatuses } from '../utils/helpers';
 
-export type ValidationTab = 'history' | 'analytics' | 'new-run';
+export type ValidationTab = 'history' | 'analytics' | 'new-run' | 'compare';
 
 export function ModelValidationPage() {
   const [activeTab, setActiveTab] = useState<ValidationTab>('history');
@@ -26,6 +29,7 @@ export function ModelValidationPage() {
     history.data?.items.filter((item) => !terminalStatuses.has(item.status)) ?? [];
   const metricSummary = useModelValidationMetrics(activeValidations.length > 0);
   const formState = useModelValidationFormState();
+  const compareFormState = useAdapterComparisonFormState();
 
   const totalRuns = metricSummary.data?.completed_runs ?? history.data?.items.length ?? 0;
   const mae = metricSummary.data?.mean_absolute_error?.toFixed(2) ?? '—';
@@ -99,6 +103,22 @@ export function ModelValidationPage() {
           >
             <Plus className="size-4" />
             <span>New Benchmark Run</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'compare'}
+            onClick={() => setActiveTab('compare')}
+            className={cn(
+              'flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition-colors cursor-pointer select-none',
+              activeTab === 'compare'
+                ? 'border-primary text-primary font-bold bg-surface'
+                : 'border-transparent text-text-muted hover:text-text hover:border-border',
+            )}
+          >
+            <ArrowsLeftRight className="size-4" />
+            <span>Compare</span>
           </button>
         </nav>
       </div>
@@ -190,6 +210,12 @@ export function ModelValidationPage() {
           ))}
 
           <ValidationPreparationForm form={formState} />
+        </div>
+      )}
+
+      {activeTab === 'compare' && (
+        <div className="space-y-6">
+          <AdapterComparisonForm form={compareFormState} />
         </div>
       )}
     </PageContainer>

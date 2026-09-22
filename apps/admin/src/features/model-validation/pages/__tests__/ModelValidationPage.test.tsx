@@ -139,4 +139,27 @@ describe('ModelValidationPage', () => {
 
     expect(screen.getByText('New validation input')).toBeDefined();
   });
+
+  it('shows the Compare tab and renders the AdapterComparisonForm when selected', () => {
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: mockHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+
+    vi.spyOn(queriesModule, 'useModelValidationMetrics').mockReturnValue({
+      data: mockMetricsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
+
+    renderPage();
+
+    const compareTab = screen.getByRole('tab', { name: /Compare/i });
+    expect(compareTab).toBeDefined();
+
+    fireEvent.click(compareTab);
+
+    expect(screen.getByText('Compare base vs adapter')).toBeDefined();
+  });
 });
