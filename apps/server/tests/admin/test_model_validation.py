@@ -258,9 +258,7 @@ def _setup_validation(
     return expected_scores, slm
 
 
-def test_create_model_validation_targets_one_agent(
-    admin_user, db_session
-) -> None:
+def test_create_model_validation_targets_one_agent(admin_user, db_session) -> None:
     from server.modules.admin.model_validation_service import create_model_validation
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
@@ -1165,7 +1163,6 @@ def test_create_model_validation_rejects_unknown_fields(
 def test_target_agent_defaults_to_all() -> None:
     from server.modules.admin.schemas import (
         ModelValidationCreateRequest,
-        ModelValidationExpectedScoreInput,
     )
 
     req = ModelValidationCreateRequest.model_validate(
@@ -1187,7 +1184,6 @@ def test_target_agent_defaults_to_all() -> None:
 
 def test_target_agent_rejects_invalid_value() -> None:
     from pydantic import ValidationError
-
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     with pytest.raises(ValidationError):
@@ -1204,6 +1200,29 @@ def test_target_agent_rejects_invalid_value() -> None:
                     }
                 ],
                 "target_agent": "not-a-real-agent",
+            }
+        )
+
+
+def test_target_agent_single_agent_rejects_partial_without_curriculum() -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    with pytest.raises(ValidationError):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": str(uuid.uuid4()),
+                "target_agent": "sme",
+                "partial_without_curriculum": True,
+                "curriculum_id": str(uuid.uuid4()),
+                "expected_scores": [
+                    {
+                        "agent_id": "sme",
+                        "rubric_set_id": str(uuid.uuid4()),
+                        "rubric_criterion_id": str(uuid.uuid4()),
+                        "expected_score": 3,
+                    }
+                ],
             }
         )
 

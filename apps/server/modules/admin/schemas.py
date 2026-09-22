@@ -13,6 +13,7 @@ from pydantic import (
     StrictBool,
     StrictInt,
     field_validator,
+    model_validator,
 )
 from server.modules.auth.email_policy import MAX_EMAIL_LENGTH, normalize_lspu_email
 from server.modules.auth.models import AccountStatus
@@ -27,7 +28,6 @@ def _validate_evaluator_permissions(
     if permissions is not None and len(permissions) != len(set(permissions)):
         raise ValueError("evaluator_permissions must not contain duplicates")
     return permissions
-
 
 
 class PromptCreate(BaseModel):
@@ -149,6 +149,7 @@ class AdminUserResponse(BaseModel):
         default_factory=list, serialization_alias="evaluatorPermissions"
     )
     created_at: datetime
+
     class Config:
         from_attributes = True
 
@@ -198,6 +199,16 @@ class ModelValidationCreateRequest(BaseModel):
     partial_without_curriculum: StrictBool = False
     target_agent: Literal["all", "sme", "coordinator", "gad", "itso"] = "all"
     expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_single_agent_not_partial(self) -> ModelValidationCreateRequest:
+        if self.target_agent != "all" and self.partial_without_curriculum:
+            raise ValueError(
+                "partial_without_curriculum is only meaningful for "
+                'target_agent="all" and cannot be combined with a single '
+                "target_agent."
+            )
+        return self
 
 
 class ModelValidationCriterionScoreResponse(BaseModel):
