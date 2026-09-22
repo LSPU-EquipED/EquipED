@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as httpModule from '@equiped/api-client';
 import { modelValidationApi } from '../modelValidation.api';
-import type { ModelValidationCreateBody } from '../../types';
+import type { AdapterComparisonCreateBody, ModelValidationCreateBody } from '../../types';
 
 describe('modelValidationApi', () => {
   it('submits exact {agent_id, rubric_set_id, rubric_criterion_id, expected_score} with no code-only fallback', async () => {
@@ -145,6 +145,41 @@ describe('modelValidationApi', () => {
     await modelValidationApi.getModelValidationEvaluation('v-1');
 
     expect(spy).toHaveBeenCalledWith('/admin/model-validations/v-1/evaluation');
+
+    spy.mockRestore();
+  });
+
+  it('calls the compare endpoint with the exact body', async () => {
+    const spy = vi
+      .spyOn(httpModule, 'requestJson')
+      .mockResolvedValueOnce({
+        compare_group_id: 'group-1',
+        base_validation_id: 'val-base',
+        adapter_validation_id: 'val-adapter',
+      });
+
+    const body: AdapterComparisonCreateBody = {
+      document_id: 'doc-1',
+      target_agent: 'sme',
+      expected_scores: [
+        { agent_id: 'sme', rubric_set_id: 'set-1', rubric_criterion_id: 'crit-1', expected_score: 3 },
+      ],
+    };
+
+    const result = await modelValidationApi.compareAdapter(body);
+
+    expect(spy).toHaveBeenCalledWith(
+      '/admin/model-validations/compare',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const call = spy.mock.calls[0];
+    const sentBody = JSON.parse((call[1] as RequestInit).body as string);
+    expect(sentBody).toEqual(body);
+    expect(result).toEqual({
+      compare_group_id: 'group-1',
+      base_validation_id: 'val-base',
+      adapter_validation_id: 'val-adapter',
+    });
 
     spy.mockRestore();
   });

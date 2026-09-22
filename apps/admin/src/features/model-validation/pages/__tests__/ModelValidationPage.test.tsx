@@ -24,6 +24,8 @@ const mockHistoryData: ModelValidationListResponse = {
       evaluation_id: 'eval-1',
       document_id: 'doc-1',
       document_title: 'Algorithms SLM',
+      model_variant: null,
+      compare_group_id: null,
       status: 'COMPLETED',
       criterion_scores: [],
       bound_forms: [],
