@@ -53,13 +53,13 @@ export function DocumentTable({
 
   return (
     <div className="overflow-x-auto min-w-0 w-full">
-      <table className="w-full text-left border-collapse border-spacing-0 min-w-[60rem] table-fixed">
-        <caption className="sr-only">Course Modules and Indexed Content repository ledger</caption>
-        <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
+      <table className="w-full min-w-[59rem] table-fixed border-collapse border-spacing-0 text-left">
+        <caption className="sr-only">Course module inventory</caption>
+        <thead className="border-b border-border bg-surface-subtle text-[11px] font-medium tracking-[0.04em] text-text-muted">
           <tr>
             <th
               scope="col"
-              className="py-3 pl-4 sm:pl-6 pr-3 text-left align-middle w-44 min-w-[11rem]"
+              className="w-40 min-w-[10rem] py-3 pl-4 pr-3 text-left align-middle sm:pl-6"
             >
               Status
             </th>
@@ -99,14 +99,14 @@ export function DocumentTable({
               scope="col"
               className={cn(
                 'py-3 px-3.5 text-left align-middle',
-                hasMultipleTypes ? 'w-32 min-w-[7.5rem]' : 'w-36 min-w-[8.5rem]',
+                  hasMultipleTypes ? 'w-32 min-w-[7rem]' : 'w-32 min-w-[8rem]',
               )}
             >
               Uploaded
             </th>
             <th
               scope="col"
-              className="py-3 pl-2 pr-4 sm:pr-6 text-right align-middle w-24 min-w-[6rem]"
+              className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6"
             >
               Action
             </th>
@@ -134,15 +134,15 @@ export function DocumentTable({
                 className={cn(
                   'group transition-colors',
                   isFlashing && 'animate-ledger-flash-decay',
-                  onInspect && 'cursor-pointer hover:bg-surface-subtle/70 focus-visible:outline-none focus-visible:bg-surface-subtle/80',
-                  !display.isClickable && 'opacity-75',
+                  onInspect && 'cursor-pointer hover:bg-primary-soft/70 focus-visible:outline-none focus-visible:bg-primary-soft/70',
+                  !display.isClickable && 'bg-surface-subtle/30',
                 )}
               >
                 {/* 1. Status */}
-                <td className="py-3 pl-4 sm:pl-6 pr-3 align-middle w-44 min-w-[11rem]">
+                <td className="w-40 min-w-[10rem] whitespace-nowrap py-3 pl-4 pr-3 align-middle sm:pl-6">
                   <span
                     className={cn(
-                      'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold tracking-wide select-none whitespace-nowrap',
+                    'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold select-none whitespace-nowrap',
                       display.badgeClass,
                     )}
                   >
@@ -216,8 +216,8 @@ export function DocumentTable({
                 </td>
 
                 {/* 7. Actions */}
-                <td className="py-3 pl-2 pr-4 sm:pr-6 align-middle text-right w-24 min-w-[6rem]">
-                  <div className="flex items-center justify-end gap-1.5">
+                <td className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
+                  <div className="flex items-center justify-end gap-1.5 [&>a]:shrink-0">
                     {/* Document Icon (Open PDF with tooltip) */}
                     <a
                       href={`/api/v1/documents/${document.documentId}/file`}
@@ -225,7 +225,7 @@ export function DocumentTable({
                       rel="noopener noreferrer"
                       title="Open PDF"
                       aria-label={`Open ${document.title} PDF`}
-                      className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-all active:scale-95 cursor-pointer border border-transparent hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-muted transition-colors hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                     >
                       <FileText className="size-3.5" aria-hidden="true" />
                     </a>
@@ -236,10 +236,10 @@ export function DocumentTable({
                         to={display.actionUrl}
                         aria-label={display.ariaLabel}
                         title={display.actionLabel}
-                        className="inline-flex size-7 items-center justify-center rounded-sm text-text-muted hover:text-text hover:bg-surface-subtle transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border border-transparent hover:border-border"
+                        className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-surface text-text-muted transition-colors hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                       >
                         <CaretRight
-                          className="size-4 text-text-muted group-hover:text-text transition-colors"
+                          className="size-4 transition-colors group-hover:text-primary"
                           aria-hidden="true"
                         />
                       </Link>
@@ -259,8 +259,8 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
   const columns = [
     {
       label: 'Status',
-      headerClassName: 'w-44 min-w-[11rem] pl-4 sm:pl-6 pr-3 align-middle',
-      cellClassName: 'w-44 min-w-[11rem] pl-4 sm:pl-6 pr-3 align-middle',
+      headerClassName: 'w-40 min-w-[10rem] pl-4 sm:pl-6 pr-3 align-middle',
+      cellClassName: 'w-40 min-w-[10rem] pl-4 sm:pl-6 pr-3 align-middle',
       skeletonClassName: 'h-5 w-24',
     },
     {
@@ -293,8 +293,8 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
       : []),
     {
       label: 'Uploaded',
-      headerClassName: hasMultipleTypes ? 'w-32 min-w-[7.5rem] px-3.5 align-middle' : 'w-36 min-w-[8.5rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes ? 'w-32 min-w-[7.5rem] px-3.5 align-middle' : 'w-36 min-w-[8.5rem] px-3.5 align-middle',
+      headerClassName: hasMultipleTypes ? 'w-32 min-w-[7rem] px-3.5 align-middle' : 'w-32 min-w-[8rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes ? 'w-32 min-w-[7rem] px-3.5 align-middle' : 'w-32 min-w-[8rem] px-3.5 align-middle',
       skeletonClassName: 'h-4 w-20',
     },
     {
@@ -308,7 +308,7 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
   return (
     <TableSkeleton
       ariaLabel="Loading document inventory"
-      tableClassName="table-fixed min-w-[60rem]"
+      tableClassName="table-fixed min-w-[59rem]"
       columns={columns}
     />
   );

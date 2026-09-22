@@ -105,29 +105,28 @@ describe('FacultyHome', () => {
     refetch: vi.fn(),
   };
 
-  it('renders the faculty command ledger and storage action', () => {
+  it('renders the faculty command ledger beneath the module overview', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Faculty Command Ledger');
-    expect(markup).toContain('Refresh');
+    expect(markup).toContain('Recent evaluation activity');
+    expect(markup).toContain('Module overview');
   });
 
-  it('renders the academic launchpads and unified metric ledger strip', () => {
+  it('renders the module overview and evaluation tools', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
     // Launchpads
-    expect(markup).toContain('SLM Storage Repository');
-    expect(markup).toContain('Curriculum Alignment');
-    expect(markup).toContain('Syllabus Alignment');
-    expect(markup).toContain('Evaluation History');
+    expect(markup).toContain('Evaluation workspaces');
+    expect(markup).toContain('Curriculum check');
+    expect(markup).toContain('Syllabus alignment');
 
     // Metrics
-    expect(markup).toContain('Total Modules');
-    expect(markup).toContain('Ready for Review');
-    expect(markup).toContain('In Ingestion');
-    expect(markup).toContain('Action Required');
+    expect(markup).toContain('Total modules');
+    expect(markup).toContain('Extracted');
+    expect(markup).toContain('Processing');
+    expect(markup).toContain('Failed uploads');
   });
 
   it('renders operational ledger with recent evaluations and view scorecard links', () => {
@@ -155,12 +154,12 @@ describe('FacultyHome', () => {
     expect(markup).toContain('No evaluations on record');
   });
 
-  it('renders sleek workstation layout with storage action and no duplicate breadcrumbs', () => {
+  it('keeps the home hierarchy focused on the pulse strip without duplicate breadcrumbs', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Open Storage');
-    expect(markup).toContain('Total Modules');
+    expect(markup).not.toContain('Upload SLM');
+    expect(markup).toContain('Total modules');
     // Verify duplicate breadcrumbs are removed
     expect(markup).not.toContain('Laguna State Polytechnic University');
     expect(markup).not.toContain('San Pablo City Campus');
@@ -171,20 +170,15 @@ describe('FacultyHome', () => {
     const markup = renderToStaticMarkup(<FacultyHome />);
 
     // Pulse strip subtitles
-    expect(markup).toContain('Course SLMs in repository');
-    expect(markup).toContain('Completed intake &amp; ready');
-    expect(markup).toContain('Parsing syllabus &amp; content');
+    expect(markup).toContain('In your repository');
+    expect(markup).toContain('Document processing complete');
+    expect(markup).toContain('Intake or cleanup in progress');
 
     // Launchpads subtitles
-    expect(markup).toContain('Manage learning modules, review extraction health, and track syllabus mapping.');
-    expect(markup).toContain('Inspect OCR page extractions and course materials');
-    expect(markup).toContain('Verify prerequisite maps and curriculum compliance.');
-    expect(markup).toContain('Check topic coverage against approved syllabi.');
-    expect(markup).toContain('Access previous QA scorecards, adjectival ratings, and official PDF exports.');
+    expect(markup).toContain('Content accuracy and mastery');
 
     // Ledger title without redundant subtitle
-    expect(markup).toContain('Faculty Command Ledger');
-    expect(markup).not.toContain('Audit trail of evaluation runs and attention flags');
+    expect(markup).toContain('Recent Evaluations');
   });
 
   it('renders active evaluation banner when evaluation is in progress', () => {
@@ -235,7 +229,7 @@ describe('FacultyHome', () => {
     expect(markup).not.toContain('/specialists/sme/doc-1');
   });
 
-  it('surfaces specialist evaluation domains in launchpads without AI slop tags', () => {
+  it('surfaces specialist evaluation domains in launchpads without AI slop tags and links to canonical curriculum alignment', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
@@ -243,6 +237,10 @@ describe('FacultyHome', () => {
     expect(markup).toContain('Program Coordinator');
     expect(markup).toContain('Gender &amp; Development');
     expect(markup).toContain('Innovation and Technology Support Office');
+
+    // Canonical curriculum alignment destination check
+    expect(markup).toContain('href="/curriculum-alignment"');
+    expect(markup).not.toContain('href="/alignment"');
 
     // Anti-slop check: verify decorative meta-tags are purged
     expect(markup).not.toContain('[CORE STORAGE]');
@@ -257,8 +255,7 @@ describe('FacultyHome', () => {
       <FacultyHome evaluatorPermissions={['sme']} />,
     );
 
-    expect(markup).toContain('Your Assigned Evaluation Workstation');
-    expect(markup).toContain('Open SME Workspace');
-    expect(markup).not.toContain('Open Coordinator Workspace');
+    expect(markup).toContain('Subject Matter Expert');
+    expect(markup).not.toContain('Program Coordinator');
   });
 });

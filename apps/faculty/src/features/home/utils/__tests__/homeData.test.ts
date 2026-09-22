@@ -272,7 +272,7 @@ describe('homeData helpers', () => {
   it('provides honest status badges with accessible contrast', () => {
     const completedBadge = getEvaluationStatusBadge('COMPLETED');
     expect(completedBadge.label).toBe('Completed');
-    expect(completedBadge.className).toContain('text-[#15803d]');
+    expect(completedBadge.className).toContain('text-success');
 
     const partialBadge = getEvaluationStatusBadge('COMPLETED_PARTIAL');
     expect(partialBadge.label).toBe('Completed (Partial)');
@@ -294,7 +294,7 @@ describe('homeData helpers', () => {
 
     const docReadyBadge = getDocumentStatusBadge('PROCESSED');
     expect(docReadyBadge.label).toBe('Ready');
-    expect(docReadyBadge.className).toContain('text-[#15803d]');
+    expect(docReadyBadge.className).toContain('text-success');
 
     const docFailedBadge = getDocumentStatusBadge('FAILED');
     expect(docFailedBadge.label).toBe('Failed');

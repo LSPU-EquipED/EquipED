@@ -1,4 +1,3 @@
-import { Warning } from '@phosphor-icons/react';
 import { getErrorMessage } from '@equiped/api-client';
 import { Button } from '@equiped/ui';
 import { useFacultyHome } from '../hooks/useFacultyHome';
@@ -12,79 +11,36 @@ export interface FacultyHomeProps {
   userRole?: string;
 }
 
-export function FacultyHome({
-  evaluatorPermissions,
-  userRole,
-}: FacultyHomeProps = {}) {
-  const {
-    isLoading,
-    isError,
-    error,
-    stats,
-    homeData,
-    evaluations,
-    refetch,
-  } = useFacultyHome();
-
+export function FacultyHome({ evaluatorPermissions, userRole }: FacultyHomeProps = {}) {
+  const { isLoading, isError, error, stats, homeData, evaluations, refetch } = useFacultyHome();
   const evaluationsList = evaluations.length > 0 ? evaluations : homeData.recentEvaluations;
 
-  // Accurate metric computations bound to repository stats
-  const totalModules = stats.total;
-  const readyModules = stats.ready;
-  const inProgressCount = stats.processing;
-  const actionRequiredCount = stats.failed + homeData.recentIssues.length;
-
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
-      {/* ── 1. Error State Alert ─────────────────────────────────────── */}
+    <section className="mx-auto max-w-[108rem] space-y-7 px-4 py-6 sm:px-7 sm:py-8">
+      <h1 className="sr-only">Faculty workspace overview</h1>
+
       {isError ? (
-        <div
-          className="flex items-center justify-between rounded-sm border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive"
-          role="alert"
-        >
-          <div className="flex items-center gap-2.5">
-            <Warning className="size-5 shrink-0" aria-hidden="true" />
-            <span className="font-semibold">
-              {getErrorMessage(error, 'Unable to load workspace data.')}
-            </span>
-          </div>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => refetch()}
-            className="h-8 px-3 text-xs"
-          >
-            Retry
-          </Button>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-destructive bg-destructive-soft p-4 text-sm text-destructive">
+          <span>{getErrorMessage(error, 'Unable to load workspace data.')}</span>
+          <Button variant="secondary" size="sm" onClick={refetch}>Retry</Button>
         </div>
       ) : null}
 
-      {/* ── 2. Real-Time Active Evaluation Docket ────────────────────── */}
-      <FacultyActiveEvaluationBanner evaluation={homeData.activeEvaluation} />
+      {!isError && <FacultyPulseStrip stats={stats} isLoading={isLoading} />}
 
-      {/* ── 3. Full-Width Repository Pulse Strip ─────────────────────── */}
-      <FacultyPulseStrip
-        totalModules={totalModules}
-        readyModules={readyModules}
-        inProgressCount={inProgressCount}
-        actionRequiredCount={actionRequiredCount}
-        isLoading={isLoading}
-      />
+      <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0 space-y-7">
+          {!isError && <FacultyActiveEvaluationBanner evaluation={homeData.activeEvaluation} />}
 
-      {/* ── 4. Academic Workstation Launchpads ───────────────────────── */}
-      <FacultyLaunchpads
-        evaluatorPermissions={evaluatorPermissions}
-        userRole={userRole}
-      />
-
-      {/* ── 5. Unified Faculty Command Ledger ───────────────────────── */}
-      <FacultyOperationalLedger
-        evaluations={evaluationsList}
-        recentIssues={homeData.recentIssues}
-        isLoading={isLoading}
-        onRefresh={refetch}
-      />
+          <FacultyOperationalLedger
+            evaluations={evaluationsList}
+            recentIssues={homeData.recentIssues}
+            isLoading={isLoading}
+            isError={isError}
+          />
+        </div>
+        <FacultyLaunchpads evaluatorPermissions={evaluatorPermissions} userRole={userRole} />
+      </div>
     </section>
   );
 }

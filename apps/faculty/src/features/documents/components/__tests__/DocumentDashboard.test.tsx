@@ -97,12 +97,12 @@ describe('DocumentDashboard - SLM Storage Repository', () => {
     handleUploadComplete: vi.fn(),
   };
 
-  it('renders SLM storage metrics strip and table', () => {
+  it('renders the storage ledger and its primary action', () => {
     mockUseSlmStorage.mockReturnValue(defaultStorageState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('Course Modules');
-    expect(markup).toContain('Indexed Content');
+    expect(markup).toContain('SLM Storage Repository Ledger');
+    expect(markup).not.toContain('Indexed content');
     expect(markup).toContain('Network Systems Module');
     expect(markup).toContain('Upload SLM');
   });

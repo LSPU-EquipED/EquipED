@@ -21,6 +21,10 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
     () => new URLSearchParams(location.search).get('highlight'),
     [location.search],
   );
+  const openUploadFromDashboard = useMemo(
+    () => new URLSearchParams(location.search).get('upload') === 'true',
+    [location.search],
+  );
   const [flashId, setFlashId] = useState<string | null>(highlightId ?? null);
   const [sortOption, setSortOption] = useState<DocumentSortOption>('uploaded-desc');
 
@@ -82,8 +86,15 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
     }
   }, [flashId]);
 
+  useEffect(() => {
+    if (openUploadFromDashboard) {
+      setIsUploadOpen(true);
+    }
+  }, [openUploadFromDashboard, setIsUploadOpen]);
+
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-4">
+    <section className="mx-auto flex w-full max-w-[108rem] flex-col gap-7 px-4 py-6 sm:px-7 sm:py-8">
+      <h1 className="sr-only">SLM Storage</h1>
 
       {/* ── Success Flash Banner ───────────────────────────────────── */}
       {flashId ? (
@@ -107,12 +118,11 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
         </div>
       ) : null}
 
-      {/* ── Layer 1: Search & Primary Action ──────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-        {/* Prominent Search Input */}
-        <div className="relative flex-1 max-w-md sm:max-w-lg">
+      {/* Search controls */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-lg">
           <MagnifyingGlass
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-text-muted"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
             aria-hidden="true"
           />
           <input
@@ -120,26 +130,24 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
             placeholder="Search course modules by title, code, or topic..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9.5 w-full rounded-md border border-input bg-surface pl-9.5 pr-4 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-full rounded-sm border border-input bg-surface pl-9 pr-4 text-sm text-text placeholder:text-text-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
             aria-label="Search course modules"
           />
         </div>
-
-        {/* Primary Upload CTA */}
         <Button
           type="button"
           variant="primary"
           size="md"
           onClick={() => setIsUploadOpen(true)}
-          className="h-9.5 px-4 gap-2 font-semibold text-xs shrink-0 self-start sm:self-auto"
+          className="h-10 w-full shrink-0 gap-2 px-4 text-xs font-semibold sm:w-auto"
         >
           <UploadSimple className="size-4" aria-hidden="true" />
           <span>Upload SLM</span>
         </Button>
       </div>
 
-      {/* ── Layer 2: Unified Filter & Sorter Bar ────────────────────── */}
-      <div className="shrink-0">
+      {/* Filter and sort controls */}
+      <div>
         <StorageToolbar
           programFilter={programFilter}
           setProgramFilter={setProgramFilter}
@@ -157,9 +165,9 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
         />
       </div>
 
-      {/* ── Layer 3: Dedicated SLM Storage Ledger Table ─────────────── */}
+      {/* Repository ledger */}
       <div
-        className="rounded-md border border-border bg-surface shadow-none overflow-hidden flex flex-col"
+        className="flex flex-col overflow-hidden rounded-sm border border-border bg-surface"
         role="region"
         aria-label="SLM Storage Repository Ledger"
       >
