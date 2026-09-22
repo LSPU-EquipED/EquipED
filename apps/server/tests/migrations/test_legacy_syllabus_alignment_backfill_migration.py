@@ -136,7 +136,7 @@ def test_migration_metadata():
 
     config = _config("sqlite://")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["20260918_0003"]
+    assert script.get_heads() == ["20260923_0001"]
 
     rev_0002 = script.get_revision("20260918_0002")
     assert rev_0002 is not None
