@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Books, Scales, UploadSimple } from '@phosphor-icons/react';
-import { cn } from '@equiped/ui';
-import { BUTTON_STYLES } from '@equiped/ui';
+import { cn, BUTTON_STYLES, PageContainer } from '@equiped/ui';
 import { LibraryTabButton } from '../components/PageHeader';
 import { PolicyLibraryTab } from '../components/PolicyLibraryTab';
 import { ReferenceLibraryTab } from '../components/ReferenceLibraryTab';
@@ -13,7 +12,7 @@ export function ReferenceLibraryPage() {
   const [activeTab, setActiveTab] = useState<LibraryTab>('references');
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-5">
+    <PageContainer as="section">
       {/* ── Section Segmented Toggle & Ingest Button Bar ─────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div
@@ -54,6 +53,6 @@ export function ReferenceLibraryPage() {
       </div>
 
       {activeTab === 'references' ? <ReferenceLibraryTab /> : <PolicyLibraryTab />}
-    </section>
+    </PageContainer>
   );
 }

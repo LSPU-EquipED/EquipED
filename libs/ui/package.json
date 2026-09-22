@@ -12,6 +12,7 @@
     "./utils": "./src/utils/index.ts",
     "./assets": "./src/assets/index.ts",
     "./hooks": "./src/hooks/index.ts",
+    "./layout": "./src/layout/index.ts",
     "./theme/fonts.css": "./src/theme/fonts.css",
     "./theme/motion.css": "./src/theme/motion.css"
   },
@@ -21,7 +22,8 @@
   },
   "dependencies": {
     "@equiped/types": "workspace:*",
-    "@phosphor-icons/react": "^2.1.10"
+    "@phosphor-icons/react": "^2.1.10",
+    "@tanstack/react-router": "^1.98.2"
   },
   "peerDependencies": {
     "react": "^18.3.1",

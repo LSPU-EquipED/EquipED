@@ -102,11 +102,7 @@ const adminRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'admin',
   beforeLoad: requireRole(['admin']),
-  component: () => (
-    <div className="px-6 py-7">
-      <Outlet />
-    </div>
-  ),
+  component: Outlet,
 });
 
 const adminHomeRoute = createRoute({
@@ -196,11 +192,7 @@ const matrixRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'matrix',
   beforeLoad: requireRole(['admin']),
-  component: () => (
-    <div className="px-6 py-7">
-      <MonitoringPage />
-    </div>
-  ),
+  component: MonitoringPage,
 });
 
 const matrixDocumentRoute = createRoute({

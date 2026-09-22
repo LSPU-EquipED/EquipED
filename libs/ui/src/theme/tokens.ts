@@ -36,6 +36,7 @@ export const SHELL_STYLES = {
   content: 'bg-canvas',
   navGroup: 'text-[11px] font-medium tracking-[0.08em] text-text-muted',
   navItem: 'h-10 rounded-sm text-sm transition-colors',
+  container: 'mx-auto max-w-[108rem] space-y-7 px-4 py-6 sm:px-7 sm:py-8',
 } as const;
 
 export const BORDER_STYLES = {

@@ -7,3 +7,4 @@ export * from './Skeleton';
 export * from './TableSkeleton';
 export * from './Select';
 export * from './Dropdown';
+export * from './PageContainer';

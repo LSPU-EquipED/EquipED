@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ArrowLeft } from '@phosphor-icons/react';
-import { cn } from '@equiped/ui';
-import { BUTTON_STYLES } from '@equiped/ui';
+import { cn, BUTTON_STYLES, PageContainer } from '@equiped/ui';
 import { IngestionPipelineMonitor } from '../components/IngestionPipelineMonitor';
 import { IngestionVerificationCard } from '../components/IngestionVerificationCard';
 import { ReferenceClassificationStep } from '../components/ReferenceClassificationStep';
@@ -12,7 +11,7 @@ export function AdminUploadPage() {
   const uploadFlow = useAdminUploadFlow();
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
+    <PageContainer as="section">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -91,6 +90,6 @@ export function AdminUploadPage() {
           />
         </div>
       </div>
-    </section>
+    </PageContainer>
   );
 }

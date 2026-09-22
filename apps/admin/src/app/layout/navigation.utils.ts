@@ -5,31 +5,22 @@ import {
   Gear,
   GitFork,
   GraduationCap,
-  type Icon,
   Scan,
   Shield,
   SquaresFour,
   UploadSimple,
   Users,
 } from '@phosphor-icons/react';
+import type { BreadcrumbItem, NavGroup, NavItem } from '@equiped/ui';
 
-export interface NavItem {
-  to: string;
-  label: string;
-  icon: Icon;
-  exact: boolean;
-}
+export type { NavItem, BreadcrumbItem, NavGroup } from '@equiped/ui';
 
-export interface BreadcrumbItem {
-  label: string;
-  to?: string;
-}
-
-export interface NavGroup {
-  id: string;
-  label: string;
-  items: readonly NavItem[];
-}
+export {
+  isNavigationActive,
+  getAriaCurrent,
+  getSidebarLayoutClasses,
+  getSidebarInertState,
+} from '@equiped/ui';
 
 export const adminNavGroups: readonly NavGroup[] = [
   {
@@ -49,7 +40,7 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
   {
     id: 'knowledge-base',
-    label: 'Knowledge base',
+    label: 'Knowledge Base',
     items: [
       { to: '/admin/ingest', label: 'Reference Ingestion', icon: UploadSimple, exact: true },
       { to: '/admin/references', label: 'Reference Library', icon: Books, exact: true },
@@ -58,7 +49,7 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
   {
     id: 'model-governance',
-    label: 'Model governance',
+    label: 'Model Governance',
     items: [
       { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
       { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
@@ -69,152 +60,86 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
 ] as const;
 
-export function isNavigationActive(
-  currentPath: string,
-  targetPath: string,
-  exact: boolean,
-): boolean {
-  if (exact) {
-    return currentPath === targetPath;
-  }
-  if (currentPath === targetPath) {
-    return true;
-  }
-  const prefix = targetPath.endsWith('/') ? targetPath : `${targetPath}/`;
-  return currentPath.startsWith(prefix);
-}
-
-export function getAriaCurrent(isActive: boolean): 'page' | undefined {
-  return isActive ? 'page' : undefined;
-}
-
-export function getSidebarLayoutClasses(isCollapsed: boolean): {
-  headerLeft: string;
-  mainPadding: string;
-  sidebarDesktopWidth: string;
-} {
-  return {
-    headerLeft: isCollapsed ? 'left-0 md:left-[4.5rem]' : 'left-0 md:left-64',
-    mainPadding: isCollapsed ? 'pl-0 md:pl-[4.5rem]' : 'pl-0 md:pl-64',
-    sidebarDesktopWidth: isCollapsed ? 'md:w-[4.5rem]' : 'md:w-64',
-  };
-}
-
-export function getSidebarInertState(
-  isMobile: boolean,
-  mobileOpen: boolean,
-): {
-  inert: boolean;
-  ariaHidden: boolean;
-} {
-  if (!isMobile) {
-    return { inert: false, ariaHidden: false };
-  }
-  return {
-    inert: !mobileOpen,
-    ariaHidden: !mobileOpen,
-  };
-}
-
 export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
 
   if (cleanPath === '/admin' || cleanPath === '/') {
-    return [
-      { label: 'Administration' },
-      { label: 'Dashboard' },
-    ];
+    return [{ label: 'Dashboard' }];
   }
 
   if (cleanPath === '/admin/users') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'User Management' },
-    ];
+    return [{ label: 'User Management' }];
   }
 
   if (cleanPath === '/admin/ingest') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Reference Ingestion' },
-    ];
+    return [{ label: 'Reference Ingestion' }];
   }
 
   if (cleanPath === '/admin/references') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Reference Library' },
-    ];
+    return [{ label: 'Reference Library' }];
   }
 
   if (cleanPath === '/admin/rubrics') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Rubric Editor' },
-    ];
+    return [{ label: 'Rubric Editor' }];
   }
 
   if (cleanPath === '/admin/model-validation') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Model Validation' },
-    ];
+    return [{ label: 'Model Validation' }];
   }
 
   if (cleanPath === '/admin/preferences') {
+    return [{ label: 'Preference Logs' }];
+  }
+
+  if (cleanPath === '/admin/prompts') {
+    return [{ label: 'Agent Prompts' }];
+  }
+
+  if (cleanPath.startsWith('/admin/prompts/')) {
+    const agentId = cleanPath.replace('/admin/prompts/', '');
+    const agentLabel = agentId.charAt(0).toUpperCase() + agentId.slice(1);
     return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Preference Logs' },
+      { label: 'Agent Prompts', to: '/admin/prompts' },
+      { label: agentLabel },
     ];
   }
 
-  if (cleanPath === '/admin/prompts' || cleanPath.startsWith('/admin/prompts/')) {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Agent Prompts' },
-    ];
+  if (cleanPath === '/admin/training-data') {
+    return [{ label: 'Training Data' }];
   }
 
-  if (cleanPath === '/admin/training-data' || cleanPath.startsWith('/admin/training-data/')) {
+  if (cleanPath.startsWith('/admin/training-data/')) {
+    const agentId = cleanPath.replace('/admin/training-data/', '');
+    const agentLabel = agentId.charAt(0).toUpperCase() + agentId.slice(1);
     return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Training Data' },
+      { label: 'Training Data', to: '/admin/training-data' },
+      { label: agentLabel },
     ];
   }
 
   if (cleanPath.startsWith('/admin/synthesis/')) {
     return [
-      { label: 'Administration', to: '/admin' },
+      { label: 'Monitoring Matrix', to: '/matrix' },
       { label: 'Master Synthesis' },
     ];
   }
 
   if (cleanPath === '/matrix') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Monitoring Matrix' },
-    ];
+    return [{ label: 'Monitoring Matrix' }];
   }
 
   if (cleanPath.startsWith('/matrix/')) {
     return [
-      { label: 'Administration', to: '/admin' },
       { label: 'Monitoring Matrix', to: '/matrix' },
-      { label: 'Synthesis Detail' },
+      { label: 'Master Synthesis' },
     ];
   }
 
   if (cleanPath === '/evaluation-map') {
-    return [
-      { label: 'Administration', to: '/admin' },
-      { label: 'Knowledge Map' },
-    ];
+    return [{ label: 'Knowledge Map' }];
   }
 
-  return [
-    { label: 'Administration', to: '/admin' },
-    { label: 'Workspace' },
-  ];
+  return [{ label: 'Workspace' }];
 }
 
 export function getRouteTitle(pathname: string): string {

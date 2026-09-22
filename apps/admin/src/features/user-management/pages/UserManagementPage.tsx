@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { TABLE_STYLES } from '@equiped/ui';
+import { PageContainer, TABLE_STYLES } from '@equiped/ui';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import { UserFiltersToolbar, type RoleFilter, type StatusFilter } from '../components/UserFiltersToolbar';
@@ -85,7 +85,7 @@ export function UserManagementPage() {
   };
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
+    <PageContainer as="section">
       <UserMetricsBar counts={counts} isLoading={isLoading} />
       <div className={TABLE_STYLES.wrapper}>
         <UserFiltersToolbar
@@ -121,6 +121,6 @@ export function UserManagementPage() {
       </div>
       <CreateUserModal open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
       <EditUserModal user={selectedUser} open={isEditModalOpen} onOpenChange={setIsEditModalOpen} />
-    </section>
+    </PageContainer>
   );
 }

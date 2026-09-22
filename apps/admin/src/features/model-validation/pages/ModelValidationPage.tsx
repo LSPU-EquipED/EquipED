@@ -5,8 +5,7 @@ import {
   Plus,
   ShieldCheck,
 } from '@phosphor-icons/react';
-import { Button } from '@equiped/ui';
-import { cn } from '@equiped/ui';
+import { Button, cn, PageContainer } from '@equiped/ui';
 import { AgentProgressPanel } from '../components/AgentProgressPanel';
 import { ValidationHistoryTable } from '../components/ValidationHistoryTable';
 import { ValidationPerformanceMetrics } from '../components/ValidationPerformanceMetrics';
@@ -40,7 +39,7 @@ export function ModelValidationPage() {
       : '—';
 
   return (
-    <section className="px-4 sm:px-6 py-6 max-w-[108rem] mx-auto space-y-6">
+    <PageContainer as="section">
       {/* ── High-Level Workspace Navigation Tabs ───────────────────────── */}
       <div className="border-b border-border flex items-center justify-between gap-4">
         <nav className="flex items-center gap-2 overflow-x-auto" aria-label="Validation Workspaces">
@@ -193,6 +192,6 @@ export function ModelValidationPage() {
           <ValidationPreparationForm form={formState} />
         </div>
       )}
-    </section>
+    </PageContainer>
   );
 }
