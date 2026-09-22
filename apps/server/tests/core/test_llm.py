@@ -10,7 +10,11 @@ from server.core.exceptions import (
     ConfigurationError,
     InfrastructureUnavailableError,
 )
-from server.core.llm import _MAX_RETRY_AFTER_SECONDS, LocalLLMClient
+from server.core.llm import (
+    _MAX_RETRY_AFTER_SECONDS,
+    LocalLLMClient,
+    check_lora_adapter_loaded,
+)
 
 
 class _FakeHTTPResponse:
@@ -477,3 +481,59 @@ def test_with_lora_scale_adds_lora_field(monkeypatch) -> None:
     # The original, unscaled client is untouched.
     assert scaled is not client
     assert client.lora_scale is None
+
+
+# ---------------------------------------------------------------------------
+# LoRA adapter presence check
+# ---------------------------------------------------------------------------
+
+
+def test_check_lora_adapter_loaded_true_when_server_reports_one(monkeypatch) -> None:
+    class _FakeSettings:
+        llm_api_base = "http://localhost:11434/v1"
+        llm_api_key = None
+        llm_readiness_timeout_seconds = 5.0
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _FakeSettings())
+
+    def fake_urlopen(req, **kwargs):
+        assert req.full_url.endswith("/lora-adapters")
+        return _FakeHTTPResponse(
+            200, json.dumps([{"id": 0, "path": "adapter.gguf", "scale": 0.0}])
+        )
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    assert check_lora_adapter_loaded() is True
+
+
+def test_check_lora_adapter_loaded_false_when_server_reports_none(monkeypatch) -> None:
+    class _FakeSettings:
+        llm_api_base = "http://localhost:11434/v1"
+        llm_api_key = None
+        llm_readiness_timeout_seconds = 5.0
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _FakeSettings())
+
+    def fake_urlopen(req, **kwargs):
+        return _FakeHTTPResponse(200, json.dumps([]))
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    assert check_lora_adapter_loaded() is False
+
+
+def test_check_lora_adapter_loaded_raises_when_endpoint_unreachable(
+    monkeypatch,
+) -> None:
+    class _FakeSettings:
+        llm_api_base = "http://localhost:11434/v1"
+        llm_api_key = None
+        llm_readiness_timeout_seconds = 5.0
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _FakeSettings())
+
+    def fake_urlopen(req, **kwargs):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    with pytest.raises(InfrastructureUnavailableError):
+        check_lora_adapter_loaded()
