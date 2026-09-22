@@ -405,6 +405,7 @@ def create_adapter_comparison(
             {
                 "document_id": request.document_id,
                 "syllabus_id": request.syllabus_id,
+                "curriculum_id": request.curriculum_id,
                 "target_agent": request.target_agent,
                 "expected_scores": [
                     item.model_dump() for item in request.expected_scores

@@ -218,6 +218,7 @@ class AdapterComparisonCreateRequest(BaseModel):
 
     document_id: uuid.UUID
     syllabus_id: uuid.UUID | None = None
+    curriculum_id: uuid.UUID | None = None
     target_agent: Literal["sme", "coordinator", "gad", "itso"]
     expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
 
