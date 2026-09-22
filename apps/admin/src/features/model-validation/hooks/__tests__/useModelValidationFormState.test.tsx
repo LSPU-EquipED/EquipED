@@ -194,6 +194,8 @@ describe('useModelValidationFormState', () => {
         evaluation_id: 'eval-1',
         document_id: body.document_id,
         document_title: 'SLM 1',
+        model_variant: null,
+        compare_group_id: null,
         partial_without_curriculum: true,
         bound_forms: [],
         criterion_scores: [],

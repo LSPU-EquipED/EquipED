@@ -36,6 +36,8 @@ const mockItem: ModelValidationItem = {
   evaluation_id: 'eval-uuid-1',
   document_id: 'doc-uuid-1',
   document_title: 'Introduction to Computing SLM',
+  model_variant: null,
+  compare_group_id: null,
   partial_without_curriculum: true,
   bound_forms: [
     {
