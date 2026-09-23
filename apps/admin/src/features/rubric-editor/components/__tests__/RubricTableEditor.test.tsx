@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { RubricTableEditor } from '../RubricTableEditor';
 import type { RubricRevisionsResponse, RubricSet } from '../../types';
 
@@ -196,7 +196,7 @@ describe('RubricTableEditor', () => {
     expect(screen.getByRole('tab', { name: /gad/i })).toBeDefined();
     expect(screen.getByRole('tab', { name: /itso/i })).toBeDefined();
 
-    expect(screen.getByText('Draft (Editable)')).toBeDefined();
+    expect(screen.getByText('Draft (editable)')).toBeDefined();
     expect(screen.getByDisplayValue('OP-01')).toBeDefined();
     expect(screen.getByDisplayValue('OP-02')).toBeDefined();
     expect(screen.getByDisplayValue('AS-01')).toBeDefined();
@@ -326,5 +326,180 @@ describe('RubricTableEditor', () => {
     fireEvent.click(confirmBtn);
 
     expect(activateRevisionMutateAsync).toHaveBeenCalledWith('set-sme-pub-0');
+  });
+
+  describe('History Drawer accessibility and focus containment', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    });
+
+    afterEach(() => {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    });
+
+    it('does not move focus to History on initial render', () => {
+      render(<RubricTableEditor />);
+
+      const historyBtn = screen.getByRole('button', { name: /history/i });
+      expect(document.activeElement).not.toBe(historyBtn);
+    });
+
+    it('focuses the close button upon opening and restores focus to history button when closed', async () => {
+      render(<RubricTableEditor />);
+
+      const historyBtn = screen.getByRole('button', { name: /history/i });
+      historyBtn.focus();
+      expect(document.activeElement).toBe(historyBtn);
+
+      fireEvent.click(historyBtn);
+
+      const historyDialog = screen.getByRole('dialog', { name: /revision history/i });
+      expect(historyDialog).toBeDefined();
+
+      // Wait for rAF focus entry
+      await act(async () => {
+        await new Promise((r) => requestAnimationFrame(r));
+      });
+
+      const closeButton = screen.getByRole('button', { name: /close/i });
+      expect(document.activeElement).toBe(closeButton);
+
+      // Close the drawer
+      fireEvent.click(closeButton);
+
+      // Advance 240ms close animation
+      act(() => {
+        vi.advanceTimersByTime(240);
+      });
+
+      // Focus should be restored to trigger button
+      expect(document.activeElement).toBe(historyBtn);
+    });
+
+    it('traps Tab focus forward and backward within the drawer', async () => {
+      render(<RubricTableEditor />);
+
+      const historyBtn = screen.getByRole('button', { name: /history/i });
+      fireEvent.click(historyBtn);
+
+      const historyDialog = screen.getByRole('dialog', { name: /revision history/i });
+      await act(async () => {
+        await new Promise((r) => requestAnimationFrame(r));
+      });
+
+      const focusableElements = historyDialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])',
+      );
+      expect(focusableElements.length).toBeGreaterThan(1);
+
+      const firstEl = focusableElements[0];
+      const lastEl = focusableElements[focusableElements.length - 1];
+
+      // Focus last element and Tab forward -> should wrap to first element
+      lastEl.focus();
+      expect(document.activeElement).toBe(lastEl);
+
+      const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      window.dispatchEvent(tabEvent);
+      expect(tabEvent.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(firstEl);
+
+      // Focus first element and Shift+Tab backward -> should wrap to last element
+      firstEl.focus();
+      expect(document.activeElement).toBe(firstEl);
+
+      const shiftTabEvent = new KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(shiftTabEvent);
+      expect(shiftTabEvent.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(lastEl);
+    });
+
+    it('closes drawer on Escape key press and restores focus to trigger button', async () => {
+      render(<RubricTableEditor />);
+
+      const historyBtn = screen.getByRole('button', { name: /history/i });
+      historyBtn.focus();
+      fireEvent.click(historyBtn);
+
+      expect(screen.getByRole('dialog', { name: /revision history/i })).toBeDefined();
+
+      // Press Escape
+      const escapeEvent = new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      });
+      window.dispatchEvent(escapeEvent);
+      expect(escapeEvent.defaultPrevented).toBe(true);
+
+      // Advance close timer
+      act(() => {
+        vi.advanceTimersByTime(240);
+      });
+
+      expect(screen.queryByRole('dialog', { name: /revision history/i })).toBeNull();
+      expect(document.activeElement).toBe(historyBtn);
+    });
+
+    it('does not trap focus or close history drawer when nested modal is active', async () => {
+      render(<RubricTableEditor />);
+
+      // Open History slide-over drawer
+      fireEvent.click(screen.getByRole('button', { name: /history/i }));
+      expect(screen.getByRole('dialog', { name: /revision history/i })).toBeDefined();
+
+      // Open nested confirmation modal (Delete Draft)
+      const deleteDraftBtn = screen.getByRole('button', { name: /delete draft revision v2/i });
+      fireEvent.click(deleteDraftBtn);
+
+      // Confirmation modal is open
+      const confirmDialog = screen.getByRole('dialog', { name: /delete draft revision/i });
+      expect(confirmDialog).toBeDefined();
+
+      // Pressing Escape should close confirmation modal, NOT history drawer
+      fireEvent.keyDown(window, { key: 'Escape' });
+
+      // Confirmation modal closed
+      expect(screen.queryByRole('dialog', { name: /delete draft revision/i })).toBeNull();
+      // History drawer still open
+      expect(screen.getByRole('dialog', { name: /revision history/i })).toBeDefined();
+    });
+
+    it('prevents click-through during the 240ms closing animation by maintaining overlay interception', () => {
+      render(<RubricTableEditor />);
+
+      const historyBtn = screen.getByRole('button', { name: /history/i });
+      fireEvent.click(historyBtn);
+
+      const overlay = screen.getByTestId('history-drawer-overlay');
+      expect(overlay.className).not.toContain('pointer-events-none');
+
+      // Click close button to initiate 240ms closing transition
+      const closeBtn = screen.getByRole('button', { name: /close/i });
+      fireEvent.click(closeBtn);
+
+      // During animation (e.g. at 100ms)
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+
+      // Overlay is still present and does NOT have pointer-events-none
+      const closingOverlay = screen.getByTestId('history-drawer-overlay');
+      expect(closingOverlay.className).toContain('opacity-0');
+      expect(closingOverlay.className).not.toContain('pointer-events-none');
+
+      // Complete closing animation
+      act(() => {
+        vi.advanceTimersByTime(140);
+      });
+
+      expect(screen.queryByTestId('history-drawer-overlay')).toBeNull();
+    });
   });
 });

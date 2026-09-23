@@ -24,10 +24,10 @@ export function LibraryTabButton({
       aria-selected={isActive}
       onClick={onSelect}
       className={cn(
-        'inline-flex h-8.5 items-center gap-2 px-3.5 rounded-xs text-xs sm:text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+        'relative inline-flex h-11 items-center gap-2 border-b-2 px-1 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
         isActive
-          ? 'bg-surface text-text shadow-xs border border-border'
-          : 'text-text-muted hover:text-text border border-transparent',
+          ? 'border-primary text-primary'
+          : 'border-transparent text-text-muted hover:border-border-strong hover:text-text',
       )}
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />

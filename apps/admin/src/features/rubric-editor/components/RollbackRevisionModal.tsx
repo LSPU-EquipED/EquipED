@@ -61,7 +61,7 @@ export function RollbackRevisionModal({
             <div>
               <h2
                 id="rollback-modal-title"
-                className="text-sm sm:text-base font-bold text-text tracking-tight"
+                className="text-sm sm:text-base font-semibold text-text"
               >
                 Rollback to Revision v{targetRevision.version_number}
               </h2>
@@ -85,12 +85,12 @@ export function RollbackRevisionModal({
           <div className="flex items-start gap-3 rounded-sm border border-primary/20 bg-primary-soft/50 p-3.5 text-xs text-text">
             <ShieldCheck className="size-5 shrink-0 text-primary mt-0.5" aria-hidden="true" />
             <div className="space-y-1">
-              <p className="font-bold text-text">Active Evaluation Pointer Rollback</p>
+              <p className="font-semibold text-text">Active Evaluation Pointer Rollback</p>
               <p className="text-text-muted leading-relaxed">
                 Activating this published revision will immediately repoint the live multi-agent
                 evaluation system for <strong>{agentLabel}</strong> to <strong>Revision v{targetRevision.version_number}</strong>.
               </p>
-              <p className="text-[11px] text-text-muted/90 leading-relaxed">
+              <p className="text-xs text-text-muted/90 leading-relaxed">
                 Existing evaluation records and previous scorecard histories will remain locked to
                 their respective immutable snapshots and will not be altered.
               </p>
@@ -99,7 +99,7 @@ export function RollbackRevisionModal({
 
           {/* Target Revision Summary */}
           <div className="rounded-sm border border-border bg-surface-subtle/70 p-4 space-y-2 text-xs">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            <span className="text-xs font-semibold text-text-muted">
               Target Revision Details
             </span>
             <div className="grid grid-cols-2 gap-2 text-xs pt-1">
@@ -109,7 +109,7 @@ export function RollbackRevisionModal({
               </div>
               <div>
                 <span className="text-text-muted font-medium">Version:</span>{' '}
-                <span className="font-mono font-bold text-text">v{targetRevision.version_number}</span>
+                <span className="font-mono font-semibold text-text">v{targetRevision.version_number}</span>
               </div>
               <div>
                 <span className="text-text-muted font-medium">Domains:</span>{' '}
@@ -121,7 +121,7 @@ export function RollbackRevisionModal({
               </div>
             </div>
             {targetRevision.published_at && (
-              <p className="text-[11px] text-text-muted pt-1 border-t border-border/60">
+              <p className="text-xs text-text-muted pt-1 border-t border-border/60">
                 Originally published on{' '}
                 <span className="font-semibold text-text">
                   {new Date(targetRevision.published_at).toLocaleDateString()}

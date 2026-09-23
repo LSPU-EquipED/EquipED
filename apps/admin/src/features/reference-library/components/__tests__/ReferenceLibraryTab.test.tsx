@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { ReferenceLibraryTab } from '../ReferenceLibraryTab';
+import { PolicyLibraryTab } from '../PolicyLibraryTab';
 import { ReferenceRow } from '../ReferenceRow';
-import type { ReferenceLibraryItem } from '../../types';
+import { PolicyRow } from '../PolicyRow';
+import type { PolicyLibraryItem, ReferenceLibraryItem } from '../../types';
 
 const mockReferences: ReferenceLibraryItem[] = [
   {
@@ -72,6 +74,18 @@ vi.mock('../../hooks/useReferenceLibrary', () => ({
   }),
   useDeleteReference: () => mockDeleteState,
   useRebuildReferenceEmbeddings: () => mockRebuildState,
+  usePolicyLibrary: () => ({
+    data: { items: [
+      {
+        documentId: 'policy-1', title: 'Policy Manual', policyArea: 'General',
+        uploadedAt: '2026-08-10T10:00:00Z', uploadedBy: 'admin', pageCount: 10,
+        fileExists: true, chunkCount: 15, chromaAvailable: false, embeddingReady: false,
+      },
+    ], total: 1 },
+    isLoading: false, isError: false, error: null, refetch: vi.fn(),
+  }),
+  useDeletePolicy: () => mockDeleteState,
+  useRebuildPolicyEmbeddings: () => mockRebuildState,
   getReferenceFileUrl: (id: string) => `/documents/${id}/file`,
   getReferenceOperationError: (err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
@@ -109,6 +123,20 @@ describe('ReferenceLibraryTab', () => {
       error: null,
       variables: undefined,
     };
+  });
+
+  it('does not keep policy row actions busy from settled mutation variables', () => {
+    mockDeleteState = { ...mockDeleteState, isPending: false, variables: 'policy-1' };
+    mockRebuildState = { ...mockRebuildState, isPending: true, variables: 'policy-1' };
+
+    const { rerender } = render(<PolicyLibraryTab />);
+    expect(screen.getByRole('button', { name: /Rebuild reference index/i }).hasAttribute('disabled')).toBe(true);
+
+    mockDeleteState = { ...mockDeleteState, isPending: false, variables: 'policy-1' };
+    mockRebuildState = { ...mockRebuildState, isPending: false, variables: 'policy-1' };
+    rerender(<PolicyLibraryTab />);
+    expect(screen.getByRole('button', { name: /Rebuild reference index/i }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: /Delete reference/i }).hasAttribute('disabled')).toBe(false);
   });
 
   it('renders both Syllabus and Curriculum rows with Program column and filter tab counts', () => {
@@ -221,7 +249,7 @@ describe('ReferenceRow', () => {
     expect(screen.getByText('BSCS Curriculum 2026')).toBeDefined();
     expect(screen.getByText('Curriculum')).toBeDefined();
     expect(screen.getByText('BSCS')).toBeDefined();
-    expect(screen.getByText('PROCESSED')).toBeDefined();
+    expect(screen.getByText('Processed')).toBeDefined();
     expect(screen.getByText('30')).toBeDefined();
     expect(screen.getByText('Not indexed')).toBeDefined();
 
@@ -229,7 +257,7 @@ describe('ReferenceRow', () => {
     const rebuildBtn = screen.getByRole('button', { name: /Rebuild/i }) as HTMLButtonElement;
     expect(rebuildBtn.disabled).toBe(false);
     expect(rebuildBtn.title).not.toContain('retired');
-    expect(rebuildBtn.title).toContain('Rebuild Chroma vectors from stored chunks');
+    expect(rebuildBtn.title).toContain('Rebuild local search index from stored chunks');
   });
 
   it('triggers onPreview, onRebuild, and onDelete callbacks for curriculum', () => {
@@ -265,5 +293,111 @@ describe('ReferenceRow', () => {
     const deleteBtn = screen.getByRole('button', { name: /Delete/i });
     fireEvent.click(deleteBtn);
     expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('displays both courseTitle and lessonTitle distinctly inside title secondary line', () => {
+    const itemWithCourseAndLesson: ReferenceLibraryItem = {
+      ...mockReferences[0],
+      courseTitle: 'Data Structures and Algorithms',
+      lessonTitle: 'Trees and Graphs',
+    };
+
+    render(
+      <table>
+        <tbody>
+          <ReferenceRow
+            item={itemWithCourseAndLesson}
+            isBusy={false}
+            isDeleting={false}
+            isRebuilding={false}
+            onPreview={vi.fn()}
+            onRebuild={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.getByText('Data Structures and Algorithms')).toBeDefined();
+    expect(screen.getByText('Trees and Graphs')).toBeDefined();
+  });
+
+  it('keeps processing status truthful as Processed (not Ready) even with missing file and unindexed chunks', () => {
+    const unreadyProcessedItem: ReferenceLibraryItem = {
+      ...mockReferences[0],
+      processingStatus: 'PROCESSED',
+      fileExists: false,
+      chunkCount: 20,
+      chromaAvailable: false,
+      embeddingReady: false,
+    };
+
+    render(
+      <table>
+        <tbody>
+          <ReferenceRow
+            item={unreadyProcessedItem}
+            isBusy={false}
+            isDeleting={false}
+            isRebuilding={false}
+            onPreview={vi.fn()}
+            onRebuild={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.getByText('Processed')).toBeDefined();
+    expect(screen.queryByText('Ready')).toBeNull();
+    expect(screen.getByText('File missing')).toBeDefined();
+    expect(screen.getByText('Not indexed')).toBeDefined();
+  });
+});
+
+describe('PolicyRow', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('keeps processing status truthful as Processed (not Ready) even with missing file and unindexed chunks', () => {
+    const unreadyProcessedPolicy: PolicyLibraryItem = {
+      documentId: 'pol-1',
+      title: 'Institutional Academic Integrity Policy',
+      sourceType: 'policy',
+      policyArea: 'grading_standards',
+      program: 'Institutional',
+      courseCode: null,
+      academicYear: '2026-2027',
+      pageCount: 5,
+      uploadedAt: '2026-08-12T12:00:00Z',
+      uploadedBy: 'admin',
+      processingStatus: 'PROCESSED',
+      fileExists: false,
+      chunkCount: 12,
+      chromaAvailable: false,
+      embeddingReady: false,
+    };
+
+    render(
+      <table>
+        <tbody>
+          <PolicyRow
+            item={unreadyProcessedPolicy}
+            isBusy={false}
+            isDeleting={false}
+            isRebuilding={false}
+            onPreview={vi.fn()}
+            onRebuild={vi.fn()}
+            onDelete={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.getByText('Processed')).toBeDefined();
+    expect(screen.queryByText('Ready')).toBeNull();
+    expect(screen.getByText('File missing')).toBeDefined();
+    expect(screen.getByText('Not indexed')).toBeDefined();
   });
 });

@@ -50,7 +50,7 @@ export function PublishRevisionModal({
           <div>
             <h2
               id="publish-modal-title"
-              className="text-sm font-bold uppercase tracking-wider text-text"
+              className="text-sm font-semibold text-text"
             >
               Publish Revision v{versionNumber}
             </h2>
@@ -71,7 +71,7 @@ export function PublishRevisionModal({
           <div className="flex items-start gap-3 rounded-sm border border-warning/40 bg-warning-soft p-3 text-xs text-text">
             <Warning className="size-5 shrink-0 text-warning mt-0.5" aria-hidden="true" />
             <div>
-              <p className="font-bold text-text">Important Immutability Notice</p>
+              <p className="font-semibold text-text">Important Immutability Notice</p>
               <p className="mt-1 text-text-muted font-medium">
                 Publishing will lock this revision permanently. Its domains, criteria, and strategy
                 configurations cannot be edited or deleted once published.
@@ -89,10 +89,10 @@ export function PublishRevisionModal({
                 className="mt-0.5 size-4 rounded border-input text-primary focus:ring-ring"
               />
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-text">
+                <span className="text-xs font-semibold text-text">
                   Activate Revision Immediately (Recommended)
                 </span>
-                <p className="text-[11px] text-text-muted font-medium mt-0.5">
+                <p className="text-xs text-text-muted font-medium mt-0.5">
                   Point the live evaluation system for {agentLabel} to this new revision. You can
                   roll back to a prior published revision at any time.
                 </p>
@@ -116,14 +116,14 @@ export function PublishRevisionModal({
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {isPending && <Spinner className="size-3.5 animate-spin" />}
               {activate ? 'Publish and Activate' : 'Publish Only'}

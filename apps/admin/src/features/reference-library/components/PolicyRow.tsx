@@ -1,8 +1,8 @@
+import { CheckCircle, Clock, WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import type { PolicyLibraryItem } from '../types';
 import {
   formatDate,
-  healthBadgeClass,
   isPolicyArea,
   policyAreaLabelMap,
   processingStatusClass,
@@ -32,64 +32,43 @@ export function PolicyRow({
   const areaLabel = isPolicyArea(item.policyArea)
     ? policyAreaLabelMap[item.policyArea]
     : (item.policyArea ?? '—');
+  const StatusIcon = item.processingStatus === 'PROCESSED'
+    ? CheckCircle
+    : item.processingStatus === 'FAILED'
+      ? WarningCircle
+      : Clock;
 
   return (
-    <tr className="hover:bg-surface-subtle/70 transition-colors">
-      <td className="py-3 px-4 align-top">
-        <p
-          className="text-sm font-semibold text-text truncate max-w-[18rem]"
-          title={item.title}
-        >
-          {item.title}
-        </p>
+    <tr className="transition-colors hover:bg-surface-subtle/70">
+      <td className="px-4 py-4 align-top">
+        <div className="min-w-[20rem]">
+          <p className="max-w-[28rem] break-words text-sm font-medium leading-relaxed text-text" title={item.title}>
+            {item.title}
+          </p>
+          <p className="mt-1 text-xs text-text-muted">Institutional policy reference</p>
+        </div>
       </td>
-      <td className="py-3 px-4 align-top">
-        <span className="inline-flex items-center rounded-sm border border-border bg-surface-subtle px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-text">
-          {areaLabel}
-        </span>
+      <td className="px-4 py-4 align-top">
+        <div className="space-y-1 text-sm">
+          <p className="font-medium text-text">{areaLabel}</p>
+          <p className="text-xs text-text-muted">{item.program ?? 'Institutional'} · {item.academicYear ?? 'Current'}</p>
+        </div>
       </td>
-      <td className="py-3 px-4 align-top">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold uppercase tracking-wider',
-            processingStatusClass(item.processingStatus),
-          )}
-        >
-          {item.processingStatus}
-        </span>
+      <td className="px-4 py-4 align-top">
+        <div className="min-w-[10rem] space-y-1.5">
+          <span className={cn('inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-xs font-medium', processingStatusClass(item.processingStatus))}>
+            <StatusIcon className="size-3.5" aria-hidden="true" />
+            {item.processingStatus === 'PROCESSED' ? 'Processed' : item.processingStatus}
+          </span>
+          <p className="text-xs text-text-muted">
+            <span className="tabular-nums">{item.chunkCount}</span>{' '}
+            chunks · <span>{item.chromaAvailable ? 'Indexed' : 'Not indexed'}</span>
+          </p>
+          {!item.fileExists ? <p className="text-xs font-semibold text-destructive">File missing</p> : null}
+        </div>
       </td>
-      <td className="py-3 px-4 align-top">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold',
-            healthBadgeClass(item.fileExists),
-          )}
-        >
-          {item.fileExists ? 'Found' : 'Missing'}
-        </span>
-      </td>
-      <td className="py-3 px-4 align-top">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold tabular-nums',
-            healthBadgeClass(item.chunkCount > 0),
-          )}
-        >
-          {item.chunkCount}
-        </span>
-      </td>
-      <td className="py-3 px-4 align-top">
-        <span
-          className={cn(
-            'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold',
-            healthBadgeClass(item.chromaAvailable),
-          )}
-        >
-          {item.chromaAvailable ? 'Indexed' : 'Not indexed'}
-        </span>
-      </td>
-      <td className="py-3 px-4 align-top">
-        <span className="text-sm font-medium text-text-muted tabular-nums">{formatDate(item.uploadedAt)}</span>
+      <td className="px-4 py-4 align-top">
+        <span className="whitespace-nowrap text-xs tabular-nums text-text-muted">{formatDate(item.uploadedAt)}</span>
       </td>
       <td className="py-3 px-4 align-top text-right">
         <RowActionButtons
@@ -99,10 +78,10 @@ export function PolicyRow({
           isRebuilding={isRebuilding}
           rebuildTooltip={
             item.chromaAvailable
-              ? 'Chroma vectors already present'
+              ? 'Search index is ready'
               : item.chunkCount === 0
                 ? 'No chunks available to rebuild'
-                : 'Rebuild Chroma vectors from stored policy chunks'
+                : 'Rebuild local search index from stored chunks'
           }
           onPreview={onPreview}
           onRebuild={onRebuild}

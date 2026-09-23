@@ -55,7 +55,7 @@ function MoveCriterionModalContent({
           <div>
             <h2
               id="move-modal-title"
-              className="text-sm font-bold uppercase tracking-wider text-text"
+              className="text-sm font-semibold text-text"
             >
               Move Criterion
             </h2>
@@ -93,7 +93,7 @@ function MoveCriterionModalContent({
             <div>
               <label
                 htmlFor="destination-domain-select"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Destination Domain <span className="text-destructive">*</span>
               </label>
@@ -102,7 +102,7 @@ function MoveCriterionModalContent({
                 value={destinationDomainId}
                 onChange={(e) => setDestinationDomainId(e.target.value)}
                 disabled={isPending}
-                className="mt-1.5 w-full h-9 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1.5 w-full h-9 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 {otherDomains.map((d) => (
                   <option key={d.rubric_domain_id} value={d.rubric_domain_id}>
@@ -118,14 +118,14 @@ function MoveCriterionModalContent({
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isPending || otherDomains.length === 0 || !destinationDomainId}
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {isPending && <Spinner className="size-3.5 animate-spin" />}
               Move Criterion

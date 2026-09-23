@@ -82,7 +82,7 @@ export function ConfirmationModal({
             </div>
             <h2
               id="confirm-modal-title"
-              className="text-sm sm:text-base font-bold text-text tracking-tight"
+              className="text-sm sm:text-base font-semibold text-text"
             >
               {title}
             </h2>

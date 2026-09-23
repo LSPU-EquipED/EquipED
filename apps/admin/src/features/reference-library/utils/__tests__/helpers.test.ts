@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatDate,
-  healthBadgeClass,
   isPolicyArea,
   processingStatusClass,
   referenceTypeLabels,
@@ -21,13 +20,6 @@ describe('processingStatusClass', () => {
     expect(processingStatusClass('PROCESSED')).toContain('bg-success');
     expect(processingStatusClass('FAILED')).toContain('bg-destructive');
     expect(processingStatusClass('PENDING')).toContain('bg-warning');
-  });
-});
-
-describe('healthBadgeClass', () => {
-  it('returns green for healthy and red for unhealthy', () => {
-    expect(healthBadgeClass(true)).toContain('text-success');
-    expect(healthBadgeClass(false)).toContain('text-destructive');
   });
 });
 
