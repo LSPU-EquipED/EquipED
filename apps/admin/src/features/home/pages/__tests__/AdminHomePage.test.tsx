@@ -6,7 +6,7 @@ import React from 'react';
 import { AdminHomePage } from '../AdminHomePage';
 import * as useAdminSummaryModule from '../../hooks/useAdminSummary';
 import * as useAdminMatrixModule from '../../hooks/useAdminMatrix';
-import type { MatrixListResponse, MonitoringMatrixRow, SystemSummaryResponse } from '../../types';
+import type { MatrixListResponse, MatrixMetrics, MonitoringMatrixRow, SystemSummaryResponse } from '../../types';
 
 const mockNavigate = vi.fn();
 
@@ -32,6 +32,14 @@ const mockSummary: SystemSummaryResponse = {
   active_evaluations: 3,
   total_faculty: 15,
   failed_evaluations: 1,
+};
+
+const mockDefaultMetrics: MatrixMetrics = {
+  completed_count: 1,
+  passing_count: 1,
+  flagged_count: 1,
+  total_flags: 2,
+  quality_pass_rate: 100.0,
 };
 
 const mockMatrixRows: MonitoringMatrixRow[] = [
@@ -83,20 +91,20 @@ describe('AdminHomePage', () => {
     } as unknown as UseQueryResult<SystemSummaryResponse>);
 
     vi.spyOn(useAdminMatrixModule, 'useAdminMatrix').mockReturnValue({
-      data: { items: mockMatrixRows, total: 2, page: 1, page_size: 5 },
+      data: { items: mockMatrixRows, total: 2, page: 1, page_size: 5, metrics: mockDefaultMetrics },
       isLoading: false,
       isError: false,
     } as unknown as UseQueryResult<MatrixListResponse>);
 
     render(<AdminHomePage />);
 
-    expect(screen.getByText('Total SLMs Processed')).toBeDefined();
+    expect(screen.getByText('Total modules')).toBeDefined();
     expect(screen.getByText('42')).toBeDefined();
-    expect(screen.getByText('Active Evaluations')).toBeDefined();
+    expect(screen.getByText('Active evaluations')).toBeDefined();
     expect(screen.getByText('3')).toBeDefined();
-    expect(screen.getByText('Registered Faculty')).toBeDefined();
+    expect(screen.getByText('Registered faculty')).toBeDefined();
     expect(screen.getByText('15')).toBeDefined();
-    expect(screen.getByText('Failed Evaluations')).toBeDefined();
+    expect(screen.getByText('Failed evaluations')).toBeDefined();
     expect(screen.getByText('1')).toBeDefined();
   });
 
@@ -108,7 +116,7 @@ describe('AdminHomePage', () => {
     } as unknown as UseQueryResult<SystemSummaryResponse>);
 
     vi.spyOn(useAdminMatrixModule, 'useAdminMatrix').mockReturnValue({
-      data: { items: [], total: 0, page: 1, page_size: 5 },
+      data: { items: [], total: 0, page: 1, page_size: 5, metrics: mockDefaultMetrics },
       isLoading: false,
       isError: false,
     } as unknown as UseQueryResult<MatrixListResponse>);
@@ -144,7 +152,7 @@ describe('AdminHomePage', () => {
     } as unknown as UseQueryResult<SystemSummaryResponse>);
 
     vi.spyOn(useAdminMatrixModule, 'useAdminMatrix').mockReturnValue({
-      data: { items: mockMatrixRows, total: 2, page: 1, page_size: 5 },
+      data: { items: mockMatrixRows, total: 2, page: 1, page_size: 5, metrics: mockDefaultMetrics },
       isLoading: false,
       isError: false,
     } as unknown as UseQueryResult<MatrixListResponse>);
@@ -170,7 +178,7 @@ describe('AdminHomePage', () => {
     } as unknown as UseQueryResult<SystemSummaryResponse>);
 
     vi.spyOn(useAdminMatrixModule, 'useAdminMatrix').mockReturnValue({
-      data: { items: [], total: 0, page: 1, page_size: 5 },
+      data: { items: [], total: 0, page: 1, page_size: 5, metrics: mockDefaultMetrics },
       isLoading: false,
       isError: false,
     } as unknown as UseQueryResult<MatrixListResponse>);
@@ -198,5 +206,37 @@ describe('AdminHomePage', () => {
     expect(
       screen.getByText('Unable to load recent activity from the monitoring matrix.'),
     ).toBeDefined();
+  });
+
+  it('renders operations queue messaging distinguishing active, failed-only, and clear states', () => {
+    // 1. Failed-only: active === 0, failed > 0
+    vi.spyOn(useAdminSummaryModule, 'useAdminSummary').mockReturnValue({
+      data: { total_documents: 10, active_evaluations: 0, total_faculty: 5, failed_evaluations: 2 },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<SystemSummaryResponse>);
+
+    vi.spyOn(useAdminMatrixModule, 'useAdminMatrix').mockReturnValue({
+      data: { items: [], total: 0, page: 1, page_size: 5, metrics: mockDefaultMetrics },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MatrixListResponse>);
+
+    const { unmount } = render(<AdminHomePage />);
+    expect(screen.getByText('Failed runs need inspection')).toBeDefined();
+    expect(screen.getByText(/No active runs in the evaluation queue\./)).toBeDefined();
+    expect(screen.getByText(/2 failed runs are recorded/)).toBeDefined();
+    unmount();
+
+    // 2. Clear state: active === 0, failed === 0
+    vi.spyOn(useAdminSummaryModule, 'useAdminSummary').mockReturnValue({
+      data: { total_documents: 10, active_evaluations: 0, total_faculty: 5, failed_evaluations: 0 },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<SystemSummaryResponse>);
+
+    render(<AdminHomePage />);
+    expect(screen.getByText('No evaluations in progress')).toBeDefined();
+    expect(screen.getByText(/The evaluation queue is clear\./)).toBeDefined();
   });
 });

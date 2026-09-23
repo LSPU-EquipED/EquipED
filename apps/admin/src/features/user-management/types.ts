@@ -35,3 +35,11 @@ export interface AdminUserUpdateBody {
   account_status?: AdminUserResponse['account_status'];
   evaluator_permissions?: string[];
 }
+
+export interface UserCounts {
+  all: number;
+  pending: number;
+  approved: number;
+  suspended: number;
+  rejected: number;
+}

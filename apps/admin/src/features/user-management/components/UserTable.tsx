@@ -112,7 +112,7 @@ export function UserTable({
             <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
               Registered
             </th>
-            <th scope="col" className={cn(TABLE_STYLES.th, 'text-right min-w-[16rem] pr-6')}>
+            <th scope="col" className={cn(TABLE_STYLES.th, 'text-right w-32 min-w-[8rem] pr-6')}>
               Actions
             </th>
           </tr>

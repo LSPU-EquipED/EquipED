@@ -1,12 +1,11 @@
 import {
-  ClipboardText,
+  Warning,
   Clock,
   Files,
   Users,
   type Icon,
 } from '@phosphor-icons/react';
-import { cn } from '@equiped/ui';
-import { Skeleton } from '@equiped/ui';
+import { cn, Skeleton } from '@equiped/ui';
 import type { SystemSummaryResponse } from '../types';
 
 interface SummaryItemProps {
@@ -33,15 +32,15 @@ function SummaryItem({
   return (
     <div className="flex flex-col justify-between p-4 sm:p-5 bg-surface transition-colors">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-text-muted select-none">
+        <dt className="text-xs font-medium text-text-muted">
           {label}
-        </span>
+        </dt>
         <div
           className={cn(
-            'flex size-7 items-center justify-center rounded-sm shrink-0 border',
+            'flex size-7 items-center justify-center rounded-sm shrink-0 border transition-colors',
             isDestructive
               ? 'bg-destructive-soft text-destructive border-destructive/25'
-              : 'bg-surface-subtle text-text-muted border-border',
+              : 'bg-surface-subtle/80 text-text-muted border-border/70',
           )}
           aria-hidden="true"
         >
@@ -49,26 +48,28 @@ function SummaryItem({
         </div>
       </div>
 
-      <div className="mt-3">
+      <dd className="mt-2.5">
         {isLoading ? (
-          <div className="space-y-2" role="status" aria-label="Loading metric">
+          <div className="space-y-1.5" role="status" aria-label="Loading metric">
             <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-2.5 w-32 max-w-full" />
+            <Skeleton className="h-3 w-28 max-w-full" />
           </div>
         ) : isError ? (
-          <p className="text-xs font-semibold text-destructive">Failed to load</p>
+          <p className="text-xs font-medium text-destructive">Failed to load</p>
         ) : (
           <p
             className={cn(
-              'text-2xl font-bold tabular-nums tracking-tight',
+              'text-2xl sm:text-[28px] font-semibold tabular-nums',
               isDestructive ? 'text-destructive' : 'text-text',
             )}
           >
             {value.toLocaleString()}
           </p>
         )}
-        <p className="text-[11px] text-text-muted mt-0.5 font-medium">{sublabel}</p>
-      </div>
+        <span className="text-xs text-text-muted mt-1 block">
+          {sublabel}
+        </span>
+      </dd>
     </div>
   );
 }
@@ -83,42 +84,43 @@ export function AdminKpiMetrics({
   isError: boolean;
 }) {
   return (
-    <div className="border border-border bg-surface rounded-md overflow-hidden shadow-none">
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
-        <SummaryItem
-          label="Total SLMs Processed"
-          value={summary?.total_documents ?? 0}
-          sublabel="Cataloged course modules"
-          icon={Files}
-          isLoading={isLoading}
-          isError={isError}
-        />
-        <SummaryItem
-          label="Active Evaluations"
-          value={summary?.active_evaluations ?? 0}
-          sublabel="Currently in evaluation queue"
-          icon={Clock}
-          isLoading={isLoading}
-          isError={isError}
-        />
-        <SummaryItem
-          label="Registered Faculty"
-          value={summary?.total_faculty ?? 0}
-          sublabel="Verified faculty instructors"
-          icon={Users}
-          isLoading={isLoading}
-          isError={isError}
-        />
-        <SummaryItem
-          label="Failed Evaluations"
-          value={summary?.failed_evaluations ?? 0}
-          sublabel="Processing or alignment failures"
-          icon={ClipboardText}
-          isLoading={isLoading}
-          isError={isError}
-          variant="destructive"
-        />
-      </div>
-    </div>
+    <dl
+      aria-label="System overview"
+      className="grid grid-cols-2 sm:grid-cols-4 gap-px border-border overflow-hidden rounded-md border border-border bg-border shadow-none"
+    >
+      <SummaryItem
+        label="Total modules"
+        value={summary?.total_documents ?? 0}
+        sublabel="Cataloged course modules"
+        icon={Files}
+        isLoading={isLoading}
+        isError={isError}
+      />
+      <SummaryItem
+        label="Active evaluations"
+        value={summary?.active_evaluations ?? 0}
+        sublabel="Currently in evaluation queue"
+        icon={Clock}
+        isLoading={isLoading}
+        isError={isError}
+      />
+      <SummaryItem
+        label="Registered faculty"
+        value={summary?.total_faculty ?? 0}
+        sublabel="Faculty accounts"
+        icon={Users}
+        isLoading={isLoading}
+        isError={isError}
+      />
+      <SummaryItem
+        label="Failed evaluations"
+        value={summary?.failed_evaluations ?? 0}
+        sublabel="Evaluation runs that failed"
+        icon={Warning}
+        isLoading={isLoading}
+        isError={isError}
+        variant="destructive"
+      />
+    </dl>
   );
 }

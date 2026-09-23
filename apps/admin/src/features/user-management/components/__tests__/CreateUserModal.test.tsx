@@ -44,6 +44,20 @@ describe('CreateUserModal', () => {
     expect(mockCreateUserMutateAsync).not.toHaveBeenCalled();
   });
 
+  it('enforces email max length of 40 characters', async () => {
+    render(<CreateUserModal open={true} onOpenChange={mockOnOpenChange} />);
+
+    fireEvent.change(screen.getByLabelText(/Full Name/i), { target: { value: 'Dr. Santos' } });
+    fireEvent.change(screen.getByLabelText(/Email/i), {
+      target: { value: 'a'.repeat(29) + '@lspu.edu.ph' },
+    });
+    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'ValidPass123' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+    expect(screen.getByText('Email must be 40 characters or fewer.')).toBeDefined();
+    expect(mockCreateUserMutateAsync).not.toHaveBeenCalled();
+  });
+
   it('enforces official @lspu.edu.ph email domain validation', async () => {
     render(<CreateUserModal open={true} onOpenChange={mockOnOpenChange} />);
 
