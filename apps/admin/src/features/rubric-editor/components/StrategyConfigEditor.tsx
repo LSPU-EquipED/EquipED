@@ -53,11 +53,11 @@ export function StrategyConfigEditor({
         <div>
           <label
             htmlFor="strategy-select"
-            className="text-xs font-bold uppercase tracking-wider text-text"
+            className="text-xs font-semibold text-text"
           >
             Scoring Strategy
           </label>
-          <p className="text-[11px] text-text-muted font-medium">
+          <p className="text-xs text-text-muted font-medium">
             Evaluation algorithm and measurement shape for this criterion.
           </p>
         </div>
@@ -68,7 +68,7 @@ export function StrategyConfigEditor({
             value={value.strategy}
             onChange={(e) => handleStrategyChange(e.target.value as ScoringStrategy)}
             disabled={disabled}
-            className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
+            className="h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
           >
             {allowedStrategies.map((strat) => (
               <option key={strat} value={strat}>
@@ -80,7 +80,7 @@ export function StrategyConfigEditor({
             ))}
           </select>
         ) : (
-          <span className="rounded-sm bg-surface-subtle border border-border px-2 py-1 text-xs font-bold uppercase tracking-wider text-text">
+          <span className="rounded-sm bg-surface-subtle border border-border px-2 py-1 text-xs font-semibold text-text">
             {value.strategy === 'curriculum_alignment'
               ? 'Curriculum Alignment'
               : value.strategy === 'llm_rubric_guidance'
@@ -96,11 +96,11 @@ export function StrategyConfigEditor({
           <div>
             <label
               htmlFor="llm-guidance"
-              className="block text-xs font-bold uppercase tracking-wider text-text"
+              className="block text-xs font-semibold text-text"
             >
               Evaluation Guidance <span className="text-destructive">*</span>
             </label>
-            <p className="text-[11px] text-text-muted mb-1">
+            <p className="text-xs text-text-muted mb-1">
               Instructions provided to the LLM evaluator to assess score and extract evidence.
             </p>
             <textarea
@@ -143,7 +143,7 @@ export function StrategyConfigEditor({
                 }}
                 className="size-4 rounded border-input text-primary focus:ring-ring"
               />
-              <span className="text-xs font-bold uppercase tracking-wider text-text">
+              <span className="text-xs font-semibold text-text">
                 Include Exact 1–4 Score Level Descriptors
               </span>
             </label>
@@ -155,7 +155,7 @@ export function StrategyConfigEditor({
                     value.level_descriptors?.find((d) => d.score === score)?.descriptor ?? '';
                   return (
                     <div key={score} className="grid grid-cols-[3.5rem_1fr] items-start gap-2">
-                      <span className="mt-1 text-xs font-bold text-text">Score {score}:</span>
+                      <span className="mt-1 text-xs font-semibold text-text">Score {score}:</span>
                       <textarea
                         rows={2}
                         value={desc}
@@ -190,7 +190,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="count-mode"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Threshold Mode
               </label>
@@ -206,7 +206,7 @@ export function StrategyConfigEditor({
                     onChange(DEFAULT_COUNT_MAX_CONFIG);
                   }
                 }}
-                className="mt-1 h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="minimum_count">Minimum Count (Higher is Better)</option>
                 <option value="maximum_count">Maximum Count (Adverse - Lower is Better)</option>
@@ -218,7 +218,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="count-t4"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 4 Threshold
               </label>
@@ -231,9 +231,9 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_4: parseInt(e.target.value || '0', 10) })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'minimum_count' ? 'Count ≥ T4' : 'Count ≤ T4'}
               </span>
             </div>
@@ -241,7 +241,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="count-t3"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 3 Threshold
               </label>
@@ -254,9 +254,9 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_3: parseInt(e.target.value || '0', 10) })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'minimum_count' ? 'Count ≥ T3' : 'Count ≤ T3'}
               </span>
             </div>
@@ -264,7 +264,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="count-t2"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 2 Threshold
               </label>
@@ -277,16 +277,16 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_2: parseInt(e.target.value || '0', 10) })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'minimum_count' ? 'Count ≥ T2' : 'Count ≤ T2'}
               </span>
             </div>
           </div>
 
-          <div className="rounded-sm border border-border bg-surface p-2.5 text-[11px] text-text-muted">
-            <span className="font-bold text-text">Scoring Mapping: </span>
+          <div className="rounded-sm border border-border bg-surface p-2.5 text-xs text-text-muted">
+            <span className="font-semibold text-text">Scoring Mapping: </span>
             {value.mode === 'minimum_count' ? (
               <span>
                 Score 4 if count ≥ {value.threshold_4}; Score 3 if count ≥ {value.threshold_3};
@@ -310,7 +310,7 @@ export function StrategyConfigEditor({
           <div>
             <label
               htmlFor="ratio-mode"
-              className="block text-xs font-bold uppercase tracking-wider text-text"
+              className="block text-xs font-semibold text-text"
             >
               Ratio Mode
             </label>
@@ -326,7 +326,7 @@ export function StrategyConfigEditor({
                   onChange(DEFAULT_RATIO_DIFF_CONFIG);
                 }
               }}
-              className="mt-1 h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text focus:outline-none focus:ring-2 focus:ring-ring"
+              className="mt-1 h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="coverage_percentage">
                 Coverage Percentage (0–100%, Higher is Better)
@@ -341,7 +341,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="ratio-t4"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 4 Threshold {value.mode === 'coverage_percentage' ? '(%)' : ''}
               </label>
@@ -354,9 +354,9 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_4: parseFloat(e.target.value || '0') })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'coverage_percentage' ? 'Ratio ≥ T4' : 'Diff ≤ T4'}
               </span>
             </div>
@@ -364,7 +364,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="ratio-t3"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 3 Threshold {value.mode === 'coverage_percentage' ? '(%)' : ''}
               </label>
@@ -377,9 +377,9 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_3: parseFloat(e.target.value || '0') })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'coverage_percentage' ? 'Ratio ≥ T3' : 'Diff ≤ T3'}
               </span>
             </div>
@@ -387,7 +387,7 @@ export function StrategyConfigEditor({
             <div>
               <label
                 htmlFor="ratio-t2"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Score 2 Threshold {value.mode === 'coverage_percentage' ? '(%)' : ''}
               </label>
@@ -400,9 +400,9 @@ export function StrategyConfigEditor({
                 onChange={(e) =>
                   onChange({ ...value, threshold_2: parseFloat(e.target.value || '0') })
                 }
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <span className="text-[10px] text-text-muted font-medium">
+              <span className="text-xs text-text-muted font-medium">
                 {value.mode === 'coverage_percentage' ? 'Ratio ≥ T2' : 'Diff ≤ T2'}
               </span>
             </div>
@@ -432,7 +432,7 @@ export function StrategyConfigEditor({
                   }}
                   className="size-4 rounded border-input text-primary focus:ring-ring"
                 />
-                <span className="text-xs font-bold uppercase tracking-wider text-text">
+                <span className="text-xs font-semibold text-text">
                   Enable Short-Sample Override (Small unit count fallback)
                 </span>
               </label>
@@ -442,7 +442,7 @@ export function StrategyConfigEditor({
                   <div>
                     <label
                       htmlFor="sample-min-units"
-                      className="block text-[11px] font-bold uppercase text-text-muted"
+                      className="block text-xs font-semibold text-text-muted"
                     >
                       Min Units
                     </label>
@@ -461,13 +461,13 @@ export function StrategyConfigEditor({
                           },
                         })
                       }
-                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="sample-max-4"
-                      className="block text-[11px] font-bold uppercase text-text-muted"
+                      className="block text-xs font-semibold text-text-muted"
                     >
                       Max Issues (4)
                     </label>
@@ -486,13 +486,13 @@ export function StrategyConfigEditor({
                           },
                         })
                       }
-                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="sample-max-3"
-                      className="block text-[11px] font-bold uppercase text-text-muted"
+                      className="block text-xs font-semibold text-text-muted"
                     >
                       Max Issues (3)
                     </label>
@@ -511,13 +511,13 @@ export function StrategyConfigEditor({
                           },
                         })
                       }
-                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="sample-max-2"
-                      className="block text-[11px] font-bold uppercase text-text-muted"
+                      className="block text-xs font-semibold text-text-muted"
                     >
                       Max Issues (2)
                     </label>
@@ -536,7 +536,7 @@ export function StrategyConfigEditor({
                           },
                         })
                       }
-                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-bold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                 </div>
@@ -551,11 +551,11 @@ export function StrategyConfigEditor({
         <div className="grid gap-3">
           <label
             htmlFor="curriculum-guidance"
-            className="block text-xs font-bold uppercase tracking-wider text-text"
+            className="block text-xs font-semibold text-text"
           >
             Curriculum Alignment Guidance (Optional)
           </label>
-          <p className="text-[11px] text-text-muted mb-1">
+          <p className="text-xs text-text-muted mb-1">
             Instructions for comparing module learning objectives with syllabus roadmap items.
           </p>
           <textarea

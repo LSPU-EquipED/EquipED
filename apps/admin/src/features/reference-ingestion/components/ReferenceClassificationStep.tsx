@@ -1,5 +1,4 @@
-import { CaretDown } from '@phosphor-icons/react';
-import { ProgramSelector } from '@equiped/ui';
+import { Dropdown, ProgramSelector } from '@equiped/ui';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@equiped/types';
 import {
   POLICY_AREA_LABELS,
@@ -15,6 +14,16 @@ export const sourceTypeLabels: Record<AdminUploadSourceType, string> = {
 };
 
 export const referenceTypes: AdminUploadSourceType[] = ['syllabus', 'curriculum', 'policy'];
+
+const referenceTypeOptions = referenceTypes.map((type) => ({
+  value: type,
+  label: sourceTypeLabels[type],
+}));
+
+const policyAreaOptions = POLICY_AREAS.map((area) => ({
+  value: area,
+  label: POLICY_AREA_LABELS[area],
+}));
 
 interface ReferenceClassificationStepProps {
   sourceType: AdminUploadSourceType;
@@ -39,41 +48,29 @@ export function ReferenceClassificationStep({
   const isPolicyAreaRequired = sourceType === 'policy';
 
   return (
-    <div className="rounded-md border border-border bg-surface p-6 sm:p-7 space-y-5 shadow-none">
+    <div className="space-y-5 border-b border-border p-5 sm:p-6">
       <div className="space-y-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-          Step 1 of 2
-        </span>
-        <h2 className="text-base font-bold text-text tracking-tight">
-          Reference Classification
-        </h2>
+        <h1 className="text-xl font-semibold leading-tight text-text">
+          Add a reference
+        </h1>
+        <p className="max-w-2xl text-sm leading-relaxed text-text-muted">
+          Set the source type and scope before attaching the official document.
+        </p>
       </div>
       <div className="space-y-2">
-        <label
-          htmlFor="ref-source-type"
-          className="block text-xs font-semibold text-text"
-        >
-          Document Type <span className="text-destructive">*</span>
-        </label>
-        <div className="relative">
-          <select
-            id="ref-source-type"
-            value={sourceType}
-            onChange={(e) => onSourceTypeChange(e.target.value as AdminUploadSourceType)}
-            className="w-full h-10 appearance-none border border-input bg-surface pl-3 pr-9 rounded-sm text-sm font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-          >
-            {referenceTypes.map((type) => (
-              <option key={type} value={type}>
-                {sourceTypeLabels[type]}
-              </option>
-            ))}
-          </select>
-          <CaretDown
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-text-muted"
-            aria-hidden="true"
-          />
-        </div>
-        <p className="text-[11px] text-text-muted">
+        <Dropdown
+          id="ref-source-type"
+          label="Reference type"
+          value={sourceType}
+          onChange={(value) => onSourceTypeChange(value as AdminUploadSourceType)}
+          options={referenceTypeOptions}
+          size="md"
+          required
+          className="w-full border-input text-sm"
+          containerClassName="w-full"
+          menuClassName="w-full"
+        />
+        <p className="text-xs leading-relaxed text-text-muted">
           {sourceType === 'syllabus' && 'Official course syllabus containing learning outcomes and topic outlines.'}
           {sourceType === 'curriculum' && 'Degree curriculum map binding course outcomes to institutional competencies.'}
           {sourceType === 'policy' && 'University policy manual defining intellectual property and compliance criteria.'}
@@ -106,32 +103,19 @@ export function ReferenceClassificationStep({
 
       {isPolicyAreaRequired ? (
         <div className="space-y-2 pt-2">
-          <label
-            htmlFor="ref-policy-area"
-            className="block text-xs font-semibold text-text"
-          >
-            Policy Area <span className="text-destructive">*</span>
-          </label>
-          <div className="relative">
-            <select
-              id="ref-policy-area"
-              value={policyArea}
-              onChange={(e) => onPolicyAreaChange(e.target.value as PolicyArea)}
-              className="w-full h-10 appearance-none border border-input bg-surface pl-3 pr-9 rounded-sm text-sm font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-              required={isPolicyAreaRequired}
-            >
-              {POLICY_AREAS.map((area) => (
-                <option key={area} value={area}>
-                  {POLICY_AREA_LABELS[area]}
-                </option>
-              ))}
-            </select>
-            <CaretDown
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 size-4 text-text-muted"
-              aria-hidden="true"
-            />
-          </div>
-          <p className="text-[11px] text-text-muted">
+          <Dropdown
+            id="ref-policy-area"
+            label="Policy area"
+            value={policyArea}
+            onChange={(value) => onPolicyAreaChange(value as PolicyArea)}
+            options={policyAreaOptions}
+            size="md"
+            required={isPolicyAreaRequired}
+            className="w-full border-input text-sm"
+            containerClassName="w-full"
+            menuClassName="w-full"
+          />
+          <p className="text-xs leading-relaxed text-text-muted">
             Required for policy references. The area is used to route retrieval during ITSO evaluation.
           </p>
         </div>

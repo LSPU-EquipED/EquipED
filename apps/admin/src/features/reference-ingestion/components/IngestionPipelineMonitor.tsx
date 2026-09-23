@@ -34,10 +34,10 @@ export function IngestionPipelineMonitor({
           <div className="flex items-start gap-3">
             <XCircle className="size-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
             <div className="space-y-1 min-w-0">
-              <h3 className="text-xs font-bold text-destructive tracking-tight">
-                Upload Failed
+              <h3 className="text-sm font-semibold text-destructive">
+                Upload failed
               </h3>
-              <p className="text-[11px] text-destructive/90 leading-relaxed">
+              <p className="break-words text-sm text-destructive leading-relaxed">
                 {errorMessage}
               </p>
             </div>
@@ -62,7 +62,7 @@ export function IngestionPipelineMonitor({
           role={isFailed ? 'alert' : 'status'}
           aria-live={isFailed ? 'assertive' : 'polite'}
           className={cn(
-            'rounded-md border p-4 space-y-3 transition-colors',
+            'rounded-md border p-5 space-y-4 transition-colors',
             isProcessing && 'border-primary/30 bg-primary-soft/40',
             isSuccess && 'border-success/30 bg-success-soft',
             isFailed && 'border-destructive/30 bg-destructive-soft',
@@ -70,20 +70,18 @@ export function IngestionPipelineMonitor({
         >
           <div className="flex items-start gap-3">
             {isProcessing ? (
-              <Spinner className="size-5 text-primary animate-spin shrink-0 mt-0.5" aria-hidden="true" />
+              <Spinner className="size-5 text-primary motion-safe:animate-spin shrink-0 mt-0.5" aria-hidden="true" />
             ) : isSuccess ? (
               <CheckCircle className="size-5 text-success shrink-0 mt-0.5" aria-hidden="true" />
             ) : (
               <XCircle className="size-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
             )}
             <div className="space-y-1 min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                  Result
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-text">Ingestion status</span>
                 <span
                   className={cn(
-                    'inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider',
+                    'inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-medium',
                     isSuccess && 'bg-success-soft text-success border border-success/30',
                     isProcessing && 'bg-surface-subtle text-text-muted border border-border',
                     isFailed && 'bg-destructive text-white',
@@ -92,16 +90,15 @@ export function IngestionPipelineMonitor({
                   {isSuccess ? 'Ready' : isProcessing ? 'Processing…' : 'Failed'}
                 </span>
               </div>
-              <p className="mt-1 text-sm font-bold text-text truncate">{uploadResult.title}</p>
-              <p className="mt-0.5 text-xs text-text-muted font-semibold">
+              <p className="mt-1 break-words text-sm font-medium leading-relaxed text-text">{uploadResult.title}</p>
+              <p className="mt-0.5 text-xs text-text-muted">
                 {sourceTypeLabels[uploadResult.sourceType as AdminUploadSourceType] ?? uploadResult.sourceType}
                 {uploadResult.program ? ` · ${uploadResult.program}` : ''}
               </p>
 
               {isProcessing ? (
-                <p className="mt-2 text-xs font-semibold text-text-muted leading-relaxed">
-                  Extracting and embedding the document in the background. This can take several
-                  minutes for scanned PDFs — you can leave this page; check the{' '}
+                <p className="mt-2 text-xs leading-relaxed text-text-muted">
+                  Processing the reference in the background. You can leave this page and check the{' '}
                   <Link
                     to="/admin/references"
                     className="underline text-primary"
@@ -113,22 +110,22 @@ export function IngestionPipelineMonitor({
               ) : null}
 
               {isFailed ? (
-                <p className="mt-2 text-sm font-semibold text-destructive leading-relaxed">
+                <p className="mt-2 break-words text-sm text-destructive leading-relaxed">
                   {uploadResult.errorMessage ||
                     'Document processing failed. Please verify the uploaded reference and try again.'}
                 </p>
               ) : null}
 
               {isSuccess ? (
-                <p className="mt-2 text-xs font-semibold text-success leading-relaxed">
-                  Document has been parsed, chunked, and embedded into local ChromaDB for evaluation retrieval.
+                <p className="mt-2 text-xs leading-relaxed text-success">
+                  Reference is ready for evaluation grounding.
                 </p>
               ) : null}
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-border">
+          {isSuccess || isFailed ? <div className="pt-4 flex flex-wrap items-center gap-2 border-t border-border">
             {isSuccess ? (
               <Link
                 to="/admin/references"
@@ -152,7 +149,7 @@ export function IngestionPipelineMonitor({
                 Try again
               </Button>
             ) : null}
-          </div>
+          </div> : null}
         </div>
       ) : null}
     </>

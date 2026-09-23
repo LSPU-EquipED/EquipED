@@ -98,14 +98,14 @@ export function ReferenceLibraryTab() {
   return (
     <div className="space-y-4">
       {/* ── Table Toolbar ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => setFilterType('all')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+              'inline-flex h-9 items-center gap-1.5 rounded-sm px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
               filterType === 'all'
                 ? 'bg-primary text-primary-foreground'
                 : 'border border-border bg-surface text-text hover:bg-surface-subtle',
@@ -114,7 +114,7 @@ export function ReferenceLibraryTab() {
             <span>All</span>
             <span
               className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
+                'min-w-5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                 filterType === 'all'
                   ? 'bg-primary-foreground/20 text-primary-foreground'
                   : 'bg-surface-subtle text-text-muted',
@@ -128,7 +128,7 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => setFilterType('syllabus')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+              'inline-flex h-9 items-center gap-1.5 rounded-sm px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
               filterType === 'syllabus'
                 ? 'bg-primary text-primary-foreground'
                 : 'border border-border bg-surface text-text hover:bg-surface-subtle',
@@ -137,7 +137,7 @@ export function ReferenceLibraryTab() {
             <span>Syllabus</span>
             <span
               className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
+                'min-w-5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                 filterType === 'syllabus'
                   ? 'bg-primary-foreground/20 text-primary-foreground'
                   : 'bg-surface-subtle text-text-muted',
@@ -151,7 +151,7 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => setFilterType('curriculum')}
             className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
+              'inline-flex h-9 items-center gap-1.5 rounded-sm px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
               filterType === 'curriculum'
                 ? 'bg-primary text-primary-foreground'
                 : 'border border-border bg-surface text-text hover:bg-surface-subtle',
@@ -160,7 +160,7 @@ export function ReferenceLibraryTab() {
             <span>Curriculum</span>
             <span
               className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
+                'min-w-5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
                 filterType === 'curriculum'
                   ? 'bg-primary-foreground/20 text-primary-foreground'
                   : 'bg-surface-subtle text-text-muted',
@@ -173,7 +173,7 @@ export function ReferenceLibraryTab() {
 
         {/* Right Search & Refresh Controls */}
         <div className="flex items-center gap-2">
-          <div className="relative min-w-[12rem] sm:min-w-[16rem]">
+          <div className="relative min-w-[14rem] sm:min-w-[18rem]">
             <MagnifyingGlass
               className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted"
               aria-hidden="true"
@@ -183,7 +183,7 @@ export function ReferenceLibraryTab() {
               placeholder="Search references…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs font-medium text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
               aria-label="Search references"
             />
           </div>
@@ -192,7 +192,7 @@ export function ReferenceLibraryTab() {
             type="button"
             onClick={() => refetch()}
             disabled={isLoading}
-            className="inline-flex h-8 items-center gap-1.5 border border-border bg-surface px-3 text-xs font-semibold text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 rounded-sm cursor-pointer shrink-0"
+            className="inline-flex h-9 items-center gap-1.5 rounded-sm border border-border bg-surface px-3 text-xs font-medium text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 cursor-pointer shrink-0"
             aria-label="Refresh reference list"
           >
             {isLoading ? (
@@ -222,17 +222,10 @@ export function ReferenceLibraryTab() {
           <TableSkeleton
             ariaLabel="Loading reference library"
             columns={[
-              { label: 'Title', headerClassName: 'min-w-[16rem]', skeletonClassName: 'h-4 w-56' },
-              { label: 'Type', skeletonClassName: 'h-5 w-20' },
-              { label: 'Program', skeletonClassName: 'h-4 w-20' },
-              { label: 'Course code', skeletonClassName: 'h-4 w-20' },
-              { label: 'Sem / AY', skeletonClassName: 'h-4 w-20' },
-              { label: 'Lesson', skeletonClassName: 'h-4 w-16' },
-              { label: 'Status', skeletonClassName: 'h-5 w-20' },
-              { label: 'File', skeletonClassName: 'h-4 w-24' },
-              { label: 'Chunks', skeletonClassName: 'h-4 w-12' },
-              { label: 'Chroma', skeletonClassName: 'h-4 w-12' },
-              { label: 'Uploaded', skeletonClassName: 'h-4 w-24' },
+              { label: 'Reference', headerClassName: 'min-w-[20rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Scope', skeletonClassName: 'h-4 w-32' },
+              { label: 'Readiness', skeletonClassName: 'h-5 w-28' },
+              { label: 'Updated', skeletonClassName: 'h-4 w-24' },
               { label: 'Actions', headerClassName: 'text-right', skeletonClassName: 'h-8 w-16 ml-auto' },
             ]}
           />
@@ -282,17 +275,10 @@ export function ReferenceLibraryTab() {
             <table className={TABLE_STYLES.table}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[16rem]')}>Title</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Type</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Program</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Course code</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Sem / AY</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Lesson</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Status</th>
-                  <th scope="col" className={TABLE_STYLES.th}>File</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Chunks</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Chroma</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Uploaded</th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[20rem]')}>Reference</th>
+                  <th scope="col" aria-label="Program and course scope" className={TABLE_STYLES.th}>Scope</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Readiness</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Updated</th>
                   <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>Actions</th>
                 </tr>
               </thead>

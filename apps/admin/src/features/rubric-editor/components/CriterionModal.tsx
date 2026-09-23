@@ -114,7 +114,7 @@ function CriterionModalContent({
           <div>
             <h2
               id="criterion-modal-title"
-              className="text-sm font-bold uppercase tracking-wider text-text"
+              className="text-sm font-semibold text-text"
             >
               {isEditing ? 'Edit Criterion' : 'Add New Criterion'}
             </h2>
@@ -148,7 +148,7 @@ function CriterionModalContent({
             <div>
               <label
                 htmlFor="criterion-code"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Criterion ID <span className="text-destructive">*</span>
               </label>
@@ -160,14 +160,14 @@ function CriterionModalContent({
                 disabled={isPending}
                 placeholder="e.g. OP-01"
                 maxLength={50}
-                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-bold text-text uppercase focus:outline-none focus:ring-2 focus:ring-ring"
+                className="mt-1 w-full h-8 rounded-sm border border-input bg-surface px-2.5 text-xs font-semibold text-text uppercase focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
             <div className="sm:col-span-2">
               <label
                 htmlFor="criterion-title"
-                className="block text-xs font-bold uppercase tracking-wider text-text"
+                className="block text-xs font-semibold text-text"
               >
                 Title <span className="text-destructive">*</span>
               </label>
@@ -187,7 +187,7 @@ function CriterionModalContent({
           <div>
             <label
               htmlFor="criterion-description"
-              className="block text-xs font-bold uppercase tracking-wider text-text"
+              className="block text-xs font-semibold text-text"
             >
               Description / Prompt Entry <span className="text-destructive">*</span>
             </label>
@@ -206,7 +206,7 @@ function CriterionModalContent({
           <div>
             <label
               htmlFor="criterion-scoring-rule"
-              className="block text-xs font-bold uppercase tracking-wider text-text"
+              className="block text-xs font-semibold text-text"
             >
               Scoring Rule Text (Human Reference)
             </label>
@@ -237,14 +237,14 @@ function CriterionModalContent({
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-bold uppercase tracking-wider text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 px-3 rounded-sm border border-border bg-surface text-xs font-semibold text-text hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="inline-flex h-9 items-center justify-center gap-1.5 px-4 rounded-sm bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {isPending && <Spinner className="size-3.5 animate-spin" />}
               {isEditing ? 'Save Changes' : 'Add Criterion'}

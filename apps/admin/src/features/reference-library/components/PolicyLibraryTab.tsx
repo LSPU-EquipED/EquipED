@@ -28,9 +28,9 @@ export function PolicyLibraryTab() {
   const [search, setSearch] = useState('');
 
   const items = useMemo(() => data?.items ?? [], [data?.items]);
-  const activeMutationId = deletePolicy.variables ?? rebuildPolicy.variables ?? null;
   const pendingDeleteId = deletePolicy.isPending ? deletePolicy.variables : null;
   const pendingRebuildId = rebuildPolicy.isPending ? rebuildPolicy.variables : null;
+  const busyDocumentId = pendingDeleteId ?? pendingRebuildId ?? null;
 
   const filteredItems = useMemo(() => {
     if (!search.trim()) return items;
@@ -79,7 +79,7 @@ export function PolicyLibraryTab() {
   return (
     <div className="space-y-4">
       {/* ── Table Toolbar ────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <div className="relative min-w-[12rem] sm:min-w-[18rem]">
             <MagnifyingGlass
@@ -133,13 +133,10 @@ export function PolicyLibraryTab() {
           <TableSkeleton
             ariaLabel="Loading policy library"
             columns={[
-              { label: 'Title', headerClassName: 'min-w-[16rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Reference', headerClassName: 'min-w-[20rem]', skeletonClassName: 'h-4 w-56' },
               { label: 'Policy area', skeletonClassName: 'h-4 w-28' },
-              { label: 'Status', skeletonClassName: 'h-5 w-20' },
-              { label: 'File', skeletonClassName: 'h-4 w-24' },
-              { label: 'Chunks', skeletonClassName: 'h-4 w-12' },
-              { label: 'Chroma', skeletonClassName: 'h-4 w-12' },
-              { label: 'Uploaded', skeletonClassName: 'h-4 w-24' },
+              { label: 'Readiness', skeletonClassName: 'h-5 w-28' },
+              { label: 'Updated', skeletonClassName: 'h-4 w-24' },
               { label: 'Actions', headerClassName: 'text-right', skeletonClassName: 'h-8 w-16 ml-auto' },
             ]}
           />
@@ -187,13 +184,10 @@ export function PolicyLibraryTab() {
             <table className={TABLE_STYLES.table}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[16rem]')}>Title</th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[20rem]')}>Reference</th>
                   <th scope="col" className={TABLE_STYLES.th}>Policy area</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Status</th>
-                  <th scope="col" className={TABLE_STYLES.th}>File</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Chunks</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Chroma</th>
-                  <th scope="col" className={TABLE_STYLES.th}>Uploaded</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Readiness</th>
+                  <th scope="col" className={TABLE_STYLES.th}>Updated</th>
                   <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>Actions</th>
                 </tr>
               </thead>
@@ -202,7 +196,7 @@ export function PolicyLibraryTab() {
                   <PolicyRow
                     key={item.documentId}
                     item={item}
-                    isBusy={activeMutationId === item.documentId}
+                    isBusy={busyDocumentId === item.documentId}
                     isDeleting={pendingDeleteId === item.documentId}
                     isRebuilding={pendingRebuildId === item.documentId}
                     onPreview={() => handlePreview(item.documentId)}

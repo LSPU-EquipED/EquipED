@@ -1,6 +1,4 @@
-import { Link } from '@tanstack/react-router';
-import { ArrowLeft } from '@phosphor-icons/react';
-import { cn, BUTTON_STYLES, PageContainer } from '@equiped/ui';
+import { PageContainer } from '@equiped/ui';
 import { IngestionPipelineMonitor } from '../components/IngestionPipelineMonitor';
 import { IngestionVerificationCard } from '../components/IngestionVerificationCard';
 import { ReferenceClassificationStep } from '../components/ReferenceClassificationStep';
@@ -11,40 +9,9 @@ export function AdminUploadPage() {
   const uploadFlow = useAdminUploadFlow();
 
   return (
-    <PageContainer as="section">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-sm border border-primary/20 bg-primary-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
-              Official Reference Intake
-            </span>
-            <span className="text-xs text-text-muted">·</span>
-            <span className="text-xs text-text-muted font-medium">Laguna State Polytechnic University</span>
-          </div>
-          <h1 className="text-lg sm:text-xl font-bold text-text tracking-tight">
-            Reference Document Ingestion Workbench
-          </h1>
-          <p className="text-xs text-text-muted max-w-2xl leading-relaxed">
-            Ingest institutional syllabi, degree curriculum roadmaps, and university policy manuals into the local semantic vector store to support automated multi-agent evaluations.
-          </p>
-        </div>
-
-        <Link
-          to="/admin/references"
-          className={cn(
-            BUTTON_STYLES.base,
-            BUTTON_STYLES.variants.secondary,
-            BUTTON_STYLES.sizes.md,
-            'text-xs sm:text-sm font-semibold h-10 px-4 shrink-0',
-          )}
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          <span>Back to Reference Library</span>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <form onSubmit={uploadFlow.handleSubmit} className="lg:col-span-7 space-y-6">
+    <PageContainer as="section" className="space-y-6">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <form onSubmit={uploadFlow.handleSubmit} className="min-w-0 rounded-md border border-border bg-surface">
           <ReferenceClassificationStep
             sourceType={uploadFlow.sourceType}
             onSourceTypeChange={uploadFlow.handleSourceTypeChange}
@@ -73,7 +40,7 @@ export function AdminUploadPage() {
           />
         </form>
 
-        <div className="lg:col-span-5 space-y-5">
+        <div className="space-y-4 lg:sticky lg:top-6">
           <IngestionVerificationCard
             file={uploadFlow.file}
             sourceType={uploadFlow.sourceType}

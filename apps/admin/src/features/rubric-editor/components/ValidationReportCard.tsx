@@ -29,12 +29,12 @@ export function ValidationReportCard({ report, onDismiss }: ValidationReportCard
             <Warning className="size-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
           )}
           <div>
-            <h3 className="text-sm font-bold tracking-tight text-text">
+            <h3 className="text-sm font-semibold text-text">
               {isValid
-                ? 'Form Conforms to Agent Capability Manifest'
+                ? 'Form conforms to agent capability manifest'
                 : `Validation Issues Detected (${report.issues.length})`}
             </h3>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted font-semibold uppercase tracking-wider tabular-nums">
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-muted font-semibold tabular-nums">
               <span>Criteria Count: {report.criteria_count}</span>
               <span>·</span>
               <span>
@@ -63,12 +63,12 @@ export function ValidationReportCard({ report, onDismiss }: ValidationReportCard
               key={`err-${idx}`}
               className="flex items-start gap-2 rounded-sm border border-destructive/20 bg-surface p-2.5 text-xs text-text"
             >
-              <span className="shrink-0 rounded-sm bg-destructive px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-destructive-foreground">
+              <span className="shrink-0 rounded-sm bg-destructive px-1.5 py-0.5 text-xs font-semibold text-destructive-foreground">
                 Error
               </span>
               <div className="grid gap-0.5">
                 <p className="font-semibold text-text">{issue.message}</p>
-                <p className="text-[11px] text-text-muted font-mono">
+                <p className="text-xs text-text-muted font-mono">
                   Path: {issue.path || 'form'} · Code: {issue.code}
                 </p>
               </div>
@@ -80,12 +80,12 @@ export function ValidationReportCard({ report, onDismiss }: ValidationReportCard
               key={`warn-${idx}`}
               className="flex items-start gap-2 rounded-sm border border-warning/40 bg-surface p-2.5 text-xs text-text"
             >
-              <span className="shrink-0 rounded-sm bg-warning px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-foreground">
+              <span className="shrink-0 rounded-sm bg-warning px-1.5 py-0.5 text-xs font-semibold text-warning-foreground">
                 Warning
               </span>
               <div className="grid gap-0.5">
                 <p className="font-semibold text-text">{issue.message}</p>
-                <p className="text-[11px] text-text-muted font-mono">
+                <p className="text-xs text-text-muted font-mono">
                   Path: {issue.path || 'form'} · Code: {issue.code}
                 </p>
               </div>
@@ -97,12 +97,12 @@ export function ValidationReportCard({ report, onDismiss }: ValidationReportCard
               key={`info-${idx}`}
               className="flex items-start gap-2 rounded-sm border border-border bg-surface p-2.5 text-xs text-text"
             >
-              <span className="shrink-0 rounded-sm bg-surface-subtle px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-text-muted border border-border">
+              <span className="shrink-0 rounded-sm bg-surface-subtle px-1.5 py-0.5 text-xs font-semibold text-text-muted border border-border">
                 Info
               </span>
               <div className="grid gap-0.5">
                 <p className="font-semibold text-text">{issue.message}</p>
-                <p className="text-[11px] text-text-muted font-mono">
+                <p className="text-xs text-text-muted font-mono">
                   Path: {issue.path || 'form'} · Code: {issue.code}
                 </p>
               </div>

@@ -16,12 +16,6 @@ export function processingStatusClass(status: string): string {
   return 'bg-warning-soft text-warning border border-warning/20';
 }
 
-export function healthBadgeClass(healthy: boolean): string {
-  return healthy
-    ? 'bg-success-soft text-success border border-success/20'
-    : 'bg-destructive-soft text-destructive border border-destructive/20';
-}
-
 export function formatDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;

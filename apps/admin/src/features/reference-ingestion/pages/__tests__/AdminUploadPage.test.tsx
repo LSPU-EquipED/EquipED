@@ -47,6 +47,11 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 describe('AdminUploadPage', () => {
+  const chooseReferenceType = (label: string) => {
+    fireEvent.click(screen.getByRole('button', { name: /Reference type/i }));
+    fireEvent.click(screen.getByRole('option', { name: label }));
+  };
+
   beforeEach(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
@@ -60,7 +65,8 @@ describe('AdminUploadPage', () => {
   it('renders all document type options including Curriculum, Syllabus, and Policy', () => {
     render(<AdminUploadPage />);
 
-    expect(screen.getByLabelText(/Document Type/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /Reference type/i })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: /Reference type/i }));
     expect(screen.getByRole('option', { name: 'Syllabus' })).toBeDefined();
     expect(screen.getByRole('option', { name: 'Curriculum' })).toBeDefined();
     expect(screen.getByRole('option', { name: 'Policy' })).toBeDefined();
@@ -69,8 +75,7 @@ describe('AdminUploadPage', () => {
   it('renders ProgramSelector when Curriculum is selected', () => {
     render(<AdminUploadPage />);
 
-    const select = screen.getByLabelText(/Document Type/i);
-    fireEvent.change(select, { target: { value: 'curriculum' } });
+    chooseReferenceType('Curriculum');
 
     expect(screen.getByRole('button', { name: /Program/i })).toBeDefined();
     expect(screen.getByText(/Required for curriculum references/i)).toBeDefined();
@@ -79,20 +84,18 @@ describe('AdminUploadPage', () => {
   it('resets program and policyArea when switching source type', () => {
     render(<AdminUploadPage />);
 
-    const select = screen.getByLabelText(/Document Type/i);
-
     // Switch to curriculum
-    fireEvent.change(select, { target: { value: 'curriculum' } });
+    chooseReferenceType('Curriculum');
     expect(screen.getByRole('button', { name: /Program/i })).toBeDefined();
 
     // Switch to policy
-    fireEvent.change(select, { target: { value: 'policy' } });
+    chooseReferenceType('Policy');
     expect(screen.queryByRole('button', { name: /Program/i })).toBeNull();
-    expect(screen.getByLabelText(/Policy Area/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /Policy area/i })).toBeDefined();
 
     // Switch back to syllabus
-    fireEvent.change(select, { target: { value: 'syllabus' } });
-    expect(screen.queryByLabelText(/Policy Area/i)).toBeNull();
+    chooseReferenceType('Syllabus');
+    expect(screen.queryByRole('button', { name: /Policy area/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Program/i })).toBeNull();
   });
 
@@ -102,8 +105,7 @@ describe('AdminUploadPage', () => {
     const titleInput = screen.getByLabelText(/Title/i);
     fireEvent.change(titleInput, { target: { value: 'BSCS Curriculum 2026' } });
 
-    const typeSelect = screen.getByLabelText(/Document Type/i);
-    fireEvent.change(typeSelect, { target: { value: 'curriculum' } });
+    chooseReferenceType('Curriculum');
 
     const submitBtn = screen.getByRole('button', { name: /Ingest document/i }) as HTMLButtonElement;
     expect(submitBtn.disabled).toBe(true);
@@ -147,8 +149,7 @@ describe('AdminUploadPage', () => {
     const fileInput = screen.getByLabelText(/Drop a PDF here/i);
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    const typeSelect = screen.getByLabelText(/Document Type/i);
-    fireEvent.change(typeSelect, { target: { value: 'curriculum' } });
+    chooseReferenceType('Curriculum');
 
     const programBtn = screen.getByRole('button', { name: /Program/i });
     fireEvent.click(programBtn);
