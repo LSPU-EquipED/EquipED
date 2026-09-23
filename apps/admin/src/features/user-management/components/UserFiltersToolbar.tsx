@@ -1,6 +1,6 @@
-import { MagnifyingGlass, Plus, UserMinus } from '@phosphor-icons/react';
-import { Button, Dropdown, cn } from '@equiped/ui';
-import type { UserCounts } from './UserMetricsBar';
+import { ArrowCounterClockwise, SlidersHorizontal } from '@phosphor-icons/react';
+import { cn, Dropdown } from '@equiped/ui';
+import type { UserCounts } from '../types';
 
 export type StatusFilter = 'all' | 'pending' | 'approved' | 'suspended' | 'rejected';
 export type RoleFilter = 'all' | 'faculty' | 'admin';
@@ -11,12 +11,8 @@ interface UserFiltersToolbarProps {
   onStatusFilterChange: (status: StatusFilter) => void;
   roleFilter: RoleFilter;
   onRoleFilterChange: (role: RoleFilter) => void;
-  searchQuery: string;
-  onSearchQueryChange: (query: string) => void;
-  selectedCount: number;
-  onBulkDeactivate: () => void;
-  isDeactivating?: boolean;
-  onCreateFaculty: () => void;
+  hasActiveFilters?: boolean;
+  onResetFilters?: () => void;
 }
 
 export function UserFiltersToolbar({
@@ -25,195 +21,92 @@ export function UserFiltersToolbar({
   onStatusFilterChange,
   roleFilter,
   onRoleFilterChange,
-  searchQuery,
-  onSearchQueryChange,
-  selectedCount,
-  onBulkDeactivate,
-  isDeactivating,
-  onCreateFaculty,
+  hasActiveFilters,
+  onResetFilters,
 }: UserFiltersToolbarProps) {
   return (
-    <>
-      {/* Ledger Header Row 1: Status Filter Tabs */}
-      <div className="border-b border-border bg-surface px-4 sm:px-6 py-3 overflow-x-auto">
-        <div className="flex items-center gap-1.5 min-w-max">
-          <button
-            type="button"
-            onClick={() => onStatusFilterChange('all')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-              statusFilter === 'all'
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-            )}
-          >
-            <span>All Users</span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
-                statusFilter === 'all'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-surface-subtle text-text-muted',
-              )}
-            >
-              {counts.all}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onStatusFilterChange('pending')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-              statusFilter === 'pending'
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-            )}
-          >
-            <span>Pending Review</span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
-                statusFilter === 'pending'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : counts.pending > 0
-                    ? 'bg-warning-soft text-warning border border-warning/30'
-                    : 'bg-surface-subtle text-text-muted',
-              )}
-            >
-              {counts.pending}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onStatusFilterChange('approved')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-              statusFilter === 'approved'
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-            )}
-          >
-            <span>Active Accounts</span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
-                statusFilter === 'approved'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-surface-subtle text-text-muted',
-              )}
-            >
-              {counts.approved}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onStatusFilterChange('suspended')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-              statusFilter === 'suspended'
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-            )}
-          >
-            <span>Suspended Accounts</span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
-                statusFilter === 'suspended'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : counts.suspended > 0
-                    ? 'bg-destructive-soft text-destructive border border-destructive/30'
-                    : 'bg-surface-subtle text-text-muted',
-              )}
-            >
-              {counts.suspended}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onStatusFilterChange('rejected')}
-            className={cn(
-              'inline-flex h-8 items-center gap-1.5 px-3 rounded-sm text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer',
-              statusFilter === 'rejected'
-                ? 'bg-primary text-primary-foreground'
-                : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-            )}
-          >
-            <span>Rejected Accounts</span>
-            <span
-              className={cn(
-                'text-[10px] font-bold px-1.5 py-0.5 rounded-full tabular-nums',
-                statusFilter === 'rejected'
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-surface-subtle text-text-muted',
-              )}
-            >
-              {counts.rejected}
-            </span>
-          </button>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-y border-border bg-surface px-4 py-3 sm:px-6">
+      {/* ── Left: Status Filter Pills (matching StorageToolbar) ─────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-medium text-text-muted">Status</span>
+        <div
+          role="tablist"
+          aria-label="Filter users by account status"
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          {([
+            { id: 'all' as const, label: 'All Users', count: counts.all },
+            { id: 'pending' as const, label: 'Pending Review', count: counts.pending },
+            { id: 'approved' as const, label: 'Active Accounts', count: counts.approved },
+            { id: 'suspended' as const, label: 'Suspended Accounts', count: counts.suspended },
+            { id: 'rejected' as const, label: 'Rejected Accounts', count: counts.rejected },
+          ] as const).map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => onStatusFilterChange(tab.id)}
+                className={cn(
+                  'inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-sm border px-3 text-xs font-medium transition-colors cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  isActive
+                    ? 'border-primary/30 bg-primary-soft text-primary'
+                    : 'border-transparent text-text-muted hover:border-border hover:bg-surface-subtle hover:text-text',
+                )}
+              >
+                <span>{tab.label}</span>
+                {tab.count != null ? (
+                  <span
+                    className={cn(
+                      'inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-xs px-1.5 text-[11px] tabular-nums font-semibold leading-5',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-surface-subtle text-text-muted',
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Reset Filters Button */}
+        {hasActiveFilters && onResetFilters ? (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="inline-flex h-8 items-center gap-1 rounded-sm px-2 text-xs font-medium text-text-muted transition-colors hover:bg-destructive-soft/50 hover:text-destructive cursor-pointer"
+            title="Reset filters"
+          >
+            <ArrowCounterClockwise className="size-3" aria-hidden="true" />
+            <span>Reset</span>
+          </button>
+        ) : null}
       </div>
 
-      {/* Ledger Header Row 2: Search, Role Selector & Action Buttons */}
-      <div className="border-b border-border bg-surface-subtle/50 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 flex-1 max-w-lg">
-          <div className="relative flex-1">
-            <MagnifyingGlass
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-muted"
-              aria-hidden="true"
-            />
-            <input
-              type="text"
-              className="h-10 w-full rounded-sm border border-input bg-surface pl-9 pr-3 text-xs sm:text-sm font-medium text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Search by name or email…"
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange(e.target.value)}
-              aria-label="Search users"
-            />
-          </div>
-
-          <Dropdown
-            aria-label="Filter by role"
-            size="md"
-            value={roleFilter}
-            onChange={(val) => onRoleFilterChange(val as RoleFilter)}
-            options={[
-              { value: 'all', label: 'All Roles' },
-              { value: 'faculty', label: 'Faculty' },
-              { value: 'admin', label: 'Admin' },
-            ]}
-          />
-        </div>
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          {selectedCount > 0 ? (
-            <button
-              type="button"
-              onClick={onBulkDeactivate}
-              disabled={isDeactivating}
-              className="inline-flex h-10 items-center gap-1.5 rounded-sm border border-destructive/30 bg-destructive-soft px-3.5 text-xs sm:text-sm font-semibold text-destructive hover:bg-destructive-soft/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive cursor-pointer disabled:opacity-50"
-            >
-              <UserMinus className="size-4" aria-hidden="true" />
-              <span>Deactivate ({selectedCount})</span>
-            </button>
-          ) : null}
-
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="text-xs sm:text-sm h-10 px-4 font-semibold"
-            onClick={onCreateFaculty}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            <span>Create Faculty</span>
-          </Button>
-        </div>
+      {/* ── Right: Role Filter Dropdown ────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 xl:ml-auto">
+        <Dropdown
+          id="user-role-filter"
+          aria-label="Filter by role"
+          label="Role:"
+          size="md"
+          align="right"
+          inlineLabel
+          icon={<SlidersHorizontal className="size-3.5" />}
+          value={roleFilter}
+          onChange={(val) => onRoleFilterChange(val as RoleFilter)}
+          options={[
+            { value: 'all', label: 'All Roles' },
+            { value: 'faculty', label: 'Faculty' },
+            { value: 'admin', label: 'Admin' },
+          ]}
+        />
       </div>
-    </>
+    </div>
   );
 }

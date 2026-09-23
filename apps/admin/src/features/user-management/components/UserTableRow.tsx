@@ -84,16 +84,16 @@ export function UserTableRow({
       >
         {new Date(user.created_at).toLocaleDateString()}
       </td>
-      <td className={cn(TABLE_STYLES.td, 'text-right pr-6')}>
-        <div className="flex items-center justify-end gap-1.5">
+      <td className={cn(TABLE_STYLES.td, 'text-right w-32 min-w-[8rem] pr-6')}>
+        <div className="flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={() => onEdit(user)}
-            className="inline-flex h-8 items-center gap-1.5 border border-border bg-surface px-3 text-xs font-semibold text-text transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm cursor-pointer"
+            title={`Edit ${user.name}`}
             aria-label={`Edit ${user.name}`}
+            className="cursor-pointer p-1 text-text-muted hover:text-text transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs"
           >
-            <PencilSimple className="size-3.5" aria-hidden="true" />
-            <span>Edit</span>
+            <PencilSimple className="size-4.5" aria-hidden="true" />
           </button>
 
           {user.account_status === 'pending' || user.account_status === 'rejected' ? (
@@ -101,44 +101,44 @@ export function UserTableRow({
               type="button"
               onClick={() => onApprove(user.user_id)}
               disabled={isApprovalPending}
-              className="inline-flex h-7.5 items-center gap-1.5 border border-success/30 bg-success-soft px-2.5 text-xs font-semibold text-success transition-colors hover:bg-success-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success rounded-sm cursor-pointer disabled:opacity-50"
+              title={`Approve ${user.name}`}
               aria-label={`Approve ${user.name}`}
+              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
             >
-              <UserCheck className="size-3.5" aria-hidden="true" />
-              <span>Approve</span>
+              <UserCheck className="size-4.5" aria-hidden="true" />
             </button>
           ) : user.account_status === 'suspended' ? (
             <button
               type="button"
               onClick={() => onReapprove(user.user_id)}
               disabled={isApprovalPending}
-              className="inline-flex h-7.5 items-center gap-1.5 border border-success/30 bg-success-soft px-2.5 text-xs font-semibold text-success transition-colors hover:bg-success-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success rounded-sm cursor-pointer disabled:opacity-50"
+              title={`Reapprove ${user.name}`}
               aria-label={`Reapprove ${user.name}`}
+              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
             >
-              <UserCheck className="size-3.5" aria-hidden="true" />
-              <span>Reapprove</span>
+              <UserCheck className="size-4.5" aria-hidden="true" />
             </button>
           ) : user.is_active ? (
             <button
               type="button"
               onClick={() => onSuspend(user)}
               disabled={isApprovalPending}
-              className="inline-flex h-7.5 items-center gap-1.5 border border-warning/30 bg-warning-soft px-2.5 text-xs font-semibold text-warning transition-colors hover:bg-warning-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning rounded-sm cursor-pointer disabled:opacity-50"
+              title={`Suspend ${user.name}`}
               aria-label={`Suspend ${user.name}`}
+              className="cursor-pointer p-1 text-warning hover:text-amber-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-warning rounded-xs disabled:opacity-40 disabled:pointer-events-none"
             >
-              <UserMinus className="size-3.5" aria-hidden="true" />
-              <span>Suspend</span>
+              <UserMinus className="size-4.5" aria-hidden="true" />
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onReapprove(user.user_id)}
               disabled={isApprovalPending}
-              className="inline-flex h-7.5 items-center gap-1.5 border border-success/30 bg-success-soft px-2.5 text-xs font-semibold text-success transition-colors hover:bg-success-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success rounded-sm cursor-pointer disabled:opacity-50"
+              title={`Reapprove ${user.name}`}
               aria-label={`Reapprove ${user.name}`}
+              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
             >
-              <UserCheck className="size-3.5" aria-hidden="true" />
-              <span>Reapprove</span>
+              <UserCheck className="size-4.5" aria-hidden="true" />
             </button>
           )}
 
@@ -147,11 +147,11 @@ export function UserTableRow({
               type="button"
               onClick={() => onReject(user.user_id)}
               disabled={isApprovalPending}
-              className="inline-flex h-7.5 items-center gap-1.5 border border-destructive/30 bg-destructive-soft px-2.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm cursor-pointer disabled:opacity-50"
+              title={`Reject ${user.name}`}
               aria-label={`Reject ${user.name}`}
+              className="cursor-pointer p-1 text-destructive hover:text-red-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive rounded-xs disabled:opacity-40 disabled:pointer-events-none"
             >
-              <X className="size-3.5" aria-hidden="true" />
-              <span>Reject</span>
+              <X className="size-4.5" aria-hidden="true" />
             </button>
           )}
 
@@ -159,11 +159,11 @@ export function UserTableRow({
             type="button"
             onClick={() => onDelete(user)}
             disabled={isDeletePending}
-            className="inline-flex h-7.5 items-center gap-1.5 border border-destructive/30 bg-destructive-soft px-2.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive-soft/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive rounded-sm cursor-pointer disabled:opacity-50"
+            title={`Delete ${user.name}`}
             aria-label={`Delete ${user.name}`}
+            className="cursor-pointer p-1 text-destructive hover:text-red-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive rounded-xs disabled:opacity-40 disabled:pointer-events-none"
           >
-            <Trash className="size-3.5" aria-hidden="true" />
-            <span>Delete</span>
+            <Trash className="size-4.5" aria-hidden="true" />
           </button>
         </div>
       </td>

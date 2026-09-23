@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import type { AdminUserResponse } from '../../types';
 import { UserManagementPage } from '../UserManagementPage';
@@ -66,21 +66,24 @@ vi.mock('../../hooks/useAdminUsers', () => ({
   }),
   useDeactivateUser: () => ({
     mutate: mockDeactivateUserMutate,
+    mutateAsync: mockDeactivateUserMutate,
     isPending: false,
   }),
   useHardDeleteUser: () => ({
     mutate: mockHardDeleteUserMutate,
+    mutateAsync: mockHardDeleteUserMutate,
     isPending: false,
   }),
   useSetUserApproval: () => ({
     mutate: mockSetUserApprovalMutate,
+    mutateAsync: mockSetUserApprovalMutate,
     isPending: false,
   }),
 }));
 
 describe('UserManagementPage', () => {
   beforeEach(() => {
-    vi.spyOn(window, 'confirm').mockImplementation(() => true);
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -105,9 +108,12 @@ describe('UserManagementPage', () => {
 
     fireEvent.click(suspendBtn);
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      'Suspend Active Approved Faculty? This will suspend the account. You can reapprove it later.',
-    );
+    const dialog = screen.getByRole('dialog', { name: 'Suspend Active Approved Faculty?' });
+    expect(dialog).toBeDefined();
+
+    const confirmBtn = screen.getByRole('button', { name: 'Suspend' });
+    fireEvent.click(confirmBtn);
+
     expect(mockSetUserApprovalMutate).toHaveBeenCalledWith({
       userId: 'user-approved-1',
       accountStatus: 'suspended',
@@ -116,13 +122,30 @@ describe('UserManagementPage', () => {
   });
 
   it('does not trigger suspension if confirmation is declined', () => {
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
     render(<UserManagementPage />);
 
     const suspendBtn = screen.getByRole('button', { name: 'Suspend Active Approved Faculty' });
     fireEvent.click(suspendBtn);
 
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    fireEvent.click(cancelBtn);
+
     expect(mockSetUserApprovalMutate).not.toHaveBeenCalled();
+  });
+
+  it('opens Delete confirmation modal and calls hardDeleteUser upon confirmation', () => {
+    render(<UserManagementPage />);
+
+    const deleteBtn = screen.getByRole('button', { name: 'Delete Active Approved Faculty' });
+    fireEvent.click(deleteBtn);
+
+    const dialog = screen.getByRole('dialog', { name: 'Delete Active Approved Faculty?' });
+    expect(dialog).toBeDefined();
+
+    const confirmBtn = screen.getByRole('button', { name: 'Delete' });
+    fireEvent.click(confirmBtn);
+
+    expect(mockHardDeleteUserMutate).toHaveBeenCalledWith('user-approved-1');
   });
 
   it('renders Reapprove action for suspended user and calls setApproval with approved', () => {
@@ -172,5 +195,68 @@ describe('UserManagementPage', () => {
       userId: 'user-rejected-1',
       accountStatus: 'approved',
     });
+  });
+
+  it('prevents duplicate submission and closing during an in-flight batch, then retries only remaining users', async () => {
+    // Fail on user-approved-1 on first call, then succeed on retry
+    let callCount = 0;
+    let releaseFirst!: () => void;
+    mockDeactivateUserMutate.mockImplementation(async (userId: string) => {
+      callCount += 1;
+      if (callCount === 1) await new Promise<void>((resolve) => { releaseFirst = resolve; });
+      if (userId === 'user-approved-1' && callCount === 2) {
+        throw new Error('Failed to deactivate user-approved-1');
+      }
+      return { success: true };
+    });
+
+    render(<UserManagementPage />);
+
+    // Select user-pending-1 and user-approved-1
+    const pendingCheckbox = screen.getByRole('checkbox', { name: 'Select Pending Faculty' });
+    const approvedCheckbox = screen.getByRole('checkbox', { name: 'Select Active Approved Faculty' });
+    fireEvent.click(pendingCheckbox);
+    fireEvent.click(approvedCheckbox);
+
+    // Click bulk deactivate button
+    const bulkButton = screen.getByRole('button', { name: 'Deactivate (2)' });
+    fireEvent.click(bulkButton);
+
+    // Modal opens
+    const dialog = screen.getByRole('dialog', { name: 'Deactivate 2 user(s)?' });
+    expect(dialog).toBeDefined();
+    const modalConfirmBtn = within(dialog).getByRole('button', { name: 'Deactivate (2)' });
+    expect(screen.getByText('Deactivate 2 user(s)? This will deactivate their accounts. You can re-activate them later.')).toBeDefined();
+
+    // Confirm bulk deactivate
+    fireEvent.click(modalConfirmBtn);
+    fireEvent.click(modalConfirmBtn);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(mockDeactivateUserMutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: 'Deactivate 2 user(s)?' })).toBeDefined();
+
+    await act(async () => { releaseFirst(); });
+    // 1st succeeded (user-pending-1), 2nd failed (user-approved-1)
+    expect(mockDeactivateUserMutate).toHaveBeenCalledWith('user-pending-1');
+    expect(mockDeactivateUserMutate).toHaveBeenCalledWith('user-approved-1');
+
+    // Error is shown in modal, modal stays open, remaining users reported accurately
+    expect(screen.getByText('Failed to deactivate user-approved-1')).toBeDefined();
+    const updatedDialog = screen.getByRole('dialog', { name: 'Deactivate 1 user(s)?' });
+    expect(updatedDialog).toBeDefined();
+    const retryBtn = within(updatedDialog).getByRole('button', { name: 'Deactivate (1)' });
+    expect(screen.getByText('Deactivate 1 user(s)? This will deactivate their accounts. You can re-activate them later.')).toBeDefined();
+
+    // Now retry: clicking confirm again with the 1 remaining user
+    await act(async () => {
+      fireEvent.click(retryBtn);
+    });
+
+    // mutate called 3 times in total (1 for user-pending-1, 2 for user-approved-1)
+    expect(mockDeactivateUserMutate).toHaveBeenCalledTimes(3);
+
+    // The operation completed: the selection and confirmation modal are cleared.
+    expect(screen.queryByRole('dialog', { name: /Deactivate/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Deactivate \(/ })).toBeNull();
   });
 });

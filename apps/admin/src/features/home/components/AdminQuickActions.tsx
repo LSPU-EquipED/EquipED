@@ -1,121 +1,98 @@
 import { useNavigate } from '@tanstack/react-router';
 import {
-  CaretRight,
+  ArrowUpRight,
+  Info,
   Scan,
   Shield,
   UploadSimple,
   Users,
 } from '@phosphor-icons/react';
-import { Button } from '@equiped/ui';
 
 export function AdminQuickActions() {
   const navigate = useNavigate();
 
+  const actions = [
+    {
+      id: 'create-faculty',
+      title: 'User management',
+      description: 'Provision new faculty accounts and manage roles.',
+      icon: Users,
+      ariaLabel: 'Create Faculty Account',
+      to: '/admin/users',
+    },
+    {
+      id: 'upload-reference',
+      title: 'Reference ingestion',
+      description: 'Ingest institutional syllabi, curricula, and rubrics.',
+      icon: UploadSimple,
+      ariaLabel: 'Upload Reference Document',
+      to: '/admin/ingest',
+    },
+    {
+      id: 'model-validation',
+      title: 'Model validation',
+      description: 'Audit evaluations against human expert ground truth.',
+      icon: Scan,
+      ariaLabel: 'Validate Model',
+      to: '/admin/model-validation',
+    },
+    {
+      id: 'monitoring-matrix',
+      title: 'Monitoring matrix',
+      description: 'Live oversight of multi-agent evaluations and flag counts.',
+      icon: Shield,
+      ariaLabel: 'Open Matrix',
+      to: '/matrix',
+    },
+  ];
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {/* Quick Action: Create Faculty Account */}
-      <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-            <Users className="size-4.5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-text tracking-tight">Create Faculty Account</h2>
-            <p className="text-xs text-text-muted mt-1 leading-relaxed">
-              Provision new faculty accounts and manage roles.
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          aria-label="Create Faculty Account"
-          className="group w-full justify-between font-semibold text-xs sm:text-sm h-10 px-3.5 border-border hover:border-primary/50 hover:bg-primary-soft hover:text-primary active:bg-primary-soft/80 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          onClick={() => navigate({ to: '/admin/users' })}
+    <aside aria-label="Administrative launchpads" className="min-w-0 space-y-5 lg:border-l lg:border-border lg:pl-6">
+      <section aria-labelledby="admin-launchpads-heading">
+        <h2
+          id="admin-launchpads-heading"
+          className="text-sm font-semibold text-text"
         >
-          <span className="truncate whitespace-nowrap">Create Faculty</span>
-          <CaretRight className="size-4 shrink-0 text-text-muted group-hover:text-primary transition-colors" aria-hidden="true" />
-        </Button>
-      </div>
+          Administration
+        </h2>
+        <div className="mt-3 divide-y divide-border border-y border-border overflow-hidden">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                type="button"
+                aria-label={action.ariaLabel}
+                onClick={() => navigate({ to: action.to })}
+                className="group flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-surface-subtle/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset cursor-pointer"
+              >
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-xs border border-border/80 bg-surface-subtle/70 text-text-muted transition-colors group-hover:border-border-strong group-hover:bg-surface-subtle group-hover:text-text">
+                  <Icon className="size-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-text transition-colors group-hover:text-primary">
+                    {action.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-text-muted">
+                    {action.description}
+                  </span>
+                </div>
+                <ArrowUpRight
+                  className="size-3.5 shrink-0 text-text-muted transition-colors group-hover:text-primary mt-0.5"
+                  aria-hidden="true"
+                />
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-      {/* Quick Action: Upload Reference Document */}
-      <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-            <UploadSimple className="size-4.5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-text tracking-tight">Upload Reference Document</h2>
-            <p className="text-xs text-text-muted mt-1 leading-relaxed">
-              Ingest institutional syllabi, curricula, and approved policy rubrics.
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          aria-label="Upload Reference Document"
-          className="group w-full justify-between font-semibold text-xs sm:text-sm h-10 px-3.5 border-border hover:border-primary/50 hover:bg-primary-soft hover:text-primary active:bg-primary-soft/80 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          onClick={() => navigate({ to: '/admin/ingest' })}
-        >
-          <span className="truncate whitespace-nowrap">Upload Reference</span>
-          <CaretRight className="size-4 shrink-0 text-text-muted group-hover:text-primary transition-colors" aria-hidden="true" />
-        </Button>
+      <div className="border-l-2 border-primary/30 pl-3 text-xs leading-relaxed text-text-muted flex items-start gap-2.5">
+        <Info className="size-4 shrink-0 text-text-muted mt-0.5" aria-hidden="true" />
+        <span>
+          Automated evaluations are advisory. Final decisions remain with institutional reviewers.
+        </span>
       </div>
-
-      {/* Quick Action: Model Validation */}
-      <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-            <Scan className="size-4.5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-text tracking-tight">Model Validation</h2>
-            <p className="text-xs text-text-muted mt-1 leading-relaxed">
-              Audit LLM evaluations against human expert ground-truth benchmarks.
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          aria-label="Validate Model"
-          className="group w-full justify-between font-semibold text-xs sm:text-sm h-10 px-3.5 border-border hover:border-primary/50 hover:bg-primary-soft hover:text-primary active:bg-primary-soft/80 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          onClick={() => navigate({ to: '/admin/model-validation' })}
-        >
-          <span className="truncate whitespace-nowrap">Validate Model</span>
-          <CaretRight className="size-4 shrink-0 text-text-muted group-hover:text-primary transition-colors" aria-hidden="true" />
-        </Button>
-      </div>
-
-      {/* Quick Action: Monitoring Matrix */}
-      <div className="rounded-md border border-border bg-surface p-5 flex flex-col justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex size-9 items-center justify-center rounded-sm bg-primary-soft border border-primary/20 text-primary shrink-0">
-            <Shield className="size-4.5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-text tracking-tight">Monitoring Matrix</h2>
-            <p className="text-xs text-text-muted mt-1 leading-relaxed">
-              Live oversight of multi-agent evaluations, flag counts, and failures.
-            </p>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          aria-label="Open Matrix"
-          className="group w-full justify-between font-semibold text-xs sm:text-sm h-10 px-3.5 border-border hover:border-primary/50 hover:bg-primary-soft hover:text-primary active:bg-primary-soft/80 transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          onClick={() => navigate({ to: '/matrix' })}
-        >
-          <span className="truncate whitespace-nowrap">Open Matrix</span>
-          <CaretRight className="size-4 shrink-0 text-text-muted group-hover:text-primary transition-colors" aria-hidden="true" />
-        </Button>
-      </div>
-    </div>
+    </aside>
   );
 }
