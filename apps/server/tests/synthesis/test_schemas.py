@@ -10,6 +10,8 @@ from server.modules.synthesis.schemas import (
     DomainScoreBlock,
     EvaluationFlagItem,
     EvaluationResultsResponse,
+    MatrixListResponse,
+    MatrixMetrics,
     MatrixRowItem,
     score_to_adjectival,
 )
@@ -165,3 +167,45 @@ def test_evaluation_flag_item_criterion_text_separate_from_justification() -> No
     assert flag.criterion_text == "Clear learning outcomes"
     assert flag.justification == "Outcomes are vague and not measurable"
     assert flag.criterion_text != flag.justification
+
+
+def test_matrix_metrics_schema() -> None:
+    metrics = MatrixMetrics(
+        completed_count=10,
+        passing_count=8,
+        flagged_count=2,
+        total_flags=5,
+        quality_pass_rate=80.0,
+    )
+    assert metrics.completed_count == 10
+    assert metrics.passing_count == 8
+    assert metrics.flagged_count == 2
+    assert metrics.total_flags == 5
+    assert metrics.quality_pass_rate == 80.0
+
+    # quality_pass_rate defaults to None
+    metrics_empty = MatrixMetrics(
+        completed_count=0,
+        passing_count=0,
+        flagged_count=0,
+        total_flags=0,
+    )
+    assert metrics_empty.quality_pass_rate is None
+
+
+def test_matrix_list_response_requires_metrics() -> None:
+    resp = MatrixListResponse(
+        items=[],
+        total=0,
+        page=1,
+        page_size=20,
+        metrics=MatrixMetrics(
+            completed_count=0,
+            passing_count=0,
+            flagged_count=0,
+            total_flags=0,
+            quality_pass_rate=None,
+        ),
+    )
+    assert resp.metrics.completed_count == 0
+    assert resp.metrics.quality_pass_rate is None

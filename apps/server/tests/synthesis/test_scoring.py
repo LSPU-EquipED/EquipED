@@ -275,3 +275,78 @@ def test_coordinator_single_criterion_subtotal_fixed_agent_weight() -> None:
     assert result["synthesized_score"] == pytest.approx(70.00)
     assert result["domain_scores"]["coordinator"]["subtotal"] == 4.0
     assert AGENT_WEIGHTS["coordinator"] == 0.30
+
+
+def test_classify_matrix_score_boundaries_and_partial_domains():
+    """Unit test for scoring edge cases:
+    - 62.4% gives raw 2.496 -> round(2.496, 2) is 2.50, but NOT passing (threshold 2.50)
+    - 62.5% gives raw 2.500 -> passing
+    - Partial domains (e.g. only 3 out of 4 domains) on COMPLETED row is not trusted
+    - Magnitude <= 4.0 without full trustworthy domains is ambiguous
+      (not passing, rating None)
+    - Out of range (> 100.0 or < 0.0) -> not passing, rating None
+    - Missing score -> not passing, rating None
+    """
+    from server.modules.synthesis.matrix import _classify_matrix_score_values
+
+    # 1. Near threshold boundary: 62.4% vs 62.5%
+    _overall, rating, passing_624 = _classify_matrix_score_values(None, 62.4)
+    assert passing_624 is False
+    assert rating == "Needs Improvement"  # raw 2.496 is Needs Improvement
+    assert _overall == 2.50  # display value rounded to 2 decimals
+
+    _overall, rating, passing_625 = _classify_matrix_score_values(None, 62.5)
+    assert passing_625 is True
+    assert rating == "Satisfactory"  # raw 2.500 is Satisfactory
+    assert _overall == 2.50
+
+    # 2. Ambiguous <= 4.0 without domain breakdown
+    _overall, rating, passing_ambig = _classify_matrix_score_values(None, 3.8)
+    assert passing_ambig is False
+    assert rating is None
+    assert _overall is None
+
+    # 3. Partial domain breakdown (only 3 agents, coordinator missing)
+    partial_domains = {
+        "sme": {"subtotal": 4.0, "status": "OK"},
+        "gad": {"subtotal": 4.0, "status": "OK"},
+        "itso": {"subtotal": 4.0, "status": "OK"},
+    }
+    # With partial domains and synthesized_score <= 4.0 -> not trusted, ambiguous
+    _overall, rating, passing_partial = _classify_matrix_score_values(
+        partial_domains, 3.5
+    )
+    assert passing_partial is False
+    assert rating is None
+    assert _overall is None
+
+    # With partial domains but synthesized_score > 4.0 (modern percent fallback)
+    _overall, rating, passing_partial_pct = _classify_matrix_score_values(
+        partial_domains, 75.0
+    )
+    assert passing_partial_pct is True
+    assert rating == "Satisfactory"
+    assert _overall == 3.0
+
+    # 4. Domain with non-OK status or out-of-range subtotal
+    error_domains = {
+        "sme": {"subtotal": 4.0, "status": "ERROR"},
+        "coordinator": {"subtotal": 3.0, "status": "OK"},
+        "gad": {"subtotal": 3.0, "status": "OK"},
+        "itso": {"subtotal": 3.0, "status": "OK"},
+    }
+    _overall, rating, passing_err = _classify_matrix_score_values(error_domains, 3.5)
+    assert passing_err is False
+    assert rating is None
+
+    # 5. Full valid 4 domains
+    full_domains = {
+        "sme": {"subtotal": 3.5, "status": "OK"},
+        "coordinator": {"subtotal": 3.0, "status": "OK"},
+        "gad": {"subtotal": 3.0, "status": "OK"},
+        "itso": {"subtotal": 2.5, "status": "OK"},
+    }
+    _overall, rating, passing_full = _classify_matrix_score_values(full_domains, 77.5)
+    assert passing_full is True
+    assert rating == "Satisfactory"
+    assert _overall == 3.10

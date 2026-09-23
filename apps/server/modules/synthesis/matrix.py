@@ -15,10 +15,11 @@ from server.modules.synthesis.models import (
 )
 from server.modules.synthesis.schemas import (
     MatrixListResponse,
+    MatrixMetrics,
     MatrixRowItem,
     score_to_adjectival,
 )
-from sqlalchemy import func
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -433,12 +434,103 @@ def _upsert_failure(
     return existing
 
 
+def _classify_matrix_score_values(
+    domain_scores: dict[str, Any] | None,
+    synthesized_score: float | int | None,
+) -> tuple[float | None, str | None, bool]:
+    """Derive reliable 1-4 overall score, adjectival rating, and passing flag.
+
+    Returns:
+        (overall_score, adjectival_rating, is_passing)
+
+    Resolution order:
+    1. If `domain_scores` contains all four required domain subtotals with successful
+       status ('OK' or 'COMPLETED') and valid score in [0.0, 4.0], compute the weighted
+       overall (1-4) score and rating from AGENT_WEIGHTS.
+       Do NOT normalize over partial domain subsets for a completed evaluation row.
+    2. Fallback if no full trustworthy breakdown:
+       - If synthesized_score > 4.0 and <= 100.0 (progressive percentage), convert
+         to 1-4 scale via (synthesized_score / 100.0) * 4.0. Passing (>= 2.50)
+         requires raw unrounded value >= 2.50 (i.e. >= 62.5%). Raw 2.496 (62.4%)
+         is NOT passing (evaluates to false before any display rounding).
+       - If synthesized_score <= 4.0 without explicit trustworthy four-domain breakdown,
+         the scale is ambiguous (modern 1-4% overlaps legacy 1-4 scale). Therefore:
+         adjectival_rating is None, overall_score is None, and it is NOT passing.
+         (Denominator still includes the completed row).
+       - If synthesized_score is None or out of range (< 0.0 or > 100.0),
+         it is not passing and adjectival_rating is None.
+    """
+    if isinstance(domain_scores, dict) and all(
+        agent in domain_scores and isinstance(domain_scores[agent], dict)
+        for agent in PROGRESSIVE_AGENT_IDS
+    ):
+        valid = True
+        extracted_subtotals: dict[str, float] = {}
+        for agent in PROGRESSIVE_AGENT_IDS:
+            d = domain_scores[agent]
+            status = d.get("status")
+            subtotal = d.get("subtotal")
+            if status not in ("OK", "COMPLETED") or subtotal is None:
+                valid = False
+                break
+            try:
+                s_val = float(subtotal)
+            except (TypeError, ValueError):
+                valid = False
+                break
+            if not (0.0 <= s_val <= 4.0):
+                valid = False
+                break
+            extracted_subtotals[agent] = s_val
+
+        if valid:
+            weighted_overall = sum(
+                AGENT_WEIGHTS[a] * extracted_subtotals[a] for a in PROGRESSIVE_AGENT_IDS
+            )
+            overall = round(weighted_overall, 2)
+            rating = score_to_adjectival(weighted_overall)
+            is_passing = weighted_overall >= 2.50
+            return overall, rating, is_passing
+
+    # Fallback when no full trustworthy 4-domain breakdown is present
+    if synthesized_score is not None:
+        try:
+            val = float(synthesized_score)
+        except (TypeError, ValueError):
+            return None, None, False
+
+        # Modern progressive percentage (> 4.0 up to 100.0):
+        # Overall (1-4 scale) = (val / 100.0) * 4.0.
+        # Passing threshold and rating use raw_overall (unrounded)
+        # to ensure rating and is_passing are strictly consistent
+        # (e.g. 62.4% -> raw 2.496 is Needs Improvement and NOT passing).
+        if 4.0 < val <= 100.0:
+            raw_overall = (val / 100.0) * 4.0
+            converted_overall = round(raw_overall, 2)
+            rating = score_to_adjectival(raw_overall)
+            is_passing = raw_overall >= 2.50
+            return converted_overall, rating, is_passing
+
+        # Score <= 4.0 without full domain provenance:
+        # Ambiguous between modern percentage (0-4%) and legacy 1-4 scale.
+        # ADR guidance: adjective null, not passing, denominator includes row.
+        return None, None, False
+
+    return None, None, False
+
+
+def _escape_sql_like(term: str) -> str:
+    """Escape SQL LIKE special wildcard characters (%, _, \\)."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def get_monitoring_matrix(
     program: str | None,
     status: str | None,
     page: int,
     page_size: int,
     db: Any,
+    search: str | None = None,
 ) -> MatrixListResponse:
     """Assemble the monitoring matrix list response with filtering and pagination.
 
@@ -446,6 +538,23 @@ def get_monitoring_matrix(
     not a supported program (so the router can map it to a 422).
     """
     query = db.query(MonitoringMatrix)
+
+    search_term = search.strip() if search else None
+    if search_term:
+        query = query.outerjoin(
+            Document, MonitoringMatrix.document_id == Document.document_id
+        )
+        escaped_search = _escape_sql_like(search_term.lower())
+        search_pattern = f"%{escaped_search}%"
+        query = query.filter(
+            or_(
+                func.lower(Document.title).like(search_pattern, escape="\\"),
+                func.lower(MonitoringMatrix.faculty_name).like(
+                    search_pattern, escape="\\"
+                ),
+                func.lower(MonitoringMatrix.program).like(search_pattern, escape="\\"),
+            )
+        )
 
     if program:
         canonical_program = canonicalize_supported_program(program)
@@ -466,22 +575,91 @@ def get_monitoring_matrix(
         query = query.filter(MonitoringMatrix.evaluation_status == status)
 
     total = query.count()
-    rows = (
-        query.order_by(MonitoringMatrix.last_updated.desc())
+
+    # SQL aggregates over the identical filtered row set (before pagination)
+    agg_row = query.with_entities(
+        func.count(case((MonitoringMatrix.evaluation_status == "COMPLETED", 1))).label(
+            "completed_count"
+        ),
+        func.count(case((func.coalesce(MonitoringMatrix.flag_count, 0) > 0, 1))).label(
+            "flagged_count"
+        ),
+        func.coalesce(
+            func.sum(
+                case(
+                    (
+                        func.coalesce(MonitoringMatrix.flag_count, 0) > 0,
+                        MonitoringMatrix.flag_count,
+                    ),
+                    else_=0,
+                )
+            ),
+            0,
+        ).label("total_flags"),
+    ).one()
+
+    completed_count = int(agg_row.completed_count or 0)
+    flagged_count = int(agg_row.flagged_count or 0)
+    total_flags = int(agg_row.total_flags or 0)
+
+    # Stream only completed rows' minimal score columns to classify passing
+    passing_count = 0
+    if completed_count > 0:
+        completed_score_stream = (
+            query.filter(MonitoringMatrix.evaluation_status == "COMPLETED")
+            .with_entities(
+                MonitoringMatrix.domain_scores_json,
+                MonitoringMatrix.synthesized_score,
+            )
+            .yield_per(500)
+        )
+        for domain_scores_json, synthesized_score in completed_score_stream:
+            _overall, _rating, is_passing = _classify_matrix_score_values(
+                domain_scores_json,
+                synthesized_score,
+            )
+            if is_passing:
+                passing_count += 1
+
+    quality_pass_rate: float | None = None
+    if completed_count > 0:
+        quality_pass_rate = round((100.0 * passing_count) / completed_count, 2)
+
+    metrics = MatrixMetrics(
+        completed_count=completed_count,
+        passing_count=passing_count,
+        flagged_count=flagged_count,
+        total_flags=total_flags,
+        quality_pass_rate=quality_pass_rate,
+    )
+
+    # Fetch page rows with a single one-to-one outer join to Document for title
+    # (avoid re-joining Document if search already added outerjoin)
+    paginated_query = query
+    if not search_term:
+        paginated_query = paginated_query.outerjoin(
+            Document, MonitoringMatrix.document_id == Document.document_id
+        )
+
+    paginated_results = (
+        paginated_query.with_entities(
+            MonitoringMatrix, Document.title.label("document_title")
+        )
+        .order_by(
+            MonitoringMatrix.last_updated.desc(),
+            MonitoringMatrix.matrix_id.asc(),
+        )
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
 
-    doc_ids = [row.document_id for row in rows]
-    docs = {
-        d.document_id: d
-        for d in db.query(Document).filter(Document.document_id.in_(doc_ids)).all()
-    }
-
     items = []
-    for row in rows:
-        doc = docs.get(row.document_id)
+    for row, doc_title in paginated_results:
+        _overall, adjectival_rating, _is_passing = _classify_matrix_score_values(
+            row.domain_scores_json,
+            row.synthesized_score,
+        )
         items.append(
             MatrixRowItem(
                 matrix_id=row.matrix_id,
@@ -489,14 +667,12 @@ def get_monitoring_matrix(
                 evaluation_id=row.evaluation_id,
                 faculty_name=row.faculty_name,
                 program=row.program,
-                document_title=doc.title if doc else None,
+                document_title=doc_title,
                 evaluation_status=row.evaluation_status,
                 synthesized_score=float(row.synthesized_score)
                 if row.synthesized_score is not None
                 else None,
-                adjectival_rating=score_to_adjectival(float(row.synthesized_score))
-                if row.synthesized_score is not None
-                else None,
+                adjectival_rating=adjectival_rating,
                 domain_scores=row.domain_scores_json,
                 flag_count=row.flag_count,
                 feedback_status=row.feedback_status,
@@ -504,4 +680,10 @@ def get_monitoring_matrix(
             )
         )
 
-    return MatrixListResponse(items=items, total=total, page=page, page_size=page_size)
+    return MatrixListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        metrics=metrics,
+    )

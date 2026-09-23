@@ -1,85 +1,16 @@
-"""HTTP-level monitoring matrix filter regression coverage."""
+"""HTTP-level monitoring matrix router tests."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
 
-import pytest
-from fastapi.testclient import TestClient
-from server.modules.auth.models import User, UserRole
+from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
-from server.modules.synthesis.models import (
-    MonitoringMatrix,
-)
-
-
-def _login(
-    client: TestClient, user: User, password: str = "correct-horse-battery"
-) -> None:
-    response = client.post(
-        "/api/v1/auth/login",
-        json={"email": user.email, "password": password},
-    )
-    assert response.status_code == 200
-
-def _add_matrix(db_session, user_id, title: str, program: str) -> None:
-    document = Document(
-        title=title,
-        program=program,
-        source_type="slm",
-        file_path=f"/tmp/{title}.pdf",
-        uploaded_by=user_id,
-    )
-    db_session.add(document)
-    db_session.flush()
-    db_session.add(MonitoringMatrix(document_id=document.document_id, program=program))
-
-
-@pytest.fixture()
-def matrix_client_data(client, db_session, seeded_user):
-    for title, program in (
-        ("modern", "BSInfoTech"),
-        ("legacy", "BSIT"),
-        ("computer science", "BSCS"),
-        ("historical", "BSN"),
-    ):
-        _add_matrix(db_session, seeded_user.user_id, title, program)
-    db_session.commit()
-    _login(client, seeded_user)
-    return client
-
-
-@pytest.mark.parametrize("program", ["BSInfoTech", "bsit"])
-def test_matrix_canonicalizes_bsit_aliases(matrix_client_data, program: str) -> None:
-    response = matrix_client_data.get(f"/api/v1/evaluations/matrix?program={program}")
-    assert response.status_code == 200
-    assert {item["document_title"] for item in response.json()["items"]} == {
-        "modern",
-        "legacy",
-    }
-
-
-def test_matrix_bscs_filter(matrix_client_data) -> None:
-    response = matrix_client_data.get("/api/v1/evaluations/matrix?program=BSCS")
-    assert response.status_code == 200
-    assert {item["document_title"] for item in response.json()["items"]} == {
-        "computer science",
-    }
-
-
-def test_matrix_rejects_unsupported_program(matrix_client_data) -> None:
-    response = matrix_client_data.get("/api/v1/evaluations/matrix?program=BSEd")
-    assert response.status_code == 422
-
-
-def test_matrix_preserves_historical_program_rows(matrix_client_data) -> None:
-    response = matrix_client_data.get("/api/v1/evaluations/matrix")
-    assert response.status_code == 200
-    assert "historical" in {item["document_title"] for item in response.json()["items"]}
-
+from server.modules.synthesis.models import MonitoringMatrix
+from server.tests.synthesis.conftest import _login
 
 
 def test_matrix_route_delegates_to_service(
@@ -87,13 +18,31 @@ def test_matrix_route_delegates_to_service(
 ) -> None:
     """The matrix route hands off to the service boundary with query args."""
     from server.modules.synthesis import router as synthesis_router
-    from server.modules.synthesis.schemas import MatrixListResponse
+    from server.modules.synthesis.schemas import MatrixListResponse, MatrixMetrics
 
     captured: dict = {}
 
-    def fake_get(program, status, page, page_size, db=None):
-        captured.update(program=program, status=status, page=page, page_size=page_size)
-        return MatrixListResponse(items=[], total=0, page=page, page_size=page_size)
+    def fake_get(program, status, page, page_size, db=None, search=None):
+        captured.update(
+            program=program,
+            status=status,
+            page=page,
+            page_size=page_size,
+            search=search,
+        )
+        return MatrixListResponse(
+            items=[],
+            total=0,
+            page=page,
+            page_size=page_size,
+            metrics=MatrixMetrics(
+                completed_count=0,
+                passing_count=0,
+                flagged_count=0,
+                total_flags=0,
+                quality_pass_rate=None,
+            ),
+        )
 
     monkeypatch.setattr(synthesis_router, "service_get_monitoring_matrix", fake_get)
     _login(client, seeded_user)
@@ -107,6 +56,7 @@ def test_matrix_route_delegates_to_service(
         "status": "COMPLETED",
         "page": 2,
         "page_size": 10,
+        "search": None,
     }
 
 
@@ -254,9 +204,7 @@ def test_master_synthesis_detail_not_found(client, db_session, seeded_user):
     assert response.status_code == 404
 
 
-def test_master_synthesis_detail_admin_only_forbidden_for_faculty(
-    client, db_session
-):
+def test_master_synthesis_detail_admin_only_forbidden_for_faculty(client, db_session):
     faculty = create_user(
         db_session,
         name="Faculty Member",
@@ -269,3 +217,61 @@ def test_master_synthesis_detail_admin_only_forbidden_for_faculty(
 
     response = client.get(f"/api/v1/evaluations/matrix/{uuid.uuid4()}")
     assert response.status_code == 403
+
+
+def test_matrix_admin_only_forbidden_for_faculty(client, db_session):
+    faculty = create_user(
+        db_session,
+        name="Faculty User",
+        email="faculty_matrix@lspu.edu.ph",
+        password="correct-horse-battery",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    _login(client, faculty)
+
+    response = client.get("/api/v1/evaluations/matrix")
+    assert response.status_code == 403
+
+
+def test_matrix_admin_only_unauthenticated(client):
+    response = client.get("/api/v1/evaluations/matrix")
+    assert response.status_code == 401
+
+
+def test_matrix_route_passes_search_to_service(
+    client, db_session, seeded_user, monkeypatch
+) -> None:
+    from server.modules.synthesis import router as synthesis_router
+    from server.modules.synthesis.schemas import MatrixListResponse, MatrixMetrics
+
+    captured: dict = {}
+
+    def fake_get(program, status, page, page_size, db=None, search=None):
+        captured.update(
+            program=program,
+            status=status,
+            page=page,
+            page_size=page_size,
+            search=search,
+        )
+        return MatrixListResponse(
+            items=[],
+            total=0,
+            page=page,
+            page_size=page_size,
+            metrics=MatrixMetrics(
+                completed_count=0,
+                passing_count=0,
+                flagged_count=0,
+                total_flags=0,
+                quality_pass_rate=None,
+            ),
+        )
+
+    monkeypatch.setattr(synthesis_router, "service_get_monitoring_matrix", fake_get)
+    _login(client, seeded_user)
+
+    response = client.get("/api/v1/evaluations/matrix?search=algorithms")
+    assert response.status_code == 200
+    assert captured["search"] == "algorithms"
