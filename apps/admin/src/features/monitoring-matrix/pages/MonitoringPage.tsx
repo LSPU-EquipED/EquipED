@@ -8,3 +8,5 @@ export function MonitoringPage() {
     </PageContainer>
   );
 }
+
+export default MonitoringPage;

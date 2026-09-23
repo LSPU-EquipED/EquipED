@@ -3,9 +3,12 @@ import type { MasterSynthesisDetailResponse, MatrixListResponse } from '../types
 
 export const matrixApi = {
   getMatrix: (
-    params: { program?: string; status?: string; page?: number; page_size?: number } = {},
+    params: { search?: string; program?: string; status?: string; page?: number; page_size?: number } = {},
   ) => {
     const searchParams = new URLSearchParams();
+    if (params.search !== undefined && params.search.trim()) {
+      searchParams.set('search', params.search.trim());
+    }
     if (params.program) searchParams.set('program', params.program);
     if (params.status) searchParams.set('status', params.status);
     if (params.page) searchParams.set('page', String(params.page));

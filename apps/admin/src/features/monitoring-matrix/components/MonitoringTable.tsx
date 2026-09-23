@@ -1,176 +1,214 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
 import {
-  CaretRight,
   CheckCircle,
-  FilePdf,
   FileText,
   FolderOpen,
+  MagnifyingGlass,
   ShieldCheck,
-  User,
   Warning,
 } from '@phosphor-icons/react';
-import { Badge } from '@equiped/ui';
 import { Button } from '@equiped/ui';
 import { Skeleton } from '@equiped/ui';
 import { TABLE_STYLES } from '@equiped/ui';
 import { cn } from '@equiped/ui';
 import { TableSkeleton } from '@equiped/ui';
 import { useMonitoringMatrix } from '../hooks/useMonitoringMatrix';
-import type { MonitoringMatrixRow } from '../types';
-import {
-  domainShortLabel,
-  formatDomainScore,
-  formatProgressStatus,
-  formatRevisionContext,
-  getCompletedDomainCount,
-  getRatingVariant,
-  getStatusVariant,
-  TARGET_DOMAIN_ORDER,
-} from '../utils';
+import type { MonitoringMatrixRow as MonitoringMatrixRowType } from '../types';
 import { MatrixFilters } from './MatrixFilters';
+import { MonitoringMatrixRow } from './MonitoringMatrixRow';
+
+const EMPTY_ITEMS: MonitoringMatrixRowType[] = [];
 
 export function MonitoringTable() {
-  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [program, setProgram] = useState('all');
   const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const trimmedSearch = searchQuery.trim();
   const { data, isLoading, isError } = useMonitoringMatrix({
+    search: trimmedSearch || undefined,
     program: program !== 'all' ? program : undefined,
     status: status !== 'all' ? status : undefined,
     page,
     page_size: pageSize,
   });
 
+  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+
+  const toggleRow = (id: string) => {
+    setExpandedRowIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setPage(1);
+    setExpandedRowIds(new Set());
+  };
+
   const handleProgramChange = (val: string) => {
     setProgram(val);
     setPage(1);
+    setExpandedRowIds(new Set());
   };
 
   const handleStatusChange = (val: string) => {
     setStatus(val);
     setPage(1);
+    setExpandedRowIds(new Set());
   };
 
-  // Pagination computations
-  const totalRecords = data?.total ?? data?.items?.length ?? 0;
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setProgram('all');
+    setStatus('all');
+    setPage(1);
+    setExpandedRowIds(new Set());
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setExpandedRowIds(new Set());
+  };
+
+  // Server items and total records directly
+  const items = data?.items ?? EMPTY_ITEMS;
+  const totalRecords = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
   const startRecord = totalRecords > 0 ? (page - 1) * pageSize + 1 : 0;
   const endRecord = Math.min(page * pageSize, totalRecords);
 
-  // Operational KPI metrics computed from current matrix data
+  // Operational KPI metrics consumed directly from server response (ADR 0010)
+  // Never derive rate or flags from current page items; display placeholders when unavailable
   const metrics = useMemo(() => {
-    const items = data?.items ?? [];
-    const total = totalRecords;
-    const completed = items.filter((i) =>
-      i.evaluation_status.toUpperCase().startsWith('COMPLETED'),
-    );
-    const passingCount = completed.filter(
-      (i) =>
-        i.adjectival_rating === 'Very Satisfactory' ||
-        i.adjectival_rating === 'Satisfactory',
-    ).length;
-    const passRate = completed.length > 0 ? (passingCount / completed.length) * 100 : 100;
-    const flaggedItems = items.filter((i) => i.flag_count > 0);
-    const totalFlags = items.reduce((sum, i) => sum + (i.flag_count || 0), 0);
+    const serverMetrics = data?.metrics;
+    if (serverMetrics) {
+      return {
+        completedCount:
+          typeof serverMetrics.completed_count === 'number' && Number.isFinite(serverMetrics.completed_count)
+            ? serverMetrics.completed_count
+            : '—',
+        passRate:
+          serverMetrics.quality_pass_rate !== null && serverMetrics.quality_pass_rate !== undefined
+            ? `${serverMetrics.quality_pass_rate.toFixed(1)}%`
+            : '—',
+        flaggedCount:
+          serverMetrics.flagged_count !== null && serverMetrics.flagged_count !== undefined
+            ? serverMetrics.flagged_count
+            : '—',
+        totalFlags:
+          serverMetrics.total_flags !== null && serverMetrics.total_flags !== undefined
+            ? serverMetrics.total_flags
+            : '—',
+      };
+    }
 
     return {
-      total,
-      completedCount: completed.length,
-      passRate: passRate.toFixed(1),
-      flaggedCount: flaggedItems.length,
-      totalFlags,
+      completedCount: '—',
+      passRate: '—',
+      flaggedCount: '—',
+      totalFlags: '—',
     };
-  }, [data?.items, totalRecords]);
+  }, [data?.metrics]);
 
   return (
-    <section className="space-y-6">
-      {/* ── Operational KPI Summary Strip (4 Academic Metrics) ─────────── */}
+    <section className="space-y-4">
+      {/* ── Compact Operational Metric Ribbon (4 Academic Metrics) ─────── */}
       <div className="rounded-md border border-border bg-surface shadow-none divide-y sm:divide-y-0 sm:divide-x divide-border grid grid-cols-2 lg:grid-cols-4">
         {/* Total Evaluated Modules */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 sm:size-11 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <FolderOpen className="size-5 text-primary" aria-hidden="true" />
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-xs border border-border bg-surface-subtle text-primary shrink-0">
+            <FolderOpen className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted truncate">
               Evaluated Modules
             </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.total}
+            <p className="text-lg sm:text-xl font-bold tracking-tight text-text tabular-nums mt-0.5">
+              {isLoading ? <Skeleton className="h-6 w-12" /> : metrics.completedCount}
             </p>
           </div>
         </div>
 
         {/* Quality Pass Rate */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 sm:size-11 items-center justify-center rounded-sm border border-success/30 bg-success-soft text-success shrink-0">
-            <CheckCircle className="size-5" aria-hidden="true" />
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-xs border border-success/30 bg-success-soft text-success shrink-0">
+            <CheckCircle className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Accredited Quality Rate
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted truncate">
+              Quality Pass Rate
             </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-16" /> : metrics.passRate + '%'}
+            <p className="text-lg sm:text-xl font-bold tracking-tight text-text tabular-nums mt-0.5">
+              {isLoading ? <Skeleton className="h-6 w-14" /> : metrics.passRate}
             </p>
           </div>
         </div>
 
         {/* Audit Queue (Flagged Modules) */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 sm:size-11 items-center justify-center rounded-sm border border-warning/30 bg-warning-soft text-warning shrink-0">
-            <Warning className="size-5" aria-hidden="true" />
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-xs border border-warning/30 bg-warning-soft text-warning shrink-0">
+            <Warning className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted truncate">
               Flagged for Audit
             </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.flaggedCount}
+            <p className="text-lg sm:text-xl font-bold tracking-tight text-text tabular-nums mt-0.5">
+              {isLoading ? <Skeleton className="h-6 w-12" /> : metrics.flaggedCount}
             </p>
           </div>
         </div>
 
         {/* Total Flagged Issues */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 sm:size-11 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <ShieldCheck className="size-5 text-primary" aria-hidden="true" />
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className="flex size-8 items-center justify-center rounded-xs border border-border bg-surface-subtle text-primary shrink-0">
+            <ShieldCheck className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted truncate">
               Total Issue Flags
             </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {isLoading ? <Skeleton className="h-7 w-14" /> : metrics.totalFlags}
+            <p className="text-lg sm:text-xl font-bold tracking-tight text-text tabular-nums mt-0.5">
+              {isLoading ? <Skeleton className="h-6 w-12" /> : metrics.totalFlags}
             </p>
           </div>
         </div>
       </div>
 
-      {/* ── Main Monitoring Matrix Ledger Card ─────────────────────────── */}
-      <div className={TABLE_STYLES.wrapper}>
-        {/* Filter Controls Bar */}
+      {/* ── Standalone Filter Controls Toolbar ────────────────────────── */}
+      <div className="rounded-md border border-border bg-surface px-4 py-3 sm:px-5 shadow-xs">
         <MatrixFilters
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
           program={program}
           status={status}
           onProgramChange={handleProgramChange}
           onStatusChange={handleStatusChange}
+          onResetFilters={handleResetFilters}
         />
+      </div>
 
+      {/* ── Main Monitoring Matrix Ledger Card ─────────────────────────── */}
+      <div className={TABLE_STYLES.wrapper}>
         {/* Loading State */}
         {isLoading ? (
           <TableSkeleton
             ariaLabel="Loading monitoring matrix"
             columns={[
-              { label: 'SLM Title', headerClassName: 'min-w-[18rem]', skeletonClassName: 'h-4 w-56' },
-              { label: 'Program', skeletonClassName: 'h-5 w-20' },
-              { label: 'Status', skeletonClassName: 'h-5 w-24' },
-              { label: 'Form Revision', skeletonClassName: 'h-4 w-20' },
-              { label: 'Rating', skeletonClassName: 'h-4 w-16' },
-              { label: 'Last Updated', skeletonClassName: 'h-4 w-28' },
-              { label: 'Actions', headerClassName: 'text-right', skeletonClassName: 'h-6 w-24 ml-auto' },
+              { label: '', headerClassName: 'w-10 text-center', skeletonClassName: 'size-4 mx-auto' },
+              { label: 'SLM Title', headerClassName: 'min-w-[18rem] sm:min-w-[22rem]', skeletonClassName: 'h-4 w-56' },
+              { label: 'Status', headerClassName: 'w-44 min-w-[11rem]', skeletonClassName: 'h-5 w-24' },
+              { label: 'Rating', headerClassName: 'w-36 min-w-[8rem]', skeletonClassName: 'h-4 w-20' },
+              { label: 'Actions', headerClassName: 'text-right w-36 min-w-[8.5rem] pr-6', skeletonClassName: 'h-4 w-24 ml-auto' },
             ]}
           />
         ) : null}
@@ -183,8 +221,8 @@ export function MonitoringTable() {
           </div>
         ) : null}
 
-        {/* Empty State */}
-        {!isLoading && !isError && (!data || data.items.length === 0) ? (
+        {/* Empty State: No data from server (unfiltered) */}
+        {!isLoading && !isError && items.length === 0 && !trimmedSearch && program === 'all' && status === 'all' ? (
           <div className="py-16 text-center text-text-muted space-y-2">
             <FileText className="size-8 mx-auto text-text-muted/40" aria-hidden="true" />
             <p className="text-sm font-semibold text-text">No evaluation records yet</p>
@@ -194,144 +232,61 @@ export function MonitoringTable() {
           </div>
         ) : null}
 
+        {/* Search / Filter Empty State: Filtered to 0 */}
+        {!isLoading && !isError && items.length === 0 && (trimmedSearch || program !== 'all' || status !== 'all') ? (
+          <div className="py-16 text-center text-text-muted space-y-2">
+            <MagnifyingGlass className="size-8 mx-auto text-text-muted/40" aria-hidden="true" />
+            <p className="text-sm font-semibold text-text">No matching evaluation records</p>
+            <p className="text-xs text-text-muted max-w-sm mx-auto">
+              {trimmedSearch
+                ? `No modules matched \u201c${trimmedSearch}\u201d. Try adjusting your search query or clearing filters.`
+                : 'No evaluation records matched the selected filters. Try adjusting or clearing filters.'}
+            </p>
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-strong cursor-pointer"
+            >
+              Clear search &amp; filters
+            </button>
+          </div>
+        ) : null}
+
         {/* Data Table */}
-        {!isLoading && !isError && data && data.items.length > 0 ? (
+        {!isLoading && !isError && items.length > 0 ? (
           <div className="overflow-x-auto">
             <table className={TABLE_STYLES.table}>
               <thead className={TABLE_STYLES.thead}>
                 <tr>
-                  <th className={TABLE_STYLES.th}>SLM Title</th>
-                  <th className={TABLE_STYLES.th}>Program</th>
-                  <th className={TABLE_STYLES.th}>Status</th>
-                  <th className={TABLE_STYLES.th}>Form Revision</th>
-                  <th className={TABLE_STYLES.th}>Rating</th>
-                  <th className={TABLE_STYLES.th}>Last Updated</th>
-                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Actions</th>
+                  <th scope="col" className="w-10 text-center py-3 pl-4 pr-1">
+                    <span className="sr-only">Expand details</span>
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem] sm:min-w-[22rem]')}>
+                    SLM Title
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-44 min-w-[11rem]')}>
+                    Status
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'w-36 min-w-[8rem]')}>
+                    Rating
+                  </th>
+                  <th scope="col" className={cn(TABLE_STYLES.th, 'text-right w-36 min-w-[8.5rem] pr-6')}>
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className={TABLE_STYLES.tbody}>
-                {data.items.map((row: MonitoringMatrixRow) => {
+                {items.map((row: MonitoringMatrixRowType) => {
                   const rowKey = row.evaluation_id ?? row.matrix_id;
+                  const isExpanded = expandedRowIds.has(rowKey);
 
                   return (
-                    <tr
+                    <MonitoringMatrixRow
                       key={rowKey}
-                      className={cn(TABLE_STYLES.tr, 'cursor-pointer hover:bg-surface-subtle transition-colors')}
-                      onClick={() => {
-                        navigate?.({
-                          to: '/admin/synthesis/$documentId',
-                          params: { documentId: row.document_id },
-                        });
-                      }}
-                    >
-                      {/* SLM Title & Faculty Member */}
-                      <td className={cn(TABLE_STYLES.td, 'font-semibold text-text max-w-[22rem]')}>
-                        <div className="flex items-start gap-2.5">
-                          <FilePdf className="size-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
-                          <div className="min-w-0">
-                            <div className="truncate font-bold" title={row.document_title || 'Untitled SLM'}>
-                              {row.document_title || 'Untitled SLM'}
-                            </div>
-                            {row.faculty_name ? (
-                              <div className="flex items-center gap-1 text-[11px] font-normal text-text-muted truncate mt-0.5">
-                                <User className="size-3 text-text-muted shrink-0" aria-hidden="true" />
-                                <span>Faculty: {row.faculty_name}</span>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Program */}
-                      <td className={cn(TABLE_STYLES.td, 'text-text-muted font-medium whitespace-nowrap')}>
-                        {row.program ? (
-                          <span
-                            className={cn(
-                              'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold border',
-                              row.program === 'BSCS'
-                                ? 'bg-primary-soft text-primary border-primary/20'
-                                : 'bg-surface-subtle text-text border-border',
-                            )}
-                          >
-                            {row.program}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-
-                      {/* Evaluation Status */}
-                      <td className={TABLE_STYLES.td}>
-                        <div className="flex flex-col gap-1.5">
-                          <Badge variant={getStatusVariant(row.evaluation_status)} withDot>
-                            {formatProgressStatus(row.evaluation_status, row.domain_scores)}
-                          </Badge>
-                          <div
-                            className="flex flex-wrap items-center gap-1"
-                            aria-label={`Domain completion: ${getCompletedDomainCount(row.domain_scores)} of 4 domains evaluated`}
-                          >
-                            {TARGET_DOMAIN_ORDER.map((domainId) => {
-                              const block = row.domain_scores?.[domainId];
-                              return block ? (
-                                <span
-                                  key={domainId}
-                                  title={`${domainShortLabel(domainId)} evaluated: ${formatDomainScore(block.subtotal)} / ${formatDomainScore(block.max_score)}`}
-                                  className="inline-flex items-center rounded-xs border border-success/25 bg-success-soft px-1.5 py-0.2 text-[10px] font-bold tabular-nums text-success"
-                                >
-                                  {domainShortLabel(domainId)} {formatDomainScore(block.subtotal)}
-                                </span>
-                              ) : (
-                                <span
-                                  key={domainId}
-                                  title={`${domainShortLabel(domainId)} pending evaluation`}
-                                  className="inline-flex items-center rounded-xs border border-dashed border-border bg-surface-subtle px-1.5 py-0.2 text-[10px] font-semibold text-text-muted"
-                                >
-                                  {domainShortLabel(domainId)} Pending
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Form Revision */}
-                      <td className={cn(TABLE_STYLES.td, 'text-text-muted font-medium whitespace-nowrap font-mono text-xs')}>
-                        {formatRevisionContext(row.domain_scores)}
-                      </td>
-
-                      {/* Rating */}
-                      <td className={TABLE_STYLES.td}>
-                        {row.adjectival_rating ? (
-                          <Badge variant={getRatingVariant(row.adjectival_rating)}>
-                            {row.adjectival_rating}
-                          </Badge>
-                        ) : (
-                          <span className="text-text-muted font-medium">—</span>
-                        )}
-                      </td>
-
-                      {/* Last Updated */}
-                      <td className={cn(TABLE_STYLES.tdData, 'text-text-muted font-medium whitespace-nowrap text-xs')}>
-                        {new Date(row.last_updated).toLocaleDateString()}
-                      </td>
-
-                      {/* Actions / Drilldown */}
-                      <td className={cn(TABLE_STYLES.td, 'text-right whitespace-nowrap')}>
-                        <Link
-                          to="/admin/synthesis/$documentId"
-                          params={{ documentId: row.document_id }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-xs border border-primary/30 text-primary bg-primary-soft hover:bg-primary hover:text-white transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          title="View Master Synthesis Scorecard"
-                          data-testid={`view-synthesis-${row.document_id}`}
-                        >
-                          <span>View Synthesis</span>
-                          <CaretRight className="size-3" aria-hidden="true" />
-                        </Link>
-                      </td>
-                    </tr>
+                      row={row}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleRow(rowKey)}
+                    />
                   );
                 })}
               </tbody>
@@ -340,7 +295,7 @@ export function MonitoringTable() {
         ) : null}
 
         {/* ── Pagination & Record Navigation Footer ─────────────────────── */}
-        {!isLoading && !isError && data && data.items.length > 0 && totalRecords > 0 ? (
+        {!isLoading && !isError && items.length > 0 && totalRecords > 0 ? (
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border bg-surface px-5 py-3.5 text-xs text-text-muted">
             <div className="flex flex-wrap items-center gap-4">
               <span>
@@ -358,6 +313,7 @@ export function MonitoringTable() {
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setPage(1);
+                    setExpandedRowIds(new Set());
                   }}
                   aria-label="Records per page"
                   className="h-7 border border-input bg-surface px-2 rounded-xs text-xs font-semibold text-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
@@ -374,7 +330,7 @@ export function MonitoringTable() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
                 disabled={page <= 1}
                 className="h-7.5 px-3 text-xs"
               >
@@ -388,7 +344,7 @@ export function MonitoringTable() {
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                 disabled={page >= totalPages}
                 className="h-7.5 px-3 text-xs"
               >

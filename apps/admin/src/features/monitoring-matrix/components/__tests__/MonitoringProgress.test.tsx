@@ -38,9 +38,43 @@ describe('domain progress helpers', () => {
       formatProgressStatus('IN_PROGRESS', {
         sme: { subtotal: 3.5, max_score: 4, status: 'OK' },
       }),
-    ).toBe('IN PROGRESS (1/4 DOMAINS)');
+    ).toBe('IN PROGRESS (1/4)');
     expect(formatProgressStatus('COMPLETED', null)).toBe('COMPLETED');
     expect(formatProgressStatus('SUBMITTED', null)).toBe('SUBMITTED');
+  });
+
+  it('only counts domain blocks with OK or COMPLETED status AND valid finite subtotal 0..4', () => {
+    // ERROR or FAILED status should NOT count
+    expect(
+      getCompletedDomainCount({
+        sme: { subtotal: 3.5, max_score: 4, status: 'ERROR' },
+        coordinator: { subtotal: 3.0, max_score: 4, status: 'FAILED' },
+      }),
+    ).toBe(0);
+
+    // Missing, null, undefined, NaN, or out-of-range subtotal should NOT count
+    expect(
+      getCompletedDomainCount({
+        sme: { subtotal: null as unknown as number, max_score: 4, status: 'OK' },
+        coordinator: { subtotal: undefined as unknown as number, max_score: 4, status: 'OK' },
+        gad: { subtotal: NaN, max_score: 4, status: 'OK' },
+        itso: { subtotal: 5.0, max_score: 4, status: 'OK' },
+      }),
+    ).toBe(0);
+
+    expect(
+      getCompletedDomainCount({
+        sme: { subtotal: -0.5, max_score: 4, status: 'OK' },
+      }),
+    ).toBe(0);
+
+    // COMPLETED status with valid 0..4 score counts
+    expect(
+      getCompletedDomainCount({
+        sme: { subtotal: 0, max_score: 4, status: 'COMPLETED' },
+        gad: { subtotal: 4, max_score: 4, status: 'ok' }, // lowercase 'ok'
+      }),
+    ).toBe(2);
   });
 });
 
@@ -95,6 +129,13 @@ describe('MonitoringTable progressive domain badges', () => {
       total: 1,
       page: 1,
       page_size: 20,
+      metrics: {
+        completed_count: 0,
+        passing_count: 0,
+        flagged_count: 0,
+        total_flags: 0,
+        quality_pass_rate: null,
+      },
     };
 
     vi.spyOn(useMonitoringMatrixModule, 'useMonitoringMatrix').mockReturnValue({
@@ -109,10 +150,91 @@ describe('MonitoringTable progressive domain badges', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText('IN PROGRESS (2/4 DOMAINS)')).toBeDefined();
+    expect(screen.getByText('IN PROGRESS (2/4)')).toBeDefined();
     expect(screen.getByText('SME 3.50')).toBeDefined();
     expect(screen.getByText('GAD 4')).toBeDefined();
     expect(screen.getByText('Coord Pending')).toBeDefined();
     expect(screen.getByText('ITSO Pending')).toBeDefined();
+  });
+
+  it('renders ERROR/FAILED blocks as Failed and missing/unstarted as Pending in MonitoringMatrixRow', () => {
+    const errorData: MatrixListResponse = {
+      items: [
+        {
+          matrix_id: 'mat-err-1',
+          document_id: 'doc-err-1',
+          evaluation_id: 'eval-err-1',
+          faculty_name: 'Prof. Gomez',
+          program: 'BSCS',
+          document_title: 'Compiler Design Module',
+          evaluation_status: 'IN_PROGRESS',
+          synthesized_score: null,
+          adjectival_rating: null,
+          domain_scores: {
+            sme: {
+              version: 1,
+              subtotal: 3.5,
+              max_score: 4,
+              status: 'OK',
+            },
+            coordinator: {
+              version: 1,
+              subtotal: 0,
+              max_score: 4,
+              status: 'ERROR', // status ERROR must be labeled Failed
+            },
+            gad: {
+              version: 1,
+              subtotal: undefined as unknown as number, // missing subtotal with OK status -> Pending
+              max_score: 4,
+              status: 'OK',
+            },
+          },
+          flag_count: 0,
+          feedback_status: 'NO_FEEDBACK',
+          last_updated: '2026-08-20T10:00:00Z',
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      metrics: {
+        completed_count: 0,
+        passing_count: 0,
+        flagged_count: 0,
+        total_flags: 0,
+        quality_pass_rate: null,
+      },
+    };
+
+    vi.spyOn(useMonitoringMatrixModule, 'useMonitoringMatrix').mockReturnValue({
+      data: errorData,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useMonitoringMatrixModule.useMonitoringMatrix>);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MonitoringTable />
+      </QueryClientProvider>,
+    );
+
+    // Only SME is counted (1/4), Coordinator (ERROR) is Failed, GAD (missing subtotal) & ITSO (absent) are Pending
+    expect(screen.getByText('IN PROGRESS (1/4)')).toBeDefined();
+    expect(screen.getByText('SME 3.50')).toBeDefined();
+    expect(screen.getByText('Coord Failed')).toBeDefined();
+    expect(screen.getByText('GAD Pending')).toBeDefined();
+    expect(screen.getByText('ITSO Pending')).toBeDefined();
+
+    // Check status chip labels inside cards
+    expect(screen.getByText('Evaluated')).toBeDefined();
+    const failedChip = screen.getByText('Failed');
+    expect(failedChip).toBeDefined();
+    expect(failedChip.className).toContain('text-destructive');
+    expect(failedChip.className).toContain('bg-destructive-soft');
+
+    // Check aria-label on domain grid
+    const domainGrid = screen.getByLabelText('Domain completion: 1 of 4 domains evaluated');
+    expect(domainGrid).toBeDefined();
   });
 });

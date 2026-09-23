@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { MasterSynthesisPage } from '../MasterSynthesisPage';
@@ -38,7 +38,7 @@ const mockSynthesisDetail: MasterSynthesisDetailResponse = {
     email: 'alan.turing@university.edu',
     department: 'Department of Computer Science',
   },
-  synthesized_score: 3.65,
+  synthesized_score: 90.75,
   adjectival_rating: 'Very Satisfactory',
   evaluation_status: 'COMPLETED',
   last_updated: '2026-06-01T14:30:00Z',
@@ -204,6 +204,22 @@ describe('MasterSynthesisPage', () => {
     expect(screen.getAllByText('COMPLETED').length).toBeGreaterThanOrEqual(1);
   });
 
+  it('renders COMPLETED_PARTIAL status badge with warning variant in header', () => {
+    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+      data: { ...mockSynthesisDetail, evaluation_status: 'COMPLETED_PARTIAL' },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+
+    const badge = screen.getByText('COMPLETED PARTIAL');
+    expect(badge).toBeDefined();
+    expect(badge.className).toContain('bg-warning-soft');
+    expect(badge.className).toContain('text-warning');
+  });
+
   it('renders composite score banner with rating and pillar convergence progress pill', () => {
     vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
       data: mockSynthesisDetail,
@@ -215,10 +231,27 @@ describe('MasterSynthesisPage', () => {
 
     const banner = screen.getByTestId('composite-score-banner');
     expect(banner).toBeDefined();
-    expect(screen.getByText('3.65')).toBeDefined();
+    expect(within(banner).getByText('90.75%')).toBeDefined();
+    expect(within(banner).queryByText(/\/ 4\.00/)).toBeNull();
     expect(screen.getAllByText(/\/ 4.00/).length).toBeGreaterThan(0);
     expect(screen.getByText('Very Satisfactory')).toBeDefined();
     expect(screen.getByTestId('pillar-progress-pill').textContent).toContain('4/4 Pillars Complete');
+  });
+
+  it('shows a synthesized score of 79 as a percentage, not a four-point score', () => {
+    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+      data: { ...mockSynthesisDetail, synthesized_score: 79, adjectival_rating: 'Satisfactory' },
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+
+    const banner = within(screen.getByTestId('composite-score-banner'));
+    expect(banner.getByText('Overall weighted score')).toBeDefined();
+    expect(banner.getByText('79%')).toBeDefined();
+    expect(banner.queryByText(/\/ 4\.00/)).toBeNull();
+    expect(screen.getAllByText(/\/ 4\.00/).length).toBeGreaterThan(0);
   });
 
   it('renders 4-pillar executive strip with evaluator signature chips', () => {
@@ -245,6 +278,44 @@ describe('MasterSynthesisPage', () => {
     expect(screen.getByText(/Evaluated by: Prof. Marcus Vance/i)).toBeDefined();
     expect(screen.getByText(/Evaluated by: Dr. Patricia Chen/i)).toBeDefined();
     expect(screen.getByText(/Evaluated by: Atty. Sofia Ramos/i)).toBeDefined();
+  });
+
+  it('displays dynamic pillar weights from data response instead of hardcoded constants', () => {
+    const customWeightsData: MasterSynthesisDetailResponse = {
+      ...mockSynthesisDetail,
+      pillars: {
+        ...mockSynthesisDetail.pillars,
+        sme: {
+          ...mockSynthesisDetail.pillars.sme,
+          weight: 0.4,
+        },
+        coordinator: {
+          ...mockSynthesisDetail.pillars.coordinator,
+          weight: 0.3,
+        },
+        gad: {
+          ...mockSynthesisDetail.pillars.gad,
+          weight: 0.2,
+        },
+        itso: {
+          ...mockSynthesisDetail.pillars.itso,
+          weight: 0.1,
+        },
+      },
+    };
+
+    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+      data: customWeightsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+
+    expect(screen.getByTestId('pillar-card-sme').textContent).toContain('40% weight');
+    expect(screen.getByTestId('pillar-card-coordinator').textContent).toContain('30% weight');
+    expect(screen.getByTestId('pillar-card-gad').textContent).toContain('20% weight');
+    expect(screen.getByTestId('pillar-card-itso').textContent).toContain('10% weight');
   });
 
   it('displays awaiting review chip when a pillar is not yet evaluated', () => {
@@ -294,7 +365,7 @@ describe('MasterSynthesisPage', () => {
     expect(screen.getByText('"Section 3.2 diagrams accurately depict semaphore invariants."')).toBeDefined();
 
     // Switch to ITSO tab
-    const itsoTabBtn = screen.getByTestId('tab-button-itso');
+    const itsoTabBtn = screen.getByTestId('pillar-card-itso');
     fireEvent.click(itsoTabBtn);
 
     expect(screen.getByTestId('tab-content-itso')).toBeDefined();
@@ -305,7 +376,7 @@ describe('MasterSynthesisPage', () => {
     expect(screen.getByText(/License icon slightly low resolution in print view/i)).toBeDefined();
   });
 
-  it('renders accreditation signatory block and certifies when can_certify is true', () => {
+  it('renders accreditation signatory block with read-only clearance status', () => {
     vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
@@ -318,12 +389,92 @@ describe('MasterSynthesisPage', () => {
     expect(signatoryBlock).toBeDefined();
     expect(screen.getByText(/Director, Center for Instructional Development/i)).toBeDefined();
 
-    const certifyBtn = screen.getByTestId('certify-button');
-    expect(certifyBtn).toBeDefined();
-    expect(certifyBtn.getAttribute('disabled')).toBeNull();
+    const indicator = screen.getByTestId('certify-readiness-indicator');
+    expect(indicator).toBeDefined();
+    expect(indicator.textContent).toContain('Accreditation Sign-off Ready (Read-only)');
+    expect(screen.getByText(/Ready for Sign-off/i)).toBeDefined();
+    expect(screen.queryByTestId('certify-button')).toBeNull();
+    expect(screen.queryByText(/Certified for Accreditation/i)).toBeNull();
+    expect(screen.queryByText(/Accreditation Sealed/i)).toBeNull();
+  });
 
-    fireEvent.click(certifyBtn);
-    expect(screen.getByText(/Certified for Accreditation/i)).toBeDefined();
+  it('provides accessible tablist navigation with roving tabindex and keyboard controls', () => {
+    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+      data: mockSynthesisDetail,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+
+    const tablist = screen.getByRole('tablist', { name: /Specialist desks/i });
+    expect(tablist).toBeDefined();
+
+    const smeTab = screen.getByRole('tab', { name: /Content Accuracy/i });
+    const coordTab = screen.getByRole('tab', { name: /Curriculum Alignment/i });
+    const gadTab = screen.getByRole('tab', { name: /Gender & Inclusivity/i });
+    const itsoTab = screen.getByRole('tab', { name: /Citations & IP/i });
+
+    // Initial state: SME selected
+    expect(smeTab.getAttribute('aria-selected')).toBe('true');
+    expect(smeTab.getAttribute('tabindex')).toBe('0');
+    expect(coordTab.getAttribute('aria-selected')).toBe('false');
+    expect(coordTab.getAttribute('tabindex')).toBe('-1');
+
+    // Tabpanel linkage
+    const panel = screen.getByRole('tabpanel');
+    expect(panel.getAttribute('id')).toBe('tab-content-sme');
+    expect(panel.getAttribute('aria-labelledby')).toBe('pillar-tab-sme');
+    expect(smeTab.getAttribute('aria-controls')).toBe('tab-content-sme');
+
+    // Arrow navigation: Right/Down moves to next tab
+    fireEvent.keyDown(smeTab, { key: 'ArrowRight' });
+    expect(coordTab.getAttribute('aria-selected')).toBe('true');
+    expect(coordTab.getAttribute('tabindex')).toBe('0');
+    expect(smeTab.getAttribute('aria-selected')).toBe('false');
+    expect(smeTab.getAttribute('tabindex')).toBe('-1');
+    expect(screen.getByRole('tabpanel').getAttribute('id')).toBe('tab-content-coordinator');
+
+    // Arrow navigation: Down moves to GAD
+    fireEvent.keyDown(coordTab, { key: 'ArrowDown' });
+    expect(gadTab.getAttribute('aria-selected')).toBe('true');
+    expect(gadTab.getAttribute('tabindex')).toBe('0');
+
+    // Arrow navigation: Left/Up moves backwards
+    fireEvent.keyDown(gadTab, { key: 'ArrowLeft' });
+    expect(coordTab.getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(coordTab, { key: 'ArrowUp' });
+    expect(smeTab.getAttribute('aria-selected')).toBe('true');
+
+    // End key moves to last tab
+    fireEvent.keyDown(smeTab, { key: 'End' });
+    expect(itsoTab.getAttribute('aria-selected')).toBe('true');
+    expect(itsoTab.getAttribute('tabindex')).toBe('0');
+
+    // Home key moves to first tab
+    fireEvent.keyDown(itsoTab, { key: 'Home' });
+    expect(smeTab.getAttribute('aria-selected')).toBe('true');
+    expect(smeTab.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('resets criteria expanded state when switching between tabs', () => {
+    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+      data: mockSynthesisDetail,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+
+    // Default SME criteria is shown
+    expect(screen.getByText('Topical and Technical Rigor')).toBeDefined();
+
+    // Switch to coordinator tab
+    const coordTab = screen.getByTestId('pillar-card-coordinator');
+    fireEvent.click(coordTab);
+
+    expect(screen.getByText('Syllabus Alignment & Credit Hours')).toBeDefined();
+    expect(screen.queryByText('Topical and Technical Rigor')).toBeNull();
   });
 
   it('triggers window.print when Export Accreditation PDF button is clicked', () => {

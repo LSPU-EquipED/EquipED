@@ -188,6 +188,24 @@ const adminSynthesisRoute = createRoute({
   component: MasterSynthesisPage,
 });
 
+const adminMatrixRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'matrix',
+  beforeLoad: () => {
+    throw redirect({ to: '/matrix' });
+  },
+  component: () => null,
+});
+
+const adminMatrixDocumentRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'matrix/$documentId',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/matrix/$documentId', params });
+  },
+  component: () => null,
+});
+
 const matrixRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'matrix',
@@ -223,6 +241,8 @@ const routeTree = rootRoute.addChildren([
       adminRubricsRoute,
       adminModelValidationRoute,
       adminSynthesisRoute,
+      adminMatrixRoute,
+      adminMatrixDocumentRoute,
     ]),
     matrixRoute,
     matrixDocumentRoute,

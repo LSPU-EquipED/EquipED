@@ -26,6 +26,8 @@ describe('admin appRouter configuration and route splitting', () => {
     expect(flatRoutes['/shell/admin/rubrics']).toBeDefined();
     expect(flatRoutes['/shell/admin/model-validation']).toBeDefined();
     expect(flatRoutes['/shell/admin/synthesis/$documentId']).toBeDefined();
+    expect(flatRoutes['/shell/admin/matrix']).toBeDefined();
+    expect(flatRoutes['/shell/admin/matrix/$documentId']).toBeDefined();
     expect(flatRoutes['/shell/matrix']).toBeDefined();
     expect(flatRoutes['/shell/matrix/$documentId']).toBeDefined();
     expect(flatRoutes['/shell/evaluation-map']).toBeDefined();

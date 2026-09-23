@@ -1,5 +1,5 @@
 import type { StatusVariant } from '@equiped/ui';
-import type { MatrixDomainScoreBlock } from './types';
+import type { MatrixDomainScoreBlock } from '../types';
 
 export function formatRevisionContext(
   domainScores: Record<string, MatrixDomainScoreBlock> | null | undefined,
@@ -29,32 +29,6 @@ export function formatRevisionContext(
   return '—';
 }
 
-export function getStatusVariant(status: string): StatusVariant {
-  const s = status.toUpperCase();
-  if (s === 'FAILED' || s === 'ERROR') return 'destructive';
-  if (s.startsWith('COMPLETED')) return 'success';
-  if (s === 'EVALUATING' || s === 'PREPROCESSING' || s === 'SYNTHESIZING' || s === 'PROCESSING') return 'info';
-  if (s === 'SUBMITTED' || s === 'PENDING' || s === 'QUEUED') return 'warning';
-  return 'neutral';
-}
-
-export function statusClass(status: string): string {
-  const s = status.toUpperCase();
-  if (s === 'FAILED' || s === 'ERROR') {
-    return 'bg-destructive-soft text-destructive border-destructive/20';
-  }
-  if (s.startsWith('COMPLETED')) {
-    return 'bg-success-soft text-success border-success/20';
-  }
-  if (s === 'EVALUATING' || s === 'PREPROCESSING' || s === 'SYNTHESIZING' || s === 'PROCESSING') {
-    return 'bg-info-soft text-info border-info/20';
-  }
-  if (s === 'SUBMITTED' || s === 'PENDING' || s === 'QUEUED') {
-    return 'bg-warning-soft text-warning border-warning/20';
-  }
-  return 'bg-surface-subtle text-text-muted border-border';
-}
-
 export function getRatingVariant(rating: string | null | undefined): StatusVariant {
   switch (rating) {
     case 'Very Satisfactory':
@@ -67,21 +41,6 @@ export function getRatingVariant(rating: string | null | undefined): StatusVaria
       return 'destructive';
     default:
       return 'neutral';
-  }
-}
-
-export function ratingClass(rating: string | null | undefined): string {
-  switch (rating) {
-    case 'Very Satisfactory':
-      return 'bg-success-soft text-success border-success/20';
-    case 'Satisfactory':
-      return 'bg-info-soft text-info border-info/20';
-    case 'Needs Improvement':
-      return 'bg-warning-soft text-warning border-warning/20';
-    case 'Poor':
-      return 'bg-destructive-soft text-destructive border-destructive/20';
-    default:
-      return 'bg-surface-subtle text-text-muted border-border';
   }
 }
 
@@ -108,11 +67,21 @@ export function domainShortLabel(domainId: string): string {
   return domainId;
 }
 
+export function isDomainBlockEvaluated(
+  block: MatrixDomainScoreBlock | null | undefined,
+): boolean {
+  if (!block) return false;
+  const status = typeof block.status === 'string' ? block.status.toUpperCase() : '';
+  if (status !== 'OK' && status !== 'COMPLETED') return false;
+  if (block.subtotal == null || typeof block.subtotal !== 'number') return false;
+  return Number.isFinite(block.subtotal) && block.subtotal >= 0 && block.subtotal <= 4;
+}
+
 export function getCompletedDomainCount(
   domainScores: Record<string, MatrixDomainScoreBlock> | null | undefined,
 ): number {
   if (!domainScores) return 0;
-  return TARGET_DOMAIN_ORDER.filter((domainId) => domainScores[domainId] != null).length;
+  return TARGET_DOMAIN_ORDER.filter((domainId) => isDomainBlockEvaluated(domainScores[domainId])).length;
 }
 
 export interface DomainProgress {
@@ -133,7 +102,7 @@ export function formatProgressStatus(
   const base = evaluationStatus.replace(/_/g, ' ');
   if (evaluationStatus.toUpperCase() !== 'IN_PROGRESS') return base;
   const { completed, total } = getDomainProgress(domainScores);
-  return `${base} (${completed}/${total} DOMAINS)`;
+  return `${base} (${completed}/${total})`;
 }
 
 export function formatDomainScore(value: number | null | undefined): string {
