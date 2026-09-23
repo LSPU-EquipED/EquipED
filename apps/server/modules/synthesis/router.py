@@ -62,16 +62,18 @@ def get_evaluation_results(
 def get_monitoring_matrix(
     program: str | None = Query(None),
     status: str | None = Query(None),
+    search: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     current_user=Depends(require_admin),
     db=Depends(get_db_session),
 ):
     try:
-        return service_get_monitoring_matrix(program, status, page, page_size, db=db)
+        return service_get_monitoring_matrix(
+            program, status, page, page_size, db=db, search=search
+        )
     except UnsupportedProgramFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-
 
 
 @router.get("/matrix/{document_id}", response_model=MasterSynthesisDetailResponse)
@@ -84,5 +86,6 @@ def get_master_synthesis_detail(
         return service_get_master_synthesis_detail(db=db, document_id=document_id)
     except MonitoringMatrixNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
 
 __all__ = ["router"]

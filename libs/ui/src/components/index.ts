@@ -8,3 +8,5 @@ export * from './TableSkeleton';
 export * from './Select';
 export * from './Dropdown';
 export * from './PageContainer';
+export * from './ConfirmationModal';
+export * from './CollapsibleRow';

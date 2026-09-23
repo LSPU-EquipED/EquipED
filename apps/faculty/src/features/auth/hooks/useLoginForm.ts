@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@equiped/auth';
-
-const LSPU_EMAIL_PATTERN = /^[^\s@]+@lspu\.edu\.ph$/i;
-const MAX_EMAIL_LENGTH = 40;
+import {
+  classifyInstitutionalEmailIssue,
+  normalizeInstitutionalEmail,
+} from '@equiped/types';
 
 export function useLoginForm() {
   const auth = useAuth();
@@ -16,9 +17,10 @@ export function useLoginForm() {
   const [passwordHint, setPasswordHint] = useState('');
 
   const handleEmailBlur = () => {
-    if (email.trim().length > MAX_EMAIL_LENGTH) {
+    const issue = classifyInstitutionalEmailIssue(email);
+    if (issue === 'tooLong') {
       setEmailHint('Email must be 40 characters or fewer.');
-    } else if (email && !LSPU_EMAIL_PATTERN.test(email.trim())) {
+    } else if (issue === 'invalidDomain') {
       setEmailHint('Please use your official @lspu.edu.ph email address.');
     } else {
       setEmailHint('');
@@ -35,10 +37,11 @@ export function useLoginForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail.length > MAX_EMAIL_LENGTH || !LSPU_EMAIL_PATTERN.test(normalizedEmail)) {
+    const normalizedEmail = normalizeInstitutionalEmail(email);
+    const issue = classifyInstitutionalEmailIssue(normalizedEmail);
+    if (issue !== null) {
       setEmailHint(
-        normalizedEmail.length > MAX_EMAIL_LENGTH
+        issue === 'tooLong'
           ? 'Email must be 40 characters or fewer.'
           : 'Please use your official @lspu.edu.ph email address.',
       );

@@ -2,6 +2,23 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from fastapi.testclient import TestClient
+
+if TYPE_CHECKING:
+    from server.modules.auth.models import User
+
+
+def _login(
+    client: TestClient, user: User, password: str = "correct-horse-battery"
+) -> None:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": password},
+    )
+    assert response.status_code == 200
+
 
 def make_agent_result(
     agent_name: str,

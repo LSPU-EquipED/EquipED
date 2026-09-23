@@ -131,6 +131,25 @@ body {
   animation: ledger-flash-decay var(--duration-decay) ease-out forwards;
 }
 
+/* ── Collapsible / Accordion Motion ──────────────────────────────────── */
+
+.animate-ledger-collapse {
+  display: grid;
+  transition: grid-template-rows var(--duration-surface) var(--ease-ledger-standard),
+              opacity var(--duration-surface) var(--ease-ledger-standard);
+}
+
+.animate-ledger-collapse-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.animate-ledger-collapse-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ── Accessibility & Reduced Motion Strictness ─────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

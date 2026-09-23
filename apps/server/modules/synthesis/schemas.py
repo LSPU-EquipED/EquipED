@@ -117,6 +117,14 @@ class EvaluationResultsResponse(BaseModel):
     legacy_notice: str | None = None
 
 
+class MatrixMetrics(BaseModel):
+    completed_count: int
+    passing_count: int
+    flagged_count: int
+    total_flags: int
+    quality_pass_rate: float | None = None
+
+
 class MatrixRowItem(BaseModel):
     matrix_id: UUID
     document_id: UUID
@@ -138,7 +146,7 @@ class MatrixListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-
+    metrics: MatrixMetrics
 
 
 class EvaluatorAttribution(BaseModel):
@@ -171,6 +179,7 @@ class MasterSynthesisDetailResponse(BaseModel):
     flags: list[EvaluationFlagItem] = Field(default_factory=list)
     can_certify: bool
 
+
 __all__ = [
     "CriterionScoreItem",
     "RawMeasurementItemOut",
@@ -182,6 +191,7 @@ __all__ = [
     "EvaluationResultsResponse",
     "EvaluationFlagItem",
     "MatrixRowItem",
+    "MatrixMetrics",
     "MatrixListResponse",
     "score_to_adjectival",
     "EvaluatorAttribution",

@@ -84,6 +84,63 @@ describe('LoginForm Component', () => {
     ).toBeDefined();
   });
 
+  it('keeps email hint empty on blur when email is empty', () => {
+    render(<LoginForm />);
+
+    const emailInput = screen.getByLabelText(/^Email/i);
+    fireEvent.change(emailInput, { target: { value: '' } });
+    fireEvent.blur(emailInput);
+
+    expect(
+      screen.queryByText('Please use your official @lspu.edu.ph email address.'),
+    ).toBeNull();
+    expect(
+      screen.queryByText('Email must be 40 characters or fewer.'),
+    ).toBeNull();
+  });
+
+  it('validates email max length on blur and on submit', async () => {
+    render(<LoginForm />);
+
+    const emailInput = screen.getByLabelText(/^Email/i);
+    const longEmail = `${'a'.repeat(30)}@lspu.edu.ph`; // 42 chars > 40
+    fireEvent.change(emailInput, { target: { value: longEmail } });
+    fireEvent.blur(emailInput);
+
+    expect(
+      screen.getByText('Email must be 40 characters or fewer.'),
+    ).toBeDefined();
+
+    const submitBtn = screen.getByRole('button', { name: /^Sign In$/i });
+    fireEvent.click(submitBtn);
+
+    expect(mockLogin).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('Email must be 40 characters or fewer.'),
+    ).toBeDefined();
+  });
+
+  it('submits with trimmed lowercase normalized email', async () => {
+    mockLogin.mockResolvedValueOnce(undefined);
+    render(<LoginForm />);
+
+    const emailInput = screen.getByLabelText(/^Email/i);
+    const passwordInput = screen.getByLabelText(/^Password/i);
+
+    fireEvent.change(emailInput, { target: { value: '  Faculty.Member@LSPU.EDU.PH  ' } });
+    fireEvent.change(passwordInput, { target: { value: 'validPassword123' } });
+
+    const submitBtn = screen.getByRole('button', { name: /^Sign In$/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        email: 'faculty.member@lspu.edu.ph',
+        password: 'validPassword123',
+      });
+    });
+  });
+
   it('toggles remember email checkbox and persists to localStorage on submit', async () => {
     mockLogin.mockResolvedValueOnce(undefined);
     render(<LoginForm />);
