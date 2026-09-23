@@ -158,6 +158,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         nonlocal captured_snapshots
         captured_snapshots = form_snapshots
@@ -327,6 +328,7 @@ def test_orchestrator_partial_without_curriculum_completes(
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -423,6 +425,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -529,6 +532,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -624,6 +628,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -722,6 +727,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()

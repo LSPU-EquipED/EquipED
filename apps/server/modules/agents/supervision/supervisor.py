@@ -50,6 +50,7 @@ class Supervisor:
         query_text: str | None = None,
         context: dict[str, Any] | None = None,
         heartbeat_callback: Callable[[], None] | None = None,
+        lora_scale: float | None = None,
     ) -> SupervisorResult:
         started = time.perf_counter()
         context = context or {}
@@ -78,6 +79,7 @@ class Supervisor:
             canonical_source_text=prepared.canonical_source_text,
             authoritative_curriculum_text=prepared.authoritative_curriculum_text,
             heartbeat_callback=heartbeat_callback,
+            lora_scale=lora_scale,
         )
         logger.info(
             "[EVAL_TIMING] phase=evaluation_total | seconds=%.3f | "

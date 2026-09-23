@@ -24,6 +24,8 @@ export interface ModelValidationItem {
   evaluation_id: string;
   document_id: string;
   document_title: string | null;
+  model_variant: 'base' | 'adapter' | null;
+  compare_group_id: string | null;
   partial_without_curriculum: boolean;
   bound_forms: ModelValidationBoundForm[];
   criterion_scores: ModelValidationCriterionScore[];
@@ -69,6 +71,19 @@ export interface ModelValidationCreateBody {
   curriculum_id?: string | null;
   partial_without_curriculum: boolean;
   expected_scores: ExpectedCriterionScoreInput[];
+}
+
+export interface AdapterComparisonCreateBody {
+  document_id: string;
+  syllabus_id?: string | null;
+  target_agent: 'sme' | 'gad' | 'itso';
+  expected_scores: ExpectedCriterionScoreInput[];
+}
+
+export interface AdapterComparisonResponse {
+  compare_group_id: string;
+  base_validation_id: string;
+  adapter_validation_id: string;
 }
 
 export interface ModelValidationCriterionDefinition {

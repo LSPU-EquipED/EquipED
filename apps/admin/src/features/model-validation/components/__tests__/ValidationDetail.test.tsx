@@ -36,6 +36,8 @@ const mockItem: ModelValidationItem = {
   evaluation_id: 'eval-uuid-1',
   document_id: 'doc-uuid-1',
   document_title: 'Introduction to Computing SLM',
+  model_variant: null,
+  compare_group_id: null,
   partial_without_curriculum: true,
   bound_forms: [
     {
@@ -170,5 +172,46 @@ describe('HistoryRow', () => {
     expect(screen.getByText('SME v1')).toBeDefined();
     expect(screen.getByText('GAD v2')).toBeDefined();
     expect(screen.getByText('ITSO v1')).toBeDefined();
+  });
+
+  it('shows an Adapter variant badge when model_variant is adapter', () => {
+    render(
+      <table>
+        <tbody>
+          <HistoryRow
+            item={{ ...mockItem, model_variant: 'adapter' }}
+            isExpanded={false}
+            isAnyExpanded={false}
+            comparedCount={2}
+            exactMatches={1}
+            onToggle={vi.fn()}
+            onClose={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.getByText('Adapter')).toBeDefined();
+  });
+
+  it('shows no variant badge when model_variant is null', () => {
+    render(
+      <table>
+        <tbody>
+          <HistoryRow
+            item={{ ...mockItem, model_variant: null }}
+            isExpanded={false}
+            isAnyExpanded={false}
+            comparedCount={2}
+            exactMatches={1}
+            onToggle={vi.fn()}
+            onClose={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+
+    expect(screen.queryByText('Adapter')).toBeNull();
+    expect(screen.queryByText('Base')).toBeNull();
   });
 });

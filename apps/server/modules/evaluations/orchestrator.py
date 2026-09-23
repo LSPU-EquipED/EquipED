@@ -297,6 +297,7 @@ def _execute_claimed_evaluation(
                     "confirmed_program": job.confirmed_program,
                 },
                 heartbeat_callback=owner_heartbeat,
+                lora_scale=job.lora_scale,
             )
             if not supervisor_result.agent_results:
                 raise EvaluationPipelineUnavailableError(

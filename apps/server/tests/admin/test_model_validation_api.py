@@ -16,6 +16,7 @@ from server.modules.rubrics.models import (
     RubricSet,
 )
 from server.tests.admin.conftest import _auth
+from server.tests.admin.test_model_validation import _setup_validation
 
 
 @pytest.fixture(autouse=True)
@@ -647,3 +648,62 @@ def test_faculty_rbac_denial_across_all_model_validation_endpoints(
         ).status_code
         == 403
     )
+
+
+def test_compare_endpoint_creates_a_linked_pair(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: True,
+    )
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations/compare",
+        json={
+            "document_id": str(slm.document_id),
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        },
+    )
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["compare_group_id"]
+    assert body["base_validation_id"] != body["adapter_validation_id"]
+
+    # Both runs' responses carry their variant.
+    base_detail = client.get(
+        f"/api/v1/admin/model-validations/{body['base_validation_id']}"
+    ).json()
+    assert base_detail["model_variant"] == "base"
+    assert base_detail["compare_group_id"] == body["compare_group_id"]
+
+
+def test_compare_endpoint_returns_503_when_llm_endpoint_unreachable(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    from server.core.exceptions import InfrastructureUnavailableError
+
+    def _raise():
+        raise InfrastructureUnavailableError("endpoint down")
+
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        _raise,
+    )
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations/compare",
+        json={
+            "document_id": str(slm.document_id),
+            "target_agent": "sme",
+            "expected_scores": sme_only,
+        },
+    )
+    assert resp.status_code == 503

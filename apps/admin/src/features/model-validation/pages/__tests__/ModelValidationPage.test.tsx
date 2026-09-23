@@ -24,6 +24,8 @@ const mockHistoryData: ModelValidationListResponse = {
       evaluation_id: 'eval-1',
       document_id: 'doc-1',
       document_title: 'Algorithms SLM',
+      model_variant: null,
+      compare_group_id: null,
       status: 'COMPLETED',
       criterion_scores: [],
       bound_forms: [],
@@ -136,5 +138,52 @@ describe('ModelValidationPage', () => {
     fireEvent.click(newRunTab);
 
     expect(screen.getByText('New validation input')).toBeDefined();
+  });
+
+  it('shows the Compare tab and renders the AdapterComparisonForm when selected', () => {
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: mockHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+
+    vi.spyOn(queriesModule, 'useModelValidationMetrics').mockReturnValue({
+      data: mockMetricsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
+
+    renderPage();
+
+    const compareTab = screen.getByRole('tab', { name: /Compare/i });
+    expect(compareTab).toBeDefined();
+
+    fireEvent.click(compareTab);
+
+    expect(screen.getByText('Compare base vs adapter')).toBeDefined();
+
+    // An in-flight validation should show progress under the Compare tab too, same as New Benchmark Run.
+    const inFlightHistoryData: ModelValidationListResponse = {
+      items: [
+        {
+          ...mockHistoryData.items[0],
+          validation_id: 'val-2',
+          status: 'EVALUATING',
+        },
+      ],
+      total: 1,
+    };
+
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: inFlightHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+
+    cleanup();
+    renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: /Compare/i }));
+
+    expect(screen.getByLabelText(/Agent progress for/i)).toBeDefined();
   });
 });

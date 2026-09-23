@@ -193,6 +193,7 @@ def _run_orchestrator_capture(
         query_text=None,
         context=None,
         heartbeat_callback=None,
+        lora_scale=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()

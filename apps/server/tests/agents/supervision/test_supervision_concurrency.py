@@ -79,7 +79,7 @@ def _result(name, evaluation_id, document_id, *, success=True):
     )
 
 
-def _dispatch(monkeypatch, agents, prepared):
+def _dispatch(monkeypatch, agents, prepared, lora_scale=None):
     eval_id = uuid4()
     snapshots = tuple(
         _make_dummy_snapshot(a.agent_name, evaluation_id=eval_id) for a in agents
@@ -98,6 +98,7 @@ def _dispatch(monkeypatch, agents, prepared):
         provenance=None,
         policy_evidence=None,
         roadmap_context=None,
+        lora_scale=lora_scale,
     )
 
 
@@ -220,3 +221,64 @@ def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -
     assert set(attempts) == {"sme", "gad"}
     assert {r.agent_name for r in results} == {"sme", "gad"}
     assert failures["sme"].startswith("RuntimeError") and not failures.get("gad")
+
+
+def test_dispatch_wraps_the_client_with_the_requested_lora_scale(monkeypatch) -> None:
+    captured_clients = []
+
+    class _ScalableFakeClient:
+        def __init__(self, lora_scale=None):
+            self.lora_scale = lora_scale
+
+        def with_lora_scale(self, scale):
+            return _ScalableFakeClient(lora_scale=scale)
+
+        def generate_result(self, *args, **kwargs):
+            raise AssertionError("this test only checks which client was passed in")
+
+    class _CapturingAgent:
+        agent_name = "sme"
+
+        def run(self, *, llm_client, **kwargs):
+            captured_clients.append(llm_client)
+            return _result("sme", kwargs["evaluation_id"], kwargs["document_id"])
+
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
+        lambda _agent_name: _ScalableFakeClient(),
+    )
+
+    prepared = _context()
+    _dispatch(monkeypatch, [_CapturingAgent()], prepared, lora_scale=1.0)
+
+    assert captured_clients[0].lora_scale == 1.0
+
+
+def test_dispatch_without_lora_scale_leaves_the_client_unscaled(monkeypatch) -> None:
+    captured_clients = []
+
+    class _ScalableFakeClient:
+        def __init__(self, lora_scale=None):
+            self.lora_scale = lora_scale
+
+        def with_lora_scale(self, scale):
+            raise AssertionError(
+                "with_lora_scale must not be called when lora_scale is None"
+            )
+
+    class _CapturingAgent:
+        agent_name = "sme"
+
+        def run(self, *, llm_client, **kwargs):
+            captured_clients.append(llm_client)
+            return _result("sme", kwargs["evaluation_id"], kwargs["document_id"])
+
+    monkeypatch.setattr(
+        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
+        lambda _agent_name: _ScalableFakeClient(),
+    )
+
+    prepared = _context()
+    _dispatch(monkeypatch, [_CapturingAgent()], prepared)
+
+    assert captured_clients[0].lora_scale is None

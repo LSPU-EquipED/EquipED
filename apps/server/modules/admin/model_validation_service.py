@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from server.core.config import get_settings
+from server.core.llm import check_lora_adapter_loaded
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
@@ -34,6 +35,8 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
+    AdapterComparisonCreateRequest,
+    AdapterComparisonResponse,
     AdminEvaluationResponse,
     ModelValidationAgentCriteria,
     ModelValidationBoundForm,
@@ -60,6 +63,7 @@ _TOXICITY_INPUT_CHARS = 6000
 
 __all__ = [
     "create_model_validation",
+    "create_adapter_comparison",
     "list_model_validations",
     "get_model_validation_detail",
     "get_admin_evaluation",
@@ -143,6 +147,8 @@ def _model_validation_response(
         latency_seconds = (job.completed_at - job.submitted_at).total_seconds()
     return ModelValidationResponse(
         validation_id=validation.validation_id,
+        model_variant=validation.model_variant,
+        compare_group_id=validation.compare_group_id,
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
         document_title=document.title if document is not None else None,
@@ -175,6 +181,9 @@ def create_model_validation(
     created_by: uuid.UUID,
     created_by_role: str | None = None,
     db: Any,
+    model_variant: str | None = None,
+    compare_group_id: uuid.UUID | None = None,
+    lora_scale: float | None = None,
 ) -> ModelValidationResponse:
     """Create an evaluation job with private criterion-level benchmarks.
 
@@ -183,7 +192,10 @@ def create_model_validation(
     step never leaves an orphan job.
     """
     is_partial = bool(request.partial_without_curriculum)
-    if is_partial:
+    single_agent = request.target_agent != "all"
+    if single_agent:
+        expected_agents = {request.target_agent}
+    elif is_partial:
         if request.curriculum_id is not None:
             raise InvalidEvaluationTargetError(
                 "Partial evaluation without curriculum cannot specify a curriculum_id."
@@ -301,8 +313,11 @@ def create_model_validation(
             EvaluationSubmitRequest(
                 document_id=request.document_id,
                 syllabus_id=request.syllabus_id,
-                curriculum_id=request.curriculum_id if not is_partial else None,
-                partial_without_curriculum=is_partial,
+                curriculum_id=(
+                    request.curriculum_id if single_agent or not is_partial else None
+                ),
+                target_agent=(request.target_agent if single_agent else "sme"),
+                partial_without_curriculum=(False if single_agent else is_partial),
                 confirmed_program=confirmed_program,
             ),
             submitted_by=created_by,
@@ -310,9 +325,9 @@ def create_model_validation(
             db=db,
             with_commit=False,
         )
-        # Model-validation benchmarks remain historical multi-agent bundles.
         _bench_job = db.get(EvaluationJob, evaluation.evaluation_id)
-        if _bench_job is not None:
+        if _bench_job is not None and not single_agent:
+            # Model-validation benchmarks remain historical multi-agent bundles.
             _bench_job.target_agent = "all"
             _bench_job.partial_without_curriculum = bool(is_partial)
             _bench_job.partial_reason = (
@@ -322,6 +337,15 @@ def create_model_validation(
             )
         # Persist the FK parent before adding snapshots and benchmark children.
         db.flush()
+        if lora_scale is not None:
+            # The session may not autoflush, so `_bench_job` fetched above can
+            # still be unpersisted at that point; re-fetch now that the flush
+            # above guarantees the job row exists.
+            job_for_scale = _bench_job or db.get(
+                EvaluationJob, evaluation.evaluation_id
+            )
+            if job_for_scale is not None:
+                job_for_scale.lora_scale = lora_scale
 
         # Precreate exact standard snapshots from locked forms
         persist_evaluation_form_snapshots(
@@ -332,6 +356,8 @@ def create_model_validation(
             validation_id=validation_id,
             evaluation_id=evaluation.evaluation_id,
             created_by=created_by,
+            model_variant=model_variant,
+            compare_group_id=compare_group_id,
         )
         db.add(validation)
         db.flush()
@@ -353,6 +379,56 @@ def create_model_validation(
     )
     return _model_validation_response(
         validation, job, document, criterion_rows, snapshots
+    )
+
+
+def create_adapter_comparison(
+    request: AdapterComparisonCreateRequest,
+    *,
+    created_by: uuid.UUID,
+    created_by_role: str | None = None,
+    db: Any,
+) -> AdapterComparisonResponse:
+    """Create two linked single-agent benchmark runs: one at LoRA scale 0.0
+    (base), one at scale 1.0 (adapter). Refuses up front -- before any row
+    exists -- if the configured LLM endpoint reports no loaded adapter."""
+    if not check_lora_adapter_loaded():
+        raise InvalidEvaluationTargetError(
+            "no adapter is loaded on the server; ask the host owner to load "
+            "one first (see training/serving-lora-adapter.md)"
+        )
+
+    compare_group_id = uuid.uuid4()
+
+    def _one_run(*, model_variant: str, lora_scale: float) -> ModelValidationResponse:
+        base_request = ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": request.document_id,
+                "syllabus_id": request.syllabus_id,
+                "curriculum_id": request.curriculum_id,
+                "target_agent": request.target_agent,
+                "expected_scores": [
+                    item.model_dump() for item in request.expected_scores
+                ],
+            }
+        )
+        return create_model_validation(
+            base_request,
+            created_by=created_by,
+            created_by_role=created_by_role,
+            db=db,
+            model_variant=model_variant,
+            compare_group_id=compare_group_id,
+            lora_scale=lora_scale,
+        )
+
+    base_response = _one_run(model_variant="base", lora_scale=0.0)
+    adapter_response = _one_run(model_variant="adapter", lora_scale=1.0)
+
+    return AdapterComparisonResponse(
+        compare_group_id=compare_group_id,
+        base_validation_id=base_response.validation_id,
+        adapter_validation_id=adapter_response.validation_id,
     )
 
 

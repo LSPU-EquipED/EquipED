@@ -93,6 +93,10 @@ class ModelValidation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    model_variant: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    compare_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), nullable=True
+    )
 
 
 class ModelValidationCriterionScore(Base):
