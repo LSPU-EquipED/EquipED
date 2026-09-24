@@ -14,7 +14,11 @@ import { Skeleton } from '@equiped/ui';
 import { ProgramSelector } from '@equiped/ui';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@equiped/types';
 import { cn } from '@equiped/ui';
-import type { ModelValidationFormState } from '../hooks/useModelValidationFormState';
+import type {
+  ModelValidationFormState,
+  ModelVariant,
+  TargetAgent,
+} from '../hooks/useModelValidationFormState';
 import { criterionKey } from '../utils/helpers';
 
 export function ValidationPreparationForm({ form }: { form: ModelValidationFormState }) {
@@ -30,6 +34,10 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
     uploaded,
     partialChoiceAcknowledged,
     setPartialChoiceAcknowledged,
+    modelVariant,
+    setModelVariant,
+    targetAgent,
+    setTargetAgent,
     criterionCatalog,
     uploadMutation,
     validationMutation,
@@ -50,6 +58,12 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
   } = form;
 
   const [activeAgentTab, setActiveAgentTab] = useState<string>('sme');
+
+  // The default tab state is 'sme'; with a single-agent target that agent may
+  // not be in scope, so fall back to the first agent that is.
+  const visibleAgentId = criterionDefinitions.some((agent) => agent.agent_id === activeAgentTab)
+    ? activeAgentTab
+    : criterionDefinitions[0]?.agent_id;
 
   // Calculate entered scores count
   const enteredScoreCount = Object.values(expectedScores).filter(
@@ -97,6 +111,59 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ── Left Column (5 cols): SLM Document & Submission Pipeline ── */}
           <div className="lg:col-span-5 space-y-6">
+            {/* Run configuration: which model, and which agent(s) to benchmark */}
+            <div className="rounded-md border border-border bg-surface p-5 space-y-4 shadow-none">
+              <div className="border-b border-border pb-2.5">
+                <h3 className="text-sm font-bold text-text tracking-tight">Run configuration</h3>
+              </div>
+
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="validation-model" className="text-xs font-semibold text-text">
+                    Model
+                  </label>
+                  <select
+                    id="validation-model"
+                    value={modelVariant}
+                    onChange={(event) => setModelVariant(event.target.value as ModelVariant)}
+                    className="h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="base">Base model</option>
+                    <option value="adapter">Fine-tuned adapter</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="validation-target" className="text-xs font-semibold text-text">
+                    Target
+                  </label>
+                  <select
+                    id="validation-target"
+                    value={targetAgent ?? ''}
+                    onChange={(event) => setTargetAgent(event.target.value as TargetAgent)}
+                    className="h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="" disabled>
+                      Choose an agent…
+                    </option>
+                    <option value="all" disabled={modelVariant === 'adapter'}>
+                      All agents (SME, GAD, ITSO)
+                    </option>
+                    <option value="sme">SME only</option>
+                    <option value="gad">GAD only</option>
+                    <option value="itso">ITSO only</option>
+                  </select>
+                </div>
+              </div>
+
+              {modelVariant === 'adapter' ? (
+                <p className="text-xs text-text-muted">
+                  The adapter is applied to one agent only, and an adapter must be loaded on the
+                  server.
+                </p>
+              ) : null}
+            </div>
+
             {/* Card 1: Document Metadata & File */}
             <div className="rounded-md border border-border bg-surface p-5 space-y-4 shadow-none">
               <div className="border-b border-border pb-2.5">
@@ -241,7 +308,7 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
                     </div>
                   )}
 
-                  {uploadedDocumentReady ? (
+                  {uploadedDocumentReady && targetAgent === 'all' ? (
                     <fieldset className="grid gap-2.5 rounded-sm border border-warning/40 bg-warning-soft p-3.5 text-xs text-text">
                       <legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-text">
                         Partial validation
@@ -336,7 +403,7 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
               {/* Agent Sub-Tabs */}
               <div className="flex flex-wrap gap-1.5 p-2.5 border-b border-border bg-surface-subtle/50">
                 {criterionDefinitions.map((agent) => {
-                  const isTabActive = (activeAgentTab || criterionDefinitions[0]?.agent_id) === agent.agent_id;
+                  const isTabActive = visibleAgentId === agent.agent_id;
                   const criteriaList = agent.domains?.length
                     ? agent.domains.flatMap((d) => d.criteria)
                     : agent.criteria ?? [];
@@ -411,7 +478,7 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
                   </p>
                 ) : (
                   criterionDefinitions.map((agent) => {
-                    const isVisible = (activeAgentTab || criterionDefinitions[0]?.agent_id) === agent.agent_id;
+                    const isVisible = visibleAgentId === agent.agent_id;
                     const hasDomains = agent.domains && agent.domains.length > 0;
 
                     return (
