@@ -519,6 +519,27 @@ def test_check_lora_adapter_loaded_false_when_server_reports_none(monkeypatch) -
     assert check_lora_adapter_loaded() is False
 
 
+def test_check_lora_adapter_loaded_false_when_endpoint_has_no_lora_route(
+    monkeypatch,
+) -> None:
+    """A 404 on /lora-adapters means the server has no LoRA capability at
+    all (e.g. Ollama) -- not that the endpoint is down. Both the "base" and
+    "adapter" callers must see this as "no adapter loaded", not a 503."""
+
+    class _FakeSettings:
+        llm_api_base = "http://localhost:11434/v1"
+        llm_api_key = None
+        llm_readiness_timeout_seconds = 5.0
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _FakeSettings())
+
+    def fake_urlopen(req, **kwargs):
+        raise error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    assert check_lora_adapter_loaded() is False
+
+
 def test_check_lora_adapter_loaded_raises_when_endpoint_unreachable(
     monkeypatch,
 ) -> None:
