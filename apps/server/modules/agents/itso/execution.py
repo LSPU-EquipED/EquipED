@@ -13,8 +13,8 @@ from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
 from server.modules.rubrics.contracts import (
     CriterionDefinition,
     GroundedScoreMeasurement,
-    LlmRubricGuidanceConfig,
 )
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.rubrics.strategies.calculators import normalize_llm_guidance_score
 
@@ -55,22 +55,29 @@ def _extract_and_validate_snapshot(
             f"(expected eval={context.evaluation_id!r})"
         )
 
-    if snapshot.adapter_key != "itso" or snapshot.adapter_version != 1:
+    if snapshot.adapter_key != "itso":
         raise AgentExecutionError(
-            f"ITSO snapshot adapter mismatch: adapter_key={snapshot.adapter_key!r}, "
-            f"adapter_version={snapshot.adapter_version!r} (expected 'itso', 1)"
+            f"ITSO snapshot adapter mismatch: adapter_key={snapshot.adapter_key!r} "
+            "(expected 'itso')"
+        )
+    try:
+        manifest = get_agent_manifest("itso", snapshot.adapter_version)
+    except ValueError as exc:
+        raise AgentExecutionError(
+            f"Unsupported ITSO adapter version {snapshot.adapter_version}"
+        ) from exc
+    report = validate_form(snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
+        )
+        raise AgentExecutionError(
+            f"ITSO snapshot violates adapter {snapshot.adapter_version}: {codes}"
         )
 
-    ordered_criteria: list[CriterionDefinition] = []
-    for domain in snapshot.form.domains:
-        for criterion in domain.criteria:
-            if not isinstance(criterion.strategy_config, LlmRubricGuidanceConfig):
-                raise AgentExecutionError(
-                    f"ITSO criterion '{criterion.criterion_code}' has unsupported "
-                    f"strategy '{criterion.strategy_config.strategy}' "
-                    "(expected 'llm_rubric_guidance')"
-                )
-            ordered_criteria.append(criterion)
+    ordered_criteria: list[CriterionDefinition] = [
+        criterion for domain in snapshot.form.domains for criterion in domain.criteria
+    ]
 
     if not ordered_criteria:
         raise AgentExecutionError("ITSO snapshot contains no criteria")
