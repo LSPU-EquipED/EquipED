@@ -1,0 +1,110 @@
+{
+  "verdict": "inconclusive",
+  "reasons": [
+    "too few decisive pairs (1 < 20)"
+  ],
+  "warnings": [],
+  "pairs": {
+    "heldout_total": 5,
+    "scoreable": 5,
+    "skipped": 0,
+    "wins": 0,
+    "losses": 1,
+    "ties": 4
+  },
+  "mean_abs_error": {
+    "base": 0.4,
+    "adapter": 0.6
+  },
+  "valid_json_rate": {
+    "base": 1.0,
+    "adapter": 1.0
+  },
+  "sign_test_p": 1.0,
+  "parameters": {
+    "min_decisive": 20,
+    "alpha": 0.05,
+    "scale_mode": "request",
+    "model": "gemma-3-4b-it",
+    "max_tokens": 2048,
+    "limit": null
+  },
+  "heldout": {
+    "source": "adapters\\sme\\1c669f5a-0cfd-4ad4-ad7a-8e69a7b3c205\\adapter.zip!heldout_pairs.jsonl",
+    "sha256": "59f3f6493e19357019085d75f6788d68615f49a0032fc5949bb2b403e863afdb",
+    "sha256_verified": true,
+    "pairs_in_file": 5,
+    "pairs_used": 5
+  },
+  "adapter": {
+    "adapter_id": 0,
+    "zip_sha256": "b24b44a9ee673dd5a8489a72364b950b9977bea1e2a3be304dbd0a885710a4be"
+  },
+  "per_pair": [
+    {
+      "pair_id": "4b320446-5282-41b9-8ab1-9f3ffbf7b08f",
+      "gold": {
+        "OP-04": 4
+      },
+      "base_scores": {
+        "OP-04": 4
+      },
+      "adapter_scores": {
+        "OP-04": 4
+      },
+      "outcome": "tie"
+    },
+    {
+      "pair_id": "5e483f45-ee89-4da8-992e-4fe07bc71d04",
+      "gold": {
+        "OP-02": 3
+      },
+      "base_scores": {
+        "OP-02": 3
+      },
+      "adapter_scores": {
+        "OP-02": 3
+      },
+      "outcome": "tie"
+    },
+    {
+      "pair_id": "916c5481-7afc-4d38-a2b6-e199f6deb8a7",
+      "gold": {
+        "A-05": 3
+      },
+      "base_scores": {
+        "A-05": 3
+      },
+      "adapter_scores": {
+        "A-05": 4
+      },
+      "outcome": "loss"
+    },
+    {
+      "pair_id": "9448bb15-10e5-46e4-8a08-939df1b81f1c",
+      "gold": {
+        "OP-03": 2
+      },
+      "base_scores": {
+        "OP-03": 3
+      },
+      "adapter_scores": {
+        "OP-03": 3
+      },
+      "outcome": "tie"
+    },
+    {
+      "pair_id": "b4e77a51-c9b4-44c1-bc36-23cbc8221a50",
+      "gold": {
+        "OP-05": 3
+      },
+      "base_scores": {
+        "OP-05": 4
+      },
+      "adapter_scores": {
+        "OP-05": 4
+      },
+      "outcome": "tie"
+    }
+  ]
+}
