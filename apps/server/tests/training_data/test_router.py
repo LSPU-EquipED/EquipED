@@ -182,3 +182,94 @@ def test_jobs_list_requires_admin(client: TestClient, auth_cookies_faculty):
     _auth(client, auth_cookies_faculty)
     response = client.get("/api/v1/admin/training-data/gad/jobs")
     assert response.status_code == 403
+
+
+def test_jobs_list_includes_frozen_manifest_summary(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+):
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    _auth(client, auth_cookies_admin)
+    created = client.post("/api/v1/admin/training-data/gad/jobs").json()
+
+    response = client.get("/api/v1/admin/training-data/gad/jobs")
+
+    assert response.status_code == 200
+    (job,) = response.json()["jobs"]
+    assert job["job_id"] == created["job_id"]
+    assert job["pair_count"] == 1
+    assert job["evaluation_count"] == 1
+    assert isinstance(job["reviewer_count"], int)
+    assert len(job["pairs_sha256"]) == 64
+    assert job["export_timestamp"]
+
+
+def test_jobs_list_tolerates_sparse_manifest(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+):
+    from server.modules.training_data.models import DpoTrainingJob
+
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    _auth(client, auth_cookies_admin)
+    created = client.post("/api/v1/admin/training-data/gad/jobs").json()
+    job = db_session.get(DpoTrainingJob, uuid.UUID(created["job_id"]))
+    job.manifest_json = {}
+    db_session.commit()
+
+    response = client.get("/api/v1/admin/training-data/gad/jobs")
+
+    assert response.status_code == 200
+    (item,) = response.json()["jobs"]
+    assert item["pair_count"] is None
+    assert item["evaluation_count"] is None
+    assert item["reviewer_count"] is None
+    assert item["pairs_sha256"] is None
+    assert item["export_timestamp"] is None
+
+
+def test_readiness_requires_admin(client: TestClient, auth_cookies_faculty):
+    _auth(client, auth_cookies_faculty)
+    response = client.get("/api/v1/admin/training-data/gad/readiness")
+    assert response.status_code == 403
+
+
+def test_readiness_rejects_unknown_agent(
+    client: TestClient, auth_cookies_admin, admin_user
+):
+    _auth(client, auth_cookies_admin)
+    response = client.get("/api/v1/admin/training-data/not-real/readiness")
+    assert response.status_code == 400
+
+
+def test_readiness_reports_zero_pairs_without_error(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+):
+    _auth(client, auth_cookies_admin)
+
+    response = client.get("/api/v1/admin/training-data/gad/readiness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["agent_id"] == "gad"
+    assert body["pair_count"] == 0
+    assert body["evaluation_count"] == 0
+    assert body["reviewer_count"] == 0
+
+
+def test_readiness_matches_what_a_job_would_freeze_and_creates_nothing(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+):
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    _auth(client, auth_cookies_admin)
+
+    readiness = client.get("/api/v1/admin/training-data/gad/readiness").json()
+
+    assert client.get("/api/v1/admin/training-data/gad/jobs").json()["jobs"] == []
+    assert readiness["pair_count"] == 1
+    assert readiness["evaluation_count"] == 1
+    assert isinstance(readiness["skipped_counts"], dict)
+    assert readiness["export_timestamp"]
+
+    client.post("/api/v1/admin/training-data/gad/jobs")
+    (job,) = client.get("/api/v1/admin/training-data/gad/jobs").json()["jobs"]
+    assert job["pairs_sha256"] == readiness["pairs_sha256"]
+    assert job["pair_count"] == readiness["pair_count"]
