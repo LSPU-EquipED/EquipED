@@ -1,7 +1,5 @@
 import { requestJson } from '@equiped/api-client';
 import type {
-  AdapterComparisonCreateBody,
-  AdapterComparisonResponse,
   AdminEvaluationResponse,
   ModelValidationCreateBody,
   ModelValidationCriteriaResponse,
@@ -13,12 +11,6 @@ import type {
 export const modelValidationApi = {
   createModelValidation: (body: ModelValidationCreateBody) =>
     requestJson<ModelValidationItem>('/admin/model-validations', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-
-  compareAdapter: (body: AdapterComparisonCreateBody) =>
-    requestJson<AdapterComparisonResponse>('/admin/model-validations/compare', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
