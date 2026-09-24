@@ -5,6 +5,7 @@ import type { StatusVariant } from '@equiped/ui';
 import { useStartTrainingJob } from '../hooks/useStartTrainingJob';
 import { useTrainingJobs } from '../hooks/useTrainingJobs';
 import type { TrainingJobCreateResponse, TrainingJobItem } from '../types';
+import { shortHash } from '../utils/trainingData.utils';
 import { TrainingJobCredentials } from './TrainingJobCredentials';
 
 function getJobStatusVariant(status: string): StatusVariant {
@@ -65,6 +66,19 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
             { label: 'Job ID', skeletonClassName: 'h-4 w-40' },
             { label: 'Status', skeletonClassName: 'h-5 w-20' },
             {
+              label: 'Pairs',
+              headerClassName: 'text-right',
+              cellClassName: 'text-right',
+              skeletonClassName: 'h-4 w-8 ml-auto',
+            },
+            {
+              label: 'Evaluations',
+              headerClassName: 'text-right',
+              cellClassName: 'text-right',
+              skeletonClassName: 'h-4 w-8 ml-auto',
+            },
+            { label: 'Dataset', skeletonClassName: 'h-4 w-16' },
+            {
               label: 'Created',
               headerClassName: 'text-right',
               cellClassName: 'text-right',
@@ -93,6 +107,9 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
               <tr>
                 <th className={TABLE_STYLES.th}>Job ID</th>
                 <th className={TABLE_STYLES.th}>Status</th>
+                <th className={cn(TABLE_STYLES.th, 'text-right')}>Pairs</th>
+                <th className={cn(TABLE_STYLES.th, 'text-right')}>Evaluations</th>
+                <th className={TABLE_STYLES.th}>Dataset</th>
                 <th className={cn(TABLE_STYLES.th, 'text-right')}>Created</th>
               </tr>
             </thead>
@@ -111,6 +128,18 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
                     <Badge variant={getJobStatusVariant(job.status)} withDot>
                       {capitalize(job.status)}
                     </Badge>
+                  </td>
+                  <td className={cn(TABLE_STYLES.tdData, 'text-right tabular-nums')}>
+                    {job.pair_count ?? '—'}
+                  </td>
+                  <td className={cn(TABLE_STYLES.tdData, 'text-right tabular-nums')}>
+                    {job.evaluation_count ?? '—'}
+                  </td>
+                  <td
+                    className={cn(TABLE_STYLES.tdData, 'font-mono text-xs text-text-muted')}
+                    title={job.pairs_sha256 ?? undefined}
+                  >
+                    {shortHash(job.pairs_sha256)}
                   </td>
                   <td className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted')}>
                     {new Date(job.created_at).toLocaleString()}

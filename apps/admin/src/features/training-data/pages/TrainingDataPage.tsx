@@ -2,6 +2,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { GraduationCap } from '@phosphor-icons/react';
 import { TYPOGRAPHY, cn, PageContainer } from '@equiped/ui';
 import { AdapterListTable } from '../components/AdapterListTable';
+import { DatasetReadinessCard } from '../components/DatasetReadinessCard';
 import { TrainingJobsPanel } from '../components/TrainingJobsPanel';
 import { DEFAULT_TRAINING_AGENT_ID, TRAINING_AGENTS } from '../trainingAgents';
 
@@ -56,6 +57,7 @@ export function TrainingDataPage() {
         </p>
       </div>
 
+      <DatasetReadinessCard agentId={activeAgent} />
       <TrainingJobsPanel agentId={activeAgent} />
       <AdapterListTable agentId={activeAgent} />
     </PageContainer>
