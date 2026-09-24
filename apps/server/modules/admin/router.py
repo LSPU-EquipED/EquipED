@@ -12,7 +12,6 @@ from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
 from server.modules.admin.model_validation_service import (
-    create_adapter_comparison,
     create_model_validation,
     get_admin_evaluation,
     get_model_validation_criteria,
@@ -27,8 +26,6 @@ from server.modules.admin.prompt_service import (
     revert_prompt_version,
 )
 from server.modules.admin.schemas import (
-    AdapterComparisonCreateRequest,
-    AdapterComparisonResponse,
     AdminEvaluationResponse,
     AdminUserApprovalRequest,
     AdminUserCreateRequest,
@@ -471,48 +468,6 @@ def submit_model_validation(
         )
     try:
         response = create_model_validation(
-            body,
-            created_by=current_user.id,
-            created_by_role=current_user.role.value,
-            db=db,
-        )
-    except DocumentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
-        ) from exc
-    except InvalidEvaluationTargetError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
-    background_tasks.add_task(drain_evaluation_queue)
-    return response
-
-
-@router.post(
-    "/model-validations/compare",
-    response_model=AdapterComparisonResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-def submit_adapter_comparison(
-    body: AdapterComparisonCreateRequest,
-    background_tasks: BackgroundTasks,
-    current_user: AuthenticatedUser = Depends(require_admin),
-    db=Depends(get_db_session),
-):
-    try:
-        probe_local_model_readiness()
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Local model is unavailable.",
-        ) from exc
-    if not admission_schema_ready(db):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Evaluation admission is unavailable.",
-        )
-    try:
-        response = create_adapter_comparison(
             body,
             created_by=current_user.id,
             created_by_role=current_user.role.value,

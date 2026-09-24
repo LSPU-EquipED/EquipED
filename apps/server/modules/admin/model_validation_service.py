@@ -35,8 +35,6 @@ from server.modules.synthesis.models import AgentResult, CriterionScore
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
-    AdapterComparisonCreateRequest,
-    AdapterComparisonResponse,
     AdminEvaluationResponse,
     ModelValidationAgentCriteria,
     ModelValidationBoundForm,
@@ -63,7 +61,6 @@ _TOXICITY_INPUT_CHARS = 6000
 
 __all__ = [
     "create_model_validation",
-    "create_adapter_comparison",
     "list_model_validations",
     "get_model_validation_detail",
     "get_admin_evaluation",
@@ -175,22 +172,42 @@ def _model_validation_response(
     )
 
 
+def _resolve_lora_scale(model_variant: str | None) -> float | None:
+    """Map a run's model variant to the LoRA scale sent to the model server.
+
+    Runs before any row exists, so a refusal never leaves an orphan job.
+    ``None`` is the historical behavior: no adapter check, no scale.
+    """
+    if model_variant is None:
+        return None
+    adapter_loaded = check_lora_adapter_loaded()
+    if model_variant == "adapter":
+        if not adapter_loaded:
+            raise InvalidEvaluationTargetError(
+                "no adapter is loaded on the server; ask the host owner to load "
+                "one first (see training/serving-lora-adapter.md)"
+            )
+        return 1.0
+    # Base: force an applied adapter off. With none loaded there is nothing to
+    # turn off, and sending a lora field to such a server is unverified.
+    return 0.0 if adapter_loaded else None
+
+
 def create_model_validation(
     request: ModelValidationCreateRequest,
     *,
     created_by: uuid.UUID,
     created_by_role: str | None = None,
     db: Any,
-    model_variant: str | None = None,
-    compare_group_id: uuid.UUID | None = None,
-    lora_scale: float | None = None,
 ) -> ModelValidationResponse:
     """Create an evaluation job with private criterion-level benchmarks.
 
     All persistence (evaluation job, form snapshots, validation record,
     expected criterion rows) is committed atomically so a failure after any
-    step never leaves an orphan job.
+    step never leaves an orphan job. ``request.model_variant`` decides the
+    LoRA scale for the run (see ``_resolve_lora_scale``).
     """
+    lora_scale = _resolve_lora_scale(request.model_variant)
     is_partial = bool(request.partial_without_curriculum)
     single_agent = request.target_agent != "all"
     if single_agent:
@@ -356,8 +373,7 @@ def create_model_validation(
             validation_id=validation_id,
             evaluation_id=evaluation.evaluation_id,
             created_by=created_by,
-            model_variant=model_variant,
-            compare_group_id=compare_group_id,
+            model_variant=request.model_variant,
         )
         db.add(validation)
         db.flush()
@@ -379,56 +395,6 @@ def create_model_validation(
     )
     return _model_validation_response(
         validation, job, document, criterion_rows, snapshots
-    )
-
-
-def create_adapter_comparison(
-    request: AdapterComparisonCreateRequest,
-    *,
-    created_by: uuid.UUID,
-    created_by_role: str | None = None,
-    db: Any,
-) -> AdapterComparisonResponse:
-    """Create two linked single-agent benchmark runs: one at LoRA scale 0.0
-    (base), one at scale 1.0 (adapter). Refuses up front -- before any row
-    exists -- if the configured LLM endpoint reports no loaded adapter."""
-    if not check_lora_adapter_loaded():
-        raise InvalidEvaluationTargetError(
-            "no adapter is loaded on the server; ask the host owner to load "
-            "one first (see training/serving-lora-adapter.md)"
-        )
-
-    compare_group_id = uuid.uuid4()
-
-    def _one_run(*, model_variant: str, lora_scale: float) -> ModelValidationResponse:
-        base_request = ModelValidationCreateRequest.model_validate(
-            {
-                "document_id": request.document_id,
-                "syllabus_id": request.syllabus_id,
-                "curriculum_id": request.curriculum_id,
-                "target_agent": request.target_agent,
-                "expected_scores": [
-                    item.model_dump() for item in request.expected_scores
-                ],
-            }
-        )
-        return create_model_validation(
-            base_request,
-            created_by=created_by,
-            created_by_role=created_by_role,
-            db=db,
-            model_variant=model_variant,
-            compare_group_id=compare_group_id,
-            lora_scale=lora_scale,
-        )
-
-    base_response = _one_run(model_variant="base", lora_scale=0.0)
-    adapter_response = _one_run(model_variant="adapter", lora_scale=1.0)
-
-    return AdapterComparisonResponse(
-        compare_group_id=compare_group_id,
-        base_validation_id=base_response.validation_id,
-        adapter_validation_id=adapter_response.validation_id,
     )
 
 
