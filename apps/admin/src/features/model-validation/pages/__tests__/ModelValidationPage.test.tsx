@@ -140,7 +140,7 @@ describe('ModelValidationPage', () => {
     expect(screen.getByText('New validation input')).toBeDefined();
   });
 
-  it('shows the Compare tab and renders the AdapterComparisonForm when selected', () => {
+  it('has no Compare tab any more', () => {
     vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
       data: mockHistoryData,
       isLoading: false,
@@ -155,14 +155,11 @@ describe('ModelValidationPage', () => {
 
     renderPage();
 
-    const compareTab = screen.getByRole('tab', { name: /Compare/i });
-    expect(compareTab).toBeDefined();
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    expect(screen.queryByRole('tab', { name: /Compare/i })).toBeNull();
+  });
 
-    fireEvent.click(compareTab);
-
-    expect(screen.getByText('Compare base vs adapter')).toBeDefined();
-
-    // An in-flight validation should show progress under the Compare tab too, same as New Benchmark Run.
+  it('shows the Model and Target controls and in-flight progress under New Benchmark Run', () => {
     const inFlightHistoryData: ModelValidationListResponse = {
       items: [
         {
@@ -180,10 +177,17 @@ describe('ModelValidationPage', () => {
       isError: false,
     } as unknown as UseQueryResult<ModelValidationListResponse>);
 
-    cleanup();
-    renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: /Compare/i }));
+    vi.spyOn(queriesModule, 'useModelValidationMetrics').mockReturnValue({
+      data: mockMetricsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
 
+    renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: /New Benchmark Run/i }));
+
+    expect(screen.getByLabelText('Model')).toBeDefined();
+    expect(screen.getByLabelText('Target')).toBeDefined();
     expect(screen.getByLabelText(/Agent progress for/i)).toBeDefined();
   });
 });

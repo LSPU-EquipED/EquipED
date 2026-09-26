@@ -12,6 +12,9 @@ import {
 } from '../utils/helpers';
 import { useModelValidationCriteria } from './useModelValidationQueries';
 
+export type ModelVariant = 'base' | 'adapter';
+export type TargetAgent = 'all' | 'sme' | 'gad' | 'itso';
+
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -22,6 +25,15 @@ export function useModelValidationFormState() {
   const [expectedScores, setExpectedScores] = useState<Record<string, string>>({});
   const [uploaded, setUploaded] = useState<DocumentUploadResponse | null>(null);
   const [partialChoiceAcknowledged, setPartialChoiceAcknowledged] = useState(false);
+  const [modelVariant, setModelVariantState] = useState<ModelVariant>('base');
+  const [targetAgent, setTargetAgent] = useState<TargetAgent | null>('all');
+
+  // An adapter is trained for one agent, so "all agents" is not a valid adapter
+  // target: switching to Adapter drops it and the admin must pick an agent.
+  const setModelVariant = (next: ModelVariant) => {
+    setModelVariantState(next);
+    if (next === 'adapter' && targetAgent === 'all') setTargetAgent(null);
+  };
 
   const criterionCatalog = useModelValidationCriteria();
 
@@ -86,9 +98,15 @@ export function useModelValidationFormState() {
   });
 
   const rawAgents = criterionCatalog.data?.agents ?? [];
-  const criterionDefinitions = rawAgents.filter((agent) =>
+  const partialAgentDefinitions = rawAgents.filter((agent) =>
     isPartialValidationAgent(agent.agent_id),
   );
+  const criterionDefinitions =
+    targetAgent === 'all'
+      ? partialAgentDefinitions
+      : targetAgent
+        ? partialAgentDefinitions.filter((agent) => agent.agent_id === targetAgent)
+        : [];
 
   const orderedCriterionKeys = criterionDefinitions.flatMap((agent) => {
     const crits =
@@ -111,7 +129,9 @@ export function useModelValidationFormState() {
   const uploadedDocumentReady =
     uploadedProcessingStatus === 'PROCESSED' && (uploadedDocument.data?.chunks.length ?? 0) > 0;
   const canSubmitEvaluation =
-    uploadedDocumentReady && allCriterionScoresComplete && partialChoiceAcknowledged;
+    uploadedDocumentReady &&
+    allCriterionScoresComplete &&
+    (targetAgent !== 'all' || partialChoiceAcknowledged);
   const error = uploadMutation.error ?? uploadedDocument.error ?? validationMutation.error;
   const isStaleBinding = isStaleBindingError(validationMutation.error);
 
@@ -174,7 +194,10 @@ export function useModelValidationFormState() {
     if (!uploaded || !canSubmitEvaluation) return;
     validationMutation.mutate({
       document_id: uploaded.documentId,
-      partial_without_curriculum: true,
+      model_variant: modelVariant,
+      ...(targetAgent === 'all'
+        ? { partial_without_curriculum: true }
+        : { partial_without_curriculum: false, target_agent: targetAgent! }),
       expected_scores: criterionDefinitions.flatMap((agent) => {
         const crits =
           agent.domains && agent.domains.length > 0
@@ -206,6 +229,10 @@ export function useModelValidationFormState() {
     uploaded,
     partialChoiceAcknowledged,
     setPartialChoiceAcknowledged,
+    modelVariant,
+    setModelVariant,
+    targetAgent,
+    setTargetAgent,
     criterionCatalog,
     uploadMutation,
     validationMutation,

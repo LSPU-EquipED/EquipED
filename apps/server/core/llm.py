@@ -693,6 +693,15 @@ def check_lora_adapter_loaded() -> bool:
     try:
         with request.urlopen(req, timeout=timeout) as response:
             adapters = json.loads(response.read(1_000_000))
+    except error.HTTPError as exc:
+        if exc.code == 404:
+            # The endpoint is reachable but has no LoRA route at all (e.g.
+            # Ollama) -- that means no adapter capability, not that the
+            # server is down.
+            return False
+        raise InfrastructureUnavailableError(
+            "Could not reach the LLM endpoint to check for a loaded adapter"
+        ) from exc
     except Exception as exc:
         raise InfrastructureUnavailableError(
             "Could not reach the LLM endpoint to check for a loaded adapter"

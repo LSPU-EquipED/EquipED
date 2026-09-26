@@ -29,6 +29,7 @@ from server.modules.training_data.exceptions import (
     InvalidAgentIdError,
     TrainingJobNotFoundError,
 )
+from server.modules.training_data.job_packages import preview_dataset_manifest
 from server.modules.training_data.jobs import (
     create_training_job,
     get_job_download_package,
@@ -38,6 +39,7 @@ from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.schemas import (
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
+    TrainingDatasetReadinessResponse,
     TrainingJobCreateResponse,
     TrainingJobListItem,
     TrainingJobListResponse,
@@ -163,7 +165,30 @@ def get_training_jobs(
     jobs = list_training_jobs(db, agent_id)
     return TrainingJobListResponse(
         agent_id=agent_id,
-        jobs=[TrainingJobListItem.model_validate(j) for j in jobs],
+        jobs=[TrainingJobListItem.from_job(j) for j in jobs],
+    )
+
+
+@router.get("/{agent_id}/readiness", response_model=TrainingDatasetReadinessResponse)
+def get_dataset_readiness(
+    agent_id: str,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> TrainingDatasetReadinessResponse:
+    try:
+        manifest = preview_dataset_manifest(db, agent_id)
+    except InvalidAgentIdError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return TrainingDatasetReadinessResponse(
+        agent_id=agent_id,
+        pair_count=manifest.pair_count,
+        evaluation_count=manifest.evaluation_count,
+        reviewer_count=manifest.reviewer_count,
+        skipped_counts=manifest.skipped_counts,
+        pairs_sha256=manifest.pairs_sha256,
+        export_timestamp=manifest.export_timestamp,
     )
 
 

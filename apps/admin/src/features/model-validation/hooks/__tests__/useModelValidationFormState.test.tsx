@@ -256,6 +256,7 @@ describe('useModelValidationFormState', () => {
     expect(submittedBody).not.toBeNull();
     expect(submittedBody?.document_id).toBe('doc-ready-1');
     expect(submittedBody?.partial_without_curriculum).toBe(true);
+    expect(submittedBody?.model_variant).toBe('base');
     expect(submittedBody?.expected_scores).toEqual([
       {
         agent_id: 'sme',
@@ -343,5 +344,230 @@ describe('useModelValidationFormState', () => {
     });
 
     expect(refetchSpy).toHaveBeenCalled();
+  });
+
+  function mockUploadedReadyDocument() {
+    vi.spyOn(documentsApi, 'uploadDocument').mockResolvedValue({
+      documentId: 'doc-ready-1',
+      title: 'SLM 1',
+      sourceType: 'slm',
+      processingStatus: 'PROCESSED',
+      academicYear: null,
+      courseCode: null,
+      courseTitle: null,
+      lessonTitle: null,
+    });
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+  }
+
+  function captureSubmittedBody() {
+    const captured: { body?: ModelValidationCreateBody } = {};
+    vi.spyOn(modelValidationApi, 'createModelValidation').mockImplementation(async (body) => {
+      captured.body = body;
+      const created: ModelValidationItem = {
+        validation_id: 'val-1',
+        evaluation_id: 'eval-1',
+        document_id: body.document_id,
+        document_title: 'SLM 1',
+        model_variant: body.model_variant ?? null,
+        compare_group_id: null,
+        partial_without_curriculum: body.partial_without_curriculum,
+        bound_forms: [],
+        criterion_scores: [],
+        absolute_error: null,
+        latency_seconds: null,
+        score_perplexity: null,
+        toxicity_score: null,
+        toxicity_label: null,
+        toxicity_explanation: null,
+        toxicity_model: null,
+        toxicity_error: null,
+        status: 'SUBMITTED',
+        error_message: null,
+        created_at: '2026-09-24T00:00:00Z',
+      };
+      return created;
+    });
+    return captured;
+  }
+
+  async function uploadDocument(result: {
+    current: ReturnType<typeof useModelValidationFormState>;
+  }) {
+    await act(async () => {
+      result.current.uploadMutation.mutate({
+        file: new File(['dummy'], 'slm.pdf', { type: 'application/pdf' }),
+        title: 'SLM 1',
+        program: 'BSCS',
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.uploadedDocumentReady).toBe(true);
+    });
+  }
+
+  it('defaults to the Base model targeting all agents, unchanged from the old flow', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+    expect(result.current.modelVariant).toBe('base');
+    expect(result.current.targetAgent).toBe('all');
+  });
+
+  it('un-selects the target when switching to Adapter while All agents is selected', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+
+    act(() => {
+      result.current.setModelVariant('adapter');
+    });
+
+    expect(result.current.modelVariant).toBe('adapter');
+    expect(result.current.targetAgent).toBeNull();
+    expect(result.current.criterionDefinitions).toEqual([]);
+    expect(result.current.allCriterionScoresComplete).toBe(false);
+    expect(result.current.canSubmitEvaluation).toBe(false);
+  });
+
+  it('scopes criteria to one agent and keeps it when switching back to Base', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+
+    act(() => {
+      result.current.setModelVariant('adapter');
+      result.current.setTargetAgent('sme');
+    });
+    expect(result.current.criterionDefinitions.map((a) => a.agent_id)).toEqual(['sme']);
+
+    act(() => {
+      result.current.setModelVariant('base');
+    });
+    expect(result.current.targetAgent).toBe('sme');
+    expect(result.current.criterionDefinitions.map((a) => a.agent_id)).toEqual(['sme']);
+  });
+
+  it('submits a single-agent adapter run without the partial flag or acknowledgement', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+    mockUploadedReadyDocument();
+    const captured = captureSubmittedBody();
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+    await uploadDocument(result);
+
+    act(() => {
+      result.current.setModelVariant('adapter');
+      result.current.setTargetAgent('sme');
+      result.current.setExpectedScores({ 'sme:crit-sme-1': '4' });
+    });
+
+    expect(result.current.partialChoiceAcknowledged).toBe(false);
+    expect(result.current.canSubmitEvaluation).toBe(true);
+
+    await act(async () => {
+      result.current.handleStart();
+    });
+
+    expect(captured.body?.model_variant).toBe('adapter');
+    expect(captured.body?.target_agent).toBe('sme');
+    expect(captured.body?.partial_without_curriculum).toBe(false);
+    expect(captured.body?.expected_scores).toEqual([
+      {
+        agent_id: 'sme',
+        rubric_set_id: 'set-sme-123',
+        rubric_criterion_id: 'crit-sme-1',
+        expected_score: 4,
+      },
+    ]);
+  });
+
+  it('still needs the partial acknowledgement for a Base run over all agents', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+    mockUploadedReadyDocument();
+    const captured = captureSubmittedBody();
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+    await uploadDocument(result);
+
+    act(() => {
+      result.current.setExpectedScores({
+        'sme:crit-sme-1': '4',
+        'gad:crit-gad-1': '3',
+        'itso:crit-itso-1': '4',
+      });
+    });
+    expect(result.current.canSubmitEvaluation).toBe(false);
+
+    act(() => {
+      result.current.setPartialChoiceAcknowledged(true);
+    });
+    expect(result.current.canSubmitEvaluation).toBe(true);
+
+    await act(async () => {
+      result.current.handleStart();
+    });
+
+    expect(captured.body?.model_variant).toBe('base');
+    expect(captured.body?.partial_without_curriculum).toBe(true);
+    expect(captured.body?.target_agent).toBeUndefined();
+  });
+
+  it('blocks submission when the chosen agent is missing from the catalog', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue({
+      agents: mockCriteriaCatalog.agents.filter((agent) => agent.agent_id !== 'gad'),
+      total_criteria: 3,
+    });
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(2);
+    });
+
+    act(() => {
+      result.current.setTargetAgent('gad');
+    });
+
+    expect(result.current.criterionDefinitions).toEqual([]);
+    expect(result.current.allCriterionScoresComplete).toBe(false);
+    expect(result.current.canSubmitEvaluation).toBe(false);
   });
 });

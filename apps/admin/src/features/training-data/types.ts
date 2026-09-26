@@ -3,6 +3,21 @@ export interface TrainingJobItem {
   agent_id: string;
   status: 'pending' | 'downloaded' | 'completed';
   created_at: string;
+  pair_count?: number | null;
+  evaluation_count?: number | null;
+  reviewer_count?: number | null;
+  pairs_sha256?: string | null;
+  export_timestamp?: string | null;
+}
+
+export interface DatasetReadiness {
+  agent_id: string;
+  pair_count: number;
+  evaluation_count: number;
+  reviewer_count: number;
+  skipped_counts: Record<string, number>;
+  pairs_sha256: string;
+  export_timestamp: string;
 }
 
 export interface TrainingJobListResponse {

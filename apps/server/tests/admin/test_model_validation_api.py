@@ -650,7 +650,17 @@ def test_faculty_rbac_denial_across_all_model_validation_endpoints(
     )
 
 
-def test_compare_endpoint_creates_a_linked_pair(
+def _sme_only_body(slm, expected_scores, **extra):
+    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    return {
+        "document_id": str(slm.document_id),
+        "target_agent": "sme",
+        "expected_scores": sme_only,
+        **extra,
+    }
+
+
+def test_standard_route_accepts_the_adapter_variant(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:
     monkeypatch.setattr(
@@ -658,31 +668,59 @@ def test_compare_endpoint_creates_a_linked_pair(
         lambda: True,
     )
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
     _auth(client, auth_cookies_admin)
 
     resp = client.post(
-        "/api/v1/admin/model-validations/compare",
-        json={
-            "document_id": str(slm.document_id),
-            "target_agent": "sme",
-            "expected_scores": sme_only,
-        },
+        "/api/v1/admin/model-validations",
+        json=_sme_only_body(slm, expected_scores, model_variant="adapter"),
     )
+
     assert resp.status_code == 202
     body = resp.json()
-    assert body["compare_group_id"]
-    assert body["base_validation_id"] != body["adapter_validation_id"]
-
-    # Both runs' responses carry their variant.
-    base_detail = client.get(
-        f"/api/v1/admin/model-validations/{body['base_validation_id']}"
-    ).json()
-    assert base_detail["model_variant"] == "base"
-    assert base_detail["compare_group_id"] == body["compare_group_id"]
+    assert body["model_variant"] == "adapter"
+    assert body["compare_group_id"] is None
 
 
-def test_compare_endpoint_returns_503_when_llm_endpoint_unreachable(
+def test_standard_route_returns_422_when_the_adapter_is_not_loaded(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: False,
+    )
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json=_sme_only_body(slm, expected_scores, model_variant="adapter"),
+    )
+
+    assert resp.status_code == 422
+    assert "no adapter is loaded" in resp.json()["detail"]
+
+
+def test_standard_route_rejects_the_adapter_variant_with_all_agents(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "partial_without_curriculum": True,
+            "model_variant": "adapter",
+            "expected_scores": expected_scores,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "requires a single target_agent" in resp.text
+
+
+def test_standard_route_returns_503_when_the_adapter_check_cannot_reach_the_endpoint(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:
     from server.core.exceptions import InfrastructureUnavailableError
@@ -695,15 +733,26 @@ def test_compare_endpoint_returns_503_when_llm_endpoint_unreachable(
         _raise,
     )
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json=_sme_only_body(slm, expected_scores, model_variant="base"),
+    )
+
+    assert resp.status_code == 503
+    assert "loaded adapter" in resp.json()["detail"]
+
+
+def test_the_compare_route_no_longer_exists(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
     _auth(client, auth_cookies_admin)
 
     resp = client.post(
         "/api/v1/admin/model-validations/compare",
-        json={
-            "document_id": str(slm.document_id),
-            "target_agent": "sme",
-            "expected_scores": sme_only,
-        },
+        json=_sme_only_body(slm, expected_scores),
     )
-    assert resp.status_code == 503
+
+    assert resp.status_code in (404, 405)

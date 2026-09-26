@@ -127,4 +127,68 @@ describe('TrainingJobsPanel', () => {
     expect(screen.getByText('job-abc-123')).toBeDefined();
     expect(screen.getByText('Completed')).toBeDefined();
   });
+
+  it('shows what each job froze: pairs, evaluations and a short dataset hash', () => {
+    vi.spyOn(useTrainingJobsModule, 'useTrainingJobs').mockReturnValue({
+      data: {
+        agent_id: 'gad',
+        jobs: [
+          {
+            job_id: 'job-frozen',
+            agent_id: 'gad',
+            status: 'pending',
+            created_at: '2026-03-01T10:00:00.000Z',
+            pair_count: 42,
+            evaluation_count: 7,
+            reviewer_count: 3,
+            pairs_sha256: '0123456789abcdef',
+            export_timestamp: '2026-03-01T10:00:00.000Z',
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
+    vi.spyOn(useStartTrainingJobModule, 'useStartTrainingJob').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useStartTrainingJobModule.useStartTrainingJob>);
+
+    renderPanel();
+
+    expect(screen.getByText('42')).toBeDefined();
+    expect(screen.getByText('7')).toBeDefined();
+    expect(screen.getByText('01234567')).toBeDefined();
+  });
+
+  it('shows a dash for a job whose manifest recorded no counts', () => {
+    vi.spyOn(useTrainingJobsModule, 'useTrainingJobs').mockReturnValue({
+      data: {
+        agent_id: 'gad',
+        jobs: [
+          {
+            job_id: 'job-old',
+            agent_id: 'gad',
+            status: 'completed',
+            created_at: '2026-03-01T10:00:00.000Z',
+            pair_count: null,
+            evaluation_count: null,
+            reviewer_count: null,
+            pairs_sha256: null,
+            export_timestamp: null,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
+    vi.spyOn(useStartTrainingJobModule, 'useStartTrainingJob').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+    } as unknown as ReturnType<typeof useStartTrainingJobModule.useStartTrainingJob>);
+
+    renderPanel();
+
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
+  });
 });

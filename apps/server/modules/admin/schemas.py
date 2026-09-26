@@ -188,7 +188,8 @@ class ModelValidationCreateRequest(BaseModel):
     default) keeps this historical full/partial-bundle behavior; any other
     value runs exactly that one agent, matching how ordinary evaluations
     already support single-agent targeting (only Coordinator then requires
-    curriculum_id).
+    curriculum_id). model_variant selects the plain model ("base") or the
+    fine-tuned adapter ("adapter"); None leaves the LoRA scale untouched.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -198,6 +199,7 @@ class ModelValidationCreateRequest(BaseModel):
     curriculum_id: uuid.UUID | None = None
     partial_without_curriculum: StrictBool = False
     target_agent: Literal["all", "sme", "coordinator", "gad", "itso"] = "all"
+    model_variant: Literal["base", "adapter"] | None = None
     expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -210,23 +212,13 @@ class ModelValidationCreateRequest(BaseModel):
             )
         return self
 
-
-class AdapterComparisonCreateRequest(BaseModel):
-    """Create a linked base-vs-adapter pair of single-agent benchmark runs."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    document_id: uuid.UUID
-    syllabus_id: uuid.UUID | None = None
-    curriculum_id: uuid.UUID | None = None
-    target_agent: Literal["sme", "coordinator", "gad", "itso"]
-    expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
-
-
-class AdapterComparisonResponse(BaseModel):
-    compare_group_id: uuid.UUID
-    base_validation_id: uuid.UUID
-    adapter_validation_id: uuid.UUID
+    @model_validator(mode="after")
+    def _validate_adapter_targets_single_agent(self) -> ModelValidationCreateRequest:
+        if self.model_variant == "adapter" and self.target_agent == "all":
+            raise ValueError(
+                'model_variant="adapter" requires a single target_agent, not "all".'
+            )
+        return self
 
 
 class ModelValidationCriterionScoreResponse(BaseModel):
@@ -353,8 +345,6 @@ __all__ = [
     "SystemSummaryResponse",
     "ModelValidationCreateRequest",
     "ModelValidationExpectedScoreInput",
-    "AdapterComparisonCreateRequest",
-    "AdapterComparisonResponse",
     "ModelValidationCriterionScoreResponse",
     "ModelValidationCriterionDefinition",
     "ModelValidationDomainDefinition",

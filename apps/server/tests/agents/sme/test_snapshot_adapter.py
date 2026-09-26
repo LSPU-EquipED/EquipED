@@ -887,6 +887,38 @@ def test_envelope_prompt_is_role_separated() -> None:
     )
 
 
+def test_sme_gate_accepts_any_registered_adapter_version(monkeypatch) -> None:
+    from types import MappingProxyType
+
+    from server.modules.agents.sme.pipeline import validate_sme_snapshot
+    from server.modules.rubrics import manifests
+
+    v2 = manifests.SME_MANIFEST_V1.model_copy(update={"adapter_version": 2})
+    monkeypatch.setattr(
+        manifests,
+        "AGENT_MANIFEST_VERSION_REGISTRY",
+        MappingProxyType({**manifests.AGENT_MANIFEST_VERSION_REGISTRY, ("sme", 2): v2}),
+    )
+    eval_id = uuid.uuid4()
+    form = _full_rev1_form().model_copy(update={"adapter_version": 2})
+    snap = _make_snapshot(eval_id, form)
+
+    domains = validate_sme_snapshot(snap, eval_id, "sme")
+
+    assert domains == snap.form.domains
+
+
+def test_sme_gate_rejects_unregistered_adapter_version() -> None:
+    from server.modules.agents.sme.pipeline import validate_sme_snapshot
+
+    eval_id = uuid.uuid4()
+    form = _full_rev1_form().model_copy(update={"adapter_version": 99})
+    snap = _make_snapshot(eval_id, form)
+
+    with pytest.raises(AgentExecutionError, match="Unsupported SME adapter version"):
+        validate_sme_snapshot(snap, eval_id, "sme")
+
+
 def test_snapshot_precheck_validations() -> None:
     agent = SME()
     eval_id = uuid.uuid4()

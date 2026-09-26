@@ -156,6 +156,10 @@ function createMockForm(overrides: Partial<ReturnType<typeof useModelValidationF
     uploaded: null,
     partialChoiceAcknowledged: false,
     setPartialChoiceAcknowledged: vi.fn(),
+    modelVariant: 'base',
+    setModelVariant: vi.fn(),
+    targetAgent: 'all',
+    setTargetAgent: vi.fn(),
     criterionCatalog: {
       data: { agents: mockAgents, total_criteria: 4 },
       isLoading: false,
@@ -287,5 +291,85 @@ describe('ValidationPreparationForm', () => {
 
     fireEvent.click(reloadButton);
     expect(handleReloadCatalog).toHaveBeenCalled();
+  });
+
+  it('renders Model and Target selects defaulting to Base model and All agents', () => {
+    render(<ValidationPreparationForm form={createMockForm()} />);
+
+    expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('base');
+    expect((screen.getByLabelText('Target') as HTMLSelectElement).value).toBe('all');
+  });
+
+  it('disables All agents while the adapter is selected and reports changes', () => {
+    const setModelVariant = vi.fn();
+    const setTargetAgent = vi.fn();
+    const form = createMockForm({
+      modelVariant: 'adapter',
+      targetAgent: 'sme',
+      criterionDefinitions: [mockAgents[0]],
+      setModelVariant,
+      setTargetAgent,
+    });
+
+    render(<ValidationPreparationForm form={form} />);
+
+    const allAgents = screen.getByRole('option', { name: /All agents/ }) as HTMLOptionElement;
+    expect(allAgents.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Target'), { target: { value: 'gad' } });
+    expect(setTargetAgent).toHaveBeenCalledWith('gad');
+
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'base' } });
+    expect(setModelVariant).toHaveBeenCalledWith('base');
+  });
+
+  it('shows an unselected Target prompt after switching to the adapter from All agents', () => {
+    const form = createMockForm({
+      modelVariant: 'adapter',
+      targetAgent: null,
+      criterionDefinitions: [],
+      allCriterionScoresComplete: false,
+    });
+
+    render(<ValidationPreparationForm form={form} />);
+
+    expect((screen.getByLabelText('Target') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByRole('option', { name: /Choose an agent/ })).toBeDefined();
+  });
+
+  it('hides the partial-run acknowledgement for a single-agent target', () => {
+    const form = createMockForm({
+      targetAgent: 'sme',
+      criterionDefinitions: [mockAgents[0]],
+      uploaded: {
+        documentId: 'doc-1',
+        title: 'SLM 1',
+        sourceType: 'slm',
+        processingStatus: 'PROCESSED',
+        academicYear: null,
+        courseCode: null,
+        courseTitle: null,
+        lessonTitle: null,
+      },
+      uploadedDocumentReady: true,
+    });
+
+    render(<ValidationPreparationForm form={form} />);
+
+    expect(
+      screen.queryByLabelText(/I understand that the Coordinator agent will be skipped/i),
+    ).toBeNull();
+  });
+
+  it('activates the only in-scope agent tab even though the default tab state is SME', () => {
+    const form = createMockForm({
+      targetAgent: 'gad',
+      criterionDefinitions: [mockAgents[1]],
+    });
+
+    render(<ValidationPreparationForm form={form} />);
+
+    const gadTab = screen.getByRole('button', { name: /^GAD/ });
+    expect(gadTab.className).toContain('bg-primary');
   });
 });

@@ -670,6 +670,47 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
         execution.execute(context_wrong_eval)
 
 
+def test_itso_gate_accepts_any_registered_adapter_version(monkeypatch):
+    from types import MappingProxyType
+
+    from server.modules.rubrics import manifests
+
+    v2 = manifests.ITSO_MANIFEST_V1.model_copy(update={"adapter_version": 2})
+    monkeypatch.setattr(
+        manifests,
+        "AGENT_MANIFEST_VERSION_REGISTRY",
+        MappingProxyType(
+            {**manifests.AGENT_MANIFEST_VERSION_REGISTRY, ("itso", 2): v2}
+        ),
+    )
+    eval_id = uuid4()
+    snap = make_itso_test_snapshot(eval_id, adapter_version=2)
+    context = ITSOExecutionContext(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=({"chunk_id": "c1", "text": "sec"},),
+        form_snapshot=snap,
+    )
+
+    criteria, codes, _titles = execution._extract_and_validate_snapshot(context)
+
+    assert len(criteria) == len(codes) > 0
+
+
+def test_itso_gate_rejects_unregistered_adapter_version():
+    eval_id = uuid4()
+    snap = make_itso_test_snapshot(eval_id, adapter_version=99)
+    context = ITSOExecutionContext(
+        evaluation_id=eval_id,
+        document_id=uuid4(),
+        chunk_infos=({"chunk_id": "c1", "text": "sec"},),
+        form_snapshot=snap,
+    )
+
+    with pytest.raises(AgentExecutionError, match="Unsupported ITSO adapter version"):
+        execution._extract_and_validate_snapshot(context)
+
+
 def test_itso_novel_subset_reorder_and_title_edits(monkeypatch):
     monkeypatch.setattr(execution, "get_settings", lambda: _settings())
     eval_id = uuid4()

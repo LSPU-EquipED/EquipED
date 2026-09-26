@@ -288,31 +288,80 @@ def test_create_model_validation_targets_one_agent(admin_user, db_session) -> No
     assert {item.agent_id for item in response.criterion_scores} == {"sme"}
 
 
-def test_create_adapter_comparison_refuses_when_no_adapter_loaded(
-    admin_user, db_session, monkeypatch
-) -> None:
-    from server.modules.admin.model_validation_service import create_adapter_comparison
-    from server.modules.admin.schemas import AdapterComparisonCreateRequest
-    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
+def _sme_variant_request(slm, expected_scores, **extra):
+    from server.modules.admin.schemas import ModelValidationCreateRequest
 
-    expected_scores, slm = _setup_validation(db_session, admin_user)
     sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
-
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: False,
-    )
-
-    req = AdapterComparisonCreateRequest.model_validate(
+    return ModelValidationCreateRequest.model_validate(
         {
             "document_id": slm.document_id,
             "target_agent": "sme",
             "expected_scores": sme_only,
+            **extra,
         }
     )
 
+
+def _set_adapter_loaded(monkeypatch, value) -> None:
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        value if callable(value) else (lambda: value),
+    )
+
+
+def test_model_variant_none_sends_no_scale_and_skips_the_adapter_check(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+
+    def _must_not_run():
+        raise AssertionError("adapter check must not run when model_variant is None")
+
+    _set_adapter_loaded(monkeypatch, _must_not_run)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    req = _sme_variant_request(slm, expected_scores)
+    assert req.model_variant is None
+
+    response = create_model_validation(
+        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
+    )
+
+    validation = db_session.get(ModelValidation, response.validation_id)
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert validation.model_variant is None
+    assert validation.compare_group_id is None
+    assert job.lora_scale is None
+
+
+def test_adapter_variant_rejects_all_agents(admin_user, db_session) -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    with pytest.raises(ValidationError, match="requires a single target_agent"):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": slm.document_id,
+                "partial_without_curriculum": True,
+                "model_variant": "adapter",
+                "expected_scores": expected_scores,
+            }
+        )
+
+
+def test_adapter_variant_refuses_when_no_adapter_is_loaded(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
+
+    _set_adapter_loaded(monkeypatch, False)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    req = _sme_variant_request(slm, expected_scores, model_variant="adapter")
+
     with pytest.raises(InvalidEvaluationTargetError, match="no adapter is loaded"):
-        create_adapter_comparison(
+        create_model_validation(
             req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
         )
 
@@ -320,149 +369,90 @@ def test_create_adapter_comparison_refuses_when_no_adapter_loaded(
     assert db_session.query(ModelValidation).count() == 0
 
 
-def test_create_adapter_comparison_creates_a_linked_pair(
+def test_adapter_variant_applies_scale_one_when_an_adapter_is_loaded(
     admin_user, db_session, monkeypatch
 ) -> None:
-    from server.modules.admin.model_validation_service import create_adapter_comparison
-    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+    from server.modules.admin.model_validation_service import create_model_validation
 
+    _set_adapter_loaded(monkeypatch, True)
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
+    req = _sme_variant_request(slm, expected_scores, model_variant="adapter")
 
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: True,
-    )
-
-    req = AdapterComparisonCreateRequest.model_validate(
-        {
-            "document_id": slm.document_id,
-            "target_agent": "sme",
-            "expected_scores": sme_only,
-        }
-    )
-
-    response = create_adapter_comparison(
+    response = create_model_validation(
         req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
     )
 
-    assert response.compare_group_id is not None
-    base = db_session.get(ModelValidation, response.base_validation_id)
-    adapter = db_session.get(ModelValidation, response.adapter_validation_id)
-    assert base.model_variant == "base"
-    assert adapter.model_variant == "adapter"
-    assert (
-        base.compare_group_id == adapter.compare_group_id == response.compare_group_id
-    )
-    base_job = db_session.get(EvaluationJob, base.evaluation_id)
-    adapter_job = db_session.get(EvaluationJob, adapter.evaluation_id)
-    assert base_job.lora_scale == 0.0
-    assert adapter_job.lora_scale == 1.0
-    assert base_job.target_agent == adapter_job.target_agent == "sme"
+    validation = db_session.get(ModelValidation, response.validation_id)
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert validation.model_variant == "adapter"
+    assert validation.compare_group_id is None
+    assert job.lora_scale == 1.0
+    assert job.target_agent == "sme"
 
 
-def test_create_model_validation_sets_compare_fields_when_provided(
-    admin_user, db_session
+def test_base_variant_forces_the_adapter_off_when_one_is_loaded(
+    admin_user, db_session, monkeypatch
 ) -> None:
     from server.modules.admin.model_validation_service import create_model_validation
-    from server.modules.admin.schemas import ModelValidationCreateRequest
 
+    _set_adapter_loaded(monkeypatch, True)
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
-    group_id = uuid.uuid4()
-
-    req = ModelValidationCreateRequest.model_validate(
-        {
-            "document_id": slm.document_id,
-            "target_agent": "sme",
-            "expected_scores": sme_only,
-        }
-    )
+    req = _sme_variant_request(slm, expected_scores, model_variant="base")
 
     response = create_model_validation(
-        req,
-        created_by=admin_user.user_id,
-        created_by_role="admin",
-        db=db_session,
-        model_variant="base",
-        compare_group_id=group_id,
-        lora_scale=0.0,
+        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
     )
 
     validation = db_session.get(ModelValidation, response.validation_id)
     job = db_session.get(EvaluationJob, response.evaluation_id)
     assert validation.model_variant == "base"
-    assert validation.compare_group_id == group_id
     assert job.lora_scale == 0.0
 
 
-def test_create_adapter_comparison_supports_coordinator_with_curriculum_id(
+def test_base_variant_sends_no_scale_when_no_adapter_is_loaded(
     admin_user, db_session, monkeypatch
 ) -> None:
-    from server.modules.admin.model_validation_service import create_adapter_comparison
-    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+    from server.modules.admin.model_validation_service import create_model_validation
 
-    expected_scores, slm = _setup_validation(
-        db_session, admin_user, include_coordinator=True
-    )
-    coordinator_only = [
-        item for item in expected_scores if item["agent_id"] == "coordinator"
-    ]
-    curriculum_doc = _seed_document(
-        db_session,
-        owner_id=admin_user.user_id,
-        source_type="curriculum",
-        chroma_stored=True,
-        program="BSCS",
-    )
+    _set_adapter_loaded(monkeypatch, False)
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    req = _sme_variant_request(slm, expected_scores, model_variant="base")
 
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: True,
-    )
-    monkeypatch.setattr(
-        "server.modules.documents.curriculum_readiness.check_chroma_availability",
-        lambda doc_id, domain: True,
-    )
-
-    req = AdapterComparisonCreateRequest.model_validate(
-        {
-            "document_id": slm.document_id,
-            "curriculum_id": str(curriculum_doc.document_id),
-            "target_agent": "coordinator",
-            "expected_scores": coordinator_only,
-        }
-    )
-
-    response = create_adapter_comparison(
+    response = create_model_validation(
         req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
     )
 
-    base = db_session.get(ModelValidation, response.base_validation_id)
-    adapter = db_session.get(ModelValidation, response.adapter_validation_id)
-    base_job = db_session.get(EvaluationJob, base.evaluation_id)
-    adapter_job = db_session.get(EvaluationJob, adapter.evaluation_id)
-    assert base_job.target_agent == adapter_job.target_agent == "coordinator"
-    assert base_job.curriculum_id == curriculum_doc.document_id
-    assert adapter_job.curriculum_id == curriculum_doc.document_id
-    assert base_job.lora_scale == 0.0
-    assert adapter_job.lora_scale == 1.0
+    validation = db_session.get(ModelValidation, response.validation_id)
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert validation.model_variant == "base"
+    assert job.lora_scale is None
 
 
-def test_create_adapter_comparison_rejects_all_agents(admin_user, db_session) -> None:
-    from pydantic import ValidationError
-    from server.modules.admin.schemas import AdapterComparisonCreateRequest
+def test_runs_of_different_variants_keep_separate_scales(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
 
+    _set_adapter_loaded(monkeypatch, True)
     expected_scores, slm = _setup_validation(db_session, admin_user)
 
-    with pytest.raises(ValidationError):
-        AdapterComparisonCreateRequest.model_validate(
-            {
-                "document_id": slm.document_id,
-                "target_agent": "all",
-                "expected_scores": expected_scores,
-            }
-        )
+    adapter_response = create_model_validation(
+        _sme_variant_request(slm, expected_scores, model_variant="adapter"),
+        created_by=admin_user.user_id,
+        created_by_role="admin",
+        db=db_session,
+    )
+    base_response = create_model_validation(
+        _sme_variant_request(slm, expected_scores, model_variant="base"),
+        created_by=admin_user.user_id,
+        created_by_role="admin",
+        db=db_session,
+    )
+
+    adapter_job = db_session.get(EvaluationJob, adapter_response.evaluation_id)
+    base_job = db_session.get(EvaluationJob, base_response.evaluation_id)
+    assert adapter_job.lora_scale == 1.0
+    assert base_job.lora_scale == 0.0
 
 
 def test_create_model_validation_single_agent_coordinator_requires_curriculum(

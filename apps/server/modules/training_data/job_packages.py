@@ -10,6 +10,8 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from server.modules.training_data.agents import validate_agent_id
+from server.modules.training_data.contracts import DpoPackageManifest
 from server.modules.training_data.exporter import export_dpo_package
 from sqlalchemy.orm import Session
 
@@ -43,6 +45,13 @@ def freeze_job_dataset(session: Session, agent_id: str) -> FrozenJobPackage:
         shutil.rmtree(scratch_root, ignore_errors=True)
 
 
+def preview_dataset_manifest(session: Session, agent_id: str) -> DpoPackageManifest:
+    """Dry-run the exporter: same manifest a job would freeze, nothing written."""
+    validate_agent_id(agent_id)
+    # output_dir is never touched when dry_run is True.
+    return export_dpo_package(session, agent_id, Path("."), dry_run=True)
+
+
 def serialize_job_package_zip(
     pairs_content: str,
     provenance_content: str,
@@ -60,5 +69,6 @@ def serialize_job_package_zip(
 __all__ = [
     "FrozenJobPackage",
     "freeze_job_dataset",
+    "preview_dataset_manifest",
     "serialize_job_package_zip",
 ]

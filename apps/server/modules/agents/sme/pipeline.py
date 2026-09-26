@@ -9,12 +9,8 @@ import uuid
 from typing import Any
 
 from server.core.llm import ResponseContract, get_llm_client, get_llm_model_name
-from server.modules.rubrics.contracts import (
-    CountBandConfig,
-    DomainDefinition,
-    LlmRubricGuidanceConfig,
-    RatioBandConfig,
-)
+from server.modules.rubrics.contracts import DomainDefinition
+from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
 from ..contracts import AgentEvaluationResult, CapturedGeneration, CriterionScore
@@ -97,11 +93,17 @@ def validate_sme_snapshot(
             f"Snapshot evaluation_id '{form_snapshot.evaluation_id}' does not "
             f"match '{evaluation_id}'"
         )
-    if form_snapshot.adapter_key != agent_name or form_snapshot.adapter_version != 1:
+    if form_snapshot.adapter_key != agent_name:
         raise AgentExecutionError(
             f"Invalid snapshot adapter key '{form_snapshot.adapter_key}' "
             f"or version {form_snapshot.adapter_version}"
         )
+    try:
+        manifest = get_agent_manifest(agent_name, form_snapshot.adapter_version)
+    except ValueError as exc:
+        raise AgentExecutionError(
+            f"Unsupported SME adapter version {form_snapshot.adapter_version}"
+        ) from exc
 
     domains = form_snapshot.form.domains
     total_criteria = sum(len(d.criteria) for d in domains)
@@ -112,28 +114,14 @@ def validate_sme_snapshot(
             f"SME snapshot exceeds 20 criteria ({total_criteria})"
         )
 
-    for d in domains:
-        for c in d.criteria:
-            cfg = c.strategy_config
-            if isinstance(cfg, LlmRubricGuidanceConfig):
-                pass
-            elif isinstance(cfg, CountBandConfig):
-                if cfg.mode != "minimum_count":
-                    raise AgentExecutionError(
-                        f"SME criterion '{c.criterion_code}' has unsupported "
-                        f"count mode '{cfg.mode}'"
-                    )
-            elif isinstance(cfg, RatioBandConfig):
-                if cfg.mode != "coverage_percentage":
-                    raise AgentExecutionError(
-                        f"SME criterion '{c.criterion_code}' has unsupported "
-                        f"ratio mode '{cfg.mode}'"
-                    )
-            else:
-                raise AgentExecutionError(
-                    f"SME criterion '{c.criterion_code}' has unsupported "
-                    f"strategy '{cfg.strategy}'"
-                )
+    report = validate_form(form_snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
+        )
+        raise AgentExecutionError(
+            f"SME snapshot violates adapter {form_snapshot.adapter_version}: {codes}"
+        )
 
     return domains
 

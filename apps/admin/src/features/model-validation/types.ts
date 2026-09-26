@@ -70,20 +70,9 @@ export interface ModelValidationCreateBody {
   syllabus_id?: string | null;
   curriculum_id?: string | null;
   partial_without_curriculum: boolean;
+  target_agent?: 'sme' | 'gad' | 'itso';
+  model_variant?: 'base' | 'adapter';
   expected_scores: ExpectedCriterionScoreInput[];
-}
-
-export interface AdapterComparisonCreateBody {
-  document_id: string;
-  syllabus_id?: string | null;
-  target_agent: 'sme' | 'gad' | 'itso';
-  expected_scores: ExpectedCriterionScoreInput[];
-}
-
-export interface AdapterComparisonResponse {
-  compare_group_id: string;
-  base_validation_id: string;
-  adapter_validation_id: string;
 }
 
 export interface ModelValidationCriterionDefinition {
