@@ -11,14 +11,17 @@ keeping human review authoritative. Current academic scope is limited to
 ## What it does
 
 - Accepts faculty-owned SLM PDF uploads and extracts selectable or scanned text.
-- Runs SME, Program Coordinator, GAD, and ITSO evaluation perspectives in
-  parallel, then produces a consolidated scorecard and monitoring-matrix entry.
+- Runs one selected specialist (SME, Program Coordinator, GAD, or ITSO) per
+  faculty evaluation. Completed specialist results progressively fill the
+  monitoring matrix; its composite score appears after all four domains complete.
 - Uses LSPU CCS curriculum, syllabus, rubric, and approved policy documents as
   local reference evidence. SLMs are direct evaluation input and are never
   embedded into ChromaDB.
-- Requires a faculty-confirmed program and curriculum for a full evaluation. A
-  clearly labelled partial evaluation can continue without a curriculum; the
-  Coordinator is skipped and the result is marked partial.
+- Requires a faculty-confirmed program for submission. Coordinator evaluations
+  additionally require a ready curriculum; other specialist jobs complete
+  independently. The old partial-without-curriculum mode is not used for
+  faculty submissions; it remains for historical jobs and Admin model-validation
+  benchmarks.
 - Provides Admin workflows for reference/policy ingestion, user management,
   prompt history, preference logs, monitoring, and model validation.
 - Exports truthful client-side PDF scorecards.

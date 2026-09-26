@@ -19,10 +19,10 @@ EquipED evaluates Self-Paced Learning Materials (SLMs) from Laguna State Polytec
    - **SLM Modules (Direct Input)**: Faculty-uploaded SLMs are parsed and extracted into chunked text. SLM chunks are fed directly to evaluators as plain text. **SLMs are never embedded or vectorized into ChromaDB.**
    - **Reference Documents & Rubrics (Vector Retrieval)**: Institutional syllabi, curriculum guides, and rubrics are parsed, chunked, and embedded into private vector storage to serve retrieval-augmented generation (RAG).
 3. **Local Data Residency & Privacy**: All vector storage, document artifacts, and relational data reside locally or in private infrastructure. No module content or prompt inputs are sent to external third parties without explicit authorization.
-4. **Deterministic Synthesis**: Layer 3 specialist evaluations run independently and are persisted to relational storage. Layer 4 is an in-process, deterministic synthesis step that aggregates scores, flags, and cross-domain findings into the terminal monitoring matrix. No further automated layers or open-ended autonomous agents run beyond Layer 4.
+4. **Deterministic Synthesis**: Faculty evaluations execute one selected Layer 3 specialist per job and persist its output to relational storage. In-process Layer 4 deterministically merges each result into a progressive monitoring matrix; it computes a composite only after all four specialist domains are present. No further automated layers or open-ended autonomous agents run beyond Layer 4.
 5. **Truthful Evaluation States**:
-   - Explicit full evaluations require all active specialist agents to succeed.
-   - Partial evaluations are permitted solely through deliberate user intent (e.g., acknowledged absent syllabus) and must record explicitly which domains were executed or skipped.
+   - A successful faculty job is complete for its targeted specialist even while the document-level matrix is still in progress.
+   - Intentional partial-without-curriculum execution is retained for Admin model-validation bundles and historical jobs, not new faculty submissions; it must record which domains were executed or skipped.
    - Runtime failures must fail closed and never present as partial success.
 6. **No External Message Broker**: In-process durable DB-backed FIFO queueing handles asynchronous evaluations without Celery, Redis, or distributed broker infrastructure.
 
@@ -193,7 +193,7 @@ The backend (`apps/server/`) is structured strictly as an in-process modular mon
   - `embeddings`: Embedding pipeline and similarity retrieval scoped **exclusively** to syllabi, curricula, and institutional rubrics.
   - `evaluations`: DB-backed FIFO queue, CAS claim token admission, worker drain loop, Layer 3 agent dispatch, and crash recovery.
   - `agents`: Evaluator prompts, LLM client execution, and individual rubric scoring for SME, Program Coordinator, GAD, and ITSO.
-  - `synthesis`: Aggregates Layer 3 persisted agent outputs, derives the terminal monitoring matrix, and computes holistic recommendations.
+  - `synthesis`: Deterministically merges persisted specialist outputs into the progressive monitoring matrix and computes the composite after all four domains complete.
   - `curriculum` & `curriculum_alignment`: Program curriculum structure and degree-level alignment checking.
   - `syllabus_alignment`: Course-level learning outcome alignment and standalone alignment runs.
   - `rubrics`: Rubric domain definitions, criteria trees, and versioned rubric configurations.
@@ -202,13 +202,13 @@ The backend (`apps/server/`) is structured strictly as an in-process modular mon
 
 ### Layer 3 / Layer 4 Execution Lifecycle
 
-Execution follows an active supervisor pattern with terminal synthesis:
-1. **Submission & Admission**: An evaluation request creates an `evaluation_jobs` record with status `SUBMITTED`. Evaluation targets may be a full four-agent bundle, a targeted individual agent, or scheduled agents based on permission and intent.
-2. **Preprocessing**: Document chunks are loaded and validated. If syllabus context is required but unavailable, user-acknowledged partial evaluation is respected; otherwise the job fails closed.
-3. **Layer 3 Specialist Analysis**: The supervisor orchestrates evaluation across the selected domains (SME, Coordinator, GAD, ITSO). Domains run independently and execute in parallel threads.
+Execution follows an active supervisor pattern with deterministic terminal synthesis:
+1. **Submission & Admission**: A faculty submission creates a `SUBMITTED` evaluation job targeting exactly one permitted specialist: SME, Coordinator, GAD, or ITSO. The public endpoint does not admit `all` bundles.
+2. **Preprocessing**: The SLM is extracted and validated. A Coordinator job requires a ready curriculum; syllabus selection is optional. Missing required context fails closed rather than downgrading the faculty job to partial.
+3. **Layer 3 Specialist Analysis**: The supervisor executes only that job's selected specialist. Admin model-validation benchmarks may instead schedule an `all` bundle (four specialists, or three with explicit no-curriculum intent) in parallel; historical bundle jobs remain readable/executable.
 4. **Output Persistence**: Specialist outputs (criterion scores, justifications, chunk citations, and domain summaries) are persisted into `agent_results` in the relational database.
-5. **Layer 4 Deterministic Synthesis**: The orchestrator triggers synthesis. Layer 4 reads the persisted Layer 3 outputs and deterministically computes overall weighted scores, status flags, and the Instructional Materials Monitoring Matrix entry.
-6. **Completion**: The evaluation marks status `COMPLETED` (or intentional partial success). No automated evaluation layers run beyond Layer 4.
+5. **Layer 4 Deterministic Synthesis**: Each successful faculty job merges its persisted domain result into the document's monitoring matrix. With fewer than four completed domains, the matrix remains `IN_PROGRESS` without a composite score; after all four, it computes the weighted composite and marks the matrix `COMPLETED`.
+6. **Completion**: The single-specialist evaluation job marks `COMPLETED` for its targeted domain, independently of matrix completion. Intentional `COMPLETED_PARTIAL` applies only to eligible benchmark/legacy bundles, never to unhandled failures. No automated evaluation layers run beyond Layer 4.
 
 ---
 
