@@ -570,4 +570,80 @@ describe('useModelValidationFormState', () => {
     expect(result.current.allCriterionScoresComplete).toBe(false);
     expect(result.current.canSubmitEvaluation).toBe(false);
   });
+
+  it('un-selects a target that has no adapter when switching to Adapter', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+
+    act(() => {
+      result.current.setTargetAgent('gad');
+    });
+    act(() => {
+      result.current.setModelVariant('adapter');
+    });
+
+    expect(result.current.targetAgent).toBeNull();
+  });
+
+  it('keeps SME selected when switching to Adapter, since SME has the adapter', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+
+    act(() => {
+      result.current.setTargetAgent('sme');
+    });
+    act(() => {
+      result.current.setModelVariant('adapter');
+    });
+
+    expect(result.current.targetAgent).toBe('sme');
+  });
+
+  it('never submits an adapter run for an agent that has no adapter, even if forced', async () => {
+    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+      mockCriteriaCatalog,
+    );
+    mockUploadedReadyDocument();
+    const captured = captureSubmittedBody();
+
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => {
+      expect(result.current.criterionDefinitions.length).toBe(3);
+    });
+    await uploadDocument(result);
+
+    // Setting the target directly bypasses the disabled option in the select.
+    act(() => {
+      result.current.setModelVariant('adapter');
+      result.current.setTargetAgent('gad');
+      result.current.setExpectedScores({ 'gad:crit-gad-1': '3' });
+    });
+
+    expect(result.current.allCriterionScoresComplete).toBe(true);
+    expect(result.current.canSubmitEvaluation).toBe(false);
+
+    await act(async () => {
+      result.current.handleStart();
+    });
+
+    expect(captured.body).toBeUndefined();
+  });
 });

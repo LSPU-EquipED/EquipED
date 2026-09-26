@@ -720,6 +720,30 @@ def test_standard_route_rejects_the_adapter_variant_with_all_agents(
     assert "requires a single target_agent" in resp.text
 
 
+def test_standard_route_rejects_the_adapter_variant_for_agents_without_an_adapter(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
+        lambda: True,
+    )
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json={
+            "document_id": str(slm.document_id),
+            "target_agent": "gad",
+            "model_variant": "adapter",
+            "expected_scores": expected_scores,
+        },
+    )
+
+    assert resp.status_code == 422
+    assert "only supported for" in resp.text
+
+
 def test_standard_route_returns_503_when_the_adapter_check_cannot_reach_the_endpoint(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:

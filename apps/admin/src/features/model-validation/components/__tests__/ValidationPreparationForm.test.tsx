@@ -323,6 +323,34 @@ describe('ValidationPreparationForm', () => {
     expect(setModelVariant).toHaveBeenCalledWith('base');
   });
 
+  it('disables GAD and ITSO while the adapter is selected, since only SME has one', () => {
+    const form = createMockForm({
+      modelVariant: 'adapter',
+      targetAgent: 'sme',
+      criterionDefinitions: [mockAgents[0]],
+    });
+
+    render(<ValidationPreparationForm form={form} />);
+
+    expect((screen.getByRole('option', { name: /SME only/ }) as HTMLOptionElement).disabled).toBe(
+      false,
+    );
+    expect((screen.getByRole('option', { name: /GAD only/ }) as HTMLOptionElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('option', { name: /ITSO only/ }) as HTMLOptionElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('keeps every agent selectable for a Base run', () => {
+    render(<ValidationPreparationForm form={createMockForm()} />);
+
+    for (const name of [/All agents/, /SME only/, /GAD only/, /ITSO only/]) {
+      expect((screen.getByRole('option', { name }) as HTMLOptionElement).disabled).toBe(false);
+    }
+  });
+
   it('shows an unselected Target prompt after switching to the adapter from All agents', () => {
     const form = createMockForm({
       modelVariant: 'adapter',

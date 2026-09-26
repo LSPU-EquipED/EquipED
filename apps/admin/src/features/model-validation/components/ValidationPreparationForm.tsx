@@ -150,16 +150,19 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
                       All agents (SME, GAD, ITSO)
                     </option>
                     <option value="sme">SME only</option>
-                    <option value="gad">GAD only</option>
-                    <option value="itso">ITSO only</option>
+                    <option value="gad" disabled={modelVariant === 'adapter'}>
+                      GAD only
+                    </option>
+                    <option value="itso" disabled={modelVariant === 'adapter'}>
+                      ITSO only
+                    </option>
                   </select>
                 </div>
               </div>
 
               {modelVariant === 'adapter' ? (
                 <p className="text-xs text-text-muted">
-                  The adapter is applied to one agent only, and an adapter must be loaded on the
-                  server.
+                  Only the SME agent has a trained adapter, and it must be loaded on the server.
                 </p>
               ) : null}
             </div>
