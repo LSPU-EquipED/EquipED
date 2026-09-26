@@ -179,6 +179,12 @@ class ModelValidationExpectedScoreInput(BaseModel):
     expected_score: StrictInt = Field(ge=1, le=4)
 
 
+# Agents that have a trained LoRA adapter. The scale is sent for adapter id 0
+# only, so an adapter run on any other agent would silently apply the wrong
+# adapter; widen this only together with per-agent adapter ids.
+ADAPTER_SUPPORTED_AGENTS: tuple[str, ...] = ("sme",)
+
+
 class ModelValidationCreateRequest(BaseModel):
     """Create a benchmark without exposing expected criterion scores to agents.
 
@@ -214,9 +220,17 @@ class ModelValidationCreateRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_adapter_targets_single_agent(self) -> ModelValidationCreateRequest:
-        if self.model_variant == "adapter" and self.target_agent == "all":
+        if self.model_variant != "adapter":
+            return self
+        if self.target_agent == "all":
             raise ValueError(
                 'model_variant="adapter" requires a single target_agent, not "all".'
+            )
+        if self.target_agent not in ADAPTER_SUPPORTED_AGENTS:
+            supported = ", ".join(ADAPTER_SUPPORTED_AGENTS)
+            raise ValueError(
+                'model_variant="adapter" is only supported for target_agent in '
+                f"({supported}); no adapter is trained for {self.target_agent!r}."
             )
         return self
 

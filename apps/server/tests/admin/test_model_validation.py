@@ -350,6 +350,26 @@ def test_adapter_variant_rejects_all_agents(admin_user, db_session) -> None:
         )
 
 
+@pytest.mark.parametrize("agent", ["gad", "itso", "coordinator"])
+def test_adapter_variant_rejects_agents_without_an_adapter(
+    agent, admin_user, db_session
+) -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+
+    with pytest.raises(ValidationError, match="only supported for"):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": slm.document_id,
+                "target_agent": agent,
+                "model_variant": "adapter",
+                "expected_scores": expected_scores,
+            }
+        )
+
+
 def test_adapter_variant_refuses_when_no_adapter_is_loaded(
     admin_user, db_session, monkeypatch
 ) -> None:

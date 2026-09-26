@@ -14,6 +14,15 @@ export function isPartialValidationAgent(agentId: string): agentId is PartialVal
   return (PARTIAL_VALIDATION_AGENTS as readonly string[]).includes(agentId);
 }
 
+// Agents that have a trained LoRA adapter. Mirrors ADAPTER_SUPPORTED_AGENTS in
+// the API: the adapter is applied by id 0 only, so any other agent would get
+// the wrong adapter.
+export const ADAPTER_SUPPORTED_AGENTS = ['sme'] as const;
+
+export function isAdapterSupportedAgent(agentId: string | null): boolean {
+  return agentId != null && (ADAPTER_SUPPORTED_AGENTS as readonly string[]).includes(agentId);
+}
+
 export const criterionKey = (agentId: string, criterionIdOrRubricId: string) =>
   `${agentId}:${criterionIdOrRubricId}`;
 

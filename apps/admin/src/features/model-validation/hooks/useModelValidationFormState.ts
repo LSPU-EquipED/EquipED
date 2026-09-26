@@ -7,6 +7,7 @@ import type { ModelValidationCreateBody } from '../types';
 import {
   areAllCriterionScoresComplete,
   criterionKey,
+  isAdapterSupportedAgent,
   isPartialValidationAgent,
   isStaleBindingError,
 } from '../utils/helpers';
@@ -28,11 +29,11 @@ export function useModelValidationFormState() {
   const [modelVariant, setModelVariantState] = useState<ModelVariant>('base');
   const [targetAgent, setTargetAgent] = useState<TargetAgent | null>('all');
 
-  // An adapter is trained for one agent, so "all agents" is not a valid adapter
-  // target: switching to Adapter drops it and the admin must pick an agent.
+  // Only some agents have a trained adapter, so switching to Adapter drops a
+  // target that can't use one ("all agents", GAD, ITSO) and the admin must pick.
   const setModelVariant = (next: ModelVariant) => {
     setModelVariantState(next);
-    if (next === 'adapter' && targetAgent === 'all') setTargetAgent(null);
+    if (next === 'adapter' && !isAdapterSupportedAgent(targetAgent)) setTargetAgent(null);
   };
 
   const criterionCatalog = useModelValidationCriteria();
@@ -128,9 +129,13 @@ export function useModelValidationFormState() {
     uploadedDocument.data?.processingStatus ?? uploaded?.processingStatus;
   const uploadedDocumentReady =
     uploadedProcessingStatus === 'PROCESSED' && (uploadedDocument.data?.chunks.length ?? 0) > 0;
+  // Derived rather than enforced only in the setters, so no sequence of state
+  // updates can submit an adapter run for an agent that has no adapter.
+  const adapterTargetAllowed = modelVariant !== 'adapter' || isAdapterSupportedAgent(targetAgent);
   const canSubmitEvaluation =
     uploadedDocumentReady &&
     allCriterionScoresComplete &&
+    adapterTargetAllowed &&
     (targetAgent !== 'all' || partialChoiceAcknowledged);
   const error = uploadMutation.error ?? uploadedDocument.error ?? validationMutation.error;
   const isStaleBinding = isStaleBindingError(validationMutation.error);
