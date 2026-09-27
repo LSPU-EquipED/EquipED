@@ -1,9 +1,70 @@
 // @vitest-environment jsdom
 import { renderHook, act } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { calculateNodeTops, useDiagramGeometry } from '../useDiagramGeometry';
 
 describe('useDiagramGeometry', () => {
+  it('reuses unchanged geometry and measures each node only once per update', () => {
+    const sources = ['rubrics'];
+    const consumers = ['sme'];
+    const { result, rerender } = renderHook(() => useDiagramGeometry(sources, consumers));
+    const container = document.createElement('div');
+    container.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 600);
+    const node = document.createElement('button');
+    const measure = vi.fn(() => new DOMRect(0, 20, 360, 100));
+    node.getBoundingClientRect = measure;
+    const sourceRef = result.current.registerSource('rubrics');
+    const consumerRef = result.current.registerConsumer('sme');
+
+    act(() => {
+      result.current.registerContainer(container);
+      sourceRef(node);
+      result.current.updateGeometry();
+    });
+    expect(measure).toHaveBeenCalledTimes(1);
+    const { layout, anchors } = result.current;
+    rerender();
+    expect(result.current.registerSource('rubrics')).toBe(sourceRef);
+    expect(result.current.registerConsumer('sme')).toBe(consumerRef);
+
+    measure.mockClear();
+    act(() => result.current.updateGeometry());
+    expect(measure).toHaveBeenCalledTimes(1);
+    expect(result.current.layout).toBe(layout);
+    expect(result.current.anchors).toBe(anchors);
+
+    measure.mockReturnValue(new DOMRect(0, 20, 380, 100));
+    act(() => result.current.updateGeometry());
+    expect(result.current.layout).toBe(layout);
+    expect(result.current.anchors.sources.rubrics.x).toBe(380);
+    expect(result.current.anchors).not.toBe(anchors);
+  });
+
+  it('drops hidden source geometry and clears detached element references', () => {
+    const consumers = ['sme'];
+    const { result, rerender } = renderHook(
+      ({ sources }) => useDiagramGeometry(sources, consumers),
+      { initialProps: { sources: ['rubrics', 'syllabus'] } },
+    );
+    const container = document.createElement('div');
+    container.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 600);
+    const node = document.createElement('button');
+    const measure = vi.fn(() => new DOMRect(0, 20, 360, 100));
+    node.getBoundingClientRect = measure;
+    act(() => {
+      result.current.registerContainer(container);
+      result.current.registerSource('rubrics')(node);
+      result.current.updateGeometry();
+    });
+
+    act(() => result.current.registerSource('rubrics')(null));
+    measure.mockClear();
+    rerender({ sources: ['syllabus'] });
+    expect(measure).not.toHaveBeenCalled();
+    expect(Object.keys(result.current.anchors.sources)).toEqual(['syllabus']);
+    expect(Object.keys(result.current.layout.sourceTops)).toEqual(['syllabus']);
+  });
+
   it('calculates non-overlapping top positions for sources and consumers', () => {
     const visibleSourceIds = ['rubrics', 'syllabus', 'curriculum', 'policy'];
     const consumerIds = ['sme', 'coordinator', 'gad', 'itso', 'synthesis'];

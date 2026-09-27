@@ -16,6 +16,34 @@ export type NodeLayoutInfo = {
   totalHeight: number;
 };
 
+function equalPositions(previous: Record<string, number>, next: Record<string, number>) {
+  const ids = Object.keys(next);
+  return Object.keys(previous).length === ids.length &&
+    ids.every((id) => previous[id] === next[id]);
+}
+
+function equalAnchors(previous: Record<string, Point>, next: Record<string, Point>) {
+  const ids = Object.keys(next);
+  return Object.keys(previous).length === ids.length &&
+    ids.every((id) => previous[id]?.x === next[id].x && previous[id]?.y === next[id].y);
+}
+
+function useNodeRefs() {
+  const elements = useRef<Record<string, HTMLElement | null>>({});
+  const callbacks = useRef(new Map<string, (element: HTMLElement | null) => void>());
+  const register = useCallback((id: string) => {
+    let callback = callbacks.current.get(id);
+    if (!callback) {
+      callback = (element) => {
+        elements.current[id] = element;
+      };
+      callbacks.current.set(id, callback);
+    }
+    return callback;
+  }, []);
+  return { elements, register };
+}
+
 export function calculateNodeTops(
   ids: string[],
   preferredTops: number[],
@@ -39,23 +67,11 @@ export function useDiagramGeometry(
   verticalGap = 16,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const sourceRefs = useRef<Record<string, HTMLElement | null>>({});
-  const consumerRefs = useRef<Record<string, HTMLElement | null>>({});
+  const { elements: sourceRefs, register: registerSource } = useNodeRefs();
+  const { elements: consumerRefs, register: registerConsumer } = useNodeRefs();
 
   const registerContainer = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el;
-  }, []);
-
-  const registerSource = useCallback((id: string) => {
-    return (el: HTMLElement | null) => {
-      sourceRefs.current[id] = el;
-    };
-  }, []);
-
-  const registerConsumer = useCallback((id: string) => {
-    return (el: HTMLElement | null) => {
-      consumerRefs.current[id] = el;
-    };
   }, []);
 
   const [anchors, setAnchors] = useState<NodeAnchorPoints>({
@@ -77,14 +93,18 @@ export function useDiagramGeometry(
 
     // Preserve the original canvas slots unless measured card heights require a push.
     const sourceHeights: Record<string, number> = {};
+    const sourceRects: Record<string, DOMRect> = {};
     for (const id of visibleSourceIds) {
       const el = sourceRefs.current[id];
-      sourceHeights[id] = el ? el.offsetHeight || el.getBoundingClientRect().height || 88 : 88;
+      if (el) sourceRects[id] = el.getBoundingClientRect();
+      sourceHeights[id] = el ? el.offsetHeight || sourceRects[id].height || 88 : 88;
     }
     const consumerHeights: Record<string, number> = {};
+    const consumerRects: Record<string, DOMRect> = {};
     for (const id of consumerIds) {
       const el = consumerRefs.current[id];
-      consumerHeights[id] = el ? el.offsetHeight || el.getBoundingClientRect().height || 72 : 72;
+      if (el) consumerRects[id] = el.getBoundingClientRect();
+      consumerHeights[id] = el ? el.offsetHeight || consumerRects[id].height || 72 : 72;
     }
     const sourcePlacement = calculateNodeTops(visibleSourceIds, [20, 144, 268, 392], sourceHeights, verticalGap);
     const consumerPlacement = calculateNodeTops(consumerIds, [5, 104, 203, 303, 402], consumerHeights, verticalGap);
@@ -92,12 +112,11 @@ export function useDiagramGeometry(
     const computedConsumerTops = consumerPlacement.tops;
     const calculatedHeight = Math.max(minDiagramHeight, sourcePlacement.totalHeight, consumerPlacement.totalHeight);
 
-    // 2. Compute anchor points relative to container
+    // Reuse the same measurements for connector endpoints.
     const newSourceAnchors: Record<string, Point> = {};
     for (const id of visibleSourceIds) {
-      const el = sourceRefs.current[id];
-      if (el) {
-        const rect = el.getBoundingClientRect();
+      const rect = sourceRects[id];
+      if (rect) {
         newSourceAnchors[id] = {
           x: rect.right - containerRect.left,
           y: rect.top - containerRect.top + rect.height / 2,
@@ -113,9 +132,8 @@ export function useDiagramGeometry(
 
     const newConsumerAnchors: Record<string, Point> = {};
     for (const id of consumerIds) {
-      const el = consumerRefs.current[id];
-      if (el) {
-        const rect = el.getBoundingClientRect();
+      const rect = consumerRects[id];
+      if (rect) {
         newConsumerAnchors[id] = {
           x: rect.left - containerRect.left,
           y: rect.top - containerRect.top + rect.height / 2,
@@ -129,17 +147,30 @@ export function useDiagramGeometry(
       }
     }
 
-    setLayout({
+    const nextLayout = {
       sourceTops: computedSourceTops,
       consumerTops: computedConsumerTops,
       totalHeight: calculatedHeight,
-    });
+    };
+    setLayout((previous) =>
+      previous.totalHeight === calculatedHeight &&
+      equalPositions(previous.sourceTops, computedSourceTops) &&
+      equalPositions(previous.consumerTops, computedConsumerTops)
+        ? previous
+        : nextLayout,
+    );
 
-    setAnchors({
+    const nextAnchors = {
       sources: newSourceAnchors,
       consumers: newConsumerAnchors,
-    });
-  }, [visibleSourceIds, consumerIds, minDiagramHeight, verticalGap]);
+    };
+    setAnchors((previous) =>
+      equalAnchors(previous.sources, newSourceAnchors) &&
+      equalAnchors(previous.consumers, newConsumerAnchors)
+        ? previous
+        : nextAnchors,
+    );
+  }, [visibleSourceIds, consumerIds, minDiagramHeight, verticalGap, sourceRefs, consumerRefs]);
 
   // Update geometry on mount, layout changes, or source/consumer changes
   useEffect(() => {
@@ -176,7 +207,7 @@ export function useDiagramGeometry(
     return () => {
       observer.disconnect();
     };
-  }, [visibleSourceIds, consumerIds, updateGeometry]);
+  }, [visibleSourceIds, consumerIds, updateGeometry, sourceRefs, consumerRefs]);
 
   return {
     registerContainer,
