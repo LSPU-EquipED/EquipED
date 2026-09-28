@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@equiped/api-client';
 import type { DocumentUploadResponse } from '@equiped/types';
 import { modelValidationApi } from '../api/modelValidation.api';
-import type { ModelValidationCreateBody } from '../types';
+import type { ModelValidationCreateBody, ModelVariant, TargetAgent } from '../types';
 import {
   areAllCriterionScoresComplete,
   criterionKey,
@@ -12,9 +12,6 @@ import {
   isStaleBindingError,
 } from '../utils/helpers';
 import { useModelValidationCriteria } from './useModelValidationQueries';
-
-export type ModelVariant = 'base' | 'adapter';
-export type TargetAgent = 'all' | 'sme' | 'gad' | 'itso';
 
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
@@ -44,8 +41,6 @@ export function useModelValidationFormState() {
     enabled: uploaded != null,
     refetchInterval: (query) => (query.state.data?.processingStatus === 'PENDING' ? 2000 : false),
   });
-
-  const normalizedProgram = program.trim().toUpperCase();
 
   const uploadMutation = useMutation({
     mutationFn: async (input: { file: File; title: string; program: string }) => {
@@ -171,6 +166,11 @@ export function useModelValidationFormState() {
     uploadMutation.mutate({ file, title, program });
   };
 
+  const registerScoreInput = (key: string, node: HTMLInputElement | null) => {
+    if (node) scoreInputRefs.current[key] = node;
+    else delete scoreInputRefs.current[key];
+  };
+
   const handleScoreKeyDown = (event: KeyboardEvent<HTMLInputElement>, currentKey: string) => {
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
@@ -224,7 +224,7 @@ export function useModelValidationFormState() {
 
   return {
     fileInputRef,
-    scoreInputRefs,
+    registerScoreInput,
     file,
     title,
     setTitle,
@@ -249,7 +249,6 @@ export function useModelValidationFormState() {
     error,
     isStaleBinding,
     handleReloadCatalog,
-    normalizedProgram,
     resetPreparedUpload,
     handleFile,
     handleProgramChange,

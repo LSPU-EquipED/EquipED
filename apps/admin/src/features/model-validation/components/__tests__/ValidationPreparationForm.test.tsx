@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ValidationPreparationForm } from '../ValidationPreparationForm';
@@ -141,7 +142,7 @@ const mockAgents: ModelValidationAgentCriteria[] = [
 function createMockForm(overrides: Partial<ReturnType<typeof useModelValidationFormState>> = {}) {
   const defaultForm: ReturnType<typeof useModelValidationFormState> = {
     fileInputRef: { current: null },
-    scoreInputRefs: { current: {} },
+    registerScoreInput: vi.fn(),
     file: null,
     title: 'Sample SLM',
     setTitle: vi.fn(),
@@ -186,7 +187,6 @@ function createMockForm(overrides: Partial<ReturnType<typeof useModelValidationF
     error: null,
     isStaleBinding: false,
     handleReloadCatalog: vi.fn(),
-    normalizedProgram: 'BSCS',
     resetPreparedUpload: vi.fn(),
     handleFile: vi.fn(),
     handleProgramChange: vi.fn(),
@@ -206,7 +206,8 @@ describe('ValidationPreparationForm', () => {
     expect(screen.getByText('Subject Matter Expert')).toBeDefined();
     expect(screen.getAllByText('Rubric v1')).toHaveLength(2);
     expect(screen.getByText('CONTENT · Content Quality')).toBeDefined();
-    expect(screen.getAllByText('Domain #1')).toHaveLength(3);
+    expect(screen.getAllByText('2/2').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('1/1').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('SME_1 · Content accuracy')).toBeDefined();
     expect(screen.getByText('SME_2 · Pedagogical structure')).toBeDefined();
 
@@ -286,18 +287,20 @@ describe('ValidationPreparationForm', () => {
       screen.getByText(/The published rubric revisions or criteria were updated or retired/i),
     ).toBeDefined();
 
-    const reloadButton = screen.getByRole('button', { name: /Reload criteria catalog/i });
+    const reloadButton = screen.getByRole('button', {
+      name: /Reload criteria catalog/i,
+    });
     expect(reloadButton).toBeDefined();
 
     fireEvent.click(reloadButton);
     expect(handleReloadCatalog).toHaveBeenCalled();
   });
 
-  it('renders Model and Target selects defaulting to Base model and All agents', () => {
+  it('renders Model and Target dropdowns defaulting to Base model and All agents', () => {
     render(<ValidationPreparationForm form={createMockForm()} />);
 
-    expect((screen.getByLabelText('Model') as HTMLSelectElement).value).toBe('base');
-    expect((screen.getByLabelText('Target') as HTMLSelectElement).value).toBe('all');
+    expect(screen.getByRole('button', { name: 'Model' }).textContent).toContain('Base model');
+    expect(screen.getByRole('button', { name: 'Target' }).textContent).toContain('All agents');
   });
 
   it('disables All agents while the adapter is selected and reports changes', () => {
@@ -313,13 +316,12 @@ describe('ValidationPreparationForm', () => {
 
     render(<ValidationPreparationForm form={form} />);
 
-    const allAgents = screen.getByRole('option', { name: /All agents/ }) as HTMLOptionElement;
-    expect(allAgents.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+    const allAgents = screen.getByRole('option', { name: /All agents/ });
+    expect(allAgents.getAttribute('aria-disabled')).toBe('true');
 
-    fireEvent.change(screen.getByLabelText('Target'), { target: { value: 'gad' } });
-    expect(setTargetAgent).toHaveBeenCalledWith('gad');
-
-    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'base' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+    fireEvent.click(screen.getByRole('option', { name: /Base model/ }));
     expect(setModelVariant).toHaveBeenCalledWith('base');
   });
 
@@ -332,22 +334,24 @@ describe('ValidationPreparationForm', () => {
 
     render(<ValidationPreparationForm form={form} />);
 
-    expect((screen.getByRole('option', { name: /SME only/ }) as HTMLOptionElement).disabled).toBe(
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+    expect((screen.getByRole('option', { name: /SME only/ }) as HTMLButtonElement).disabled).toBe(
       false,
     );
-    expect((screen.getByRole('option', { name: /GAD only/ }) as HTMLOptionElement).disabled).toBe(
-      true,
+    expect(screen.getByRole('option', { name: /GAD only/ }).getAttribute('aria-disabled')).toBe(
+      'true',
     );
-    expect((screen.getByRole('option', { name: /ITSO only/ }) as HTMLOptionElement).disabled).toBe(
-      true,
+    expect(screen.getByRole('option', { name: /ITSO only/ }).getAttribute('aria-disabled')).toBe(
+      'true',
     );
   });
 
   it('keeps every agent selectable for a Base run', () => {
     render(<ValidationPreparationForm form={createMockForm()} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
     for (const name of [/All agents/, /SME only/, /GAD only/, /ITSO only/]) {
-      expect((screen.getByRole('option', { name }) as HTMLOptionElement).disabled).toBe(false);
+      expect((screen.getByRole('option', { name }) as HTMLButtonElement).disabled).toBe(false);
     }
   });
 
@@ -361,8 +365,7 @@ describe('ValidationPreparationForm', () => {
 
     render(<ValidationPreparationForm form={form} />);
 
-    expect((screen.getByLabelText('Target') as HTMLSelectElement).value).toBe('');
-    expect(screen.getByRole('option', { name: /Choose an agent/ })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Target' }).textContent).toContain('Choose an agent');
   });
 
   it('hides the partial-run acknowledgement for a single-agent target', () => {
@@ -400,4 +403,41 @@ describe('ValidationPreparationForm', () => {
     const gadTab = screen.getByRole('button', { name: /^GAD/ });
     expect(gadTab.className).toContain('bg-primary');
   });
+});
+
+describe('benchmark score editing', () => {
+  it.each(['grouped', 'flat'])(
+    'preserves score editing and keyboard handlers for %s catalogs',
+    (shape) => {
+      const form = createMockForm({
+        criterionDefinitions: [
+          { ...mockAgents[0], domains: shape === 'flat' ? [] : mockAgents[0].domains },
+        ],
+      });
+      function ScoreEditor() {
+        const [expectedScores, setExpectedScores] = useState(form.expectedScores);
+        return <ValidationPreparationForm form={{ ...form, expectedScores, setExpectedScores }} />;
+      }
+      const { unmount } = render(<ScoreEditor />);
+      const input = screen.getByLabelText(
+        'Expected score for SME_1 Content accuracy',
+      ) as HTMLInputElement;
+      const otherInput = screen.getByLabelText(
+        'Expected score for SME_2 Pedagogical structure',
+      ) as HTMLInputElement;
+
+      fireEvent.change(input, { target: { value: '2' } });
+      expect(input.value).toBe('2');
+      expect(otherInput.value).toBe('3');
+      fireEvent.change(input, { target: { value: '5' } });
+      expect(input.value).toBe('2');
+      fireEvent.change(input, { target: { value: '' } });
+      expect(input.value).toBe('');
+      fireEvent.keyDown(input, { key: 'Enter' });
+      expect(form.handleScoreKeyDown).toHaveBeenCalledWith(expect.anything(), 'sme:crit-sme-1');
+      expect(form.registerScoreInput).toHaveBeenCalledWith('sme:crit-sme-1', input);
+      unmount();
+      expect(form.registerScoreInput).toHaveBeenCalledWith('sme:crit-sme-1', null);
+    },
+  );
 });

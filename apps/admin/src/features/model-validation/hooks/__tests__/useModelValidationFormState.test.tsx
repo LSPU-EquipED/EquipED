@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useModelValidationFormState } from '../useModelValidationFormState';
 import { modelValidationApi } from '../../api/modelValidation.api';
 import { documentsApi } from '@equiped/api-client';
@@ -646,4 +646,27 @@ describe('useModelValidationFormState', () => {
 
     expect(captured.body).toBeUndefined();
   });
+});
+
+it('advances to registered score inputs and releases them when unmounted', async () => {
+  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(mockCriteriaCatalog);
+  const { result } = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
+  await waitFor(() => expect(result.current.criterionDefinitions.length).toBe(3));
+
+  const nextInput = document.createElement('input');
+  const focus = vi.spyOn(nextInput, 'focus');
+  const select = vi.spyOn(nextInput, 'select');
+  const event = {
+    key: 'Enter',
+    preventDefault: vi.fn(),
+  } as unknown as KeyboardEvent<HTMLInputElement>;
+  result.current.registerScoreInput('gad:crit-gad-1', nextInput);
+  result.current.handleScoreKeyDown(event, 'sme:crit-sme-1');
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(focus).toHaveBeenCalledOnce();
+  expect(select).toHaveBeenCalledOnce();
+
+  result.current.registerScoreInput('gad:crit-gad-1', null);
+  result.current.handleScoreKeyDown(event, 'sme:crit-sme-1');
+  expect(focus).toHaveBeenCalledOnce();
 });
