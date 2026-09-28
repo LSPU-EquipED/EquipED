@@ -6,11 +6,18 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { ModelValidationPage } from '../ModelValidationPage';
 import * as queriesModule from '../../hooks/useModelValidationQueries';
-import * as formStateModule from '../../hooks/useModelValidationFormState';
 import type { ModelValidationListResponse, ModelValidationMetricsResponse } from '../../types';
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, className }: { to: string; children?: React.ReactNode; className?: string }) => (
+  Link: ({
+    to,
+    children,
+    className,
+  }: {
+    to: string;
+    children?: React.ReactNode;
+    className?: string;
+  }) => (
     <a href={to} className={className}>
       {children}
     </a>
@@ -86,7 +93,7 @@ describe('ModelValidationPage', () => {
     );
   }
 
-  it('renders workstation header and defaults to Validation History tab above the fold', () => {
+  it('defaults to the History tab and its associated panel', () => {
     vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
       data: mockHistoryData,
       isLoading: false,
@@ -101,18 +108,14 @@ describe('ModelValidationPage', () => {
 
     renderPage();
 
-    // Tabs navigation bar
-    expect(screen.getByRole('tab', { name: /Validation History/i })).toBeDefined();
-    expect(screen.getByRole('tab', { name: /Confusion Matrix & Analytics/i })).toBeDefined();
-    expect(screen.getByRole('tab', { name: /New Benchmark Run/i })).toBeDefined();
-    // Default History tab content
-    expect(screen.getByText('Completed Runs')).toBeDefined();
-    expect(screen.getByText('Mean Absolute Error')).toBeDefined();
-    expect(screen.getAllByText(/Validation History/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('tablist', { name: 'Validation workspace' })).toBeDefined();
+    expect(screen.getByRole('tab', { name: 'History', selected: true })).toBeDefined();
+    expect(screen.getByRole('tabpanel', { name: 'History' })).toBeDefined();
+    expect(screen.getByText('Run history')).toBeDefined();
     expect(screen.getByText('Algorithms SLM')).toBeDefined();
   });
 
-  it('switches between tabs on click', () => {
+  it('switches between workspaces from the tabs', () => {
     vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
       data: mockHistoryData,
       isLoading: false,
@@ -127,20 +130,17 @@ describe('ModelValidationPage', () => {
 
     renderPage();
 
-    // Switch to Confusion Matrix & Analytics tab
-    const analyticsTab = screen.getByRole('tab', { name: /Confusion Matrix & Analytics/i });
-    fireEvent.click(analyticsTab);
+    fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
 
     expect(screen.getByText('Score confusion matrix')).toBeDefined();
+    expect(screen.queryByText('Agreement analytics')).toBeNull();
 
-    // Switch to New Benchmark Run tab
-    const newRunTab = screen.getByRole('tab', { name: /New Benchmark Run/i });
-    fireEvent.click(newRunTab);
+    fireEvent.click(screen.getByRole('tab', { name: 'New benchmark' }));
 
-    expect(screen.getByText('New validation input')).toBeDefined();
+    expect(screen.getByText('Prepare a benchmark run')).toBeDefined();
   });
 
-  it('has no Compare tab any more', () => {
+  it('supports keyboard navigation with wrapping and Home and End keys', () => {
     vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
       data: mockHistoryData,
       isLoading: false,
@@ -155,7 +155,24 @@ describe('ModelValidationPage', () => {
 
     renderPage();
 
-    expect(screen.getAllByRole('tab')).toHaveLength(3);
+    const historyTab = screen.getByRole('tab', { name: 'History' });
+    const analyticsTab = screen.getByRole('tab', { name: 'Analytics' });
+    const benchmarkTab = screen.getByRole('tab', { name: 'New benchmark' });
+
+    for (const [from, key, to] of [
+      [historyTab, 'ArrowRight', analyticsTab],
+      [analyticsTab, 'End', benchmarkTab],
+      [benchmarkTab, 'ArrowRight', historyTab],
+      [historyTab, 'ArrowLeft', benchmarkTab],
+      [benchmarkTab, 'Home', historyTab],
+    ] as const) {
+      fireEvent.keyDown(from, { key });
+      expect(document.activeElement).toBe(to);
+      expect(to.getAttribute('aria-selected')).toBe('true');
+      expect(to.tabIndex).toBe(0);
+      expect(from.tabIndex).toBe(-1);
+      expect(screen.getByRole('tabpanel').id).toBe(to.getAttribute('aria-controls'));
+    }
     expect(screen.queryByRole('tab', { name: /Compare/i })).toBeNull();
   });
 
@@ -184,10 +201,62 @@ describe('ModelValidationPage', () => {
     } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
 
     renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: /New Benchmark Run/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'New benchmark' }));
 
     expect(screen.getByLabelText('Model')).toBeDefined();
     expect(screen.getByLabelText('Target')).toBeDefined();
     expect(screen.getByLabelText(/Agent progress for/i)).toBeDefined();
+  });
+
+  it('opens the selected run review and linked evaluation, then closes it by button or Escape', () => {
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: mockHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+    vi.spyOn(queriesModule, 'useModelValidationMetrics').mockReturnValue({
+      data: mockMetricsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
+    vi.spyOn(queriesModule, 'useModelValidationDetail').mockReturnValue({
+      data: mockHistoryData.items[0],
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof queriesModule.useModelValidationDetail>);
+    vi.spyOn(queriesModule, 'useModelValidationEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-1',
+        status: 'COMPLETED',
+        submitted_at: '2026-09-01T10:00:00Z',
+        completed_at: '2026-09-01T10:00:03Z',
+        duration_seconds: 3.2,
+        partial_without_curriculum: false,
+        partial_reason: null,
+        error_message: null,
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof queriesModule.useModelValidationEvaluation>);
+    renderPage();
+
+    const openReview = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'Open evaluation for Algorithms SLM' }));
+    openReview();
+    expect(
+      screen.getByRole('region', { name: 'Validation details for Algorithms SLM' }),
+    ).toBeDefined();
+    expect(screen.getByText('eval-1')).toBeDefined();
+    expect(screen.getByText('3.20 s')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Close validation details' }));
+    expect(
+      screen.queryByRole('region', { name: 'Validation details for Algorithms SLM' }),
+    ).toBeNull();
+
+    openReview();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(
+      screen.queryByRole('region', { name: 'Validation details for Algorithms SLM' }),
+    ).toBeNull();
   });
 });

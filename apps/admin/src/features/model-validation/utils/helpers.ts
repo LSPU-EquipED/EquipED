@@ -91,8 +91,6 @@ export function variantLabel(variant: 'base' | 'adapter' | null): string | null 
   return null;
 }
 
-export const HISTORY_COLSPAN = 7;
-
 export function statusClass(status: ModelValidationItem['status']) {
   if (status === 'COMPLETED') return 'bg-success text-white';
   if (status === 'FAILED') return 'bg-destructive text-white';

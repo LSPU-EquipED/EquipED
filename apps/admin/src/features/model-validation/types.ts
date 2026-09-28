@@ -1,3 +1,6 @@
+export type ModelVariant = 'base' | 'adapter';
+export type TargetAgent = 'all' | 'sme' | 'gad' | 'itso';
+
 export interface ModelValidationCriterionScore {
   expected_score_id: string;
   agent_id: string;

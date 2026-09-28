@@ -2,7 +2,13 @@ import { CheckCircle, Spinner } from '@phosphor-icons/react';
 import type { ModelValidationItem } from '../types';
 import { statusClass, validationAgents } from '../utils/helpers';
 
-export function AgentProgressPanel({ validation }: { validation: ModelValidationItem }) {
+export function AgentProgressPanel({
+  validation,
+  compact = false,
+}: {
+  validation: ModelValidationItem;
+  compact?: boolean;
+}) {
   const isEvaluating = validation.status === 'EVALUATING';
   const agentsEvaluated = validation.status === 'SYNTHESIZING';
 
@@ -16,16 +22,18 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
     <section
       aria-live="polite"
       aria-label={`Agent progress for ${validation.document_title ?? 'Model Validation'}`}
-      className="overflow-hidden rounded-sm border border-border bg-surface"
+      className={`overflow-hidden rounded-sm border border-border bg-surface ${compact ? 'border-primary/30' : ''}`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-subtle px-5 py-4">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 ${compact ? 'py-3' : 'bg-surface-subtle py-4'}`}
+      >
         <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-text">
-            Agent evaluation progress
+          <h2 className="text-sm font-semibold text-text">
+            {compact ? 'Active validation' : 'Agent evaluation progress'}
           </h2>
           <p className="mt-1 text-xs font-medium text-text-muted">
-            {validation.document_title ?? 'Untitled SLM'} · Same parallel scoring pipeline as
-            faculty evaluation
+            {validation.document_title ?? 'Untitled SLM'}
+            {!compact ? ' · Same parallel scoring pipeline as faculty evaluation' : null}
           </p>
         </div>
         <span
@@ -47,17 +55,17 @@ export function AgentProgressPanel({ validation }: { validation: ModelValidation
                 : 'Queued';
 
           return (
-            <div key={agent.id} className="flex min-h-28 items-center gap-3 bg-surface p-4">
+            <div
+              key={agent.id}
+              className={`flex items-center gap-3 bg-surface p-4 ${compact ? 'min-h-20' : 'min-h-28'}`}
+            >
               {isSkipped || agentsEvaluated ? (
                 <CheckCircle
                   className={`size-5 shrink-0 ${isSkipped ? 'text-text-muted' : 'text-success'}`}
                   aria-hidden="true"
                 />
               ) : isEvaluating ? (
-                <Spinner
-                  className="size-5 shrink-0 animate-spin text-primary"
-                  aria-hidden="true"
-                />
+                <Spinner className="size-5 shrink-0 animate-spin text-primary" aria-hidden="true" />
               ) : (
                 <span className="size-3 shrink-0 rounded-full border-2 border-text-muted" />
               )}

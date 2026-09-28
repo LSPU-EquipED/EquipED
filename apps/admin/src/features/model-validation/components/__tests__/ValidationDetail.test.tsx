@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { HistoryRow, ValidationDetail } from '../ValidationDetail';
+import { ValidationDetail } from '../ValidationDetail';
+import { ValidationHistoryRow } from '../ValidationHistoryRow';
 import type { ModelValidationItem } from '../../types';
 
 // Mock the queries used inside ValidationDetail
@@ -19,12 +19,6 @@ vi.mock('../../hooks/useModelValidationQueries', () => ({
     isError: false,
     error: null,
   }),
-}));
-
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: ComponentPropsWithoutRef<'a'> & { children?: ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
 }));
 
 afterEach(() => {
@@ -107,14 +101,12 @@ describe('ValidationDetail', () => {
       <ValidationDetail
         id="test-detail"
         validationId={mockItem.validation_id}
-        evaluationId={mockItem.evaluation_id}
         fallbackCriteria={mockItem.criterion_scores}
         boundForms={mockItem.bound_forms}
         partialWithoutCurriculum={mockItem.partial_without_curriculum}
         overallStatus={mockItem.status}
         errorMessage={mockItem.error_message}
         isExpanded={true}
-        onClose={vi.fn()}
       />,
     );
 
@@ -135,14 +127,12 @@ describe('ValidationDetail', () => {
       <ValidationDetail
         id="test-detail"
         validationId={mockItem.validation_id}
-        evaluationId={mockItem.evaluation_id}
         fallbackCriteria={mockItem.criterion_scores}
         boundForms={mockItem.bound_forms}
         partialWithoutCurriculum={true}
         overallStatus={mockItem.status}
         errorMessage={null}
         isExpanded={true}
-        onClose={vi.fn()}
       />,
     );
 
@@ -155,14 +145,12 @@ describe('HistoryRow', () => {
     render(
       <table>
         <tbody>
-          <HistoryRow
+          <ValidationHistoryRow
             item={mockItem}
             isExpanded={false}
-            isAnyExpanded={false}
             comparedCount={2}
             exactMatches={1}
             onToggle={vi.fn()}
-            onClose={vi.fn()}
           />
         </tbody>
       </table>,
@@ -178,14 +166,12 @@ describe('HistoryRow', () => {
     render(
       <table>
         <tbody>
-          <HistoryRow
+          <ValidationHistoryRow
             item={{ ...mockItem, model_variant: 'adapter' }}
             isExpanded={false}
-            isAnyExpanded={false}
             comparedCount={2}
             exactMatches={1}
             onToggle={vi.fn()}
-            onClose={vi.fn()}
           />
         </tbody>
       </table>,
@@ -198,14 +184,12 @@ describe('HistoryRow', () => {
     render(
       <table>
         <tbody>
-          <HistoryRow
+          <ValidationHistoryRow
             item={{ ...mockItem, model_variant: null }}
             isExpanded={false}
-            isAnyExpanded={false}
             comparedCount={2}
             exactMatches={1}
             onToggle={vi.fn()}
-            onClose={vi.fn()}
           />
         </tbody>
       </table>,

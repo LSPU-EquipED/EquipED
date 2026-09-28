@@ -3,12 +3,34 @@ import { ChartLineUp, ClockCounterClockwise, ShieldCheck, Sparkle } from '@phosp
 import type { ModelValidationMetricsResponse } from '../types';
 import { ConfusionMatrix } from './ConfusionMatrix';
 
+function SummaryMetric({
+  label,
+  value,
+  detail,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: typeof ChartLineUp;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-r border-border px-4 py-4 last:border-r-0 sm:px-5">
+      <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+      <div className="min-w-0">
+        <dt className="text-xs font-medium text-text-muted">{label}</dt>
+        <dd className="mt-1 text-xl font-semibold leading-none tabular-nums text-text">{value}</dd>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-text-muted">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
 export function ValidationPerformanceMetrics({
   metricSummary,
 }: {
   metricSummary: UseQueryResult<ModelValidationMetricsResponse>;
 }) {
-  const completedRuns = metricSummary.data?.completed_runs ?? 0;
   const mae = metricSummary.data?.mean_absolute_error?.toFixed(2) ?? '—';
   const latency =
     metricSummary.data?.mean_latency_seconds == null
@@ -21,71 +43,28 @@ export function ValidationPerformanceMetrics({
   const perplexity = metricSummary.data?.score_perplexity?.toFixed(2) ?? '—';
 
   return (
-    <section aria-labelledby="validation-performance-heading" className="space-y-6">
-      {/* ── Top Aggregate Performance Metrics KPI Strip ───────────────── */}
-      <div className="rounded-md border border-border bg-surface shadow-none divide-y sm:divide-y-0 sm:divide-x divide-border grid grid-cols-2 lg:grid-cols-4">
-        {/* Completed Runs */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <ClockCounterClockwise className="size-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Completed runs
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {completedRuns}
-            </p>
-          </div>
-        </div>
+    <section aria-label="Agreement analytics" className="space-y-5">
+      <dl className="grid overflow-hidden rounded-md border border-border bg-surface sm:grid-cols-3">
+        <SummaryMetric
+          icon={ChartLineUp}
+          label="Mean absolute error"
+          value={mae}
+          detail="Distance from the expected score"
+        />
+        <SummaryMetric
+          icon={ClockCounterClockwise}
+          label="Mean latency"
+          value={latency}
+          detail="Average evaluation duration"
+        />
+        <SummaryMetric
+          icon={ShieldCheck}
+          label="Mean toxicity"
+          value={toxicity}
+          detail="Average safety signal"
+        />
+      </dl>
 
-        {/* Mean Absolute Error */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 items-center justify-center rounded-sm border border-primary/20 bg-primary-soft text-primary shrink-0">
-            <ChartLineUp className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Mean absolute error
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5">
-              {mae}
-            </p>
-          </div>
-        </div>
-
-        {/* Mean Latency */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 items-center justify-center rounded-sm border border-border bg-surface-subtle text-text shrink-0">
-            <Sparkle className="size-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Mean latency
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5 font-mono">
-              {latency}
-            </p>
-          </div>
-        </div>
-
-        {/* Mean Toxicity & Perplexity */}
-        <div className="p-4 sm:p-5 flex items-center gap-3.5">
-          <div className="flex size-10 items-center justify-center rounded-sm border border-success/30 bg-success-soft text-success shrink-0">
-            <ShieldCheck className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-              Mean toxicity
-            </p>
-            <p className="text-xl sm:text-2xl font-bold tracking-tight text-text tabular-nums mt-0.5 font-mono">
-              {toxicity}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main Confusion Matrix Analytics Card ──────────────────────── */}
       <ConfusionMatrix
         labels={metricSummary.data?.class_labels ?? ['1', '2', '3', '4']}
         matrix={
@@ -101,18 +80,21 @@ export function ValidationPerformanceMetrics({
         isError={metricSummary.isError}
       />
 
-      {/* ── Provenance & Governance Notice ────────────────────────────── */}
-      <div className="rounded-md border border-border bg-surface p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-text-muted">
-        <div className="flex items-start gap-2 max-w-2xl">
-          <ShieldCheck className="size-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
-          <p className="leading-relaxed">
-            <strong>Toxicity & Provenance:</strong> Reads stored agent summaries and criterion justifications. Model validation stores the resulting assessment and model provenance. Automated evaluations remain advisory; human review is authoritative.
+      <aside className="flex flex-col gap-3 border-t border-border pt-4 text-xs text-text-muted sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2">
+          <Sparkle className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+          <p className="max-w-2xl leading-relaxed">
+            Automated evaluations remain advisory. Human review is authoritative. Metrics are
+            derived from stored agent summaries and criterion justifications.
           </p>
         </div>
-        <span className="font-mono font-semibold text-text tabular-nums shrink-0">
-          Perplexity: {perplexity}
-        </span>
-      </div>
+        <dl className="flex shrink-0 gap-4 font-mono tabular-nums">
+          <div>
+            <dt className="font-sans text-[11px] text-text-muted">Score perplexity</dt>
+            <dd className="mt-0.5 font-semibold text-text">{perplexity}</dd>
+          </div>
+        </dl>
+      </aside>
     </section>
   );
 }
