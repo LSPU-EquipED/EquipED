@@ -1183,3 +1183,169 @@ def test_packaging_cell_archives_the_heldout_file(monkeypatch, tmp_path):
     with zipfile.ZipFile(zip_path) as zf:
         assert "heldout_pairs.jsonl" in zf.namelist()
         assert "training_manifest.json" in zf.namelist()
+
+
+# --- Fail-fast guards (cells 1, 2, 4, 9) ---------------------------------
+
+_GOOD_URLS = {
+    "DOWNLOAD_URL": "https://example.test/download",
+    "UPLOAD_URL": "https://example.test/upload",
+}
+
+
+def _run_url_cell(monkeypatch, urls=None, *, which="/usr/bin/nvidia-smi", rc=0):
+    import shutil
+    import subprocess
+
+    class _Result:
+        returncode = rc
+
+    monkeypatch.setattr(shutil, "which", lambda name: which)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Result())
+    ctx = dict(urls or _GOOD_URLS)
+    # Guard cell reads the URLs it assigns itself, so replace the assignments.
+    code = _get_notebook_cell_code(1)
+    lines = [
+        line
+        for line in code.splitlines()
+        if not line.startswith(("DOWNLOAD_URL =", "UPLOAD_URL ="))
+    ]
+    exec("\n".join(lines), ctx)  # noqa: S102
+    return ctx
+
+
+def test_url_cell_placeholders_raise_value_error_and_keep_link_valid():
+    code = _get_notebook_cell_code(1)
+    with pytest.raises(ValueError) as exc:
+        exec(code, {})  # noqa: S102
+    assert "DOWNLOAD_URL" in str(exc.value)
+    assert "still valid" in str(exc.value)
+
+
+def test_url_cell_placeholder_upload_url_is_named(monkeypatch):
+    with pytest.raises(ValueError, match="UPLOAD_URL"):
+        _run_url_cell(
+            monkeypatch,
+            {"DOWNLOAD_URL": "https://a.test/d", "UPLOAD_URL": "PASTE_UPLOAD_URL_HERE"},
+        )
+
+
+def test_url_cell_rejects_url_without_scheme(monkeypatch):
+    with pytest.raises(ValueError, match="DOWNLOAD_URL"):
+        _run_url_cell(
+            monkeypatch,
+            {"DOWNLOAD_URL": "abc", "UPLOAD_URL": "https://a.test/u"},
+        )
+
+
+def test_url_cell_accepts_valid_urls_with_gpu(monkeypatch):
+    _run_url_cell(monkeypatch)
+
+
+def test_url_cell_raises_without_nvidia_smi(monkeypatch):
+    with pytest.raises(RuntimeError, match="GPU") as exc:
+        _run_url_cell(monkeypatch, which=None)
+    assert "still valid" in str(exc.value)
+
+
+def test_url_cell_raises_when_nvidia_smi_fails(monkeypatch):
+    with pytest.raises(RuntimeError, match="GPU"):
+        _run_url_cell(monkeypatch, rc=9)
+
+
+def test_url_cell_warns_on_other_python_versions(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "version_info", (3, 12, 1, "final", 0))
+    _run_url_cell(monkeypatch)
+    assert "WARNING" in capsys.readouterr().out
+
+
+def test_url_cell_is_silent_on_python_313(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "version_info", (3, 13, 0, "final", 0))
+    _run_url_cell(monkeypatch)
+    assert "WARNING" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_fetch_cell_reports_used_or_expired_link(status):
+    with pytest.raises(RuntimeError, match="single-use"):
+        _execute_notebook_validation_cell_with(MockResponse(b"", status))
+
+
+def _execute_notebook_validation_cell_with(response: MockResponse) -> None:
+    code = _get_notebook_cell_code(2).replace(
+        "import requests\n",
+        "class _R:\n"
+        "    get = staticmethod(lambda url: _mock_response)\n"
+        "requests = _R()\n",
+    )
+    exec(  # noqa: S102
+        code,
+        {"DOWNLOAD_URL": "http://mock-test/download", "_mock_response": response},
+    )
+
+
+_PINS = {
+    "unsloth": "2026.9.12",
+    "unsloth_zoo": "2026.9.8",
+    "trl": "0.24.0",
+    "peft": "0.21.1",
+    "bitsandbytes": "0.50.2",
+    "datasets": "4.3.0",
+    "transformers": "5.5.0",
+    "accelerate": "1.15.0",
+}
+
+
+def _run_install_cell_check(monkeypatch, versions: dict[str, str | None]) -> None:
+    import importlib.metadata as md
+
+    def fake_version(name):
+        got = versions[name]
+        if got is None:
+            raise md.PackageNotFoundError(name)
+        return got
+
+    monkeypatch.setattr(md, "version", fake_version)
+    code = "\n".join(
+        line
+        for line in _get_notebook_cell_code(4).splitlines()
+        if not line.startswith("!pip")
+    )
+    exec(code, {})  # noqa: S102
+
+
+def test_install_cell_check_passes_when_pins_satisfied(monkeypatch):
+    _run_install_cell_check(monkeypatch, dict(_PINS))
+
+
+def test_install_cell_check_names_missing_package(monkeypatch):
+    with pytest.raises(RuntimeError, match="trl"):
+        _run_install_cell_check(monkeypatch, {**_PINS, "trl": None})
+
+
+def test_install_cell_check_rejects_wrong_version(monkeypatch):
+    with pytest.raises(RuntimeError, match="peft"):
+        _run_install_cell_check(monkeypatch, {**_PINS, "peft": "0.14.0"})
+
+
+def test_install_cell_pip_comes_before_check_and_is_not_quiet():
+    code = _get_notebook_cell_code(4)
+    pip_line = next(x for x in code.splitlines() if x.startswith("!pip install"))
+    assert " -q" not in pip_line
+    assert code.index("!pip install") < code.index("importlib.metadata")
+
+
+def test_manifest_cell_records_unsloth_zoo_version(monkeypatch, tmp_path):
+    pairs, records = _pairs_and_provenance(n_evaluations=10, pairs_per_evaluation=3)
+    split_ctx = _run_split_cell(monkeypatch, pairs, records)
+    adapter_dir = tmp_path / "trained_adapter"
+    adapter_dir.mkdir()
+    _run_manifest_cell(split_ctx, adapter_dir)
+    manifest = json.loads(
+        (adapter_dir / "training_manifest.json").read_text(encoding="utf-8")
+    )
+    assert "unsloth_zoo" in manifest["dependencies"]
+
+
+def test_training_notebook_still_has_eighteen_cells():
+    assert len(_load_notebook()["cells"]) == 18
