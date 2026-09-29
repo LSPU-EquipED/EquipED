@@ -5,7 +5,7 @@ export function usePublishAdapter(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (adapterId: string) => trainingDataApi.publishAdapter(agentId, adapterId),
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: ['trainedAdapters', agentId],
       });
@@ -17,7 +17,7 @@ export function useUnpublishAdapter(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => trainingDataApi.unpublishAdapter(agentId),
-    onSuccess: () => {
+    onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: ['trainedAdapters', agentId],
       });

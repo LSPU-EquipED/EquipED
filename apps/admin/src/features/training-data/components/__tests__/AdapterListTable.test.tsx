@@ -154,6 +154,26 @@ describe('AdapterListTable', () => {
     expect(screen.queryByText('Not loaded')).toBeNull();
   });
 
+  it('refetches the adapter list after a failed publish so stale state is corrected', async () => {
+    vi.mocked(trainingDataApi.publishAdapter).mockRejectedValue(
+      new Error('Adapter v1 is not loaded on the model server.'),
+    );
+    await renderTable(listing([adapter(1, { loaded: true })]));
+    expect(trainingDataApi.listAdapters).toHaveBeenCalledTimes(1);
+    vi.mocked(trainingDataApi.listAdapters).mockResolvedValue(
+      listing([adapter(1, { loaded: false })]),
+    );
+
+    fireEvent.click(within(rowFor(1)).getByRole('button', { name: 'Publish' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /confirm|publish/i }));
+
+    await waitFor(() => expect(trainingDataApi.listAdapters).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(within(rowFor(1)).getByText('Not loaded')).toBeDefined());
+    const publishButton = within(rowFor(1)).getByRole('button', { name: 'Publish' });
+    expect((publishButton as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('shows the API error message beneath the table when publishing fails', async () => {
     vi.mocked(trainingDataApi.publishAdapter).mockRejectedValue(
       new Error('Adapter v1 is not loaded on the model server.'),
