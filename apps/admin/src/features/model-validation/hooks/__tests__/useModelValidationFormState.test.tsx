@@ -9,6 +9,7 @@ import { documentsApi } from '@equiped/api-client';
 import { ApiError } from '@equiped/api-client';
 import type { ClientDocument } from '@equiped/types';
 import type {
+  AdapterChoiceList,
   ModelValidationCreateBody,
   ModelValidationCriteriaResponse,
   ModelValidationItem,
@@ -151,356 +152,224 @@ function createWrapper() {
   );
 }
 
+const mockAdapterChoices: AdapterChoiceList = {
+  agent_id: 'sme',
+  server_reachable: true,
+  adapters: [
+    { adapter_id: 'sme-v1', version: 1, loaded: false, published: false, gguf_filename: 'sme-v1.gguf' },
+    { adapter_id: 'sme-v2', version: 2, loaded: null, published: false, gguf_filename: 'sme-v2.gguf' },
+    { adapter_id: 'sme-v3', version: 3, loaded: true, published: true, gguf_filename: 'sme-v3.gguf' },
+    { adapter_id: 'sme-v4', version: 4, loaded: true, published: false, gguf_filename: 'sme-v4.gguf' },
+  ],
+};
+
+function mockCatalog() {
+  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
+    mockCriteriaCatalog,
+  );
+}
+
+function mockAdapters(list: AdapterChoiceList = mockAdapterChoices) {
+  return vi.spyOn(modelValidationApi, 'listAdapterChoices').mockResolvedValue(list);
+}
+
+function mockUploadedReadyDocument() {
+  vi.spyOn(documentsApi, 'uploadDocument').mockResolvedValue({
+    documentId: 'doc-ready-1',
+    title: 'SLM 1',
+    sourceType: 'slm',
+    processingStatus: 'PROCESSED',
+    academicYear: null,
+    courseCode: null,
+    courseTitle: null,
+    lessonTitle: null,
+  });
+  vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+}
+
+function captureSubmittedBody() {
+  const captured: { body?: ModelValidationCreateBody } = {};
+  vi.spyOn(modelValidationApi, 'createModelValidation').mockImplementation(async (body) => {
+    captured.body = body;
+    const created: ModelValidationItem = {
+      validation_id: 'val-1',
+      evaluation_id: 'eval-1',
+      document_id: body.document_id,
+      document_title: 'SLM 1',
+      model_variant: body.model_variant,
+      adapter_id: body.adapter_id ?? null,
+      adapter_label: null,
+      adapter_resolution: null,
+      compare_group_id: null,
+      partial_without_curriculum: body.partial_without_curriculum,
+      bound_forms: [],
+      criterion_scores: [],
+      absolute_error: null,
+      latency_seconds: null,
+      score_perplexity: null,
+      toxicity_score: null,
+      toxicity_label: null,
+      toxicity_explanation: null,
+      toxicity_model: null,
+      toxicity_error: null,
+      status: 'SUBMITTED',
+      error_message: null,
+      created_at: '2026-09-29T00:00:00Z',
+    };
+    return created;
+  });
+  return captured;
+}
+
+type HookResult = { current: ReturnType<typeof useModelValidationFormState> };
+
+async function uploadDocument(result: HookResult) {
+  await act(async () => {
+    result.current.uploadMutation.mutate({
+      file: new File(['dummy'], 'slm.pdf', { type: 'application/pdf' }),
+      title: 'SLM 1',
+      program: 'BSCS',
+    });
+  });
+  await waitFor(() => {
+    expect(result.current.uploadedDocumentReady).toBe(true);
+  });
+}
+
+async function renderReady() {
+  mockCatalog();
+  mockAdapters();
+  mockUploadedReadyDocument();
+  const captured = captureSubmittedBody();
+  const rendered = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
+  await waitFor(() => expect(rendered.result.current.criterionCatalog.isSuccess).toBe(true));
+  await uploadDocument(rendered.result);
+  return { ...rendered, captured };
+}
+
+async function chooseSmeWithScores(result: HookResult) {
+  act(() => {
+    result.current.setTargetAgent('sme');
+    result.current.setExpectedScores({ 'sme:crit-sme-1': '4' });
+  });
+  await waitFor(() => expect(result.current.adapterChoices.isSuccess).toBe(true));
+}
+
 describe('useModelValidationFormState', () => {
-  it('filters criteria catalog down to SME, GAD, and ITSO only, omitting Coordinator in partial workflow', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
+  it('starts with no target and no criteria, and never offers an all-agents scope', async () => {
+    mockCatalog();
     const { result } = renderHook(() => useModelValidationFormState(), {
       wrapper: createWrapper(),
     });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
 
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    const agentIds = result.current.criterionDefinitions.map((a) => a.agent_id);
-    expect(agentIds).toEqual(['sme', 'gad', 'itso']);
-    expect(agentIds).not.toContain('coordinator');
-  });
-
-  it('submits every expected score as exact {agent_id, rubric_set_id, rubric_criterion_id, expected_score}', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-    vi.spyOn(documentsApi, 'uploadDocument').mockResolvedValue({
-      documentId: 'doc-ready-1',
-      title: 'SLM 1',
-      sourceType: 'slm',
-      processingStatus: 'PROCESSED',
-      academicYear: null,
-      courseCode: null,
-      courseTitle: null,
-      lessonTitle: null,
-    });
-    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
-
-    let submittedBody: ModelValidationCreateBody | undefined;
-    vi.spyOn(modelValidationApi, 'createModelValidation').mockImplementation(async (body) => {
-      submittedBody = body;
-      const createdItem: ModelValidationItem = {
-        validation_id: 'val-1',
-        evaluation_id: 'eval-1',
-        document_id: body.document_id,
-        document_title: 'SLM 1',
-        model_variant: null,
-        compare_group_id: null,
-        partial_without_curriculum: true,
-        bound_forms: [],
-        criterion_scores: [],
-        absolute_error: null,
-        latency_seconds: null,
-        score_perplexity: null,
-        toxicity_score: null,
-        toxicity_label: null,
-        toxicity_explanation: null,
-        toxicity_model: null,
-        toxicity_error: null,
-        status: 'SUBMITTED',
-        error_message: null,
-        created_at: '2026-08-30T00:00:00Z',
-      };
-      return createdItem;
-    });
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    // Upload document
-    await act(async () => {
-      result.current.uploadMutation.mutate({
-        file: new File(['dummy'], 'slm.pdf', { type: 'application/pdf' }),
-        title: 'SLM 1',
-        program: 'BSCS',
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.uploaded).not.toBeNull();
-      expect(result.current.uploadedDocumentReady).toBe(true);
-    });
-
-    // Enter all scores and acknowledge partial
-    act(() => {
-      result.current.setExpectedScores({
-        'sme:crit-sme-1': '4',
-        'gad:crit-gad-1': '3',
-        'itso:crit-itso-1': '4',
-      });
-      result.current.setPartialChoiceAcknowledged(true);
-    });
-
-    expect(result.current.allCriterionScoresComplete).toBe(true);
-    expect(result.current.canSubmitEvaluation).toBe(true);
-
-    await act(async () => {
-      result.current.handleStart();
-    });
-
-    expect(submittedBody).not.toBeNull();
-    expect(submittedBody?.document_id).toBe('doc-ready-1');
-    expect(submittedBody?.partial_without_curriculum).toBe(true);
-    expect(submittedBody?.model_variant).toBe('base');
-    expect(submittedBody?.expected_scores).toEqual([
-      {
-        agent_id: 'sme',
-        rubric_set_id: 'set-sme-123',
-        rubric_criterion_id: 'crit-sme-1',
-        expected_score: 4,
-      },
-      {
-        agent_id: 'gad',
-        rubric_set_id: 'set-gad-123',
-        rubric_criterion_id: 'crit-gad-1',
-        expected_score: 3,
-      },
-      {
-        agent_id: 'itso',
-        rubric_set_id: 'set-itso-123',
-        rubric_criterion_id: 'crit-itso-1',
-        expected_score: 4,
-      },
-    ]);
-  });
-
-  it('detects stale 409/422 errors and allows catalog reload', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-    vi.spyOn(documentsApi, 'uploadDocument').mockResolvedValue({
-      documentId: 'doc-ready-1',
-      title: 'SLM 1',
-      sourceType: 'slm',
-      processingStatus: 'PROCESSED',
-      academicYear: null,
-      courseCode: null,
-      courseTitle: null,
-      lessonTitle: null,
-    });
-    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
-
-    const apiError = new ApiError('Conflict: rubric revision changed', {
-      status: 409,
-      payload: { detail: 'Rubric revision updated' },
-    });
-    vi.spyOn(modelValidationApi, 'createModelValidation').mockRejectedValue(apiError);
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    await act(async () => {
-      result.current.uploadMutation.mutate({
-        file: new File(['dummy'], 'slm.pdf', { type: 'application/pdf' }),
-        title: 'SLM 1',
-        program: 'BSCS',
-      });
-    });
-
-    await waitFor(() => {
-      expect(result.current.uploadedDocumentReady).toBe(true);
-    });
-
-    act(() => {
-      result.current.setExpectedScores({
-        'sme:crit-sme-1': '4',
-        'gad:crit-gad-1': '3',
-        'itso:crit-itso-1': '4',
-      });
-      result.current.setPartialChoiceAcknowledged(true);
-    });
-
-    await act(async () => {
-      result.current.handleStart();
-    });
-
-    await waitFor(() => {
-      expect(result.current.isStaleBinding).toBe(true);
-    });
-
-    const refetchSpy = vi.spyOn(result.current.criterionCatalog, 'refetch');
-    await act(async () => {
-      await result.current.handleReloadCatalog();
-    });
-
-    expect(refetchSpy).toHaveBeenCalled();
-  });
-
-  function mockUploadedReadyDocument() {
-    vi.spyOn(documentsApi, 'uploadDocument').mockResolvedValue({
-      documentId: 'doc-ready-1',
-      title: 'SLM 1',
-      sourceType: 'slm',
-      processingStatus: 'PROCESSED',
-      academicYear: null,
-      courseCode: null,
-      courseTitle: null,
-      lessonTitle: null,
-    });
-    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
-  }
-
-  function captureSubmittedBody() {
-    const captured: { body?: ModelValidationCreateBody } = {};
-    vi.spyOn(modelValidationApi, 'createModelValidation').mockImplementation(async (body) => {
-      captured.body = body;
-      const created: ModelValidationItem = {
-        validation_id: 'val-1',
-        evaluation_id: 'eval-1',
-        document_id: body.document_id,
-        document_title: 'SLM 1',
-        model_variant: body.model_variant ?? null,
-        compare_group_id: null,
-        partial_without_curriculum: body.partial_without_curriculum,
-        bound_forms: [],
-        criterion_scores: [],
-        absolute_error: null,
-        latency_seconds: null,
-        score_perplexity: null,
-        toxicity_score: null,
-        toxicity_label: null,
-        toxicity_explanation: null,
-        toxicity_model: null,
-        toxicity_error: null,
-        status: 'SUBMITTED',
-        error_message: null,
-        created_at: '2026-09-24T00:00:00Z',
-      };
-      return created;
-    });
-    return captured;
-  }
-
-  async function uploadDocument(result: {
-    current: ReturnType<typeof useModelValidationFormState>;
-  }) {
-    await act(async () => {
-      result.current.uploadMutation.mutate({
-        file: new File(['dummy'], 'slm.pdf', { type: 'application/pdf' }),
-        title: 'SLM 1',
-        program: 'BSCS',
-      });
-    });
-    await waitFor(() => {
-      expect(result.current.uploadedDocumentReady).toBe(true);
-    });
-  }
-
-  it('defaults to the Base model targeting all agents, unchanged from the old flow', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-    expect(result.current.modelVariant).toBe('base');
-    expect(result.current.targetAgent).toBe('all');
-  });
-
-  it('un-selects the target when switching to Adapter while All agents is selected', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    act(() => {
-      result.current.setModelVariant('adapter');
-    });
-
-    expect(result.current.modelVariant).toBe('adapter');
     expect(result.current.targetAgent).toBeNull();
     expect(result.current.criterionDefinitions).toEqual([]);
-    expect(result.current.allCriterionScoresComplete).toBe(false);
+    expect(result.current.modelChoice).toBe('base');
     expect(result.current.canSubmitEvaluation).toBe(false);
   });
 
-  it('scopes criteria to one agent and keeps it when switching back to Base', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
+  it('scopes criteria to the single chosen agent, never Coordinator', async () => {
+    mockCatalog();
+    mockAdapters();
     const { result } = renderHook(() => useModelValidationFormState(), {
       wrapper: createWrapper(),
     });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
 
-    act(() => {
-      result.current.setModelVariant('adapter');
-      result.current.setTargetAgent('sme');
-    });
-    expect(result.current.criterionDefinitions.map((a) => a.agent_id)).toEqual(['sme']);
-
-    act(() => {
-      result.current.setModelVariant('base');
-    });
-    expect(result.current.targetAgent).toBe('sme');
-    expect(result.current.criterionDefinitions.map((a) => a.agent_id)).toEqual(['sme']);
+    act(() => result.current.setTargetAgent('gad'));
+    expect(result.current.criterionDefinitions.map((a) => a.agent_id)).toEqual(['gad']);
   });
 
-  it('submits a single-agent adapter run without the partial flag or acknowledgement', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-    mockUploadedReadyDocument();
-    const captured = captureSubmittedBody();
-
+  it('builds base, published and per-version options from the agent adapter list', async () => {
+    mockCatalog();
+    const adaptersSpy = mockAdapters();
     const { result } = renderHook(() => useModelValidationFormState(), {
       wrapper: createWrapper(),
     });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-    await uploadDocument(result);
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
 
-    act(() => {
-      result.current.setModelVariant('adapter');
-      result.current.setTargetAgent('sme');
-      result.current.setExpectedScores({ 'sme:crit-sme-1': '4' });
-    });
+    // No agent chosen yet: the adapter list is not requested.
+    expect(adaptersSpy).not.toHaveBeenCalled();
 
-    expect(result.current.partialChoiceAcknowledged).toBe(false);
+    act(() => result.current.setTargetAgent('sme'));
+    await waitFor(() => expect(result.current.adapterChoices.isSuccess).toBe(true));
+    expect(adaptersSpy).toHaveBeenCalledWith('sme');
+
+    const options = result.current.adapterOptions;
+    expect(options.map((o) => o.value)).toEqual([
+      'base',
+      'published',
+      'sme-v1',
+      'sme-v2',
+      'sme-v3',
+      'sme-v4',
+    ]);
+    expect(options.find((o) => o.value === 'published')).toMatchObject({
+      label: 'Published (v3)',
+      disabled: false,
+    });
+    const disabled = Object.fromEntries(
+      options.map((o) => [o.value, 'disabled' in o && o.disabled]),
+    );
+    expect(disabled).toMatchObject({
+      base: false,
+      'sme-v1': true, // loaded === false
+      'sme-v2': true, // loaded === null (unknown)
+      'sme-v3': false,
+      'sme-v4': false,
+    });
+  });
+
+  it('omits the Published option when nothing is published, and disables it when not loaded', async () => {
+    mockCatalog();
+    const adaptersSpy = mockAdapters({
+      agent_id: 'sme',
+      server_reachable: true,
+      adapters: [
+        { adapter_id: 'sme-v1', version: 1, loaded: true, published: false, gguf_filename: 'a' },
+      ],
+    });
+    const { result } = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
+    act(() => result.current.setTargetAgent('sme'));
+    await waitFor(() => expect(result.current.adapterChoices.isSuccess).toBe(true));
+    expect(result.current.adapterOptions.map((o) => o.value)).toEqual(['base', 'sme-v1']);
+
+    adaptersSpy.mockResolvedValue({
+      agent_id: 'gad',
+      server_reachable: true,
+      adapters: [
+        { adapter_id: 'gad-v1', version: 1, loaded: false, published: true, gguf_filename: 'g' },
+      ],
+    });
+    act(() => result.current.setTargetAgent('gad'));
+    await waitFor(() =>
+      expect(result.current.adapterOptions.some((o) => o.value === 'published')).toBe(true),
+    );
+    expect(result.current.adapterOptions.find((o) => o.value === 'published')).toMatchObject({
+      disabled: true,
+    });
+  });
+
+  it('posts a base run with no adapter_id', async () => {
+    const { result, captured } = await renderReady();
+    await chooseSmeWithScores(result);
+
     expect(result.current.canSubmitEvaluation).toBe(true);
-
     await act(async () => {
       result.current.handleStart();
     });
 
-    expect(captured.body?.model_variant).toBe('adapter');
-    expect(captured.body?.target_agent).toBe('sme');
-    expect(captured.body?.partial_without_curriculum).toBe(false);
+    expect(captured.body).toMatchObject({
+      document_id: 'doc-ready-1',
+      partial_without_curriculum: false,
+      target_agent: 'sme',
+      model_variant: 'base',
+    });
+    expect(captured.body).not.toHaveProperty('adapter_id');
     expect(captured.body?.expected_scores).toEqual([
       {
         agent_id: 'sme',
@@ -511,42 +380,66 @@ describe('useModelValidationFormState', () => {
     ]);
   });
 
-  it('still needs the partial acknowledgement for a Base run over all agents', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-    mockUploadedReadyDocument();
-    const captured = captureSubmittedBody();
+  it('posts the published adapter id when the Published choice is used', async () => {
+    const { result, captured } = await renderReady();
+    await chooseSmeWithScores(result);
 
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-    await uploadDocument(result);
-
-    act(() => {
-      result.current.setExpectedScores({
-        'sme:crit-sme-1': '4',
-        'gad:crit-gad-1': '3',
-        'itso:crit-itso-1': '4',
-      });
-    });
-    expect(result.current.canSubmitEvaluation).toBe(false);
-
-    act(() => {
-      result.current.setPartialChoiceAcknowledged(true);
-    });
+    act(() => result.current.setModelChoice('published'));
     expect(result.current.canSubmitEvaluation).toBe(true);
-
     await act(async () => {
       result.current.handleStart();
     });
 
-    expect(captured.body?.model_variant).toBe('base');
-    expect(captured.body?.partial_without_curriculum).toBe(true);
-    expect(captured.body?.target_agent).toBeUndefined();
+    expect(captured.body).toMatchObject({
+      model_variant: 'adapter',
+      adapter_id: 'sme-v3',
+      target_agent: 'sme',
+    });
+  });
+
+  it('posts the chosen version id when a specific version is used', async () => {
+    const { result, captured } = await renderReady();
+    await chooseSmeWithScores(result);
+
+    act(() => result.current.setModelChoice('sme-v4'));
+    await act(async () => {
+      result.current.handleStart();
+    });
+
+    expect(captured.body).toMatchObject({ model_variant: 'adapter', adapter_id: 'sme-v4' });
+  });
+
+  it('resets the model choice to base when the target agent changes', async () => {
+    const { result } = await renderReady();
+    await chooseSmeWithScores(result);
+    act(() => result.current.setModelChoice('sme-v4'));
+    expect(result.current.modelChoice).toBe('sme-v4');
+
+    act(() => result.current.setTargetAgent('gad'));
+    expect(result.current.modelChoice).toBe('base');
+  });
+
+  it('blocks submission when the chosen version is not loaded', async () => {
+    const { result, captured } = await renderReady();
+    await chooseSmeWithScores(result);
+
+    act(() => result.current.setModelChoice('sme-v1'));
+    expect(result.current.allCriterionScoresComplete).toBe(true);
+    expect(result.current.canSubmitEvaluation).toBe(false);
+
+    await act(async () => {
+      result.current.handleStart();
+    });
+    expect(captured.body).toBeUndefined();
+
+    act(() => result.current.setModelChoice('sme-v4'));
+    expect(result.current.canSubmitEvaluation).toBe(true);
+  });
+
+  it('blocks submission until an agent is chosen', async () => {
+    const { result } = await renderReady();
+    expect(result.current.targetAgent).toBeNull();
+    expect(result.current.canSubmitEvaluation).toBe(false);
   });
 
   it('blocks submission when the chosen agent is missing from the catalog', async () => {
@@ -554,104 +447,72 @@ describe('useModelValidationFormState', () => {
       agents: mockCriteriaCatalog.agents.filter((agent) => agent.agent_id !== 'gad'),
       total_criteria: 3,
     });
+    mockAdapters();
 
     const { result } = renderHook(() => useModelValidationFormState(), {
       wrapper: createWrapper(),
     });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(2);
-    });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
 
-    act(() => {
-      result.current.setTargetAgent('gad');
-    });
+    act(() => result.current.setTargetAgent('gad'));
 
     expect(result.current.criterionDefinitions).toEqual([]);
     expect(result.current.allCriterionScoresComplete).toBe(false);
     expect(result.current.canSubmitEvaluation).toBe(false);
   });
 
-  it('un-selects a target that has no adapter when switching to Adapter', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    act(() => {
-      result.current.setTargetAgent('gad');
-    });
-    act(() => {
-      result.current.setModelVariant('adapter');
-    });
-
-    expect(result.current.targetAgent).toBeNull();
-  });
-
-  it('keeps SME selected when switching to Adapter, since SME has the adapter', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
-
-    const { result } = renderHook(() => useModelValidationFormState(), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
-
-    act(() => {
-      result.current.setTargetAgent('sme');
-    });
-    act(() => {
-      result.current.setModelVariant('adapter');
-    });
-
-    expect(result.current.targetAgent).toBe('sme');
-  });
-
-  it('never submits an adapter run for an agent that has no adapter, even if forced', async () => {
-    vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-      mockCriteriaCatalog,
-    );
+  it('detects stale 409/422 errors and allows catalog reload', async () => {
+    mockCatalog();
+    mockAdapters();
     mockUploadedReadyDocument();
-    const captured = captureSubmittedBody();
+    const apiError = new ApiError('Conflict: rubric revision changed', {
+      status: 409,
+      payload: { detail: 'Rubric revision updated' },
+    });
+    vi.spyOn(modelValidationApi, 'createModelValidation').mockRejectedValue(apiError);
 
     const { result } = renderHook(() => useModelValidationFormState(), {
       wrapper: createWrapper(),
     });
-    await waitFor(() => {
-      expect(result.current.criterionDefinitions.length).toBe(3);
-    });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
     await uploadDocument(result);
-
-    // Setting the target directly bypasses the disabled option in the select.
-    act(() => {
-      result.current.setModelVariant('adapter');
-      result.current.setTargetAgent('gad');
-      result.current.setExpectedScores({ 'gad:crit-gad-1': '3' });
-    });
-
-    expect(result.current.allCriterionScoresComplete).toBe(true);
-    expect(result.current.canSubmitEvaluation).toBe(false);
+    await chooseSmeWithScores(result);
 
     await act(async () => {
       result.current.handleStart();
     });
+    await waitFor(() => {
+      expect(result.current.isStaleBinding).toBe(true);
+    });
 
-    expect(captured.body).toBeUndefined();
+    const refetchSpy = vi.spyOn(result.current.criterionCatalog, 'refetch');
+    await act(async () => {
+      await result.current.handleReloadCatalog();
+    });
+    expect(refetchSpy).toHaveBeenCalled();
   });
 });
 
 it('advances to registered score inputs and releases them when unmounted', async () => {
-  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(mockCriteriaCatalog);
+  const smeAgent = mockCriteriaCatalog.agents[0];
+  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue({
+    agents: [
+      {
+        ...smeAgent,
+        domains: [],
+        criteria: [
+          ...smeAgent.criteria,
+          { ...smeAgent.criteria[0], rubric_criterion_id: 'crit-sme-2', criterion_id: 'crit-sme-2' },
+        ],
+      },
+    ],
+    total_criteria: 2,
+  });
+  mockAdapters();
   const { result } = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
-  await waitFor(() => expect(result.current.criterionDefinitions.length).toBe(3));
+  await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
+  act(() => result.current.setTargetAgent('sme'));
+  await waitFor(() => expect(result.current.criterionDefinitions.length).toBe(1));
 
   const nextInput = document.createElement('input');
   const focus = vi.spyOn(nextInput, 'focus');
@@ -660,13 +521,13 @@ it('advances to registered score inputs and releases them when unmounted', async
     key: 'Enter',
     preventDefault: vi.fn(),
   } as unknown as KeyboardEvent<HTMLInputElement>;
-  result.current.registerScoreInput('gad:crit-gad-1', nextInput);
+  result.current.registerScoreInput('sme:crit-sme-2', nextInput);
   result.current.handleScoreKeyDown(event, 'sme:crit-sme-1');
   expect(event.preventDefault).toHaveBeenCalled();
   expect(focus).toHaveBeenCalledOnce();
   expect(select).toHaveBeenCalledOnce();
 
-  result.current.registerScoreInput('gad:crit-gad-1', null);
+  result.current.registerScoreInput('sme:crit-sme-2', null);
   result.current.handleScoreKeyDown(event, 'sme:crit-sme-1');
   expect(focus).toHaveBeenCalledOnce();
 });

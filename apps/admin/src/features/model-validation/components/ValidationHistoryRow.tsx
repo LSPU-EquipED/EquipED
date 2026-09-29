@@ -1,7 +1,7 @@
 import { CaretRight, FilePdf } from '@phosphor-icons/react';
 import { Badge, Button, cn } from '@equiped/ui';
 import type { ModelValidationItem } from '../types';
-import { agentLabel, formatTimestamp, variantLabel } from '../utils/helpers';
+import { agentLabel, formatTimestamp, itemModelLabel } from '../utils/helpers';
 
 type ValidationHistoryRowProps = {
   item: ModelValidationItem;
@@ -53,7 +53,7 @@ export function ValidationHistoryRow({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
               <span className="font-mono tabular-nums">{formatTimestamp(item.created_at)}</span>
-              {variantLabel(item.model_variant) ? (
+              {itemModelLabel(item) ? (
                 <span
                   className={cn(
                     'rounded-xs border px-1.5 py-0.5 text-[10px] font-semibold',
@@ -62,7 +62,7 @@ export function ValidationHistoryRow({
                       : 'border-border bg-surface-subtle text-text-muted',
                   )}
                 >
-                  {variantLabel(item.model_variant)}
+                  {itemModelLabel(item)}
                 </span>
               ) : null}
               <span className={item.partial_without_curriculum ? 'font-medium text-warning' : ''}>

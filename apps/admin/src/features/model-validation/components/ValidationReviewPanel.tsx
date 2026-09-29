@@ -1,7 +1,7 @@
 import { X } from '@phosphor-icons/react';
 import { Badge } from '@equiped/ui';
 import type { ModelValidationItem } from '../types';
-import { formatTimestamp, variantLabel } from '../utils/helpers';
+import { adapterFallbackNotices, formatTimestamp, itemModelLabel } from '../utils/helpers';
 import { ValidationDetail } from './ValidationDetail';
 
 export function ValidationReviewPanel({
@@ -37,15 +37,20 @@ export function ValidationReviewPanel({
               {item.status.charAt(0) + item.status.slice(1).toLowerCase()}
             </Badge>
             <span className="font-mono tabular-nums">{formatTimestamp(item.created_at)}</span>
-            {variantLabel(item.model_variant) ? (
+            {itemModelLabel(item) ? (
               <span className="rounded-xs border border-border bg-surface-subtle px-1.5 py-0.5 font-semibold text-text">
-                {variantLabel(item.model_variant)}
+                {itemModelLabel(item)}
               </span>
             ) : null}
             {item.partial_without_curriculum ? (
               <span className="font-medium text-warning">Partial run</span>
             ) : null}
           </div>
+          {adapterFallbackNotices(item.adapter_resolution).map((notice) => (
+            <p key={notice} className="mt-2 text-[11px] font-medium text-warning">
+              {notice}
+            </p>
+          ))}
         </div>
         <button
           type="button"

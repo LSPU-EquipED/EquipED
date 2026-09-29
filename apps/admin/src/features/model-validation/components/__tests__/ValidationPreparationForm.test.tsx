@@ -155,11 +155,20 @@ function createMockForm(overrides: Partial<ReturnType<typeof useModelValidationF
     },
     setExpectedScores: vi.fn(),
     uploaded: null,
-    partialChoiceAcknowledged: false,
-    setPartialChoiceAcknowledged: vi.fn(),
-    modelVariant: 'base',
-    setModelVariant: vi.fn(),
-    targetAgent: 'all',
+    modelChoice: 'base',
+    setModelChoice: vi.fn(),
+    adapterOptions: [
+      { value: 'base', label: 'Base model (no adapter)', disabled: false },
+      { value: 'published', label: 'Published (v3)', disabled: false },
+      { value: 'sme-v3', label: 'v3 ★ published · loaded', disabled: false },
+      { value: 'sme-v4', label: 'v4 · not loaded', disabled: true },
+    ],
+    adapterChoices: {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useModelValidationFormState>['adapterChoices'],
+    targetAgent: 'sme',
     setTargetAgent: vi.fn(),
     criterionCatalog: {
       data: { agents: mockAgents, total_criteria: 4 },
@@ -238,35 +247,6 @@ describe('ValidationPreparationForm', () => {
     expect(blurSpy).toHaveBeenCalled();
   });
 
-  it('renders partial acknowledgement checkbox and triggers acknowledgement change', () => {
-    const setPartialChoiceAcknowledged = vi.fn();
-    const form = createMockForm({
-      uploaded: {
-        documentId: 'doc-1',
-        title: 'SLM 1',
-        sourceType: 'slm',
-        processingStatus: 'PROCESSED',
-        academicYear: null,
-        courseCode: null,
-        courseTitle: null,
-        lessonTitle: null,
-      },
-      uploadedDocumentReady: true,
-      partialChoiceAcknowledged: false,
-      setPartialChoiceAcknowledged,
-    });
-
-    render(<ValidationPreparationForm form={form} />);
-
-    const checkbox = screen.getByLabelText(
-      /I understand that the Coordinator agent will be skipped/i,
-    );
-    expect(checkbox).toBeDefined();
-
-    fireEvent.click(checkbox);
-    expect(setPartialChoiceAcknowledged).toHaveBeenCalledWith(true);
-  });
-
   it('displays clear stale binding error requiring catalog reload on 409/422', () => {
     const handleReloadCatalog = vi.fn();
     const form = createMockForm({
@@ -296,82 +276,85 @@ describe('ValidationPreparationForm', () => {
     expect(handleReloadCatalog).toHaveBeenCalled();
   });
 
-  it('renders Model and Target dropdowns defaulting to Base model and All agents', () => {
+  it('renders Target then Model dropdowns, defaulting Model to the base model', () => {
     render(<ValidationPreparationForm form={createMockForm()} />);
 
-    expect(screen.getByRole('button', { name: 'Model' }).textContent).toContain('Base model');
-    expect(screen.getByRole('button', { name: 'Target' }).textContent).toContain('All agents');
+    const target = screen.getByRole('button', { name: 'Target' });
+    const model = screen.getByRole('button', { name: 'Model' });
+    expect(target.textContent).toContain('SME only');
+    expect(model.textContent).toContain('Base model');
+    // Target comes before Model in the document.
+    expect(
+      target.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
-  it('disables All agents while the adapter is selected and reports changes', () => {
-    const setModelVariant = vi.fn();
-    const setTargetAgent = vi.fn();
-    const form = createMockForm({
-      modelVariant: 'adapter',
-      targetAgent: 'sme',
-      criterionDefinitions: [mockAgents[0]],
-      setModelVariant,
-      setTargetAgent,
-    });
-
-    render(<ValidationPreparationForm form={form} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
-    const allAgents = screen.getByRole('option', { name: /All agents/ });
-    expect(allAgents.getAttribute('aria-disabled')).toBe('true');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Model' }));
-    fireEvent.click(screen.getByRole('option', { name: /Base model/ }));
-    expect(setModelVariant).toHaveBeenCalledWith('base');
-  });
-
-  it('disables GAD and ITSO while the adapter is selected, since only SME has one', () => {
-    const form = createMockForm({
-      modelVariant: 'adapter',
-      targetAgent: 'sme',
-      criterionDefinitions: [mockAgents[0]],
-    });
-
-    render(<ValidationPreparationForm form={form} />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
-    expect((screen.getByRole('option', { name: /SME only/ }) as HTMLButtonElement).disabled).toBe(
-      false,
-    );
-    expect(screen.getByRole('option', { name: /GAD only/ }).getAttribute('aria-disabled')).toBe(
-      'true',
-    );
-    expect(screen.getByRole('option', { name: /ITSO only/ }).getAttribute('aria-disabled')).toBe(
-      'true',
-    );
-  });
-
-  it('keeps every agent selectable for a Base run', () => {
+  it('offers SME, GAD and ITSO as targets, with no all-agents option', () => {
     render(<ValidationPreparationForm form={createMockForm()} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Target' }));
-    for (const name of [/All agents/, /SME only/, /GAD only/, /ITSO only/]) {
+    for (const name of [/SME only/, /GAD only/, /ITSO only/]) {
       expect((screen.getByRole('option', { name }) as HTMLButtonElement).disabled).toBe(false);
     }
+    expect(screen.queryByRole('option', { name: /All agents/ })).toBeNull();
   });
 
-  it('shows an unselected Target prompt after switching to the adapter from All agents', () => {
+  it('reports a Target change', () => {
+    const setTargetAgent = vi.fn();
+    render(<ValidationPreparationForm form={createMockForm({ setTargetAgent })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Target' }));
+    fireEvent.click(screen.getByRole('option', { name: /GAD only/ }));
+    expect(setTargetAgent).toHaveBeenCalledWith('gad');
+  });
+
+  it('lists adapter options, disables not-loaded versions, and reports a version choice', () => {
+    const setModelChoice = vi.fn();
+    render(<ValidationPreparationForm form={createMockForm({ setModelChoice })} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model' }));
+    expect(screen.getByRole('option', { name: /Published \(v3\)/ })).toBeDefined();
+    expect(screen.getByRole('option', { name: /v4/ }).getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(screen.getByRole('option', { name: /^v3/ }));
+    expect(setModelChoice).toHaveBeenCalledWith('sme-v3');
+  });
+
+  it('disables the Model dropdown with a prompt until an agent is chosen', () => {
     const form = createMockForm({
-      modelVariant: 'adapter',
       targetAgent: null,
       criterionDefinitions: [],
       allCriterionScoresComplete: false,
     });
-
     render(<ValidationPreparationForm form={form} />);
 
     expect(screen.getByRole('button', { name: 'Target' }).textContent).toContain('Choose an agent');
+    const model = screen.getByRole('button', { name: 'Model' }) as HTMLButtonElement;
+    expect(model.textContent).toContain('Choose an agent first');
+    expect(model.disabled).toBe(true);
   });
 
-  it('hides the partial-run acknowledgement for a single-agent target', () => {
+  it('shows a load hint when the chosen version is not loaded', () => {
     const form = createMockForm({
-      targetAgent: 'sme',
-      criterionDefinitions: [mockAgents[0]],
+      modelChoice: 'sme-v4',
+      adapterChoices: {
+        data: {
+          agent_id: 'sme',
+          server_reachable: true,
+          adapters: [
+            { adapter_id: 'sme-v4', version: 4, loaded: false, published: false, gguf_filename: 'sme-v4.gguf' },
+          ],
+        },
+      } as unknown as ReturnType<typeof useModelValidationFormState>['adapterChoices'],
+    });
+    render(<ValidationPreparationForm form={form} />);
+
+    expect(screen.getByText(/Ask the host owner to load/)).toBeDefined();
+    expect(screen.getByText('sme-v4.gguf')).toBeDefined();
+  });
+
+  it('does not render the removed partial-run acknowledgement', () => {
+    const form = createMockForm({
       uploaded: {
         documentId: 'doc-1',
         title: 'SLM 1',

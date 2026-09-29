@@ -14,15 +14,6 @@ export function isPartialValidationAgent(agentId: string): agentId is PartialVal
   return (PARTIAL_VALIDATION_AGENTS as readonly string[]).includes(agentId);
 }
 
-// Agents that have a trained LoRA adapter. Mirrors ADAPTER_SUPPORTED_AGENTS in
-// the API: the adapter is applied by id 0 only, so any other agent would get
-// the wrong adapter.
-export const ADAPTER_SUPPORTED_AGENTS = ['sme'] as const;
-
-export function isAdapterSupportedAgent(agentId: string | null): boolean {
-  return agentId != null && (ADAPTER_SUPPORTED_AGENTS as readonly string[]).includes(agentId);
-}
-
 export const criterionKey = (agentId: string, criterionIdOrRubricId: string) =>
   `${agentId}:${criterionIdOrRubricId}`;
 
@@ -89,6 +80,27 @@ export function variantLabel(variant: 'base' | 'adapter' | null): string | null 
   if (variant === 'base') return 'Base';
   if (variant === 'adapter') return 'Adapter';
   return null;
+}
+
+/** "Adapter sme-v3" for runs that record a version; the plain label for older rows. */
+export function itemModelLabel(
+  item: Pick<ModelValidationItem, 'model_variant' | 'adapter_label'>,
+): string | null {
+  if (item.adapter_label) return `Adapter ${item.adapter_label}`;
+  return variantLabel(item.model_variant);
+}
+
+/** Notices for agents whose requested adapter was not applied (base used instead). */
+export function adapterFallbackNotices(
+  resolution: ModelValidationItem['adapter_resolution'],
+): string[] {
+  if (!resolution) return [];
+  return Object.values(resolution)
+    .filter((entry) => entry.requested !== 'base' && entry.applied === null)
+    .map(
+      (entry) =>
+        `Adapter ${entry.requested} requested, base used${entry.reason ? ` (${entry.reason})` : ''}`,
+    );
 }
 
 export function statusClass(status: ModelValidationItem['status']) {

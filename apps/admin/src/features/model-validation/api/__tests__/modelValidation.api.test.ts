@@ -35,7 +35,9 @@ describe('modelValidationApi', () => {
 
     const body: ModelValidationCreateBody = {
       document_id: 'doc-uuid-1',
-      partial_without_curriculum: true,
+      partial_without_curriculum: false,
+      target_agent: 'sme',
+      model_variant: 'base',
       expected_scores: [
         {
           agent_id: 'sme',
@@ -64,7 +66,7 @@ describe('modelValidationApi', () => {
     expect(capturedBody).not.toBeNull();
     const parsed = JSON.parse(capturedBody!);
     expect(parsed.document_id).toBe('doc-uuid-1');
-    expect(parsed.partial_without_curriculum).toBe(true);
+    expect(parsed.partial_without_curriculum).toBe(false);
     expect(parsed.expected_scores).toEqual([
       {
         agent_id: 'sme',
@@ -145,6 +147,18 @@ describe('modelValidationApi', () => {
     await modelValidationApi.getModelValidationEvaluation('v-1');
 
     expect(spy).toHaveBeenCalledWith('/admin/model-validations/v-1/evaluation');
+
+    spy.mockRestore();
+  });
+
+  it('lists adapter choices with GET /admin/training-data/:agent/adapters', async () => {
+    const spy = vi
+      .spyOn(httpModule, 'requestJson')
+      .mockResolvedValueOnce({ agent_id: 'sme', adapters: [], server_reachable: true });
+
+    await modelValidationApi.listAdapterChoices('sme');
+
+    expect(spy).toHaveBeenCalledWith('/admin/training-data/sme/adapters');
 
     spy.mockRestore();
   });
