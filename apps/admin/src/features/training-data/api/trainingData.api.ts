@@ -17,4 +17,13 @@ export const trainingDataApi = {
     requestJson<DatasetReadiness>(`/admin/training-data/${agentId}/readiness`),
   listAdapters: (agentId: string) =>
     requestJson<TrainedAdapterListResponse>(`/admin/training-data/${agentId}/adapters`),
+  publishAdapter: (agentId: string, adapterId: string) =>
+    requestJson<TrainedAdapterListResponse>(`/admin/training-data/${agentId}/published`, {
+      method: 'PUT',
+      body: JSON.stringify({ adapter_id: adapterId }),
+    }),
+  unpublishAdapter: (agentId: string) =>
+    requestJson<void>(`/admin/training-data/${agentId}/published`, {
+      method: 'DELETE',
+    }),
 };
