@@ -76,16 +76,27 @@ def _read_state() -> ServerAdapterState:
         entries = fetch_lora_adapters()
     except InfrastructureUnavailableError:
         return _UNREACHABLE
+    if not isinstance(entries, list):
+        return _UNREACHABLE
     parsed: list[tuple[int, str, tuple[str, int] | None]] = []
+    bad_paths: list[str] = []
     for entry in entries:
+        # Skip malformed entries; keep their path (if any) as unrecognized.
+        if not isinstance(entry, dict):
+            continue
         path = str(entry.get("path", ""))
-        parsed.append((int(entry["id"]), path, parse_gguf_filename(path)))
+        server_id = entry.get("id")
+        if not isinstance(server_id, int) or isinstance(server_id, bool):
+            if path:
+                bad_paths.append(PureWindowsPath(path).name or path)
+            continue
+        parsed.append((server_id, path, parse_gguf_filename(path)))
     counts: dict[tuple[str, int], int] = {}
     for _, _, key in parsed:
         if key is not None:
             counts[key] = counts.get(key, 0) + 1
     loaded: list[LoadedAdapter] = []
-    unrecognized: list[str] = []
+    unrecognized: list[str] = list(bad_paths)
     for server_id, path, key in parsed:
         if key is None or counts[key] > 1:
             unrecognized.append(PureWindowsPath(path).name or path)
@@ -100,7 +111,7 @@ def _read_state() -> ServerAdapterState:
 
 
 def get_server_adapter_state(*, ttl_seconds: float = 30.0) -> ServerAdapterState:
-    """Loaded-adapter state, cached briefly. Never raises."""
+    """Loaded-adapter state, cached briefly. Unreachable/unusable -> empty."""
     global _cache
     now = time.monotonic()
     with _cache_lock:
@@ -132,25 +143,47 @@ def _label(adapter: TrainedAdapter | None, agent_id: str) -> str:
     return "base" if adapter is None else f"{agent_id}-v{adapter.version}"
 
 
+_MISSING = object()
+
+
 def _resolve_target(
     session: Session,
     agent_id: str,
     adapter_request: Mapping[str, Mapping] | None,
-) -> TrainedAdapter | None:
+) -> TrainedAdapter | None | object:
+    """Adapter row, None for base, or _MISSING if it cannot be found."""
     if adapter_request is not None and agent_id in adapter_request:
-        raw = adapter_request[agent_id].get("adapter_id")
+        entry = adapter_request[agent_id]
+        if not isinstance(entry, Mapping):
+            return _MISSING
+        raw = entry.get("adapter_id")
         if raw is None:
             return None
-        return session.get(TrainedAdapter, uuid.UUID(str(raw)))
+        try:
+            adapter = session.get(TrainedAdapter, uuid.UUID(str(raw)))
+        except ValueError:
+            return _MISSING
+        if adapter is None or adapter.agent_id != agent_id:
+            return _MISSING
+        return adapter
     published = session.get(AgentAdapterPublication, agent_id)
     if published is None:
         return None
-    return session.get(TrainedAdapter, published.adapter_id)
+    adapter = session.get(TrainedAdapter, published.adapter_id)
+    return _MISSING if adapter is None else adapter
 
 
 def _plan_for(
-    agent_id: str, target: TrainedAdapter | None, state: ServerAdapterState
+    agent_id: str, target: TrainedAdapter | None | object, state: ServerAdapterState
 ) -> AdapterPlan:
+    if target is _MISSING:
+        lora = (
+            tuple({"id": sid, "scale": 0.0} for sid in state.server_ids)
+            if state.reachable and state.server_ids
+            else None
+        )
+        return AdapterPlan(agent_id, "unknown-adapter", None, "adapter_not_found", lora)
+    assert target is None or isinstance(target, TrainedAdapter)
     requested = _label(target, agent_id)
     if not state.reachable:
         return AdapterPlan(

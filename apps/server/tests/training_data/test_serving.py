@@ -14,6 +14,13 @@ from server.modules.training_data.serving import (
 from server.tests.training_data.conftest import make_adapter
 
 
+@pytest.fixture(autouse=True)
+def _clean_cache():
+    serving.clear_server_adapter_cache()
+    yield
+    serving.clear_server_adapter_cache()
+
+
 def _state(*loaded, unrecognized=(), reachable=True):
     return ServerAdapterState(
         reachable=reachable,
@@ -85,7 +92,7 @@ def test_state_is_cached_within_ttl(monkeypatch):
 
 
 def test_published_adapter_loaded_gets_scale_one_others_zero(db_session, admin_user):
-    a1 = make_adapter(db_session, "sme", 1)
+    make_adapter(db_session, "sme", 1)
     a2 = make_adapter(db_session, "sme", 2)
     db_session.add(
         AgentAdapterPublication(
@@ -113,7 +120,6 @@ def test_published_adapter_loaded_gets_scale_one_others_zero(db_session, admin_u
         {"id": 1, "scale": 0.0},
         {"id": 2, "scale": 0.0},
     )
-    assert a1.adapter_id != a2.adapter_id
 
 
 def test_explicit_base_beats_published(db_session, admin_user):
@@ -195,3 +201,85 @@ def test_unreachable_server_falls_back_with_reason(db_session, admin_user):
     ]
     assert plan.applied is None and plan.reason == "server_unreachable"
     assert plan.lora is None
+
+
+def test_state_skips_malformed_entries(monkeypatch):
+    monkeypatch.setattr(
+        serving,
+        "fetch_lora_adapters",
+        lambda: [
+            "junk",
+            {"path": "gad-v1.gguf", "scale": 0.0},  # missing id
+            {"id": "x", "path": "sme-v9.gguf"},  # non-int id
+            {"id": 4, "path": "sme-v1.gguf", "scale": 0.0},
+        ],
+    )
+    state = get_server_adapter_state(ttl_seconds=0)
+    assert state.reachable
+    assert state.server_ids == (4,)
+    assert state.find("sme", 1) == LoadedAdapter(4, "sme", 1)
+    assert sorted(state.unrecognized) == ["gad-v1.gguf", "sme-v9.gguf"]
+
+
+def test_state_unusable_payload_is_unreachable(monkeypatch):
+    monkeypatch.setattr(serving, "fetch_lora_adapters", lambda: {"oops": 1})
+    state = get_server_adapter_state(ttl_seconds=0)
+    assert state.reachable is False
+
+
+@pytest.mark.parametrize("raw", ["00000000-0000-0000-0000-000000000000", "not-a-uuid"])
+def test_explicit_missing_or_malformed_adapter_is_not_found(
+    db_session, admin_user, raw
+):
+    state = _state(LoadedAdapter(0, "sme", 1), LoadedAdapter(1, "gad", 1))
+    plan = build_adapter_plans(
+        db_session, ["sme"], {"sme": {"adapter_id": raw}}, state
+    )["sme"]
+    assert plan.requested == "unknown-adapter" and plan.applied is None
+    assert plan.reason == "adapter_not_found"
+    assert plan.lora == ({"id": 0, "scale": 0.0}, {"id": 1, "scale": 0.0})
+
+
+def test_not_found_without_loaded_ids_or_server_sends_no_lora(db_session, admin_user):
+    req = {"sme": {"adapter_id": "not-a-uuid"}}
+    for state in (_state(), _state(reachable=False)):
+        plan = build_adapter_plans(db_session, ["sme"], req, state)["sme"]
+        assert plan.reason == "adapter_not_found" and plan.lora is None
+
+
+def test_explicit_adapter_for_other_agent_is_not_found(db_session, admin_user):
+    gad = make_adapter(db_session, "gad", 1)
+    state = _state(LoadedAdapter(0, "gad", 1))
+    plan = build_adapter_plans(
+        db_session, ["sme"], {"sme": {"adapter_id": str(gad.adapter_id)}}, state
+    )["sme"]
+    assert plan.reason == "adapter_not_found" and plan.applied is None
+    assert plan.lora == ({"id": 0, "scale": 0.0},)
+
+
+def test_non_mapping_request_entry_is_not_found(db_session, admin_user):
+    plan = build_adapter_plans(
+        db_session, ["sme"], {"sme": "sme-v1"}, _state(LoadedAdapter(0, "sme", 1))
+    )["sme"]
+    assert plan.reason == "adapter_not_found"
+    assert plan.lora == ({"id": 0, "scale": 0.0},)
+
+
+def test_duplicate_file_version_treated_as_not_loaded(
+    db_session, admin_user, monkeypatch
+):
+    a1 = make_adapter(db_session, "gad", 1)
+    monkeypatch.setattr(
+        serving,
+        "fetch_lora_adapters",
+        lambda: [
+            {"id": 0, "path": "gad-v1.gguf", "scale": 0.0},
+            {"id": 1, "path": "gad-v1.gguf", "scale": 0.0},
+        ],
+    )
+    state = get_server_adapter_state(ttl_seconds=0)
+    plan = build_adapter_plans(
+        db_session, ["gad"], {"gad": {"adapter_id": str(a1.adapter_id)}}, state
+    )["gad"]
+    assert plan.applied is None and plan.reason == "not_loaded"
+    assert plan.lora == ({"id": 0, "scale": 0.0}, {"id": 1, "scale": 0.0})
