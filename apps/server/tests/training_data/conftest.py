@@ -173,3 +173,38 @@ def seed_eligible_dpo_pair(
     )
     db_session.commit()
     return job
+
+
+def make_adapter(db_session, agent_id: str, version: int):
+    """Insert a TrainedAdapter (with a dummy parent job) and return it."""
+    from server.modules.auth.models import User
+    from server.modules.training_data.models import DpoTrainingJob, TrainedAdapter
+
+    creator = db_session.query(User).first()
+    expires = datetime(2099, 1, 1, tzinfo=UTC)
+    job = DpoTrainingJob(
+        job_id=uuid4(),
+        agent_id=agent_id,
+        created_by=creator.user_id,
+        pairs_content="",
+        provenance_content="",
+        manifest_json={},
+        download_token_hash="x",
+        download_expires_at=expires,
+        upload_token_hash="x",
+        upload_expires_at=expires,
+    )
+    db_session.add(job)
+    db_session.flush()
+    adapter = TrainedAdapter(
+        adapter_id=uuid4(),
+        agent_id=agent_id,
+        job_id=job.job_id,
+        version=version,
+        file_path=f"adapters/{agent_id}/{version}/adapter.zip",
+        file_sha256="0" * 64,
+        size_bytes=1,
+    )
+    db_session.add(adapter)
+    db_session.commit()
+    return adapter

@@ -102,4 +102,23 @@ class TrainedAdapter(Base):
     )
 
 
-__all__ = ["DpoTrainingJob", "TrainedAdapter"]
+class AgentAdapterPublication(Base):
+    """The one adapter version an agent uses for main scoring (none = base)."""
+
+    __tablename__ = "agent_adapter_publication"
+
+    agent_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    adapter_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("trained_adapters.adapter_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    published_by: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.user_id"), nullable=False
+    )
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+
+
+__all__ = ["AgentAdapterPublication", "DpoTrainingJob", "TrainedAdapter"]
