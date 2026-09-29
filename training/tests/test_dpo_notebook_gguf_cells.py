@@ -414,7 +414,10 @@ def test_read_gguf_fields_returns_the_json_the_verifier_needs(tmp_path, monkeypa
     _stub_gguf_package(
         tmp_path,
         alpha=32.0,
-        tensors=[("blk.0.attn_q.weight.lora_a", (16, 2560)), ("blk.0.attn_q.weight.lora_b", (2560, 16))],
+        tensors=[
+            ("blk.0.attn_q.weight.lora_a", (16, 2560)),
+            ("blk.0.attn_q.weight.lora_b", (2560, 16)),
+        ],
     )
     monkeypatch.chdir(tmp_path)
     ns = _helpers()
@@ -671,3 +674,52 @@ def test_prepare_cell_falls_back_to_virtualenv_when_venv_fails(
 def test_new_cell_sources_are_ascii_only():
     for cell in _cells(TRAINING_NOTEBOOK)[FIRST_NEW_CELL:]:
         "".join(cell["source"]).encode("ascii")
+
+
+# --- converter env and streamed subprocess output --------------------------------
+
+HELPER_COMMAND_OK = [
+    sys.executable,
+    "-c",
+    "import sys; print('hel'+'lo'); print('ERR'+'-LINE', file=sys.stderr)",
+]
+HELPER_COMMAND_FAIL = [
+    sys.executable,
+    "-c",
+    "import sys; print('before'+'-exit'); sys.exit(3)",
+]
+
+
+def test_convert_cell_disables_hf_transfer_before_any_run_call():
+    source = _source(CONVERT)
+    assign = 'os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"'
+    assert assign in source
+    assert source.index(assign) < source.index("run(")
+    assert source.index("with conversion_step") < source.index(assign)
+
+
+def test_convert_cell_env_assignment_executes_and_is_restored(monkeypatch):
+    import os
+
+    monkeypatch.setenv("HF_HUB_ENABLE_HF_TRANSFER", "1")
+    line = next(
+        ln.strip()
+        for ln in _source(CONVERT).splitlines()
+        if ln.strip().startswith("os.environ[")
+    )
+    exec(line, {"os": os})  # noqa: S102
+    assert os.environ["HF_HUB_ENABLE_HF_TRANSFER"] == "0"
+
+
+def test_run_helper_streams_stdout_and_stderr(capsys):
+    _helpers()["run"](HELPER_COMMAND_OK)
+    out = capsys.readouterr().out
+    assert "hello" in out
+    assert "ERR-LINE" in out
+
+
+def test_run_helper_prints_output_then_raises_on_failure(capsys):
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        _helpers()["run"](HELPER_COMMAND_FAIL)
+    assert excinfo.value.returncode == 3
+    assert "before-exit" in capsys.readouterr().out

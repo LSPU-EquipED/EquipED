@@ -184,3 +184,44 @@ def test_download_cell_names_the_file_and_the_startup_flag():
     source = _code_sources()[-1]
     assert "--lora-scaled <FULL PATH>" in source
     assert "OUTPUT_GGUF" in source
+
+
+def test_converter_cell_disables_hf_transfer_before_running_it():
+    source = next(
+        src for src in _code_sources() if 'convert_lora_to_gguf.py", "--help' in src
+    )
+    assign = 'os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"'
+    assert assign in source
+    assert source.index(assign) < source.index("run(")
+
+
+def test_converter_cell_env_assignment_executes_and_is_restored(monkeypatch):
+    import os
+
+    monkeypatch.setenv("HF_HUB_ENABLE_HF_TRANSFER", "1")
+    source = next(
+        src for src in _code_sources() if 'convert_lora_to_gguf.py", "--help' in src
+    )
+    line = next(ln for ln in source.splitlines() if ln.startswith("os.environ["))
+    exec(line, {"os": os})  # noqa: S102
+    assert os.environ["HF_HUB_ENABLE_HF_TRANSFER"] == "0"
+
+
+def test_run_helper_streams_output_and_raises_on_failure(capsys):
+    import subprocess
+    import sys
+
+    run = _helpers()["run"]
+    run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; print('hel'+'lo'); print('ERR'+'-LINE', file=sys.stderr)",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert "hello" in out and "ERR-LINE" in out
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        run([sys.executable, "-c", "print('before'+'-exit'); raise SystemExit(3)"])
+    assert excinfo.value.returncode == 3
+    assert "before-exit" in capsys.readouterr().out
