@@ -60,6 +60,7 @@ from server.modules.synthesis.service import (
     load_verified_persisted_agent_results,
     persist_agent_outputs,
 )
+from server.modules.training_data.serving import build_adapter_plans
 
 logger = logging.getLogger(__name__)
 _DRAIN_LOCK = threading.Lock()
@@ -258,6 +259,27 @@ def _execute_claimed_evaluation(
             # Heartbeat before dispatching parallel agents.
             heartbeat_evaluation_execution(session, evaluation_id, execution_token)
             agents = _build_supervisor_agents(scheduled_ids)
+            lora_by_agent: dict[str, list[dict] | None] = {}
+            try:
+                plans = build_adapter_plans(
+                    session,
+                    [snapshot.agent_id for snapshot in verified_snapshots],
+                    job.adapter_request,
+                )
+                lora_by_agent = {
+                    agent_id: (list(plan.lora) if plan.lora is not None else None)
+                    for agent_id, plan in plans.items()
+                }
+                job.adapter_resolution = {
+                    agent_id: plan.record() for agent_id, plan in plans.items()
+                }
+                # Commit also releases the transaction before the long agent loop.
+                session.commit()
+            except Exception:
+                # Adapter selection is best-effort: never block an evaluation.
+                session.rollback()
+                logger.warning("Adapter plan resolution failed; scoring on base")
+                lora_by_agent = {}
             supervisor = Supervisor(agents=agents, db=session)
             # Resolve program-roadmap context once, before the supervisor
             # context is built. Advisory-only: any failure yields None and
@@ -297,7 +319,7 @@ def _execute_claimed_evaluation(
                     "confirmed_program": job.confirmed_program,
                 },
                 heartbeat_callback=owner_heartbeat,
-                lora_scale=job.lora_scale,
+                lora_by_agent=lora_by_agent,
             )
             if not supervisor_result.agent_results:
                 raise EvaluationPipelineUnavailableError(

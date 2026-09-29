@@ -91,6 +91,7 @@ class EvaluationStatusResponse(BaseModel):
     partial_reason: str | None = None
     completed_at: datetime | None = None
     duration_seconds: float | None = None
+    adapter_resolution: dict | None = None
 
 
 class LatestEvaluationItem(BaseModel):

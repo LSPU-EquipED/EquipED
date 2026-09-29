@@ -5,11 +5,23 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from server.modules.admin.models import PromptVersion
 from server.modules.documents.models import Document, DocumentChunk
 from server.tests.rubrics.helpers import seed_all_rubrics
 
 _seed_all_rubrics = seed_all_rubrics
+
+
+@pytest.fixture(autouse=True)
+def _no_adapter_plans(monkeypatch):
+    """Harness jobs carry no adapter fields: resolve to no plans (base) so the
+    orchestrator never consults the live llama-server. Tests that exercise plan
+    resolution re-patch this."""
+    monkeypatch.setattr(
+        "server.modules.evaluations.orchestrator.build_adapter_plans",
+        lambda session, agent_ids, adapter_request, state=None: {},
+    )
 
 
 def _add_document(

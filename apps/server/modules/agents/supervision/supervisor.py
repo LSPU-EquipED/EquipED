@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
@@ -50,7 +50,7 @@ class Supervisor:
         query_text: str | None = None,
         context: dict[str, Any] | None = None,
         heartbeat_callback: Callable[[], None] | None = None,
-        lora_scale: float | None = None,
+        lora_by_agent: Mapping[str, Sequence[Mapping] | None] | None = None,
     ) -> SupervisorResult:
         started = time.perf_counter()
         context = context or {}
@@ -79,7 +79,7 @@ class Supervisor:
             canonical_source_text=prepared.canonical_source_text,
             authoritative_curriculum_text=prepared.authoritative_curriculum_text,
             heartbeat_callback=heartbeat_callback,
-            lora_scale=lora_scale,
+            lora_by_agent=lora_by_agent,
         )
         logger.info(
             "[EVAL_TIMING] phase=evaluation_total | seconds=%.3f | "

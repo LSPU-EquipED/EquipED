@@ -79,7 +79,7 @@ def _result(name, evaluation_id, document_id, *, success=True):
     )
 
 
-def _dispatch(monkeypatch, agents, prepared, lora_scale=None):
+def _dispatch(monkeypatch, agents, prepared, lora_by_agent=None):
     eval_id = uuid4()
     snapshots = tuple(
         _make_dummy_snapshot(a.agent_name, evaluation_id=eval_id) for a in agents
@@ -98,7 +98,7 @@ def _dispatch(monkeypatch, agents, prepared, lora_scale=None):
         provenance=None,
         policy_evidence=None,
         roadmap_context=None,
-        lora_scale=lora_scale,
+        lora_by_agent=lora_by_agent,
     )
 
 
@@ -223,62 +223,61 @@ def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -
     assert failures["sme"].startswith("RuntimeError") and not failures.get("gad")
 
 
-def test_dispatch_wraps_the_client_with_the_requested_lora_scale(monkeypatch) -> None:
-    captured_clients = []
+class _LoraFakeClient:
+    def __init__(self, lora=None):
+        self.lora = lora
 
-    class _ScalableFakeClient:
-        def __init__(self, lora_scale=None):
-            self.lora_scale = lora_scale
+    def with_lora(self, entries):
+        return _LoraFakeClient(lora=list(entries))
 
-        def with_lora_scale(self, scale):
-            return _ScalableFakeClient(lora_scale=scale)
 
-        def generate_result(self, *args, **kwargs):
-            raise AssertionError("this test only checks which client was passed in")
+class _NoLoraFakeClient:
+    lora = None
 
+    def with_lora(self, entries):
+        raise AssertionError("with_lora must not be called without a list")
+
+
+def _capturing_agent(name, captured):
     class _CapturingAgent:
-        agent_name = "sme"
+        agent_name = name
 
         def run(self, *, llm_client, **kwargs):
-            captured_clients.append(llm_client)
-            return _result("sme", kwargs["evaluation_id"], kwargs["document_id"])
+            captured[name] = llm_client
+            return _result(name, kwargs["evaluation_id"], kwargs["document_id"])
 
+    return _CapturingAgent()
+
+
+def test_dispatch_gives_each_agent_its_own_lora_list(monkeypatch) -> None:
+    captured: dict[str, object] = {}
     monkeypatch.setattr(
         "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
-        lambda _agent_name: _ScalableFakeClient(),
+        lambda _agent_name: _LoraFakeClient(),
     )
+    sme_list = [{"id": 0, "scale": 1.0}, {"id": 1, "scale": 0.0}]
+    gad_list = [{"id": 0, "scale": 0.0}, {"id": 1, "scale": 1.0}]
+    _dispatch(
+        monkeypatch,
+        [_capturing_agent("sme", captured), _capturing_agent("gad", captured)],
+        _context(),
+        lora_by_agent={"sme": sme_list, "gad": gad_list},
+    )
+    assert captured["sme"].lora == sme_list
+    assert captured["gad"].lora == gad_list
 
-    prepared = _context()
-    _dispatch(monkeypatch, [_CapturingAgent()], prepared, lora_scale=1.0)
 
-    assert captured_clients[0].lora_scale == 1.0
-
-
-def test_dispatch_without_lora_scale_leaves_the_client_unscaled(monkeypatch) -> None:
-    captured_clients = []
-
-    class _ScalableFakeClient:
-        def __init__(self, lora_scale=None):
-            self.lora_scale = lora_scale
-
-        def with_lora_scale(self, scale):
-            raise AssertionError(
-                "with_lora_scale must not be called when lora_scale is None"
-            )
-
-    class _CapturingAgent:
-        agent_name = "sme"
-
-        def run(self, *, llm_client, **kwargs):
-            captured_clients.append(llm_client)
-            return _result("sme", kwargs["evaluation_id"], kwargs["document_id"])
-
+@pytest.mark.parametrize("mapping", [None, {}, {"sme": None}, {"gad": [{"id": 0}]}])
+def test_dispatch_leaves_client_untouched_without_a_list(monkeypatch, mapping) -> None:
+    captured: dict[str, object] = {}
     monkeypatch.setattr(
         "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
-        lambda _agent_name: _ScalableFakeClient(),
+        lambda _agent_name: _NoLoraFakeClient(),
     )
-
-    prepared = _context()
-    _dispatch(monkeypatch, [_CapturingAgent()], prepared)
-
-    assert captured_clients[0].lora_scale is None
+    _dispatch(
+        monkeypatch,
+        [_capturing_agent("sme", captured)],
+        _context(),
+        lora_by_agent=mapping,
+    )
+    assert captured["sme"].lora is None

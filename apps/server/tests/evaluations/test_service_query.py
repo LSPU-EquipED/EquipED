@@ -1105,3 +1105,31 @@ def test_list_evaluations_pagination_deterministic_tie_breaking(db_session) -> N
 
     assert [j.evaluation_id for j in page1.items] == [id4, id3]
     assert [j.evaluation_id for j in page2.items] == [id2, id1]
+
+
+def test_get_evaluation_status_exposes_adapter_resolution(db_session) -> None:
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email="owner-status-adapter@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    record = {"sme": {"requested": "sme-v3", "applied": "sme-v3", "reason": None}}
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=uuid4(),
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        adapter_resolution=record,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    response = get_evaluation_status(
+        job.evaluation_id, owner.user_id, UserRole.FACULTY.value, db_session
+    )
+
+    assert response.adapter_resolution == record

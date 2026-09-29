@@ -450,7 +450,7 @@ _LORA_TEST_RESPONSE_BODY = json.dumps(
 
 
 def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
-    """Default lora_scale=None: the lora field is not added to the payload."""
+    """Default lora=None: the lora field is not added to the payload."""
     captured = {}
 
     def fake_urlopen(req, **kwargs):
@@ -461,24 +461,6 @@ def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
     client = _make_client()
     client.generate_result("hi")
     assert "lora" not in captured["body"]
-
-
-def test_with_lora_scale_adds_lora_field(monkeypatch) -> None:
-    """with_lora_scale produces a client that sends a lora field in the payload."""
-    captured = {}
-
-    def fake_urlopen(req, **kwargs):
-        captured["body"] = json.loads(req.data)
-        return _FakeHTTPResponse(200, _LORA_TEST_RESPONSE_BODY)
-
-    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
-    client = _make_client()
-    scaled = client.with_lora_scale(1.0)
-    scaled.generate_result("hi")
-    assert captured["body"]["lora"] == [{"id": 0, "scale": 1.0}]
-    # The original, unscaled client is untouched.
-    assert scaled is not client
-    assert client.lora_scale is None
 
 
 # ---------------------------------------------------------------------------
@@ -624,13 +606,3 @@ def test_with_lora_sends_the_explicit_list(monkeypatch) -> None:
     assert client.lora is None
     client.generate_result("hi")
     assert "lora" not in captured["body"]
-
-
-def test_with_lora_and_with_lora_scale_do_not_carry_each_other(monkeypatch) -> None:
-    client = _make_client()
-    a = client.with_lora_scale(1.0).with_lora([{"id": 2, "scale": 1.0}])
-    assert a.lora == [{"id": 2, "scale": 1.0}]
-    assert a.lora_scale is None
-    b = client.with_lora([{"id": 2, "scale": 1.0}]).with_lora_scale(0.5)
-    assert b.lora is None
-    assert b.lora_scale == 0.5

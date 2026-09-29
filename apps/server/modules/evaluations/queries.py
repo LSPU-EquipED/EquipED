@@ -80,6 +80,7 @@ def get_evaluation(
         submitted_at=row.submitted_at,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+        adapter_resolution=row.adapter_resolution,
     )
 
 
@@ -218,6 +219,7 @@ def list_evaluations(
                 submitted_at=row.submitted_at,
                 completed_at=row.completed_at,
                 duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+                adapter_resolution=row.adapter_resolution,
             )
             for row in rows
         ]
@@ -264,6 +266,7 @@ def get_evaluation_status(
         partial_reason=row.partial_reason,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+        adapter_resolution=row.adapter_resolution,
     )
 
 
