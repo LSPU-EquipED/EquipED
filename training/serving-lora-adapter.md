@@ -5,10 +5,17 @@ started by `start-gemma.bat`). This adds a trained adapter **on top of** the
 model file you already serve. It never changes that file, and you can remove it
 again at any time.
 
-You will receive two files from the training side:
+You can serve one adapter per agent (SME, GAD, ITSO, Coordinator), and several
+versions of each, side by side. The app picks which one each agent uses per
+request; you only decide which files the server loads.
+
+You will receive two files from the training side per adapter version:
 
 - `adapter-f16.gguf` (about 60 MB), the adapter converted for llama.cpp
 - `adapter-f16.gguf.sha256`, its checksum
+
+**Rename the `.gguf` when you save it** (see the naming rule in step 1). The app
+identifies an adapter by its file name, so `adapter-f16.gguf` is not recognized.
 
 The training notebook (`docs/colab/dpo_training_template.ipynb`) now produces
 both of these at the end of a run, plus an optional `adapter-f16.gguf.json`
@@ -25,16 +32,27 @@ request can switch it on. Loading it with `--lora <file>
 scale 1, meaning the adapter was live for every request. So step 3 recommends
 `--lora-scaled`, and step 4 is a check you must not skip.
 
-## 1. Put the file somewhere with space
+## 1. Put the file somewhere with space, with the right name
 
-Copy `adapter-f16.gguf` next to your models on the F: drive, for example
-`F:\Dev\Models\gemma\adapters\adapter-f16.gguf`. Do not put it on the full C:
+Copy the adapter next to your models on the F: drive, for example
+`F:\Dev\Models\gemma\adapters\sme-v3.gguf`. Do not put it on the full C:
 drive, and never over the base model file.
 
-Check the file arrived intact (compare with the value in the `.sha256` file):
+**Naming rule: `<agent>-v<version>.gguf`**, all lowercase. `<agent>` is `sme`,
+`gad`, `itso` or `coordinator`; `<version>` is the version number shown for the
+adapter on the admin Training Data page. Examples: `sme-v3.gguf`,
+`gad-v1.gguf`. The admin page shows the exact file name for each version.
+
+The app matches loaded files to trained adapters by this name. A file the app
+cannot match (wrong pattern, an unknown agent or version, or two files that
+resolve to the same agent and version) is listed on the admin page as
+"unrecognized" and is never used.
+
+Check the file arrived intact (compare with the value in the `.sha256` file,
+which still carries the original name):
 
 ```
-certutil -hashfile F:\Dev\Models\gemma\adapters\adapter-f16.gguf SHA256
+certutil -hashfile F:\Dev\Models\gemma\adapters\sme-v3.gguf SHA256
 ```
 
 ## 2. Check your llama-server supports the flags
@@ -48,19 +66,28 @@ and search the output for `lora`:
 
 You should see `--lora-scaled` (and `--lora`, `--lora-init-without-apply`).
 
-## 3. Add one argument to the launch command
+## 3. Add one argument per adapter to the launch command
 
-In `start-gemma.bat`, add this to the `llama-server.exe` arguments (keep every
-existing flag as is):
+In `start-gemma.bat`, add one `--lora-scaled` argument for **each** adapter file
+to the `llama-server.exe` arguments (keep every existing flag as is). For two
+adapters:
 
 ```
---lora-scaled F:\Dev\Models\gemma\adapters\adapter-f16.gguf:0.0
+--lora-scaled F:\Dev\Models\gemma\adapters\sme-v3.gguf:0.0 --lora-scaled F:\Dev\Models\gemma\adapters\gad-v1.gguf:0.0
 ```
 
 The `:0.0` at the end is the starting scale: the adapter is loaded but **off**,
 so the server behaves exactly as it does today until a request asks for it. Use
-the full path. If your build rejects the colon form, use the space form
-`--lora-scaled <file> 0.0` instead.
+the full path. The colon form is required; do not drop the `:0.0`. If your build
+rejects the colon form, use the space form `--lora-scaled <file> 0.0` instead.
+
+Adapter ids follow the order you give the flags (first file is id 0, second is
+id 1, and so on). The app looks up ids from `GET /lora-adapters` by file name,
+so ordering never matters to the app. You can add, remove or reorder files
+freely.
+
+The admin Training Data page shows a ready-made `--lora-scaled <file>:0.0` line,
+with a Copy button, for each version that is not loaded yet.
 
 Avoid `--lora <file> --lora-init-without-apply`: on build 10430 it left the
 adapter on.
@@ -86,17 +113,21 @@ Invoke-RestMethod http://127.0.0.1:8080/lora-adapters -Headers $headers
 
 (Without `--api-key`, leave off `-Headers $headers`.)
 
-Expected: one entry with `id` 0, the path to your file, and `scale` 0 (or 0.0).
+Expected: one entry per file you loaded (ids 0, 1, ... in load order), each with
+the path to its file and `scale` 0 (or 0.0).
 
-If `scale` is not 0, the adapter is being applied to every request right now.
-Set it back with the POST command in step 6 (scale 0.0), then fix the launch
+If any `scale` is not 0, that adapter is being applied to every request right
+now. Set it back with the POST command in step 6 (scale 0.0, one entry per
+adapter id), then fix the launch
 flags (use `--lora-scaled <file>:0.0` from step 3) and restart before
 continuing.
 
 ## 5. Turn it on for a request
 
 Per request (no restart, other requests are unaffected). This reuses `$headers`
-from step 4, so stay in the same window:
+from step 4, so stay in the same window. `id` is the adapter id from step 4; the
+app does this itself, listing every loaded id with an explicit scale (1.0 for
+the chosen adapter, 0.0 for the rest):
 
 ```powershell
 $body = @{
@@ -111,8 +142,9 @@ Invoke-RestMethod -Uri http://127.0.0.1:8080/v1/chat/completions -Method Post -C
 Use `scale = 0.0` (or leave `lora` out) for the plain model.
 
 If the per-request field seems to be ignored, set the scale for the whole
-server instead (this affects every request until you set it back; the command
-to set it back is in step 6):
+server instead. This is a manual diagnostic only: the app never does this, it
+affects every request until you set it back, and the body must list every
+loaded adapter id (the command to set it back is in step 6):
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Headers $headers -Body '[{"id":0,"scale":1.0}]'
@@ -129,8 +161,9 @@ python training/smoke_test_lora_serving.py training/sample_pairs.jsonl --base-ur
 Through the tunnel, set `LLM_API_BASE` and `LLM_API_KEY` in the environment
 instead of passing them on the command line (the script never prints the key).
 The script sends its own `User-Agent`, because Cloudflare tunnels reject
-Python's default one. Add `--scale-mode global` if step 5's per-request field
-was ignored.
+Python's default one. The script tests **one** adapter: the first loaded by
+default, or pick another with `--adapter-id <id>`. Add `--scale-mode global` if
+step 5's per-request field was ignored (a diagnostic; see step 5).
 
 It sends the same real SME prompts with the adapter off and then on, and
 checks every reply is valid SME JSON. `RESULT: PASS` means the adapter loads
@@ -151,19 +184,72 @@ add `-Headers $headers` if your server needs the key):
 Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Headers $headers -Body '[{"id":0,"scale":0.0}]'
 ```
 
-## 7. Roll back
+## 7. Use it from the admin pages
 
-Remove the `--lora-scaled` argument (or the `--lora`/`--lora-init-without-apply`
-arguments, if you used those) from `start-gemma.bat` and restart. The base model
-file was never touched.
+Once the server is restarted with the files loaded, everything else is done in
+the admin app.
+
+**Training Data page, per agent tab.** The adapter table lists every trained
+version of that agent with a status:
+
+- **Loaded**: the server has the file loaded and the app matched it.
+- **Not loaded**: no matching file on the server. The row shows the copyable
+  `--lora-scaled <file>:0.0` line to add to `start-gemma.bat` (step 3).
+- **Unknown**: the app could not reach `GET /lora-adapters`. It does not mean
+  the adapter is missing; scoring runs on the base model meanwhile.
+
+**Publish / Unpublish** (with a confirmation) chooses which version of that
+agent real evaluations use. Publishing is per agent, so SME can be on `v3`
+while GAD stays on base. Files the server loaded that match no trained adapter
+appear as "unrecognized".
+
+**Model Validation benchmarks.** Pick **one** agent, then a Model: **Base**, the
+agent's **Published** adapter, or a specific **version**. Only that agent's
+adapter is applied to the run; other loaded adapters are sent at scale 0.0.
+
+**If a published adapter is not loaded** (for example the file was removed, or
+the server restarted without it): scoring does not stop. That agent continues on
+the base model, the evaluation records what was requested and what was applied
+(for example requested `gad-v1`, applied none, reason `not_loaded`), and the
+admin pages show a warning banner until the file is loaded again.
+
+## Verifying a multi-adapter setup
+
+A checklist for the host owner and an admin to run together after the first
+multi-adapter restart (nothing here has been run yet; record the outcome in the
+spec's open items):
+
+1. Load two adapters, for example `sme-v1.gguf` and `gad-v1.gguf`, both with
+   `:0.0`, and restart. Confirm step 4 shows both at scale 0.
+2. On the Training Data page, confirm both versions show **Loaded**.
+3. Publish each (SME tab, then GAD tab). Run a normal evaluation and confirm the
+   status API's `adapter_resolution` shows the adapter as applied for both
+   agents.
+4. In Model Validation, benchmark SME with Model = Base, then Model = `v1`.
+   Confirm scores differ on at least one criterion and that the GAD adapter is
+   not applied to the SME run (its id is sent at scale 0.0).
+5. Restart the server **without** `gad-v1.gguf`. Confirm the warning banner
+   appears, an evaluation still completes on base, and `adapter_resolution` for
+   GAD reads requested `gad-v1`, applied none, `not_loaded`.
+6. Optional: compare the duration of a full evaluation with mixed adapters
+   against base-only and note the numbers (see the Speed note below).
+
+## 8. Roll back
+
+Remove the `--lora-scaled` argument for that file (or the
+`--lora`/`--lora-init-without-apply` arguments, if you used those) from
+`start-gemma.bat` and restart. For one agent only, remove just its file: the app
+falls back to base for that agent and shows the banner (Unpublish it on the
+admin page to clear the banner). The base model file was never touched.
 
 ## Notes
 
 - **GPU memory:** the current settings (`--ctx-size 24576 --parallel 3`, q8 KV
-  cache) are estimated at about 5 of the 8 GiB. The adapter adds roughly
-  0.1-0.2 GiB. Check with `nvidia-smi` before and after, and tell us the
+  cache) are estimated at about 5 of the 8 GiB. Each adapter adds roughly
+  0.1-0.2 GiB, so four adapters is about 0.4-0.8 GiB. Check with `nvidia-smi` before and after, and tell us the
   numbers. A second server running at the same time is not expected to fit.
-- **Speed:** requests using different adapter settings may not be batched
-  together across the 3 parallel slots. If throughput drops, that is why.
+- **Speed:** requests using different adapter settings (for example SME on one
+  adapter and GAD on another at the same time) may not be batched together
+  across the 3 parallel slots. If throughput drops, that is why.
 - **What this does not tell you:** whether the adapter improves answers. That
   needs a separate comparison on held-out reviewer data.
