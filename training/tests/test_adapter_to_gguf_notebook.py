@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -35,9 +36,14 @@ def _code_sources() -> list[str]:
     ]
 
 
-def _helpers() -> dict:
-    source = next(src for src in _code_sources() if "def safe_extract" in src)
+def _helpers(**config) -> dict:
+    """Run the config cell (with optional overrides), then the helpers cell."""
+    sources = _code_sources()
+    config_source = next(src for src in sources if "ADAPTER_ZIP =" in src)
+    source = next(src for src in sources if "def safe_extract" in src)
     namespace: dict = {}
+    exec(compile(config_source, "<config-cell>", "exec"), namespace)
+    namespace.update(config)
     exec(compile(source, "<helpers-cell>", "exec"), namespace)
     return namespace
 
@@ -122,3 +128,59 @@ def test_check_lora_fields_reports_every_problem():
 def test_check_lora_fields_rejects_an_adapter_with_no_tensors():
     with pytest.raises(ValueError, match="no lora_a"):
         _helpers()["check_lora_fields"]("adapter", "lora", 32.0, [], 16, 32.0)
+
+
+# Mirrors the file-name rule in apps/server/modules/training_data/serving.py
+# (parse_gguf_filename): the app matches loaded adapters to versions by it.
+SERVING_NAME_RE = re.compile(r"^(?P<agent>[a-z]+)-v(?P<version>\d+)\.gguf$")
+
+
+def test_notebook_still_has_eight_cells():
+    assert len(_load()["cells"]) == 8
+
+
+def test_config_cell_has_blank_agent_and_version_fields():
+    source = next(src for src in _code_sources() if "ADAPTER_ZIP =" in src)
+    assert 'AGENT_ID = ""' in source
+    assert 'ADAPTER_VERSION = ""' in source
+
+
+@pytest.mark.parametrize(
+    ("agent_id", "version", "expected"),
+    [
+        ("sme", 3, "sme-v3.gguf"),
+        ("sme", "4", "sme-v4.gguf"),
+        ("SME", 1, None),
+        ("sme", 0, None),
+        ("sme", -1, None),
+        ("", 1, None),
+        ("sme-x", 1, None),
+        ("sme", None, None),
+        ("sme", "x", None),
+        ("sme", True, None),
+    ],
+)
+def test_gguf_output_name_table(agent_id, version, expected):
+    assert _helpers()["gguf_output_name"](agent_id, version) == expected
+
+
+def test_output_name_comes_from_agent_and_version_and_matches_serving_rule():
+    ns = _helpers(AGENT_ID="gad", ADAPTER_VERSION="2")
+    assert ns["OUTPUT_GGUF"] == "gad-v2.gguf"
+    assert SERVING_NAME_RE.match(ns["OUTPUT_GGUF"])
+
+
+@pytest.mark.parametrize(
+    ("agent_id", "version"), [("", ""), ("gad", ""), ("", "2"), ("gad", "zero")]
+)
+def test_output_name_falls_back_with_a_warning(agent_id, version, capsys):
+    ns = _helpers(AGENT_ID=agent_id, ADAPTER_VERSION=version)
+    assert ns["OUTPUT_GGUF"] == "adapter-f16.gguf"
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "<agent>-v<version>.gguf" in out
+
+
+def test_download_cell_names_the_file_and_the_startup_flag():
+    source = _code_sources()[-1]
+    assert "--lora-scaled <FULL PATH>" in source
+    assert "OUTPUT_GGUF" in source

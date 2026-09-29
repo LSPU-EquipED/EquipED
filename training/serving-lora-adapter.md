@@ -9,21 +9,28 @@ You can serve one adapter per agent (SME, GAD, ITSO, Coordinator), and several
 versions of each, side by side. The app picks which one each agent uses per
 request; you only decide which files the server loads.
 
-You will receive two files from the training side per adapter version:
+You will receive these files from the training side per adapter version:
 
-- `adapter-f16.gguf` (about 60 MB), the adapter converted for llama.cpp
-- `adapter-f16.gguf.sha256`, its checksum
+- `<agent>-v<version>.gguf` (about 60 MB, for example `sme-v3.gguf`), the
+  adapter converted for llama.cpp
+- `<agent>-v<version>.gguf.sha256`, its checksum
 
-**Rename the `.gguf` when you save it** (see the naming rule in step 1). The app
-identifies an adapter by its file name, so `adapter-f16.gguf` is not recognized.
+The training notebook (`docs/colab/dpo_training_template.ipynb`) names the file
+this way itself, taken from the upload, so **copy it without renaming** (see the
+naming rule in step 1). It also produces `<agent>-v<version>.gguf.json`, which
+records which llama.cpp commit made the file and which uploaded adapter it came
+from (agent, version, adapter id, and the sha256 of the adapter zip). You can
+ignore the JSON; it is a record for whoever trains. The standalone conversion
+notebook (`docs/colab/adapter_to_gguf_template.ipynb`, for re-converting an
+adapter that is already stored) names its output from the `AGENT_ID` and
+`ADAPTER_VERSION` its operator fills in, and produces only the first two files.
 
-The training notebook (`docs/colab/dpo_training_template.ipynb`) now produces
-both of these at the end of a run, plus an optional `adapter-f16.gguf.json`
-that records which llama.cpp commit made the file and which uploaded adapter it
-came from. You can ignore the JSON; it is a record for whoever trains. The
-standalone conversion notebook (`docs/colab/adapter_to_gguf_template.ipynb`,
-for re-converting an adapter that is already stored) produces only the first
-two.
+**Files from older conversions are called `adapter-f16.gguf`** (the notebooks
+also fall back to that name, with a printed WARNING, when they cannot tell which
+adapter they converted). The app does not recognize that name. Before renaming
+one by hand, check its `.json` file: `adapter_zip_sha256` must match the
+adapter's file checksum (`file_sha256`) on the admin Training Data page, which
+proves which agent and version it is.
 
 **Verified 2026-09-19 on llama-server build 10430:** loading the adapter with
 `--lora-scaled <file>:0.0` starts it switched **off** (scale 0.0), and a
@@ -41,7 +48,8 @@ drive, and never over the base model file.
 **Naming rule: `<agent>-v<version>.gguf`**, all lowercase. `<agent>` is `sme`,
 `gad`, `itso` or `coordinator`; `<version>` is the version number shown for the
 adapter on the admin Training Data page. Examples: `sme-v3.gguf`,
-`gad-v1.gguf`. The admin page shows the exact file name for each version.
+`gad-v1.gguf`. The admin page shows the exact file name for each version. Current notebooks
+already produce this name; only an old `adapter-f16.gguf` needs renaming.
 
 The app matches loaded files to trained adapters by this name. A file the app
 cannot match (wrong pattern, an unknown agent or version, or two files that
