@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+# Registers trained_adapters so ModelValidation.adapter_id FK can resolve.
+import server.modules.training_data.models  # noqa: F401
 from server.core.database import Base
 from sqlalchemy import (
     JSON,

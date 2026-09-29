@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
@@ -208,3 +209,20 @@ def make_adapter(db_session, agent_id: str, version: int):
     db_session.add(adapter)
     db_session.commit()
     return adapter
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_server_adapter_state(monkeypatch):
+    """Never hit the real model server; default to an unreachable state."""
+    from server.modules.training_data.serving import (
+        ServerAdapterState,
+        clear_server_adapter_cache,
+    )
+
+    clear_server_adapter_cache()
+    monkeypatch.setattr(
+        "server.modules.training_data.router.get_server_adapter_state",
+        lambda: ServerAdapterState(False, (), (), ()),
+    )
+    yield
+    clear_server_adapter_cache()

@@ -38,9 +38,9 @@ from server.modules.training_data.jobs import (
     get_job_download_package,
     list_training_jobs,
 )
-from server.modules.training_data.models import TrainedAdapter
 from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.publication import (
+    get_adapter_for_agent,
     get_publication,
     publish_adapter,
     unpublish_adapter,
@@ -253,11 +253,7 @@ def publish_trained_adapter(
     db: Session = Depends(get_db_session),
 ) -> TrainedAdapterListResponse:
     try:
-        adapter = db.get(TrainedAdapter, body.adapter_id)
-        if adapter is None:
-            raise AdapterNotFoundError("adapter not found")
-        if adapter.agent_id != agent_id:
-            raise AdapterAgentMismatchError("adapter belongs to a different agent")
+        adapter = get_adapter_for_agent(db, agent_id, body.adapter_id)
         state = get_server_adapter_state()
         if not state.reachable or state.find(agent_id, adapter.version) is None:
             raise AdapterNotLoadedError(

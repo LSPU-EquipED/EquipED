@@ -20,6 +20,18 @@ def get_publication(session: Session, agent_id: str) -> AgentAdapterPublication 
     return session.get(AgentAdapterPublication, agent_id)
 
 
+def get_adapter_for_agent(
+    session: Session, agent_id: str, adapter_id: uuid.UUID
+) -> TrainedAdapter:
+    """Return the adapter, checking it exists and belongs to ``agent_id``."""
+    adapter = session.get(TrainedAdapter, adapter_id)
+    if adapter is None:
+        raise AdapterNotFoundError("adapter not found")
+    if adapter.agent_id != agent_id:
+        raise AdapterAgentMismatchError("adapter belongs to a different agent")
+    return adapter
+
+
 def publish_adapter(
     session: Session,
     agent_id: str,
@@ -28,11 +40,7 @@ def publish_adapter(
     published_by: uuid.UUID,
 ) -> AgentAdapterPublication:
     """Upsert the agent's publication row (atomic swap)."""
-    adapter = session.get(TrainedAdapter, adapter_id)
-    if adapter is None:
-        raise AdapterNotFoundError("adapter not found")
-    if adapter.agent_id != agent_id:
-        raise AdapterAgentMismatchError("adapter belongs to a different agent")
+    get_adapter_for_agent(session, agent_id, adapter_id)
     row = session.get(AgentAdapterPublication, agent_id)
     if row is None:
         row = AgentAdapterPublication(
