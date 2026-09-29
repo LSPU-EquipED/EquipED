@@ -25,7 +25,22 @@ class AdapterUploadError(TrainingDataError):
     """Raised when an uploaded adapter file fails size or extension checks."""
 
 
+class AdapterNotFoundError(TrainingDataError):
+    """No trained adapter with that id."""
+
+
+class AdapterAgentMismatchError(TrainingDataError):
+    """The adapter belongs to a different agent."""
+
+
+class AdapterNotLoadedError(TrainingDataError):
+    """The adapter is not loaded on the model server (or that cannot be verified)."""
+
+
 __all__ = [
+    "AdapterNotFoundError",
+    "AdapterAgentMismatchError",
+    "AdapterNotLoadedError",
     "TrainingDataError",
     "InvalidAgentIdError",
     "TrainingJobNotFoundError",

@@ -273,3 +273,108 @@ def test_readiness_matches_what_a_job_would_freeze_and_creates_nothing(
     (job,) = client.get("/api/v1/admin/training-data/gad/jobs").json()["jobs"]
     assert job["pairs_sha256"] == readiness["pairs_sha256"]
     assert job["pair_count"] == readiness["pair_count"]
+
+
+def _fake_state(monkeypatch, *, reachable=True, loaded=()):
+    from server.modules.training_data.serving import LoadedAdapter, ServerAdapterState
+
+    state = ServerAdapterState(
+        reachable,
+        tuple(LoadedAdapter(i, a, v) for i, (a, v) in enumerate(loaded)),
+        tuple(range(len(loaded))),
+        (),
+    )
+    monkeypatch.setattr(
+        "server.modules.training_data.router.get_server_adapter_state",
+        lambda: state,
+    )
+
+
+def test_list_adapters_includes_loaded_and_published(
+    client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    v1 = make_adapter(db_session, "sme", 1)
+    make_adapter(db_session, "sme", 2)
+    _fake_state(monkeypatch, loaded=[("sme", 1)])
+    _auth(client, auth_cookies_admin)
+    put = client.put(
+        "/api/v1/admin/training-data/sme/published",
+        json={"adapter_id": str(v1.adapter_id)},
+    )
+    assert put.status_code == 200
+    body = client.get("/api/v1/admin/training-data/sme/adapters").json()
+    by_version = {a["version"]: a for a in body["adapters"]}
+    assert by_version[1]["loaded"] is True and by_version[1]["published"] is True
+    assert by_version[1]["gguf_filename"] == "sme-v1.gguf"
+    assert by_version[2]["loaded"] is False and by_version[2]["published"] is False
+    assert body["published_adapter_id"] == str(v1.adapter_id)
+    assert body["server_reachable"] is True
+
+
+def test_publish_requires_loaded_adapter(
+    client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    v1 = make_adapter(db_session, "sme", 1)
+    _auth(client, auth_cookies_admin)
+    url = "/api/v1/admin/training-data/sme/published"
+    payload = {"adapter_id": str(v1.adapter_id)}
+
+    _fake_state(monkeypatch, loaded=[])  # reachable, not loaded
+    assert client.put(url, json=payload).status_code == 409
+
+    _fake_state(monkeypatch, reachable=False)  # unreachable
+    assert client.put(url, json=payload).status_code == 409
+
+    body = client.get("/api/v1/admin/training-data/sme/adapters").json()
+    assert body["published_adapter_id"] is None
+    assert body["server_reachable"] is False
+    assert body["adapters"][0]["loaded"] is None
+
+
+def test_publish_mismatched_agent_is_422_and_unknown_is_404(
+    client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    gad1 = make_adapter(db_session, "gad", 1)
+    _fake_state(monkeypatch, loaded=[("gad", 1)])
+    _auth(client, auth_cookies_admin)
+    url = "/api/v1/admin/training-data/sme/published"
+
+    wrong = client.put(url, json={"adapter_id": str(gad1.adapter_id)})
+    assert wrong.status_code == 422
+    unknown = client.put(url, json={"adapter_id": str(uuid.uuid4())})
+    assert unknown.status_code == 404
+
+
+def test_publish_and_unpublish_require_admin(
+    client: TestClient, db_session, admin_user, auth_cookies_faculty
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    v1 = make_adapter(db_session, "sme", 1)
+    _auth(client, auth_cookies_faculty)
+    url = "/api/v1/admin/training-data/sme/published"
+    assert client.put(url, json={"adapter_id": str(v1.adapter_id)}).status_code == 403
+    assert client.delete(url).status_code == 403
+
+
+def test_unpublish_returns_204_and_clears(
+    client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    v1 = make_adapter(db_session, "sme", 1)
+    _fake_state(monkeypatch, loaded=[("sme", 1)])
+    _auth(client, auth_cookies_admin)
+    url = "/api/v1/admin/training-data/sme/published"
+    assert client.put(url, json={"adapter_id": str(v1.adapter_id)}).status_code == 200
+
+    assert client.delete(url).status_code == 204
+    body = client.get("/api/v1/admin/training-data/sme/adapters").json()
+    assert body["published_adapter_id"] is None
+    assert body["adapters"][0]["published"] is False
