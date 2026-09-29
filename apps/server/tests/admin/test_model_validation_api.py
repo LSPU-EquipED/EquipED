@@ -255,10 +255,10 @@ def test_get_catalog_returns_all_four_bindings_without_strategy_leak(
             assert "scoring_rule" not in crit_dto
 
 
-def test_partial_validation_submission_and_snapshot_persistence(
+def test_single_agent_validation_submission_and_snapshot_persistence(
     client: TestClient, auth_cookies_admin, admin_user, db_session
 ) -> None:
-    """Partial validation binds SME/GAD/ITSO and persists snapshots."""
+    """A single-agent validation binds that agent and persists its snapshot."""
     seeded = _seed_active_forms(db_session)
     slm = _seed_document(db_session, owner_id=admin_user.user_id, source_type="slm")
     _auth(client, auth_cookies_admin)
@@ -270,37 +270,37 @@ def test_partial_validation_submission_and_snapshot_persistence(
             "rubric_criterion_id": str(seeded[agent_id][1][0].rubric_criterion_id),
             "expected_score": 3,
         }
-        for agent_id in ("sme", "gad", "itso")
+        for agent_id in ("sme",)
     ]
 
     resp = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": expected_scores,
         },
     )
     assert resp.status_code == 202
     data = resp.json()
     assert data["partial_without_curriculum"] is False
-    assert len(data["bound_forms"]) == 3
-    assert {bf["agent_id"] for bf in data["bound_forms"]} == {"sme", "gad", "itso"}
-    assert len(data["criterion_scores"]) == 3
+    assert len(data["bound_forms"]) == 1
+    assert {bf["agent_id"] for bf in data["bound_forms"]} == {"sme"}
+    assert len(data["criterion_scores"]) == 1
 
     # Check persistence of standard snapshots
     eval_id = uuid.UUID(data["evaluation_id"])
     snapshots = (
         db_session.query(EvaluationFormSnapshot).filter_by(evaluation_id=eval_id).all()
     )
-    assert len(snapshots) == 3
-    assert {s.agent_id for s in snapshots} == {"sme", "gad", "itso"}
+    assert len(snapshots) == 1
+    assert {s.agent_id for s in snapshots} == {"sme"}
 
 
 def test_full_validation_submission_with_curriculum(
     client: TestClient, auth_cookies_admin, admin_user, db_session
 ) -> None:
-    """Full validation requires curriculum and binds SME, Coordinator, GAD, ITSO."""
+    """A Coordinator validation requires a curriculum and binds only Coordinator."""
     seeded = _seed_active_forms(db_session)
     slm = _seed_document(db_session, owner_id=admin_user.user_id, source_type="slm")
     curriculum = _seed_document(
@@ -315,7 +315,7 @@ def test_full_validation_submission_with_curriculum(
             "rubric_criterion_id": str(crit.rubric_criterion_id),
             "expected_score": 4,
         }
-        for agent_id in ("sme", "coordinator", "gad", "itso")
+        for agent_id in ("coordinator",)
         for crit in seeded[agent_id][1]
     ]
 
@@ -324,22 +324,17 @@ def test_full_validation_submission_with_curriculum(
         json={
             "document_id": str(slm.document_id),
             "curriculum_id": str(curriculum.document_id),
-            "partial_without_curriculum": False,
+            "target_agent": "coordinator",
             "expected_scores": expected_scores,
         },
     )
     assert resp.status_code == 202
     data = resp.json()
     assert data["partial_without_curriculum"] is False
-    assert len(data["bound_forms"]) == 4
-    assert {bf["agent_id"] for bf in data["bound_forms"]} == {
-        "sme",
-        "coordinator",
-        "gad",
-        "itso",
-    }
-    # sme/gad/itso 1 each + 10 Coordinator v3 criteria.
-    assert len(data["criterion_scores"]) == 13
+    assert len(data["bound_forms"]) == 1
+    assert {bf["agent_id"] for bf in data["bound_forms"]} == {"coordinator"}
+    # 10 Coordinator v3 criteria.
+    assert len(data["criterion_scores"]) == 10
 
 
 def test_stale_catalog_echo_rejected_under_lock(
@@ -357,7 +352,7 @@ def test_stale_catalog_echo_rejected_under_lock(
             "rubric_criterion_id": str(seeded[agent_id][1][0].rubric_criterion_id),
             "expected_score": 3,
         }
-        for agent_id in ("sme", "gad", "itso")
+        for agent_id in ("sme",)
     ]
 
     # Now simulate a concurrent activation of SME Revision 2
@@ -408,7 +403,7 @@ def test_stale_catalog_echo_rejected_under_lock(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": stale_scores,
         },
     )
@@ -431,14 +426,14 @@ def test_after_submit_activation_invariance(
             "rubric_criterion_id": str(seeded[agent_id][1][0].rubric_criterion_id),
             "expected_score": 3,
         }
-        for agent_id in ("sme", "gad", "itso")
+        for agent_id in ("sme",)
     ]
 
     create_resp = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": scores,
         },
     )
@@ -515,13 +510,13 @@ def test_rejects_duplicate_unknown_or_cross_revision_criteria(
             "criterion_id": seeded[agent_id][1][0].criterion_code,
             "expected_score": 3,
         }
-        for agent_id in ("sme", "gad", "itso")
+        for agent_id in ("sme",)
     ]
     resp_code_only = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": code_only,
         },
     )
@@ -541,24 +536,12 @@ def test_rejects_duplicate_unknown_or_cross_revision_criteria(
             "rubric_criterion_id": str(seeded["sme"][1][0].rubric_criterion_id),
             "expected_score": 2,
         },
-        {
-            "agent_id": "gad",
-            "rubric_set_id": str(seeded["gad"][0].rubric_set_id),
-            "rubric_criterion_id": str(seeded["gad"][1][0].rubric_criterion_id),
-            "expected_score": 2,
-        },
-        {
-            "agent_id": "itso",
-            "rubric_set_id": str(seeded["itso"][0].rubric_set_id),
-            "rubric_criterion_id": str(seeded["itso"][1][0].rubric_criterion_id),
-            "expected_score": 1,
-        },
     ]
     resp_dup = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": dup_scores,
         },
     )
@@ -573,24 +556,12 @@ def test_rejects_duplicate_unknown_or_cross_revision_criteria(
             "rubric_criterion_id": str(uuid.uuid4()),
             "expected_score": 3,
         },
-        {
-            "agent_id": "gad",
-            "rubric_set_id": str(seeded["gad"][0].rubric_set_id),
-            "rubric_criterion_id": str(seeded["gad"][1][0].rubric_criterion_id),
-            "expected_score": 2,
-        },
-        {
-            "agent_id": "itso",
-            "rubric_set_id": str(seeded["itso"][0].rubric_set_id),
-            "rubric_criterion_id": str(seeded["itso"][1][0].rubric_criterion_id),
-            "expected_score": 1,
-        },
     ]
     resp_unknown = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": unknown_scores,
         },
     )
@@ -614,13 +585,13 @@ def test_faculty_rbac_denial_across_all_model_validation_endpoints(
             "rubric_criterion_id": str(seeded[agent_id][1][0].rubric_criterion_id),
             "expected_score": 3,
         }
-        for agent_id in ("sme", "gad", "itso")
+        for agent_id in ("sme",)
     ]
     create_resp = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
+            "target_agent": "sme",
             "expected_scores": scores,
         },
     )
@@ -642,7 +613,7 @@ def test_faculty_rbac_denial_across_all_model_validation_endpoints(
             "/api/v1/admin/model-validations",
             json={
                 "document_id": str(slm.document_id),
-                "partial_without_curriculum": True,
+                "target_agent": "sme",
                 "expected_scores": scores,
             },
         ).status_code
@@ -660,47 +631,78 @@ def _sme_only_body(slm, expected_scores, **extra):
     }
 
 
+def _patch_adapter_state(monkeypatch, *loaded, reachable: bool = True) -> None:
+    from server.modules.training_data.serving import (
+        LoadedAdapter,
+        ServerAdapterState,
+    )
+
+    state = ServerAdapterState(
+        reachable,
+        tuple(LoadedAdapter(i, agent, ver) for i, (agent, ver) in enumerate(loaded)),
+        tuple(range(len(loaded))),
+        (),
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.get_server_adapter_state",
+        lambda: state,
+    )
+
+
 def test_standard_route_accepts_the_adapter_variant(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: True,
-    )
+    from server.tests.training_data.conftest import make_adapter
+
+    adapter = make_adapter(db_session, "sme", 3)
+    _patch_adapter_state(monkeypatch, ("sme", 3))
     expected_scores, slm = _setup_validation(db_session, admin_user)
     _auth(client, auth_cookies_admin)
 
     resp = client.post(
         "/api/v1/admin/model-validations",
-        json=_sme_only_body(slm, expected_scores, model_variant="adapter"),
+        json=_sme_only_body(
+            slm,
+            expected_scores,
+            model_variant="adapter",
+            adapter_id=str(adapter.adapter_id),
+        ),
     )
 
     assert resp.status_code == 202
     body = resp.json()
     assert body["model_variant"] == "adapter"
     assert body["compare_group_id"] is None
+    assert body["adapter_id"] == str(adapter.adapter_id)
+    assert body["adapter_label"] == "sme-v3"
+    assert body["adapter_resolution"] is None
 
 
 def test_standard_route_returns_422_when_the_adapter_is_not_loaded(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: False,
-    )
+    from server.tests.training_data.conftest import make_adapter
+
+    adapter = make_adapter(db_session, "sme", 3)
+    _patch_adapter_state(monkeypatch)
     expected_scores, slm = _setup_validation(db_session, admin_user)
     _auth(client, auth_cookies_admin)
 
     resp = client.post(
         "/api/v1/admin/model-validations",
-        json=_sme_only_body(slm, expected_scores, model_variant="adapter"),
+        json=_sme_only_body(
+            slm,
+            expected_scores,
+            model_variant="adapter",
+            adapter_id=str(adapter.adapter_id),
+        ),
     )
 
     assert resp.status_code == 422
-    assert "no adapter is loaded" in resp.json()["detail"]
+    assert "sme-v3.gguf is not loaded" in resp.json()["detail"]
 
 
-def test_standard_route_rejects_the_adapter_variant_with_all_agents(
+def test_standard_route_rejects_the_all_target(
     client: TestClient, auth_cookies_admin, admin_user, db_session
 ) -> None:
     expected_scores, slm = _setup_validation(db_session, admin_user)
@@ -710,23 +712,37 @@ def test_standard_route_rejects_the_adapter_variant_with_all_agents(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "model_variant": "adapter",
+            "target_agent": "all",
+            "model_variant": "base",
             "expected_scores": expected_scores,
         },
     )
 
     assert resp.status_code == 422
-    assert "requires a single target_agent" in resp.text
 
 
-def test_standard_route_rejects_the_adapter_variant_for_agents_without_an_adapter(
+def test_standard_route_rejects_the_adapter_variant_without_an_adapter_id(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+) -> None:
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    _auth(client, auth_cookies_admin)
+
+    resp = client.post(
+        "/api/v1/admin/model-validations",
+        json=_sme_only_body(slm, expected_scores, model_variant="adapter"),
+    )
+
+    assert resp.status_code == 422
+    assert "requires adapter_id" in resp.text
+
+
+def test_standard_route_treats_an_unreachable_server_as_not_loaded(
     client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
 ) -> None:
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        lambda: True,
-    )
+    from server.tests.training_data.conftest import make_adapter
+
+    adapter = make_adapter(db_session, "gad", 1)
+    _patch_adapter_state(monkeypatch, reachable=False)
     expected_scores, slm = _setup_validation(db_session, admin_user)
     _auth(client, auth_cookies_admin)
 
@@ -736,36 +752,13 @@ def test_standard_route_rejects_the_adapter_variant_for_agents_without_an_adapte
             "document_id": str(slm.document_id),
             "target_agent": "gad",
             "model_variant": "adapter",
-            "expected_scores": expected_scores,
+            "adapter_id": str(adapter.adapter_id),
+            "expected_scores": [i for i in expected_scores if i["agent_id"] == "gad"],
         },
     )
 
     assert resp.status_code == 422
-    assert "only supported for" in resp.text
-
-
-def test_standard_route_returns_503_when_the_adapter_check_cannot_reach_the_endpoint(
-    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
-) -> None:
-    from server.core.exceptions import InfrastructureUnavailableError
-
-    def _raise():
-        raise InfrastructureUnavailableError("endpoint down")
-
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        _raise,
-    )
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-    _auth(client, auth_cookies_admin)
-
-    resp = client.post(
-        "/api/v1/admin/model-validations",
-        json=_sme_only_body(slm, expected_scores, model_variant="base"),
-    )
-
-    assert resp.status_code == 503
-    assert "loaded adapter" in resp.json()["detail"]
+    assert "is not loaded" in resp.json()["detail"]
 
 
 def test_the_compare_route_no_longer_exists(

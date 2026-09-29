@@ -179,23 +179,13 @@ class ModelValidationExpectedScoreInput(BaseModel):
     expected_score: StrictInt = Field(ge=1, le=4)
 
 
-# Agents that have a trained LoRA adapter. The scale is sent for adapter id 0
-# only, so an adapter run on any other agent would silently apply the wrong
-# adapter; widen this only together with per-agent adapter ids.
-ADAPTER_SUPPORTED_AGENTS: tuple[str, ...] = ("sme",)
-
-
 class ModelValidationCreateRequest(BaseModel):
-    """Create a benchmark without exposing expected criterion scores to agents.
+    """Create a single-agent benchmark without exposing expected scores to agents.
 
-    Curriculum selection is required for full evaluations
-    (partial_without_curriculum=False) and must be omitted for partial
-    evaluations (partial_without_curriculum=True). target_agent="all" (the
-    default) keeps this historical full/partial-bundle behavior; any other
-    value runs exactly that one agent, matching how ordinary evaluations
-    already support single-agent targeting (only Coordinator then requires
-    curriculum_id). model_variant selects the plain model ("base") or the
-    fine-tuned adapter ("adapter"); None leaves the LoRA scale untouched.
+    A benchmark always targets exactly one agent. ``model_variant`` selects the
+    plain model ("base") or a specific trained adapter version ("adapter",
+    with ``adapter_id``); None uses the agent's published adapter, the same as
+    main scoring.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -204,34 +194,26 @@ class ModelValidationCreateRequest(BaseModel):
     syllabus_id: uuid.UUID | None = None
     curriculum_id: uuid.UUID | None = None
     partial_without_curriculum: StrictBool = False
-    target_agent: Literal["all", "sme", "coordinator", "gad", "itso"] = "all"
+    target_agent: Literal["sme", "coordinator", "gad", "itso"]
     model_variant: Literal["base", "adapter"] | None = None
+    adapter_id: uuid.UUID | None = None
     expected_scores: list[ModelValidationExpectedScoreInput] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _validate_single_agent_not_partial(self) -> ModelValidationCreateRequest:
-        if self.target_agent != "all" and self.partial_without_curriculum:
+    def _validate_not_partial(self) -> ModelValidationCreateRequest:
+        if self.partial_without_curriculum:
             raise ValueError(
-                "partial_without_curriculum is only meaningful for "
-                'target_agent="all" and cannot be combined with a single '
+                "partial_without_curriculum cannot be combined with a single "
                 "target_agent."
             )
         return self
 
     @model_validator(mode="after")
-    def _validate_adapter_targets_single_agent(self) -> ModelValidationCreateRequest:
-        if self.model_variant != "adapter":
-            return self
-        if self.target_agent == "all":
-            raise ValueError(
-                'model_variant="adapter" requires a single target_agent, not "all".'
-            )
-        if self.target_agent not in ADAPTER_SUPPORTED_AGENTS:
-            supported = ", ".join(ADAPTER_SUPPORTED_AGENTS)
-            raise ValueError(
-                'model_variant="adapter" is only supported for target_agent in '
-                f"({supported}); no adapter is trained for {self.target_agent!r}."
-            )
+    def _validate_adapter_choice(self) -> ModelValidationCreateRequest:
+        if self.model_variant == "adapter" and self.adapter_id is None:
+            raise ValueError('model_variant="adapter" requires adapter_id.')
+        if self.model_variant != "adapter" and self.adapter_id is not None:
+            raise ValueError('adapter_id is only allowed with model_variant="adapter".')
         return self
 
 
@@ -291,6 +273,9 @@ class ModelValidationBoundForm(BaseModel):
 class ModelValidationResponse(BaseModel):
     validation_id: uuid.UUID
     model_variant: str | None = None
+    adapter_id: uuid.UUID | None = None
+    adapter_label: str | None = None
+    adapter_resolution: dict | None = None
     compare_group_id: uuid.UUID | None = None
     evaluation_id: uuid.UUID
     document_id: uuid.UUID

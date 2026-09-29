@@ -288,38 +288,116 @@ def test_create_model_validation_targets_one_agent(admin_user, db_session) -> No
     assert {item.agent_id for item in response.criterion_scores} == {"sme"}
 
 
-def _sme_variant_request(slm, expected_scores, **extra):
+def _set_adapter_state(monkeypatch, *loaded, reachable: bool = True) -> None:
+    """Fake the model server's loaded-adapter state: ``loaded`` is (agent, ver)."""
+    from server.modules.training_data.serving import (
+        LoadedAdapter,
+        ServerAdapterState,
+    )
+
+    state = ServerAdapterState(
+        reachable,
+        tuple(LoadedAdapter(i, agent, ver) for i, (agent, ver) in enumerate(loaded)),
+        tuple(range(len(loaded))),
+        (),
+    )
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.get_server_adapter_state",
+        lambda: state,
+    )
+
+
+def _sme_scores(scores):
+    return [item for item in scores if item["agent_id"] == "sme"]
+
+
+def _agent_request(agent, expected_scores, slm, **extra):
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
-    sme_only = [item for item in expected_scores if item["agent_id"] == "sme"]
     return ModelValidationCreateRequest.model_validate(
         {
             "document_id": slm.document_id,
-            "target_agent": "sme",
-            "expected_scores": sme_only,
+            "target_agent": agent,
+            "expected_scores": [i for i in expected_scores if i["agent_id"] == agent],
             **extra,
         }
     )
 
 
-def _set_adapter_loaded(monkeypatch, value) -> None:
-    monkeypatch.setattr(
-        "server.modules.admin.model_validation_service.check_lora_adapter_loaded",
-        value if callable(value) else (lambda: value),
-    )
+def _one_expected_score(agent: str = "sme") -> dict[str, object]:
+    return {
+        "agent_id": agent,
+        "rubric_set_id": str(uuid.uuid4()),
+        "rubric_criterion_id": str(uuid.uuid4()),
+        "expected_score": 3,
+    }
 
 
-def test_model_variant_none_sends_no_scale_and_skips_the_adapter_check(
+def test_all_target_is_rejected() -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    with pytest.raises(ValidationError):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": uuid.uuid4(),
+                "target_agent": "all",
+                "model_variant": "base",
+                "expected_scores": [_one_expected_score()],
+            }
+        )
+
+
+def test_target_agent_is_required() -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    with pytest.raises(ValidationError):
+        ModelValidationCreateRequest.model_validate(
+            {
+                "document_id": uuid.uuid4(),
+                "expected_scores": [_one_expected_score()],
+            }
+        )
+
+
+def test_adapter_variant_requires_adapter_id_and_base_forbids_it() -> None:
+    from pydantic import ValidationError
+    from server.modules.admin.schemas import ModelValidationCreateRequest
+
+    base = {
+        "document_id": uuid.uuid4(),
+        "target_agent": "gad",
+        "expected_scores": [_one_expected_score("gad")],
+    }
+    with pytest.raises(ValidationError, match="requires adapter_id"):
+        ModelValidationCreateRequest.model_validate(
+            {**base, "model_variant": "adapter"}
+        )
+    with pytest.raises(ValidationError, match="only allowed"):
+        ModelValidationCreateRequest.model_validate(
+            {**base, "model_variant": "base", "adapter_id": str(uuid.uuid4())}
+        )
+    with pytest.raises(ValidationError, match="only allowed"):
+        ModelValidationCreateRequest.model_validate(
+            {**base, "adapter_id": str(uuid.uuid4())}
+        )
+
+
+def test_model_variant_none_stores_no_adapter_request(
     admin_user, db_session, monkeypatch
 ) -> None:
     from server.modules.admin.model_validation_service import create_model_validation
 
     def _must_not_run():
-        raise AssertionError("adapter check must not run when model_variant is None")
+        raise AssertionError("adapter state must not be read when variant is None")
 
-    _set_adapter_loaded(monkeypatch, _must_not_run)
+    monkeypatch.setattr(
+        "server.modules.admin.model_validation_service.get_server_adapter_state",
+        _must_not_run,
+    )
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    req = _sme_variant_request(slm, expected_scores)
+    req = _agent_request("sme", expected_scores, slm)
     assert req.model_variant is None
 
     response = create_model_validation(
@@ -330,73 +408,51 @@ def test_model_variant_none_sends_no_scale_and_skips_the_adapter_check(
     job = db_session.get(EvaluationJob, response.evaluation_id)
     assert validation.model_variant is None
     assert validation.compare_group_id is None
-    assert job.lora_scale is None
+    assert validation.adapter_id is None
+    assert job.adapter_request is None
+    assert response.adapter_id is None
+    assert response.adapter_label is None
 
 
-def test_adapter_variant_rejects_all_agents(admin_user, db_session) -> None:
-    from pydantic import ValidationError
-    from server.modules.admin.schemas import ModelValidationCreateRequest
-
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-
-    with pytest.raises(ValidationError, match="requires a single target_agent"):
-        ModelValidationCreateRequest.model_validate(
-            {
-                "document_id": slm.document_id,
-                "partial_without_curriculum": True,
-                "model_variant": "adapter",
-                "expected_scores": expected_scores,
-            }
-        )
-
-
-@pytest.mark.parametrize("agent", ["gad", "itso", "coordinator"])
-def test_adapter_variant_rejects_agents_without_an_adapter(
-    agent, admin_user, db_session
-) -> None:
-    from pydantic import ValidationError
-    from server.modules.admin.schemas import ModelValidationCreateRequest
-
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-
-    with pytest.raises(ValidationError, match="only supported for"):
-        ModelValidationCreateRequest.model_validate(
-            {
-                "document_id": slm.document_id,
-                "target_agent": agent,
-                "model_variant": "adapter",
-                "expected_scores": expected_scores,
-            }
-        )
-
-
-def test_adapter_variant_refuses_when_no_adapter_is_loaded(
-    admin_user, db_session, monkeypatch
-) -> None:
-    from server.modules.admin.model_validation_service import create_model_validation
-    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
-
-    _set_adapter_loaded(monkeypatch, False)
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-    req = _sme_variant_request(slm, expected_scores, model_variant="adapter")
-
-    with pytest.raises(InvalidEvaluationTargetError, match="no adapter is loaded"):
-        create_model_validation(
-            req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
-        )
-
-    assert db_session.query(EvaluationJob).count() == 0
-    assert db_session.query(ModelValidation).count() == 0
-
-
-def test_adapter_variant_applies_scale_one_when_an_adapter_is_loaded(
-    admin_user, db_session, monkeypatch
+@pytest.mark.parametrize("agent", ["sme", "gad", "itso"])
+def test_base_run_forces_explicit_base_request(
+    agent, admin_user, db_session, monkeypatch
 ) -> None:
     from server.modules.admin.model_validation_service import create_model_validation
 
-    _set_adapter_loaded(monkeypatch, True)
+    _set_adapter_state(monkeypatch, (agent, 1))
     expected_scores, slm = _setup_validation(db_session, admin_user)
-    req = _sme_variant_request(slm, expected_scores, model_variant="adapter")
+    req = _agent_request(agent, expected_scores, slm, model_variant="base")
+
+    response = create_model_validation(
+        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
+    )
+
+    validation = db_session.get(ModelValidation, response.validation_id)
+    job = db_session.get(EvaluationJob, response.evaluation_id)
+    assert validation.model_variant == "base"
+    assert validation.adapter_id is None
+    assert job.adapter_request == {agent: {"adapter_id": None}}
+    assert job.target_agent == agent
+    assert response.adapter_id is None
+
+
+def test_adapter_run_stores_the_chosen_version(
+    admin_user, db_session, monkeypatch
+) -> None:
+    from server.modules.admin.model_validation_service import create_model_validation
+    from server.tests.training_data.conftest import make_adapter
+
+    adapter = make_adapter(db_session, "gad", 2)
+    _set_adapter_state(monkeypatch, ("gad", 2))
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    req = _agent_request(
+        "gad",
+        expected_scores,
+        slm,
+        model_variant="adapter",
+        adapter_id=str(adapter.adapter_id),
+    )
 
     response = create_model_validation(
         req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
@@ -405,74 +461,94 @@ def test_adapter_variant_applies_scale_one_when_an_adapter_is_loaded(
     validation = db_session.get(ModelValidation, response.validation_id)
     job = db_session.get(EvaluationJob, response.evaluation_id)
     assert validation.model_variant == "adapter"
-    assert validation.compare_group_id is None
-    assert job.lora_scale == 1.0
-    assert job.target_agent == "sme"
-
-
-def test_base_variant_forces_the_adapter_off_when_one_is_loaded(
-    admin_user, db_session, monkeypatch
-) -> None:
-    from server.modules.admin.model_validation_service import create_model_validation
-
-    _set_adapter_loaded(monkeypatch, True)
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-    req = _sme_variant_request(slm, expected_scores, model_variant="base")
-
-    response = create_model_validation(
-        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
-    )
-
-    validation = db_session.get(ModelValidation, response.validation_id)
-    job = db_session.get(EvaluationJob, response.evaluation_id)
-    assert validation.model_variant == "base"
-    assert job.lora_scale == 0.0
-
-
-def test_base_variant_sends_no_scale_when_no_adapter_is_loaded(
-    admin_user, db_session, monkeypatch
-) -> None:
-    from server.modules.admin.model_validation_service import create_model_validation
-
-    _set_adapter_loaded(monkeypatch, False)
-    expected_scores, slm = _setup_validation(db_session, admin_user)
-    req = _sme_variant_request(slm, expected_scores, model_variant="base")
-
-    response = create_model_validation(
-        req, created_by=admin_user.user_id, created_by_role="admin", db=db_session
-    )
-
-    validation = db_session.get(ModelValidation, response.validation_id)
-    job = db_session.get(EvaluationJob, response.evaluation_id)
-    assert validation.model_variant == "base"
+    assert validation.adapter_id == adapter.adapter_id
+    assert job.adapter_request == {"gad": {"adapter_id": str(adapter.adapter_id)}}
+    assert job.target_agent == "gad"
     assert job.lora_scale is None
+    assert response.adapter_id == adapter.adapter_id
+    assert response.adapter_label == "gad-v2"
 
 
-def test_runs_of_different_variants_keep_separate_scales(
+def test_adapter_run_refused_when_not_loaded_or_wrong_agent_or_unknown(
     admin_user, db_session, monkeypatch
 ) -> None:
     from server.modules.admin.model_validation_service import create_model_validation
+    from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
+    from server.tests.training_data.conftest import make_adapter
 
-    _set_adapter_loaded(monkeypatch, True)
+    gad_v2 = make_adapter(db_session, "gad", 2)
+    sme_v1 = make_adapter(db_session, "sme", 1)
     expected_scores, slm = _setup_validation(db_session, admin_user)
 
-    adapter_response = create_model_validation(
-        _sme_variant_request(slm, expected_scores, model_variant="adapter"),
-        created_by=admin_user.user_id,
-        created_by_role="admin",
-        db=db_session,
-    )
-    base_response = create_model_validation(
-        _sme_variant_request(slm, expected_scores, model_variant="base"),
-        created_by=admin_user.user_id,
-        created_by_role="admin",
-        db=db_session,
+    def _attempt(adapter_id):
+        req = _agent_request(
+            "gad",
+            expected_scores,
+            slm,
+            model_variant="adapter",
+            adapter_id=str(adapter_id),
+        )
+        with pytest.raises(InvalidEvaluationTargetError):
+            create_model_validation(
+                req,
+                created_by=admin_user.user_id,
+                created_by_role="admin",
+                db=db_session,
+            )
+        assert db_session.query(EvaluationJob).count() == 0
+        assert db_session.query(ModelValidation).count() == 0
+
+    # Right agent, but that version is not loaded on the server.
+    _set_adapter_state(monkeypatch, ("gad", 9))
+    _attempt(gad_v2.adapter_id)
+    # Server unreachable.
+    _set_adapter_state(monkeypatch, reachable=False)
+    _attempt(gad_v2.adapter_id)
+    # Adapter belongs to another agent (even though it is loaded).
+    _set_adapter_state(monkeypatch, ("gad", 2), ("sme", 1))
+    _attempt(sme_v1.adapter_id)
+    # Unknown adapter id.
+    _attempt(uuid.uuid4())
+
+
+def test_old_rows_still_serialize(admin_user, db_session) -> None:
+    from server.modules.admin.model_validation_service import (
+        get_model_validation_detail,
+        list_model_validations,
     )
 
-    adapter_job = db_session.get(EvaluationJob, adapter_response.evaluation_id)
-    base_job = db_session.get(EvaluationJob, base_response.evaluation_id)
-    assert adapter_job.lora_scale == 1.0
-    assert base_job.lora_scale == 0.0
+    expected_scores, slm = _setup_validation(db_session, admin_user)
+    job = EvaluationJob(
+        evaluation_id=uuid.uuid4(),
+        document_id=slm.document_id,
+        submitted_by=admin_user.user_id,
+        status="COMPLETED",
+        target_agent="sme",
+        lora_scale=1.0,
+        adapter_request=None,
+    )
+    db_session.add(job)
+    db_session.flush()
+    validation = ModelValidation(
+        validation_id=uuid.uuid4(),
+        evaluation_id=job.evaluation_id,
+        created_by=admin_user.user_id,
+        model_variant="adapter",
+        adapter_id=None,
+    )
+    db_session.add(validation)
+    db_session.commit()
+
+    detail = get_model_validation_detail(validation.validation_id, db_session)
+    assert detail is not None
+    assert detail.model_variant == "adapter"
+    assert detail.adapter_id is None
+    assert detail.adapter_label is None
+    assert detail.adapter_resolution is None
+    assert any(
+        r.validation_id == validation.validation_id
+        for r in list_model_validations(db_session)
+    )
 
 
 def test_create_model_validation_single_agent_coordinator_requires_curriculum(
@@ -545,8 +621,8 @@ def test_model_validation_readiness_failure_creates_nothing(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert response.status_code == 503
@@ -572,8 +648,8 @@ def test_model_validation_admission_failure_creates_nothing(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert response.status_code == 503
@@ -667,8 +743,13 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores[:-1],
+            "target_agent": "sme",
+            "expected_scores": [
+                dict(
+                    _sme_scores(expected_scores)[0],
+                    rubric_criterion_id=str(uuid.uuid4()),
+                )
+            ],
         },
     )
     assert incomplete_response.status_code == 422
@@ -677,8 +758,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
 
@@ -687,7 +768,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
     assert (True, False) in flush_states
     payload = response.json()
     assert payload["partial_without_curriculum"] is False
-    assert len(payload["criterion_scores"]) == 3
+    assert len(payload["criterion_scores"]) == 1
     assert all(item["actual_score"] is None for item in payload["criterion_scores"])
     job = db_session.get(EvaluationJob, uuid.UUID(payload["evaluation_id"]))
     validation = db_session.get(ModelValidation, uuid.UUID(payload["validation_id"]))
@@ -699,7 +780,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         .filter_by(validation_id=validation.validation_id)
         .all()
     )
-    assert len(stored_scores) == 3
+    assert len(stored_scores) == 1
 
     # Check that standard evaluation form snapshots were persisted
     snapshots = (
@@ -707,8 +788,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
         .filter_by(evaluation_id=job.evaluation_id)
         .all()
     )
-    assert len(snapshots) == 3
-    assert {s.agent_id for s in snapshots} == {"sme", "gad", "itso"}
+    assert len(snapshots) == 1
+    assert {s.agent_id for s in snapshots} == {"sme"}
 
     job.status = "COMPLETED"
     job.completed_at = job.submitted_at + timedelta(seconds=5)
@@ -801,8 +882,8 @@ def test_model_validation_rejects_score_outside_institutional_scale(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": bad_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(bad_scores),
         },
     )
     assert response.status_code == 422
@@ -827,8 +908,8 @@ def test_admin_can_detail_validation_record(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert create_resp.status_code == 202
@@ -838,8 +919,8 @@ def test_admin_can_detail_validation_record(
     detail_resp = client.get(f"/api/v1/admin/model-validations/{validation_id}")
     assert detail_resp.status_code == 200
     assert detail_resp.json()["validation_id"] == validation_id
-    assert len(detail_resp.json()["bound_forms"]) == 3
-    assert len(detail_resp.json()["criterion_scores"]) == 3
+    assert len(detail_resp.json()["bound_forms"]) == 1
+    assert len(detail_resp.json()["criterion_scores"]) == 1
 
     # Faculty blocked
     _auth(client, auth_cookies_faculty)
@@ -865,8 +946,8 @@ def test_admin_can_view_linked_evaluation(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert create_resp.status_code == 202
@@ -899,14 +980,14 @@ def test_faculty_cannot_list_validations(
     assert client.get("/api/v1/admin/model-validations/criteria").status_code == 403
 
 
-def test_validation_full_requires_curriculum_and_all_four_agents(
+def test_coordinator_validation_requires_curriculum(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Full validation requires explicit curriculum and all 4 agents."""
+    """A Coordinator benchmark requires an explicit curriculum."""
     expected_scores_4, slm = _setup_validation(
         db_session, admin_user, include_coordinator=True
     )
@@ -926,43 +1007,47 @@ def test_validation_full_requires_curriculum_and_all_four_agents(
     )
     _auth(client, auth_cookies_admin)
 
-    # Missing curriculum_id when partial_without_curriculum=False -> 422
+    coordinator_scores = [
+        item for item in expected_scores_4 if item["agent_id"] == "coordinator"
+    ]
+
+    # Missing curriculum_id for the Coordinator -> 422
     resp_no_curr = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": False,
-            "expected_scores": expected_scores_4,
+            "target_agent": "coordinator",
+            "expected_scores": coordinator_scores,
         },
     )
     assert resp_no_curr.status_code == 422
 
-    # Providing curriculum_id and all 4 agents -> 202
+    # Providing curriculum_id -> 202
     resp_full = client.post(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
             "curriculum_id": str(curriculum_doc.document_id),
-            "partial_without_curriculum": False,
-            "expected_scores": expected_scores_4,
+            "target_agent": "coordinator",
+            "expected_scores": coordinator_scores,
         },
     )
     assert resp_full.status_code == 202
     data = resp_full.json()
     assert data["partial_without_curriculum"] is False
-    assert len(data["bound_forms"]) == 4
-    # sme/gad/itso 1 each + 10 Coordinator v3 criteria.
-    assert len(data["criterion_scores"]) == 13
+    assert len(data["bound_forms"]) == 1
+    # 10 Coordinator v3 criteria.
+    assert len(data["criterion_scores"]) == 10
 
 
-def test_validation_explicit_partial_without_curriculum(
+def test_validation_rejects_partial_without_curriculum(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Explicit partial_without_curriculum=True is accepted."""
+    """partial_without_curriculum is not allowed on a single-agent run."""
     expected_scores, slm = _setup_validation(db_session, admin_user)
     monkeypatch.setattr(
         "server.modules.admin.router.drain_evaluation_queue", lambda: None
@@ -973,22 +1058,22 @@ def test_validation_explicit_partial_without_curriculum(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
+            "target_agent": "sme",
             "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
-    assert resp.status_code == 202
-    assert resp.json()["partial_without_curriculum"] is False
+    assert resp.status_code == 422
 
 
-def test_validation_rejects_coordinator_in_partial_mode(
+def test_validation_rejects_scores_for_a_different_agent(
     client: TestClient,
     auth_cookies_admin,
     admin_user,
     db_session,
     monkeypatch,
 ) -> None:
-    """Partial validation rejects Program Coordinator expected scores."""
+    """Expected scores must be for the targeted agent only."""
     expected_scores, slm = _setup_validation(
         db_session, admin_user, include_coordinator=True
     )
@@ -1001,8 +1086,8 @@ def test_validation_rejects_coordinator_in_partial_mode(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,  # Contains coordinator
+            "target_agent": "sme",
+            "expected_scores": expected_scores,
         },
     )
     assert resp.status_code == 422
@@ -1026,8 +1111,8 @@ def test_toxicity_disabled_stores_none_with_message(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert create_resp.status_code == 202
@@ -1063,8 +1148,8 @@ def test_validation_atomic_creation_rolls_back_on_failure(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(uuid.uuid4()),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert resp.status_code == 404
@@ -1109,8 +1194,8 @@ def test_cross_admin_access(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert create_resp.status_code == 202
@@ -1178,8 +1263,8 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm1.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert resp1.status_code == 202
@@ -1228,8 +1313,8 @@ def test_metrics_includes_completed_run_with_zero_matched_pairs(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm2.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         },
     )
     assert resp2.status_code == 202
@@ -1293,8 +1378,8 @@ def test_create_model_validation_rejects_unknown_fields(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": bad_item_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(bad_item_scores),
         },
     )
     assert resp.status_code == 422
@@ -1310,8 +1395,8 @@ def test_create_model_validation_rejects_unknown_fields(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": string_score_items,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(string_score_items),
         },
     )
     assert resp.status_code == 422
@@ -1335,8 +1420,8 @@ def test_create_model_validation_rejects_unknown_fields(
         "/api/v1/admin/model-validations",
         json={
             "document_id": str(slm.document_id),
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
             "extra_root_field": "forbidden",
         },
     )
@@ -1345,28 +1430,6 @@ def test_create_model_validation_rejects_unknown_fields(
     assert db_session.query(ModelValidation).count() == 0
     assert db_session.query(EvaluationFormSnapshot).count() == 0
     assert db_session.query(ModelValidationCriterionScore).count() == 0
-
-
-def test_target_agent_defaults_to_all() -> None:
-    from server.modules.admin.schemas import (
-        ModelValidationCreateRequest,
-    )
-
-    req = ModelValidationCreateRequest.model_validate(
-        {
-            "document_id": str(uuid.uuid4()),
-            "partial_without_curriculum": True,
-            "expected_scores": [
-                {
-                    "agent_id": "sme",
-                    "rubric_set_id": str(uuid.uuid4()),
-                    "rubric_criterion_id": str(uuid.uuid4()),
-                    "expected_score": 3,
-                }
-            ],
-        }
-    )
-    assert req.target_agent == "all"
 
 
 def test_target_agent_rejects_invalid_value() -> None:
@@ -1433,8 +1496,8 @@ def test_create_model_validation_rollback_on_snapshot_failure(
     req = ModelValidationCreateRequest.model_validate(
         {
             "document_id": slm.document_id,
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         }
     )
 
@@ -1471,8 +1534,8 @@ def test_create_model_validation_rollback_on_post_job_model_construction_failure
     req = ModelValidationCreateRequest.model_validate(
         {
             "document_id": slm.document_id,
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         }
     )
 
@@ -1512,8 +1575,8 @@ def test_create_model_validation_rollback_on_post_job_criterion_failure(
     req = ModelValidationCreateRequest.model_validate(
         {
             "document_id": slm.document_id,
-            "partial_without_curriculum": True,
-            "expected_scores": expected_scores,
+            "target_agent": "sme",
+            "expected_scores": _sme_scores(expected_scores),
         }
     )
 
