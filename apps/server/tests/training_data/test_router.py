@@ -71,6 +71,31 @@ def test_start_job_returns_download_and_upload_urls(
     assert "upload_url" in body and "token=" in body["upload_url"]
 
 
+def test_start_job_urls_use_public_base_url_when_configured(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+):
+    from server.core.config import get_settings
+
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://abc.trycloudflare.com/")
+    get_settings.cache_clear()
+    try:
+        seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+        _auth(client, auth_cookies_admin)
+
+        body = client.post("/api/v1/admin/training-data/gad/jobs").json()
+
+        job_id = body["job_id"]
+        assert body["download_url"].startswith(
+            f"https://abc.trycloudflare.com/api/v1/admin/training-data/jobs/{job_id}/"
+        )
+        assert body["upload_url"].startswith(
+            f"https://abc.trycloudflare.com/api/v1/admin/training-data/jobs/{job_id}/"
+        )
+        assert "token=" in body["download_url"] and "token=" in body["upload_url"]
+    finally:
+        get_settings.cache_clear()
+
+
 def test_download_endpoint_requires_no_login_but_valid_token(
     client: TestClient, auth_cookies_admin, admin_user, db_session
 ):

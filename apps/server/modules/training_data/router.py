@@ -67,15 +67,19 @@ router = APIRouter(prefix="/admin/training-data", tags=["training-data"])
 def _build_url(request: Request, path: str) -> str:
     """Build an absolute URL for the given API-relative path.
 
+    The host comes from PUBLIC_BASE_URL when set, so links handed to Colab work
+    through a tunnel. Otherwise it is the incoming request's own base URL, which
+    is always local behind the admin dev proxy (it rewrites the Host header).
+
     Uses the configured api_prefix directly rather than
     ``request.scope["root_path"]``: this router is mounted onto an
     ``APIRouter(prefix=settings.api_prefix)`` included into the app, not
     behind an ASGI sub-application, so ``root_path`` stays empty in both
     the test client and production and cannot be relied on here.
     """
-    base = str(request.base_url).rstrip("/")
-    api_prefix = get_settings().api_prefix
-    return f"{base}{api_prefix}{path}"
+    settings = get_settings()
+    base = settings.public_base_url or str(request.base_url).rstrip("/")
+    return f"{base}{settings.api_prefix}{path}"
 
 
 @router.post(

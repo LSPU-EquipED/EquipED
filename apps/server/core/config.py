@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .exceptions import ConfigurationError
 
@@ -20,6 +21,34 @@ def _bool_env(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _public_base_url_env(name: str) -> str | None:
+    """A bare origin (scheme + host[:port]) that outside callers can reach.
+
+    Returned without a trailing slash. Rejects anything that would build a broken
+    or misleading link: no scheme, no host, credentials, a path (the app adds
+    API_PREFIX itself), a query or a fragment.
+    """
+    value = _env(name)
+    if value is None:
+        return None
+    value = value.strip().rstrip("/")
+    parts = urlsplit(value)
+    if (
+        parts.scheme not in {"http", "https"}
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.path
+        or parts.query
+        or parts.fragment
+    ):
+        raise ConfigurationError(
+            f"{name} must be an http(s) origin such as "
+            "https://example.trycloudflare.com (no path, query or credentials)"
+        )
+    return value
 
 
 def _csv_env(name: str) -> tuple[str, ...]:
@@ -52,6 +81,9 @@ class Settings:
     app_version: str = "0.1.0"
     environment: str = "development"
     api_prefix: str = "/api/v1"
+    # Address outside callers (e.g. Colab through a tunnel) use to reach this API.
+    # None = derive it from the incoming request.
+    public_base_url: str | None = None
     cors_origins: tuple[str, ...] = ()
     cors_allow_credentials: bool = True
 
@@ -512,6 +544,7 @@ def get_settings() -> Settings:
         app_version=_env("APP_VERSION", "0.1.0") or "0.1.0",
         environment=_env("APP_ENV", "development") or "development",
         api_prefix=_env("API_PREFIX", "/api/v1") or "/api/v1",
+        public_base_url=_public_base_url_env("PUBLIC_BASE_URL"),
         cors_origins=_csv_env("CORS_ORIGINS"),
         cors_allow_credentials=_bool_env("CORS_ALLOW_CREDENTIALS", True),
         database_url=_env("DATABASE_URL"),
