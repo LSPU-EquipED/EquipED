@@ -528,13 +528,16 @@ def test_notebook_static_pins_and_model_spec():
     install_cell_code = "".join(nb["cells"][4]["source"])
     model_cell_code = "".join(nb["cells"][6]["source"])
 
-    assert 'PIN_UNSLOTH = "==2025.3.10"' in install_cell_code
-    assert 'PIN_TRL = "==0.15.2"' in install_cell_code
-    assert 'PIN_PEFT = "==0.14.0"' in install_cell_code
-    assert 'PIN_BITSANDBYTES = "==0.45.3"' in install_cell_code
-    assert 'PIN_DATASETS = "==3.3.2"' in install_cell_code
-    assert 'PIN_TRANSFORMERS = "==4.50.0"' in install_cell_code
-    assert 'PIN_ACCELERATE = "==1.4.0"' in install_cell_code
+    assert 'PIN_UNSLOTH = "==2026.9.12"' in install_cell_code
+    assert 'PIN_UNSLOTH_ZOO = "==2026.9.8"' in install_cell_code
+    assert 'f"unsloth_zoo{PIN_UNSLOTH_ZOO}"' in install_cell_code
+    assert 'PIN_TRL = "==0.24.0"' in install_cell_code
+    assert 'PIN_PEFT = "==0.21.1"' in install_cell_code
+    assert 'PIN_BITSANDBYTES = "==0.50.2"' in install_cell_code
+    assert 'PIN_DATASETS = "==4.3.0"' in install_cell_code
+    assert 'PIN_TRANSFORMERS = "==5.5.0"' in install_cell_code
+    assert 'PIN_ACCELERATE = "==1.15.0"' in install_cell_code
+    assert "pip install -q" not in install_cell_code
 
     assert 'BASE_MODEL_NAME = "unsloth/gemma-3-4b-it"' in model_cell_code
     assert (
