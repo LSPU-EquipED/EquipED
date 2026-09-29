@@ -259,7 +259,7 @@ describe('adapter labelling', () => {
           ...mockItem,
           model_variant: 'base',
           adapter_resolution: {
-            sme: { requested: 'sme-v3', applied: null, reason: 'adapter not loaded' },
+            sme: { requested: 'sme-v3', applied: null, reason: 'not_loaded' },
           },
         }}
         onClose={vi.fn()}
@@ -267,7 +267,7 @@ describe('adapter labelling', () => {
     );
 
     expect(
-      screen.getByText('Adapter sme-v3 requested, base used (adapter not loaded)'),
+      screen.getByText('Adapter sme-v3 requested, base used (not loaded on the server)'),
     ).toBeDefined();
   });
 

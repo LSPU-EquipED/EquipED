@@ -90,6 +90,12 @@ export function itemModelLabel(
   return variantLabel(item.model_variant);
 }
 
+const FALLBACK_REASON_TEXT: Record<string, string> = {
+  not_loaded: 'not loaded on the server',
+  server_unreachable: 'model server unreachable',
+  adapter_not_found: 'adapter not found',
+};
+
 /** Notices for agents whose requested adapter was not applied (base used instead). */
 export function adapterFallbackNotices(
   resolution: ModelValidationItem['adapter_resolution'],
@@ -97,10 +103,11 @@ export function adapterFallbackNotices(
   if (!resolution) return [];
   return Object.values(resolution)
     .filter((entry) => entry.requested !== 'base' && entry.applied === null)
-    .map(
-      (entry) =>
-        `Adapter ${entry.requested} requested, base used${entry.reason ? ` (${entry.reason})` : ''}`,
-    );
+    .map((entry) => {
+      if (entry.requested === 'unknown-adapter') return 'Requested adapter not found, base used';
+      const reason = entry.reason ? (FALLBACK_REASON_TEXT[entry.reason] ?? entry.reason) : null;
+      return `Adapter ${entry.requested} requested, base used${reason ? ` (${reason})` : ''}`;
+    });
 }
 
 export function statusClass(status: ModelValidationItem['status']) {

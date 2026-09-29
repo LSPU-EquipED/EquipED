@@ -1200,7 +1200,15 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     assert matrix_full.evaluation_status != "COMPLETED_PARTIAL"
 
 
-def _run_adapter_scenario(monkeypatch, db_session, *, email, adapter_request, plans):
+def _run_adapter_scenario(
+    monkeypatch,
+    db_session,
+    *,
+    email,
+    adapter_request,
+    plans,
+    stale_resolution=None,
+):
     """Run a partial evaluation with `plans` (a callable or dict) standing in
     for build_adapter_plans; return (kwargs seen by run_evaluation, job, calls)."""
     from server.core import database as core_database
@@ -1232,6 +1240,7 @@ def _run_adapter_scenario(monkeypatch, db_session, *, email, adapter_request, pl
         partial_without_curriculum=True,
         partial_reason="adapter plan test",
         adapter_request=adapter_request,
+        adapter_resolution=stale_resolution,
     )
     db_session.add(job)
     db_session.commit()
@@ -1329,6 +1338,25 @@ def test_orchestrator_survives_adapter_plan_resolution_failure(
         plans=Exception("boom"),
     )
     assert calls  # resolution was attempted
+    assert seen["lora_by_agent"] == {}
+    assert job.status == EvaluationStatus.COMPLETED.value
+    assert job.adapter_resolution is None
+
+
+def test_orchestrator_clears_a_stale_resolution_when_a_retry_fails_to_resolve(
+    monkeypatch, db_session
+) -> None:
+    seen, job, calls = _run_adapter_scenario(
+        monkeypatch,
+        db_session,
+        email="owner-adapter-stale@lspu.edu.ph",
+        adapter_request=None,
+        plans=Exception("boom"),
+        stale_resolution={
+            "sme": {"requested": "sme-v3", "applied": "sme-v3", "reason": None}
+        },
+    )
+    assert calls
     assert seen["lora_by_agent"] == {}
     assert job.status == EvaluationStatus.COMPLETED.value
     assert job.adapter_resolution is None

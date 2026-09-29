@@ -131,6 +131,16 @@ describe('AdapterListTable', () => {
     fireEvent.click(within(row).getByRole('button', { name: /copy/i }));
     expect(writeText).toHaveBeenCalledWith('--lora-scaled sme-v4.gguf:0.0');
     expect(within(rowFor(1)).queryByText(/--lora-scaled/)).toBeNull();
+    expect(within(row).getByText(/full path/)).toBeDefined();
+    expect(within(row).getByText(/F:\\Dev\\Models\\gemma\\adapters\\sme-v4\.gguf/)).toBeDefined();
+  });
+
+  it('does not throw when the clipboard write is rejected', async () => {
+    writeText.mockRejectedValue(new Error('denied'));
+    await renderTable(listing([adapter(1), adapter(4, { loaded: false })]));
+    fireEvent.click(within(rowFor(4)).getByRole('button', { name: /copy/i }));
+    await Promise.resolve();
+    expect(writeText).toHaveBeenCalled();
   });
 
   it('warns when the published adapter is not loaded, and not when it is', async () => {

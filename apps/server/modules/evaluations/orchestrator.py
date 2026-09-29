@@ -280,6 +280,12 @@ def _execute_claimed_evaluation(
                 session.rollback()
                 logger.warning("Adapter plan resolution failed; scoring on base")
                 lora_by_agent = {}
+                try:
+                    # Drop a record left by an earlier attempt.
+                    job.adapter_resolution = None
+                    session.commit()
+                except Exception:
+                    session.rollback()
             supervisor = Supervisor(agents=agents, db=session)
             # Resolve program-roadmap context once, before the supervisor
             # context is built. Advisory-only: any failure yields None and

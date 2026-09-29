@@ -83,11 +83,16 @@ rejects the colon form, use the space form `--lora-scaled <file> 0.0` instead.
 
 Adapter ids follow the order you give the flags (first file is id 0, second is
 id 1, and so on). The app looks up ids from `GET /lora-adapters` by file name,
-so ordering never matters to the app. You can add, remove or reorder files
-freely.
+so ordering never matters to the app. Only restart the server when no
+evaluation or benchmark is running, and wait 30 seconds after the restart
+before starting one: the app caches the server's adapter list for about 30
+seconds and builds each evaluation's adapter plan once before scoring, so a
+different load order mid-run can apply the wrong adapter or make llama.cpp
+reject an id.
 
-The admin Training Data page shows a ready-made `--lora-scaled <file>:0.0` line,
-with a Copy button, for each version that is not loaded yet.
+The admin Training Data page shows a `--lora-scaled <file>:0.0` line, with a
+Copy button, for each version that is not loaded yet. It uses the bare file
+name, so add the file's full path before pasting it into `start-gemma.bat`.
 
 Avoid `--lora <file> --lora-init-without-apply`: on build 10430 it left the
 adapter on.
@@ -127,7 +132,9 @@ continuing.
 Per request (no restart, other requests are unaffected). This reuses `$headers`
 from step 4, so stay in the same window. `id` is the adapter id from step 4; the
 app does this itself, listing every loaded id with an explicit scale (1.0 for
-the chosen adapter, 0.0 for the rest):
+the chosen adapter, 0.0 for the rest), so a stale global scale is always
+overridden. For a manual test a single entry is enough, because llama.cpp
+resets unlisted ids to 0:
 
 ```powershell
 $body = @{
@@ -143,8 +150,9 @@ Use `scale = 0.0` (or leave `lora` out) for the plain model.
 
 If the per-request field seems to be ignored, set the scale for the whole
 server instead. This is a manual diagnostic only: the app never does this, it
-affects every request until you set it back, and the body must list every
-loaded adapter id (the command to set it back is in step 6):
+affects every request until you set it back. A single entry is enough for the
+test, since llama.cpp resets unlisted ids to 0; to set everything back, send
+scale 0.0 for each loaded id (the command is in step 6):
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8080/lora-adapters -Method Post -ContentType "application/json" -Headers $headers -Body '[{"id":0,"scale":1.0}]'
@@ -211,7 +219,7 @@ adapter is applied to the run; other loaded adapters are sent at scale 0.0.
 the server restarted without it): scoring does not stop. That agent continues on
 the base model, the evaluation records what was requested and what was applied
 (for example requested `gad-v1`, applied none, reason `not_loaded`), and the
-admin pages show a warning banner until the file is loaded again.
+Training Data adapter table shows a warning banner until the file is loaded again.
 
 ## Verifying a multi-adapter setup
 

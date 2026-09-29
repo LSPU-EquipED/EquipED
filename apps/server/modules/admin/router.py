@@ -9,7 +9,6 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from server.core.config import get_settings
 from server.core.database import get_db_session
-from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
 from server.modules.admin.model_validation_service import (
     create_model_validation,
@@ -480,11 +479,6 @@ def submit_model_validation(
     except InvalidEvaluationTargetError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
-    except InfrastructureUnavailableError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not reach the LLM endpoint to check for a loaded adapter.",
         ) from exc
     background_tasks.add_task(drain_evaluation_queue)
     return response

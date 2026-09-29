@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@equiped/api-client';
 import {
+  adapterFallbackNotices,
   agentLabel,
   areAllCriterionScoresComplete,
   criterionKey,
@@ -324,5 +325,42 @@ describe('variantLabel', () => {
     expect(variantLabel('base')).toBe('Base');
     expect(variantLabel('adapter')).toBe('Adapter');
     expect(variantLabel(null)).toBeNull();
+  });
+});
+
+describe('adapterFallbackNotices', () => {
+  const notice = (requested: string, reason: string | null) =>
+    adapterFallbackNotices({ sme: { requested, applied: null, reason } });
+
+  it('maps known reason codes to readable text', () => {
+    expect(notice('sme-v3', 'not_loaded')).toEqual([
+      'Adapter sme-v3 requested, base used (not loaded on the server)',
+    ]);
+    expect(notice('sme-v3', 'server_unreachable')).toEqual([
+      'Adapter sme-v3 requested, base used (model server unreachable)',
+    ]);
+    expect(notice('sme-v3', 'adapter_not_found')).toEqual([
+      'Adapter sme-v3 requested, base used (adapter not found)',
+    ]);
+  });
+
+  it('falls back to the raw code for unknown reasons and omits a missing reason', () => {
+    expect(notice('sme-v3', 'weird_code')).toEqual([
+      'Adapter sme-v3 requested, base used (weird_code)',
+    ]);
+    expect(notice('sme-v3', null)).toEqual(['Adapter sme-v3 requested, base used']);
+  });
+
+  it('words the unknown-adapter placeholder plainly', () => {
+    expect(notice('unknown-adapter', 'adapter_not_found')).toEqual([
+      'Requested adapter not found, base used',
+    ]);
+  });
+
+  it('ignores base requests and applied adapters', () => {
+    expect(notice('base', null)).toEqual([]);
+    expect(
+      adapterFallbackNotices({ sme: { requested: 'sme-v3', applied: 'sme-v3', reason: null } }),
+    ).toEqual([]);
   });
 });
