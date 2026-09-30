@@ -10,6 +10,8 @@ import { Skeleton } from "@equiped/ui";
 import { cn } from "@equiped/ui";
 import { BUTTON_STYLES } from "@equiped/ui";
 import type { TargetAgent } from "@equiped/types";
+import { SpecialistEvaluationFailure } from "../components/SpecialistEvaluationFailure";
+import { EvaluationProgress } from "../components/EvaluationProgress";
 import { AgentReviewModal } from "../components/AgentReviewModal";
 import { EvaluationConfirmModal } from "../components/EvaluationConfirmModal";
 import { SpecialistDirectoryView } from "../components/SpecialistDirectoryView";
@@ -72,88 +74,6 @@ function SpecialistWorkspaceLoading({ label }: { label: string }) {
       </div>
       <span className="sr-only">Loading the specialist workspace.</span>
     </div>
-  );
-}
-
-function SpecialistEvaluationLoading({
-  label,
-  title,
-  status,
-}: {
-  label: string;
-  title: string;
-  status: string;
-}) {
-  return (
-    <section
-      className="overflow-hidden rounded-md border border-border bg-surface"
-      role="status"
-      aria-label={`${label} evaluation in progress`}
-      aria-busy="true"
-    >
-      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="space-y-6 p-6 sm:p-8 lg:p-10">
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-9 rounded-sm" />
-            <div className="space-y-2">
-              <Skeleton className="h-2.5 w-28" />
-              <Skeleton className="h-3.5 w-44" />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <Skeleton className="h-2.5 w-24" />
-            <h2 className="text-xl font-semibold text-text sm:text-2xl">
-              {title}
-            </h2>
-            <Skeleton className="h-3 w-full max-w-xl" />
-            <Skeleton className="h-3 w-4/5 max-w-lg" />
-          </div>
-          <div className="flex items-center gap-3 border-y border-border py-5">
-            <Skeleton className="h-10 w-28" />
-            <Skeleton className="h-10 w-28" />
-            <Skeleton className="h-10 w-24" />
-          </div>
-          <Skeleton className="h-10 w-36" />
-        </div>
-        <aside className="border-t border-border bg-surface-subtle/55 px-6 py-7 sm:px-8 lg:border-l lg:border-t-0 lg:px-7">
-          <div className="flex items-center justify-between gap-3">
-            <div className="space-y-2">
-              <Skeleton className="h-2.5 w-24" />
-              <Skeleton className="h-4 w-36" />
-            </div>
-            <Skeleton className="size-8 rounded-sm" />
-          </div>
-          <div className="mt-7 space-y-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="rounded-sm border border-border bg-surface px-3 py-3"
-              >
-                <div className="flex items-center gap-2">
-                  <Skeleton className="size-6 rounded-sm" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-2.5 w-24" />
-                    <Skeleton className="h-1 w-full" />
-                  </div>
-                </div>
-                <Skeleton className="mt-3 h-2.5 w-28" />
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 border-t border-border pt-4">
-            <Skeleton className="h-2.5 w-full" />
-            <Skeleton className="mt-2 h-2.5 w-4/5" />
-          </div>
-        </aside>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-subtle/35 px-5 py-3.5 text-xs sm:px-6">
-        <span className="text-text-muted">Status: {status}</span>
-        <span className="text-text-muted">Usually 20–30 seconds</span>
-      </div>
-      <span className="sr-only">
-        Evaluation is running. Loading the evidence scorecard.
-      </span>
-    </section>
   );
 }
 
@@ -399,6 +319,7 @@ export function SpecialistScoreboardPage(
     latestJob,
     latestJobId,
     isCompleted,
+    isFailed,
     isEvaluating,
     isLoading,
     isLoadingResults,
@@ -434,10 +355,15 @@ export function SpecialistScoreboardPage(
           <div className="space-y-4">
             {isEvaluating ? (
               /* Live Evaluating Progress State */
-              <SpecialistEvaluationLoading
-                label={meta.shortLabel}
-                title={`${meta.fullName} Evaluation in Progress`}
-                status={latestJob?.status || "EVALUATING"}
+              <EvaluationProgress
+                documentTitle={activeItem?.title || activeDocument?.title}
+                targetAgent={validAgent}
+                status={latestJob?.status}
+              />
+            ) : isFailed ? (
+              <SpecialistEvaluationFailure
+                errorMessage={latestJob?.error_message}
+                onRetry={() => setShowConfirmModal(true)}
               />
             ) : isCompleted ? (
               /* Completed State: Metadata + specialist results scorecard */

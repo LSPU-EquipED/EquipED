@@ -15,9 +15,9 @@ export function useScorecardController() {
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? "");
   const [reviewModalAgent, setReviewModalAgent] = useState<string | null>(null);
   const [showReevaluateModal, setShowReevaluateModal] = useState(false);
-  const isTerminal =
-    evaluation?.status === "COMPLETED" || evaluation?.status === "FAILED";
+  const isCompleted = evaluation?.status === "COMPLETED";
   const isFailed = evaluation?.status === "FAILED";
+  const isTerminal = isCompleted || isFailed;
   const isEvaluating =
     evaluation?.status === "SUBMITTED" ||
     evaluation?.status === "PREPROCESSING" ||
@@ -32,11 +32,11 @@ export function useScorecardController() {
   } = useQuery({
     queryKey: ["evaluation-results", id],
     queryFn: () => evaluationApi.getEvaluationResults(id!),
-    enabled: !!id && isTerminal,
+    enabled: !!id && isCompleted,
     retry: 2,
     staleTime: 5000,
     refetchInterval: (query) =>
-      isTerminal && !query.state.data ? 1500 : false,
+      isCompleted && !query.state.data ? 1500 : false,
   });
 
   const isPartial = Boolean(
