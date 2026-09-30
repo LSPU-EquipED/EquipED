@@ -33,7 +33,7 @@ export function AppShell() {
   return (
     <BaseAppShell
       homeRoute="/dashboard"
-      homeLabel="Home"
+      homeLabel="Dashboard"
       brandSubtitle="LSPU"
       brandTitle="EquipED"
       navGroups={navGroups}

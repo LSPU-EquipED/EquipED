@@ -45,20 +45,20 @@ describe('navigation group structure', () => {
     expect(homeGroup.id).toBe('home');
     expect(homeGroup.label).toBe('Home');
     expect(homeGroup.items).toHaveLength(1);
-    expect(homeGroup.items[0]).toMatchObject({ to: '/dashboard', label: 'Overview', exact: true });
+    expect(homeGroup.items[0]).toMatchObject({ to: '/dashboard', label: 'Dashboard', exact: true });
 
     expect(storageGroup.id).toBe('storage');
     expect(storageGroup.label).toBe('Documents');
     expect(storageGroup.items).toHaveLength(1);
-    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'Documents', exact: false });
+    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'Module Library', exact: false });
 
     expect(specialistsGroup.id).toBe('specialists');
     expect(specialistsGroup.label).toBe('Evaluations');
     expect(specialistsGroup.items).toHaveLength(4);
-    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'SME', exact: false });
-    expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Coordinator', exact: false });
-    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'GAD', exact: false });
-    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'ITSO', exact: false });
+    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'SME Specialist', exact: false });
+    expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Program Coordinator', exact: false });
+    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'GAD Specialist', exact: false });
+    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'ITSO Specialist', exact: false });
 
     expect(alignmentGroup.id).toBe('alignment');
     expect(alignmentGroup.label).toBe('Alignment');
@@ -79,7 +79,7 @@ describe('navigation group structure', () => {
     expect(logsGroup.items).toHaveLength(1);
     expect(logsGroup.items[0]).toMatchObject({
       to: '/evaluations',
-      label: 'History',
+      label: 'Evaluation History',
       exact: true,
     });
   });
@@ -90,24 +90,24 @@ describe('navigation group structure', () => {
 });
 
 describe('getRouteTitle', () => {
-  it('returns Overview for /dashboard', () => {
-    expect(getRouteTitle('/dashboard')).toBe('Overview');
+  it('returns Dashboard for /dashboard', () => {
+    expect(getRouteTitle('/dashboard')).toBe('Dashboard');
   });
 
-  it('returns Documents for /documents', () => {
-    expect(getRouteTitle('/documents')).toBe('Documents');
+  it('returns Module Library for /documents', () => {
+    expect(getRouteTitle('/documents')).toBe('Module Library');
   });
 
   it('returns Review for /documents/$documentId/evaluation (redirect)', () => {
     expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Review');
   });
 
-  it('returns SME for /specialists/sme', () => {
-    expect(getRouteTitle('/specialists/sme')).toBe('SME');
+  it('returns SME Specialist for /specialists/sme', () => {
+    expect(getRouteTitle('/specialists/sme')).toBe('SME Specialist');
   });
 
-  it('returns History for /evaluations', () => {
-    expect(getRouteTitle('/evaluations')).toBe('History');
+  it('returns Evaluation History for /evaluations', () => {
+    expect(getRouteTitle('/evaluations')).toBe('Evaluation History');
   });
 
   it('returns Scorecard for /evaluations/$id', () => {
@@ -124,51 +124,51 @@ describe('getRouteTitle', () => {
 });
 
 describe('getBreadcrumbs', () => {
-  it('returns Overview for /dashboard', () => {
+  it('returns Dashboard for /dashboard', () => {
     expect(getBreadcrumbs('/dashboard')).toEqual([
-      { label: 'Overview' },
+      { label: 'Dashboard' },
     ]);
   });
 
-  it('returns Documents for /documents and /storage', () => {
+  it('returns Module Library for /documents and /storage', () => {
     expect(getBreadcrumbs('/documents')).toEqual([
-      { label: 'Documents' },
+      { label: 'Module Library' },
     ]);
     expect(getBreadcrumbs('/storage')).toEqual([
-      { label: 'Documents' },
+      { label: 'Module Library' },
     ]);
   });
 
   it('returns Documents > Review for /documents/doc-123/evaluation', () => {
     expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
-      { label: 'Documents', to: '/documents' },
+      { label: 'Module Library', to: '/documents' },
       { label: 'Review' },
     ]);
   });
 
   it('returns direct specialist breadcrumbs for specialist routes', () => {
     expect(getBreadcrumbs('/specialists/sme')).toEqual([
-      { label: 'SME' },
+      { label: 'SME Specialist' },
     ]);
     expect(getBreadcrumbs('/specialists/sme/doc-1')).toEqual([
-      { label: 'SME', to: '/specialists/sme' },
+      { label: 'SME Specialist', to: '/specialists/sme' },
       { label: 'Scoreboard' },
     ]);
     expect(getBreadcrumbs('/specialists/gad')).toEqual([
-      { label: 'GAD' },
+      { label: 'GAD Specialist' },
     ]);
   });
 
-  it('returns History breadcrumbs for evaluation routes', () => {
+  it('returns Evaluation History breadcrumbs for evaluation routes', () => {
     expect(getBreadcrumbs('/evaluations')).toEqual([
-      { label: 'History' },
+      { label: 'Evaluation History' },
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1')).toEqual([
-      { label: 'History', to: '/evaluations' },
+      { label: 'Evaluation History', to: '/evaluations' },
       { label: 'Scorecard' },
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1/report')).toEqual([
-      { label: 'History', to: '/evaluations' },
+      { label: 'Evaluation History', to: '/evaluations' },
       { label: 'Report' },
     ]);
   });
