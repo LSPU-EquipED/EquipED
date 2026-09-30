@@ -2,7 +2,6 @@ import {
   ArrowsClockwise,
   CheckCircle,
   Play,
-  ShieldWarning,
   Spinner,
   UploadSimple,
   Warning,
@@ -22,9 +21,6 @@ export function ValidationLaunchReadiness({
     | 'title'
     | 'program'
     | 'uploaded'
-    | 'partialChoiceAcknowledged'
-    | 'setPartialChoiceAcknowledged'
-    | 'targetAgent'
     | 'criterionCatalog'
     | 'uploadMutation'
     | 'validationMutation'
@@ -46,9 +42,6 @@ export function ValidationLaunchReadiness({
     title,
     program,
     uploaded,
-    partialChoiceAcknowledged,
-    setPartialChoiceAcknowledged,
-    targetAgent,
     criterionCatalog,
     uploadMutation,
     validationMutation,
@@ -148,31 +141,6 @@ export function ValidationLaunchReadiness({
               <span>Confirming SLM is processed…</span>
             </div>
           )}
-
-          {uploadedDocumentReady && targetAgent === 'all' ? (
-            <fieldset className="grid gap-2.5 rounded-sm border border-warning/40 bg-warning-soft p-3.5 text-xs text-text">
-              <legend className="px-1 text-[11px] font-bold uppercase tracking-wider text-text">
-                Partial validation
-              </legend>
-              <p className="flex items-start gap-1.5 leading-relaxed font-semibold text-text">
-                <ShieldWarning className="size-4 shrink-0 text-destructive mt-0.5" />
-                <span>Runs without curriculum reference; Coordinator will be skipped.</span>
-              </p>
-              <label className="flex items-start gap-2.5 border-t border-warning/30 pt-2 text-[11px] font-semibold text-text cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={partialChoiceAcknowledged}
-                  onChange={(event) => setPartialChoiceAcknowledged(event.target.checked)}
-                  className="mt-0.5 size-3.5 shrink-0 accent-primary"
-                  aria-describedby="validation-partial-acknowledgement-help"
-                />
-                <span id="validation-partial-acknowledgement-help" className="leading-relaxed">
-                  I understand that the Coordinator agent will be skipped and the validation will be
-                  reported as a partial result.
-                </span>
-              </label>
-            </fieldset>
-          ) : null}
 
           <Button
             type="button"

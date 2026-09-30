@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { modelValidationApi } from '../api/modelValidation.api';
+import type { TargetAgent } from '../types';
 import { terminalStatuses } from '../utils/helpers';
 
 export function useModelValidationHistory() {
@@ -41,5 +42,13 @@ export function useModelValidationEvaluation(validationId: string, isExpanded: b
     queryFn: () => modelValidationApi.getModelValidationEvaluation(validationId),
     enabled: isExpanded,
     staleTime: 60_000,
+  });
+}
+
+export function useAdapterChoices(agentId: TargetAgent | null) {
+  return useQuery({
+    queryKey: ['admin', 'adapter-choices', agentId],
+    queryFn: () => modelValidationApi.listAdapterChoices(agentId!),
+    enabled: agentId != null,
   });
 }

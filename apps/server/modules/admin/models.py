@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+# Registers trained_adapters so ModelValidation.adapter_id FK can resolve.
+import server.modules.training_data.models  # noqa: F401
 from server.core.database import Base
 from sqlalchemy import (
     JSON,
@@ -94,6 +96,9 @@ class ModelValidation(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     model_variant: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    adapter_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("trained_adapters.adapter_id"), nullable=True
+    )
     compare_group_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )

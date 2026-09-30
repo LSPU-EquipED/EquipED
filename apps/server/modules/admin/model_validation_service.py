@@ -12,7 +12,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from server.core.config import get_settings
-from server.core.llm import check_lora_adapter_loaded
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
 from server.modules.evaluations.exceptions import InvalidEvaluationTargetError
@@ -32,6 +31,11 @@ from server.modules.rubrics.models import (
     RubricSet,
 )
 from server.modules.synthesis.models import AgentResult, CriterionScore
+from server.modules.training_data.models import TrainedAdapter
+from server.modules.training_data.serving import (
+    get_server_adapter_state,
+    gguf_filename,
+)
 
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
@@ -77,6 +81,8 @@ def _model_validation_response(
     document: Document | None,
     criterion_rows: list[ModelValidationCriterionScore],
     snapshots: Sequence[EvaluationFormSnapshot] = (),
+    *,
+    db: Any = None,
 ) -> ModelValidationResponse:
     crit_meta: dict[
         tuple[str, str], tuple[uuid.UUID | None, uuid.UUID | None, int | None]
@@ -142,9 +148,17 @@ def _model_validation_response(
     latency_seconds = None
     if job.completed_at is not None and job.submitted_at is not None:
         latency_seconds = (job.completed_at - job.submitted_at).total_seconds()
+    adapter_label = None
+    if validation.adapter_id is not None and db is not None:
+        adapter = db.get(TrainedAdapter, validation.adapter_id)
+        if adapter is not None:
+            adapter_label = f"{adapter.agent_id}-v{adapter.version}"
     return ModelValidationResponse(
         validation_id=validation.validation_id,
         model_variant=validation.model_variant,
+        adapter_id=validation.adapter_id,
+        adapter_label=adapter_label,
+        adapter_resolution=job.adapter_resolution,
         compare_group_id=validation.compare_group_id,
         evaluation_id=job.evaluation_id,
         document_id=job.document_id,
@@ -172,25 +186,29 @@ def _model_validation_response(
     )
 
 
-def _resolve_lora_scale(model_variant: str | None) -> float | None:
-    """Map a run's model variant to the LoRA scale sent to the model server.
+def _resolve_adapter_request(
+    request: ModelValidationCreateRequest, db: Any
+) -> tuple[dict | None, TrainedAdapter | None]:
+    """Turn the requested variant into the job's explicit adapter request.
 
     Runs before any row exists, so a refusal never leaves an orphan job.
-    ``None`` is the historical behavior: no adapter check, no scale.
+    ``None`` leaves the choice to the agent's published adapter.
     """
-    if model_variant is None:
-        return None
-    adapter_loaded = check_lora_adapter_loaded()
-    if model_variant == "adapter":
-        if not adapter_loaded:
-            raise InvalidEvaluationTargetError(
-                "no adapter is loaded on the server; ask the host owner to load "
-                "one first (see training/serving-lora-adapter.md)"
-            )
-        return 1.0
-    # Base: force an applied adapter off. With none loaded there is nothing to
-    # turn off, and sending a lora field to such a server is unverified.
-    return 0.0 if adapter_loaded else None
+    agent = request.target_agent
+    if request.model_variant is None:
+        return None, None
+    if request.model_variant == "base":
+        return {agent: {"adapter_id": None}}, None
+    adapter = db.get(TrainedAdapter, request.adapter_id)
+    if adapter is None or adapter.agent_id != agent:
+        raise InvalidEvaluationTargetError(f"adapter not found for agent {agent!r}")
+    state = get_server_adapter_state()
+    if not state.reachable or state.find(agent, adapter.version) is None:
+        raise InvalidEvaluationTargetError(
+            f"{gguf_filename(agent, adapter.version)} is not loaded on the server; "
+            "ask the host owner to load it (see training/serving-lora-adapter.md)"
+        )
+    return {agent: {"adapter_id": str(adapter.adapter_id)}}, adapter
 
 
 def create_model_validation(
@@ -204,10 +222,11 @@ def create_model_validation(
 
     All persistence (evaluation job, form snapshots, validation record,
     expected criterion rows) is committed atomically so a failure after any
-    step never leaves an orphan job. ``request.model_variant`` decides the
-    LoRA scale for the run (see ``_resolve_lora_scale``).
+    step never leaves an orphan job. ``request.model_variant`` and
+    ``request.adapter_id`` decide the job's explicit adapter request (see
+    ``_resolve_adapter_request``).
     """
-    lora_scale = _resolve_lora_scale(request.model_variant)
+    adapter_request, chosen_adapter = _resolve_adapter_request(request, db)
     is_partial = bool(request.partial_without_curriculum)
     single_agent = request.target_agent != "all"
     if single_agent:
@@ -354,15 +373,15 @@ def create_model_validation(
             )
         # Persist the FK parent before adding snapshots and benchmark children.
         db.flush()
-        if lora_scale is not None:
+        if adapter_request is not None:
             # The session may not autoflush, so `_bench_job` fetched above can
             # still be unpersisted at that point; re-fetch now that the flush
             # above guarantees the job row exists.
-            job_for_scale = _bench_job or db.get(
+            job_for_request = _bench_job or db.get(
                 EvaluationJob, evaluation.evaluation_id
             )
-            if job_for_scale is not None:
-                job_for_scale.lora_scale = lora_scale
+            if job_for_request is not None:
+                job_for_request.adapter_request = adapter_request
 
         # Precreate exact standard snapshots from locked forms
         persist_evaluation_form_snapshots(
@@ -374,6 +393,7 @@ def create_model_validation(
             evaluation_id=evaluation.evaluation_id,
             created_by=created_by,
             model_variant=request.model_variant,
+            adapter_id=chosen_adapter.adapter_id if chosen_adapter else None,
         )
         db.add(validation)
         db.flush()
@@ -394,7 +414,7 @@ def create_model_validation(
         .all()
     )
     return _model_validation_response(
-        validation, job, document, criterion_rows, snapshots
+        validation, job, document, criterion_rows, snapshots, db=db
     )
 
 
@@ -444,6 +464,7 @@ def list_model_validations(db: Any) -> list[ModelValidationResponse]:
             document,
             criteria_by_validation.get(validation.validation_id, []),
             snapshots_by_eval.get(job.evaluation_id, []),
+            db=db,
         )
         for validation, job, document in rows
     ]
@@ -476,7 +497,7 @@ def get_model_validation_detail(
         .all()
     )
     return _model_validation_response(
-        validation, job, document, criterion_rows, snapshots
+        validation, job, document, criterion_rows, snapshots, db=db
     )
 
 

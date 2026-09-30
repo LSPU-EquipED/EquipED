@@ -14,15 +14,6 @@ export function isPartialValidationAgent(agentId: string): agentId is PartialVal
   return (PARTIAL_VALIDATION_AGENTS as readonly string[]).includes(agentId);
 }
 
-// Agents that have a trained LoRA adapter. Mirrors ADAPTER_SUPPORTED_AGENTS in
-// the API: the adapter is applied by id 0 only, so any other agent would get
-// the wrong adapter.
-export const ADAPTER_SUPPORTED_AGENTS = ['sme'] as const;
-
-export function isAdapterSupportedAgent(agentId: string | null): boolean {
-  return agentId != null && (ADAPTER_SUPPORTED_AGENTS as readonly string[]).includes(agentId);
-}
-
 export const criterionKey = (agentId: string, criterionIdOrRubricId: string) =>
   `${agentId}:${criterionIdOrRubricId}`;
 
@@ -89,6 +80,34 @@ export function variantLabel(variant: 'base' | 'adapter' | null): string | null 
   if (variant === 'base') return 'Base';
   if (variant === 'adapter') return 'Adapter';
   return null;
+}
+
+/** "Adapter sme-v3" for runs that record a version; the plain label for older rows. */
+export function itemModelLabel(
+  item: Pick<ModelValidationItem, 'model_variant' | 'adapter_label'>,
+): string | null {
+  if (item.adapter_label) return `Adapter ${item.adapter_label}`;
+  return variantLabel(item.model_variant);
+}
+
+const FALLBACK_REASON_TEXT: Record<string, string> = {
+  not_loaded: 'not loaded on the server',
+  server_unreachable: 'model server unreachable',
+  adapter_not_found: 'adapter not found',
+};
+
+/** Notices for agents whose requested adapter was not applied (base used instead). */
+export function adapterFallbackNotices(
+  resolution: ModelValidationItem['adapter_resolution'],
+): string[] {
+  if (!resolution) return [];
+  return Object.values(resolution)
+    .filter((entry) => entry.requested !== 'base' && entry.applied === null)
+    .map((entry) => {
+      if (entry.requested === 'unknown-adapter') return 'Requested adapter not found, base used';
+      const reason = entry.reason ? (FALLBACK_REASON_TEXT[entry.reason] ?? entry.reason) : null;
+      return `Adapter ${entry.requested} requested, base used${reason ? ` (${reason})` : ''}`;
+    });
 }
 
 export function statusClass(status: ModelValidationItem['status']) {

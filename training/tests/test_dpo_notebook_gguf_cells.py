@@ -13,6 +13,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import types
@@ -27,7 +28,11 @@ STANDALONE_NOTEBOOK = DOCS_COLAB / "adapter_to_gguf_template.ipynb"
 FIRST_NEW_CELL = 11
 UPLOAD_CELL = 10
 HEADER, CONFIG, READ_ADAPTER, PREPARE, CONVERT, VERIFY, DOWNLOAD = range(11, 18)
-COPIED_HELPERS = ("run", "sha256_of", "check_lora_fields")
+COPIED_HELPERS = ("run", "sha256_of", "check_lora_fields", "gguf_output_name")
+
+# Mirrors the file-name rule in apps/server/modules/training_data/serving.py
+# (parse_gguf_filename): the app matches loaded adapters to versions by it.
+SERVING_NAME_RE = re.compile(r"^(?P<agent>[a-z]+)-v(?P<version>\d+)\.gguf$")
 
 
 def _cells(path: Path) -> list[dict]:
@@ -190,11 +195,107 @@ def test_the_llama_cpp_commit_is_printed_and_recorded():
 def test_config_uses_the_trained_base_model_and_the_three_output_names():
     ns = _helpers("some/base-model")
     assert ns["GGUF_BASE_MODEL_ID"] == "some/base-model"
+    # no upload_response in the namespace: the legacy fallback names
     assert ns["GGUF_OUTPUT_FILES"] == [
         "adapter-f16.gguf",
         "adapter-f16.gguf.sha256",
         "adapter-f16.gguf.json",
     ]
+    assert ns["GGUF_SOURCE"] == {
+        "agent_id": None,
+        "adapter_version": None,
+        "adapter_id": None,
+    }
+
+
+@pytest.mark.parametrize(
+    ("agent_id", "version", "expected"),
+    [
+        ("sme", 3, "sme-v3.gguf"),
+        ("gad", 1, "gad-v1.gguf"),
+        ("coordinator", 12, "coordinator-v12.gguf"),
+        ("sme", "4", "sme-v4.gguf"),
+        ("SME", 1, None),
+        ("sme", 0, None),
+        ("sme", -1, None),
+        ("sme", "0", None),
+        ("", 1, None),
+        ("sme-x", 1, None),
+        ("sme", None, None),
+        ("sme", "x", None),
+        ("sme", True, None),
+        (None, 1, None),
+        (3, 1, None),
+    ],
+)
+def test_gguf_output_name_table(agent_id, version, expected):
+    assert _helpers()["gguf_output_name"](agent_id, version) == expected
+
+
+def test_gguf_output_name_round_trips_the_serving_file_name_rule():
+    name = _helpers()["gguf_output_name"]("itso", 7)
+    match = SERVING_NAME_RE.match(name)
+    assert match is not None
+    assert (match["agent"], int(match["version"])) == ("itso", 7)
+
+
+class _FakeUpload:
+    def __init__(self, payload=None, error=None):
+        self._payload = payload
+        self._error = error
+
+    def json(self):
+        if self._error is not None:
+            raise self._error
+        return self._payload
+
+
+def _config_with_upload(upload) -> dict:
+    return _run_cell(
+        CONFIG,
+        {"BASE_MODEL_NAME": "unsloth/gemma-3-4b-it", "upload_response": upload},
+    )
+
+
+def test_config_names_the_file_from_the_upload_response(capsys):
+    upload = _FakeUpload(
+        {"agent_id": "gad", "version": 1, "adapter_id": "abc-123", "job_id": "j"}
+    )
+    ns = _config_with_upload(upload)
+    assert ns["OUTPUT_GGUF"] == "gad-v1.gguf"
+    assert ns["GGUF_OUTPUT_FILES"] == [
+        "gad-v1.gguf",
+        "gad-v1.gguf.sha256",
+        "gad-v1.gguf.json",
+    ]
+    assert ns["GGUF_SOURCE"] == {
+        "agent_id": "gad",
+        "adapter_version": 1,
+        "adapter_id": "abc-123",
+    }
+    assert SERVING_NAME_RE.match(ns["OUTPUT_GGUF"])
+    out = capsys.readouterr().out
+    assert "gad-v1.gguf" in out and "WARNING" not in out
+
+
+@pytest.mark.parametrize(
+    "upload",
+    [
+        _FakeUpload(error=ValueError("not json")),
+        _FakeUpload({"agent_id": "gad"}),
+        _FakeUpload({"version": 2}),
+        _FakeUpload({"agent_id": "GAD", "version": 2}),
+        _FakeUpload(["not", "a", "dict"]),
+        None,
+        object(),
+    ],
+)
+def test_config_falls_back_with_a_warning_when_the_upload_is_unusable(upload, capsys):
+    ns = _config_with_upload(upload)
+    assert ns["OUTPUT_GGUF"] == "adapter-f16.gguf"
+    assert ns["GGUF_OUTPUT_FILES"][0] == "adapter-f16.gguf"
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "<agent>-v<version>.gguf" in out
 
 
 def test_conversion_step_says_the_adapter_is_safe_and_reraises(capsys):
@@ -210,6 +311,7 @@ def test_conversion_step_says_the_adapter_is_safe_and_reraises(capsys):
 
 def test_conversion_step_is_silent_when_nothing_fails(capsys):
     ns = _helpers()
+    capsys.readouterr()  # drop the config cell's own output
     with ns["conversion_step"]("anything"):
         pass
     assert capsys.readouterr().out == ""
@@ -235,6 +337,9 @@ def test_build_gguf_metadata_has_every_recorded_field():
         gguf_sha256="a" * 64,
         gguf_bytes=62_000_000,
         adapter_zip_sha256="b" * 64,
+        agent_id="sme",
+        adapter_version=3,
+        adapter_id="abc-123",
     )
     assert metadata == {
         "llama_cpp_commit": "c0ffee",
@@ -248,8 +353,28 @@ def test_build_gguf_metadata_has_every_recorded_field():
         "gguf_sha256": "a" * 64,
         "gguf_bytes": 62_000_000,
         "adapter_zip_sha256": "b" * 64,
+        "agent_id": "sme",
+        "adapter_version": 3,
+        "adapter_id": "abc-123",
     }
     json.dumps(metadata)  # serialisable
+
+
+def test_build_gguf_metadata_always_has_the_source_keys_null_when_unknown():
+    metadata = _helpers()["build_gguf_metadata"](
+        llama_cpp_commit="c0ffee",
+        llama_cpp_ref=None,
+        base_model_id="unsloth/gemma-3-4b-it",
+        lora_rank=16,
+        lora_alpha=32.0,
+        tensor_pairs=238,
+        gguf_sha256="a" * 64,
+        gguf_bytes=1,
+        adapter_zip_sha256="b" * 64,
+    )
+    assert metadata["agent_id"] is None
+    assert metadata["adapter_version"] is None
+    assert metadata["adapter_id"] is None
 
 
 def _stub_gguf_package(root: Path, alpha, tensors) -> None:
@@ -289,7 +414,10 @@ def test_read_gguf_fields_returns_the_json_the_verifier_needs(tmp_path, monkeypa
     _stub_gguf_package(
         tmp_path,
         alpha=32.0,
-        tensors=[("blk.0.attn_q.weight.lora_a", (16, 2560)), ("blk.0.attn_q.weight.lora_b", (2560, 16))],
+        tensors=[
+            ("blk.0.attn_q.weight.lora_a", (16, 2560)),
+            ("blk.0.attn_q.weight.lora_b", (2560, 16)),
+        ],
     )
     monkeypatch.chdir(tmp_path)
     ns = _helpers()
@@ -375,11 +503,11 @@ def test_read_adapter_cell_needs_the_weights_file(tmp_path):
         _run_cell(READ_ADAPTER, ns)
 
 
-def _verify_namespace(tmp_path, monkeypatch, **fields) -> dict:
+def _verify_namespace(tmp_path, monkeypatch, upload=None, **fields) -> dict:
     monkeypatch.chdir(tmp_path)
-    Path("adapter-f16.gguf").write_bytes(b"gguf-bytes")
     Path("trained_adapter.zip").write_bytes(b"zip-bytes")
-    ns = _helpers()
+    ns = _config_with_upload(upload)
+    Path(ns["OUTPUT_GGUF"]).write_bytes(b"gguf-bytes")
     ns.update(
         {
             "LORA_RANK": 16,
@@ -415,6 +543,25 @@ def test_verify_cell_writes_checksum_and_metadata(tmp_path, monkeypatch, capsys)
     assert metadata["lora_rank"] == 16 and metadata["tensor_pairs"] == 1
     out = capsys.readouterr().out
     assert "GGUF LoRA verified" in out and "llama.cpp commit: c0ffee" in out
+    assert metadata["agent_id"] is None
+    assert metadata["adapter_version"] is None
+    assert metadata["adapter_id"] is None
+
+
+def test_verify_cell_names_files_and_records_the_source_for_a_named_output(
+    tmp_path, monkeypatch
+):
+    upload = _FakeUpload({"agent_id": "sme", "version": 3, "adapter_id": "abc-123"})
+    ns = _verify_namespace(tmp_path, monkeypatch, upload=upload)
+    _run_cell(VERIFY, ns)
+
+    gguf_sha = hashlib.sha256(b"gguf-bytes").hexdigest()
+    assert Path("sme-v3.gguf.sha256").read_text() == f"{gguf_sha}  sme-v3.gguf\n"
+    metadata = json.loads(Path("sme-v3.gguf.json").read_text())
+    assert metadata["agent_id"] == "sme"
+    assert metadata["adapter_version"] == 3
+    assert metadata["adapter_id"] == "abc-123"
+    assert not Path("adapter-f16.gguf.sha256").exists()
 
 
 def test_verify_cell_refuses_a_gguf_that_is_not_a_lora(tmp_path, monkeypatch):
@@ -445,6 +592,19 @@ def test_download_cell_downloads_all_three_files_in_colab(monkeypatch, capsys):
         "adapter-f16.gguf.json",
     ]
     assert "multiple downloads" in capsys.readouterr().out
+
+
+def test_download_cell_downloads_the_named_files_and_prints_the_flag(
+    monkeypatch, capsys
+):
+    downloads: list[str] = []
+    for name, module in _fake_colab_module(downloads).items():
+        monkeypatch.setitem(sys.modules, name, module)
+    upload = _FakeUpload({"agent_id": "sme", "version": 3, "adapter_id": "a"})
+    _run_cell(DOWNLOAD, _config_with_upload(upload))
+    assert downloads == ["sme-v3.gguf", "sme-v3.gguf.sha256", "sme-v3.gguf.json"]
+    out = capsys.readouterr().out
+    assert "--lora-scaled <FULL PATH>\\sme-v3.gguf:0.0" in out
 
 
 def test_download_cell_outside_colab_names_the_files(monkeypatch, capsys):
@@ -514,3 +674,52 @@ def test_prepare_cell_falls_back_to_virtualenv_when_venv_fails(
 def test_new_cell_sources_are_ascii_only():
     for cell in _cells(TRAINING_NOTEBOOK)[FIRST_NEW_CELL:]:
         "".join(cell["source"]).encode("ascii")
+
+
+# --- converter env and streamed subprocess output --------------------------------
+
+HELPER_COMMAND_OK = [
+    sys.executable,
+    "-c",
+    "import sys; print('hel'+'lo'); print('ERR'+'-LINE', file=sys.stderr)",
+]
+HELPER_COMMAND_FAIL = [
+    sys.executable,
+    "-c",
+    "import sys; print('before'+'-exit'); sys.exit(3)",
+]
+
+
+def test_convert_cell_disables_hf_transfer_before_any_run_call():
+    source = _source(CONVERT)
+    assign = 'os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"'
+    assert assign in source
+    assert source.index(assign) < source.index("run(")
+    assert source.index("with conversion_step") < source.index(assign)
+
+
+def test_convert_cell_env_assignment_executes_and_is_restored(monkeypatch):
+    import os
+
+    monkeypatch.setenv("HF_HUB_ENABLE_HF_TRANSFER", "1")
+    line = next(
+        ln.strip()
+        for ln in _source(CONVERT).splitlines()
+        if ln.strip().startswith("os.environ[")
+    )
+    exec(line, {"os": os})  # noqa: S102
+    assert os.environ["HF_HUB_ENABLE_HF_TRANSFER"] == "0"
+
+
+def test_run_helper_streams_stdout_and_stderr(capsys):
+    _helpers()["run"](HELPER_COMMAND_OK)
+    out = capsys.readouterr().out
+    assert "hello" in out
+    assert "ERR-LINE" in out
+
+
+def test_run_helper_prints_output_then_raises_on_failure(capsys):
+    with pytest.raises(subprocess.CalledProcessError) as excinfo:
+        _helpers()["run"](HELPER_COMMAND_FAIL)
+    assert excinfo.value.returncode == 3
+    assert "before-exit" in capsys.readouterr().out

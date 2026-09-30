@@ -62,6 +62,7 @@ def transition_evaluation_status(
             partial_reason=row.partial_reason,
             completed_at=row.completed_at,
             duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+            adapter_resolution=row.adapter_resolution,
         )
     # Same-state non-terminal transition: idempotent no-op. Validate
     # token ownership when one is supplied, but do NOT clear/replace
@@ -80,6 +81,7 @@ def transition_evaluation_status(
             partial_reason=row.partial_reason,
             completed_at=row.completed_at,
             duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+            adapter_resolution=row.adapter_resolution,
         )
     if not can_transition_status(row.status, new_status):
         raise InvalidStatusTransitionError(f"Cannot move {row.status} -> {new_status}")
@@ -123,6 +125,7 @@ def transition_evaluation_status(
         partial_reason=row.partial_reason,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+        adapter_resolution=row.adapter_resolution,
     )
 
 

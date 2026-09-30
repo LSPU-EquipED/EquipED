@@ -3,15 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '@equiped/api-client';
 import type { DocumentUploadResponse } from '@equiped/types';
 import { modelValidationApi } from '../api/modelValidation.api';
-import type { ModelValidationCreateBody, ModelVariant, TargetAgent } from '../types';
+import type { ModelChoice, ModelValidationCreateBody, TargetAgent } from '../types';
 import {
   areAllCriterionScoresComplete,
   criterionKey,
-  isAdapterSupportedAgent,
   isPartialValidationAgent,
   isStaleBindingError,
 } from '../utils/helpers';
-import { useModelValidationCriteria } from './useModelValidationQueries';
+import { useAdapterChoices, useModelValidationCriteria } from './useModelValidationQueries';
 
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
@@ -22,15 +21,13 @@ export function useModelValidationFormState() {
   const [program, setProgram] = useState('');
   const [expectedScores, setExpectedScores] = useState<Record<string, string>>({});
   const [uploaded, setUploaded] = useState<DocumentUploadResponse | null>(null);
-  const [partialChoiceAcknowledged, setPartialChoiceAcknowledged] = useState(false);
-  const [modelVariant, setModelVariantState] = useState<ModelVariant>('base');
-  const [targetAgent, setTargetAgent] = useState<TargetAgent | null>('all');
+  const [modelChoice, setModelChoice] = useState<ModelChoice>('base');
+  const [targetAgent, setTargetAgentState] = useState<TargetAgent | null>(null);
+  const adapterChoices = useAdapterChoices(targetAgent);
 
-  // Only some agents have a trained adapter, so switching to Adapter drops a
-  // target that can't use one ("all agents", GAD, ITSO) and the admin must pick.
-  const setModelVariant = (next: ModelVariant) => {
-    setModelVariantState(next);
-    if (next === 'adapter' && !isAdapterSupportedAgent(targetAgent)) setTargetAgent(null);
+  const setTargetAgent = (next: TargetAgent) => {
+    setTargetAgentState(next);
+    setModelChoice('base'); // adapter versions belong to one agent
   };
 
   const criterionCatalog = useModelValidationCriteria();
@@ -58,7 +55,6 @@ export function useModelValidationFormState() {
     },
     onSuccess: (document) => {
       setUploaded(document);
-      setPartialChoiceAcknowledged(false);
     },
   });
 
@@ -88,7 +84,6 @@ export function useModelValidationFormState() {
       setProgram('');
       setExpectedScores({});
       setUploaded(null);
-      setPartialChoiceAcknowledged(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
   });
@@ -97,12 +92,42 @@ export function useModelValidationFormState() {
   const partialAgentDefinitions = rawAgents.filter((agent) =>
     isPartialValidationAgent(agent.agent_id),
   );
-  const criterionDefinitions =
-    targetAgent === 'all'
-      ? partialAgentDefinitions
-      : targetAgent
-        ? partialAgentDefinitions.filter((agent) => agent.agent_id === targetAgent)
-        : [];
+  const criterionDefinitions = targetAgent
+    ? partialAgentDefinitions.filter((agent) => agent.agent_id === targetAgent)
+    : [];
+
+  const adapters = adapterChoices.data?.adapters ?? [];
+  const published = adapters.find((a) => a.published) ?? null;
+  const adapterOptions = [
+    { value: 'base', label: 'Base model (no adapter)', disabled: false },
+    ...(published
+      ? [
+          {
+            value: 'published',
+            label: `Published (v${published.version})`,
+            disabled: published.loaded !== true,
+          },
+        ]
+      : []),
+    ...adapters.map((a) => ({
+      value: a.adapter_id,
+      label: `v${a.version}${a.published ? ' ★ published' : ''}${
+        a.loaded === true
+          ? ' · loaded'
+          : a.loaded === false
+            ? ' · not loaded'
+            : ' · unknown'
+      }`,
+      disabled: a.loaded !== true,
+    })),
+  ];
+  const chosenAdapter =
+    modelChoice === 'base'
+      ? null
+      : modelChoice === 'published'
+        ? published
+        : (adapters.find((a) => a.adapter_id === modelChoice) ?? null);
+  const modelChoiceValid = modelChoice === 'base' || chosenAdapter?.loaded === true;
 
   const orderedCriterionKeys = criterionDefinitions.flatMap((agent) => {
     const crits =
@@ -124,14 +149,8 @@ export function useModelValidationFormState() {
     uploadedDocument.data?.processingStatus ?? uploaded?.processingStatus;
   const uploadedDocumentReady =
     uploadedProcessingStatus === 'PROCESSED' && (uploadedDocument.data?.chunks.length ?? 0) > 0;
-  // Derived rather than enforced only in the setters, so no sequence of state
-  // updates can submit an adapter run for an agent that has no adapter.
-  const adapterTargetAllowed = modelVariant !== 'adapter' || isAdapterSupportedAgent(targetAgent);
   const canSubmitEvaluation =
-    uploadedDocumentReady &&
-    allCriterionScoresComplete &&
-    adapterTargetAllowed &&
-    (targetAgent !== 'all' || partialChoiceAcknowledged);
+    uploadedDocumentReady && allCriterionScoresComplete && targetAgent != null && modelChoiceValid;
   const error = uploadMutation.error ?? uploadedDocument.error ?? validationMutation.error;
   const isStaleBinding = isStaleBindingError(validationMutation.error);
 
@@ -143,7 +162,6 @@ export function useModelValidationFormState() {
   const resetPreparedUpload = () => {
     setFile(null);
     setUploaded(null);
-    setPartialChoiceAcknowledged(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -151,7 +169,6 @@ export function useModelValidationFormState() {
     const nextFile = event.target.files?.[0] ?? null;
     setFile(nextFile);
     setUploaded(null);
-    setPartialChoiceAcknowledged(false);
     if (nextFile && !title.trim()) setTitle(nextFile.name.replace(/\.pdf$/i, ''));
   };
 
@@ -199,10 +216,10 @@ export function useModelValidationFormState() {
     if (!uploaded || !canSubmitEvaluation) return;
     validationMutation.mutate({
       document_id: uploaded.documentId,
-      model_variant: modelVariant,
-      ...(targetAgent === 'all'
-        ? { partial_without_curriculum: true }
-        : { partial_without_curriculum: false, target_agent: targetAgent! }),
+      partial_without_curriculum: false,
+      target_agent: targetAgent!,
+      model_variant: chosenAdapter ? 'adapter' : 'base',
+      ...(chosenAdapter ? { adapter_id: chosenAdapter.adapter_id } : {}),
       expected_scores: criterionDefinitions.flatMap((agent) => {
         const crits =
           agent.domains && agent.domains.length > 0
@@ -232,10 +249,10 @@ export function useModelValidationFormState() {
     expectedScores,
     setExpectedScores,
     uploaded,
-    partialChoiceAcknowledged,
-    setPartialChoiceAcknowledged,
-    modelVariant,
-    setModelVariant,
+    modelChoice,
+    setModelChoice,
+    adapterOptions,
+    adapterChoices,
     targetAgent,
     setTargetAgent,
     criterionCatalog,

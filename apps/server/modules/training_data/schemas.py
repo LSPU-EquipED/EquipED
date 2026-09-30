@@ -78,9 +78,22 @@ class TrainedAdapterResponse(BaseModel):
     created_at: datetime
 
 
+class TrainedAdapterListItem(TrainedAdapterResponse):
+    gguf_filename: str
+    loaded: bool | None
+    published: bool
+
+
 class TrainedAdapterListResponse(BaseModel):
     agent_id: str
-    adapters: list[TrainedAdapterResponse]
+    adapters: list[TrainedAdapterListItem]
+    published_adapter_id: uuid.UUID | None = None
+    server_reachable: bool = True
+    unrecognized_server_adapters: list[str] = []
+
+
+class PublishAdapterRequest(BaseModel):
+    adapter_id: uuid.UUID
 
 
 __all__ = [
@@ -90,5 +103,7 @@ __all__ = [
     "TrainingJobListResponse",
     "TrainingDatasetReadinessResponse",
     "TrainedAdapterResponse",
+    "TrainedAdapterListItem",
     "TrainedAdapterListResponse",
+    "PublishAdapterRequest",
 ]

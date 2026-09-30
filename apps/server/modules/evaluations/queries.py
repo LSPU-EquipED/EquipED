@@ -264,6 +264,7 @@ def get_evaluation_status(
         partial_reason=row.partial_reason,
         completed_at=row.completed_at,
         duration_seconds=_duration_seconds(row.submitted_at, row.completed_at),
+        adapter_resolution=row.adapter_resolution,
     )
 
 

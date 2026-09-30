@@ -1,5 +1,6 @@
 import { requestJson } from '@equiped/api-client';
 import type {
+  AdapterChoiceList,
   AdminEvaluationResponse,
   ModelValidationCreateBody,
   ModelValidationCriteriaResponse,
@@ -28,4 +29,7 @@ export const modelValidationApi = {
 
   getModelValidationCriteria: () =>
     requestJson<ModelValidationCriteriaResponse>('/admin/model-validations/criteria'),
+
+  listAdapterChoices: (agentId: string) =>
+    requestJson<AdapterChoiceList>(`/admin/training-data/${agentId}/adapters`),
 };

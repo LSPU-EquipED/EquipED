@@ -450,7 +450,7 @@ _LORA_TEST_RESPONSE_BODY = json.dumps(
 
 
 def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
-    """Default lora_scale=None: the lora field is not added to the payload."""
+    """Default lora=None: the lora field is not added to the payload."""
     captured = {}
 
     def fake_urlopen(req, **kwargs):
@@ -461,24 +461,6 @@ def test_generate_result_omits_lora_field_by_default(monkeypatch) -> None:
     client = _make_client()
     client.generate_result("hi")
     assert "lora" not in captured["body"]
-
-
-def test_with_lora_scale_adds_lora_field(monkeypatch) -> None:
-    """with_lora_scale produces a client that sends a lora field in the payload."""
-    captured = {}
-
-    def fake_urlopen(req, **kwargs):
-        captured["body"] = json.loads(req.data)
-        return _FakeHTTPResponse(200, _LORA_TEST_RESPONSE_BODY)
-
-    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
-    client = _make_client()
-    scaled = client.with_lora_scale(1.0)
-    scaled.generate_result("hi")
-    assert captured["body"]["lora"] == [{"id": 0, "scale": 1.0}]
-    # The original, unscaled client is untouched.
-    assert scaled is not client
-    assert client.lora_scale is None
 
 
 # ---------------------------------------------------------------------------
@@ -556,3 +538,71 @@ def test_check_lora_adapter_loaded_raises_when_endpoint_unreachable(
     monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
     with pytest.raises(InfrastructureUnavailableError):
         check_lora_adapter_loaded()
+
+
+# ---------------------------------------------------------------------------
+# fetch_lora_adapters / with_lora
+# ---------------------------------------------------------------------------
+
+
+class _LoraFakeSettings:
+    llm_api_base = "http://localhost:11434/v1"
+    llm_api_key = None
+    llm_readiness_timeout_seconds = 5.0
+
+
+def test_fetch_lora_adapters_returns_id_path_scale(monkeypatch) -> None:
+    from server.core.llm import fetch_lora_adapters
+
+    body = [
+        {"id": 0, "path": "F:\\m\\sme-v1.gguf", "scale": 0.0},
+        {"id": 1, "path": "F:\\m\\gad-v1.gguf", "scale": 0.0},
+    ]
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _LoraFakeSettings())
+    monkeypatch.setattr(
+        "server.core.llm.request.urlopen",
+        lambda req, **kw: _FakeHTTPResponse(200, json.dumps(body)),
+    )
+    assert fetch_lora_adapters() == body
+
+
+def test_fetch_lora_adapters_empty_on_404(monkeypatch) -> None:
+    from server.core.llm import fetch_lora_adapters
+
+    def fake_urlopen(req, **kwargs):
+        raise error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _LoraFakeSettings())
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    assert fetch_lora_adapters() == []
+
+
+def test_fetch_lora_adapters_raises_on_non_list(monkeypatch) -> None:
+    from server.core.llm import fetch_lora_adapters
+
+    monkeypatch.setattr("server.core.llm.get_settings", lambda: _LoraFakeSettings())
+    monkeypatch.setattr(
+        "server.core.llm.request.urlopen",
+        lambda req, **kw: _FakeHTTPResponse(200, json.dumps({"x": 1})),
+    )
+    with pytest.raises(InfrastructureUnavailableError):
+        fetch_lora_adapters()
+
+
+def test_with_lora_sends_the_explicit_list(monkeypatch) -> None:
+    captured = {}
+
+    def fake_urlopen(req, **kwargs):
+        captured["body"] = json.loads(req.data)
+        return _FakeHTTPResponse(200, _LORA_TEST_RESPONSE_BODY)
+
+    monkeypatch.setattr("server.core.llm.request.urlopen", fake_urlopen)
+    client = _make_client()
+    entries = [{"id": 0, "scale": 0.0}, {"id": 1, "scale": 1.0}]
+    scaled = client.with_lora(entries)
+    scaled.generate_result("hi")
+    assert captured["body"]["lora"] == entries
+    assert scaled is not client
+    assert client.lora is None
+    client.generate_result("hi")
+    assert "lora" not in captured["body"]

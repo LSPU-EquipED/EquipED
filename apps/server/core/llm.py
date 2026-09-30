@@ -8,7 +8,7 @@ import re
 import threading
 import time
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from types import MappingProxyType
@@ -287,7 +287,7 @@ class LocalLLMClient:
         initial_backoff=2.0,
         max_backoff=60.0,
         request_timeout=None,
-        lora_scale: float | None = None,
+        lora: Sequence[Mapping] | None = None,
     ):
         self.provider, self.model, self.api_base, self.api_key = (
             provider,
@@ -301,10 +301,11 @@ class LocalLLMClient:
             max_backoff,
         )
         self.request_timeout = request_timeout
-        self.lora_scale = lora_scale
+        self.lora = [dict(e) for e in lora] if lora is not None else None
 
-    def with_lora_scale(self, scale: float) -> LocalLLMClient:
-        """A copy of this client that sends the given adapter scale on every request."""
+    def with_lora(self, entries: Sequence[Mapping]) -> LocalLLMClient:
+        """A copy of this client that sends this explicit adapter list on
+        every request: [{"id": <server id>, "scale": <float>}, ...]."""
         return LocalLLMClient(
             self.provider,
             self.model,
@@ -314,7 +315,7 @@ class LocalLLMClient:
             initial_backoff=self.initial_backoff,
             max_backoff=self.max_backoff,
             request_timeout=self.request_timeout,
-            lora_scale=scale,
+            lora=entries,
         )
 
     @staticmethod
@@ -384,8 +385,8 @@ class LocalLLMClient:
             "temperature": temperature,
             "max_tokens": max_new_tokens,
         }
-        if self.lora_scale is not None:
-            payload["lora"] = [{"id": 0, "scale": self.lora_scale}]
+        if self.lora is not None:
+            payload["lora"] = [dict(entry) for entry in self.lora]
         if contract.mode == "json_schema":
             payload["response_format"]["json_schema"] = {
                 "name": contract.schema_name,
@@ -667,11 +668,12 @@ def probe_local_model_readiness(*, probe=None, canary=None, required_contract=No
         ) from exc
 
 
-def check_lora_adapter_loaded() -> bool:
-    """True if the configured LLM endpoint reports at least one loaded LoRA
-    adapter. Raises InfrastructureUnavailableError if the endpoint itself
-    cannot be reached -- a compare run must never treat "server is down" as
-    "no adapter loaded" and silently skip the adapter half."""
+def fetch_lora_adapters() -> list[dict]:
+    """List the LoRA adapters the configured endpoint has loaded, as
+    [{"id": int, "path": str, "scale": float}, ...]. Returns [] when the
+    endpoint has no LoRA route (404). Raises InfrastructureUnavailableError
+    if the endpoint cannot be reached or answers with a non-list -- "server
+    is down" must never be mistaken for "no adapter loaded"."""
     settings = get_settings()
     base = settings.llm_api_base or "http://localhost:11434/v1"
     allowed_hosts = getattr(settings, "llm_allowed_endpoints", ())
@@ -698,7 +700,7 @@ def check_lora_adapter_loaded() -> bool:
             # The endpoint is reachable but has no LoRA route at all (e.g.
             # Ollama) -- that means no adapter capability, not that the
             # server is down.
-            return False
+            return []
         raise InfrastructureUnavailableError(
             "Could not reach the LLM endpoint to check for a loaded adapter"
         ) from exc
@@ -710,7 +712,12 @@ def check_lora_adapter_loaded() -> bool:
         raise InfrastructureUnavailableError(
             "Unexpected response from the LLM endpoint's adapter list"
         )
-    return len(adapters) > 0
+    return adapters
+
+
+def check_lora_adapter_loaded() -> bool:
+    """True if at least one LoRA adapter is loaded (see fetch_lora_adapters)."""
+    return len(fetch_lora_adapters()) > 0
 
 
 @lru_cache(maxsize=1)
@@ -753,4 +760,5 @@ __all__ = [
     "get_llm_model_name",
     "probe_local_model_readiness",
     "check_lora_adapter_loaded",
+    "fetch_lora_adapters",
 ]

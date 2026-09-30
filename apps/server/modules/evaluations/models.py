@@ -122,6 +122,13 @@ class EvaluationJob(Base):
     # Historical multi-agent bundle rows are backfilled with 'all'.
     target_agent: Mapped[str] = mapped_column(String(32), nullable=False, default="all")
     lora_scale: Mapped[float | None] = mapped_column(sa.Float(), nullable=True)
+    # Explicit per-agent adapter choice made at creation (benchmarks only):
+    # {"sme": {"adapter_id": "<uuid>" | null}}. null adapter_id = force base.
+    # NULL means "use each agent's published adapter".
+    adapter_request: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
+    # What was actually requested/applied per agent, written before dispatch:
+    # {"sme": {"requested": "sme-v3", "applied": "sme-v3" | null, "reason": ...}}
+    adapter_resolution: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     confirmed_program: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_pre_snapshot_legacy: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, default=False

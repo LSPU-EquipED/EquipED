@@ -1,5 +1,7 @@
-export type ModelVariant = 'base' | 'adapter';
-export type TargetAgent = 'all' | 'sme' | 'gad' | 'itso';
+// Coordinator benchmarks need a curriculum picker this form lacks, so the UI offers three.
+export type TargetAgent = 'sme' | 'gad' | 'itso';
+// 'base', 'published', or an adapter id string.
+export type ModelChoice = string;
 
 export interface ModelValidationCriterionScore {
   expected_score_id: string;
@@ -28,6 +30,12 @@ export interface ModelValidationItem {
   document_id: string;
   document_title: string | null;
   model_variant: 'base' | 'adapter' | null;
+  adapter_id: string | null;
+  adapter_label: string | null;
+  adapter_resolution: Record<
+    string,
+    { requested: string; applied: string | null; reason: string | null }
+  > | null;
   compare_group_id: string | null;
   partial_without_curriculum: boolean;
   bound_forms: ModelValidationBoundForm[];
@@ -72,10 +80,25 @@ export interface ModelValidationCreateBody {
   document_id: string;
   syllabus_id?: string | null;
   curriculum_id?: string | null;
-  partial_without_curriculum: boolean;
-  target_agent?: 'sme' | 'gad' | 'itso';
-  model_variant?: 'base' | 'adapter';
+  partial_without_curriculum: false;
+  target_agent: TargetAgent;
+  model_variant: 'base' | 'adapter';
+  adapter_id?: string;
   expected_scores: ExpectedCriterionScoreInput[];
+}
+
+export interface AdapterChoiceItem {
+  adapter_id: string;
+  version: number;
+  loaded: boolean | null;
+  published: boolean;
+  gguf_filename: string;
+}
+
+export interface AdapterChoiceList {
+  agent_id: string;
+  adapters: AdapterChoiceItem[];
+  server_reachable: boolean;
 }
 
 export interface ModelValidationCriterionDefinition {

@@ -158,10 +158,11 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         nonlocal captured_snapshots
         captured_snapshots = form_snapshots
+        assert lora_by_agent == {}
         if callable(heartbeat_callback):
             heartbeat_callback()
         captured_context.update(context or {})
@@ -328,7 +329,7 @@ def test_orchestrator_partial_without_curriculum_completes(
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -425,7 +426,7 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -532,7 +533,7 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -628,7 +629,7 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -727,7 +728,7 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
         query_text=None,
         context=None,
         heartbeat_callback=None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         if callable(heartbeat_callback):
             heartbeat_callback()
@@ -1197,3 +1198,165 @@ def test_resumed_evaluation_idempotency_truth(db_session, monkeypatch) -> None:
     )
     assert matrix_full.evaluation_status == "FAILED"
     assert matrix_full.evaluation_status != "COMPLETED_PARTIAL"
+
+
+def _run_adapter_scenario(
+    monkeypatch,
+    db_session,
+    *,
+    email,
+    adapter_request,
+    plans,
+    stale_resolution=None,
+):
+    """Run a partial evaluation with `plans` (a callable or dict) standing in
+    for build_adapter_plans; return (kwargs seen by run_evaluation, job, calls)."""
+    from server.core import database as core_database
+    from server.modules.agents.supervision.result import SupervisorResult
+    from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from sqlalchemy.orm import sessionmaker
+
+    owner = create_user(
+        db_session,
+        name="Owner",
+        email=email,
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    _seed_active_prompts(db_session)
+    _seed_all_rubrics(db_session)
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=slm_id,
+        syllabus_id=None,
+        curriculum_id=None,
+        status=EvaluationStatus.SUBMITTED.value,
+        error_message=None,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+        completed_at=None,
+        partial_without_curriculum=True,
+        partial_reason="adapter plan test",
+        adapter_request=adapter_request,
+        adapter_resolution=stale_resolution,
+    )
+    db_session.add(job)
+    db_session.commit()
+
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    monkeypatch.setattr(core_database, "get_session_factory", lambda: session_factory)
+
+    calls: list[dict] = []
+
+    def fake_build(session, agent_ids, request, state=None):
+        calls.append({"agent_ids": list(agent_ids), "request": request})
+        if isinstance(plans, Exception):
+            raise plans
+        return plans
+
+    monkeypatch.setattr(evaluation_orchestrator, "build_adapter_plans", fake_build)
+
+    seen: dict[str, object] = {}
+
+    def fake_run_evaluation(
+        self,
+        *,
+        evaluation_id,
+        document_id,
+        chunks,
+        form_snapshots=None,
+        query_text=None,
+        context=None,
+        heartbeat_callback=None,
+        lora_by_agent=None,
+    ):
+        seen["lora_by_agent"] = lora_by_agent
+        return SupervisorResult(
+            evaluation_id=evaluation_id,
+            document_id=document_id,
+            agent_results=make_scheduled_agent_results(
+                evaluation_id, document_id, partial_without_curriculum=True
+            ),
+        )
+
+    monkeypatch.setattr(
+        evaluation_orchestrator.Supervisor, "run_evaluation", fake_run_evaluation
+    )
+    _run_claimed(job.evaluation_id, session_factory)
+    db_session.expire_all()
+    return seen, db_session.get(EvaluationJob, job.evaluation_id), calls
+
+
+def test_orchestrator_applies_and_records_the_adapter_plan(
+    monkeypatch, db_session
+) -> None:
+    from server.modules.training_data.serving import AdapterPlan
+
+    plans = {
+        "sme": AdapterPlan(
+            agent_id="sme",
+            requested="sme-v3",
+            applied=None,
+            reason="not_loaded",
+            lora=({"id": 0, "scale": 0.0},),
+        ),
+        "gad": AdapterPlan(
+            agent_id="gad", requested="base", applied=None, reason=None, lora=None
+        ),
+    }
+    request = {"sme": {"adapter_id": None}}
+    seen, job, calls = _run_adapter_scenario(
+        monkeypatch,
+        db_session,
+        email="owner-adapter-plan@lspu.edu.ph",
+        adapter_request=request,
+        plans=plans,
+    )
+
+    # The explicit "force base" request reaches the resolver untouched.
+    assert calls[0]["request"] == {"sme": {"adapter_id": None}}
+    assert seen["lora_by_agent"] == {"sme": [{"id": 0, "scale": 0.0}], "gad": None}
+    assert job.status == EvaluationStatus.COMPLETED.value
+    assert job.adapter_resolution == {
+        "sme": {"requested": "sme-v3", "applied": None, "reason": "not_loaded"},
+        "gad": {"requested": "base", "applied": None, "reason": None},
+    }
+
+
+def test_orchestrator_survives_adapter_plan_resolution_failure(
+    monkeypatch, db_session
+) -> None:
+    seen, job, calls = _run_adapter_scenario(
+        monkeypatch,
+        db_session,
+        email="owner-adapter-boom@lspu.edu.ph",
+        adapter_request=None,
+        plans=Exception("boom"),
+    )
+    assert calls  # resolution was attempted
+    assert seen["lora_by_agent"] == {}
+    assert job.status == EvaluationStatus.COMPLETED.value
+    assert job.adapter_resolution is None
+
+
+def test_orchestrator_clears_a_stale_resolution_when_a_retry_fails_to_resolve(
+    monkeypatch, db_session
+) -> None:
+    seen, job, calls = _run_adapter_scenario(
+        monkeypatch,
+        db_session,
+        email="owner-adapter-stale@lspu.edu.ph",
+        adapter_request=None,
+        plans=Exception("boom"),
+        stale_resolution={
+            "sme": {"requested": "sme-v3", "applied": "sme-v3", "reason": None}
+        },
+    )
+    assert calls
+    assert seen["lora_by_agent"] == {}
+    assert job.status == EvaluationStatus.COMPLETED.value
+    assert job.adapter_resolution is None

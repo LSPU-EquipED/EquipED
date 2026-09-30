@@ -168,14 +168,14 @@ class AgentDispatcher:
         roadmap_context=None,
         canonical_source_text=None,
         authoritative_curriculum_text=None,
-        lora_scale=None,
+        lora=None,
     ):
         started = time.perf_counter()
         client = None
         try:
             client = get_llm_client_for_agent(agent_name)
-            if lora_scale is not None:
-                client = client.with_lora_scale(lora_scale)
+            if lora is not None:
+                client = client.with_lora(lora)
             kwargs = {
                 "evaluation_id": evaluation_id,
                 "document_id": document_id,
@@ -264,7 +264,7 @@ class AgentDispatcher:
         canonical_source_text=None,
         authoritative_curriculum_text=None,
         heartbeat_callback: Callable[[], None] | None = None,
-        lora_scale=None,
+        lora_by_agent=None,
     ):
         # 1. Validate worker agent names uniqueness
         agent_names = [
@@ -362,7 +362,7 @@ class AgentDispatcher:
                     ),
                     canonical_source_text=canonical_source_text,
                     authoritative_curriculum_text=authoritative_curriculum_text,
-                    lora_scale=lora_scale,
+                    lora=(lora_by_agent or {}).get(name),
                 )
                 pending[future] = (name, prompt, started)
             if heartbeat_callback:

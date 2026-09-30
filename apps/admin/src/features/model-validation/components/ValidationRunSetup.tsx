@@ -1,7 +1,7 @@
 import { UploadSimple } from '@phosphor-icons/react';
 import { Dropdown, ProgramSelector } from '@equiped/ui';
 import { LSPU_SCC_COLLEGE_PROGRAMS } from '@equiped/types';
-import type { ModelVariant, TargetAgent } from '../types';
+import type { TargetAgent } from '../types';
 import type { ModelValidationFormState } from '../hooks/useModelValidationFormState';
 
 export function ValidationRunSetup({
@@ -15,8 +15,10 @@ export function ValidationRunSetup({
     | 'setTitle'
     | 'program'
     | 'uploaded'
-    | 'modelVariant'
-    | 'setModelVariant'
+    | 'modelChoice'
+    | 'setModelChoice'
+    | 'adapterOptions'
+    | 'adapterChoices'
     | 'targetAgent'
     | 'setTargetAgent'
     | 'handleFile'
@@ -30,13 +32,24 @@ export function ValidationRunSetup({
     setTitle,
     program,
     uploaded,
-    modelVariant,
-    setModelVariant,
+    modelChoice,
+    setModelChoice,
+    adapterOptions,
+    adapterChoices,
     targetAgent,
     setTargetAgent,
     handleFile,
     handleProgramChange,
   } = form;
+
+  const adapters = adapterChoices.data?.adapters ?? [];
+  const chosen =
+    modelChoice === 'base'
+      ? null
+      : modelChoice === 'published'
+        ? (adapters.find((a) => a.published) ?? null)
+        : (adapters.find((a) => a.adapter_id === modelChoice) ?? null);
+  const notLoadedFilename = chosen && chosen.loaded !== true ? chosen.gguf_filename : null;
 
   return (
     <>
@@ -46,55 +59,42 @@ export function ValidationRunSetup({
           <p className="text-xs font-semibold text-primary">1. Define the run</p>
           <h3 className="mt-1 text-base font-semibold text-text">Run configuration</h3>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Choose which model and evaluator scope will be compared with the benchmark.
+            Choose the evaluator agent, then the base model or one of its adapter versions.
           </p>
         </div>
 
         <div className="grid gap-3.5 sm:grid-cols-2">
-          <Dropdown
-            id="validation-model"
-            label="Model"
-            value={modelVariant}
-            onChange={(value) => setModelVariant(value as ModelVariant)}
-            options={[
-              { value: 'base', label: 'Base model' },
-              { value: 'adapter', label: 'Fine-tuned adapter' },
-            ]}
-            size="md"
-            className="w-full"
-          />
           <Dropdown
             id="validation-target"
             label="Target"
             value={targetAgent ?? ''}
             onChange={(value) => setTargetAgent(value as TargetAgent)}
             options={[
-              {
-                value: 'all',
-                label: 'All agents (SME, GAD, ITSO)',
-                disabled: modelVariant === 'adapter',
-              },
               { value: 'sme', label: 'SME only' },
-              {
-                value: 'gad',
-                label: 'GAD only',
-                disabled: modelVariant === 'adapter',
-              },
-              {
-                value: 'itso',
-                label: 'ITSO only',
-                disabled: modelVariant === 'adapter',
-              },
+              { value: 'gad', label: 'GAD only' },
+              { value: 'itso', label: 'ITSO only' },
             ]}
             placeholder="Choose an agent"
             size="md"
             className="w-full"
           />
+          <Dropdown
+            id="validation-model"
+            label="Model"
+            value={targetAgent ? modelChoice : ''}
+            onChange={(value) => setModelChoice(value)}
+            options={targetAgent ? adapterOptions : []}
+            placeholder={targetAgent ? 'Choose a model' : 'Choose an agent first'}
+            disabled={!targetAgent}
+            size="md"
+            className="w-full"
+          />
         </div>
 
-        {modelVariant === 'adapter' ? (
+        {notLoadedFilename ? (
           <p className="text-xs text-text-muted">
-            Only the SME agent has a trained adapter, and it must be loaded on the server.
+            This version is not loaded on the server. Ask the host owner to load{' '}
+            <code className="font-mono">{notLoadedFilename}</code>.
           </p>
         ) : null}
       </section>

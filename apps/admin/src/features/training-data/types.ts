@@ -44,9 +44,15 @@ export interface TrainedAdapterItem {
   file_sha256: string;
   size_bytes: number;
   created_at: string;
+  gguf_filename: string;
+  loaded: boolean | null;
+  published: boolean;
 }
 
 export interface TrainedAdapterListResponse {
   agent_id: string;
   adapters: TrainedAdapterItem[];
+  published_adapter_id: string | null;
+  server_reachable: boolean;
+  unrecognized_server_adapters: string[];
 }

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { ValidationDetail } from '../ValidationDetail';
 import { ValidationHistoryRow } from '../ValidationHistoryRow';
+import { ValidationReviewPanel } from '../ValidationReviewPanel';
 import type { ModelValidationItem } from '../../types';
 
 // Mock the queries used inside ValidationDetail
@@ -31,6 +32,9 @@ const mockItem: ModelValidationItem = {
   document_id: 'doc-uuid-1',
   document_title: 'Introduction to Computing SLM',
   model_variant: null,
+  adapter_id: null,
+  adapter_label: null,
+  adapter_resolution: null,
   compare_group_id: null,
   partial_without_curriculum: true,
   bound_forms: [
@@ -197,5 +201,92 @@ describe('HistoryRow', () => {
 
     expect(screen.queryByText('Adapter')).toBeNull();
     expect(screen.queryByText('Base')).toBeNull();
+  });
+});
+
+describe('adapter labelling', () => {
+  function renderRow(item: ModelValidationItem) {
+    render(
+      <table>
+        <tbody>
+          <ValidationHistoryRow
+            item={item}
+            isExpanded={false}
+            comparedCount={2}
+            exactMatches={1}
+            onToggle={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+  }
+
+  it('shows the adapter version label on a history row when present', () => {
+    renderRow({ ...mockItem, model_variant: 'adapter', adapter_id: 'sme-v3', adapter_label: 'sme-v3' });
+
+    expect(screen.getByText('Adapter sme-v3')).toBeDefined();
+  });
+
+  it('falls back to the plain Adapter text for old rows without a label', () => {
+    renderRow({ ...mockItem, model_variant: 'adapter', adapter_label: null });
+
+    expect(screen.getByText('Adapter')).toBeDefined();
+  });
+
+  it('shows the adapter version label in the review panel', () => {
+    render(
+      <ValidationReviewPanel
+        item={{ ...mockItem, model_variant: 'adapter', adapter_id: 'sme-v3', adapter_label: 'sme-v3' }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Adapter sme-v3')).toBeDefined();
+  });
+
+  it('keeps the plain Base/Adapter text in the review panel for old rows', () => {
+    render(
+      <ValidationReviewPanel item={{ ...mockItem, model_variant: 'base' }} onClose={vi.fn()} />,
+    );
+
+    expect(screen.getByText('Base')).toBeDefined();
+  });
+
+  it('says base was used when an adapter was requested but not applied', () => {
+    render(
+      <ValidationReviewPanel
+        item={{
+          ...mockItem,
+          model_variant: 'base',
+          adapter_resolution: {
+            sme: { requested: 'sme-v3', applied: null, reason: 'not_loaded' },
+          },
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText('Adapter sme-v3 requested, base used (not loaded on the server)'),
+    ).toBeDefined();
+  });
+
+  it('shows no fallback notice when the adapter was applied or base was requested', () => {
+    render(
+      <ValidationReviewPanel
+        item={{
+          ...mockItem,
+          model_variant: 'adapter',
+          adapter_label: 'sme-v3',
+          adapter_resolution: {
+            sme: { requested: 'sme-v3', applied: 'sme-v3', reason: null },
+            gad: { requested: 'base', applied: null, reason: null },
+          },
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/requested, base used/)).toBeNull();
   });
 });
