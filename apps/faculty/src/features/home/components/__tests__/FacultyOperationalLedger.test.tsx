@@ -75,7 +75,7 @@ describe('FacultyOperationalLedger', () => {
     expect(screen.getByText('eval-2')).toBeDefined();
   });
 
-  it('switches between Recent Evaluations and Requires Review tabs', () => {
+  it('switches between Recent evaluations and Requires review tabs', () => {
     render(
       <FacultyOperationalLedger
         evaluations={mockEvaluations}
@@ -84,15 +84,15 @@ describe('FacultyOperationalLedger', () => {
       />,
     );
 
-    const reviewTab = screen.getByRole('tab', { name: /Requires Review/i });
+    const reviewTab = screen.getByRole('tab', { name: /Requires review/i });
     fireEvent.click(reviewTab);
 
     expect(screen.getByText('Extraction Error in Networks')).toBeDefined();
     expect(screen.getByText('OCR unreadable on page 4')).toBeDefined();
-    expect(screen.getByText('Processing Issue')).toBeDefined();
+    expect(screen.getByText('Processing issue')).toBeDefined();
     expect(screen.queryByText('Algorithms SLM')).toBeNull();
 
-    const evalTab = screen.getByRole('tab', { name: /Recent Evaluations/i });
+    const evalTab = screen.getByRole('tab', { name: /Recent evaluations/i });
     fireEvent.click(evalTab);
 
     expect(screen.getByText('Algorithms SLM')).toBeDefined();
@@ -137,5 +137,61 @@ describe('FacultyOperationalLedger', () => {
     const refreshBtn = screen.getByRole('button', { name: /Refresh/i });
     fireEvent.click(refreshBtn);
     expect(handleRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows loading feedback instead of an empty record message', () => {
+    render(<FacultyOperationalLedger isLoading />);
+
+    expect(screen.getByRole('status', { name: 'Loading evaluation activity' })).toBeDefined();
+    expect(screen.queryByText('No evaluations on record')).toBeNull();
+  });
+
+  it('distinguishes an unmatched search from an empty ledger', () => {
+    render(<FacultyOperationalLedger evaluations={mockEvaluations} isLoading={false} />);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search evaluations' }), {
+      target: { value: 'no such module' },
+    });
+    expect(screen.getByText(/No matching evaluations/)).toBeDefined();
+    expect(screen.queryByText('No evaluations on record')).toBeNull();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+    expect(screen.getByText('Algorithms SLM')).toBeDefined();
+  });
+
+  it('supports arrow-key tab navigation and keeps errors visible in both views', () => {
+    render(<FacultyOperationalLedger isLoading={false} isError />);
+    const evaluationsTab = screen.getByRole('tab', { name: /Recent evaluations/ });
+    evaluationsTab.focus();
+    fireEvent.keyDown(evaluationsTab, { key: 'ArrowRight' });
+
+    const reviewTab = screen.getByRole('tab', { name: /Requires review/ });
+    expect(document.activeElement).toBe(reviewTab);
+    expect(reviewTab.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(reviewTab.id);
+    expect(screen.getByText('Unable to load evaluation activity.')).toBeDefined();
+    expect(screen.queryByText('No action items')).toBeNull();
+
+    fireEvent.keyDown(reviewTab, { key: 'Home' });
+    expect(document.activeElement).toBe(evaluationsTab);
+  });
+
+  it('changes page size through the shared dropdown and returns to the first page', () => {
+    const evaluations = Array.from({ length: 12 }, (_, index) => ({
+      ...mockEvaluations[0],
+      evaluation_id: `eval-${index + 1}`,
+      document_title: `Module ${index + 1}`,
+    }));
+    render(<FacultyOperationalLedger evaluations={evaluations} isLoading={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    expect(screen.getByText('Module 6')).toBeDefined();
+    expect(screen.queryByText('Module 1')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rows per page' }));
+    fireEvent.click(screen.getByRole('option', { name: '10 rows' }));
+    expect(screen.getByText('Module 1')).toBeDefined();
+    expect(screen.getByText('Module 10')).toBeDefined();
+    expect(screen.queryByText('Module 11')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Previous page' }).hasAttribute('disabled')).toBe(true);
   });
 });

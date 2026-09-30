@@ -133,10 +133,10 @@ describe('FacultyHome', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Recent Evaluations');
+    expect(markup).toContain('Recent evaluations');
     expect(markup).toContain('Operating Systems Module');
     expect(markup).toContain('Completed');
-    expect(markup).toContain('View Scorecard');
+    expect(markup).toContain('View details');
     expect(markup).toContain('href="/evaluations/eval-1"');
   });
 
@@ -178,7 +178,7 @@ describe('FacultyHome', () => {
     expect(markup).toContain('Content accuracy and mastery');
 
     // Ledger title without redundant subtitle
-    expect(markup).toContain('Recent Evaluations');
+    expect(markup).toContain('Recent evaluations');
   });
 
   it('renders active evaluation banner when evaluation is in progress', () => {

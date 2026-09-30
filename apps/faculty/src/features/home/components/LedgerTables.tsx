@@ -7,27 +7,27 @@ import { FacultyWorkflowSignal } from "./FacultyWorkflowSignal";
 
 export interface LedgerEvaluationsTableProps {
   evaluations: HomeEvaluationItem[];
-  isError?: boolean;
+  isFiltered?: boolean;
 }
 
 export function LedgerEvaluationsTable({
   evaluations,
-  isError = false,
+  isFiltered = false,
 }: LedgerEvaluationsTableProps) {
   return (
-    <table className="w-full text-left border-collapse">
+    <table className="w-full min-w-[40rem] border-collapse text-left">
       <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
         <tr>
           <th
             scope="col"
-            className="pl-4 sm:pl-6 pr-4 py-3 min-w-[18rem] text-left"
+            className="pl-4 sm:pl-6 pr-4 py-3 w-full min-w-[14rem] text-left"
           >
-            Document / Evaluation ID
+            Module
           </th>
-          <th scope="col" className="px-4 py-3 text-left">
+          <th scope="col" className="whitespace-nowrap px-4 py-3 text-left">
             Status
           </th>
-          <th scope="col" className="px-4 py-3 text-left">
+          <th scope="col" className="whitespace-nowrap px-4 py-3 text-left">
             Submitted
           </th>
           <th scope="col" className="pl-4 pr-4 sm:pr-6 py-3 text-right">
@@ -36,25 +36,23 @@ export function LedgerEvaluationsTable({
         </tr>
       </thead>
       <tbody className="divide-y divide-border bg-surface text-sm text-text">
-        {isError ? (
-          <tr>
-            <td
-              colSpan={4}
-              className="px-6 py-12 text-center text-sm text-destructive"
-            >
-              Unable to load evaluation activity.
-            </td>
-          </tr>
-        ) : evaluations.length === 0 ? (
+        {evaluations.length === 0 ? (
           <tr>
             <td
               colSpan={4}
               className="px-6 py-10 text-center text-sm text-text-muted"
             >
-              <FacultyWorkflowSignal
-                title="No evaluations on record"
-                description="Once a module moves through review, its scorecard and decision trail will appear here."
-              />
+              {isFiltered ? (
+                <p>
+                  No matching evaluations. Try a different title or evaluation
+                  ID.
+                </p>
+              ) : (
+                <FacultyWorkflowSignal
+                  title="No evaluations on record"
+                  description="Your evaluation results will appear here."
+                />
+              )}
             </td>
           </tr>
         ) : (
@@ -63,14 +61,14 @@ export function LedgerEvaluationsTable({
             return (
               <tr
                 key={ev.evaluation_id}
-                className="transition-colors hover:bg-surface-subtle/70"
+                className="transition-colors hover:bg-surface-subtle/50 focus-within:bg-surface-subtle/50"
               >
                 <td className="pl-4 sm:pl-6 pr-4 py-3.5">
-                  <div className="space-y-0.5">
-                    <span className="text-sm font-semibold text-text block leading-snug">
+                  <div className="space-y-1">
+                    <span className="block break-words text-sm font-medium leading-snug text-text">
                       {ev.document_title || "Untitled SLM"}
                     </span>
-                    <span className="text-[11px] font-mono text-text-muted block tabular-nums">
+                    <span className="block break-all font-mono text-xs tabular-nums text-text-muted">
                       {ev.evaluation_id}
                     </span>
                   </div>
@@ -78,24 +76,32 @@ export function LedgerEvaluationsTable({
                 <td className="px-4 py-3.5">
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-xs px-2.5 py-0.5 text-xs font-semibold select-none",
+                      "inline-flex items-center whitespace-nowrap rounded-xs px-2 py-0.5 text-xs font-medium",
                       evalBadge.className,
                     )}
                   >
                     {evalBadge.label}
                   </span>
                 </td>
-                <td className="px-4 py-3.5 text-xs text-text-muted tabular-nums">
-                  {formatDateTime(ev.submitted_at)}
+                <td className="px-4 py-3.5 text-[13px] leading-relaxed tabular-nums text-text-muted">
+                  <span className="block min-w-28">
+                    {formatDateTime(ev.submitted_at)}
+                  </span>
                 </td>
                 <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                   <Link
                     to="/evaluations/$id"
                     params={{ id: ev.evaluation_id }}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong hover:underline transition-colors"
+                    className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <span>View Scorecard</span>
-                    <CaretRight className="size-3" aria-hidden="true" />
+                    <span>
+                      View details
+                      <span className="sr-only">
+                        {" "}
+                        for {ev.document_title || "Untitled SLM"}
+                      </span>
+                    </span>
+                    <CaretRight className="size-4" aria-hidden="true" />
                   </Link>
                 </td>
               </tr>
@@ -109,21 +115,25 @@ export function LedgerEvaluationsTable({
 
 export interface LedgerAttentionTableProps {
   issues: AttentionItem[];
+  isFiltered?: boolean;
 }
 
-export function LedgerAttentionTable({ issues }: LedgerAttentionTableProps) {
+export function LedgerAttentionTable({
+  issues,
+  isFiltered = false,
+}: LedgerAttentionTableProps) {
   return (
-    <table className="w-full text-left border-collapse">
+    <table className="w-full min-w-[40rem] border-collapse text-left">
       <thead className="border-b border-border bg-surface-subtle text-xs font-semibold text-text-muted">
         <tr>
           <th
             scope="col"
-            className="pl-4 sm:pl-6 pr-4 py-3 min-w-[18rem] text-left"
+            className="pl-4 sm:pl-6 pr-4 py-3 w-full min-w-[14rem] text-left"
           >
             Module
           </th>
-          <th scope="col" className="px-4 py-3 text-left">
-            Attention Reason
+          <th scope="col" className="whitespace-nowrap px-4 py-3 text-left">
+            Attention reason
           </th>
           <th scope="col" className="pl-4 pr-4 sm:pr-6 py-3 text-right">
             Action
@@ -137,40 +147,50 @@ export function LedgerAttentionTable({ issues }: LedgerAttentionTableProps) {
               colSpan={3}
               className="px-6 py-10 text-center text-sm text-text-muted"
             >
-              <FacultyWorkflowSignal
-                title="No action items"
-                description="All modules are processed and evaluated without active errors."
-              />
+              {isFiltered ? (
+                <p>No matching review items. Try a different search.</p>
+              ) : (
+                <FacultyWorkflowSignal
+                  title="No action items"
+                  description="No processing or evaluation issues to review."
+                />
+              )}
             </td>
           </tr>
         ) : (
           issues.map((issue) => (
             <tr
               key={issue.id}
-              className="transition-colors hover:bg-surface-subtle/70"
+              className="transition-colors hover:bg-surface-subtle/50 focus-within:bg-surface-subtle/50"
             >
               <td className="pl-4 sm:pl-6 pr-4 py-3.5">
-                <span className="font-semibold text-text">
+                <span className="break-words font-medium text-text">
                   {issue.title}
                 </span>
-                <span className="text-xs text-text-muted mt-0.5 block">
+                <span className="mt-1 block break-words text-sm leading-relaxed text-text-muted">
                   {issue.detail}
                 </span>
               </td>
               <td className="px-4 py-3.5">
-                <Badge variant="warning" withDot>
+                <Badge
+                  variant="warning"
+                  className="whitespace-nowrap font-medium tracking-normal"
+                >
                   {issue.type === "document_failed"
-                    ? "Processing Issue"
-                    : "Evaluation Issue"}
+                    ? "Processing issue"
+                    : "Evaluation issue"}
                 </Badge>
               </td>
               <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                 <Link
                   to={issue.targetUrl}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-strong hover:underline transition-colors"
+                  className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <span>{issue.actionLabel}</span>
-                  <CaretRight className="size-3" aria-hidden="true" />
+                  <span>
+                    {issue.actionLabel}
+                    <span className="sr-only"> for {issue.title}</span>
+                  </span>
+                  <CaretRight className="size-4" aria-hidden="true" />
                 </Link>
               </td>
             </tr>
