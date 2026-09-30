@@ -33,16 +33,22 @@ Usage (from apps/):
 
 from __future__ import annotations
 
+import argparse
 import json
+import logging
+import math
 import uuid
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from server.core.database import get_session_factory
+from server.db.metadata import import_model_modules
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
@@ -50,6 +56,7 @@ from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.snapshot_contracts import SnapshotIntegrityError
 from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 from server.modules.synthesis.models import AgentGeneration
+from server.scripts.seed_synthetic_dpo_pairs import validate_environment
 
 AGENT_ID = "sme"
 RUN_NOTE_PREFIX = "house-rule-seed"
@@ -393,3 +400,209 @@ def plan_run(
             "Edit criteria never seen in any listed evaluation: " + ", ".join(unknown)
         )
     return RunPlan(plans=tuple(plans), edit_codes=codes)
+
+
+PROMPT_CHAR_LIMIT = PROMPT_TOKEN_LIMIT * CHARS_PER_TOKEN
+# Room reserved for the model's answer when suggesting a sequence length.
+RESPONSE_TOKEN_ALLOWANCE = 1536
+
+REMINDERS = (
+    "Reminders:",
+    "  - The adapter trained on these corrections teaches an INVENTED rule. It is "
+    "a test artifact: never publish it.",
+    "  - These corrections are counted in every SME training job. Do not start "
+    "another SME training job until you have run the cleanup.",
+)
+
+
+def estimate_tokens(chars: int) -> int:
+    return math.ceil(chars / CHARS_PER_TOKEN)
+
+
+def suggest_limits(max_prompt_tokens: int) -> tuple[int, int]:
+    """(max_prompt_length, MAX_SEQ_LENGTH) for the notebook: the longest prompt
+    plus 15%, rounded up to 256, and room for the answer on top."""
+    prompt_limit = math.ceil(max_prompt_tokens * 1.15 / 256) * 256
+    return prompt_limit, prompt_limit + RESPONSE_TOKEN_ALLOWANCE
+
+
+def parse_ids(text: str) -> list[uuid.UUID]:
+    """Evaluation ids separated by commas or newlines; '#' starts a comment."""
+    ids: list[uuid.UUID] = []
+    for line in text.splitlines():
+        for part in line.split("#", 1)[0].split(","):
+            part = part.strip()
+            if part:
+                ids.append(uuid.UUID(part))
+    return ids
+
+
+def read_ids_file(path: Path) -> list[uuid.UUID]:
+    return parse_ids(path.read_text(encoding="utf-8"))
+
+
+def _ascii(text: str) -> str:
+    return text.encode("ascii", "replace").decode("ascii")
+
+
+def _short(value: uuid.UUID) -> str:
+    return str(value)[:8]
+
+
+def render_report(run: RunPlan, *, mode: str, baseline_pairs: int | None = None) -> str:
+    """The printable report. ASCII only, so a Windows console cannot choke."""
+    lines = [
+        f"House-rule report ({mode})",
+        f"Edited criteria: {', '.join(run.edit_codes)}",
+        "",
+        "Per evaluation:",
+    ]
+    for plan in run.plans:
+        skips = Counter(c.skip_reason for c in plan.criteria if c.skip_reason)
+        skip_text = ", ".join(f"{k}={v}" for k, v in sorted(skips.items())) or "none"
+        lines.append(
+            f"  {_short(plan.evaluation_id)} [{plan.group}] "
+            f"{_ascii(plan.document_title)!r} generations={len(plan.generations)} "
+            f"corrections={len(plan.writes)} skipped: {skip_text}"
+        )
+    train = [p for p in run.plans if p.group == "train"]
+    reference = [p for p in run.plans if p.group == "reference"]
+    lines += [
+        "",
+        f"Totals: train evaluations: {len(train)} | reference evaluations: "
+        f"{len(reference)} | corrections planned: {len(run.writes)} | "
+        f"expected new pairs: {len(run.pair_generation_ids)}",
+    ]
+    skip_totals = run.skip_counts()
+    if skip_totals:
+        lines.append(
+            "Skips by reason: "
+            + ", ".join(f"{k}={v}" for k, v in sorted(skip_totals.items()))
+        )
+    generations = [g for p in (train or run.plans) for g in p.generations]
+    if generations:
+        longest = max(g.prompt_chars for g in generations)
+        over = sum(
+            1
+            for g in generations
+            if estimate_tokens(g.prompt_chars) > PROMPT_TOKEN_LIMIT
+        )
+        lines += [
+            "",
+            f"Prompt lengths over {len(generations)} generation(s): longest "
+            f"{longest} chars (~{estimate_tokens(longest)} tokens, estimated as "
+            f"chars/{CHARS_PER_TOKEN}).",
+            f"  {over} of {len(generations)} are above the notebook's "
+            f"{PROMPT_TOKEN_LIMIT}-token prompt limit (~{PROMPT_CHAR_LIMIT} chars).",
+        ]
+        if over:
+            prompt_limit, sequence = suggest_limits(estimate_tokens(longest))
+            lines.append(
+                f"  Suggested notebook values: max_prompt_length={prompt_limit}, "
+                f"MAX_SEQ_LENGTH={sequence} (estimates: confirm with a short T4 "
+                "smoke run before the full run)."
+            )
+    if baseline_pairs is not None:
+        lines += [
+            "",
+            f"Existing exportable SME pairs already in the database: {baseline_pairs}.",
+        ]
+        if baseline_pairs:
+            lines.append(
+                "  WARNING: these pairs would be trained on together with the new "
+                "ones. Remove them first (see the runbook), or the adapter also "
+                "learns them."
+            )
+    lines += ["", *REMINDERS]
+    return "\n".join(lines)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Add house-rule score corrections to real SME evaluations (adapter "
+            "validation). Read-only report by default. DEV/TEST/LOCAL ONLY."
+        ),
+        epilog=(
+            "The adapter trained on these corrections teaches an invented rule and "
+            "must never be published."
+        ),
+    )
+    parser.add_argument("--train-evaluations", default="", help="Comma-separated ids.")
+    parser.add_argument("--train-evaluations-file", type=Path, default=None)
+    parser.add_argument(
+        "--reference-evaluations", default="", help="Held-out ids (never written)."
+    )
+    parser.add_argument("--reference-evaluations-file", type=Path, default=None)
+    parser.add_argument(
+        "--edit-criteria",
+        default=",".join(DEFAULT_EDIT_CRITERIA),
+        help="Criteria to raise; every other SME criterion is a control.",
+    )
+    parser.add_argument("--report-csv", type=Path, default=None)
+    parser.add_argument("--verify-export", action="store_true")
+    parser.add_argument("--confirm", default=None)
+    parser.add_argument("--confirm-target", default=None)
+    parser.add_argument("--cleanup", action="store_true")
+    parser.add_argument("--run-id", default=None)
+    return parser
+
+
+def _collect_ids(text: str, path: Path | None) -> list[uuid.UUID]:
+    ids = parse_ids(text)
+    if path is not None:
+        ids += read_ids_file(path)
+    return ids
+
+
+def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
+    if args.confirm is not None or args.confirm_target is not None:
+        raise PermissionError("Write mode is not available yet.")
+    train_ids = _collect_ids(args.train_evaluations, args.train_evaluations_file)
+    reference_ids = _collect_ids(
+        args.reference_evaluations, args.reference_evaluations_file
+    )
+    edit_codes = normalize_codes(args.edit_criteria.split(","))
+    factory = session_factory if session_factory is not None else get_session_factory()
+    session = factory()
+    try:
+        run = plan_run(
+            session,
+            train_ids=train_ids,
+            reference_ids=reference_ids,
+            edit_codes=edit_codes,
+        )
+        print(render_report(run, mode="DRY RUN"))
+        print(
+            "\nDry run: nothing was written. Add --confirm SEED --confirm-target "
+            "<LOCAL or the target fingerprint> to write."
+        )
+        return 0
+    finally:
+        session.close()
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    session_factory: Callable[[], Session] | None = None,
+) -> int:
+    """Exit codes: 0 ok, 2 aborted (nothing written), 3 refused by a safety check."""
+    import_model_modules()
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    try:
+        validate_environment()
+        if args.cleanup:
+            raise PermissionError("Cleanup is not available yet.")
+        return _run_plan(args, session_factory)
+    except PermissionError as exc:
+        print(f"REFUSED: {exc}")
+        return 3
+    except (IneligibleRunError, ValueError) as exc:
+        print(f"ABORTED: {exc}")
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

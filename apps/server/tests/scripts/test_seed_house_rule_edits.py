@@ -626,3 +626,127 @@ def test_reject_item_and_uppercase_agent_logs_count_as_existing(
         db_session, evaluation_id, group="train", edit_codes=("OP-01",)
     )
     assert _op01(plan).skip_reason == "existing_log"
+
+
+def test_parse_ids_accepts_commas_lines_and_comments():
+    first, second = uuid.uuid4(), uuid.uuid4()
+    text = f"# my run\n{first}, {second}\n\n"
+    assert tool.parse_ids(text) == [first, second]
+    with pytest.raises(ValueError):
+        tool.parse_ids("not-a-uuid")
+
+
+def test_read_ids_file(tmp_path):
+    first = uuid.uuid4()
+    path = tmp_path / "ids.txt"
+    path.write_text(f"{first}  # trailing comment\n", encoding="utf-8")
+    assert tool.read_ids_file(path) == [first]
+
+
+def test_suggest_limits_rounds_up_with_a_margin():
+    assert tool.estimate_tokens(15850) == 3963
+    assert tool.suggest_limits(3963) == (4608, 6144)
+
+
+def test_report_lists_evaluations_totals_skips_and_prompt_lengths(
+    db_session, user, seeded_sme_rubric
+):
+    train, _ = make_evaluation(
+        db_session, user, FULL_ANSWER, title="Train SLM", prompt_chars=15800
+    )
+    held_out, _ = make_evaluation(
+        db_session, user, FULL_ANSWER, title="Held-out SLM", prompt_chars=15800
+    )
+    run = tool.plan_run(
+        db_session,
+        train_ids=[train],
+        reference_ids=[held_out],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+
+    text = tool.render_report(run, mode="DRY RUN")
+
+    assert "House-rule report (DRY RUN)" in text
+    assert "Edited criteria: OP-01, OP-03, OP-05, A-01, A-03, A-05" in text
+    assert "[train]" in text and "[reference]" in text
+    assert "Train SLM" in text and "Held-out SLM" in text
+    assert "corrections planned: 5" in text
+    assert "expected new pairs: 2" in text
+    assert "already_max=" in text
+    assert "2 of 2" in text  # generations above the notebook's prompt limit
+    assert "max_prompt_length=4608" in text and "MAX_SEQ_LENGTH=6144" in text
+    assert "never publish" in text.lower()
+    assert "do not start another sme training job" in text.lower()
+
+
+def test_report_survives_a_windows_console(db_session, user, seeded_sme_rubric):
+    evaluation_id, _ = make_evaluation(
+        db_session, user, FULL_ANSWER, title="Módulo – 1"
+    )
+    run = tool.plan_run(
+        db_session,
+        train_ids=[evaluation_id],
+        reference_ids=[],
+        edit_codes=("OP-01",),
+    )
+    tool.render_report(run, mode="DRY RUN").encode("cp1252")
+
+
+@pytest.fixture()
+def cli(monkeypatch, db_session):
+    """Run main() against the in-memory database with the safety checks stubbed."""
+    monkeypatch.setattr(tool, "validate_environment", lambda: "development")
+
+    def run(*argv):
+        return tool.main(list(argv), session_factory=lambda: db_session)
+
+    return run
+
+
+def test_cli_dry_run_prints_the_report_and_writes_nothing(
+    cli, capsys, db_session, user, seeded_sme_rubric
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+
+    code = cli("--train-evaluations", str(evaluation_id))
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "House-rule report (DRY RUN)" in out
+    assert "Dry run: nothing was written" in out
+    assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_cli_reads_ids_from_files(
+    cli, capsys, tmp_path, db_session, user, seeded_sme_rubric
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    path = tmp_path / "train.txt"
+    path.write_text(f"{evaluation_id}\n", encoding="utf-8")
+    assert cli("--train-evaluations-file", str(path)) == 0
+    assert "[train]" in capsys.readouterr().out
+
+
+def test_cli_aborts_with_exit_2_and_a_message(cli, capsys, seeded_sme_rubric):
+    assert cli("--train-evaluations", str(uuid.uuid4())) == 2
+    assert "ABORTED" in capsys.readouterr().out
+    assert cli("--train-evaluations", "nope") == 2
+
+
+def test_cli_refuses_production(monkeypatch, capsys):
+    def refuse():
+        raise PermissionError("production refused")
+
+    monkeypatch.setattr(tool, "validate_environment", refuse)
+    assert tool.main(["--train-evaluations", str(uuid.uuid4())]) == 3
+    assert "REFUSED" in capsys.readouterr().out
+
+
+def test_cli_refuses_write_and_cleanup_until_they_exist(cli, capsys):
+    assert cli("--train-evaluations", str(uuid.uuid4()), "--confirm", "SEED") == 3
+    assert cli("--cleanup", "--run-id", str(uuid.uuid4())) == 3
+    assert "not available" in capsys.readouterr().out
+
+
+def test_parser_help_carries_the_publish_rule():
+    assert "never be published" in tool.build_parser().format_help().lower()
