@@ -126,6 +126,8 @@ Specialist results use a criteria-first layout: one module title and action tool
 
 Admin pages are dense operational tools: tables, filters, status summaries, and focused forms. Preserve the same shell and tokens as Faculty; vary hierarchy through content and layout, not a second visual language.
 
+Training Data uses wide specialist tabs followed by dataset preparation, a conditional notebook handoff, run history, and uploaded adapters. Place the preparation action beside readiness; preparing a run freezes a dataset and issues notebook URLs rather than launching training. Keep seeded-data and reviewer limitations visible, with inclusion details behind a disclosure. Use compact counts and sentence-case section headings instead of repeated card headers. History rows prioritize dates, dataset size, and recorded state, with full identifiers and hashes available in expandable details. Adapter receipt does not imply validation or activation. Preserve unsaved notebook URLs in page memory across specialist changes and require acknowledgment before replacing them; do not persist these credentials in browser storage.
+
 ## Component rules
 
 - Primary buttons use primary fill, white text, a 2-4px radius, and a visible pressed state.
