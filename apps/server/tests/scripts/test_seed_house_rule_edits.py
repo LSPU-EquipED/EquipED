@@ -1,8 +1,5 @@
 """Tests for the house-rule correction script (adapter validation)."""
 
-# F811: the re-exported fixture is used as a test argument (standard pytest pattern).
-# ruff: noqa: F811
-
 from __future__ import annotations
 
 import hashlib
@@ -20,12 +17,11 @@ from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapsho
 from server.modules.synthesis.models import AgentGeneration, AgentResult
 from server.modules.training_data.projectors import _is_score_shaped
 from server.scripts import seed_house_rule_edits as tool
+from server.tests.scripts import test_seed_synthetic_dpo_pairs as _seed_tests
 
 # Re-exported fixture: seeds the active SME rubric (OP-01..05, A-01..05, all
 # llm_rubric_guidance) into the in-memory test database.
-from server.tests.scripts.test_seed_synthetic_dpo_pairs import (  # noqa: F401
-    seeded_sme_rubric,
-)
+seeded_sme_rubric = _seed_tests.seeded_sme_rubric
 
 
 @pytest.mark.parametrize(
@@ -456,7 +452,7 @@ def test_decide_skip_reasons_in_priority_order():
     )
 
 
-def test_plan_run_reads_only_and_aborts_on_any_bad_evaluation(
+def test_plan_run_aborts_on_any_bad_evaluation_and_writes_nothing(
     db_session, user, seeded_sme_rubric
 ):
     good, _ = make_evaluation(db_session, user, FULL_ANSWER)
@@ -531,3 +527,102 @@ def test_plan_run_collects_train_and_reference_plans(
     assert [p.group for p in run.plans] == ["train", "reference"]
     assert len(run.writes) == 5
     assert len(run.pair_generation_ids) == 2
+
+
+def test_plan_run_is_read_only(db_session, user, seeded_sme_rubric):
+    train, _ = make_evaluation(db_session, user, FULL_ANSWER, title="Train")
+    reference, _ = make_evaluation(db_session, user, FULL_ANSWER, title="Held out")
+    models = (PreferenceLog, AgentGeneration, EvaluationJob)
+    before = [db_session.query(m).count() for m in models]
+    run = tool.plan_run(
+        db_session,
+        train_ids=[train],
+        reference_ids=[reference],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+    assert run.writes
+    assert not db_session.new
+    assert not db_session.dirty
+    assert not db_session.deleted
+    assert [db_session.query(m).count() for m in models] == before
+
+
+@pytest.mark.parametrize(
+    "resolution",
+    [
+        None,
+        {},
+        {"other": {"requested": "x", "applied": "x", "reason": None}},
+        {"sme": {"requested": "sme-v1", "applied": None, "reason": "not_loaded"}},
+        {"sme": {"requested": "base", "applied": None, "reason": None}},
+    ],
+)
+def test_adapter_guard_passes_when_no_sme_adapter_was_applied(
+    db_session, user, seeded_sme_rubric, resolution
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    job = db_session.get(EvaluationJob, evaluation_id)
+    job.adapter_resolution = resolution
+    db_session.commit()
+    plan = tool.plan_evaluation(
+        db_session, evaluation_id, group="train", edit_codes=("OP-01",)
+    )
+    assert plan.writes
+
+
+def _log(evaluation_id, user, **overrides):
+    fields = {
+        "evaluation_id": evaluation_id,
+        "user_id": user.user_id,
+        "agent_name": "sme",
+        "criterion_id": "OP-01",
+        "action": "ACCEPT",
+    }
+    fields.update(overrides)
+    return PreferenceLog(**fields)
+
+
+def _op01(plan):
+    return next(c for c in plan.criteria if c.criterion_code == "OP-01")
+
+
+def test_a_log_on_another_evaluation_does_not_cause_a_skip(
+    db_session, user, seeded_sme_rubric
+):
+    mine, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    other, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    db_session.add(_log(other, user))
+    db_session.commit()
+    plan = tool.plan_evaluation(db_session, mine, group="train", edit_codes=("OP-01",))
+    assert _op01(plan).skip_reason is None
+    assert _op01(plan).new_score == 3
+
+
+def test_a_log_without_a_criterion_id_is_ignored(db_session, user, seeded_sme_rubric):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    db_session.add(_log(evaluation_id, user, criterion_id=None))
+    db_session.commit()
+    plan = tool.plan_evaluation(
+        db_session, evaluation_id, group="train", edit_codes=("OP-01",)
+    )
+    assert _op01(plan).skip_reason is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"action": "REJECT"},
+        {"action": "ITEM_REJECT", "item_id": "item-1"},
+        {"agent_name": "SME"},
+    ],
+)
+def test_reject_item_and_uppercase_agent_logs_count_as_existing(
+    db_session, user, seeded_sme_rubric, overrides
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    db_session.add(_log(evaluation_id, user, **overrides))
+    db_session.commit()
+    plan = tool.plan_evaluation(
+        db_session, evaluation_id, group="train", edit_codes=("OP-01",)
+    )
+    assert _op01(plan).skip_reason == "existing_log"
