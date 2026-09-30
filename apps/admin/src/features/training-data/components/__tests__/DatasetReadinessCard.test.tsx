@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { DatasetReadinessCard } from '../DatasetReadinessCard';
@@ -60,10 +60,17 @@ describe('DatasetReadinessCard', () => {
     );
   }
 
-  function renderCard() {
+  function renderCard(props: Partial<React.ComponentProps<typeof DatasetReadinessCard>> = {}) {
     return render(
       <QueryClientProvider client={queryClient}>
-        <DatasetReadinessCard agentId="sme" />
+        <DatasetReadinessCard
+          agentId="sme"
+          onPrepare={vi.fn()}
+          isPreparing={false}
+          hasHandoff={false}
+          preparationError={null}
+          {...props}
+        />
       </QueryClientProvider>,
     );
   }
@@ -80,25 +87,7 @@ describe('DatasetReadinessCard', () => {
     renderCard();
     const alert = screen.getByRole('alert');
     expect(alert.textContent).toMatch(/failed to check dataset readiness/i);
-    expect(alert.textContent).toMatch(/reload the page/i);
-  });
-
-  it('shows the three counts side by side in one row', () => {
-    mockReadiness({ data: readiness, isLoading: false, isError: false });
-    const { container } = renderCard();
-    const row = container.querySelector('dl');
-    expect(row?.className).toContain('grid-cols-3');
-    expect(row?.children).toHaveLength(3);
-  });
-
-  it('puts each label above its number as a labelled term', () => {
-    mockReadiness({ data: readiness, isLoading: false, isError: false });
-    renderCard();
-    for (const label of ['Pairs', 'Evaluations', 'Reviewers']) {
-      const term = screen.getByText(label);
-      expect(term.tagName).toBe('DT');
-      expect(term.nextElementSibling?.tagName).toBe('DD');
-    }
+    expect(screen.getByRole('button', { name: /retry readiness/i })).toBeDefined();
   });
 
   it('shows counts, the funnel, and the skip reason', () => {
@@ -126,19 +115,49 @@ describe('DatasetReadinessCard', () => {
     renderCard();
     const note = screen.getByText(/seeded test data/i);
     const verdict = screen.getByText(/enough volume to attempt/i);
-    expect(
-      note.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(note.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('groups the verdict with its rule of thumb and sets the funnel apart as a footnote', () => {
+  it('keeps inclusion details available in a disclosure', () => {
     mockReadiness({ data: readiness, isLoading: false, isError: false });
     renderCard();
-    const verdict = screen.getByText(/enough volume to attempt/i);
-    const ruleOfThumb = screen.getByText(/rule of thumb/i);
-    expect(verdict.parentElement).toBe(ruleOfThumb.parentElement);
-    const funnel = screen.getByText(/generations examined/i);
-    expect(funnel.parentElement?.className).toContain('border-t');
+    const summary = screen.getByText('Dataset inclusion details');
+    expect(summary.closest('details')?.open).toBe(false);
+    expect(summary.closest('details')?.textContent).toMatch(/40 generations examined/);
+  });
+
+  it.each([
+    { data: undefined, isLoading: true, isError: false },
+    { data: undefined, isLoading: false, isError: true },
+    { data: { ...readiness, pair_count: 0 }, isLoading: false, isError: false },
+  ] as const)('prevents preparing a run with unavailable or empty data', (query) => {
+    mockReadiness(query);
+    const prepare = vi.fn();
+    renderCard({ onPrepare: prepare });
+    const button = screen.getByRole('button', {
+      name: 'Prepare training run',
+    }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it('allows a small non-empty dataset while retaining its caveat', () => {
+    mockReadiness({ data: { ...readiness, pair_count: 2 }, isLoading: false, isError: false });
+    const prepare = vi.fn();
+    renderCard({ onPrepare: prepare });
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare training run' }));
+    expect(prepare).toHaveBeenCalledOnce();
+    expect(screen.getByText(/smoke test/i)).toBeDefined();
+  });
+
+  it('prevents replacing unsaved notebook credentials', () => {
+    mockReadiness({ data: readiness, isLoading: false, isError: false });
+    renderCard({ hasHandoff: true });
+    expect(
+      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(screen.getByText(/save the notebook URLs below/i)).toBeDefined();
   });
 
   it('warns when every correction comes from a single reviewer', () => {
@@ -203,8 +222,8 @@ describe('DatasetReadinessCard', () => {
       isError: false,
     } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
     renderCard();
-    expect(screen.getByText(/identical to the latest job/i)).toBeDefined();
-    expect(screen.getByText(/would freeze the same data again/i)).toBeDefined();
+    expect(screen.getByText(/unchanged since the latest run/i)).toBeDefined();
+    expect(screen.getByText(/preparing again uses the same data/i)).toBeDefined();
   });
 
   it('shows the count change against the latest job when the dataset differs', () => {

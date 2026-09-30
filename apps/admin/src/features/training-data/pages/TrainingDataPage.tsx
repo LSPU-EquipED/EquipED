@@ -1,65 +1,84 @@
+import { useRef, type KeyboardEvent } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
-import { GraduationCap } from '@phosphor-icons/react';
-import { TYPOGRAPHY, cn, PageContainer } from '@equiped/ui';
-import { AdapterListTable } from '../components/AdapterListTable';
-import { DatasetReadinessCard } from '../components/DatasetReadinessCard';
-import { TrainingJobsPanel } from '../components/TrainingJobsPanel';
-import { DEFAULT_TRAINING_AGENT_ID, TRAINING_AGENTS } from '../trainingAgents';
+import { cn, PageContainer } from '@equiped/ui';
+import { TrainingDataWorkspace } from '../components/TrainingDataWorkspace';
+import { useTrainingPreparation } from '../hooks/useTrainingPreparation';
+import { TRAINING_AGENTS } from '../trainingAgents';
 
 export function TrainingDataPage() {
   const { agentId } = useParams({ strict: false }) as { agentId?: string };
   const navigate = useNavigate();
-  const activeAgent = agentId ?? DEFAULT_TRAINING_AGENT_ID;
-  const activeAgentMeta =
-    TRAINING_AGENTS.find((a) => a.id === activeAgent) ?? TRAINING_AGENTS[0];
+  const activeAgent = TRAINING_AGENTS.find((agent) => agent.id === agentId) ?? TRAINING_AGENTS[0];
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const preparation = useTrainingPreparation(activeAgent.id);
+
+  function selectAgent(id: string) {
+    void navigate({
+      to: '/admin/training-data/$agentId',
+      params: { agentId: id },
+    });
+  }
+
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (index + 1) % TRAINING_AGENTS.length
+        : event.key === 'ArrowLeft'
+          ? (index + TRAINING_AGENTS.length - 1) % TRAINING_AGENTS.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? TRAINING_AGENTS.length - 1
+              : null;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    tabRefs.current[nextIndex]?.focus();
+    selectAgent(TRAINING_AGENTS[nextIndex].id);
+  }
 
   return (
-    <PageContainer as="section" key={activeAgent}>
-      <div className="rounded-md border border-border bg-surface shadow-none overflow-hidden">
-        <nav
-          className="flex flex-wrap gap-1 px-4 pt-2 border-b border-border bg-surface-subtle"
-          aria-label="Specialist Agents"
-        >
-          {TRAINING_AGENTS.map((agent) => {
-            const isTabSelected = activeAgent === agent.id;
-            return (
-              <button
-                key={agent.id}
-                type="button"
-                role="tab"
-                aria-selected={isTabSelected}
-                onClick={() => {
-                  void navigate({
-                    to: '/admin/training-data/$agentId',
-                    params: { agentId: agent.id },
-                  });
-                }}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-3 text-xs font-semibold transition-colors border-b-2 cursor-pointer select-none',
-                  isTabSelected
-                    ? 'border-primary text-primary font-bold bg-surface'
-                    : 'border-transparent text-text-muted hover:text-text hover:border-border',
-                )}
-              >
-                <GraduationCap className="size-4" />
-                <span>{agent.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+    <PageContainer as="section">
+      <div
+        role="tablist"
+        aria-label="Specialist agents"
+        className="grid grid-cols-4 border-b border-border"
+      >
+        {TRAINING_AGENTS.map((agent, index) => (
+          <button
+            key={agent.id}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
+            type="button"
+            role="tab"
+            id={`training-tab-${agent.id}`}
+            aria-label={agent.label}
+            title={agent.label}
+            aria-selected={activeAgent.id === agent.id}
+            aria-controls={activeAgent.id === agent.id ? `training-panel-${agent.id}` : undefined}
+            tabIndex={activeAgent.id === agent.id ? 0 : -1}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
+            onClick={() => selectAgent(agent.id)}
+            className={cn(
+              '-mb-px min-h-10 min-w-0 cursor-pointer truncate border-b-2 px-2 py-2 text-sm font-semibold transition-colors duration-120 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none sm:px-4',
+              activeAgent.id === agent.id
+                ? 'border-primary bg-primary-soft text-primary'
+                : 'border-transparent text-text-muted hover:bg-surface-subtle hover:text-text',
+            )}
+          >
+            {agent.shortLabel}
+          </button>
+        ))}
       </div>
-
-      <div className="space-y-1">
-        <h1 className={TYPOGRAPHY.headingLg}>{activeAgentMeta.label} — Training Data</h1>
-        <p className="text-sm text-text-muted">
-          Freeze a DPO dataset snapshot, hand it to a Colab notebook, and track adapters trained
-          from it.
-        </p>
-      </div>
-
-      <DatasetReadinessCard agentId={activeAgent} />
-      <TrainingJobsPanel agentId={activeAgent} />
-      <AdapterListTable agentId={activeAgent} />
+      <TrainingDataWorkspace
+        key={activeAgent.id}
+        agentId={activeAgent.id}
+        credentials={preparation.credentials}
+        onPrepare={preparation.prepareRun}
+        isPreparing={preparation.isPreparing}
+        preparationError={preparation.error}
+        onHandoffSaved={preparation.acknowledgeHandoff}
+      />
     </PageContainer>
   );
 }

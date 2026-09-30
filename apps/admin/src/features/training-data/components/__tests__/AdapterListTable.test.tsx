@@ -196,4 +196,36 @@ describe('AdapterListTable', () => {
       expect(screen.getByRole('alert').textContent).toContain('is not loaded on the model server'),
     );
   });
+
+  it('cancels a publication without making a request', async () => {
+    await renderTable(listing([adapter(1)]));
+    fireEvent.click(within(rowFor(1)).getByRole('button', { name: 'Publish' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(trainingDataApi.publishAdapter).not.toHaveBeenCalled();
+    expect(trainingDataApi.unpublishAdapter).not.toHaveBeenCalled();
+  });
+
+  it('keeps row details expanded through publication failure and clears the error on a new request', async () => {
+    vi.mocked(trainingDataApi.publishAdapter).mockRejectedValue(new Error('Publication failed.'));
+    await renderTable(listing([adapter(1)]));
+    const details = within(rowFor(1)).getByRole('button', { name: /show details/i });
+    fireEvent.click(details);
+    fireEvent.click(within(rowFor(1)).getByRole('button', { name: 'Publish' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /publish/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Publication failed.'),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(
+      within(rowFor(1))
+        .getByRole('button', { name: /hide details/i })
+        .getAttribute('aria-expanded'),
+    ).toBe('true');
+    fireEvent.click(within(rowFor(1)).getByRole('button', { name: 'Publish' }));
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

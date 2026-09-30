@@ -9,7 +9,6 @@ import {
   getReviewerNote,
   RULE_OF_THUMB_NOTE,
   SEEDED_DATA_NOTE,
-  shortHash,
   totalSkipped,
 } from '../trainingData.utils';
 
@@ -129,14 +128,6 @@ describe('describeFunnel', () => {
     expect(describeFunnel(1, { no_reviewer_feedback: 0 })).toBe(
       '1 generation examined: 1 became pairs, none skipped.',
     );
-  });
-});
-
-describe('shortHash', () => {
-  it('shortens a hash and tolerates missing values', () => {
-    expect(shortHash('0123456789abcdef')).toBe('01234567');
-    expect(shortHash(null)).toBe('—');
-    expect(shortHash(undefined)).toBe('—');
   });
 });
 
