@@ -1,127 +1,147 @@
-import { useState } from 'react';
-import { BookOpen, FileText, ShieldCheck, Warning } from '@phosphor-icons/react';
-import { TABLE_STYLES } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import { TableSkeleton } from '@equiped/ui';
-import { usePreferenceLogs } from '../hooks/usePreferenceLogs';
-import type { PreferenceLogItem } from '../types';
+import { FileText, Warning } from '@phosphor-icons/react';
+import { Button, TABLE_STYLES, TableSkeleton, cn } from '@equiped/ui';
+import { usePreferenceLogTable } from '../hooks/usePreferenceLogTable';
 import { PreferenceLogFilters } from './PreferenceLogFilters';
 import { PreferenceLogRow } from './PreferenceLogRow';
 import { PreferenceLogPagination } from './PreferenceLogPagination';
 
 export function PreferenceLogTable() {
-  const [actionFilter, setActionFilter] = useState<string>('all');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
-
-  const { data, isLoading, isError } = usePreferenceLogs({
-    action: actionFilter !== 'all' ? actionFilter : undefined,
+  const {
+    logs,
+    isLoading,
+    isError,
+    actionFilter,
     page,
-    page_size: pageSize,
-  });
-
-  const toggleExpand = (logId: string) => {
-    setExpandedLogIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(logId)) next.delete(logId);
-      else next.add(logId);
-      return next;
-    });
-  };
-
-  const totalRecords = data?.total ?? data?.items?.length ?? 0;
+    pageSize,
+    expandedLogIds,
+    totalRecords,
+    showPagination,
+    changeActionFilter,
+    changePageSize,
+    changePage,
+    toggleExpand,
+  } = usePreferenceLogTable();
 
   return (
-    <section className="space-y-5">
+    <section aria-label="Preference logs" className="space-y-4">
       <PreferenceLogFilters
         actionFilter={actionFilter}
-        onFilterChange={(filterId) => {
-          setActionFilter(filterId);
-          setPage(1);
-        }}
-        totalRecords={totalRecords}
+        onFilterChange={changeActionFilter}
       />
 
       <div className={TABLE_STYLES.wrapper}>
-        <div className="flex items-center justify-between border-b border-border bg-surface-subtle px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <BookOpen className="size-4 text-primary" aria-hidden="true" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-text">
-              Reviewer Preference & Override Audit Log
-            </h2>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-            <ShieldCheck className="size-3.5 text-primary" />
-            <span>Authoritative Human Governance</span>
-          </div>
-        </div>
-
         {isLoading ? (
           <TableSkeleton
             ariaLabel="Loading preference audit logs"
             columns={[
-              { label: 'Expand', headerClassName: 'w-10', cellClassName: 'w-10', skeletonClassName: 'size-4' },
-              { label: 'Reviewer User ID', headerClassName: 'w-48', skeletonClassName: 'h-4 w-32' },
-              { label: 'Action', headerClassName: 'w-32', skeletonClassName: 'h-5 w-24' },
-              { label: 'Evaluation ID', headerClassName: 'w-48', skeletonClassName: 'h-4 w-32' },
-              { label: 'Details / Score', skeletonClassName: 'h-4 w-48' },
-              { label: 'Logged Timestamp', headerClassName: 'w-48 text-right', skeletonClassName: 'h-4 w-28 ml-auto' },
+              {
+                label: 'Details',
+                headerClassName: 'w-14',
+                cellClassName: 'w-14',
+                skeletonClassName: 'size-4',
+              },
+              { label: 'Reviewer', skeletonClassName: 'h-4 w-32' },
+              {
+                label: 'Action',
+                headerClassName: 'w-32',
+                skeletonClassName: 'h-5 w-24',
+              },
+              { label: 'Evaluation', skeletonClassName: 'h-4 w-32' },
+              {
+                label: 'Score',
+                headerClassName: 'w-20 text-right',
+                skeletonClassName: 'h-4 w-6 ml-auto',
+              },
+              {
+                label: 'Logged',
+                headerClassName: 'w-40 text-right',
+                skeletonClassName: 'h-4 w-28 ml-auto',
+              },
             ]}
           />
         ) : isError ? (
-          <div className="flex items-center justify-center py-12 px-4 text-destructive font-semibold text-sm gap-2.5 bg-destructive-soft">
-            <Warning className="size-5 text-destructive shrink-0" aria-hidden="true" />
-            <span>Failed to load preference logs from server.</span>
+          <div
+            role="alert"
+            className="flex items-center justify-center gap-2 px-4 py-12 text-sm text-destructive"
+          >
+            <Warning
+              className="size-5 text-destructive shrink-0"
+              aria-hidden="true"
+            />
+            <span>Unable to load preference logs. Please try again.</span>
           </div>
-        ) : !data?.items.length ? (
-          <div className="py-16 text-center text-text-muted space-y-1.5">
-            <FileText className="size-8 text-text-muted/40 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-semibold text-text">No preference audit logs recorded yet.</p>
-            <p className="text-xs text-text-muted max-w-sm mx-auto">
-              Faculty score overrides and justification edits submitted during interactive evaluations will automatically appear here.
+        ) : !logs.length ? (
+          <div className="space-y-2 px-4 py-12 text-center text-sm text-text-muted">
+            <FileText className="mx-auto mb-3 size-6" aria-hidden="true" />
+            <p className="font-semibold text-text">
+              {actionFilter === 'all'
+                ? 'No preference logs yet'
+                : 'No matching records'}
             </p>
+            {actionFilter === 'all' ? (
+              <p>Reviewer decisions and corrections will appear here.</p>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => changeActionFilter('all')}
+              >
+                Clear filter
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className={TABLE_STYLES.table}>
-              <thead className={TABLE_STYLES.thead}>
-                <tr>
-                  <th className="py-3 px-3 w-10 text-center" />
-                  <th className={cn(TABLE_STYLES.th, 'w-48')}>Reviewer User ID</th>
-                  <th className={cn(TABLE_STYLES.th, 'w-32')}>Action</th>
-                  <th className={cn(TABLE_STYLES.th, 'w-48')}>Evaluation ID</th>
-                  <th className={cn(TABLE_STYLES.th, 'w-auto')}>Details / Score</th>
-                  <th className={cn(TABLE_STYLES.th, 'w-48 text-right')}>Logged Timestamp</th>
-                </tr>
-              </thead>
-              <tbody className={TABLE_STYLES.tbody}>
-                {data.items.map((log: PreferenceLogItem) => (
-                  <PreferenceLogRow
-                    key={log.log_id}
-                    log={log}
-                    isExpanded={expandedLogIds.has(log.log_id)}
-                    onToggle={() => toggleExpand(log.log_id)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <table aria-label="Preference logs" className={TABLE_STYLES.table}>
+            <thead className={TABLE_STYLES.thead}>
+              <tr>
+                <th scope="col" className="w-14 px-2 py-3">
+                  <span className="sr-only">Details</span>
+                </th>
+                <th scope="col" className={TABLE_STYLES.th}>
+                  Reviewer
+                </th>
+                <th scope="col" className={cn(TABLE_STYLES.th, 'w-32')}>
+                  Action
+                </th>
+                <th scope="col" className={TABLE_STYLES.th}>
+                  Evaluation
+                </th>
+                <th
+                  scope="col"
+                  className={cn(TABLE_STYLES.th, 'w-20 text-right')}
+                >
+                  Score
+                </th>
+                <th
+                  scope="col"
+                  className={cn(TABLE_STYLES.th, 'w-40 text-right')}
+                >
+                  Logged
+                </th>
+              </tr>
+            </thead>
+            <tbody className={TABLE_STYLES.tbody}>
+              {logs.map((log) => (
+                <PreferenceLogRow
+                  key={log.log_id}
+                  log={log}
+                  isExpanded={expandedLogIds.has(log.log_id)}
+                  onToggle={() => toggleExpand(log.log_id)}
+                />
+              ))}
+            </tbody>
+          </table>
         )}
-
-        {!isLoading && !isError && data && data.items.length > 0 && totalRecords > 0 ? (
-          <PreferenceLogPagination
-            page={page}
-            pageSize={pageSize}
-            totalRecords={totalRecords}
-            onPageChange={setPage}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize);
-              setPage(1);
-            }}
-          />
-        ) : null}
       </div>
+
+      {showPagination ? (
+        <PreferenceLogPagination
+          page={page}
+          pageSize={pageSize}
+          totalRecords={totalRecords}
+          onPageChange={changePage}
+          onPageSizeChange={changePageSize}
+        />
+      ) : null}
     </section>
   );
 }
