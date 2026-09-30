@@ -172,7 +172,7 @@ export function AppShell({
             <button
               type="button"
               ref={accountTriggerRef}
-              className="flex size-8 items-center justify-center rounded-sm border border-primary/20 bg-primary-soft text-xs font-semibold text-primary hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="flex size-8 items-center justify-center rounded-full border border-primary/20 bg-primary-soft text-xs font-semibold text-primary hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               aria-haspopup="menu"
               aria-expanded={isAccountMenuOpen}
               aria-label={`User account menu for ${user?.displayName ?? user?.email ?? userRole}`}

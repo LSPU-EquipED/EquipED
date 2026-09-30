@@ -92,9 +92,9 @@ Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px ta
 - The desktop top bar is 56px tall and uses the canvas color with a bottom border.
 - The desktop sidebar is 256px wide; the collapsed rail is 72px wide. Mobile uses a drawer.
 - Main content uses the canvas background and begins below the top bar and beside the sidebar.
-- The top bar carries breadcrumbs, the mobile menu control, and the account control. The account control is a compact square workbench affordance, not a decorative avatar bubble.
+- The top bar carries breadcrumbs, the mobile menu control, and the account control. The account control is a compact circular initials avatar, with the shared primary-soft fill and a visible focus ring.
 - Sidebar navigation is grouped by responsibility. Group labels use sentence case, 11px text, and modest tracking. Active items use primary-soft, primary text, and a clear leading rule.
-- Keep navigation labels short and operational: `Home`, `Documents`, `Evaluations`, `Curriculum`, and `Logs` in Faculty; `Overview`, `Operations`, `Knowledge base`, and `Model governance` in Admin.
+- Keep navigation labels short and descriptive. Faculty uses `Dashboard`, `Module Library`, `SME Specialist`, `Program Coordinator`, `GAD Specialist`, `ITSO Specialist`, `Syllabus`, `Curriculum`, and `Evaluation History`. Admin retains its descriptive operational labels. Sidebar groups remain organized by responsibility, and breadcrumbs use the same names as their navigation items.
 
 ## Page composition
 
@@ -102,7 +102,7 @@ Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px ta
 
 The first viewport should answer: what needs attention, what is active, and what can I do next? Use this order:
 
-1. Page heading and top-level context with operational upload affordances available directly within primary workflows (such as the SLM Storage toolbar action).
+1. Page heading and top-level context with operational upload affordances available directly within primary workflows (such as the Module Library toolbar action).
 2. Compact metrics for owned modules and evaluation state.
 3. Active evaluation or attention-required work.
 4. Recent evaluation activity and a link to the full history.
@@ -152,4 +152,4 @@ Use direct, institutional language. Say what is ready, what is blocked, and who 
 
 **Do:** use sentence case, evidence-led hierarchy, compact controls, structural borders, clear status text, and generous breathing room around important review decisions.
 
-**Do not:** introduce gradients, glassmorphism, oversized hero typography, circular avatar decoration, dense uppercase navigation, unrelated color themes, or nested card stacks.
+**Do not:** introduce gradients, glassmorphism, oversized hero typography, decorative avatar effects, dense uppercase navigation, unrelated color themes, or nested card stacks.
