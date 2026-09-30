@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -92,11 +93,12 @@ function renderPage(
     },
   });
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <SpecialistScoreboardPage {...props} />
     </QueryClientProvider>,
   );
+  return { ...view, queryClient };
 }
 
 describe("SpecialistScoreboardPage", () => {
@@ -596,7 +598,7 @@ describe("SpecialistScoreboardPage", () => {
       expect(screen.getByText("Ready")).toBeDefined();
     });
   });
-  it("renders live progress indicator when evaluation is in progress", async () => {
+  it.each(["COMPLETED", "FAILED"])("updates live progress and switches to %s even with a stale evaluating queue", async (terminalStatus) => {
     vi.mocked(evaluationApi.getDeskQueue).mockResolvedValue({
       items: [
         {
@@ -630,17 +632,82 @@ describe("SpecialistScoreboardPage", () => {
       page_size: 5,
     });
 
-    renderPage({ agentId: "sme", documentId: "doc-slm-001" });
+    const { queryClient } = renderPage({ agentId: "sme", documentId: "doc-slm-001" });
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", {
-          name: /Subject Matter Expert \(SME\) Evaluation in Progress/i,
-        }),
-      ).toBeDefined();
+      expect(screen.getByRole("status").textContent).toContain("Reviewing your learning material");
+    });
+    expect(screen.getByRole("heading", {
+      name: "Reviewing your learning material",
+    })).toBeDefined();
+    expect(screen.getByRole("region", { name: "Evaluation progress for Data Structures SLM" })).toBeDefined();
+    expect(screen.getByText("Specialist review").closest("li")?.getAttribute("aria-current")).toBe("step");
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
+
+    // A fresh polling response must update the visible stage without a page reload.
+    const response = await evaluationApi.listEvaluations("doc-slm-001", "sme");
+    vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({
+      ...response,
+      items: response.items.map((job) => ({ ...job, status: "SYNTHESIZING" })),
+    });
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['specialist-evaluations', 'doc-slm-001', 'sme'] });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Finalizing").closest("li")?.getAttribute("aria-current")).toBe("step");
+      expect(screen.getByRole("status").textContent).toContain("updating the monitoring matrix");
     });
 
-    expect(screen.getByText(/Status: EVALUATING/i)).toBeDefined();
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue({
+      evaluation_id: "eval-sme-progress", document_id: "doc-slm-001",
+      overall_score: 3, synthesized_score: 75, adjectival_rating: "Satisfactory",
+      active_agents: ["sme"], failed_agents: [], is_partial: false,
+      evaluation_status: "COMPLETED",
+      domain_scores: { sme: { subtotal: 3, max_score: 4, status: "COMPLETED", criteria: [], summary: "SME summary" } },
+      flags: [],
+    });
+    vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({
+      ...response,
+      items: response.items.map((job) => ({ ...job, status: terminalStatus, error_message: "The review could not finish." })),
+    });
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ['specialist-evaluations', 'doc-slm-001', 'sme'] });
+    });
+    if (terminalStatus === "FAILED") {
+      await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("The review could not finish."));
+      expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+      expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
+      expect(screen.queryByRole("list", { name: "Evaluation stages" })).toBeNull();
+
+      // Admission can succeed before the new job appears in the list. The old
+      // failed job must not hide the accepted submission or stop its polling.
+      vi.mocked(evaluationApi.submitEvaluation).mockResolvedValue({
+        evaluation_id: "eval-sme-retry", document_id: "doc-slm-001",
+        status: "SUBMITTED", target_agent: "sme", submitted_at: "2026-10-01T00:00:00Z",
+        syllabus_id: null, curriculum_id: null,
+        duration_seconds: null,
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      fireEvent.click(screen.getByRole("button", { name: "Run SME Evaluation" }));
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Checking evaluation status" })).toBeDefined());
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByText(", done")).toBeNull();
+      vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({
+        ...response,
+        items: [{ ...response.items[0], evaluation_id: "eval-sme-retry", status: "PREPROCESSING" }],
+      });
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: ['specialist-evaluations', 'doc-slm-001', 'sme'] });
+      });
+      await waitFor(() => expect(screen.getByText("Preparation").closest("li")?.getAttribute("aria-current")).toBe("step"));
+      expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
+    } else {
+      await waitFor(() => expect(screen.getByRole("heading", { name: /Subject Matter Expert \(SME\) Performance Score/i })).toBeDefined());
+      expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith("eval-sme-progress");
+    }
+    if (terminalStatus === "COMPLETED") {
+      expect(screen.queryByRole("list", { name: "Evaluation stages" })).toBeNull();
+    }
   });
 
   it("renders GAD review and role specific details when agentId is gad", async () => {

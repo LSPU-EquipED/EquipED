@@ -64,6 +64,45 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     );
   }
 
+  it('shows the live specialist stage when opening an active evaluation from history', () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-123',
+        document_id: 'doc-456',
+        target_agent: 'sme',
+        status: 'PREPROCESSING',
+        submitted_at: '2026-10-01T00:00:00Z',
+      },
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useEvaluationModule.useEvaluation>);
+
+    renderScorecard();
+
+    expect(screen.getByRole('status').textContent).toContain('Preparing the SLM');
+    expect(screen.getByText('Preparation').closest('li')?.getAttribute('aria-current')).toBe('step');
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
+  });
+
+  it('shows a failed job without fetching or polling completed results', () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: {
+        evaluation_id: 'eval-123',
+        document_id: 'doc-456',
+        target_agent: 'gad',
+        status: 'FAILED',
+        error_message: 'The specialist could not finish this review.',
+        submitted_at: '2026-10-01T00:00:00Z',
+      },
+      isLoading: false,
+      isError: false,
+    } as ReturnType<typeof useEvaluationModule.useEvaluation>);
+    renderScorecard();
+    expect(screen.getByRole('heading', { name: 'Evaluation Failed' })).toBeDefined();
+    expect(screen.queryByRole('list', { name: 'Evaluation stages' })).toBeNull();
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
+  });
+
   it('renders dynamic form revision identity and ordered dynamic criteria without fixed assumptions', async () => {
     vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
       data: {
