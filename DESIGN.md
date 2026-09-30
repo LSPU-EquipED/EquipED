@@ -138,6 +138,7 @@ Training Data uses wide specialist tabs followed by dataset preparation, a condi
 - Tables use strong column alignment, compact rows, sticky context only when it improves review, and tabular numerals for data.
 - Status badges pair a semantic color with text and an icon or label. Do not rely on hue alone.
 - Empty, loading, error, and partial states are first-class layouts with clear next actions. Loading states use geometry-matched skeletons that preserve the final layout; do not use freestanding loading spinners.
+- Active evaluations show their server-reported stage (queued, preparation, specialist review, finalizing) with visible progress context and the selected specialist. Reserve skeletons for fetching workspace data or completed results; do not replace a running evaluation with placeholders or invent completion percentages and time estimates.
 
 ## Motion and accessibility
 
