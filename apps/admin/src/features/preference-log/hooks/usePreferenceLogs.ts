@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { preferenceLogApi } from '../api/preferenceLog.api';
+import type { PreferenceLogListParams } from '../types';
 
 export function usePreferenceLogs(
-  params: { action?: string; page?: number; page_size?: number } = {},
+  params: PreferenceLogListParams = {},
 ) {
   return useQuery({
     queryKey: ['preferenceLogs', params],

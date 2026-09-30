@@ -1,3 +1,9 @@
+export interface PreferenceLogListParams {
+  action?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface PreferenceLogItem {
   log_id: string;
   evaluation_id: string;

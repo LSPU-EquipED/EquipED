@@ -1,23 +1,25 @@
-import { CaretDown, CaretRight, User } from '@phosphor-icons/react';
-import { Badge } from '@equiped/ui';
-import { TABLE_STYLES, type StatusVariant } from '@equiped/ui';
-import { cn } from '@equiped/ui';
+import { useId } from 'react';
+import { CaretDown, CaretRight } from '@phosphor-icons/react';
+import {
+  Badge,
+  Button,
+  TABLE_STYLES,
+  cn,
+  type StatusVariant,
+} from '@equiped/ui';
 import type { PreferenceLogItem } from '../types';
-import { PreferenceDiffDrawer } from './PreferenceDiffDrawer';
+import { PreferenceLogDetails } from './PreferenceLogDetails';
 
-function getActionVariant(action: string): StatusVariant {
-  const normalized = action.toUpperCase();
-  if (normalized === 'EDIT' || normalized === 'EDITED' || normalized === 'UPDATE') {
-    return 'accent';
-  }
-  if (normalized === 'ACCEPT' || normalized === 'ACCEPTED' || normalized === 'APPROVE') {
-    return 'success';
-  }
-  if (normalized === 'REJECT' || normalized === 'REJECTED' || normalized === 'DELETE') {
-    return 'destructive';
-  }
-  return 'neutral';
-}
+const ACTION_PRESENTATION: Record<
+  string,
+  { label: string; variant: StatusVariant }
+> = {
+  EDIT: { label: 'Edited', variant: 'accent' },
+  ACCEPT: { label: 'Accepted', variant: 'success' },
+  REJECT: { label: 'Rejected', variant: 'destructive' },
+  ITEM_ACCEPT: { label: 'Item accepted', variant: 'success' },
+  ITEM_REJECT: { label: 'Item rejected', variant: 'destructive' },
+};
 
 interface PreferenceLogRowProps {
   log: PreferenceLogItem;
@@ -30,93 +32,81 @@ export function PreferenceLogRow({
   isExpanded,
   onToggle,
 }: PreferenceLogRowProps) {
-  const hasDetails = Boolean(log.edited_json || log.notes);
-  const score =
-    log.edited_json &&
-    typeof log.edited_json === 'object' &&
-    'score' in log.edited_json
-      ? log.edited_json.score
-      : null;
-
-  const justification =
-    log.edited_json &&
-    typeof log.edited_json === 'object' &&
-    'justification' in log.edited_json
-      ? String(log.edited_json.justification)
-      : null;
+  const detailsId = useId();
+  const score = log.edited_json?.score;
+  const action = ACTION_PRESENTATION[log.action.toUpperCase()];
+  const loggedAt = new Date(log.created_at);
+  const detailsLabel = `${isExpanded ? 'Hide' : 'View'} details for log ${log.log_id}`;
 
   return (
     <>
-      <tr className={cn(TABLE_STYLES.tr, isExpanded && 'bg-surface-subtle/50 transition-colors')}>
-        {/* Left-side Toggle Caret */}
-        <td className="py-3 px-3 text-center">
-          {hasDetails ? (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted hover:text-text hover:bg-surface-subtle cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              aria-label={isExpanded ? 'Hide Diff' : 'View Diff'}
-            >
-              {isExpanded ? (
-                <CaretDown className="size-3.5 text-primary" />
-              ) : (
-                <CaretRight className="size-3.5 text-text-muted" />
-              )}
-            </button>
-          ) : (
-            <span className="inline-block size-6" />
-          )}
+      <tr className={cn(TABLE_STYLES.tr, isExpanded && 'bg-surface-subtle/50')}>
+        <td className="px-2 py-2 text-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            aria-label={detailsLabel}
+            title={detailsLabel}
+            aria-expanded={isExpanded}
+            aria-controls={isExpanded ? detailsId : undefined}
+          >
+            {isExpanded ? (
+              <CaretDown className="size-4" aria-hidden="true" />
+            ) : (
+              <CaretRight className="size-4" aria-hidden="true" />
+            )}
+          </Button>
         </td>
-
-        {/* User ID */}
-        <td className={cn(TABLE_STYLES.tdData, 'whitespace-nowrap')}>
-          <div className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-text">
-            <User className="size-3.5 text-text-muted shrink-0" />
-            <span className="truncate max-w-[10rem]" title={log.user_id}>
-              {log.user_id}
-            </span>
-          </div>
+        <td className={TABLE_STYLES.tdData}>
+          <span
+            className="block max-w-40 truncate font-medium"
+            title={log.user_id}
+          >
+            {log.user_id}
+          </span>
         </td>
-
-        {/* Action Badge */}
         <td className={TABLE_STYLES.td}>
-          <Badge variant={getActionVariant(log.action)} withDot>
-            {log.action}
+          <Badge
+            variant={action?.variant ?? 'neutral'}
+            className="whitespace-nowrap tracking-normal"
+          >
+            {action?.label ?? log.action}
           </Badge>
         </td>
-
-        {/* Evaluation ID */}
-        <td className={cn(TABLE_STYLES.tdData, 'font-mono text-xs text-text-muted whitespace-nowrap')}>
-          <span className="rounded-xs bg-surface-subtle border border-border px-1.5 py-0.5" title={log.evaluation_id}>
+        <td className={cn(TABLE_STYLES.tdData, 'text-text-muted')}>
+          <span className="block max-w-40 truncate" title={log.evaluation_id}>
             {log.evaluation_id}
           </span>
         </td>
-
-        {/* Details / Score Column: Only the clean score badge */}
-        <td className={TABLE_STYLES.td}>
-          {score !== null && score !== undefined ? (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-xs bg-primary-soft text-primary border border-primary/20 text-xs font-bold font-mono tabular-nums">
-              Score: {String(score)}
-            </span>
+        <td className={cn(TABLE_STYLES.tdData, 'text-right font-medium')}>
+          {typeof score === 'number' || typeof score === 'string' ? (
+            score
           ) : (
-            <span className="text-xs text-text-muted font-medium">—</span>
+            <span className="text-text-muted">—</span>
           )}
         </td>
-
-        {/* Created Timestamp */}
-        <td className={cn(TABLE_STYLES.tdData, 'text-right text-text-muted font-medium text-xs whitespace-nowrap font-mono tabular-nums')}>
-          {new Date(log.created_at).toLocaleString()}
+        <td className={cn(TABLE_STYLES.tdData, 'text-right whitespace-nowrap')}>
+          <time dateTime={log.created_at}>
+            <span className="block">
+              {loggedAt.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
+            <span className="block text-xs text-text-muted">
+              {loggedAt.toLocaleTimeString(undefined, {
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </span>
+          </time>
         </td>
       </tr>
-
-      {/* Expanded Diff Drawer */}
-      {isExpanded && hasDetails ? (
-        <PreferenceDiffDrawer
-          log={log}
-          score={score}
-          justification={justification}
-        />
-      ) : null}
+      {isExpanded ? <PreferenceLogDetails id={detailsId} log={log} /> : null}
     </>
   );
 }

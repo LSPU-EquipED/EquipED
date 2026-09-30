@@ -1,8 +1,8 @@
 import { requestJson } from '@equiped/api-client';
-import type { PreferenceLogListResponse } from '../types';
+import type { PreferenceLogListParams, PreferenceLogListResponse } from '../types';
 
 export const preferenceLogApi = {
-  getPreferenceLogs: (params: { action?: string; page?: number; page_size?: number } = {}) => {
+  getPreferenceLogs: (params: PreferenceLogListParams = {}) => {
     const searchParams = new URLSearchParams();
     if (params.action) searchParams.set('action', params.action);
     if (params.page) searchParams.set('page', String(params.page));
