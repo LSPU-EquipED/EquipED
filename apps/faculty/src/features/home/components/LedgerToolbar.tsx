@@ -1,8 +1,6 @@
-import {
-  ArrowsClockwise,
-  MagnifyingGlass,
-} from "@phosphor-icons/react";
-import { Button, cn } from "@equiped/ui";
+import { useRef } from "react";
+import { ArrowsClockwise, MagnifyingGlass } from "@phosphor-icons/react";
+import { Button, Input, cn } from "@equiped/ui";
 import type { LedgerTab } from "../hooks/useOperationalLedger";
 
 export interface LedgerToolbarProps {
@@ -10,6 +8,7 @@ export interface LedgerToolbarProps {
   evaluationsCount: number;
   recentIssuesCount: number;
   searchQuery: string;
+  panelId: string;
   onTabChange: (tab: LedgerTab) => void;
   onSearchChange: (val: string) => void;
   onRefresh?: () => void;
@@ -20,109 +19,103 @@ export function LedgerToolbar({
   evaluationsCount,
   recentIssuesCount,
   searchQuery,
+  panelId,
   onTabChange,
   onSearchChange,
   onRefresh,
 }: LedgerToolbarProps) {
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const tabs: { id: LedgerTab; label: string; count: number }[] = [
+    { id: "evaluations", label: "Recent evaluations", count: evaluationsCount },
+    { id: "attention", label: "Requires review", count: recentIssuesCount },
+  ];
+
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border bg-surface px-4 sm:px-6 py-3">
-      {/* Left: Section Stamp & Unified Segment Switcher */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-bold text-text tracking-tight shrink-0 select-none">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-md border-b border-border bg-surface px-4 py-4 sm:px-6">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3">
+        <h2 className="text-sm font-semibold text-text">
           Recent evaluation activity
-        </span>
-
-        <div
-          className="hidden sm:block h-4 w-px bg-border shrink-0"
-          aria-hidden="true"
-        />
-
+        </h2>
         <div
           role="tablist"
           aria-label="Ledger views"
-          className="flex items-center gap-1 rounded-sm bg-surface-subtle p-1 border border-border/60"
+          className="flex flex-wrap gap-1"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "evaluations"}
-            onClick={() => onTabChange("evaluations")}
-            className={cn(
-              "flex items-center gap-2 rounded-xs px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer select-none",
-              activeTab === "evaluations"
-                ? "bg-surface text-primary font-bold shadow-xs border border-border/80"
-                : "text-text-muted hover:text-text",
-            )}
-          >
-            <span>Recent Evaluations</span>
-            <span
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.id}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
+              id={`${panelId}-${tab.id}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={panelId}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => onTabChange(tab.id)}
+              onKeyDown={(event) => {
+                let nextIndex: number;
+                if (event.key === "ArrowRight")
+                  nextIndex = (index + 1) % tabs.length;
+                else if (event.key === "ArrowLeft")
+                  nextIndex = (index + tabs.length - 1) % tabs.length;
+                else if (event.key === "Home") nextIndex = 0;
+                else if (event.key === "End") nextIndex = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                onTabChange(tabs[nextIndex].id);
+                tabRefs.current[nextIndex]?.focus();
+              }}
               className={cn(
-                "rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold",
-                activeTab === "evaluations"
+                "inline-flex min-h-10 items-center gap-2 rounded-sm px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                activeTab === tab.id
                   ? "bg-primary-soft text-primary"
-                  : "bg-surface text-text-muted",
+                  : "text-text-muted hover:bg-surface-subtle hover:text-text",
               )}
             >
-              {evaluationsCount}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "attention"}
-            onClick={() => onTabChange("attention")}
-            className={cn(
-              "flex items-center gap-2 rounded-xs px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer select-none",
-              activeTab === "attention"
-                ? "bg-surface text-warning font-bold shadow-xs border border-border/80"
-                : "text-text-muted hover:text-text",
-            )}
-          >
-            <span>Requires Review</span>
-            <span
-              className={cn(
-                "rounded-xs px-1.5 py-0.2 text-[10px] tabular-nums font-bold",
-                activeTab === "attention"
-                  ? "bg-warning-soft text-warning"
-                  : "bg-surface text-text-muted",
-              )}
-            >
-              {recentIssuesCount}
-            </span>
-          </button>
+              {tab.label}{" "}
+              <span className="text-xs tabular-nums">{tab.count}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Right: Search & Refresh */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="relative min-w-0 flex-1 sm:w-56">
+          <MagnifyingGlass
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+            aria-hidden="true"
+          />
+          <Input
+            type="search"
+            aria-label={
+              activeTab === "evaluations"
+                ? "Search evaluations"
+                : "Search review items"
+            }
+            placeholder={
+              activeTab === "evaluations"
+                ? "Search evaluations…"
+                : "Search review items…"
+            }
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="pl-9"
+          />
+        </div>
         {onRefresh && (
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             onClick={onRefresh}
-            className="h-8.5 px-3 text-xs font-semibold gap-1.5 shrink-0 border-border hover:bg-surface-subtle"
+            aria-label="Refresh workspace data"
             title="Refresh workspace data"
+            className="w-10 shrink-0 px-0"
           >
-            <ArrowsClockwise className="size-3.5" aria-hidden="true" />
-            <span>Refresh</span>
+            <ArrowsClockwise className="size-4" aria-hidden="true" />
           </Button>
         )}
-
-        <div className="relative min-w-[12rem] sm:min-w-[15rem]">
-          <MagnifyingGlass
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-text-muted pointer-events-none"
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            placeholder="Search evaluations..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="h-8.5 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-ring"
-          />
-        </div>
       </div>
     </div>
   );
