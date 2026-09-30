@@ -28,11 +28,15 @@ export function LoginForm() {
     handleSubmit,
   } = useLoginForm();
 
+  const isRedirecting = auth.status === 'authenticated';
+  const isBusy = isSubmitting || isRedirecting;
+  const pendingLabel = isRedirecting ? 'Opening your workspace…' : 'Signing in…';
+
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const wasResetOpen = useRef(showResetDialog);
 
   useEffect(() => {
-    document.title = 'Sign In — EquipED';
+    document.title = 'Sign in — EquipED';
   }, []);
 
   useEffect(() => {
@@ -58,7 +62,7 @@ export function LoginForm() {
       <BrandHero />
 
       {/* Right Pane: The Architectural Ledger */}
-      <div className="w-full lg:w-7/12 bg-white flex flex-col min-h-0">
+      <main className="w-full lg:w-7/12 bg-white flex flex-col min-h-0">
         {/* Top Margin (Structural) */}
         <div className="hidden lg:block h-16 border-b border-slate-200 w-full shrink-0 bg-slate-50/50" />
 
@@ -72,21 +76,21 @@ export function LoginForm() {
             <div className="w-full bg-white relative">
               {/* Header Cell */}
               <div className="px-6 sm:px-10 lg:px-14 py-8 lg:py-10 border-t border-b border-slate-200 bg-slate-50/40">
-                <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 mb-1">
-                  Sign In
-                </h2>
+                <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900 mb-1">
+                  Sign in
+                </h1>
                 <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                  Enter your official LSPU credentials to continue.
+                  Use your LSPU email and password to sign in.
                 </p>
               </div>
               {/* Ledger Form */}
               <form onSubmit={handleSubmit} className="flex flex-col">
                 {/* Email Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-[#1b3b87]/[0.02] transition-colors">
-                  <div className="px-6 sm:px-10 lg:px-4 py-4 lg:py-0 lg:border-r border-slate-200 flex items-center lg:items-center justify-start lg:justify-center text-left lg:text-center transition-colors group-focus-within:bg-[#1b3b87]/[0.03]">
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-primary/[0.02] transition-colors">
+                  <div className="px-6 sm:px-10 lg:px-4 py-4 lg:py-0 lg:border-r border-slate-200 flex items-center lg:items-center justify-start lg:justify-center text-left lg:text-center transition-colors group-focus-within:bg-primary/[0.03]">
                     <label
                       htmlFor="login-email"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer select-none whitespace-nowrap"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary cursor-pointer select-none whitespace-nowrap"
                     >
                       Email
                     </label>
@@ -100,7 +104,7 @@ export function LoginForm() {
                       autoComplete="email"
                       autoFocus
                       placeholder="name@lspu.edu.ph"
-                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87]/80 placeholder:text-slate-400 font-medium text-slate-900"
+                      className="h-12 w-full rounded-none border-0 bg-transparent px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/80 placeholder:text-slate-400 font-medium text-slate-900"
                       value={email}
                       onChange={(event) => {
                         auth.clearError();
@@ -126,11 +130,11 @@ export function LoginForm() {
                 </div>
 
                 {/* Password Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-[#1b3b87]/[0.02] transition-colors">
-                  <div className="px-6 sm:px-10 lg:px-4 py-4 lg:py-0 lg:border-r border-slate-200 flex items-center lg:items-center justify-start lg:justify-center text-left lg:text-center transition-colors group-focus-within:bg-[#1b3b87]/[0.03]">
+                <div className="grid grid-cols-1 lg:grid-cols-[140px_1fr] border-b border-slate-200 group focus-within:bg-primary/[0.02] transition-colors">
+                  <div className="px-6 sm:px-10 lg:px-4 py-4 lg:py-0 lg:border-r border-slate-200 flex items-center lg:items-center justify-start lg:justify-center text-left lg:text-center transition-colors group-focus-within:bg-primary/[0.03]">
                     <label
                       htmlFor="login-password"
-                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-[#1b3b87] cursor-pointer select-none whitespace-nowrap"
+                      className="text-xs font-bold uppercase tracking-wider text-slate-500 group-focus-within:text-primary cursor-pointer select-none whitespace-nowrap"
                     >
                       Password
                     </label>
@@ -141,8 +145,9 @@ export function LoginForm() {
                         id="login-password"
                         type={showPassword ? 'text' : 'password'}
                         autoComplete="current-password"
+                        value={password}
                         placeholder="Enter your password"
-                        className="h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3b87]/80 placeholder:text-slate-400 font-medium text-slate-900"
+                        className="h-12 w-full rounded-none border-0 bg-transparent pl-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring/80 placeholder:text-slate-400 font-medium text-slate-900"
                         onChange={(event) => {
                           auth.clearError();
                           setPassword(event.target.value);
@@ -150,13 +155,16 @@ export function LoginForm() {
                         }}
                         onBlur={handlePasswordBlur}
                         required
-                        aria-describedby={auth.error ? 'login-error' : undefined}
+                        aria-invalid={Boolean(passwordHint)}
+                        aria-describedby={passwordHint ? 'login-password-hint' : auth.error ? 'login-error' : undefined}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2 text-slate-400 hover:text-slate-600 focus:outline-none focus:text-[#1b3b87] cursor-pointer flex items-center justify-center p-1.5 rounded-xs transition-colors"
+                        className="absolute right-0 size-10 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer flex items-center justify-center p-1.5 rounded-xs transition-colors"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
                       >
                         {showPassword ? (
                           <EyeSlash className="size-5" aria-hidden="true" />
@@ -166,7 +174,7 @@ export function LoginForm() {
                       </button>
                     </div>
                     {passwordHint && (
-                      <p className="text-[11px] font-semibold text-amber-600 px-2 pt-1 transition-all">
+                      <p id="login-password-hint" className="text-sm text-warning px-2 pt-1">
                         {passwordHint}
                       </p>
                     )}
@@ -181,7 +189,7 @@ export function LoginForm() {
                       <input
                         id="login-remember"
                         type="checkbox"
-                        className="size-4 rounded-none border-slate-300 text-[#1b3b87] focus:ring-2 focus:ring-[#1b3b87] cursor-pointer accent-[#1b3b87] shrink-0"
+                        className="size-4 rounded-none border-slate-300 text-primary focus:ring-2 focus:ring-ring cursor-pointer accent-primary shrink-0"
                         checked={rememberEmail}
                         onChange={(event) => setRememberEmail(event.target.checked)}
                       />
@@ -189,16 +197,16 @@ export function LoginForm() {
                         htmlFor="login-remember"
                         className="text-xs font-medium text-slate-600 hover:text-slate-900 select-none cursor-pointer transition-colors"
                       >
-                        Remember my email address
+                        Remember my email
                       </label>
                     </div>
                     <button
                       ref={triggerRef}
                       type="button"
                       onClick={() => setShowResetDialog(true)}
-                      className="text-[11px] font-bold text-[#1b3b87] hover:underline cursor-pointer opacity-80 hover:opacity-100 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#1b3b87] transition-opacity shrink-0"
+                      className="text-[11px] font-bold text-primary hover:underline cursor-pointer opacity-80 hover:opacity-100 uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-ring transition-opacity shrink-0"
                     >
-                      Reset Password
+                      Reset password
                     </button>
                   </div>
                 </div>
@@ -224,25 +232,30 @@ export function LoginForm() {
                 <div className="flex border-b border-slate-200">
                   <button
                     type="submit"
-                    className="w-full h-14 rounded-none bg-[#1b3b87] hover:bg-[#142f70] active:bg-[#0f2354] text-white font-bold text-xs tracking-[0.1em] uppercase transition-colors flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1b3b87]"
+                    disabled={isBusy}
+                    aria-busy={isBusy}
+                    className="w-full h-14 rounded-none bg-primary hover:bg-primary-strong active:bg-primary-strong text-white font-bold text-xs tracking-[0.1em] uppercase transition-colors flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {isSubmitting ? (
+                    {isBusy ? (
                       <span className="flex items-center gap-3">
-                        <Spinner className="w-5 h-5 animate-spin opacity-80" aria-hidden="true" />
-                        Signing In
+                        <Spinner className="size-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                        {pendingLabel}
                       </span>
                     ) : (
                       <span className="flex items-center gap-3">
-                        Sign In
+                        Sign in
                         <ArrowRight className="w-4 h-4 opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
                       </span>
                     )}
                   </button>
                 </div>
+                <span role="status" aria-live="polite" className="sr-only">
+                  {isBusy ? pendingLabel : ''}
+                </span>
                 <div className="px-6 py-4 text-center text-xs font-medium text-slate-500 bg-slate-50/20">
-                  Need an account?{' '}
-                  <Link to="/register" className="font-bold text-[#1b3b87] hover:underline">
-                    Sign Up
+                  New to EquipED?{' '}
+                  <Link to="/register" className="font-bold text-primary hover:underline">
+                    Create an account
                   </Link>
                 </div>
                 <div className="py-4 text-center text-[11px] text-slate-400 lg:hidden">
@@ -261,7 +274,7 @@ export function LoginForm() {
           <span>College of Computer Studies</span>
           <span>© {new Date().getFullYear()} Laguna State Polytechnic University · Santa Cruz Campus</span>
         </div>
-      </div>
+      </main>
 
       {/* Password Reset Modal */}
       <ResetPasswordModal isOpen={showResetDialog} onClose={() => setShowResetDialog(false)} />

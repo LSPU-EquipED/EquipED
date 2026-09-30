@@ -3,9 +3,9 @@ import { lspuLogoUrl } from '@equiped/ui';
 
 export function BrandHero() {
   return (
-    <div
-      aria-hidden="true"
-      className="relative w-full lg:w-5/12 bg-[#1b3b87] flex flex-col justify-between p-8 sm:p-10 lg:p-12 text-white overflow-hidden shrink-0 border-r border-[#142f70] select-none"
+    <aside
+      aria-label="About EquipED"
+      className="relative w-full lg:w-5/12 bg-primary flex flex-col justify-between p-8 sm:p-10 lg:p-12 text-white overflow-hidden shrink-0 border-r border-primary-strong select-none"
     >
       {/* Authentic Institutional Watermark Seal */}
       <img
@@ -23,11 +23,11 @@ export function BrandHero() {
             className="w-16 h-16 lg:w-20 lg:h-20 object-contain shrink-0 drop-shadow-xs"
           />
           <div>
-            <h1 className="text-xl lg:text-2xl font-bold tracking-tight text-white leading-snug">
-              Laguna State
+            <h2 className="text-xl lg:text-2xl font-bold tracking-tight text-white leading-snug">
+              Laguna State{' '}
               <br />
               Polytechnic University
-            </h1>
+            </h2>
             <p className="text-xs font-semibold text-white/80 tracking-wider uppercase mt-1">
               Santa Cruz Campus
             </p>
@@ -39,8 +39,7 @@ export function BrandHero() {
             EquipED Workspace
           </h2>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            An automated compliance workstation for Syllabus and Curriculum evaluations. Access is
-            restricted to authorized faculty and administrative staff.
+            Review self-paced learning modules against institutional rubrics and reference documents.
           </p>
         </div>
       </div>
@@ -51,10 +50,9 @@ export function BrandHero() {
           aria-hidden="true"
         />
         <p className="text-white/80 text-[11px] font-medium max-w-sm leading-relaxed uppercase tracking-wider">
-          Faculty Ledger System. Strictly for authorized institutional personnel. All access is
-          monitored and logged.
+          Automated findings support your review. Final decisions remain with human reviewers.
         </p>
       </div>
-    </div>
+    </aside>
   );
 }
