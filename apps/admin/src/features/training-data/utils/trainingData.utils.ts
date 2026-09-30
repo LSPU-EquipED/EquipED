@@ -32,7 +32,8 @@ export function getReadinessTier(
   if (evaluationCount < 2) {
     return {
       tier: 'single-evaluation',
-      message: 'All pairs come from one evaluation, so nothing can be held out to check the adapter.',
+      message:
+        'All pairs come from one evaluation, so nothing can be held out to check the adapter.',
     };
   }
   if (pairCount < RECOMMENDED_MIN_PAIRS) {
@@ -73,6 +74,19 @@ export function compareToLatestJob(
   };
 }
 
+export function describeComparison(comparison: LatestJobComparison): string | null {
+  switch (comparison.kind) {
+    case 'identical':
+      return 'Unchanged since the latest run; preparing again uses the same data.';
+    case 'changed':
+      return `Since the latest run: ${comparison.from} → ${comparison.to} pairs.`;
+    case 'unknown':
+      return 'Previous dataset unavailable for comparison.';
+    case 'no-jobs':
+      return null;
+  }
+}
+
 const SKIP_REASON_LABELS: Record<string, string> = {
   no_reviewer_feedback: 'No reviewer feedback',
 };
@@ -98,12 +112,10 @@ export function describeFunnel(pairCount: number, skipped: Record<string, number
   const detail =
     reasons.length === 1
       ? formatSkipReason(reasons[0][0]).toLowerCase()
-      : reasons.map(([reason, count]) => `${count} ${formatSkipReason(reason).toLowerCase()}`).join(', ');
+      : reasons
+          .map(([reason, count]) => `${count} ${formatSkipReason(reason).toLowerCase()}`)
+          .join(', ');
   return `${base}, ${skippedTotal} skipped (${detail}).`;
-}
-
-export function shortHash(hash: string | null | undefined): string {
-  return hash ? hash.slice(0, 8) : '—';
 }
 
 export function formatSize(bytes: number): string {

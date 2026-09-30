@@ -1,146 +1,143 @@
-import { ChartBar, Warning } from '@phosphor-icons/react';
-import { Badge, CARD_STYLES, Skeleton } from '@equiped/ui';
+import { Badge, Button, Skeleton, TYPOGRAPHY } from '@equiped/ui';
 import type { StatusVariant } from '@equiped/ui';
-import { useDatasetReadiness } from '../hooks/useDatasetReadiness';
-import { useTrainingJobs } from '../hooks/useTrainingJobs';
-import type { LatestJobComparison, ReadinessTier } from '../utils/trainingData.utils';
-import {
-  compareToLatestJob,
-  describeFunnel,
-  getReadinessTier,
-  getReviewerNote,
-  RULE_OF_THUMB_NOTE,
-  SEEDED_DATA_NOTE,
-} from '../utils/trainingData.utils';
+import { useDatasetPreparation } from '../hooks/useDatasetPreparation';
+import type { ReadinessTier } from '../utils/trainingData.utils';
+import { describeFunnel, RULE_OF_THUMB_NOTE, SEEDED_DATA_NOTE } from '../utils/trainingData.utils';
 
-// The top tier is deliberately not the success color: volume alone has validated nothing.
+// Volume alone does not validate an adapter; the highest tier is informational.
 const TIER_BADGE: Record<ReadinessTier, { label: string; variant: StatusVariant }> = {
-  empty: { label: 'No pairs', variant: 'destructive' },
+  empty: { label: 'No pairs', variant: 'neutral' },
   'single-evaluation': { label: 'Single evaluation', variant: 'warning' },
-  small: { label: 'Small', variant: 'warning' },
+  small: { label: 'Limited data', variant: 'warning' },
   reasonable: { label: 'Enough to try', variant: 'info' },
 };
 
-function describeComparison(comparison: LatestJobComparison): string | null {
-  switch (comparison.kind) {
-    case 'identical':
-      return 'Dataset is identical to the latest job. Starting another job would freeze the same data again.';
-    case 'changed':
-      return `Changed since the latest job: ${comparison.from} → ${comparison.to} pairs.`;
-    case 'unknown':
-      return 'The latest job did not record its dataset, so it cannot be compared.';
-    case 'no-jobs':
-      return null;
-  }
+interface DatasetReadinessCardProps {
+  agentId: string;
+  onPrepare: () => void;
+  isPreparing: boolean;
+  hasHandoff: boolean;
+  preparationError: string | null;
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="space-y-0.5">
-      <dt className="text-xs font-semibold text-text-muted">{label}</dt>
-      <dd className="text-2xl font-semibold tabular-nums text-text">{value}</dd>
-    </div>
-  );
-}
-
-function ReadinessSkeleton() {
-  return (
-    <div role="status" className="space-y-4 p-6">
-      <span className="sr-only">Checking dataset…</span>
-      <div className="grid grid-cols-3 gap-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </div>
-      <Skeleton className="h-10 w-full" />
-      <Skeleton className="h-4 w-2/3" />
-      <Skeleton className="h-4 w-1/2" />
-    </div>
-  );
-}
-
-export function DatasetReadinessCard({ agentId }: { agentId: string }) {
-  const { data, isLoading, isError } = useDatasetReadiness(agentId);
-  const { data: jobsData } = useTrainingJobs(agentId);
-  const readiness = data ? getReadinessTier(data.pair_count, data.evaluation_count) : null;
-
-  const header = (
-    <div className={CARD_STYLES.header}>
-      <div className="flex items-center gap-2">
-        <ChartBar className="size-4 text-primary" aria-hidden="true" />
-        <h2 className="text-xs font-bold uppercase tracking-wider text-text">Dataset Readiness</h2>
-      </div>
-      {readiness ? (
-        <Badge variant={TIER_BADGE[readiness.tier].variant}>
-          {TIER_BADGE[readiness.tier].label}
-        </Badge>
-      ) : null}
-    </div>
-  );
-
-  if (isLoading) {
-    return (
-      <div className={CARD_STYLES.ledger}>
-        {header}
-        <ReadinessSkeleton />
-      </div>
-    );
-  }
-
-  if (isError || !data || !readiness) {
-    return (
-      <div className={CARD_STYLES.ledger}>
-        {header}
-        <div
-          role="alert"
-          className="flex items-center gap-2.5 bg-destructive-soft px-6 py-4 text-sm font-semibold text-destructive"
-        >
-          <Warning className="size-4 shrink-0" aria-hidden="true" />
-          <span>Failed to check dataset readiness. Reload the page to try again.</span>
-        </div>
-      </div>
-    );
-  }
-
-  const comparison = describeComparison(compareToLatestJob(data, jobsData?.jobs[0]));
-  const reviewerNote = getReviewerNote(data.reviewer_count);
-  const showRuleOfThumb = readiness.tier === 'small' || readiness.tier === 'reasonable';
+export function DatasetReadinessCard({
+  agentId,
+  onPrepare,
+  isPreparing,
+  hasHandoff,
+  preparationError,
+}: DatasetReadinessCardProps) {
+  const { data, isLoading, isError, refetch, readiness, comparison, reviewerNote } =
+    useDatasetPreparation(agentId);
 
   return (
-    <div className={CARD_STYLES.ledger}>
-      {header}
-      <div className="space-y-4 p-6">
-        <dl className="grid grid-cols-3 gap-4">
-          <Stat label="Pairs" value={data.pair_count} />
-          <Stat label="Evaluations" value={data.evaluation_count} />
-          <Stat label="Reviewers" value={data.reviewer_count} />
-        </dl>
-
-        <div
-          role="note"
-          className="flex max-w-3xl gap-2.5 rounded-sm bg-warning-soft px-3 py-2.5 text-sm text-text"
-        >
-          <Warning className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
-          <div className="space-y-1">
-            <p>{SEEDED_DATA_NOTE}</p>
-            {reviewerNote ? <p>{reviewerNote}</p> : null}
+    <section aria-labelledby="dataset-preparation-title" className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="dataset-preparation-title" className={TYPOGRAPHY.headingMd}>
+              Dataset preparation
+            </h2>
+            {readiness && !isError && !isLoading && (
+              <Badge className="tracking-normal" variant={TIER_BADGE[readiness.tier].variant}>
+                {TIER_BADGE[readiness.tier].label}
+              </Badge>
+            )}
           </div>
         </div>
-
-        <div className="max-w-3xl space-y-1">
-          <p className="text-base font-semibold text-text">{readiness.message}</p>
-          {showRuleOfThumb ? (
-            <p className="text-sm text-text-muted">{RULE_OF_THUMB_NOTE}</p>
-          ) : null}
-          {comparison ? <p className="pt-3 text-sm text-text">{comparison}</p> : null}
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <p className="text-sm text-text-muted">
-            {describeFunnel(data.pair_count, data.skipped_counts)}
-          </p>
-        </div>
+        <Button
+          onClick={onPrepare}
+          disabled={
+            isPreparing || isLoading || isError || !data || data.pair_count <= 0 || hasHandoff
+          }
+          aria-describedby={hasHandoff ? 'training-handoff-reminder' : undefined}
+          aria-busy={isPreparing}
+        >
+          {isPreparing ? 'Preparing run…' : 'Prepare training run'}
+        </Button>
       </div>
-    </div>
+
+      {isLoading ? (
+        <div role="status" className="space-y-4">
+          <span className="sr-only">Checking dataset…</span>
+          <div className="grid grid-cols-3 gap-4">
+            {[0, 1, 2].map((index) => (
+              <Skeleton key={index} className="h-16 w-full" />
+            ))}
+          </div>
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+      ) : isError || !data || !readiness ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-destructive bg-destructive-soft p-4 text-sm text-destructive"
+        >
+          <p>Failed to check dataset readiness. Try again to prepare a run.</p>
+          <Button variant="secondary" onClick={() => void refetch()}>
+            Retry readiness
+          </Button>
+        </div>
+      ) : (
+        <>
+          <dl className="grid grid-cols-3 divide-x divide-border border-y border-border bg-surface py-4">
+            {[
+              ['Pairs', data.pair_count],
+              ['Evaluations', data.evaluation_count],
+              ['Reviewers', data.reviewer_count],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="flex flex-col gap-1 px-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 sm:px-5"
+              >
+                <dt className="text-sm text-text-muted">{label}</dt>
+                <dd className="text-xl font-semibold tabular-nums text-text">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="space-y-4">
+            <div
+              role="note"
+              className="space-y-1 border-l-2 border-warning pl-3 text-sm leading-relaxed text-text-muted"
+            >
+              <p>{SEEDED_DATA_NOTE}</p>
+              {reviewerNote && <p>{reviewerNote}</p>}
+            </div>
+            {(readiness.tier !== 'reasonable' || comparison) && (
+              <div className="space-y-1 text-sm leading-relaxed">
+                {readiness.tier !== 'reasonable' && (
+                  <p className="font-medium text-text">{readiness.message}</p>
+                )}
+                {comparison && <p className="text-text-muted">{comparison}</p>}
+              </div>
+            )}
+            <details className="text-sm text-text-muted">
+              <summary className="w-fit cursor-pointer rounded-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Dataset inclusion details
+              </summary>
+              <div className="mt-2 space-y-1 leading-relaxed">
+                {readiness.tier === 'reasonable' && <p>{readiness.message}</p>}
+                {(readiness.tier === 'small' || readiness.tier === 'reasonable') && (
+                  <p>{RULE_OF_THUMB_NOTE}</p>
+                )}
+                <p>{describeFunnel(data.pair_count, data.skipped_counts)}</p>
+              </div>
+            </details>
+          </div>
+        </>
+      )}
+      {hasHandoff && (
+        <p id="training-handoff-reminder" className="text-sm text-text-muted">
+          Save the notebook URLs below before preparing another run.
+        </p>
+      )}
+      {preparationError && (
+        <p
+          role="alert"
+          className="border-l-2 border-destructive bg-destructive-soft p-3 text-sm text-destructive"
+        >
+          {preparationError}
+        </p>
+      )}
+    </section>
   );
 }
