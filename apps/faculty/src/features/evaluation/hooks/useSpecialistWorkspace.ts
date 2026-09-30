@@ -11,6 +11,7 @@ import {
 } from '@equiped/types';
 import type { ClientDocument } from '@equiped/types';
 import type { DeskQueueItem, DomainScoreBlock } from '../types';
+import { isActiveEvaluationStatus } from '../utils/evaluationProgress';
 
 export interface UseSpecialistWorkspaceOptions {
   agentId?: TargetAgent;
@@ -33,6 +34,12 @@ export function useSpecialistWorkspace({
   const queryClient = useQueryClient();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+
+  const [submittedJob, setSubmittedJob] = useState<{
+    evaluationId: string;
+    documentId: string;
+    agentId: TargetAgent;
+  } | null>(null);
 
   // 1. Fetch specialist desk queue
   // When routeDocId is provided, fetch authoritative desk status via documentId option;
@@ -130,41 +137,38 @@ export function useSpecialistWorkspace({
     return slmDocuments.find((doc) => doc.documentId === activeDocId) ?? null;
   }, [slmDocuments, activeDocId]);
 
+  const submittedJobId = submittedJob?.documentId === activeDocId && submittedJob?.agentId === validAgent
+    ? submittedJob.evaluationId : undefined;
+  const isQueueEvaluating = activeItem?.my_status === 'EVALUATING';
+
   // 4. Resolve the latest evaluation job for this SLM and this specialist role
-  const { data: evalsData, refetch: refetchEvals } = useQuery({
+  const { data: evalsData, isLoading: isLoadingEvals, refetch: refetchEvals } = useQuery({
     queryKey: ['specialist-evaluations', activeDocId, validAgent],
     queryFn: () => evaluationApi.listEvaluations(activeDocId!, validAgent),
     enabled: Boolean(activeDocId),
     staleTime: 5000,
     refetchInterval: (query) => {
       const latest = query.state.data?.items?.find(
-        (job) => job.target_agent === validAgent,
+        (job) => job.target_agent === validAgent && (!submittedJobId || job.evaluation_id === submittedJobId),
       );
-      const isEvaluating =
-        latest?.status === 'SUBMITTED' ||
-        latest?.status === 'PREPROCESSING' ||
-        latest?.status === 'EVALUATING' ||
-        latest?.status === 'SYNTHESIZING';
-      return isEvaluating ? 2000 : false;
+      // Keep polling while admission has not appeared in the list yet. A known
+      // terminal job takes precedence over a stale desk queue response.
+      return isActiveEvaluationStatus(latest?.status) ||
+        (!latest && (isQueueEvaluating || Boolean(submittedJobId))) ? 2000 : false;
     },
   });
 
   const latestJob = useMemo(() => {
     if (!evalsData?.items) return null;
-    return evalsData.items.find((job) => job.target_agent === validAgent) ?? null;
-  }, [evalsData, validAgent]);
+    return evalsData.items.find((job) => job.target_agent === validAgent && (!submittedJobId || job.evaluation_id === submittedJobId)) ?? null;
+  }, [evalsData, validAgent, submittedJobId]);
   const latestJobId = latestJob?.evaluation_id;
-  const isJobEvaluating =
-    latestJob?.status === 'SUBMITTED' ||
-    latestJob?.status === 'PREPROCESSING' ||
-    latestJob?.status === 'EVALUATING' ||
-    latestJob?.status === 'SYNTHESIZING';
-  const isJobCompleted = latestJob?.status === 'COMPLETED';
-
-  const isCompleted = Boolean(latestJobId && isJobCompleted);
-  const isEvaluating =
-    !isCompleted &&
-    (isJobEvaluating || (activeItem?.my_status || '').toUpperCase() === 'EVALUATING');
+  const isCompleted = Boolean(latestJobId && latestJob?.status === 'COMPLETED');
+  const isFailed = latestJob?.status === 'FAILED' || (!latestJob && !submittedJobId && activeItem?.my_status === 'FAILED');
+  const isEvaluating = !isCompleted && !isFailed && (
+    isActiveEvaluationStatus(latestJob?.status) ||
+    (!latestJob && (isQueueEvaluating || Boolean(submittedJobId)))
+  );
 
   // Fetch completed evaluation results for the specialist desk
   const {
@@ -198,7 +202,10 @@ export function useSpecialistWorkspace({
   }, [queryClient, refetchResults, refetchQueue]);
 
   const handleModalSubmitted = useCallback(
-    (_newEvalId?: string) => {
+    (newEvalId?: string) => {
+      if (newEvalId && activeDocId) {
+        setSubmittedJob({ evaluationId: newEvalId, documentId: activeDocId, agentId: validAgent });
+      }
       setShowConfirmModal(false);
       void queryClient.invalidateQueries({ queryKey: ['specialist-queue'] });
       void queryClient.invalidateQueries({ queryKey: ['specialist-evaluations'] });
@@ -215,7 +222,7 @@ export function useSpecialistWorkspace({
     [queryClient, refetchQueue, refetchEvals, activeDocId, validAgent, navigate],
   );
 
-  const isLoading = isLoadingDocs || isLoadingQueue || (Boolean(routeDocId) && isLoadingExactDoc);
+  const isLoading = isLoadingDocs || isLoadingQueue || (Boolean(routeDocId) && (isLoadingExactDoc || isLoadingEvals));
 
   return {
     validAgent,
@@ -228,6 +235,7 @@ export function useSpecialistWorkspace({
     latestJob,
     latestJobId,
     isCompleted,
+    isFailed,
     isEvaluating,
     isLoading,
     isLoadingResults,

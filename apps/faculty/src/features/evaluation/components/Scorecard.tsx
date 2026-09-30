@@ -12,7 +12,7 @@ import {
 import { Badge } from "@equiped/ui";
 import { Button } from "@equiped/ui";
 import { cn } from "@equiped/ui";
-import { Skeleton } from "@equiped/ui";
+import { EvaluationProgress } from "./EvaluationProgress";
 import { TYPOGRAPHY } from "@equiped/ui";
 import { isTargetAgent, TARGET_AGENT_META, type TargetAgent } from "@equiped/types";
 import { useScorecardController } from "../hooks/useScorecardController";
@@ -48,69 +48,6 @@ const DOMAIN_ICONS: Record<string, typeof Lightbulb> = {
   itso: ShieldCheck,
 };
 
-
-
-function EvaluationProgressSkeleton({
-  title,
-  status,
-}: {
-  title: string;
-  status: string;
-}) {
-  return (
-    <section
-      className="overflow-hidden rounded-md border border-info/30 bg-surface"
-      role="status"
-      aria-label="Evaluation in progress"
-      aria-busy="true"
-    >
-      <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:p-10">
-        <div className="space-y-5">
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-9 rounded-sm" />
-            <div className="space-y-2">
-              <Skeleton className="h-2.5 w-28" />
-              <Skeleton className="h-3.5 w-44" />
-            </div>
-          </div>
-          <h2 className="text-base font-semibold text-text">{title}</h2>
-          <Skeleton className="h-3 w-full max-w-xl" />
-          <Skeleton className="h-3 w-4/5 max-w-lg" />
-          <div className="flex items-center gap-3 border-y border-border py-4">
-            <Skeleton className="h-8 w-24" />
-            <Skeleton className="h-8 w-32" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-        </div>
-        <aside className="border-t border-border bg-surface-subtle/45 pt-6 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <Skeleton className="h-2.5 w-24" />
-          <Skeleton className="mt-3 h-4 w-36" />
-          <div className="mt-6 space-y-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 border-b border-border pb-3"
-              >
-                <Skeleton className="size-7 rounded-sm" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-2.5 w-24" />
-                  <Skeleton className="h-1 w-full" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </div>
-      <div className="flex items-center justify-between border-t border-border bg-surface-subtle/35 px-5 py-3 text-xs text-text-muted sm:px-6">
-        <span>Status: {status}</span>
-        <span>Updating automatically</span>
-      </div>
-      <span className="sr-only">
-        Evaluation is running. Loading current findings.
-      </span>
-    </section>
-  );
-}
 
 
 function EvaluationResultsError({ onRetry }: { onRetry: () => void }) {
@@ -222,8 +159,8 @@ export function Scorecard() {
           className="mx-auto w-full max-w-[108rem] flex-1 space-y-4 p-4 sm:px-6 sm:py-5"
         >
           {isEvaluating ? (
-            <EvaluationProgressSkeleton
-              title={`${singleAgentMeta.fullName} Evaluation in Progress`}
+            <EvaluationProgress
+              targetAgent={singleAgentMeta.id}
               status={evaluation.status}
             />
           ) : isFailed ? (
@@ -524,8 +461,8 @@ export function Scorecard() {
             className="flex flex-col h-full min-h-0 overflow-y-auto bg-canvas p-4 sm:p-6 md:p-8 space-y-5"
           >
             {isEvaluating ? (
-              <EvaluationProgressSkeleton
-                title="Multi-Agent Evaluation in Progress"
+              <EvaluationProgress
+                targetAgent="all"
                 status={evaluation.status}
               />
             ) : isFailed ? (
