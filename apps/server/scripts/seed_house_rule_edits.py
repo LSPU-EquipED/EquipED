@@ -37,6 +37,7 @@ import argparse
 import json
 import logging
 import math
+import tempfile
 import uuid
 from collections import Counter
 from collections.abc import Callable, Sequence
@@ -56,6 +57,7 @@ from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.snapshot_contracts import SnapshotIntegrityError
 from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 from server.modules.synthesis.models import AgentGeneration
+from server.modules.training_data.exporter import export_dpo_package
 from server.scripts.seed_synthetic_dpo_pairs import validate_environment
 
 AGENT_ID = "sme"
@@ -555,6 +557,15 @@ def _collect_ids(text: str, path: Path | None) -> list[uuid.UUID]:
     return ids
 
 
+def count_exportable_pairs(session: Session) -> int:
+    """How many SME DPO pairs the exporter would produce right now (dry run)."""
+    with tempfile.TemporaryDirectory() as scratch:
+        manifest = export_dpo_package(
+            session, AGENT_ID, Path(scratch) / "package", dry_run=True
+        )
+    return manifest.pair_count
+
+
 def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
     if args.confirm is not None or args.confirm_target is not None:
         raise PermissionError("Write mode is not available yet.")
@@ -572,7 +583,8 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
             reference_ids=reference_ids,
             edit_codes=edit_codes,
         )
-        print(render_report(run, mode="DRY RUN"))
+        baseline = count_exportable_pairs(session) if args.verify_export else None
+        print(render_report(run, mode="DRY RUN", baseline_pairs=baseline))
         print(
             "\nDry run: nothing was written. Add --confirm SEED --confirm-target "
             "<LOCAL or the target fingerprint> to write."

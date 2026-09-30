@@ -17,6 +17,7 @@ from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapsho
 from server.modules.synthesis.models import AgentGeneration, AgentResult
 from server.modules.training_data.projectors import _is_score_shaped
 from server.scripts import seed_house_rule_edits as tool
+from server.scripts import seed_synthetic_dpo_pairs as old_seeder
 from server.tests.scripts import test_seed_synthetic_dpo_pairs as _seed_tests
 
 # Re-exported fixture: seeds the active SME rubric (OP-01..05, A-01..05, all
@@ -750,3 +751,36 @@ def test_cli_refuses_write_and_cleanup_until_they_exist(cli, capsys):
 
 def test_parser_help_carries_the_publish_rule():
     assert "never be published" in tool.build_parser().format_help().lower()
+
+
+def test_count_exportable_pairs_counts_what_the_exporter_would_use(
+    db_session, seeded_sme_rubric
+):
+    assert tool.count_exportable_pairs(db_session) == 0
+    old_seeder.generate(db_session, count=2)
+    assert tool.count_exportable_pairs(db_session) == 2
+
+
+def test_report_warns_when_pairs_already_exist():
+    run = tool.RunPlan(plans=(), edit_codes=("OP-01",))
+    clean = tool.render_report(run, mode="DRY RUN", baseline_pairs=0)
+    dirty = tool.render_report(run, mode="DRY RUN", baseline_pairs=25)
+    assert "Existing exportable SME pairs already in the database: 0." in clean
+    assert "WARNING" not in clean
+    assert "already in the database: 25." in dirty
+    assert "WARNING: these pairs would be trained on" in dirty
+
+
+def test_cli_verify_export_flags_existing_synthetic_pairs(
+    cli, capsys, db_session, user, seeded_sme_rubric
+):
+    old_seeder.generate(db_session, count=3)
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+
+    assert cli("--train-evaluations", str(evaluation_id), "--verify-export") == 0
+
+    out = capsys.readouterr().out
+    assert "already in the database: 3." in out
+    assert "WARNING" in out
+    # still read-only: only the 3 synthetic corrections exist
+    assert db_session.query(PreferenceLog).count() == 3
