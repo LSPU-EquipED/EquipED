@@ -296,7 +296,7 @@ All contributions must adhere to the practical code writing style grounded in re
 - **Promotion Rule**: Do not place single-use utilities in shared folders. Code only moves to `shared/` or `libs/*` after proven reuse across two or more distinct features.
 - **No Cross-Feature Imports**: Enforced strictly. If Feature A requires data or views from Feature B, the dependency must be refactored into a shared library, routed via URL/shell, or orchestrated at the app shell level.
 - **Accessibility & Design System (WCAG 2.1 AA)**:
-  - Adhere to institutional design tokens from `DESIGN.md` (primary `#16445d`, canvas `#eef2f3`, readable typography).
+  - Adhere to institutional design tokens from `DESIGN.md` (primary `#1b3b87`, canvas `#eef2f3`, readable typography).
   - Flat elevation, high-contrast borders (`4.5:1` minimum for body and inputs).
   - Explicit visible focus indicators on all interactive controls.
   - Respect `@media (prefers-reduced-motion: reduce)` by disabling animations and replacing with instant or basic opacity shifts.

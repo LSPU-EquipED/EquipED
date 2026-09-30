@@ -67,9 +67,9 @@
   --radius: 0.25rem;
 
   /* Brand Colors */
-  --primary: #16445d;
-  --primary-strong: #0d3044;
-  --primary-soft: #e4eff3;
+  --primary: #1b3b87;
+  --primary-strong: #142f70;
+  --primary-soft: #e8eef9;
   --primary-foreground: #ffffff;
 
   --secondary: #d9ad1d;
@@ -107,7 +107,7 @@
   --border: #cad6da;
   --border-strong: #91a5ad;
   --input: #b7c7cc;
-  --ring: #28758a;
+  --ring: #1b3b87;
 }
 
 * {

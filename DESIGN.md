@@ -4,9 +4,9 @@ name: EquipED
 description: Institutional SLM evaluation workbench for LSPU faculty and CID reviewers
 
 colors:
-  primary: "#16445d"
-  primary-strong: "#0d3044"
-  primary-soft: "#e4eff3"
+  primary: "#1b3b87"
+  primary-strong: "#142f70"
+  primary-soft: "#e8eef9"
   primary-foreground: "#ffffff"
   secondary: "#d9ad1d"
   secondary-foreground: "#1b2b33"
@@ -33,7 +33,7 @@ colors:
   border: "#cad6da"
   border-strong: "#91a5ad"
   input: "#b7c7cc"
-  ring: "#28758a"
+  ring: "#1b3b87"
 
 typography:
   family: "Public Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
@@ -62,7 +62,7 @@ rounded:
 
 **Institutional Workbench** is the visual direction for EquipED: a calm, evidence-first workspace for evaluating Self-Paced Learning Modules (SLMs). It should feel dependable during long review sessions, closer to a well-made academic records system than a marketing dashboard.
 
-The interface uses a cool blue-gray canvas, ink-colored typography, compact controls, and clear structural borders. LSPU teal is the action color; amber is reserved for review attention and institutional emphasis. The product should never depend on gradients, glass effects, decorative blobs, or stacked floating cards to create hierarchy.
+The interface uses a cool blue-gray canvas, ink-colored typography, compact controls, and clear structural borders. Royal blue is the action color; amber is reserved for review attention and institutional emphasis. The product should never depend on gradients, glass effects, decorative blobs, or stacked floating cards to create hierarchy.
 
 ## Foundations
 
@@ -71,8 +71,10 @@ The interface uses a cool blue-gray canvas, ink-colored typography, compact cont
 - **Canvas** `#eef2f3` is the page background.
 - **Surface** `#fbfcfc` is used for panels, tables, and the reading workspace.
 - **Surface subtle** `#e7edef` supports quiet grouping and loading states.
-- **Primary** `#16445d` is for links, active navigation, and primary actions.
-- **Primary strong** `#0d3044` is for pressed and high-emphasis states.
+- **Primary** `#1b3b87` is the royal blue used for links, active navigation, and primary actions.
+- **Primary strong** `#142f70` is for hover, pressed, and high-emphasis states.
+- **Primary soft** `#e8eef9` supports selected items and quiet primary backgrounds.
+- **Focus ring** `#1b3b87` keeps keyboard focus aligned with the royal blue action palette.
 - **Amber** `#d9ad1d` is for review attention, not general decoration.
 - **Text** `#1b2b33` and **text muted** `#60717a` provide the reading hierarchy.
 - Semantic colors use their matching soft background tokens. Status must never be conveyed by color alone.
