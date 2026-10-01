@@ -1,17 +1,16 @@
 import { useId, useState } from 'react';
 import { CaretDown } from '@phosphor-icons/react';
-import { Button, CollapsibleRow, TABLE_STYLES, cn } from '@equiped/ui';
+import { Badge, Button, CollapsibleRow, TABLE_STYLES, TYPOGRAPHY, cn } from '@equiped/ui';
 import type { TrainedAdapterItem } from '../types';
 import { AdapterLoadHint } from './AdapterLoadHint';
 import { formatSize } from '../utils/trainingData.utils';
+import { TrainingRecordMetadata } from './TrainingRecordMetadata';
 
 function loadLabel(loaded: boolean | null) {
   if (loaded === true) return 'Loaded';
   if (loaded === false) return 'Not loaded';
   return 'Unknown';
 }
-
-const BADGE = 'inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold';
 
 export function AdapterRow({
   adapter,
@@ -29,21 +28,23 @@ export function AdapterRow({
   return (
     <>
       <tr className={TABLE_STYLES.tr}>
-        <td className={cn(TABLE_STYLES.tdData, 'font-medium')}>v{adapter.version}</td>
-        <td className={TABLE_STYLES.tdData}>
+        <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>v{adapter.version}</td>
+        <td className="px-4 py-2">
           <div className="flex flex-wrap items-center gap-1.5">
             {adapter.published ? (
-              <span className={cn(BADGE, 'border-primary/30 bg-primary-soft text-primary')}>
+              <Badge
+                variant="info"
+                className="border-primary/30 bg-primary-soft tracking-normal text-primary"
+              >
                 Published
-              </span>
+              </Badge>
             ) : null}
-            <span className={cn(BADGE, 'border-border bg-surface-subtle text-text-muted')}>
+            <Badge variant="neutral" className="tracking-normal">
               {loadLabel(adapter.loaded)}
-            </span>
+            </Badge>
           </div>
-          {adapter.loaded === false ? <AdapterLoadHint filename={adapter.gguf_filename} /> : null}
         </td>
-        <td className={TABLE_STYLES.tdData}>
+        <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>
           <time dateTime={adapter.created_at} className="block">
             {uploaded.toLocaleDateString(undefined, {
               month: 'short',
@@ -51,15 +52,9 @@ export function AdapterRow({
               year: 'numeric',
             })}
           </time>
-          <span className="text-sm text-text-muted">
-            {uploaded.toLocaleTimeString(undefined, {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
         </td>
-        <td className={TABLE_STYLES.tdData}>{formatSize(adapter.size_bytes)}</td>
-        <td className={TABLE_STYLES.tdData}>
+        <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>{formatSize(adapter.size_bytes)}</td>
+        <td className="px-4 py-2">
           {adapter.published ? (
             <Button variant="secondary" size="sm" onClick={onUnpublish}>
               Unpublish
@@ -75,7 +70,7 @@ export function AdapterRow({
             </Button>
           )}
         </td>
-        <td className="pr-3 text-right">
+        <td className="px-3 py-2 text-right">
           <Button
             variant="ghost"
             size="icon"
@@ -95,21 +90,22 @@ export function AdapterRow({
           </Button>
         </td>
       </tr>
-      <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={6} innerClassName="p-4 sm:p-5">
-        <dl className="grid gap-4 text-sm sm:grid-cols-2">
-          {[
+      <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={6} innerClassName="px-4 py-3">
+        <TrainingRecordMetadata
+          entries={[
             ['Source run', adapter.job_id],
             ['File SHA-256', adapter.file_sha256],
             ['Adapter ID', adapter.adapter_id],
-          ].map(([label, value]) => (
-            <div key={label} className="min-w-0 space-y-1">
-              <dt className="text-text-muted">{label}</dt>
-              <dd className="break-words font-medium text-text [overflow-wrap:anywhere]">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+            ['Filename', adapter.gguf_filename],
+            ['Uploaded', uploaded.toLocaleString()],
+          ]}
+        />
+        {adapter.loaded === false && (
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+            <p className="text-[13px] font-medium leading-5 text-text">Load on the model server</p>
+            <AdapterLoadHint filename={adapter.gguf_filename} />
+          </div>
+        )}
       </CollapsibleRow>
     </>
   );

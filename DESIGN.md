@@ -135,6 +135,10 @@ Admin pages are dense operational tools: tables, filters, status summaries, and 
 
 Training Data uses wide specialist tabs followed by dataset preparation, a conditional notebook handoff, run history, and uploaded adapters. Place the preparation action beside readiness; preparing a run freezes a dataset and issues notebook URLs rather than launching training. Keep seeded-data and reviewer limitations visible, with inclusion details behind a disclosure. Use compact counts and sentence-case section headings instead of repeated card headers. History rows prioritize dates, dataset size, and recorded state, with full identifiers and hashes available in expandable details. Adapter receipt does not imply validation or activation. Preserve unsaved notebook URLs in page memory across specialist changes and require acknowledgment before replacing them; do not persist these credentials in browser storage.
 
+Group dataset preparation in one framed tool, with readiness, compact label/value count rows, and the preparation action on the left and a quiet dataset-notes area on the right. Use a structural divider between these areas and stack them on smaller screens. Keep the conditional notebook handoff close to preparation, with separate full-width download and upload rows; each row groups its label, notebook-cell hint, URL, copy action, and expiry. Records remain full-width with consistent headings and counts; show dates in the main rows and timestamps in expanded details. Adapter server setup instructions belong in expanded details, never in the status cell. Empty records explain the next workflow step, and loading placeholders match the final table geometry.
+
+Run history and uploaded adapters show five records per page by default. Lists longer than five records have independent compact footers with a record range, previous/next controls, and the shared rows-per-page dropdown (5, 10, or 20). Reset to the first page when changing the page size or specialist, and keep the current page within the available range when records refresh.
+
 ## Component rules
 
 - Primary buttons use primary fill, white text, a 2-4px radius, and a visible pressed state.

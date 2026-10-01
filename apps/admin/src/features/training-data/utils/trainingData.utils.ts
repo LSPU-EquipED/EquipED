@@ -1,3 +1,5 @@
+import type { ReadinessSummary } from '../types';
+
 export function formatCountdown(expiresAtIso: string, now: number): string {
   const diffMs = new Date(expiresAtIso).getTime() - now;
   if (diffMs <= 0) return 'Expired';
@@ -12,17 +14,12 @@ export function formatCountdown(expiresAtIso: string, now: number): string {
 
 export const RECOMMENDED_MIN_PAIRS = 20;
 
-export type ReadinessTier = 'empty' | 'single-evaluation' | 'small' | 'reasonable';
-
 export const RULE_OF_THUMB_NOTE = `${RECOMMENDED_MIN_PAIRS} pairs is a rule of thumb, not a guarantee: consistent corrections matter more than the count.`;
 
 export const SEEDED_DATA_NOTE =
   "Counts cover the whole database and include any seeded test data, which can't be told apart here.";
 
-export function getReadinessTier(
-  pairCount: number,
-  evaluationCount: number,
-): { tier: ReadinessTier; message: string } {
+export function getReadinessTier(pairCount: number, evaluationCount: number): ReadinessSummary {
   if (pairCount <= 0) {
     return {
       tier: 'empty',
