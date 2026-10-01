@@ -12,6 +12,7 @@ import {
   Users,
 } from '@phosphor-icons/react';
 import type { BreadcrumbItem, NavGroup, NavItem } from '@equiped/ui';
+import { isTargetAgent, TARGET_AGENT_META } from '@equiped/types';
 
 export type { NavItem, BreadcrumbItem, NavGroup } from '@equiped/ui';
 
@@ -60,6 +61,12 @@ export const adminNavGroups: readonly NavGroup[] = [
   },
 ] as const;
 
+function getAgentBreadcrumbLabel(agentId: string): string {
+  return isTargetAgent(agentId)
+    ? TARGET_AGENT_META[agentId].shortLabel
+    : agentId.charAt(0).toUpperCase() + agentId.slice(1);
+}
+
 export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
 
@@ -97,7 +104,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (cleanPath.startsWith('/admin/prompts/')) {
     const agentId = cleanPath.replace('/admin/prompts/', '');
-    const agentLabel = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+    const agentLabel = getAgentBreadcrumbLabel(agentId);
     return [
       { label: 'Agent Prompts', to: '/admin/prompts' },
       { label: agentLabel },
@@ -110,7 +117,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (cleanPath.startsWith('/admin/training-data/')) {
     const agentId = cleanPath.replace('/admin/training-data/', '');
-    const agentLabel = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+    const agentLabel = getAgentBreadcrumbLabel(agentId);
     return [
       { label: 'Training Data', to: '/admin/training-data' },
       { label: agentLabel },
