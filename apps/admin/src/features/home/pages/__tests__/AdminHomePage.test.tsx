@@ -208,8 +208,7 @@ describe('AdminHomePage', () => {
     ).toBeDefined();
   });
 
-  it('renders operations queue messaging distinguishing active, failed-only, and clear states', () => {
-    // 1. Failed-only: active === 0, failed > 0
+  it('keeps failed evaluation metrics without the duplicate queue notice', () => {
     vi.spyOn(useAdminSummaryModule, 'useAdminSummary').mockReturnValue({
       data: { total_documents: 10, active_evaluations: 0, total_faculty: 5, failed_evaluations: 2 },
       isLoading: false,
@@ -222,21 +221,11 @@ describe('AdminHomePage', () => {
       isError: false,
     } as unknown as UseQueryResult<MatrixListResponse>);
 
-    const { unmount } = render(<AdminHomePage />);
-    expect(screen.getByText('Failed runs need inspection')).toBeDefined();
-    expect(screen.getByText(/No active runs in the evaluation queue\./)).toBeDefined();
-    expect(screen.getByText(/2 failed runs are recorded/)).toBeDefined();
-    unmount();
-
-    // 2. Clear state: active === 0, failed === 0
-    vi.spyOn(useAdminSummaryModule, 'useAdminSummary').mockReturnValue({
-      data: { total_documents: 10, active_evaluations: 0, total_faculty: 5, failed_evaluations: 0 },
-      isLoading: false,
-      isError: false,
-    } as unknown as UseQueryResult<SystemSummaryResponse>);
-
     render(<AdminHomePage />);
-    expect(screen.getByText('No evaluations in progress')).toBeDefined();
-    expect(screen.getByText(/The evaluation queue is clear\./)).toBeDefined();
+    expect(screen.getByText('Failed evaluations')).toBeDefined();
+    expect(screen.getByText('2')).toBeDefined();
+    expect(screen.queryByRole('region', { name: 'Evaluation queue' })).toBeNull();
+    expect(screen.queryByText('Failed runs need inspection')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Recent evaluations' })).toBeDefined();
   });
 });
