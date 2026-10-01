@@ -1,3 +1,20 @@
+export type ReadinessTier = 'empty' | 'single-evaluation' | 'small' | 'reasonable';
+
+export interface ReadinessSummary {
+  tier: ReadinessTier;
+  message: string;
+}
+
+export interface TrainingTablePaginationControls {
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalRecords: number;
+  showPagination: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}
+
 export interface TrainingJobItem {
   job_id: string;
   agent_id: string;
