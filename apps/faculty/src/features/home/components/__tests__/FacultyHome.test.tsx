@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { FacultyHome } from '../FacultyHome';
+import type { useFacultyHome } from '../../hooks/useFacultyHome';
 
 const mockUseFacultyHome = vi.fn();
 
@@ -9,7 +10,6 @@ vi.mock('../../hooks/useFacultyHome', () => ({
 }));
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn(),
   Link: ({
     to,
     params,
@@ -36,52 +36,16 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 describe('FacultyHome', () => {
+  afterEach(() => vi.useRealTimers());
   const defaultHomeState = {
     isLoading: false,
     isError: false,
     error: null,
     stats: { total: 1, ready: 1, processing: 0, failed: 0 },
-    evaluatingTarget: null,
-    setEvaluatingTarget: vi.fn(),
     homeData: {
       recentIssues: [],
       activeEvaluation: null,
-      latestReadyDocument: null,
-      hasEvaluations: true,
-      recentSlms: [
-        {
-          documentId: 'doc-1',
-          title: 'Operating Systems Module',
-          courseTitle: 'CS 301',
-          program: 'BSCS',
-          sourceType: 'slm',
-          uploadedAt: '2026-08-20T10:00:00Z',
-          processingStatus: 'PROCESSED',
-        },
-      ],
-      recentEvaluations: [
-        {
-          evaluation_id: 'eval-1',
-          document_id: 'doc-1',
-          document_title: 'Operating Systems Module',
-          syllabus_id: 'syl-1',
-          curriculum_id: 'curr-1',
-          status: 'COMPLETED',
-          submitted_at: '2026-08-20T12:00:00Z',
-        },
-      ],
     },
-    documents: [
-      {
-        documentId: 'doc-1',
-        title: 'Operating Systems Module',
-        courseTitle: 'CS 301',
-        program: 'BSCS',
-        sourceType: 'slm',
-        uploadedAt: '2026-08-20T10:00:00Z',
-        processingStatus: 'PROCESSED',
-      },
-    ],
     evaluations: [
       {
         evaluation_id: 'eval-1',
@@ -93,38 +57,23 @@ describe('FacultyHome', () => {
         submitted_at: '2026-08-20T12:00:00Z',
       },
     ],
-    latestEvalsByDocId: {
-      'doc-1': {
-        document_id: 'doc-1',
-        evaluation_id: 'eval-1',
-        status: 'COMPLETED_PARTIAL',
-        submitted_at: '2026-08-20T12:00:00Z',
-      },
-    },
-    latestEvalsState: { isSuccess: true },
     refetch: vi.fn(),
-  };
+  } satisfies ReturnType<typeof useFacultyHome>;
 
-  it('renders the faculty command ledger beneath the module overview', () => {
+  it('renders evaluation activity and the module overview', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Recent evaluation activity');
+    expect(markup).toContain('Evaluation activity');
     expect(markup).toContain('Module overview');
   });
 
-  it('renders the module overview and evaluation tools', () => {
+  it('renders document processing metrics', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    // Launchpads
-    expect(markup).toContain('Evaluation workspaces');
-    expect(markup).toContain('Curriculum check');
-    expect(markup).toContain('Syllabus alignment');
-
-    // Metrics
     expect(markup).toContain('Total modules');
-    expect(markup).toContain('Extracted');
+    expect(markup).toContain('Processed');
     expect(markup).toContain('Processing');
     expect(markup).toContain('Failed uploads');
   });
@@ -144,41 +93,34 @@ describe('FacultyHome', () => {
     mockUseFacultyHome.mockReturnValue({
       ...defaultHomeState,
       evaluations: [],
-      homeData: {
-        ...defaultHomeState.homeData,
-        recentEvaluations: [],
-      },
     });
     const markup = renderToStaticMarkup(<FacultyHome />);
 
     expect(markup).toContain('No evaluations on record');
   });
 
-  it('keeps the home hierarchy focused on the pulse strip without duplicate breadcrumbs', () => {
+  it.each([
+    [8, 'Good morning, Jeremy.'],
+    [14, 'Good afternoon, Jeremy.'],
+    [20, 'Good evening, Jeremy.'],
+  ])('greets the signed-in user at local hour %s without a dashboard upload shortcut', (hour, greeting) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 1, hour));
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
-    const markup = renderToStaticMarkup(<FacultyHome />);
-
-    expect(markup).not.toContain('Upload SLM');
-    expect(markup).toContain('Total modules');
-    // Verify duplicate breadcrumbs are removed
-    expect(markup).not.toContain('Laguna State Polytechnic University');
-    expect(markup).not.toContain('San Pablo City Campus');
+    const markup = renderToStaticMarkup(<FacultyHome displayName="Jeremy Garin" />);
+    expect(markup).toContain(greeting);
+    expect(markup).toMatch(/datetime="2026-10-01"/i);
+    expect(markup).not.toContain('Upload module');
+    expect(markup).not.toContain('href="/documents?upload=true"');
   });
 
-  it('renders purposeful subtitles across cards and pulse strip without AI slop', () => {
+  it('uses a greeting without a name when profile details are unavailable', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 1, 8));
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
-    const markup = renderToStaticMarkup(<FacultyHome />);
-
-    // Pulse strip subtitles
-    expect(markup).toContain('In your repository');
-    expect(markup).toContain('Document processing complete');
-    expect(markup).toContain('Intake or cleanup in progress');
-
-    // Launchpads subtitles
-    expect(markup).toContain('Content accuracy and mastery');
-
-    // Ledger title without redundant subtitle
-    expect(markup).toContain('Recent evaluations');
+    const markup = renderToStaticMarkup(<FacultyHome displayName="  " />);
+    expect(markup).toContain('Good morning.');
+    expect(markup).not.toContain('undefined');
   });
 
   it('renders active evaluation banner when evaluation is in progress', () => {
@@ -188,6 +130,7 @@ describe('FacultyHome', () => {
         ...defaultHomeState.homeData,
         activeEvaluation: {
           evaluation_id: 'eval-in-progress-1234',
+          target_agent: 'sme',
           document_id: 'doc-1',
           document_title: 'Operating Systems Module',
           syllabus_id: 'syl-1',
@@ -199,8 +142,9 @@ describe('FacultyHome', () => {
     });
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Active Evaluation in Progress');
-    expect(markup).toContain('Open Specialist Scoreboard');
+    expect(markup).toContain('Specialist review');
+    expect(markup).toContain('View progress');
+    expect(markup).toContain('href="/specialists/sme/doc-1"');
     expect(markup).toContain('Operating Systems Module');
   });
 
@@ -224,38 +168,38 @@ describe('FacultyHome', () => {
 
     const markup = renderToStaticMarkup(<FacultyHome />);
 
-    expect(markup).toContain('Open Evaluation Scorecard');
+    expect(markup).toContain('View progress');
     expect(markup).toContain('/evaluations/eval-all-1234');
     expect(markup).not.toContain('/specialists/sme/doc-1');
   });
 
-  it('surfaces specialist evaluation domains in launchpads without AI slop tags and links to canonical curriculum alignment', () => {
+  it.each([undefined, null, []])('shows all shortcuts for unrestricted assignments (%s)', (evaluatorPermissions) => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
-    const markup = renderToStaticMarkup(<FacultyHome />);
-
-    expect(markup).toContain('Subject Matter Expert');
-    expect(markup).toContain('Program Coordinator');
-    expect(markup).toContain('Gender &amp; Development');
-    expect(markup).toContain('Innovation and Technology Support Office');
-
-    // Canonical curriculum alignment destination check
+    const markup = renderToStaticMarkup(<FacultyHome evaluatorPermissions={evaluatorPermissions} />);
+    for (const agent of ['sme', 'coordinator', 'gad', 'itso']) {
+      expect(markup).toContain(`href="/specialists/${agent}"`);
+    }
+    expect(markup).toContain('href="/syllabus-alignment"');
     expect(markup).toContain('href="/curriculum-alignment"');
-    expect(markup).not.toContain('href="/alignment"');
-
-    // Anti-slop check: verify decorative meta-tags are purged
-    expect(markup).not.toContain('[CORE STORAGE]');
-    expect(markup).not.toContain('[FACULTY COMMAND LEDGER]');
-    expect(markup).not.toContain('[CURRICULUM MAP]');
-    expect(markup).not.toContain('[SYLLABUS AUDIT]');
   });
 
-  it('renders focused assigned specialist workstation when single permission is granted', () => {
+  it('limits specialist shortcuts to the assigned workspaces while retaining alignment checks', () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
-    const markup = renderToStaticMarkup(
-      <FacultyHome evaluatorPermissions={['sme']} />,
-    );
-
-    expect(markup).toContain('Subject Matter Expert');
-    expect(markup).not.toContain('Program Coordinator');
+    const markup = renderToStaticMarkup(<FacultyHome evaluatorPermissions={['coordinator', 'gad']} />);
+    expect(markup).toContain('href="/specialists/coordinator"');
+    expect(markup).toContain('href="/specialists/gad"');
+    expect(markup).not.toContain('href="/specialists/sme"');
+    expect(markup).not.toContain('href="/specialists/itso"');
+    expect(markup).toContain('href="/syllabus-alignment"');
+    expect(markup).toContain('href="/curriculum-alignment"');
   });
+
+  it('shows every specialist to admins regardless of assignments', () => {
+    mockUseFacultyHome.mockReturnValue(defaultHomeState);
+    const markup = renderToStaticMarkup(<FacultyHome userRole="admin" evaluatorPermissions={['sme']} />);
+    for (const agent of ['sme', 'coordinator', 'gad', 'itso']) {
+      expect(markup).toContain(`href="/specialists/${agent}"`);
+    }
+  });
+
 });
