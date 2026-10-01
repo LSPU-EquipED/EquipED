@@ -10,7 +10,7 @@ import { cn } from '@equiped/ui';
 import { TABLE_STYLES } from '@equiped/ui';
 import type { AdminUserResponse } from '../types';
 import { getUserStatusBadge } from '../utils/userStatus';
-import { UserActionsMenu, type UserAction } from './UserActionsMenu';
+import { ActionsMenu, type MenuAction } from '@equiped/ui';
 
 interface UserTableRowProps {
   user: AdminUserResponse;
@@ -40,7 +40,7 @@ export function UserTableRow({
   isDeletePending,
 }: UserTableRowProps) {
   const status = getUserStatusBadge(user);
-  const approvalAction: UserAction =
+  const approvalAction: MenuAction =
     user.account_status === 'pending' || user.account_status === 'rejected'
       ? {
           label: 'Approve',
@@ -61,7 +61,7 @@ export function UserTableRow({
             onSelect: () => onSuspend(user),
             disabled: isApprovalPending,
           };
-  const actions: UserAction[] = [
+  const actions: MenuAction[] = [
     {
       label: 'Edit',
       icon: <PencilSimple className="size-4" />,
@@ -81,6 +81,7 @@ export function UserTableRow({
       : []),
     {
       label: 'Delete',
+      separatorBefore: true,
       icon: <Trash className="size-4" />,
       onSelect: () => onDelete(user),
       disabled: isDeletePending,
@@ -140,7 +141,7 @@ export function UserTableRow({
         {new Date(user.created_at).toLocaleDateString()}
       </td>
       <td className={cn(TABLE_STYLES.td, 'text-right w-20 min-w-[5rem] pr-6')}>
-        <UserActionsMenu name={user.name} actions={actions} />
+        <ActionsMenu name={user.name} actions={actions} />
       </td>
     </tr>
   );
