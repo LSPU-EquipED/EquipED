@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { CaretRight } from "@phosphor-icons/react";
 import { Badge, cn } from "@equiped/ui";
 import type { AttentionItem, HomeEvaluationItem } from "../types";
-import { formatDateTime, getEvaluationStatusBadge } from "../utils/homeData";
+import { formatDateOnly, getEvaluationStatusBadge } from "../utils/homeData";
 import { FacultyWorkflowSignal } from "./FacultyWorkflowSignal";
 
 export interface LedgerEvaluationsTableProps {
@@ -64,14 +64,9 @@ export function LedgerEvaluationsTable({
                 className="transition-colors hover:bg-surface-subtle/50 focus-within:bg-surface-subtle/50"
               >
                 <td className="pl-4 sm:pl-6 pr-4 py-3.5">
-                  <div className="space-y-1">
-                    <span className="block break-words text-sm font-medium leading-snug text-text">
-                      {ev.document_title || "Untitled SLM"}
-                    </span>
-                    <span className="block break-all font-mono text-xs tabular-nums text-text-muted">
-                      {ev.evaluation_id}
-                    </span>
-                  </div>
+                  <span className="block break-words text-sm font-medium leading-snug text-text">
+                    {ev.document_title || "Untitled SLM"}
+                  </span>
                 </td>
                 <td className="px-4 py-3.5">
                   <span
@@ -84,15 +79,15 @@ export function LedgerEvaluationsTable({
                   </span>
                 </td>
                 <td className="px-4 py-3.5 text-[13px] leading-relaxed tabular-nums text-text-muted">
-                  <span className="block min-w-28">
-                    {formatDateTime(ev.submitted_at)}
+                  <span className="whitespace-nowrap">
+                    {formatDateOnly(ev.submitted_at)}
                   </span>
                 </td>
                 <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                   <Link
                     to="/evaluations/$id"
                     params={{ id: ev.evaluation_id }}
-                    className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="relative inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <span>
                       View details
@@ -184,7 +179,7 @@ export function LedgerAttentionTable({
               <td className="pl-4 pr-4 sm:pr-6 py-3.5 text-right">
                 <Link
                   to={issue.targetUrl}
-                  className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="relative inline-flex min-h-10 items-center gap-1 whitespace-nowrap rounded-sm text-sm font-medium text-primary transition-colors hover:text-primary-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <span>
                     {issue.actionLabel}

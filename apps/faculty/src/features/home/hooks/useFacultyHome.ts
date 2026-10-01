@@ -1,13 +1,17 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
-import type { DocumentStats } from '@equiped/types';
+import type { ClientDocument, DocumentStats } from '@equiped/types';
 import { homeApi } from '../api/home.api';
+import type { HomeEvaluationItem } from '../types';
 import {
   deriveFacultyHomeData,
   isActiveEvaluationStatus,
   isProcessingDocument,
 } from '../utils/homeData';
+
+const EMPTY_DOCUMENTS: ClientDocument[] = [];
+const EMPTY_EVALUATIONS: HomeEvaluationItem[] = [];
 
 export function useFacultyHome() {
   const documentsQuery = useQuery({
@@ -28,19 +32,16 @@ export function useFacultyHome() {
     },
   });
 
-  const documents = documentsQuery.data?.items ?? [];
-  const evaluations = evaluationsQuery.data?.items ?? [];
+  const documents = documentsQuery.data?.items ?? EMPTY_DOCUMENTS;
+  const evaluations = evaluationsQuery.data?.items ?? EMPTY_EVALUATIONS;
 
   const documentIds = useMemo(
     () => documents.slice(0, 5).map((d) => d.documentId),
     [documents],
   );
 
-  const {
-    latestEvalsByDocId,
-    isSuccess: isLatestEvalsSuccess,
-    refetch: refetchLatestEvals,
-  } = useLatestEvaluations(documentIds);
+  const { latestEvalsByDocId, refetch: refetchLatestEvals } =
+    useLatestEvaluations(documentIds);
 
   const isLoading =
     (documentsQuery.isLoading && !documentsQuery.data) ||
@@ -66,13 +67,8 @@ export function useFacultyHome() {
 
   const homeData = useMemo(
     () =>
-      deriveFacultyHomeData(
-        documents,
-        evaluations,
-        latestEvalsByDocId,
-        isLatestEvalsSuccess,
-      ),
-    [documents, evaluations, latestEvalsByDocId, isLatestEvalsSuccess],
+      deriveFacultyHomeData(documents, evaluations, latestEvalsByDocId),
+    [documents, evaluations, latestEvalsByDocId],
   );
 
   const refetch = () => {

@@ -98,17 +98,18 @@ Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px ta
 
 ## Page composition
 
-### Faculty overview
+### Faculty dashboard
 
-The first viewport should answer: what needs attention, what is active, and what can I do next? Use this order:
+The first viewport should answer: what needs attention, what is active, and what can I do next? Place a full-width greeting and compact KPI row above an asymmetrical desktop grid with a wide main column and a compact 18–22rem supporting column:
 
-1. Page heading and top-level context with operational upload affordances available directly within primary workflows (such as the Module Library toolbar action).
-2. Compact metrics for owned modules and evaluation state.
-3. Active evaluation or attention-required work.
-4. Recent evaluation activity and a link to the full history.
-5. Secondary tools only after the operational content.
+1. A full-width personal, time-aware greeting with the local date. Keep the banner compact and focused on the greeting. Use a restrained module-and-review illustration on larger screens and the primary-soft surface.
+2. Four compact KPI cards beneath the greeting: total modules, processed, processing, and failed uploads. Use four columns on desktop and two on mobile, with the label and a modest value side by side. Processing counts describe document intake, not evaluation completion; keep values and labels close in size and omit explanatory subtitles.
+3. A conditional current-evaluation panel beside the activity table with the actual specialist, server-reported stage, module title, and a direct progress link. A compact stage sequence provides context without percentages or time estimates. Avoid internal IDs, spinners, and repeated status badges.
+4. Recent activity occupies the wide column with evaluation/review tabs, search, refresh, and pagination; keep a compact quick-actions panel in the supporting column, beneath current progress when an evaluation is active. Use spacing beneath the KPI row, and separate the desktop workspace columns with a vertical rule centered in the gutter. Place an Evaluation activity heading above the table surface, matching the quick-action group headings. The table footer contains only pagination and page-size controls; evaluation history remains in the sidebar. Stack the greeting, summary, active evaluation, quick actions, and activity on smaller screens, keeping table scrolling inside its panel.
 
-Avoid a grid of identical metric cards. Give the active workflow the strongest visual weight and keep the activity ledger scannable.
+Quick actions are grouped by purpose: an Evaluation workspaces group filtered to permitted specialists, and an Alignment checks group. Each group has a sentence-case heading above a lightly bordered surface with thin row separators. Give rows 20px vertical padding, relaxed description line height, and 28px between groups; widen the supporting column on larger desktops without squeezing the table at smaller widths. Rows use consistent bordered icon tiles, semibold labels, and diagonal arrows. Specialist rows include one brief purpose description; alignment rows contain only their label. Uploads remain available in Module Library; do not add an upload shortcut to the dashboard. Do not duplicate the history shortcut. Omit generic advisory notices from the dashboard; retain guidance where users review and act on generated findings. Keep the greeting visible when workspace data is loading or fails, and show loading counts rather than invented zeroes.
+
+Keep the faculty dashboard flat and compact: lightly bordered surface panels, simple KPI cards, soft-fill activity tabs, and restrained typography. Preserve the desktop column divider; use spacing without a horizontal rule beneath the KPI cards. Depth comes from the layered banner illustration rather than panel shadows; avoid the expanded administrative overview-list treatment.
 
 ### Visual anchors for low-data states
 

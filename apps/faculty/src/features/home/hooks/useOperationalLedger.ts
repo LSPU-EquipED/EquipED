@@ -62,13 +62,18 @@ export function useOperationalLedger(
     setPage(1);
   };
 
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setPage(1);
+  };
+
   return {
     activeTab,
     searchQuery,
     page,
     setPage,
     pageSize,
-    setPageSize,
+    handlePageSizeChange,
     filteredEvaluations,
     filteredIssues,
     paginatedEvaluations,

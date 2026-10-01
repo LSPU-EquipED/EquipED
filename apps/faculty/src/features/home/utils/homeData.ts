@@ -2,14 +2,6 @@ import type { ClientDocument } from '@equiped/types';
 import type { LatestEvaluationItem } from '@equiped/types';
 import type { AttentionItem, FacultyHomeData, HomeEvaluationItem } from '../types';
 
-const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
-
 const dateOnlyFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
@@ -29,11 +21,6 @@ export const isActiveEvaluationStatus = (status: string): boolean => {
     normalized === 'PENDING' ||
     normalized === 'PROCESSING'
   );
-};
-
-export const isCompletedEvaluationStatus = (status: string): boolean => {
-  const normalized = status.toUpperCase();
-  return normalized === 'COMPLETED' || normalized === 'COMPLETED_PARTIAL';
 };
 
 export function deriveAttentionItems(
@@ -86,7 +73,6 @@ export function deriveFacultyHomeData(
   documents: ClientDocument[],
   evaluations: HomeEvaluationItem[],
   latestEvalsByDocId: Record<string, LatestEvaluationItem> = {},
-  isLatestEvalsSuccess = false,
 ): FacultyHomeData {
   const recentIssues = deriveAttentionItems(documents, evaluations);
 
@@ -115,36 +101,10 @@ export function deriveFacultyHomeData(
     }
   }
 
-  // Latest ready document: must be PROCESSED and have NO latest evaluation after status batch has successfully loaded
-  let latestReadyDocument: ClientDocument | null = null;
-  if (isLatestEvalsSuccess) {
-    latestReadyDocument =
-      documents.find((d) => d.processingStatus === 'PROCESSED' && !latestEvalsByDocId[d.documentId]) ??
-      null;
-  }
-
-  const recentSlms = documents.slice(0, 5);
-  const recentEvaluations = evaluations.slice(0, 5);
-
   return {
     recentIssues,
     activeEvaluation,
-    latestReadyDocument,
-    hasEvaluations: evaluations.length > 0,
-    recentSlms,
-    recentEvaluations,
   };
-}
-
-export function formatDateTime(dateStr?: string | null): string {
-  if (!dateStr) return '—';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return dateTimeFormatter.format(d);
-  } catch {
-    return dateStr;
-  }
 }
 
 export function formatDateOnly(dateStr?: string | null): string {
@@ -212,36 +172,6 @@ export function getEvaluationStatusBadge(status: string): {
     default:
       return {
         label: status.replace(/_/g, ' '),
-        className: 'bg-surface-subtle text-text-muted border border-border',
-      };
-  }
-}
-
-export function getDocumentStatusBadge(status: ClientDocument['processingStatus']): {
-  label: string;
-  className: string;
-} {
-  switch (status) {
-    case 'PROCESSED':
-      return {
-        label: 'Ready',
-        className: 'bg-success-soft text-success border border-success/30',
-      };
-    case 'FAILED':
-      return {
-        label: 'Failed',
-        className: 'bg-destructive-soft text-destructive border border-destructive/30',
-      };
-    case 'PENDING':
-    case 'PROCESSING':
-    case 'CLEANUP_PENDING':
-      return {
-        label: 'Processing',
-        className: 'bg-warning-soft text-warning border border-warning/30',
-      };
-    default:
-      return {
-        label: status,
         className: 'bg-surface-subtle text-text-muted border border-border',
       };
   }

@@ -68,11 +68,12 @@ describe('FacultyOperationalLedger', () => {
       />,
     );
 
-    expect(screen.getByText('Recent evaluation activity')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Evaluation activity', level: 2 })).toBeDefined();
     expect(screen.getByText('Algorithms SLM')).toBeDefined();
     expect(screen.getByText('Databases SLM')).toBeDefined();
-    expect(screen.getByText('eval-1')).toBeDefined();
-    expect(screen.getByText('eval-2')).toBeDefined();
+    expect(screen.queryByText('eval-1')).toBeNull();
+    expect(screen.queryByText('eval-2')).toBeNull();
+    expect(screen.getAllByText(/^[A-Z][a-z]{2} \d{1,2}, 2026$/)).toHaveLength(2);
   });
 
   it('switches between Recent evaluations and Requires review tabs', () => {

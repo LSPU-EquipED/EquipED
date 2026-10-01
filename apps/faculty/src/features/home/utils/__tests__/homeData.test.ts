@@ -6,11 +6,8 @@ import {
   deriveAttentionItems,
   deriveFacultyHomeData,
   formatDateOnly,
-  formatDateTime,
-  getDocumentStatusBadge,
   getEvaluationStatusBadge,
   isActiveEvaluationStatus,
-  isCompletedEvaluationStatus,
   isProcessingDocument,
 } from '../homeData';
 
@@ -140,13 +137,6 @@ describe('homeData helpers', () => {
     expect(isActiveEvaluationStatus('FAILED')).toBe(false);
   });
 
-  it('identifies completed evaluation statuses', () => {
-    expect(isCompletedEvaluationStatus('COMPLETED')).toBe(true);
-    expect(isCompletedEvaluationStatus('COMPLETED_PARTIAL')).toBe(true);
-    expect(isCompletedEvaluationStatus('FAILED')).toBe(false);
-    expect(isCompletedEvaluationStatus('PROCESSING')).toBe(false);
-  });
-
   it('derives attention items sorted newest-first without jargon', () => {
     const attention = deriveAttentionItems(mockDocuments, mockEvaluations);
     expect(attention).toHaveLength(2);
@@ -168,9 +158,6 @@ describe('homeData helpers', () => {
 
     expect(homeData.recentIssues).toHaveLength(2);
     expect(homeData.activeEvaluation?.evaluation_id).toBe('eval-1');
-    expect(homeData.hasEvaluations).toBe(true);
-    expect(homeData.recentSlms).toHaveLength(4);
-    expect(homeData.recentEvaluations).toHaveLength(4);
   });
 
   it('preserves specialist provenance for active evaluations from latest status data', () => {
@@ -184,59 +171,36 @@ describe('homeData helpers', () => {
       },
     };
 
-    const homeData = deriveFacultyHomeData(mockDocuments, [], latestEvals, true);
+    const homeData = deriveFacultyHomeData(mockDocuments, [], latestEvals);
 
     expect(homeData.activeEvaluation?.evaluation_id).toBe('eval-gad');
     expect(homeData.activeEvaluation?.target_agent).toBe('gad');
   });
 
-  it('selects unevaluated PROCESSED document as ready banner candidate after batch status succeeds', () => {
-    // doc-1 is already evaluating (eval-1), doc-4 is PROCESSED with NO evaluation
+  it('prefers the active evaluation list over latest document statuses', () => {
     const latestEvals: Record<string, LatestEvaluationItem> = {
       'doc-1': {
         document_id: 'doc-1',
-        evaluation_id: 'eval-1',
-        status: 'PROCESSING',
+        evaluation_id: 'eval-latest',
+        status: 'EVALUATING',
+        target_agent: 'gad',
         submitted_at: '2026-08-21T09:30:00Z',
       },
     };
-
-    // When there are no active evals, doc-4 should be selected as latestReadyDocument
-    const terminalEvals: HomeEvaluationItem[] = [
-      {
-        evaluation_id: 'eval-2',
-        document_id: 'doc-10',
-        document_title: 'Database Systems Module 1',
-        syllabus_id: 'syl-2',
-        curriculum_id: 'curr-2',
-        status: 'COMPLETED',
-        submitted_at: '2026-08-20T14:00:00Z',
-      },
-    ];
-
-    const homeData = deriveFacultyHomeData(
-      mockDocuments,
-      terminalEvals,
-      latestEvals,
-      true, // isLatestEvalsSuccess
-    );
-
-    // doc-4 is PROCESSED and has no entry in latestEvals => selected as ready candidate!
-    // Even though faculty has another evaluation (eval-2), no global suppression occurs!
-    expect(homeData.latestReadyDocument?.documentId).toBe('doc-4');
+    expect(deriveFacultyHomeData(mockDocuments, mockEvaluations, latestEvals)
+      .activeEvaluation?.evaluation_id).toBe('eval-1');
   });
 
-  it('never sets latestReadyDocument when batch status request is not yet successful', () => {
-    const terminalEvals: HomeEvaluationItem[] = [];
-    const homeData = deriveFacultyHomeData(
-      mockDocuments,
-      terminalEvals,
-      {},
-      false, // isLatestEvalsSuccess is false (loading/error)
-    );
-
-    // Must be null to avoid flashing false Ready state
-    expect(homeData.latestReadyDocument).toBeNull();
+  it('ignores terminal latest statuses when finding an active evaluation', () => {
+    const latestEvals: Record<string, LatestEvaluationItem> = {
+      'doc-1': {
+        document_id: 'doc-1',
+        evaluation_id: 'eval-complete',
+        status: 'COMPLETED_PARTIAL',
+        submitted_at: '2026-08-21T09:30:00Z',
+      },
+    };
+    expect(deriveFacultyHomeData(mockDocuments, [], latestEvals).activeEvaluation).toBeNull();
   });
 
   it('selects PREPROCESSING and SYNTHESIZING as active banner candidates', () => {
@@ -292,18 +256,11 @@ describe('homeData helpers', () => {
     const subBadge = getEvaluationStatusBadge('SUBMITTED');
     expect(subBadge.label).toBe('Submitted');
 
-    const docReadyBadge = getDocumentStatusBadge('PROCESSED');
-    expect(docReadyBadge.label).toBe('Ready');
-    expect(docReadyBadge.className).toContain('text-success');
-
-    const docFailedBadge = getDocumentStatusBadge('FAILED');
-    expect(docFailedBadge.label).toBe('Failed');
   });
 
   it('formats dates safely with hoisted formatters', () => {
-    expect(formatDateTime(null)).toBe('—');
     expect(formatDateOnly(null)).toBe('—');
-    expect(formatDateTime('2026-08-21T09:30:00Z')).toContain('2026');
     expect(formatDateOnly('2026-08-21T09:30:00Z')).toContain('2026');
+    expect(formatDateOnly('invalid date')).toBe('invalid date');
   });
 });

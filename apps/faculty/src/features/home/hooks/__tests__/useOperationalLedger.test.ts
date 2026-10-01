@@ -77,6 +77,18 @@ describe('useOperationalLedger', () => {
     expect(result.current.paginatedEvaluations[0].document_title).toBe('Databases SLM');
   });
 
+  it('resets pagination together with page-size changes', () => {
+    const { result } = renderHook(() => useOperationalLedger(mockEvaluations, mockIssues, 1));
+    act(() => result.current.setPage(3));
+    expect(result.current.safePage).toBe(3);
+
+    act(() => result.current.handlePageSizeChange(2));
+    expect(result.current.pageSize).toBe(2);
+    expect(result.current.safePage).toBe(1);
+    expect(result.current.paginatedEvaluations.map((evaluation) => evaluation.evaluation_id))
+      .toEqual(['eval-1', 'eval-2']);
+  });
+
   it('switches tabs and resets page', () => {
     const { result } = renderHook(() => useOperationalLedger(mockEvaluations, mockIssues, 2));
 
