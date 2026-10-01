@@ -33,9 +33,6 @@ export function LedgerToolbar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-t-md border-b border-border bg-surface px-4 py-4 sm:px-6">
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3">
-        <h2 className="text-sm font-semibold text-text">
-          Recent evaluation activity
-        </h2>
         <div
           role="tablist"
           aria-label="Ledger views"
@@ -108,10 +105,11 @@ export function LedgerToolbar({
           <Button
             type="button"
             variant="secondary"
+            size="icon"
             onClick={onRefresh}
             aria-label="Refresh workspace data"
             title="Refresh workspace data"
-            className="w-10 shrink-0 px-0"
+            className="shrink-0"
           >
             <ArrowsClockwise className="size-4" aria-hidden="true" />
           </Button>

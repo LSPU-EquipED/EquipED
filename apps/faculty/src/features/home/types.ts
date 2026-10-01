@@ -1,5 +1,3 @@
-import type { ClientDocument } from '@equiped/types';
-
 export interface HomeEvaluationItem {
   evaluation_id: string;
   document_id: string;
@@ -34,8 +32,9 @@ export interface AttentionItem {
 export interface FacultyHomeData {
   recentIssues: AttentionItem[];
   activeEvaluation: HomeEvaluationItem | null;
-  latestReadyDocument: ClientDocument | null;
-  hasEvaluations: boolean;
-  recentSlms: ClientDocument[];
-  recentEvaluations: HomeEvaluationItem[];
+}
+
+export interface FacultyWorkspaceAccess {
+  evaluatorPermissions?: readonly string[] | null;
+  userRole?: string;
 }
