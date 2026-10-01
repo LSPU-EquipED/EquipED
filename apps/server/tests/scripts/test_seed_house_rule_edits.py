@@ -575,6 +575,35 @@ def test_adapter_guard_passes_when_no_sme_adapter_was_applied(
     assert plan.writes
 
 
+@pytest.mark.parametrize("scale", [1.0, 0.5])
+def test_an_evaluation_scored_with_a_lora_scale_aborts(
+    db_session, user, seeded_sme_rubric, scale
+):
+    # Old Compare-flow runs: adapter_resolution is NULL but lora_scale was set.
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    job = db_session.get(EvaluationJob, evaluation_id)
+    job.lora_scale = scale
+    db_session.commit()
+    with pytest.raises(tool.IneligibleRunError, match="base-model answers only"):
+        tool.plan_evaluation(
+            db_session, evaluation_id, group="train", edit_codes=("OP-01",)
+        )
+
+
+@pytest.mark.parametrize("scale", [None, 0.0])
+def test_lora_scale_guard_passes_for_none_or_zero(
+    db_session, user, seeded_sme_rubric, scale
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    job = db_session.get(EvaluationJob, evaluation_id)
+    job.lora_scale = scale
+    db_session.commit()
+    plan = tool.plan_evaluation(
+        db_session, evaluation_id, group="train", edit_codes=("OP-01",)
+    )
+    assert plan.writes
+
+
 def _log(evaluation_id, user, **overrides):
     fields = {
         "evaluation_id": evaluation_id,
@@ -1036,6 +1065,27 @@ def test_cli_write_then_verify_export_then_second_run_writes_nothing(
     assert write_cli(*argv) == 0  # the criteria now have logs, so all are skipped
     assert "Nothing to write" in capsys.readouterr().out
     assert db_session.query(PreferenceLog).count() == 5
+
+
+def test_cli_export_mismatch_exits_non_zero(
+    write_cli, capsys, monkeypatch, db_session, user, seeded_sme_rubric
+):
+    evaluation_id = str(_eval_for_writing(db_session, user))
+    counts = iter([0, 99])
+    monkeypatch.setattr(tool, "count_exportable_pairs", lambda _s: next(counts))
+    code = write_cli(
+        "--train-evaluations",
+        evaluation_id,
+        "--verify-export",
+        "--confirm",
+        "SEED",
+        "--confirm-target",
+        "LOCAL",
+    )
+    out = capsys.readouterr().out
+    assert "MISMATCH" in out
+    assert "--cleanup --run-id" in out
+    assert code == 3
 
 
 def test_reference_evaluations_are_never_written(

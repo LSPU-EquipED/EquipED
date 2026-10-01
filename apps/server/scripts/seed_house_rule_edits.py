@@ -305,6 +305,13 @@ def plan_evaluation(
             f"Evaluation {evaluation_id} was scored with adapter {applied} applied; "
             "the experiment needs base-model answers only."
         )
+    # Older Compare-flow runs have no adapter_resolution but set lora_scale.
+    scale = getattr(job, "lora_scale", None)
+    if scale is not None and scale > 0:
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} was scored with lora_scale {scale}; "
+            "the experiment needs base-model answers only."
+        )
     generations = _usable_generations(session, evaluation_id)
     if not generations:
         raise IneligibleRunError(
@@ -704,6 +711,7 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
             f"\nWrote {rows} correction(s) for run-id {run_id} "
             f"(notes='{format_note(run_id)}')."
         )
+        verdict = "OK"
         if args.verify_export:
             after = count_exportable_pairs(session)
             expected = (baseline or 0) + len(run.pair_generation_ids)
@@ -717,7 +725,7 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
             f"To remove these corrections: --cleanup --run-id {run_id} "
             f"--confirm CLEANUP --confirm-target {_target_ack()}"
         )
-        return 0
+        return 3 if verdict == "MISMATCH" else 0
     finally:
         session.close()
 
@@ -850,7 +858,9 @@ def main(
     *,
     session_factory: Callable[[], Session] | None = None,
 ) -> int:
-    """Exit codes: 0 ok, 2 aborted (nothing written), 3 refused by a safety check."""
+    """Exit codes: 0 ok, 2 aborted (nothing written), 3 refused by a safety check
+    or an export-check MISMATCH after writing (run the cleanup and investigate).
+    """
     import_model_modules()
     args = build_parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")

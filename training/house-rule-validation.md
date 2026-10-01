@@ -44,10 +44,19 @@ paired sign test across at least 10 SLMs. That is a separate, later experiment.
   default and the minimum allowed; the developer `.env` currently has 28000.
   Keep it at 15000 for the training-data runs AND for the validation
   benchmarks, then restore the old value afterwards.
+- **Use evaluations run after you set the budget** (the pilot and collection
+  runs). Evaluations from before 2026-09-23 have no record of whether an
+  adapter was applied, so do not list them.
+- **Use a fresh run id each time.** Leave `--run-id` off; reusing an earlier
+  run's id shares its tag, so one cleanup removes both runs.
+- **Run the write step when nobody is reviewing these evaluations.**
 
 Why 15000: at that budget every SLM, long or short, produces the same prompt of
-about 14.4k characters (roughly 3,600 tokens). That size fits the training
-limits and gave 8 of 8 clean answers on a long SLM. At 28000 the prompts are
+about 14-16k characters (roughly 3,600 tokens). That prompt does NOT fit the
+notebook's default limits (1536-token `max_prompt_length`): it fits only after
+you raise `MAX_SEQ_LENGTH` and `max_prompt_length` as in section 5, step 3, and
+T4 memory at that length is the real feasibility check. This budget gave 8 of 8
+clean answers on a long SLM. At 28000 the prompts are
 about 27k characters and many answers come back repaired. Repaired and fallback
 generations are not usable training pairs.
 
@@ -70,12 +79,15 @@ export SYNTHETIC_SEEDER_ALLOWED_DB_FINGERPRINTS="<fingerprint>"
 ```
 
 On PowerShell: `$env:SYNTHETIC_SEEDER_ALLOWED_DB_FINGERPRINTS = "<fingerprint>"`.
-The fingerprint is printed by the house-rule script's dry run (the last line
-says `--confirm-target <value>`; that value is `LOCAL` for a local database, or
-the fingerprint). Use the same value for `--confirm-target`.
+To get the fingerprint, run the cleanup command above once without the
+environment variable: the REFUSED message prints the fingerprint of your
+database target (a local database needs no fingerprint; use `LOCAL`). The
+house-rule dry run also prints it in its last line, but only once you pass
+evaluation ids (for example `--train-evaluations-file`), so use the cleanup
+refusal for Phase 0. Use the same value for `--confirm-target`.
 
 Check it worked with the house-rule dry run (section 5, step 2) plus
-`--verify-export`. The line "Existing exportable SME pairs already in the
+`--verify-export` (this needs evaluation ids, so do it after the pilot). The line "Existing exportable SME pairs already in the
 database" must read **0**. If it is not 0, the report prints a WARNING.
 
 ## 4. Which SLMs to use
@@ -117,10 +129,11 @@ Facts to keep in mind:
   nothing to evaluate. Tesseract is not installed on the dev machine, so a
   scanned SLM cannot be used until it is OCR'd elsewhere.
 - **Repeat runs, but not too many.** Running the same SLM again gives
-  near-duplicate pairs, so 2-3 runs per SLM are enough. Each evaluation gives
-  2 pairs (`envelope_0` = the OP criteria, `envelope_1` = the A criteria), so
-  about 50 train evaluations give about 100 pairs. The pilot confirms the real
-  yield.
+  near-duplicate pairs, so use 2-3 base-model runs per training SLM. Each
+  evaluation gives 2 pairs (`envelope_0` = the OP criteria, `envelope_1` = the
+  A criteria). With 8 training SLMs that is roughly 16-24 evaluations, so about
+  32-48 pairs. Pairs scale with the number of runs, and more runs only add
+  near-duplicate pairs. The pilot confirms the real yield.
 - **Held-out SLMs** get 2-3 plain base runs each; those fix their base
   reference scores.
 - **Tip: reuse existing generations.** If a faculty-uploaded SLM already has
@@ -156,8 +169,9 @@ has, for each SLM and criterion, its role, the base score of each run, the
 base reference (mean, rounded half up) and the expected score if the rule was
 learned. You will type those into Model Validation later.
 
-**Step 3: choose notebook values.** If more than about 20% of prompts are over
-the 1536-token limit, the report prints suggested values. In the Colab notebook
+**Step 3: choose notebook values.** At budget 15000 essentially every prompt is
+over the 1536-token limit, so raising the notebook values is mandatory. The
+report prints suggested values whenever any prompt is over. In the Colab notebook
 `docs/colab/dpo_training_template.ipynb` (cell numbers are 0-based, as the
 notebook counts them):
 
@@ -171,7 +185,7 @@ memory runs out. Very long SLMs may be dropped if the limit cannot be raised
 enough.
 
 **Step 4: full data collection.** Run the remaining evaluations (8 train SLMs
-about 4 runs each, 2 held-out SLMs 2-3 runs each) at budget 15000, add all ids
+2-3 runs each, about 16-24 evaluations; 2 held-out SLMs 2-3 runs each) at budget 15000, add all ids
 to the two files, and repeat the dry run with `--verify-export`.
 
 **Step 5: write the corrections.** Both confirmations are required:
@@ -188,7 +202,8 @@ first (section 3). The script writes everything in one transaction, tags each
 row `house-rule-seed:<run-id>`, and prints:
 
 - `Wrote N correction(s) for run-id <UUID>`,
-- an "Export check" line that must say `(OK)`,
+- an "Export check" line that must say `(OK)` (on `MISMATCH` the script exits
+  with code 3 after writing: run the cleanup and investigate),
 - the cleanup command (section 8). **Copy the run id somewhere safe.**
 
 A random run id is created unless you pass `--run-id <UUID>`. Held-out
@@ -256,4 +271,4 @@ ones again, and the evaluations, generations and documents are untouched.
 Afterwards: restore `SME_TOTAL_PROMPT_BUDGET_CHARS` in `.env` to its old value
 and restart the backend. Exit codes of the script: 0 = ok, 2 = aborted (nothing
 written), 3 = refused by a safety check (missing confirmation, unsafe database
-target).
+target) or an export-check MISMATCH after writing.
