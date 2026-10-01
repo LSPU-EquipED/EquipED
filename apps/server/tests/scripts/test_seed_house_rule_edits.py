@@ -653,6 +653,12 @@ def test_suggest_limits_rounds_up_with_a_margin():
     assert tool.suggest_limits(3963) == (4608, 6144)
 
 
+def test_suggest_limits_uses_exact_integer_math():
+    # 1.15 * 1280 = 1472 exactly -> 6 * 256; no float noise may push it to 7.
+    assert tool.suggest_limits(1280) == (1536, 3072)
+    assert tool.suggest_limits(1) == (256, 1792)
+
+
 def test_report_lists_evaluations_totals_skips_and_prompt_lengths(
     db_session, user, seeded_sme_rubric
 ):
@@ -926,6 +932,10 @@ def test_write_is_all_or_nothing(db_session, user, seeded_sme_rubric, monkeypatc
         tool.write_corrections(db_session, run, run_id=uuid.uuid4())
     monkeypatch.setattr(db_session, "commit", real_commit)
     assert db_session.query(PreferenceLog).count() == 0
+    assert (
+        db_session.query(User).filter_by(email=tool.HOUSE_USER_EMAIL).one_or_none()
+        is None
+    )
 
 
 def test_the_exporter_turns_the_rows_into_pairs_that_differ_only_in_the_scores(
@@ -971,6 +981,10 @@ def test_cli_write_requires_both_confirmations(
     assert write_cli(*base, "--confirm", "SEED", "--confirm-target", "wrong") == 3
     assert "REFUSED" in capsys.readouterr().out
     assert db_session.query(PreferenceLog).count() == 0
+    assert (
+        db_session.query(User).filter_by(email=tool.HOUSE_USER_EMAIL).one_or_none()
+        is None
+    )
 
 
 def test_cli_write_refuses_an_unsafe_database_target(
@@ -991,6 +1005,10 @@ def test_cli_write_refuses_an_unsafe_database_target(
     )
     assert code == 3
     assert db_session.query(PreferenceLog).count() == 0
+    assert (
+        db_session.query(User).filter_by(email=tool.HOUSE_USER_EMAIL).one_or_none()
+        is None
+    )
 
 
 def test_cli_write_then_verify_export_then_second_run_writes_nothing(
@@ -1207,3 +1225,150 @@ def test_cli_cleanup_needs_both_confirmations_and_a_run_id(
     )
     assert "Removed 1 correction(s)" in capsys.readouterr().out
     assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_cli_missing_ids_file_is_a_clean_error_not_a_refusal(
+    cli, capsys, tmp_path, seeded_sme_rubric
+):
+    code = cli("--train-evaluations-file", str(tmp_path / "missing.txt"))
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "ERROR" in out and "missing.txt" in out
+    assert "REFUSED" not in out and "Traceback" not in out
+    assert len(out.strip().splitlines()) == 1  # one line
+    out.encode("ascii")
+
+
+def test_cli_unwritable_report_csv_is_a_clean_error(
+    cli, capsys, tmp_path, db_session, user, seeded_sme_rubric
+):
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x", encoding="utf-8")  # a file where a directory is needed
+    code = cli(
+        "--train-evaluations",
+        str(evaluation_id),
+        "--report-csv",
+        str(blocker / "out.csv"),
+    )
+    out = capsys.readouterr().out
+    assert code == 2
+    assert "ERROR" in out and "REFUSED" not in out
+    assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_cli_abort_and_refusal_messages_are_ascii_safe(
+    cli, capsys, monkeypatch, db_session, user, seeded_sme_rubric
+):
+    def refuse(*_args, **_kwargs):
+        raise tool.IneligibleRunError("bad ó title – x")
+
+    monkeypatch.setattr(tool, "plan_run", refuse)
+    assert cli("--train-evaluations", str(uuid.uuid4())) == 2
+    out = capsys.readouterr().out
+    assert "ABORTED" in out
+    out.encode("ascii")
+
+    def deny():
+        raise PermissionError("no ó way")
+
+    monkeypatch.setattr(tool, "validate_environment", deny)
+    assert cli("--train-evaluations", str(uuid.uuid4())) == 3
+    out = capsys.readouterr().out
+    assert "REFUSED" in out
+    out.encode("ascii")
+
+
+def test_cli_without_verify_export_never_calls_the_exporter(
+    cli, capsys, monkeypatch, db_session, user, seeded_sme_rubric
+):
+    def boom(_session):
+        raise AssertionError("exporter must not run")
+
+    monkeypatch.setattr(tool, "count_exportable_pairs", boom)
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    assert cli("--train-evaluations", str(evaluation_id)) == 0
+    assert "Existing exportable SME pairs" not in capsys.readouterr().out
+
+
+def test_dry_run_footer_tells_you_to_rerun_with_the_confirmations(
+    cli, capsys, monkeypatch, db_session, user, seeded_sme_rubric
+):
+    monkeypatch.setattr(
+        tool,
+        "get_settings",
+        lambda: types.SimpleNamespace(database_url="sqlite:///:memory:"),
+    )
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    assert cli("--train-evaluations", str(evaluation_id)) == 0
+    out = capsys.readouterr().out
+    assert "re-run the same command with --confirm SEED --confirm-target LOCAL" in out
+
+
+def test_dry_run_footer_does_not_suggest_a_command_without_a_target(
+    cli, capsys, monkeypatch, db_session, user, seeded_sme_rubric
+):
+    monkeypatch.setattr(
+        tool, "get_settings", lambda: types.SimpleNamespace(database_url="")
+    )
+    evaluation_id, _ = make_evaluation(db_session, user, FULL_ANSWER)
+    assert cli("--train-evaluations", str(evaluation_id)) == 0
+    out = capsys.readouterr().out
+    assert "--confirm SEED" not in out
+    assert "DATABASE_URL" in out
+
+
+def test_cleanup_hints_when_the_run_id_matches_nothing(
+    write_cli, capsys, db_session, user, seeded_sme_rubric
+):
+    tool.get_or_create_house_user(db_session)
+    db_session.commit()
+    code = write_cli(
+        "--cleanup",
+        "--run-id",
+        str(uuid.uuid4()),
+        "--confirm",
+        "CLEANUP",
+        "--confirm-target",
+        "LOCAL",
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "Removed 0 rows. Check the run id" in out
+
+
+def test_cleanup_leaves_old_synthetic_rows_and_non_edit_tagged_rows(
+    db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run_id = uuid.uuid4()
+    old_seeder.generate(db_session, count=2)
+    synthetic_before = db_session.query(PreferenceLog).count()
+    assert synthetic_before > 0
+    synthetic_user = (
+        db_session.query(User).filter_by(email=old_seeder.SYNTHETIC_USER_EMAIL).one()
+    )
+    house = tool.get_or_create_house_user(db_session)
+    # the old seeder's rows also carry a note prefix; make sure they are untouched
+    assert all(
+        r.notes.startswith("synthetic-dpo-seed:")
+        for r in db_session.query(PreferenceLog).filter_by(
+            user_id=synthetic_user.user_id
+        )
+    )
+    accept = PreferenceLog(
+        evaluation_id=evaluation_id,
+        user_id=house.user_id,
+        agent_name="sme",
+        criterion_id="OP-01",
+        action="ACCEPT",
+        notes=tool.format_note(run_id),
+    )
+    db_session.add(accept)
+    db_session.commit()
+    _house_rows(db_session, user, evaluation_id, run_id)
+
+    assert tool.cleanup(db_session, run_id=run_id) == 1
+
+    assert db_session.query(PreferenceLog).count() == synthetic_before + 1
+    assert db_session.get(PreferenceLog, accept.log_id) is not None

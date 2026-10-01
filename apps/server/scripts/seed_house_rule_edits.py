@@ -89,6 +89,10 @@ class IneligibleRunError(Exception):
     """The run cannot proceed; nothing was written."""
 
 
+class FileAccessError(Exception):
+    """An input or output file could not be read or written (exit code 2)."""
+
+
 def _as_score(value: object) -> int | None:
     """A valid 1-4 integer score, else None. Booleans and strings are invalid."""
     if isinstance(value, bool):
@@ -435,7 +439,9 @@ def estimate_tokens(chars: int) -> int:
 def suggest_limits(max_prompt_tokens: int) -> tuple[int, int]:
     """(max_prompt_length, MAX_SEQ_LENGTH) for the notebook: the longest prompt
     plus 15%, rounded up to 256, and room for the answer on top."""
-    prompt_limit = math.ceil(max_prompt_tokens * 1.15 / 256) * 256
+    # 15% margin in exact integer math: ceil(tokens * 115 / (100 * 256)) blocks.
+    blocks = -(-max_prompt_tokens * 115 // (100 * 256))
+    prompt_limit = blocks * 256
     return prompt_limit, prompt_limit + RESPONSE_TOKEN_ALLOWANCE
 
 
@@ -451,7 +457,13 @@ def parse_ids(text: str) -> list[uuid.UUID]:
 
 
 def read_ids_file(path: Path) -> list[uuid.UUID]:
-    return parse_ids(path.read_text(encoding="utf-8"))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise FileAccessError(
+            f"cannot read ids file {path}: {exc.strerror or exc}"
+        ) from exc
+    return parse_ids(text)
 
 
 def _ascii(text: str) -> str:
@@ -582,11 +594,16 @@ def build_expected_scores_rows(run: RunPlan) -> list[dict[str, str]]:
 
 
 def write_expected_scores_csv(rows: list[dict[str, str]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+    except OSError as exc:
+        raise FileAccessError(
+            f"cannot write report CSV {path}: {exc.strerror or exc}"
+        ) from exc
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -666,10 +683,17 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
             write_expected_scores_csv(build_expected_scores_rows(run), args.report_csv)
             print(f"Expected-scores CSV written to {args.report_csv}")
         if not write:
-            print(
-                "\nDry run: nothing was written. To write, add --confirm SEED "
-                f"--confirm-target {_target_ack()}."
-            )
+            target = _target_ack()
+            if target == NO_DATABASE_TARGET:
+                print(
+                    "\nDry run: nothing was written. Set DATABASE_URL before "
+                    "attempting a write run."
+                )
+            else:
+                print(
+                    "\nDry run: nothing was written. To write, re-run the same "
+                    f"command with --confirm SEED --confirm-target {target}."
+                )
             return 0
         if not run.writes:
             print("\nNothing to write (every edited criterion was skipped).")
@@ -739,12 +763,15 @@ def write_corrections(session: Session, run: RunPlan, *, run_id: uuid.UUID) -> i
         raise
 
 
+NO_DATABASE_TARGET = "(no DATABASE_URL)"
+
+
 def _target_ack() -> str:
     """The value --confirm-target must have: LOCAL, or the database fingerprint."""
     configured = (getattr(get_settings(), "database_url", None) or "").strip()
     if configured and is_local_or_test_target(configured):
         return "LOCAL"
-    return compute_target_fingerprint(configured) if configured else "(no DATABASE_URL)"
+    return compute_target_fingerprint(configured) if configured else NO_DATABASE_TARGET
 
 
 def _check_write_guards(args: argparse.Namespace, *, keyword: str) -> None:
@@ -810,6 +837,11 @@ def _run_cleanup(args: argparse.Namespace, session_factory: Any) -> int:
     finally:
         session.close()
     print(f"Removed {removed} correction(s) for run-id {run_id}.")
+    if removed == 0:
+        print(
+            "Removed 0 rows. Check the run id: it must match the one printed by "
+            "the write step."
+        )
     return 0
 
 
@@ -827,11 +859,14 @@ def main(
         if args.cleanup:
             return _run_cleanup(args, session_factory)
         return _run_plan(args, session_factory)
+    except FileAccessError as exc:
+        print(_ascii(f"ERROR: {exc}"))
+        return 2
     except PermissionError as exc:
-        print(f"REFUSED: {exc}")
+        print(_ascii(f"REFUSED: {exc}"))
         return 3
     except (IneligibleRunError, ValueError) as exc:
-        print(f"ABORTED: {exc}")
+        print(_ascii(f"ABORTED: {exc}"))
         return 2
 
 
