@@ -65,22 +65,6 @@ export function getEvaluationDescription(actionType: SlmDisplayActionType): stri
 }
 
 /**
- * Derives button label for evaluation action.
- */
-export function getEvaluationActionLabel(
-  actionType: SlmDisplayActionType,
-  fallbackLabel: string,
-): string {
-  if (actionType === 'view_results') {
-    return 'Open Evaluation';
-  }
-  if (actionType === 'start_evaluation') {
-    return 'Launch Evaluation';
-  }
-  return fallbackLabel;
-}
-
-/**
  * Formats uploaded timestamp for module inspector display.
  */
 export function formatInspectorDate(dateString: string | null | undefined): string {

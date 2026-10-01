@@ -4,25 +4,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ModuleInspectorDrawer } from '../ModuleInspectorDrawer';
 import type { ClientDocument } from '@equiped/types';
 
-// Mock @tanstack/react-router Link component
-vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    children,
-    to,
-    className,
-    'aria-label': ariaLabel,
-  }: {
-    children: React.ReactNode;
-    to: string;
-    className?: string;
-    'aria-label'?: string;
-  }) => (
-    <a href={to} className={className} aria-label={ariaLabel}>
-      {children}
-    </a>
-  ),
-}));
-
 const mockDocument: ClientDocument = {
   documentId: 'doc-abc-123',
   title: 'Data Structures and Algorithms SLM',
@@ -111,15 +92,11 @@ describe('ModuleInspectorDrawer Component', () => {
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
 
-  it('renders direct PDF open action with correct URL and attributes', () => {
+  it('does not duplicate the PDF or evaluation actions from the table menu', () => {
     render(<ModuleInspectorDrawer document={mockDocument} onClose={vi.fn()} />);
 
-    const openPdfLink = screen.getByRole('link', { name: /Open PDF/i });
-    expect(openPdfLink.getAttribute('href')).toBe(
-      '/api/v1/documents/doc-abc-123/file',
-    );
-    expect(openPdfLink.getAttribute('target')).toBe('_blank');
-    expect(openPdfLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.queryByText('Open PDF')).toBeNull();
   });
 
   it('does NOT render dead outline or fabricated chunk count text when outline is missing', () => {
@@ -185,7 +162,7 @@ describe('ModuleInspectorDrawer Component', () => {
     expect(screen.queryByText('Accreditation')).toBeNull();
   });
 
-  it('renders multi-agent evaluation section with launch action when ready', () => {
+  it('retains evaluation information without the duplicate launch action', () => {
     render(
       <ModuleInspectorDrawer
         document={mockDocument}
@@ -197,7 +174,7 @@ describe('ModuleInspectorDrawer Component', () => {
     expect(
       screen.getByText('Multi-agent evaluation'),
     ).toBeDefined();
-    expect(screen.getByRole('link', { name: /Launch Evaluation/i })).toBeDefined();
+    expect(screen.queryByRole('link', { name: /Launch Evaluation/i })).toBeNull();
   });
 
   it('renders document file section and handles copy action for document ID', async () => {

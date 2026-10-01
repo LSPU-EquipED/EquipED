@@ -1,5 +1,4 @@
-import { ArrowSquareOut, Check, Copy, FileText, Spinner, X } from '@phosphor-icons/react';
-import { Link } from '@tanstack/react-router';
+import { Check, Copy, FileText, Spinner, X } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
 import type { SlmDisplayStatus } from '@/shared/utils/slmDisplayStatus';
@@ -7,7 +6,6 @@ import {
   truncateId,
   formatProcessingStatus,
   getEvaluationDescription,
-  getEvaluationActionLabel,
   formatInspectorDate,
 } from '../utils/moduleInspector.utils';
 
@@ -205,20 +203,6 @@ export function ModuleInspectorDrawerContent({
             <p className="text-xs leading-relaxed text-text-muted">
               {getEvaluationDescription(slmDisplay.actionType)}
             </p>
-
-            {slmDisplay.isClickable && slmDisplay.actionUrl && (
-              <div className="pt-1">
-                <Link
-                  to={slmDisplay.actionUrl}
-                  className="inline-flex items-center gap-2 rounded-sm bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                >
-                  <span>
-                    {getEvaluationActionLabel(slmDisplay.actionType, slmDisplay.actionLabel)}
-                  </span>
-                  <ArrowSquareOut className="size-3.5" aria-hidden="true" />
-                </Link>
-              </div>
-            )}
           </div>
 
           {/* Section 4: Document File */}
@@ -242,16 +226,6 @@ export function ModuleInspectorDrawerContent({
                   </span>
                 </div>
               </div>
-
-              <a
-                href={`/api/v1/documents/${cachedDoc.documentId}/file`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-text hover:bg-surface-subtle hover:border-primary/50 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span>Open PDF</span>
-                <ArrowSquareOut className="size-3.5 text-text-muted" aria-hidden="true" />
-              </a>
             </div>
 
             {/* Document ID */}
