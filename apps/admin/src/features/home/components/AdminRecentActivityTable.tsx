@@ -32,15 +32,7 @@ export function AdminRecentActivityTable({
 }: AdminRecentActivityTableProps) {
   return (
     <section aria-labelledby="admin-activity-heading" className="min-w-0 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 id="admin-activity-heading" className="text-base font-semibold text-text">Recent evaluations</h2>
-          <p className="mt-1 text-xs text-text-muted">Latest module records across academic programs.</p>
-        </div>
-        <Link to="/matrix" className="inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring">
-          View full matrix <CaretRight className="size-3.5" aria-hidden="true" />
-        </Link>
-      </div>
+      <h2 id="admin-activity-heading" className="text-base font-semibold leading-6 text-text">Recent evaluations</h2>
 
       <div className={TABLE_STYLES.wrapper}>
         {isLoading ? (
@@ -52,7 +44,7 @@ export function AdminRecentActivityTable({
               { label: 'Score / 4', headerClassName: 'text-right whitespace-nowrap', skeletonClassName: 'h-4 w-16 ml-auto' },
               { label: 'Flags', headerClassName: 'text-right', skeletonClassName: 'h-5 w-8 ml-auto' },
               { label: 'Updated', headerClassName: 'text-right whitespace-nowrap', skeletonClassName: 'h-4 w-24 ml-auto' },
-              { label: '', headerClassName: 'w-10', skeletonClassName: 'h-4 w-4 ml-auto' },
+              { label: '', headerClassName: 'w-10', skeletonClassName: 'size-10 ml-auto' },
             ]}
           />
         ) : isError ? (
@@ -106,13 +98,13 @@ export function AdminRecentActivityTable({
                         <Link
                           to="/matrix/$documentId"
                           params={{ documentId: row.document_id }}
-                          className="font-semibold text-sm text-text hover:text-primary transition-colors block max-w-sm break-words focus-visible:outline-2 focus-visible:outline-ring"
+                          className="font-medium text-sm leading-5 text-text hover:text-primary transition-colors block max-w-sm break-words focus-visible:outline-2 focus-visible:outline-ring"
                         >
                           {row.document_title || 'Untitled SLM'}
                         </Link>
                         <div className="flex items-center gap-2 text-xs text-text-muted mt-1 flex-wrap">
                           {row.program ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[10px] font-medium uppercase tracking-wide bg-surface-subtle/80 text-text-muted border border-border/70">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-xs font-medium bg-surface-subtle/80 text-text-muted border border-border/70">
                               {row.program}
                             </span>
                           ) : null}
@@ -132,7 +124,7 @@ export function AdminRecentActivityTable({
                     <td className={cn(TABLE_STYLES.tdData, 'text-right whitespace-nowrap')}>
                       {row.synthesized_score != null ? (
                         <div className="inline-flex items-baseline gap-1">
-                          <span className="font-bold text-sm text-text tabular-nums">
+                          <span className="font-semibold text-sm text-text tabular-nums">
                             {row.synthesized_score.toFixed(2)}
                           </span>
                           <span className="text-text-muted font-normal text-xs"> / 4.00</span>
@@ -143,7 +135,7 @@ export function AdminRecentActivityTable({
                     </td>
                     <td className={cn(TABLE_STYLES.td, 'text-right')}>
                       {row.flag_count > 0 ? (
-                        <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-warning-soft text-warning text-[11px] font-bold px-1.5 border border-warning/25 tabular-nums">
+                        <span className="inline-flex items-center justify-center min-w-5 h-5 rounded-full bg-warning-soft text-warning text-xs font-medium px-1.5 border border-warning/25 tabular-nums">
                           {row.flag_count}
                         </span>
                       ) : (
@@ -160,7 +152,7 @@ export function AdminRecentActivityTable({
                       <Link
                         to="/matrix/$documentId"
                         params={{ documentId: row.document_id }}
-                        className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors"
+                        className="inline-flex size-10 items-center justify-center rounded-xs text-text-muted hover:bg-surface-subtle hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                         title={`View synthesis for ${row.document_title || 'module'}`}
                         aria-label={`View synthesis for ${row.document_title || 'module'}`}
                       >
