@@ -4,6 +4,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Sidebar } from '../Sidebar';
+import { equipedWordmarkUrl, equipedSymbolUrl } from '../../assets';
 import { SquaresFour, Users } from '@phosphor-icons/react';
 import type { NavGroup } from '../navigation.types';
 
@@ -68,9 +69,23 @@ describe('Layout primitives: Sidebar and AppShell', () => {
         />,
       );
 
-      expect(screen.getByText('EquipED')).toBeDefined();
+      expect(screen.getByRole('img', { name: 'EquipED' }).getAttribute('src')).toBe(equipedWordmarkUrl);
       expect(screen.getByText('Overview')).toBeDefined();
       expect(screen.getByText('Users')).toBeDefined();
+    });
+
+    it('uses the symbol on the collapsed desktop rail and the wordmark on mobile', () => {
+      const { rerender } = render(
+        <Sidebar collapsed onToggle={vi.fn()} navGroups={sampleNavGroups} isMobile={false} />,
+      );
+      expect(screen.getByRole('img', { name: 'EquipED' }).getAttribute('src')).toBe(equipedSymbolUrl);
+      expect(screen.queryByText('LSPU')).toBeNull();
+
+      rerender(
+        <Sidebar collapsed onToggle={vi.fn()} navGroups={sampleNavGroups} isMobile mobileOpen />,
+      );
+      expect(screen.getByRole('img', { name: 'EquipED' }).getAttribute('src')).toBe(equipedWordmarkUrl);
+      expect(screen.getByText('LSPU')).toBeDefined();
     });
 
     it('highlights active item and sets aria-current="page"', () => {

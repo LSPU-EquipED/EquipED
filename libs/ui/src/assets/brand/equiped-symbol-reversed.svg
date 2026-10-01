@@ -1,0 +1,6 @@
+<!-- EquipED selected Folio identity. Colors follow DESIGN.md. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="logo-title">
+<title id="logo-title">EquipED symbol</title>
+
+<path d="M6 14V56H10V10H40V6H6V14Z" fill="#fbfcfc" opacity=".28"/><path d="M14 10H44L56 22V28H26V34H48V44H26V50H56V60H14V10Z" fill="#fbfcfc"/><path d="M44 10V22H56L44 10Z" fill="#d9ad1d"/>
+</svg>

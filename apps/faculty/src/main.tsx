@@ -1,11 +1,12 @@
 import { createRoot } from 'react-dom/client';
-import { lspuLogoUrl } from '@equiped/ui';
+import { equipedSymbolUrl } from '@equiped/ui';
 import { AppProviders } from './app/providers';
 import './app.css';
 
 const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
 if (favicon) {
-  favicon.href = lspuLogoUrl;
+  favicon.href = equipedSymbolUrl;
+  favicon.type = 'image/svg+xml';
 }
 
 const root = document.getElementById('root');

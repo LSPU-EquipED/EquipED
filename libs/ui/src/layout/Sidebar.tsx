@@ -1,7 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
 import { SidebarSimple, X } from '@phosphor-icons/react';
-import { lspuLogoUrl } from '../assets';
+import { equipedWordmarkUrl, equipedSymbolUrl } from '../assets';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { SHELL_STYLES } from '../theme/tokens';
 import { cn } from '../utils';
@@ -165,16 +165,28 @@ export function Sidebar({
           collapsed ? 'md:justify-center md:px-2 max-md:justify-between max-md:px-4' : 'justify-between px-4',
         )}
       >
-        <div className="flex items-center gap-3">
-          <img src={lspuLogoUrl} alt="LSPU" className="size-9 shrink-0 object-contain" />
-          <div className={cn('flex flex-col leading-none', collapsed && 'md:hidden')}>
-            <span className="text-[10px] font-medium tracking-[0.08em] text-text-muted">
-              {brandSubtitle}
-            </span>
-            <span className="text-base font-semibold text-text mt-0.5">
-              {brandTitle}
-            </span>
-          </div>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <img
+            src={equipedSymbolUrl}
+            alt={collapsed && !isMobile ? brandTitle : ''}
+            width={64}
+            height={64}
+            className="size-9 shrink-0 object-contain"
+          />
+          {(!collapsed || isMobile) && (
+            <div className="flex min-w-0 flex-col justify-center gap-0.5">
+              <span className="text-[10px] font-medium leading-3 text-text-muted">
+                {brandSubtitle}
+              </span>
+              <img
+                src={equipedWordmarkUrl}
+                alt={brandTitle}
+                width={208}
+                height={56}
+                className="h-6 w-auto max-w-full self-start object-contain"
+              />
+            </div>
+          )}
         </div>
 
         {/* Mobile Close Button */}
