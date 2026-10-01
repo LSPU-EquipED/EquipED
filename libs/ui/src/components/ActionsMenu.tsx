@@ -1,30 +1,31 @@
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { DotsThree } from '@phosphor-icons/react';
-import { Button, cn, DROPDOWN_STYLES, useClickOutside } from '@equiped/ui';
+import { Link } from '@tanstack/react-router';
+import { Button } from './Button';
+import { cn } from '../utils';
+import { DROPDOWN_STYLES } from '../theme';
+import { useClickOutside } from '../hooks';
 
-export interface UserAction {
+const useMenuLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
+
+interface MenuActionBase {
   label: string;
   icon: ReactNode;
-  onSelect: () => void;
+  ariaLabel?: string;
   disabled?: boolean;
   destructive?: boolean;
+  separatorBefore?: boolean;
 }
 
-export function UserActionsMenu({
-  name,
-  actions,
-}: {
-  name: string;
-  actions: UserAction[];
-}) {
+export type MenuAction = MenuActionBase &
+  (
+    | { onSelect: () => void; to?: never; href?: never }
+    | { to: string; onSelect?: never; href?: never }
+    | { href: string; target?: string; rel?: string; onSelect?: never; to?: never }
+  );
+
+export function ActionsMenu({ name, actions }: { name: string; actions: MenuAction[] }) {
   const id = useId();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -37,7 +38,7 @@ export function UserActionsMenu({
   };
   useClickOutside([triggerRef, menuRef], () => close(), { enabled: isOpen });
 
-  useLayoutEffect(() => {
+  useMenuLayoutEffect(() => {
     const trigger = triggerRef.current;
     const menu = menuRef.current;
     if (!isOpen || !trigger || !menu) return;
@@ -50,20 +51,14 @@ export function UserActionsMenu({
     menu.style.top = `${openAbove ? rect.top - menu.offsetHeight - gutter : rect.bottom + gutter}px`;
     menu.style.left = `${Math.max(gutter, Math.min(rect.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - gutter))}px`;
     menu.style.visibility = 'visible';
-    const items = menu.querySelectorAll<HTMLButtonElement>(
-      '[role="menuitem"]:not(:disabled)',
-    );
+    const items = menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)');
     (focusLast.current ? items[items.length - 1] : items[0])?.focus();
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const onScroll = (event: Event) => {
-      if (
-        event.target instanceof Node &&
-        menuRef.current?.contains(event.target)
-      )
-        return;
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
       setIsOpen(false);
     };
     const onResize = () => setIsOpen(false);
@@ -129,19 +124,15 @@ export function UserActionsMenu({
                 return;
               }
               const items = Array.from(
-                event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                event.currentTarget.querySelectorAll<HTMLElement>(
                   '[role="menuitem"]:not(:disabled)',
                 ),
               );
               if (!items.length) return;
-              const current = items.indexOf(
-                document.activeElement as HTMLButtonElement,
-              );
+              const current = items.indexOf(document.activeElement as HTMLElement);
               let next: number;
-              if (event.key === 'ArrowDown')
-                next = (current + 1) % items.length;
-              else if (event.key === 'ArrowUp')
-                next = (current - 1 + items.length) % items.length;
+              if (event.key === 'ArrowDown') next = (current + 1) % items.length;
+              else if (event.key === 'ArrowUp') next = (current - 1 + items.length) % items.length;
               else if (event.key === 'Home') next = 0;
               else if (event.key === 'End') next = items.length - 1;
               else return;
@@ -149,33 +140,64 @@ export function UserActionsMenu({
               items[next]?.focus();
             }}
           >
-            {actions.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                disabled={action.disabled}
-                onClick={() => {
-                  close(true);
-                  action.onSelect();
-                }}
-                className={cn(
-                  DROPDOWN_STYLES.item,
-                  DROPDOWN_STYLES.itemSizes.md,
-                  'justify-start min-h-10 focus-visible:outline-none focus-visible:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40',
-                  action.destructive
-                    ? 'text-destructive hover:bg-destructive-soft focus-visible:bg-destructive-soft'
-                    : DROPDOWN_STYLES.itemDefault,
-                  action.destructive &&
-                    action.label === 'Delete' &&
-                    'mt-1 border-t border-border',
-                )}
-              >
-                <span aria-hidden="true">{action.icon}</span>
-                {action.label}
-              </button>
-            ))}
+            {actions.map((action) => {
+              const className = cn(
+                DROPDOWN_STYLES.item,
+                DROPDOWN_STYLES.itemSizes.md,
+                'justify-start min-h-10 focus-visible:outline-none focus-visible:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-40',
+                action.destructive
+                  ? 'text-destructive hover:bg-destructive-soft focus-visible:bg-destructive-soft'
+                  : DROPDOWN_STYLES.itemDefault,
+                action.separatorBefore && 'mt-1 border-t border-border',
+              );
+              const content = (
+                <>
+                  <span aria-hidden="true">{action.icon}</span>
+                  {action.label}
+                </>
+              );
+              const itemProps = {
+                role: 'menuitem',
+                tabIndex: -1,
+                className,
+                'aria-label': action.ariaLabel,
+                onClick: () => close(true),
+              };
+              if (!action.disabled && action.to) {
+                return (
+                  <Link key={action.label} to={action.to} {...itemProps}>
+                    {content}
+                  </Link>
+                );
+              }
+              if (!action.disabled && action.href) {
+                return (
+                  <a
+                    key={action.label}
+                    href={action.href}
+                    target={action.target}
+                    rel={action.rel}
+                    {...itemProps}
+                  >
+                    {content}
+                  </a>
+                );
+              }
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  {...itemProps}
+                  disabled={action.disabled}
+                  onClick={() => {
+                    close(true);
+                    action.onSelect?.();
+                  }}
+                >
+                  {content}
+                </button>
+              );
+            })}
           </div>,
           document.body,
         )}

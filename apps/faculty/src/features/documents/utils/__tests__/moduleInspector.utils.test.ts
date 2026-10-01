@@ -4,7 +4,6 @@ import {
   formatProcessingStatus,
   getHumanReadableTitle,
   getEvaluationDescription,
-  getEvaluationActionLabel,
   formatInspectorDate,
 } from '../moduleInspector.utils';
 
@@ -90,17 +89,6 @@ describe('moduleInspector.utils', () => {
       expect(getEvaluationDescription('inspect_failure')).toBe('Multi-agent evaluation status for this module.');
       expect(getEvaluationDescription('checking_status')).toBe('Multi-agent evaluation status for this module.');
       expect(getEvaluationDescription('status_unavailable')).toBe('Multi-agent evaluation status for this module.');
-    });
-  });
-
-  describe('getEvaluationActionLabel', () => {
-    it('returns special labels for view_results and start_evaluation, or fallback', () => {
-      expect(getEvaluationActionLabel('view_results', 'Fallback')).toBe('Open Evaluation');
-      expect(getEvaluationActionLabel('start_evaluation', 'Fallback')).toBe('Launch Evaluation');
-      expect(getEvaluationActionLabel('view_progress', 'Check Progress')).toBe('Check Progress');
-      expect(getEvaluationActionLabel('inspect_failure', 'Custom Label')).toBe('Custom Label');
-      expect(getEvaluationActionLabel('checking_status', 'Checking...')).toBe('Checking...');
-      expect(getEvaluationActionLabel('status_unavailable', 'Unavailable')).toBe('Unavailable');
     });
   });
 

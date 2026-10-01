@@ -1,6 +1,4 @@
-import { CaretRight, FileText, Spinner } from '@phosphor-icons/react';
-import { Link } from '@tanstack/react-router';
-import type { MouseEvent, KeyboardEvent } from 'react';
+import { Spinner } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import { TableSkeleton } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
@@ -8,6 +6,7 @@ import type { LatestEvaluationItem } from '@equiped/types';
 import type { TargetAgent } from '@equiped/types';
 import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDate, sourceTypeLabels } from '../utils/document.utils';
+import { DocumentActionsMenu } from './DocumentActionsMenu';
 
 interface DocumentTableProps {
   documents: ClientDocument[];
@@ -27,29 +26,6 @@ export function DocumentTable({
   onInspect,
 }: DocumentTableProps) {
   const hasMultipleTypes = documents.some((d) => d.sourceType !== 'slm');
-
-  const handleRowClick = (e: MouseEvent<HTMLTableRowElement>, doc: ClientDocument) => {
-    // If the user clicked an interactive inner element (link, button, etc.), don't trigger row inspection
-    if ((e.target as HTMLElement).closest('a, button, details')) {
-      return;
-    }
-    // Prevent opening if the user is selecting text to copy
-    const selection = window.getSelection();
-    if (selection && selection.toString().length > 0) {
-      return;
-    }
-    onInspect?.(doc);
-  };
-
-  const handleRowKeyDown = (e: KeyboardEvent<HTMLTableRowElement>, doc: ClientDocument) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      if ((e.target as HTMLElement).closest('a, button, details')) {
-        return;
-      }
-      e.preventDefault();
-      onInspect?.(doc);
-    }
-  };
 
   return (
     <div className="overflow-x-auto min-w-0 w-full">
@@ -108,7 +84,7 @@ export function DocumentTable({
               scope="col"
               className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6"
             >
-              Action
+              Actions
             </th>
           </tr>
         </thead>
@@ -126,15 +102,8 @@ export function DocumentTable({
             return (
               <tr
                 key={document.documentId}
-                tabIndex={onInspect ? 0 : undefined}
-                role={onInspect ? 'button' : undefined}
-                aria-label={onInspect ? `View details for ${document.title}` : undefined}
-                onKeyDown={onInspect ? (e) => handleRowKeyDown(e, document) : undefined}
-                onClick={onInspect ? (e) => handleRowClick(e, document) : undefined}
                 className={cn(
-                  'group transition-colors',
                   isFlashing && 'animate-ledger-flash-decay',
-                  onInspect && 'cursor-pointer hover:bg-primary-soft/70 focus-visible:outline-none focus-visible:bg-primary-soft/70',
                   !display.isClickable && 'bg-surface-subtle/30',
                 )}
               >
@@ -161,7 +130,7 @@ export function DocumentTable({
                   )}
                 >
                   <span
-                    className="block truncate font-semibold text-sm text-text group-hover:text-primary transition-colors"
+                    className="block truncate font-semibold text-sm text-text"
                     title={document.title}
                   >
                     {document.title}
@@ -217,34 +186,11 @@ export function DocumentTable({
 
                 {/* 7. Actions */}
                 <td className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
-                  <div className="flex items-center justify-end gap-1.5 [&>a]:shrink-0">
-                    {/* Document Icon (Open PDF with tooltip) */}
-                    <a
-                      href={`/api/v1/documents/${document.documentId}/file`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Open PDF"
-                      aria-label={`Open ${document.title} PDF`}
-                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-sm border border-border bg-surface text-text-muted transition-colors hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-                    >
-                      <FileText className="size-3.5" aria-hidden="true" />
-                    </a>
-
-                    {/* Launch / View Evaluation Action */}
-                    {display.isClickable && display.actionUrl ? (
-                      <Link
-                        to={display.actionUrl}
-                        aria-label={display.ariaLabel}
-                        title={display.actionLabel}
-                        className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-surface text-text-muted transition-colors hover:border-primary/40 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
-                      >
-                        <CaretRight
-                          className="size-4 transition-colors group-hover:text-primary"
-                          aria-hidden="true"
-                        />
-                      </Link>
-                    ) : null}
-                  </div>
+                  <DocumentActionsMenu
+                    document={document}
+                    display={display}
+                    onInspect={onInspect}
+                  />
                 </td>
               </tr>
             );
@@ -298,10 +244,10 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
       skeletonClassName: 'h-4 w-20',
     },
     {
-      label: 'Action',
+      label: 'Actions',
       headerClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 text-right align-middle',
       cellClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 align-middle',
-      skeletonClassName: 'h-7 w-16 ml-auto',
+      skeletonClassName: 'size-10 ml-auto',
     },
   ];
 
