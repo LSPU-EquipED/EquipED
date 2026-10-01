@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -27,8 +28,8 @@ def test_admin_list_users_requires_admin(
     assert response.status_code == 403
 
 
-def test_admin_list_users_returns_all_users(
-    client: TestClient, auth_cookies_admin, db_session
+def test_admin_list_users_excludes_current_admin(
+    client: TestClient, auth_cookies_admin, db_session, admin_user
 ) -> None:
     # Create additional users
     create_user(
@@ -52,8 +53,9 @@ def test_admin_list_users_returns_all_users(
     assert response.status_code == 200
 
     data = response.json()
-    assert data["total"] >= 3  # admin + 2 faculty
-    assert len(data["items"]) >= 3
+    assert data["total"] == 2
+    assert len(data["items"]) == 2
+    assert str(admin_user.user_id) not in {item["user_id"] for item in data["items"]}
     # Verify structure
     for item in data["items"]:
         assert "user_id" in item
@@ -824,3 +826,36 @@ def test_admin_rejects_invalid_or_duplicate_evaluator_permissions(
         json={**base_payload, "evaluator_permissions": ["sme", "sme"]},
     )
     assert duplicate.status_code == 422
+
+
+@pytest.mark.parametrize("suffix", ["", "/permanent"])
+def test_admin_cannot_delete_own_account(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, suffix
+) -> None:
+    from server.modules.auth.models import User
+
+    _auth(client, auth_cookies_admin)
+    response = client.delete(f"/api/v1/admin/users/{admin_user.user_id}{suffix}")
+    assert response.status_code == 403
+    db_session.expire_all()
+    user = db_session.get(User, admin_user.user_id)
+    assert user is not None
+    assert user.is_active
+    assert client.get("/api/v1/auth/me").json()["authenticated"] is True
+
+
+def test_admin_user_list_keeps_other_administrators_visible(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+) -> None:
+    other_admin = create_user(
+        db_session,
+        name="Other Admin",
+        email="other-admin@lspu.edu.ph",
+        password="password123",
+        role=UserRole.ADMIN,
+    )
+    db_session.commit()
+    _auth(client, auth_cookies_admin)
+    data = client.get("/api/v1/admin/users").json()
+    assert {item["user_id"] for item in data["items"]} == {str(other_admin.user_id)}
+    assert data["total"] == 1

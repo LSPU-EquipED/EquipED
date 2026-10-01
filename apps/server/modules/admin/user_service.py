@@ -25,9 +25,11 @@ __all__ = [
 ]
 
 
-def list_users(db: Any) -> list[User]:
-    """Return all registered users."""
+def list_users(db: Any, *, exclude_user_id: uuid.UUID | None = None) -> list[User]:
+    """Return registered users, optionally excluding the acting administrator."""
     stmt = select(User).order_by(User.created_at.desc())
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.user_id != exclude_user_id)
     return list(db.scalars(stmt).all())
 
 

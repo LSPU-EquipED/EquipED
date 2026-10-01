@@ -256,7 +256,7 @@ def get_users(
     current_user: AuthenticatedUser = Depends(require_admin),
     db=Depends(get_db_session),
 ):
-    users = list_users(db)
+    users = list_users(db, exclude_user_id=current_user.id)
     return AdminUserListResponse(
         items=[_map_admin_user_response(u) for u in users],
         total=len(users),
@@ -374,6 +374,11 @@ def deactivate_user_endpoint(
     current_user: AuthenticatedUser = Depends(require_admin),
     db=Depends(get_db_session),
 ):
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot deactivate your own account.",
+        )
     try:
         deactivated = deactivate_user(db, user_id, reviewed_by=current_user.id)
     except ValueError:
@@ -391,6 +396,11 @@ def hard_delete_user_endpoint(
     current_user: AuthenticatedUser = Depends(require_admin),
     db=Depends(get_db_session),
 ):
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot delete your own account.",
+        )
     try:
         hard_delete_user(db, user_id)
     except ValueError:
