@@ -1,0 +1,145 @@
+<!-- EquipED dashboard artwork. Palette follows DESIGN.md; contains no evaluation status. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="440"
+  height="184"
+  viewBox="0 0 440 184"
+  fill="none"
+>
+  <!-- The blue cover gives the module a clear silhouette. -->
+  <path
+    d="M42 75C87 65 131 71 173 91C215 71 259 65 304 75V153C257 145 214 151 173 169C132 151 89 145 42 153V75Z"
+    fill="#1b3b87"
+    stroke="#142f70"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M49 69C92 60 134 68 173 87C212 68 254 60 297 69V147C251 140 211 146 173 163C135 146 95 140 49 147V69Z"
+    fill="#e8eef9"
+    stroke="#1b3b87"
+    stroke-opacity="0.4"
+    stroke-width="1.5"
+  />
+  <path
+    d="M56 61C97 52 137 62 173 82V156C138 137 98 129 56 137V61Z"
+    fill="#fbfcfc"
+    stroke="#1b3b87"
+    stroke-opacity="0.5"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M173 82C209 62 249 52 290 61V137C248 129 208 137 173 156V82Z"
+    fill="#fbfcfc"
+    stroke="#1b3b87"
+    stroke-opacity="0.5"
+    stroke-width="1.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M173 83V156"
+    stroke="#1b3b87"
+    stroke-opacity="0.3"
+    stroke-width="3"
+  />
+  <path
+    d="M75 77C99 73 122 79 148 91M75 87C99 83 121 89 148 101M75 108C100 105 123 111 148 122M75 118C95 116 116 120 133 127"
+    stroke="#1b3b87"
+    stroke-opacity="0.35"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M197 94C220 83 243 78 269 79M197 104C220 93 243 88 269 89M197 126C220 115 243 110 260 111"
+    stroke="#1b3b87"
+    stroke-opacity="0.3"
+    stroke-width="2"
+    stroke-linecap="round"
+  />
+  <path
+    d="M104 59L119 62V96L111 88L104 91V59Z"
+    fill="#d9ad1d"
+    stroke="#86620a"
+    stroke-opacity="0.3"
+  />
+
+  <!-- A raised review sheet, with ruled criteria rather than sample scores. -->
+  <g transform="rotate(8 318 92)">
+    <rect
+      x="270"
+      y="24"
+      width="109"
+      height="140"
+      rx="4"
+      fill="#1b3b87"
+      fill-opacity="0.1"
+    />
+    <rect
+      x="262"
+      y="17"
+      width="109"
+      height="140"
+      rx="4"
+      fill="#fbfcfc"
+      stroke="#1b3b87"
+      stroke-opacity="0.45"
+      stroke-width="1.5"
+    />
+    <path
+      d="M263 21A3 3 0 0 1 266 18H367A3 3 0 0 1 370 21V43H263V21Z"
+      fill="#1b3b87"
+    />
+    <path
+      d="M277 30H324M340 30H356"
+      stroke="#ffffff"
+      stroke-opacity="0.8"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+    <path
+      d="M278 56H332"
+      stroke="#1b3b87"
+      stroke-opacity="0.65"
+      stroke-width="3"
+      stroke-linecap="round"
+    />
+    <path d="M277 66H355" stroke="#cad6da" />
+    <g stroke="#1b3b87" stroke-opacity="0.4" stroke-width="1.5">
+      <rect x="278" y="79" width="9" height="9" rx="1" fill="#e8eef9" />
+      <rect x="278" y="102" width="9" height="9" rx="1" fill="#e8eef9" />
+      <rect x="278" y="125" width="9" height="9" rx="1" fill="#e8eef9" />
+      <path
+        d="M298 81H353M298 88H337M298 104H353M298 111H329M298 127H353M298 134H340"
+        stroke-linecap="round"
+      />
+    </g>
+    <path d="M355 17H365V54L360 50L355 54V17Z" fill="#d9ad1d" />
+  </g>
+
+  <!-- A capped pen reinforces the human review context. -->
+  <g transform="rotate(27 397 102)">
+    <rect x="391" y="48" width="12" height="92" rx="3" fill="#142f70" />
+    <path
+      d="M391 132H403V142L397 154L391 142V132Z"
+      fill="#e8eef9"
+      stroke="#1b3b87"
+      stroke-opacity="0.6"
+    />
+    <path d="M395 150L397 154L399 150" fill="#1b3b87" />
+    <path
+      d="M394 61V124"
+      stroke="#ffffff"
+      stroke-opacity="0.35"
+      stroke-width="2"
+      stroke-linecap="round"
+    />
+    <path
+      d="M404 53V77"
+      stroke="#1b3b87"
+      stroke-width="3"
+      stroke-linecap="round"
+    />
+    <path d="M391 82H403" stroke="#d9ad1d" stroke-width="3" />
+  </g>
+</svg>

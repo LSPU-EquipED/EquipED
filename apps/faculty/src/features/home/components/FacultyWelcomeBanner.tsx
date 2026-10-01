@@ -1,5 +1,5 @@
 import { useDashboardGreeting } from "../hooks/useDashboardGreeting";
-import { DashboardWelcomeVisual } from "./DashboardWelcomeVisual";
+import dashboardWelcome from "../assets/dashboard-welcome.svg";
 
 export function FacultyWelcomeBanner({
   displayName,
@@ -18,8 +18,14 @@ export function FacultyWelcomeBanner({
           {greeting}
         </h1>
       </div>
-      <div className="hidden w-64 shrink-0 lg:block">
-        <DashboardWelcomeVisual />
+      <div className="hidden w-80 shrink-0 lg:block xl:w-88">
+        <img
+          src={dashboardWelcome}
+          alt=""
+          width={440}
+          height={184}
+          className="h-auto w-full"
+        />
       </div>
     </header>
   );
