@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { MagnifyingGlass, Plus, UserMinus } from '@phosphor-icons/react';
-import { Button, ConfirmationModal, PageContainer } from '@equiped/ui';
+import { useAuth } from '@equiped/auth';
+import { Button, ConfirmationModal, Input, PageContainer } from '@equiped/ui';
 import { CreateUserModal } from '../components/CreateUserModal';
 import { EditUserModal } from '../components/EditUserModal';
 import { UserFiltersToolbar, type RoleFilter, type StatusFilter } from '../components/UserFiltersToolbar';
@@ -14,6 +15,7 @@ import {
 import type { AdminUserResponse, UserCounts } from '../types';
 
 export function UserManagementPage() {
+  const { user: currentUser } = useAuth();
   const { data, isLoading, isError } = useAdminUsers();
   const deactivateUser = useDeactivateUser();
   const hardDeleteUser = useHardDeleteUser();
@@ -29,6 +31,7 @@ export function UserManagementPage() {
 
   // Confirmation modal states
   const [userToSuspend, setUserToSuspend] = useState<AdminUserResponse | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [userToDelete, setUserToDelete] = useState<AdminUserResponse | null>(null);
   const [isBulkDeactivateOpen, setIsBulkDeactivateOpen] = useState(false);
 
@@ -39,7 +42,10 @@ export function UserManagementPage() {
   const bulkDeactivationLock = useRef(false);
   const [isBulkDeactivationRunning, setIsBulkDeactivationRunning] = useState(false);
 
-  const items = useMemo(() => data?.items ?? [], [data?.items]);
+  const items = useMemo(
+    () => currentUser ? (data?.items ?? []).filter((user) => user.user_id !== currentUser.id) : [],
+    [data?.items, currentUser],
+  );
 
   const counts: UserCounts = useMemo(() => ({
     all: items.length,
@@ -63,7 +69,7 @@ export function UserManagementPage() {
   }, [items, statusFilter, roleFilter, searchQuery]);
 
   const toggleSelection = (userId: string) => {
-    if (bulkDeactivationLock.current) return;
+    if (bulkDeactivationLock.current || userId === currentUser?.id) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) next.delete(userId);
@@ -94,7 +100,7 @@ export function UserManagementPage() {
     bulkDeactivationLock.current = true;
     setIsBulkDeactivationRunning(true);
     setBulkError(null);
-    const toDeactivate = Array.from(selectedIds);
+    const toDeactivate = Array.from(selectedIds).filter((id) => id !== currentUser?.id);
     try {
       for (const userId of toDeactivate) {
         await deactivateUser.mutateAsync(userId);
@@ -140,12 +146,14 @@ export function UserManagementPage() {
   };
 
   const handleDelete = (user: AdminUserResponse) => {
+    if (user.user_id === currentUser?.id) return;
+    setDeleteConfirmation('');
     setDeleteError(null);
     setUserToDelete(user);
   };
 
   const confirmDelete = async () => {
-    if (!userToDelete) return;
+    if (!userToDelete || userToDelete.user_id === currentUser?.id || deleteConfirmation.trim() !== userToDelete.email || hardDeleteUser.isPending) return;
     setDeleteError(null);
     try {
       await hardDeleteUser.mutateAsync(userToDelete.user_id);
@@ -278,7 +286,7 @@ export function UserManagementPage() {
       {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={Boolean(userToDelete)}
-        onClose={() => { setUserToDelete(null); setDeleteError(null); }}
+        onClose={() => { setUserToDelete(null); setDeleteError(null); setDeleteConfirmation(''); }}
         onConfirm={confirmDelete}
         title={`Delete ${userToDelete?.name || 'User'}?`}
         description={
@@ -289,11 +297,26 @@ export function UserManagementPage() {
             <p className="text-xs text-destructive font-medium">
               This will permanently delete the account and cannot be undone.
             </p>
+            <div className="pt-2">
+              <label htmlFor="delete-user-confirmation" className="mb-2 block text-sm font-medium text-text">
+                Type <span className="break-all">{userToDelete?.email}</span> to confirm
+              </label>
+              <Input
+                id="delete-user-confirmation"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                disabled={hardDeleteUser.isPending}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Confirm account email"
+              />
+            </div>
           </div>
         }
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="destructive"
+        confirmDisabled={!userToDelete || deleteConfirmation.trim() !== userToDelete.email}
         isPending={hardDeleteUser.isPending}
         error={deleteError}
       />

@@ -9,7 +9,14 @@ const mockSetUserApprovalMutate = vi.fn();
 const mockDeactivateUserMutate = vi.fn();
 const mockHardDeleteUserMutate = vi.fn();
 
+const currentAdmin = { id: 'admin-current', displayName: 'Signed-in Admin', email: 'self@lspu.edu.ph', role: 'admin' };
+vi.mock('@equiped/auth', () => ({ useAuth: () => ({ user: currentAdmin }) }));
+
 const mockUsers: AdminUserResponse[] = [
+  {
+    user_id: 'admin-current', name: 'Signed-in Admin', email: 'self@lspu.edu.ph',
+    role: 'admin', is_active: true, account_status: 'approved', created_at: '2026-08-01T08:00:00Z',
+  },
   {
     user_id: 'user-pending-1',
     name: 'Pending Faculty',
@@ -91,6 +98,41 @@ describe('UserManagementPage', () => {
     vi.clearAllMocks();
   });
 
+  it('hides the signed-in administrator from the directory, search, and bulk selection', () => {
+    render(<UserManagementPage />);
+    expect(screen.queryByText('Signed-in Admin')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Actions for Signed-in Admin' })).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all users' }));
+    expect(screen.getByRole('button', { name: 'Deactivate (4)' })).toBeDefined();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search users' }), { target: { value: 'self@lspu.edu.ph' } });
+    expect(screen.getByText('No users match your filters')).toBeDefined();
+  });
+
+  it('keeps row commands hidden until the three-dot menu is opened', () => {
+    render(<UserManagementPage />);
+    expect(screen.queryByRole('menuitem')).toBeNull();
+    const trigger = screen.getByRole('button', { name: 'Actions for Pending Faculty' });
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeDefined();
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('resets typed deletion confirmation when cancelled and another account is selected', () => {
+    render(<UserManagementPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Active Approved Faculty' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Confirm account email' }), { target: { value: 'active@lspu.edu.ph' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Pending Faculty' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect((screen.getByRole('textbox', { name: 'Confirm account email' }) as HTMLInputElement).value).toBe('');
+    expect(screen.getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(true);
+    expect(mockHardDeleteUserMutate).not.toHaveBeenCalled();
+  });
+
   it('renders explicit Suspended badge for suspended account status', () => {
     render(<UserManagementPage />);
 
@@ -103,7 +145,8 @@ describe('UserManagementPage', () => {
   it('renders Suspend action for approved active user and calls setApproval with suspended after confirmation', () => {
     render(<UserManagementPage />);
 
-    const suspendBtn = screen.getByRole('button', { name: 'Suspend Active Approved Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Active Approved Faculty' }));
+    const suspendBtn = screen.getByRole('menuitem', { name: 'Suspend' });
     expect(suspendBtn).toBeDefined();
 
     fireEvent.click(suspendBtn);
@@ -124,7 +167,8 @@ describe('UserManagementPage', () => {
   it('does not trigger suspension if confirmation is declined', () => {
     render(<UserManagementPage />);
 
-    const suspendBtn = screen.getByRole('button', { name: 'Suspend Active Approved Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Active Approved Faculty' }));
+    const suspendBtn = screen.getByRole('menuitem', { name: 'Suspend' });
     fireEvent.click(suspendBtn);
 
     const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
@@ -136,13 +180,22 @@ describe('UserManagementPage', () => {
   it('opens Delete confirmation modal and calls hardDeleteUser upon confirmation', () => {
     render(<UserManagementPage />);
 
-    const deleteBtn = screen.getByRole('button', { name: 'Delete Active Approved Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Active Approved Faculty' }));
+    const deleteBtn = screen.getByRole('menuitem', { name: 'Delete' });
     fireEvent.click(deleteBtn);
 
     const dialog = screen.getByRole('dialog', { name: 'Delete Active Approved Faculty?' });
     expect(dialog).toBeDefined();
 
     const confirmBtn = screen.getByRole('button', { name: 'Delete' });
+    expect(confirmBtn.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(confirmBtn);
+    fireEvent.submit(dialog.querySelector('form')!);
+    expect(mockHardDeleteUserMutate).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Confirm account email' }), { target: { value: 'wrong@lspu.edu.ph' } });
+    expect(confirmBtn.hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Confirm account email' }), { target: { value: 'active@lspu.edu.ph' } });
+    expect(confirmBtn.hasAttribute('disabled')).toBe(false);
     fireEvent.click(confirmBtn);
 
     expect(mockHardDeleteUserMutate).toHaveBeenCalledWith('user-approved-1');
@@ -151,7 +204,8 @@ describe('UserManagementPage', () => {
   it('renders Reapprove action for suspended user and calls setApproval with approved', () => {
     render(<UserManagementPage />);
 
-    const reapproveBtn = screen.getByRole('button', { name: 'Reapprove Suspended Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Suspended Faculty' }));
+    const reapproveBtn = screen.getByRole('menuitem', { name: 'Reapprove' });
     expect(reapproveBtn).toBeDefined();
 
     fireEvent.click(reapproveBtn);
@@ -165,8 +219,9 @@ describe('UserManagementPage', () => {
   it('renders Approve and Reject actions for pending user', () => {
     render(<UserManagementPage />);
 
-    const approveBtn = screen.getByRole('button', { name: 'Approve Pending Faculty' });
-    const rejectBtn = screen.getByRole('button', { name: 'Reject Pending Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Pending Faculty' }));
+    const approveBtn = screen.getByRole('menuitem', { name: 'Approve' });
+    const rejectBtn = screen.getByRole('menuitem', { name: 'Reject' });
 
     expect(approveBtn).toBeDefined();
     expect(rejectBtn).toBeDefined();
@@ -177,7 +232,8 @@ describe('UserManagementPage', () => {
       accountStatus: 'approved',
     });
 
-    fireEvent.click(rejectBtn);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Pending Faculty' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }));
     expect(mockSetUserApprovalMutate).toHaveBeenCalledWith({
       userId: 'user-pending-1',
       accountStatus: 'rejected',
@@ -187,7 +243,8 @@ describe('UserManagementPage', () => {
   it('renders Approve action for rejected user', () => {
     render(<UserManagementPage />);
 
-    const approveBtn = screen.getByRole('button', { name: 'Approve Rejected Faculty' });
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Rejected Faculty' }));
+    const approveBtn = screen.getByRole('menuitem', { name: 'Approve' });
     expect(approveBtn).toBeDefined();
 
     fireEvent.click(approveBtn);

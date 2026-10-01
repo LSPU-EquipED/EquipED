@@ -10,6 +10,7 @@ import { cn } from '@equiped/ui';
 import { TABLE_STYLES } from '@equiped/ui';
 import type { AdminUserResponse } from '../types';
 import { getUserStatusBadge } from '../utils/userStatus';
+import { UserActionsMenu, type UserAction } from './UserActionsMenu';
 
 interface UserTableRowProps {
   user: AdminUserResponse;
@@ -39,6 +40,53 @@ export function UserTableRow({
   isDeletePending,
 }: UserTableRowProps) {
   const status = getUserStatusBadge(user);
+  const approvalAction: UserAction =
+    user.account_status === 'pending' || user.account_status === 'rejected'
+      ? {
+          label: 'Approve',
+          icon: <UserCheck className="size-4" />,
+          onSelect: () => onApprove(user.user_id),
+          disabled: isApprovalPending,
+        }
+      : user.account_status === 'suspended' || !user.is_active
+        ? {
+            label: 'Reapprove',
+            icon: <UserCheck className="size-4" />,
+            onSelect: () => onReapprove(user.user_id),
+            disabled: isApprovalPending,
+          }
+        : {
+            label: 'Suspend',
+            icon: <UserMinus className="size-4" />,
+            onSelect: () => onSuspend(user),
+            disabled: isApprovalPending,
+          };
+  const actions: UserAction[] = [
+    {
+      label: 'Edit',
+      icon: <PencilSimple className="size-4" />,
+      onSelect: () => onEdit(user),
+    },
+    approvalAction,
+    ...(user.account_status === 'pending'
+      ? [
+          {
+            label: 'Reject',
+            icon: <X className="size-4" />,
+            onSelect: () => onReject(user.user_id),
+            disabled: isApprovalPending,
+            destructive: true,
+          },
+        ]
+      : []),
+    {
+      label: 'Delete',
+      icon: <Trash className="size-4" />,
+      onSelect: () => onDelete(user),
+      disabled: isDeletePending,
+      destructive: true,
+    },
+  ];
 
   return (
     <tr className={TABLE_STYLES.tr}>
@@ -53,7 +101,9 @@ export function UserTableRow({
       </td>
       <td className={TABLE_STYLES.td}>
         <div className="flex flex-col">
-          <span className="font-semibold text-text line-clamp-1">{user.name}</span>
+          <span className="font-semibold text-text line-clamp-1">
+            {user.name}
+          </span>
           <span className="text-xs text-text-muted font-medium mt-0.5">
             {user.email}
           </span>
@@ -64,14 +114,16 @@ export function UserTableRow({
           <Badge variant={user.role === 'admin' ? 'accent' : 'neutral'}>
             {user.role}
           </Badge>
-          {(user.evaluator_permissions || user.evaluatorPermissions || []).map((perm) => (
-            <span
-              key={perm}
-              className="inline-flex items-center rounded-xs bg-primary-soft/50 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider text-primary"
-            >
-              {perm === 'coordinator' ? 'PC' : perm.toUpperCase()}
-            </span>
-          ))}
+          {(user.evaluator_permissions || user.evaluatorPermissions || []).map(
+            (perm) => (
+              <span
+                key={perm}
+                className="inline-flex items-center rounded-xs bg-primary-soft/50 border border-primary/20 px-1.5 py-0.2 text-[10px] font-bold uppercase tracking-wider text-primary"
+              >
+                {perm === 'coordinator' ? 'PC' : perm.toUpperCase()}
+              </span>
+            ),
+          )}
         </div>
       </td>
       <td className={TABLE_STYLES.td}>
@@ -80,92 +132,15 @@ export function UserTableRow({
         </Badge>
       </td>
       <td
-        className={cn(TABLE_STYLES.tdData, 'text-right text-xs text-text-muted tabular-nums font-medium')}
+        className={cn(
+          TABLE_STYLES.tdData,
+          'text-right text-xs text-text-muted tabular-nums font-medium',
+        )}
       >
         {new Date(user.created_at).toLocaleDateString()}
       </td>
-      <td className={cn(TABLE_STYLES.td, 'text-right w-32 min-w-[8rem] pr-6')}>
-        <div className="flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={() => onEdit(user)}
-            title={`Edit ${user.name}`}
-            aria-label={`Edit ${user.name}`}
-            className="cursor-pointer p-1 text-text-muted hover:text-text transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs"
-          >
-            <PencilSimple className="size-4.5" aria-hidden="true" />
-          </button>
-
-          {user.account_status === 'pending' || user.account_status === 'rejected' ? (
-            <button
-              type="button"
-              onClick={() => onApprove(user.user_id)}
-              disabled={isApprovalPending}
-              title={`Approve ${user.name}`}
-              aria-label={`Approve ${user.name}`}
-              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <UserCheck className="size-4.5" aria-hidden="true" />
-            </button>
-          ) : user.account_status === 'suspended' ? (
-            <button
-              type="button"
-              onClick={() => onReapprove(user.user_id)}
-              disabled={isApprovalPending}
-              title={`Reapprove ${user.name}`}
-              aria-label={`Reapprove ${user.name}`}
-              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <UserCheck className="size-4.5" aria-hidden="true" />
-            </button>
-          ) : user.is_active ? (
-            <button
-              type="button"
-              onClick={() => onSuspend(user)}
-              disabled={isApprovalPending}
-              title={`Suspend ${user.name}`}
-              aria-label={`Suspend ${user.name}`}
-              className="cursor-pointer p-1 text-warning hover:text-amber-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-warning rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <UserMinus className="size-4.5" aria-hidden="true" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onReapprove(user.user_id)}
-              disabled={isApprovalPending}
-              title={`Reapprove ${user.name}`}
-              aria-label={`Reapprove ${user.name}`}
-              className="cursor-pointer p-1 text-success hover:text-emerald-600 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-success rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <UserCheck className="size-4.5" aria-hidden="true" />
-            </button>
-          )}
-
-          {user.account_status === 'pending' && (
-            <button
-              type="button"
-              onClick={() => onReject(user.user_id)}
-              disabled={isApprovalPending}
-              title={`Reject ${user.name}`}
-              aria-label={`Reject ${user.name}`}
-              className="cursor-pointer p-1 text-destructive hover:text-red-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-            >
-              <X className="size-4.5" aria-hidden="true" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onDelete(user)}
-            disabled={isDeletePending}
-            title={`Delete ${user.name}`}
-            aria-label={`Delete ${user.name}`}
-            className="cursor-pointer p-1 text-destructive hover:text-red-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive rounded-xs disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <Trash className="size-4.5" aria-hidden="true" />
-          </button>
-        </div>
+      <td className={cn(TABLE_STYLES.td, 'text-right w-20 min-w-[5rem] pr-6')}>
+        <UserActionsMenu name={user.name} actions={actions} />
       </td>
     </tr>
   );

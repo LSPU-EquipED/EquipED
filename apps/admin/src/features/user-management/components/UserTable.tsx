@@ -53,7 +53,7 @@ export function UserTable({
           { label: 'Role', skeletonClassName: 'h-5 w-20' },
           { label: 'Status', skeletonClassName: 'h-5 w-24' },
           { label: 'Registered', headerClassName: 'text-right', skeletonClassName: 'h-4 w-24 ml-auto' },
-          { label: 'Actions', headerClassName: 'text-right min-w-[16rem]', skeletonClassName: 'h-8 w-32 ml-auto' },
+          { label: 'Actions', headerClassName: 'text-right w-20 min-w-[5rem]', skeletonClassName: 'size-8 ml-auto' },
         ]}
       />
     );
@@ -112,7 +112,7 @@ export function UserTable({
             <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
               Registered
             </th>
-            <th scope="col" className={cn(TABLE_STYLES.th, 'text-right w-32 min-w-[8rem] pr-6')}>
+            <th scope="col" className={cn(TABLE_STYLES.th, 'text-right w-20 min-w-[5rem] pr-6')}>
               Actions
             </th>
           </tr>

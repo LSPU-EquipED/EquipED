@@ -16,6 +16,9 @@ To automate the initial quality-assurance review layer of Self-Paced Learning Mo
 * **Authoritative & Trustworthy**: Clear, precise, and transparent about data residency, grounding sources, and evaluation limits.
 * **Academic-Tech**: A clean, balanced synthesis of educational administration standards and modern natural language processing workspace features.
 
+## Account Administration
+The user-management directory excludes the signed-in administrator from its records and counts. Administrators cannot deactivate or permanently delete their own account through the administrative delete endpoints. Permanent deletion in the interface requires typing the selected account's email before confirmation.
+
 ## Anti-references
 * **Generic SaaS Templates**: Avoid low-contrast gray text on near-white backgrounds, huge spacious pads, floating ghost cards, decorative background stripes, and generic dashboard marketing widgets.
 * **External Component Libraries**: Absolutely no dependencies on shadcn/ui or external template kits. Every component is custom-crafted to serve dense, high-contrast academic reviews.

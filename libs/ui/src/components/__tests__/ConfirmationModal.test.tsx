@@ -5,6 +5,19 @@ import React from 'react';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 describe('ConfirmationModal', () => {
+  it('blocks button and form submission until confirmation is enabled', () => {
+    const onConfirm = vi.fn();
+    const props = { isOpen: true, onClose: vi.fn(), onConfirm, title: 'Delete account', description: 'Confirm the account email.' };
+    const { rerender } = render(<ConfirmationModal {...props} confirmDisabled />);
+    const dialog = screen.getByRole('dialog');
+    expect(screen.getByRole('button', { name: 'Delete' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.submit(dialog.querySelector('form')!);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    rerender(<ConfirmationModal {...props} confirmDisabled={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
