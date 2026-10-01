@@ -10,3 +10,4 @@ export * from './Dropdown';
 export * from './PageContainer';
 export * from './ConfirmationModal';
 export * from './CollapsibleRow';
+export * from './ActionsMenu';
