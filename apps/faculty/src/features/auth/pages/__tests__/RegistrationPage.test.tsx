@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -34,9 +35,26 @@ vi.mock('../../api/registration.api', () => ({
   },
 }));
 
+function fillRegistration(program = 'BSCS') {
+  const values = [
+    [/Full name/i, 'Prof. Maria Santos'],
+    [/LSPU email/i, 'msantos@lspu.edu.ph'],
+    [/Faculty ID/i, '2024-FAC-019'],
+    [/Department/i, 'College of Computer Studies'],
+    [/^Password$/i, 'securePass123'],
+  ] as const;
+  for (const [label, value] of values) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+  if (program) {
+    fireEvent.click(screen.getByLabelText(/^Program$/i));
+    fireEvent.click(screen.getByRole('option', { name: program }));
+  }
+}
+
 describe('RegistrationPage Component', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   afterEach(() => {
@@ -85,24 +103,7 @@ describe('RegistrationPage Component', () => {
 
     render(<RegistrationPage />);
 
-    fireEvent.change(screen.getByLabelText(/Full Name/i), {
-      target: { value: 'Prof. Maria Santos' },
-    });
-    fireEvent.change(screen.getByLabelText(/LSPU Email/i), {
-      target: { value: 'msantos@lspu.edu.ph' },
-    });
-    fireEvent.change(screen.getByLabelText(/Faculty ID/i), {
-      target: { value: '2024-FAC-019' },
-    });
-    fireEvent.change(screen.getByLabelText(/Department/i), {
-      target: { value: 'College of Computer Studies' },
-    });
-    fireEvent.change(screen.getByLabelText(/Program/i), {
-      target: { value: 'BSCS' },
-    });
-    fireEvent.change(screen.getByLabelText(/^Password$/i), {
-      target: { value: 'securePass123' },
-    });
+    fillRegistration();
 
     fireEvent.click(
       screen.getByRole('button', { name: /Send Verification Code/i }),
@@ -175,11 +176,156 @@ describe('RegistrationPage Component', () => {
       'token-abc-123',
       '123456',
     );
-    expect(screen.getByText(/An administrator must approve your account/)).toBeDefined();
+    expect(
+      screen.getByText(/An administrator must approve your account/),
+    ).toBeDefined();
     expect(
       screen
         .getByRole('link', { name: /Return to sign in/i })
         .getAttribute('href'),
     ).toBe('/login');
+  });
+
+  it('requires a program selection and sends the canonical dropdown value', async () => {
+    vi.mocked(registrationApi.start).mockResolvedValueOnce({
+      registration_token: 'token-program',
+      email: 'msantos@lspu.edu.ph',
+      message: 'Sent',
+    });
+    render(<RegistrationPage />);
+    fillRegistration('');
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send verification code/i }),
+    );
+    expect(registrationApi.start).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe('Select your program.');
+    const program = screen.getByLabelText(/^Program$/i);
+    expect(program.getAttribute('aria-invalid')).toBe('true');
+    expect(document.activeElement).toBe(program);
+    fireEvent.keyDown(program, { key: 'Enter' });
+    const listbox = screen.getByRole('listbox');
+    fireEvent.keyDown(listbox, { key: 'End' });
+    fireEvent.keyDown(listbox, { key: 'Enter' });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send verification code/i }),
+    );
+    await waitFor(() =>
+      expect(registrationApi.start).toHaveBeenCalledWith(
+        expect.objectContaining({ program: 'BSInfoTech' }),
+      ),
+    );
+  });
+
+  it('announces sending, prevents duplicate submission, and allows retry after failure', async () => {
+    let failRequest!: (error: Error) => void;
+    vi.mocked(registrationApi.start).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          failRequest = reject;
+        }),
+    );
+    render(<RegistrationPage />);
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send verification code/i }),
+    );
+    const sending = screen.getByRole('button', {
+      name: 'Sending code…',
+    }) as HTMLButtonElement;
+    expect(sending.disabled).toBe(true);
+    expect(sending.getAttribute('aria-busy')).toBe('true');
+    expect(sending.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Sending code…');
+    fireEvent.click(sending);
+    expect(registrationApi.start).toHaveBeenCalledTimes(1);
+    await act(async () => failRequest(new Error('Unable to send code')));
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Unable to send code',
+    );
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /Send verification code/i,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('distinguishes resend and verification loading while preserving pending approval', async () => {
+    vi.mocked(registrationApi.start).mockResolvedValueOnce({
+      registration_token: 'token-loading',
+      email: 'msantos@lspu.edu.ph',
+      message: 'Sent',
+    });
+    let finishResend!: (
+      result: Awaited<ReturnType<typeof registrationApi.resend>>,
+    ) => void;
+    vi.mocked(registrationApi.resend).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishResend = resolve;
+        }),
+    );
+    let finishVerify!: (
+      result: Awaited<ReturnType<typeof registrationApi.verify>>,
+    ) => void;
+    vi.mocked(registrationApi.verify).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishVerify = resolve;
+        }),
+    );
+    render(<RegistrationPage />);
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send verification code/i }),
+    );
+    await screen.findByRole('heading', { name: /Verify your email/i });
+    fireEvent.click(screen.getByRole('button', { name: /Resend code/i }));
+    const resending = screen.getByRole('button', {
+      name: 'Resending code…',
+    }) as HTMLButtonElement;
+    expect(resending.disabled).toBe(true);
+    expect(resending.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('Resending code…');
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /Verify email/i,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    await act(async () =>
+      finishResend({
+        registration_token: 'token-loading',
+        email: 'msantos@lspu.edu.ph',
+        message: 'Sent',
+      }),
+    );
+    fireEvent.change(screen.getByLabelText(/Verification code/i), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Verify email/i }));
+    const verifying = screen.getByRole('button', {
+      name: 'Verifying email…',
+    }) as HTMLButtonElement;
+    expect(verifying.disabled).toBe(true);
+    expect(verifying.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('Verifying email…');
+    expect(
+      (
+        screen.getByRole('button', {
+          name: /Resend code/i,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    await act(async () =>
+      finishVerify({ status: 'pending_approval', message: 'Verified' }),
+    );
+    expect(
+      screen.getByText(/An administrator must approve your account/),
+    ).toBeDefined();
   });
 });

@@ -1,0 +1,106 @@
+.auth-brand-panel {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.auth-brand-product,
+.auth-brand-purpose,
+.auth-brand-institution {
+  width: 100%;
+}
+
+.auth-brand-logo {
+  display: block;
+  width: 144px;
+  max-width: 100%;
+  height: auto;
+}
+
+.auth-brand-purpose {
+  display: none;
+}
+
+.auth-brand-purpose h2 {
+  max-width: 400px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 36px;
+  text-wrap: balance;
+}
+
+.auth-brand-purpose p {
+  max-width: 400px;
+  color: color-mix(in srgb, var(--primary-foreground) 80%, transparent);
+  font-size: 14px;
+  line-height: 24px;
+}
+
+.auth-brand-institution {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-brand-institution p {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.auth-brand-institution span {
+  display: block;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--primary-foreground) 80%, transparent);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.auth-brand-emblem {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+@media (min-width: 64rem) {
+  .auth-brand-panel {
+    position: sticky;
+    top: 0;
+    width: 45%;
+    height: 100dvh;
+    align-self: flex-start;
+    padding: 40px;
+    gap: 32px;
+  }
+
+  .auth-brand-logo {
+    width: 192px;
+  }
+
+  .auth-brand-purpose {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding-top: clamp(64px, 12vh, 128px);
+  }
+}
+
+@media (min-width: 64rem) and (max-height: 40rem) {
+  .auth-brand-panel {
+    padding-block: 24px;
+    gap: 24px;
+  }
+
+  .auth-brand-purpose {
+    padding-top: 24px;
+  }
+}

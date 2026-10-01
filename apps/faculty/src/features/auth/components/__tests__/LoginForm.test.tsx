@@ -9,6 +9,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { LoginForm } from '../LoginForm';
+import { equipedLogoReversedUrl } from '@equiped/ui';
 import * as authModule from '@equiped/auth';
 import type { AppAuthContext } from '@equiped/auth';
 
@@ -52,19 +53,25 @@ describe('LoginForm Component', () => {
     cleanup();
   });
 
-  it('renders institutional identity and the SLM review purpose', () => {
+  it('renders product and institutional identity alongside the sign-in form', () => {
     render(<LoginForm />);
 
     expect(
       screen.getByRole('complementary', { name: 'About EquipED' }),
     ).toBeDefined();
     expect(
-      screen.getByRole('heading', { name: /Laguna State Polytechnic University/ }),
+      screen.getByRole('img', { name: 'Laguna State Polytechnic University' }),
     ).toBeDefined();
-    expect(screen.getByRole('heading', { name: 'EquipED Workspace' })).toBeDefined();
     expect(
-      screen.getByText(/Review self-paced learning modules/),
+      screen.getByRole('heading', {
+        name: 'Review your learning materials.',
+      }),
     ).toBeDefined();
+    expect(
+      screen
+        .getByRole('img', { name: 'EquipED Workspace' })
+        .getAttribute('src'),
+    ).toBe(equipedLogoReversedUrl);
     expect(
       screen.getByRole('heading', { name: /Sign in/i, level: 1 }),
     ).toBeDefined();
@@ -275,10 +282,22 @@ describe('LoginForm Component', () => {
   it('clears the loading state after a failed sign-in so the user can retry', async () => {
     mockLogin.mockRejectedValueOnce(new Error('Invalid credentials'));
     render(<LoginForm />);
-    fireEvent.change(screen.getByLabelText(/^Email/i), { target: { value: 'faculty@lspu.edu.ph' } });
-    fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'validPassword123' } });
+    fireEvent.change(screen.getByLabelText(/^Email/i), {
+      target: { value: 'faculty@lspu.edu.ph' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Password/i), {
+      target: { value: 'validPassword123' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /^Sign in$/i }));
-    await waitFor(() => expect((screen.getByRole('button', { name: /^Sign in$/i }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByRole('button', {
+            name: /^Sign in$/i,
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
     expect(screen.getByRole('status').textContent).toBe('');
   });
 
@@ -287,7 +306,12 @@ describe('LoginForm Component', () => {
       status: 'authenticated',
       source: 'server',
       ready: true,
-      user: { id: 'faculty-1', email: 'faculty@lspu.edu.ph', displayName: 'Faculty', role: 'faculty' },
+      user: {
+        id: 'faculty-1',
+        email: 'faculty@lspu.edu.ph',
+        displayName: 'Faculty',
+        role: 'faculty',
+      },
       error: null,
       login: mockLogin,
       logout: vi.fn(),
@@ -295,10 +319,14 @@ describe('LoginForm Component', () => {
       refresh: vi.fn(),
     });
     render(<LoginForm />);
-    const button = screen.getByRole('button', { name: 'Opening your workspace…' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', {
+      name: 'Opening your workspace…',
+    }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.getAttribute('aria-busy')).toBe('true');
-    expect(screen.getByRole('status').textContent).toBe('Opening your workspace…');
+    expect(screen.getByRole('status').textContent).toBe(
+      'Opening your workspace…',
+    );
   });
 
   it('traps recovery dialog focus and returns to its trigger on Escape', async () => {

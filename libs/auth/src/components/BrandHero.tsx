@@ -1,57 +1,39 @@
-import { ShieldWarning } from '@phosphor-icons/react';
-import { lspuLogoUrl } from '@equiped/ui';
+import { equipedLogoReversedUrl, lspuLogoUrl } from '@equiped/ui';
+import '../styles/brand-hero.css';
 
 export function BrandHero() {
   return (
-    <aside
-      aria-label="About EquipED"
-      className="relative w-full lg:w-5/12 bg-primary flex flex-col justify-between p-8 sm:p-10 lg:p-12 text-white overflow-hidden shrink-0 border-r border-primary-strong select-none"
-    >
-      {/* Authentic Institutional Watermark Seal */}
-      <img
-        src={lspuLogoUrl}
-        alt=""
-        aria-hidden="true"
-        className="absolute -right-20 -bottom-20 w-96 h-96 object-contain pointer-events-none opacity-[0.05] select-none"
-      />
-
-      <div className="relative z-10 flex flex-col gap-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-          <img
-            src={lspuLogoUrl}
-            alt="Laguna State Polytechnic University Logo"
-            className="w-16 h-16 lg:w-20 lg:h-20 object-contain shrink-0 drop-shadow-xs"
-          />
-          <div>
-            <h2 className="text-xl lg:text-2xl font-bold tracking-tight text-white leading-snug">
-              Laguna State{' '}
-              <br />
-              Polytechnic University
-            </h2>
-            <p className="text-xs font-semibold text-white/80 tracking-wider uppercase mt-1">
-              Santa Cruz Campus
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3 pt-1">
-          <h2 className="text-sm font-bold text-[#f2c811] uppercase tracking-[0.12em]">
-            EquipED Workspace
-          </h2>
-          <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            Review self-paced learning modules against institutional rubrics and reference documents.
-          </p>
-        </div>
+    <aside aria-label="About EquipED" className="auth-brand-panel">
+      <div className="auth-brand-product">
+        <img
+          src={equipedLogoReversedUrl}
+          alt="EquipED Workspace"
+          width={304}
+          height={88}
+          className="auth-brand-logo"
+        />
       </div>
 
-      <div className="relative z-10 mt-16 lg:mt-0 flex items-start gap-3 border-t border-white/10 pt-6">
-        <ShieldWarning
-          className="size-4 shrink-0 text-[#f2c811] mt-0.5"
-          aria-hidden="true"
-        />
-        <p className="text-white/80 text-[11px] font-medium max-w-sm leading-relaxed uppercase tracking-wider">
-          Automated findings support your review. Final decisions remain with human reviewers.
+      <div className="auth-brand-purpose">
+        <h2>Review your learning materials.</h2>
+        <p>
+          Evaluate your modules against institutional rubrics and reference
+          documents.
         </p>
+      </div>
+
+      <div className="auth-brand-institution">
+        <img
+          src={lspuLogoUrl}
+          alt="Laguna State Polytechnic University"
+          width={36}
+          height={36}
+          className="auth-brand-emblem"
+        />
+        <div>
+          <p>Laguna State Polytechnic University</p>
+          <span>Santa Cruz Campus</span>
+        </div>
       </div>
     </aside>
   );

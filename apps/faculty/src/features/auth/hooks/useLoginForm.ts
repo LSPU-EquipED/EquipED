@@ -79,7 +79,5 @@ export function useLoginForm() {
     handleEmailBlur,
     handlePasswordBlur,
     handleSubmit,
-    authError: auth.error,
-    clearAuthError: auth.clearError,
   };
 }
