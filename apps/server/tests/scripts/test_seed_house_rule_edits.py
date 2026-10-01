@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import uuid
@@ -784,3 +785,84 @@ def test_cli_verify_export_flags_existing_synthetic_pairs(
     assert "WARNING" in out
     # still read-only: only the 3 synthetic corrections exist
     assert db_session.query(PreferenceLog).count() == 3
+
+
+def _two_runs_of_one_slm(db_session, user):
+    doc = uuid.uuid4()
+    first, _ = make_evaluation(
+        db_session,
+        user,
+        [[measurement("OP-01", 2), measurement("OP-02", 2)]],
+        title="SLM A",
+        document_id=doc,
+    )
+    second, _ = make_evaluation(
+        db_session,
+        user,
+        [[measurement("OP-01", 3), measurement("OP-02", 2)]],
+        title="SLM A",
+        document_id=doc,
+    )
+    return first, second
+
+
+def test_csv_rows_are_per_slm_and_criterion_with_the_rule_applied(
+    db_session, user, seeded_sme_rubric
+):
+    first, second = _two_runs_of_one_slm(db_session, user)
+    held_out, _ = make_evaluation(
+        db_session,
+        user,
+        [[measurement("OP-01", 4), measurement("OP-02", 1)]],
+        title="SLM B",
+    )
+    run = tool.plan_run(
+        db_session,
+        train_ids=[first, second],
+        reference_ids=[held_out],
+        edit_codes=("OP-01",),
+    )
+
+    rows = tool.build_expected_scores_rows(run)
+
+    by_key = {(r["document_title"], r["criterion_code"]): r for r in rows}
+    edited = by_key[("SLM A", "OP-01")]
+    assert edited["group"] == "train" and edited["role"] == "edited"
+    assert edited["run_count"] == "2"
+    assert sorted(edited["base_scores"].split(";")) == ["2", "3"]
+    assert edited["base_reference"] == "3"  # mean 2.5 rounds half up
+    assert edited["expected_score"] == "4"
+    control = by_key[("SLM A", "OP-02")]
+    assert control["role"] == "control"
+    assert (control["base_reference"], control["expected_score"]) == ("2", "2")
+    ceiling = by_key[("SLM B", "OP-01")]
+    assert ceiling["group"] == "reference"
+    assert (ceiling["base_reference"], ceiling["expected_score"]) == ("4", "4")
+    assert by_key[("SLM B", "OP-02")]["expected_score"] == "1"
+    assert [r["group"] for r in rows] == sorted(
+        (r["group"] for r in rows), key={"train": 0, "reference": 1}.get
+    )
+
+
+def test_cli_writes_the_csv_and_nothing_else(
+    cli, tmp_path, capsys, db_session, user, seeded_sme_rubric
+):
+    first, second = _two_runs_of_one_slm(db_session, user)
+    target = tmp_path / "out" / "expected.csv"
+
+    code = cli(
+        "--train-evaluations",
+        f"{first},{second}",
+        "--edit-criteria",
+        "OP-01",
+        "--report-csv",
+        str(target),
+    )
+
+    assert code == 0
+    with target.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert list(rows[0]) == list(tool.CSV_COLUMNS)
+    assert {r["criterion_code"] for r in rows} == {"OP-01", "OP-02"}
+    assert "Expected-scores CSV written" in capsys.readouterr().out
+    assert db_session.query(PreferenceLog).count() == 0

@@ -34,6 +34,7 @@ Usage (from apps/):
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import logging
 import math
@@ -519,6 +520,65 @@ def render_report(run: RunPlan, *, mode: str, baseline_pairs: int | None = None)
     return "\n".join(lines)
 
 
+CSV_COLUMNS = (
+    "group",
+    "document_id",
+    "document_title",
+    "criterion_code",
+    "role",
+    "run_count",
+    "base_scores",
+    "base_reference",
+    "expected_score",
+)
+
+
+def build_expected_scores_rows(run: RunPlan) -> list[dict[str, str]]:
+    """One row per (SLM, criterion): the scores the admin types into Model
+    Validation for the base model and for an adapter that learned the rule."""
+    grouped: dict[tuple[str, uuid.UUID, str, str, str], list[int]] = {}
+    for plan in run.plans:
+        for criterion in plan.criteria:
+            if criterion.base_score is None:
+                continue
+            key = (
+                plan.group,
+                plan.document_id,
+                plan.document_title,
+                criterion.criterion_code,
+                criterion.role,
+            )
+            grouped.setdefault(key, []).append(criterion.base_score)
+    order = {"train": 0, "reference": 1}
+    rows: list[dict[str, str]] = []
+    for (group, document_id, title, code, role), scores in sorted(
+        grouped.items(), key=lambda kv: (order[kv[0][0]], kv[0][2], kv[0][3])
+    ):
+        reference = base_reference(scores)
+        rows.append(
+            {
+                "group": group,
+                "document_id": str(document_id),
+                "document_title": title,
+                "criterion_code": code,
+                "role": role,
+                "run_count": str(len(scores)),
+                "base_scores": ";".join(str(s) for s in scores),
+                "base_reference": str(reference),
+                "expected_score": str(expected_score(role, reference)),
+            }
+        )
+    return rows
+
+
+def write_expected_scores_csv(rows: list[dict[str, str]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -585,6 +645,9 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
         )
         baseline = count_exportable_pairs(session) if args.verify_export else None
         print(render_report(run, mode="DRY RUN", baseline_pairs=baseline))
+        if args.report_csv is not None:
+            write_expected_scores_csv(build_expected_scores_rows(run), args.report_csv)
+            print(f"Expected-scores CSV written to {args.report_csv}")
         print(
             "\nDry run: nothing was written. Add --confirm SEED --confirm-target "
             "<LOCAL or the target fingerprint> to write."
