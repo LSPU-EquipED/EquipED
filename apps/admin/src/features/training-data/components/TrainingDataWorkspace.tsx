@@ -29,20 +29,22 @@ export function TrainingDataWorkspace({
       tabIndex={0}
       className="min-w-0 space-y-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <DatasetReadinessCard
-        agentId={agentId}
-        onPrepare={onPrepare}
-        isPreparing={isPreparing}
-        hasHandoff={Boolean(credentials)}
-        preparationError={preparationError}
-      />
-      {credentials && (
-        <TrainingJobCredentials
-          key={credentials.job_id}
-          credentials={credentials}
-          onSaved={onHandoffSaved}
+      <div className="space-y-4">
+        <DatasetReadinessCard
+          agentId={agentId}
+          onPrepare={onPrepare}
+          isPreparing={isPreparing}
+          hasHandoff={Boolean(credentials)}
+          preparationError={preparationError}
         />
-      )}
+        {credentials && (
+          <TrainingJobCredentials
+            key={credentials.job_id}
+            credentials={credentials}
+            onSaved={onHandoffSaved}
+          />
+        )}
+      </div>
       <TrainingJobsPanel agentId={agentId} />
       <AdapterListTable agentId={agentId} />
     </div>

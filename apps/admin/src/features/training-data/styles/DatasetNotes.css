@@ -1,0 +1,34 @@
+@supports selector(::details-content) {
+  .dataset-inclusion-details::details-content {
+    overflow: clip;
+    opacity: 0;
+    transition:
+      opacity var(--duration-surface) var(--ease-ledger-out),
+      content-visibility var(--duration-surface) allow-discrete;
+  }
+
+  .dataset-inclusion-details[open]::details-content {
+    opacity: 1;
+  }
+
+  @supports (interpolate-size: allow-keywords) {
+    .dataset-inclusion-details::details-content {
+      interpolate-size: allow-keywords;
+      block-size: 0;
+      transition:
+        block-size var(--duration-surface) var(--ease-ledger-out),
+        opacity var(--duration-surface) var(--ease-ledger-out),
+        content-visibility var(--duration-surface) allow-discrete;
+    }
+
+    .dataset-inclusion-details[open]::details-content {
+      block-size: auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dataset-inclusion-details::details-content {
+      transition: none;
+    }
+  }
+}

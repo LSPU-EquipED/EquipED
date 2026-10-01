@@ -1,8 +1,9 @@
 import { useId, useState } from 'react';
 import { CaretDown } from '@phosphor-icons/react';
-import { Badge, Button, CollapsibleRow, TABLE_STYLES, cn } from '@equiped/ui';
+import { Badge, Button, CollapsibleRow, TABLE_STYLES, TYPOGRAPHY, cn } from '@equiped/ui';
 import type { StatusVariant } from '@equiped/ui';
 import type { TrainingJobItem } from '../types';
+import { TrainingRecordMetadata } from './TrainingRecordMetadata';
 
 const JOB_STATUS: Record<TrainingJobItem['status'], { label: string; variant: StatusVariant }> = {
   pending: { label: 'Prepared', variant: 'neutral' },
@@ -19,7 +20,7 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
   return (
     <>
       <tr className={TABLE_STYLES.tr}>
-        <td className={TABLE_STYLES.tdData}>
+        <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>
           <time dateTime={job.created_at} className="block font-medium">
             {created.toLocaleDateString(undefined, {
               month: 'short',
@@ -27,23 +28,19 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
               year: 'numeric',
             })}
           </time>
-          <span className="text-sm text-text-muted">
-            {created.toLocaleTimeString(undefined, {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+        </td>
+        <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>
+          <span className="block font-medium">{job.pair_count ?? '—'} pairs</span>
+          <span className="block text-xs leading-4 text-text-muted">
+            {job.evaluation_count ?? '—'} evaluations
           </span>
         </td>
-        <td className={TABLE_STYLES.tdData}>
-          <span className="block font-medium">{job.pair_count ?? '—'} pairs</span>
-          <span className="text-sm text-text-muted">{job.evaluation_count ?? '—'} evaluations</span>
-        </td>
-        <td className={TABLE_STYLES.td}>
+        <td className="px-4 py-2">
           <Badge variant={status.variant} className="whitespace-normal tracking-normal">
             {status.label}
           </Badge>
         </td>
-        <td className="pr-3 text-right">
+        <td className="px-3 py-2 text-right">
           <Button
             variant="ghost"
             size="icon"
@@ -63,10 +60,12 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
           </Button>
         </td>
       </tr>
-      <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={4} innerClassName="p-4 sm:p-5">
-        <dl className="grid gap-4 text-sm sm:grid-cols-2">
-          {[
+      <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={4} innerClassName="px-4 py-3">
+        <TrainingRecordMetadata
+          tabularValues
+          entries={[
             ['Run ID', job.job_id],
+            ['Created', created.toLocaleString()],
             ['Dataset SHA-256', job.pairs_sha256 ?? 'Not recorded'],
             ['Reviewers', job.reviewer_count ?? 'Not recorded'],
             [
@@ -75,15 +74,8 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
                 ? new Date(job.export_timestamp).toLocaleString()
                 : 'Not recorded',
             ],
-          ].map(([label, value]) => (
-            <div key={label} className="min-w-0 space-y-1">
-              <dt className="text-text-muted">{label}</dt>
-              <dd className="break-words font-medium tabular-nums text-text [overflow-wrap:anywhere]">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
+          ]}
+        />
       </CollapsibleRow>
     </>
   );
