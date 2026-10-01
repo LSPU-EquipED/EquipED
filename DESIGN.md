@@ -111,6 +111,10 @@ Quick actions are grouped by purpose: an Evaluation workspaces group filtered to
 
 Keep the faculty dashboard flat and compact: lightly bordered surface panels, simple KPI cards, soft-fill activity tabs, and restrained typography. Preserve the desktop column divider; use spacing without a horizontal rule beneath the KPI cards. Depth comes from the layered banner illustration rather than panel shadows; avoid the expanded administrative overview-list treatment.
 
+### Admin user management
+
+Keep each row's actions behind a single three-dot button that opens a compact, keyboard-accessible menu. Use existing control and dropdown tokens, keep the menu clear of table clipping, and separate permanent deletion from routine commands. The deletion dialog requires the account's email and keeps confirmation disabled until it matches. The signed-in administrator's account is excluded from the directory and bulk selection.
+
 ### Visual anchors for low-data states
 
 Whitespace should clarify the workflow, not look unfinished. When a page has no records, few records, or a quiet secondary rail, use a restrained diagrammatic visual that explains the evidence path: module, review, decision. Prefer thin connectors, document or rubric glyphs, and existing semantic colors over decorative illustrations, gradients, or unrelated imagery. These anchors should disappear or recede once operational content takes over the viewport.
