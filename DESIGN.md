@@ -64,6 +64,16 @@ rounded:
 
 The interface uses a cool blue-gray canvas, ink-colored typography, compact controls, and clear structural borders. Royal blue is the action color; amber is reserved for review attention and institutional emphasis. The product should never depend on gradients, glass effects, decorative blobs, or stacked floating cards to create hierarchy.
 
+## Product identity
+
+EquipED uses the selected **Folio** logo: a folded module page forming an E, accompanied by the Public Sans wordmark. Royal blue is the main color, with an amber page fold. Official full-logo and symbol assets, including single-color and reversed variants, live under `libs/ui/src/assets/brand/` and are exported through `@equiped/ui/assets`.
+
+The LSPU emblem remains the institutional affiliation mark, separate from the EquipED product logo. Preserve logo proportions and clear space; use the supplied reversed version on dark surfaces. The expanded sidebar pairs the Folio symbol with a wordmark and places the institutional caption above the wordmark. Center this horizontal lockup within the 56px header; the collapsed sidebar uses only the symbol. Sign-in and registration separate product and institutional identities: the reversed Folio logo anchors the top of the royal-blue panel, with a compact LSPU emblem and campus affiliation at the bottom. Keep the form side focused on its title and fields, without repeating the product logo. Both portals use the Folio symbol as their favicon; institutional report headers retain the LSPU emblem.
+
+The authentication brand panel has three quiet groups on solid royal blue: the product logo at the top, an introduction in the upper middle, and institutional affiliation at the bottom. Use “Review your learning materials.” as the heading with one supporting sentence about institutional rubrics and references. Preserve generous space below the introduction, one shared alignment, and no illustration, watermark, dividers, or advisory block. On desktop, give the panel 45% of the page with a 40px horizontal inset and keep it sticky at viewport height while the form column scrolls; registration must not stretch the brand panel. Below the desktop breakpoint, use normal document flow, hide the introduction, and keep both identities visible in a compact header. Keep the form layout independent of this branding treatment.
+
+Authentication forms use a bounded, unboxed content column with sentence-case labels above bordered 40px fields and a compact primary action. Keep the form introduction and fields together without grid lines or separate empty header areas. Group registration into account and faculty details using one quiet section separator, and pair faculty ID and program when space allows. Use the shared dropdown for canonical programs, provide inline required-selection feedback, and announce sending, resending, and verification loading states distinctly. Email verification precedes administrator approval; the confirmation state must make that distinction clear without repeating the same message.
+
 ## Foundations
 
 ### Color
