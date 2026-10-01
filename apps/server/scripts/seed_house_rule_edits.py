@@ -63,6 +63,7 @@ from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 from server.modules.synthesis.models import AgentGeneration
 from server.modules.training_data.exporter import export_dpo_package
 from server.scripts.seed_synthetic_dpo_pairs import (
+    CONFIRM_CLEANUP_KEYWORD,
     CONFIRM_SEED_KEYWORD,
     compute_target_fingerprint,
     is_local_or_test_target,
@@ -761,6 +762,57 @@ def _check_write_guards(args: argparse.Namespace, *, keyword: str) -> None:
         )
 
 
+def cleanup(session: Session, *, run_id: uuid.UUID | str) -> int:
+    """Delete exactly the corrections this script wrote for `run_id`.
+
+    Only rows whose note equals the run tag, that belong to the house user and
+    whose action is EDIT are removed. Aborts (deleting nothing) if any of them is
+    not for the SME agent. Older decisions become the effective ones again.
+    """
+    parsed = run_id if isinstance(run_id, uuid.UUID) else uuid.UUID(str(run_id))
+    user = session.query(User).filter_by(email=HOUSE_USER_EMAIL).one_or_none()
+    if user is None:
+        return 0
+    try:
+        rows = (
+            session.query(PreferenceLog)
+            .filter(
+                PreferenceLog.notes == format_note(parsed),
+                PreferenceLog.user_id == user.user_id,
+                PreferenceLog.action == "EDIT",
+            )
+            .all()
+        )
+        wrong = [r for r in rows if (r.agent_name or "").lower() != AGENT_ID]
+        if wrong:
+            raise IneligibleRunError(
+                f"{len(wrong)} tagged correction(s) are not for the SME agent; "
+                "cleanup aborted and nothing was deleted."
+            )
+        for row in rows:
+            session.delete(row)
+        session.commit()
+        return len(rows)
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _run_cleanup(args: argparse.Namespace, session_factory: Any) -> int:
+    _check_write_guards(args, keyword=CONFIRM_CLEANUP_KEYWORD)
+    if not args.run_id:
+        raise ValueError("Cleanup requires an exact --run-id <UUID>.")
+    run_id = uuid.UUID(args.run_id)
+    factory = session_factory if session_factory is not None else get_session_factory()
+    session = factory()
+    try:
+        removed = cleanup(session, run_id=run_id)
+    finally:
+        session.close()
+    print(f"Removed {removed} correction(s) for run-id {run_id}.")
+    return 0
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -773,7 +825,7 @@ def main(
     try:
         validate_environment()
         if args.cleanup:
-            raise PermissionError("Cleanup is not available yet.")
+            return _run_cleanup(args, session_factory)
         return _run_plan(args, session_factory)
     except PermissionError as exc:
         print(f"REFUSED: {exc}")

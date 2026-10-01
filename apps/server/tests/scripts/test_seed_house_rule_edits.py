@@ -15,6 +15,7 @@ from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
+from server.modules.feedback.state import get_effective_criterion_corrections_batch
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import AgentGeneration, AgentResult
 from server.modules.training_data.exporter import export_dpo_package
@@ -1037,3 +1038,172 @@ def test_reference_evaluations_are_never_written(
     assert code == 0
     written = {r.evaluation_id for r in db_session.query(PreferenceLog).all()}
     assert written == {uuid.UUID(train)}
+
+
+def _house_rows(db_session, user, evaluation_id, run_id, *, agent="sme"):
+    house = tool.get_or_create_house_user(db_session)
+    log = PreferenceLog(
+        evaluation_id=evaluation_id,
+        user_id=house.user_id,
+        agent_name=agent,
+        criterion_id="OP-01",
+        action="EDIT",
+        edited_json={"score": 3},
+        notes=tool.format_note(run_id),
+    )
+    db_session.add(log)
+    db_session.commit()
+    return log
+
+
+def test_cleanup_removes_exactly_the_tagged_rows(db_session, user, seeded_sme_rubric):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run = tool.plan_run(
+        db_session,
+        train_ids=[evaluation_id],
+        reference_ids=[],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+    mine, other = uuid.uuid4(), uuid.uuid4()
+    tool.write_corrections(db_session, run, run_id=mine)
+    survivor = _house_rows(db_session, user, evaluation_id, other)
+
+    removed = tool.cleanup(db_session, run_id=mine)
+
+    assert removed == 5
+    remaining = db_session.query(PreferenceLog).all()
+    assert [r.log_id for r in remaining] == [survivor.log_id]
+    # real evaluation data is untouched
+    assert db_session.query(AgentGeneration).count() == 2
+    assert db_session.query(EvaluationJob).count() == 1
+
+
+def test_cleanup_restores_the_earlier_effective_correction(
+    db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    earlier = PreferenceLog(
+        evaluation_id=evaluation_id,
+        user_id=user.user_id,
+        agent_name="sme",
+        criterion_id="OP-01",
+        action="EDIT",
+        edited_json={"score": 1},
+        notes="real reviewer",
+        created_at=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    db_session.add(earlier)
+    db_session.commit()
+    run_id = uuid.uuid4()
+    _house_rows(db_session, user, evaluation_id, run_id)
+
+    def effective():
+        batch = get_effective_criterion_corrections_batch(db_session, [evaluation_id])
+        return batch[evaluation_id][("sme", "OP-01")].score
+
+    assert effective() == 3  # the house row is the latest
+    assert tool.cleanup(db_session, run_id=run_id) == 1
+    assert effective() == 1  # the reviewer's earlier decision is back
+
+
+def test_cleanup_aborts_if_a_tagged_row_is_not_for_the_sme_agent(
+    db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run_id = uuid.uuid4()
+    _house_rows(db_session, user, evaluation_id, run_id)
+    _house_rows(db_session, user, evaluation_id, run_id, agent="gad")
+
+    with pytest.raises(tool.IneligibleRunError, match="not for the SME agent"):
+        tool.cleanup(db_session, run_id=run_id)
+    assert db_session.query(PreferenceLog).count() == 2
+
+
+def test_cleanup_ignores_rows_with_the_tag_from_another_user(
+    db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run_id = uuid.uuid4()
+    db_session.add(
+        PreferenceLog(
+            evaluation_id=evaluation_id,
+            user_id=user.user_id,
+            agent_name="sme",
+            criterion_id="OP-01",
+            action="EDIT",
+            edited_json={"score": 3},
+            notes=tool.format_note(run_id),
+        )
+    )
+    db_session.commit()
+    assert tool.cleanup(db_session, run_id=run_id) == 0
+    assert db_session.query(PreferenceLog).count() == 1
+
+
+def test_cleanup_with_no_house_user_removes_nothing(db_session):
+    assert tool.cleanup(db_session, run_id=uuid.uuid4()) == 0
+
+
+def test_cli_cleanup_needs_both_confirmations_and_a_run_id(
+    write_cli, capsys, db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run_id = uuid.uuid4()
+    _house_rows(db_session, user, evaluation_id, run_id)
+
+    assert write_cli("--cleanup", "--run-id", str(run_id)) == 3
+    assert (
+        write_cli(
+            "--cleanup",
+            "--run-id",
+            str(run_id),
+            "--confirm",
+            "SEED",
+            "--confirm-target",
+            "LOCAL",
+        )
+        == 3
+    )
+    assert (
+        write_cli(
+            "--cleanup",
+            "--run-id",
+            str(run_id),
+            "--confirm",
+            "CLEANUP",
+            "--confirm-target",
+            "wrong",
+        )
+        == 3
+    )
+    assert (
+        write_cli("--cleanup", "--confirm", "CLEANUP", "--confirm-target", "LOCAL") == 2
+    )
+    assert (
+        write_cli(
+            "--cleanup",
+            "--run-id",
+            "nope",
+            "--confirm",
+            "CLEANUP",
+            "--confirm-target",
+            "LOCAL",
+        )
+        == 2
+    )
+    assert db_session.query(PreferenceLog).count() == 1
+
+    assert (
+        write_cli(
+            "--cleanup",
+            "--run-id",
+            str(run_id),
+            "--confirm",
+            "CLEANUP",
+            "--confirm-target",
+            "LOCAL",
+        )
+        == 0
+    )
+    assert "Removed 1 correction(s)" in capsys.readouterr().out
+    assert db_session.query(PreferenceLog).count() == 0
