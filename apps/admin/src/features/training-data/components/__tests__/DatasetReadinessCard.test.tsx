@@ -126,6 +126,34 @@ describe('DatasetReadinessCard', () => {
     expect(summary.closest('details')?.textContent).toMatch(/40 generations examined/);
   });
 
+  it('keeps inclusion details open when readiness refreshes', () => {
+    mockReadiness({ data: readiness, isLoading: false, isError: false });
+    const view = renderCard();
+    const details = screen.getByText('Dataset inclusion details').closest('details')!;
+    details.open = true;
+
+    mockReadiness({
+      data: { ...readiness, pair_count: 32 },
+      isLoading: false,
+      isError: false,
+    });
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <DatasetReadinessCard
+          agentId="sme"
+          onPrepare={vi.fn()}
+          isPreparing={false}
+          hasHandoff={false}
+          preparationError={null}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText('Dataset inclusion details').closest('details')).toBe(details);
+    expect(details.open).toBe(true);
+    expect(details.textContent).toMatch(/32 became pairs/);
+  });
+
   it.each([
     { data: undefined, isLoading: true, isError: false },
     { data: undefined, isLoading: false, isError: true },

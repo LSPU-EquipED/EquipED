@@ -62,6 +62,25 @@ describe('TrainingJobCredentials', () => {
     expect(screen.queryByText('Copied')).toBeNull();
   });
 
+  it('retains copy feedback and input focus while the expiry display updates', async () => {
+    vi.useFakeTimers();
+    mockClipboard(vi.fn().mockResolvedValue(undefined));
+    render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Download URL' }));
+    await act(async () => {});
+    const input = screen.getByLabelText('Download URL') as HTMLInputElement;
+    input.focus();
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText('Copied')).toBeDefined();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(credentials.download_url.length);
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.queryByText('Copied')).toBeNull();
+  });
+
   it('does not schedule feedback after leaving during a clipboard request', async () => {
     vi.useFakeTimers();
     let resolveCopy!: () => void;

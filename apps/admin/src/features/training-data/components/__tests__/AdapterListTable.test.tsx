@@ -96,6 +96,39 @@ describe('AdapterListTable', () => {
     expect(within(rowFor(2)).queryByText('Published')).toBeNull();
   });
 
+  it('paginates adapters and publishes the selected version on another page', async () => {
+    await renderTable(listing(Array.from({ length: 7 }, (_, index) => adapter(index + 1))));
+    const pagination = screen.getByRole('navigation', { name: 'Uploaded adapters pagination' });
+    expect(screen.queryByText('v6')).toBeNull();
+    expect(screen.getAllByRole('button', { name: /show details/i })).toHaveLength(5);
+    fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }));
+    expect(screen.queryByText('v1')).toBeNull();
+    expect(within(pagination).getByText('6–7 of 7')).toBeDefined();
+    expect(screen.getAllByRole('button', { name: /show details/i })).toHaveLength(2);
+
+    fireEvent.click(within(rowFor(6)).getByRole('button', { name: /show details/i }));
+    expect(screen.getByText('job-6')).toBeDefined();
+    fireEvent.click(within(rowFor(6)).getByRole('button', { name: 'Publish' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /confirm|publish/i }));
+    await waitFor(() => expect(trainingDataApi.publishAdapter).toHaveBeenCalledWith('sme', 'ad-6'));
+  });
+
+  it('keeps published adapter warnings visible when its row is on another page', async () => {
+    await renderTable(
+      listing(
+        Array.from({ length: 7 }, (_, index) =>
+          adapter(index + 1, {
+            published: index === 6,
+            loaded: index === 6 ? false : true,
+          }),
+        ),
+      ),
+    );
+    expect(screen.queryByText('v7')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Published adapter v7 is not loaded');
+  });
+
   it('enables Publish only for a loaded, unpublished version and confirms before calling', async () => {
     await renderTable(listing([adapter(1, { loaded: true }), adapter(2, { loaded: false })]));
     const notLoaded = within(rowFor(2)).getByRole('button', {
@@ -124,21 +157,31 @@ describe('AdapterListTable', () => {
     await waitFor(() => expect(trainingDataApi.unpublishAdapter).toHaveBeenCalledWith('sme'));
   });
 
-  it('shows a copyable load flag for a not-loaded version', async () => {
+  it('keeps server setup out of the status cell and exposes its copyable flag in details', async () => {
     await renderTable(listing([adapter(1), adapter(4, { loaded: false })]));
     const row = rowFor(4);
-    expect(within(row).getByText('--lora-scaled sme-v4.gguf:0.0')).toBeDefined();
-    fireEvent.click(within(row).getByRole('button', { name: /copy/i }));
+    expect(within(row).queryByText(/--lora-scaled/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /copy/i })).toBeNull();
+    const toggle = within(row).getByRole('button', { name: /show details/i });
+    fireEvent.click(toggle);
+    const details = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    expect(within(details).getByText('--lora-scaled sme-v4.gguf:0.0')).toBeDefined();
+    fireEvent.click(within(details).getByRole('button', { name: /copy/i }));
     expect(writeText).toHaveBeenCalledWith('--lora-scaled sme-v4.gguf:0.0');
     expect(within(rowFor(1)).queryByText(/--lora-scaled/)).toBeNull();
-    expect(within(row).getByText(/full path/)).toBeDefined();
-    expect(within(row).getByText(/F:\\Dev\\Models\\gemma\\adapters\\sme-v4\.gguf/)).toBeDefined();
+    expect(within(details).getByText(/full path/)).toBeDefined();
+    expect(
+      within(details).getByText(/F:\\Dev\\Models\\gemma\\adapters\\sme-v4\.gguf/),
+    ).toBeDefined();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole('button', { name: /copy/i })).toBeNull();
   });
 
   it('does not throw when the clipboard write is rejected', async () => {
     writeText.mockRejectedValue(new Error('denied'));
     await renderTable(listing([adapter(1), adapter(4, { loaded: false })]));
-    fireEvent.click(within(rowFor(4)).getByRole('button', { name: /copy/i }));
+    fireEvent.click(within(rowFor(4)).getByRole('button', { name: /show details/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy/i }));
     await Promise.resolve();
     expect(writeText).toHaveBeenCalled();
   });
