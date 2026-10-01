@@ -49,8 +49,11 @@ from typing import Any, Literal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from server.core.config import get_settings
 from server.core.database import get_session_factory
 from server.db.metadata import import_model_modules
+from server.modules.auth.models import User, UserRole
+from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
@@ -59,7 +62,13 @@ from server.modules.rubrics.snapshot_contracts import SnapshotIntegrityError
 from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 from server.modules.synthesis.models import AgentGeneration
 from server.modules.training_data.exporter import export_dpo_package
-from server.scripts.seed_synthetic_dpo_pairs import validate_environment
+from server.scripts.seed_synthetic_dpo_pairs import (
+    CONFIRM_SEED_KEYWORD,
+    compute_target_fingerprint,
+    is_local_or_test_target,
+    validate_database_target,
+    validate_environment,
+)
 
 AGENT_ID = "sme"
 RUN_NOTE_PREFIX = "house-rule-seed"
@@ -627,8 +636,9 @@ def count_exportable_pairs(session: Session) -> int:
 
 
 def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
-    if args.confirm is not None or args.confirm_target is not None:
-        raise PermissionError("Write mode is not available yet.")
+    write = args.confirm is not None or args.confirm_target is not None
+    if write:
+        _check_write_guards(args, keyword=CONFIRM_SEED_KEYWORD)
     train_ids = _collect_ids(args.train_evaluations, args.train_evaluations_file)
     reference_ids = _collect_ids(
         args.reference_evaluations, args.reference_evaluations_file
@@ -643,18 +653,112 @@ def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
             reference_ids=reference_ids,
             edit_codes=edit_codes,
         )
-        baseline = count_exportable_pairs(session) if args.verify_export else None
-        print(render_report(run, mode="DRY RUN", baseline_pairs=baseline))
+        baseline = (
+            count_exportable_pairs(session) if (args.verify_export or write) else None
+        )
+        print(
+            render_report(
+                run, mode="WRITE" if write else "DRY RUN", baseline_pairs=baseline
+            )
+        )
         if args.report_csv is not None:
             write_expected_scores_csv(build_expected_scores_rows(run), args.report_csv)
             print(f"Expected-scores CSV written to {args.report_csv}")
+        if not write:
+            print(
+                "\nDry run: nothing was written. To write, add --confirm SEED "
+                f"--confirm-target {_target_ack()}."
+            )
+            return 0
+        if not run.writes:
+            print("\nNothing to write (every edited criterion was skipped).")
+            return 0
+        run_id = uuid.UUID(args.run_id) if args.run_id else uuid.uuid4()
+        rows = write_corrections(session, run, run_id=run_id)
         print(
-            "\nDry run: nothing was written. Add --confirm SEED --confirm-target "
-            "<LOCAL or the target fingerprint> to write."
+            f"\nWrote {rows} correction(s) for run-id {run_id} "
+            f"(notes='{format_note(run_id)}')."
+        )
+        if args.verify_export:
+            after = count_exportable_pairs(session)
+            expected = (baseline or 0) + len(run.pair_generation_ids)
+            verdict = "OK" if after == expected else "MISMATCH"
+            print(
+                f"Export check: {after} exportable SME pair(s) now; expected "
+                f"{expected} ({verdict})."
+            )
+        print("\n".join(REMINDERS))
+        print(
+            f"To remove these corrections: --cleanup --run-id {run_id} "
+            f"--confirm CLEANUP --confirm-target {_target_ack()}"
         )
         return 0
     finally:
         session.close()
+
+
+def get_or_create_house_user(session: Session) -> User:
+    """The dedicated user that owns every correction this script writes."""
+    existing = session.query(User).filter_by(email=HOUSE_USER_EMAIL).one_or_none()
+    if existing is not None:
+        return existing
+    user = create_user(
+        session,
+        name="House Rule Seed",
+        email=HOUSE_USER_EMAIL,
+        password=uuid.uuid4().hex,
+        role=UserRole.FACULTY,
+    )
+    session.flush()
+    return user
+
+
+def write_corrections(session: Session, run: RunPlan, *, run_id: uuid.UUID) -> int:
+    """Insert every planned correction in ONE transaction; all or nothing."""
+    try:
+        user = get_or_create_house_user(session)
+        note = format_note(run_id)
+        for correction in run.writes:
+            session.add(
+                PreferenceLog(
+                    evaluation_id=correction.evaluation_id,
+                    generation_id=correction.generation_id,
+                    user_id=user.user_id,
+                    agent_name=AGENT_ID,
+                    criterion_id=correction.criterion_code,
+                    action="EDIT",
+                    edited_json={"score": correction.new_score},
+                    notes=note,
+                )
+            )
+        session.commit()
+        return len(run.writes)
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _target_ack() -> str:
+    """The value --confirm-target must have: LOCAL, or the database fingerprint."""
+    configured = (getattr(get_settings(), "database_url", None) or "").strip()
+    if configured and is_local_or_test_target(configured):
+        return "LOCAL"
+    return compute_target_fingerprint(configured) if configured else "(no DATABASE_URL)"
+
+
+def _check_write_guards(args: argparse.Namespace, *, keyword: str) -> None:
+    """Both acknowledgements, and a database target that is allowed."""
+    if args.confirm != keyword:
+        raise PermissionError(
+            f"Explicit acknowledgement required: pass --confirm {keyword}."
+        )
+    validate_database_target()
+    expected = _target_ack()
+    if (args.confirm_target or "").strip().lower() != expected.lower():
+        raise PermissionError(
+            "Explicit acknowledgement required for the database target: pass "
+            f"--confirm-target {expected}."
+        )
 
 
 def main(

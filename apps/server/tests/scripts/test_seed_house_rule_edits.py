@@ -5,17 +5,19 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import types
 import uuid
 from datetime import UTC, datetime
 
 import pytest
-from server.modules.auth.models import UserRole
+from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import AgentGeneration, AgentResult
+from server.modules.training_data.exporter import export_dpo_package
 from server.modules.training_data.projectors import _is_score_shaped
 from server.scripts import seed_house_rule_edits as tool
 from server.scripts import seed_synthetic_dpo_pairs as old_seeder
@@ -744,12 +746,6 @@ def test_cli_refuses_production(monkeypatch, capsys):
     assert "REFUSED" in capsys.readouterr().out
 
 
-def test_cli_refuses_write_and_cleanup_until_they_exist(cli, capsys):
-    assert cli("--train-evaluations", str(uuid.uuid4()), "--confirm", "SEED") == 3
-    assert cli("--cleanup", "--run-id", str(uuid.uuid4())) == 3
-    assert "not available" in capsys.readouterr().out
-
-
 def test_parser_help_carries_the_publish_rule():
     assert "never be published" in tool.build_parser().format_help().lower()
 
@@ -866,3 +862,178 @@ def test_cli_writes_the_csv_and_nothing_else(
     assert {r["criterion_code"] for r in rows} == {"OP-01", "OP-02"}
     assert "Expected-scores CSV written" in capsys.readouterr().out
     assert db_session.query(PreferenceLog).count() == 0
+
+
+@pytest.fixture()
+def write_cli(monkeypatch, cli):
+    """The CLI with the database-target checks pointed at a local target."""
+    monkeypatch.setattr(
+        tool,
+        "get_settings",
+        lambda: types.SimpleNamespace(database_url="sqlite:///:memory:"),
+    )
+    monkeypatch.setattr(tool, "validate_database_target", lambda: "f" * 64)
+    return cli
+
+
+def _eval_for_writing(db_session, user):
+    return make_evaluation(db_session, user, FULL_ANSWER)[0]
+
+
+def test_write_corrections_inserts_score_only_tagged_rows(
+    db_session, user, seeded_sme_rubric
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run = tool.plan_run(
+        db_session,
+        train_ids=[evaluation_id],
+        reference_ids=[],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+    run_id = uuid.uuid4()
+
+    written = tool.write_corrections(db_session, run, run_id=run_id)
+
+    rows = db_session.query(PreferenceLog).all()
+    assert written == len(rows) == 5
+    house = db_session.query(User).filter_by(email=tool.HOUSE_USER_EMAIL).one()
+    for row in rows:
+        assert row.action == "EDIT"
+        assert row.agent_name == "sme"
+        assert row.user_id == house.user_id
+        assert row.notes == f"house-rule-seed:{run_id}"
+        assert set(row.edited_json) == {"score"}
+        assert row.generation_id is not None
+    assert {r.criterion_id for r in rows} == {"OP-01", "OP-05", "A-01", "A-03", "A-05"}
+
+
+def test_write_is_all_or_nothing(db_session, user, seeded_sme_rubric, monkeypatch):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run = tool.plan_run(
+        db_session,
+        train_ids=[evaluation_id],
+        reference_ids=[],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+    real_commit = db_session.commit
+
+    def failing_commit():
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError, match="disk full"):
+        tool.write_corrections(db_session, run, run_id=uuid.uuid4())
+    monkeypatch.setattr(db_session, "commit", real_commit)
+    assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_the_exporter_turns_the_rows_into_pairs_that_differ_only_in_the_scores(
+    db_session, user, seeded_sme_rubric, tmp_path
+):
+    evaluation_id = _eval_for_writing(db_session, user)
+    run = tool.plan_run(
+        db_session,
+        train_ids=[evaluation_id],
+        reference_ids=[],
+        edit_codes=tool.DEFAULT_EDIT_CRITERIA,
+    )
+    tool.write_corrections(db_session, run, run_id=uuid.uuid4())
+
+    manifest = export_dpo_package(db_session, "sme", tmp_path / "package")
+
+    assert manifest.pair_count == 2
+    lines = (tmp_path / "package" / "pairs.jsonl").read_text("utf-8").splitlines()
+    edited = set(tool.DEFAULT_EDIT_CRITERIA)
+    for line in lines:
+        pair = json.loads(line)
+        chosen = json.loads(pair["chosen"])["criterion_measurements"]
+        rejected = json.loads(pair["rejected"])["criterion_measurements"]
+        assert len(chosen) == len(rejected) == 5
+        for new, old in zip(chosen, rejected, strict=True):
+            code = old["criterion_id"]
+            expected = old["score"] + 1 if code in edited and old["score"] < 4 else None
+            assert new["score"] == (expected or old["score"])
+            # everything except the score is identical (reasoning untouched)
+            assert {k: v for k, v in new.items() if k != "score"} == {
+                k: v for k, v in old.items() if k != "score"
+            }
+
+
+def test_cli_write_requires_both_confirmations(
+    write_cli, capsys, db_session, user, seeded_sme_rubric
+):
+    evaluation_id = str(_eval_for_writing(db_session, user))
+    base = ["--train-evaluations", evaluation_id]
+    assert write_cli(*base, "--confirm", "SEED") == 3
+    assert write_cli(*base, "--confirm-target", "LOCAL") == 3
+    assert write_cli(*base, "--confirm", "WRITE", "--confirm-target", "LOCAL") == 3
+    assert write_cli(*base, "--confirm", "SEED", "--confirm-target", "wrong") == 3
+    assert "REFUSED" in capsys.readouterr().out
+    assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_cli_write_refuses_an_unsafe_database_target(
+    monkeypatch, write_cli, db_session, user, seeded_sme_rubric
+):
+    def refuse():
+        raise PermissionError("unsafe target")
+
+    monkeypatch.setattr(tool, "validate_database_target", refuse)
+    evaluation_id = str(_eval_for_writing(db_session, user))
+    code = write_cli(
+        "--train-evaluations",
+        evaluation_id,
+        "--confirm",
+        "SEED",
+        "--confirm-target",
+        "LOCAL",
+    )
+    assert code == 3
+    assert db_session.query(PreferenceLog).count() == 0
+
+
+def test_cli_write_then_verify_export_then_second_run_writes_nothing(
+    write_cli, capsys, db_session, user, seeded_sme_rubric
+):
+    evaluation_id = str(_eval_for_writing(db_session, user))
+    argv = [
+        "--train-evaluations",
+        evaluation_id,
+        "--verify-export",
+        "--confirm",
+        "SEED",
+        "--confirm-target",
+        "LOCAL",
+    ]
+
+    assert write_cli(*argv) == 0
+    out = capsys.readouterr().out
+    assert "Wrote 5 correction(s)" in out
+    assert "expected 2 (OK)" in out
+    assert "never publish" in out.lower()
+    assert "--cleanup --run-id" in out
+    assert db_session.query(PreferenceLog).count() == 5
+
+    assert write_cli(*argv) == 0  # the criteria now have logs, so all are skipped
+    assert "Nothing to write" in capsys.readouterr().out
+    assert db_session.query(PreferenceLog).count() == 5
+
+
+def test_reference_evaluations_are_never_written(
+    write_cli, db_session, user, seeded_sme_rubric
+):
+    train = str(_eval_for_writing(db_session, user))
+    held_out = make_evaluation(db_session, user, FULL_ANSWER, title="Held out")[0]
+    code = write_cli(
+        "--train-evaluations",
+        train,
+        "--reference-evaluations",
+        str(held_out),
+        "--confirm",
+        "SEED",
+        "--confirm-target",
+        "LOCAL",
+    )
+    assert code == 0
+    written = {r.evaluation_id for r in db_session.query(PreferenceLog).all()}
+    assert written == {uuid.UUID(train)}
