@@ -31,6 +31,7 @@ export interface ConfirmationModalProps {
   cancelLabel?: string;
   variant?: 'destructive' | 'warning' | 'primary';
   isPending?: boolean;
+  confirmDisabled?: boolean;
   error?: string | null;
 }
 
@@ -44,6 +45,7 @@ export function ConfirmationModal({
   cancelLabel = 'Cancel',
   variant = 'destructive',
   isPending = false,
+  confirmDisabled = false,
   error = null,
 }: ConfirmationModalProps) {
   const { isMounted, isAnimating } = usePresence({ isOpen, durationMs: 180 });
@@ -191,7 +193,7 @@ export function ConfirmationModal({
 
   const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isPending || isSubmitting) return;
+    if (isPending || isSubmitting || confirmDisabled) return;
 
     setInternalError(null);
     setIsSubmitting(true);
@@ -297,7 +299,7 @@ export function ConfirmationModal({
               type="submit"
               variant={isDestructive ? 'destructive' : 'primary'}
               size="md"
-              disabled={isEffectivelyPending}
+              disabled={isEffectivelyPending || confirmDisabled}
               isLoading={isEffectivelyPending}
               className={cn(
                 'text-xs h-9 px-4 font-semibold gap-1.5',
