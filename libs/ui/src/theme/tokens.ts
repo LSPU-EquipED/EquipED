@@ -160,7 +160,7 @@ export const DROPDOWN_STYLES = {
     subtle: 'border border-border/70 bg-surface-subtle hover:bg-surface hover:border-border text-text',
     ghost: 'border border-transparent bg-transparent hover:bg-surface-subtle text-text',
   },
-  menu: 'absolute top-full mt-1 z-50 min-w-full rounded-sm border border-border bg-surface py-1 shadow-md animate-ledger-dropdown-in focus:outline-none max-h-72 overflow-y-auto',
+  menu: 'absolute z-50 min-w-full rounded-sm border border-border bg-surface py-1 shadow-md animate-ledger-dropdown-in focus:outline-none max-h-72 overflow-y-auto',
   item: 'flex w-full items-center justify-between gap-2 text-left cursor-pointer transition-colors duration-100 select-none',
   itemSizes: {
     sm: 'px-3 py-1.5 text-xs',

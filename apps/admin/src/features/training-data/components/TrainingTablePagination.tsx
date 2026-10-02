@@ -29,7 +29,7 @@ export function TrainingTablePagination({ label, pagination }: TrainingTablePagi
           inlineLabel
           size="sm"
           aria-label={`${label} rows per page`}
-          menuClassName="top-auto bottom-full mt-0 mb-1"
+          placement="top"
         />
       </div>
       <div className="flex items-center gap-2">

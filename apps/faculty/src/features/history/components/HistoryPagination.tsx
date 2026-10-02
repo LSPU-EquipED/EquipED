@@ -31,6 +31,7 @@ export function HistoryPagination({
           label="Show"
           inlineLabel
           size="sm"
+          placement="top"
           value={pageSize}
           onChange={(value) => onPageSizeChange(Number(value))}
           options={[

@@ -30,6 +30,7 @@ export function DocumentPagination({
             setPage(1);
           }}
           size="sm"
+          placement="top"
           options={[
             { value: 10, label: '10 rows' },
             { value: 25, label: '25 rows' },

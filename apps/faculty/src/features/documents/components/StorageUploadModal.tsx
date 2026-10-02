@@ -63,7 +63,7 @@ export function StorageUploadModal({ isOpen, onClose, onSuccess }: StorageUpload
         aria-modal="true"
         aria-labelledby="slm-upload-dialog-title"
         className={cn(
-          'w-full max-w-lg rounded-md border border-border bg-surface p-6 sm:p-7 shadow-xl overflow-hidden',
+          'w-full max-w-lg rounded-md border border-border bg-surface p-6 sm:p-7 shadow-xl',
           isAnimating ? 'animate-ledger-modal-in' : 'animate-ledger-modal-out',
         )}
         onClick={(e) => e.stopPropagation()}

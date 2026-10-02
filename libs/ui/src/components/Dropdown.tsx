@@ -37,6 +37,7 @@ export interface DropdownProps<T extends string | number = string> {
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'subtle' | 'ghost';
   align?: 'left' | 'right';
+  placement?: 'top' | 'bottom';
   disabled?: boolean;
   required?: boolean;
   className?: string;
@@ -62,6 +63,7 @@ function DropdownInner<T extends string | number = string>(
     size = 'sm',
     variant = 'default',
     align = 'left',
+    placement = 'bottom',
     disabled = false,
     required = false,
     className,
@@ -269,6 +271,7 @@ function DropdownInner<T extends string | number = string>(
       onKeyDown={handleListKeyDown}
       className={cn(
         DROPDOWN_STYLES.menu,
+        placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1',
         align === 'right' ? 'right-0' : 'left-0',
         menuClassName,
       )}
