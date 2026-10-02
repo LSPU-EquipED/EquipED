@@ -232,4 +232,25 @@ describe('Dropdown Component', () => {
 
     expect(ref.current).toBeInstanceOf(HTMLButtonElement);
   });
+
+  it('positions footer menus above the trigger without conflicting downward offsets', () => {
+    render(<Dropdown placement="top" options={defaultOptions} />);
+
+    fireEvent.click(screen.getByRole('button'));
+    const menu = screen.getByRole('listbox');
+    expect(menu.classList.contains('bottom-full')).toBe(true);
+    expect(menu.classList.contains('mb-1')).toBe(true);
+    expect(menu.classList.contains('top-full')).toBe(false);
+    expect(menu.classList.contains('mt-1')).toBe(false);
+  });
+
+  it('opens ordinary menus below the trigger by default', () => {
+    render(<Dropdown options={defaultOptions} />);
+
+    fireEvent.click(screen.getByRole('button'));
+    const menu = screen.getByRole('listbox');
+    expect(menu.classList.contains('top-full')).toBe(true);
+    expect(menu.classList.contains('mt-1')).toBe(true);
+    expect(menu.classList.contains('bottom-full')).toBe(false);
+  });
 });
