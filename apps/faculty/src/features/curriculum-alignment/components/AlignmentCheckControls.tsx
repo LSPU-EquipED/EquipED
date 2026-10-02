@@ -1,4 +1,4 @@
-import { Button, Dropdown, type DropdownOption, Select } from '@equiped/ui';
+import { Button, Dropdown, type DropdownOption } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
 
 interface AlignmentCheckControlsProps {
@@ -32,32 +32,34 @@ export function AlignmentCheckControls({
   onCourseChange,
   onRun,
 }: AlignmentCheckControlsProps) {
+  const documentOptions: DropdownOption[] = [
+    { value: '', label: 'Select a document...' },
+    ...pickerDocuments.map((doc) => ({ value: doc.documentId, label: doc.title })),
+  ];
+
+  if (documentId && !selectedEligibility.eligible && selectedDocument) {
+    documentOptions.push({
+      value: selectedDocument.documentId,
+      label: `${selectedDocument.title} (not eligible)`,
+      disabled: true,
+    });
+  }
+
   return (
     <div className="rounded-md border border-border bg-surface p-4 sm:p-5 shadow-none">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end">
         <div className="min-w-0">
-          <Select
+          <Dropdown
             id="curriculum-doc-select"
             label="Course Module (SLM)"
             value={documentId}
-            onChange={(e) => onDocumentChange(e.target.value)}
+            onChange={onDocumentChange}
+            options={documentOptions}
+            placeholder="Select a document..."
             size="sm"
             disabled={isChecking}
             className="h-8.5 w-full text-xs font-semibold cursor-pointer"
-          >
-            <option value="">Select a document...</option>
-            {pickerDocuments.map((doc) => (
-              <option key={doc.documentId} value={doc.documentId}>
-                {doc.title}
-              </option>
-            ))}
-
-            {documentId && !selectedEligibility.eligible && selectedDocument ? (
-              <option value={selectedDocument.documentId} disabled>
-                {selectedDocument.title} (not eligible)
-              </option>
-            ) : null}
-          </Select>
+          />
         </div>
 
         <div className="min-w-0">
