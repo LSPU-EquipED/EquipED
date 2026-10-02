@@ -1,4 +1,3 @@
-import { TABLE_STYLES, cn } from '@equiped/ui';
 import type { HistoryRoleTab } from '../constants';
 import type { HistoryEvaluationItem, EvaluationListStats } from '../types';
 import { HistoryMetrics } from './HistoryMetrics';
@@ -63,7 +62,7 @@ export function EvaluationHistoryTableView({
         items={items}
       />
 
-      <div className={cn(TABLE_STYLES.wrapper, 'rounded-md border border-border bg-surface shadow-none overflow-hidden')}>
+      <div className="w-full rounded-md border border-border bg-surface shadow-none">
         <HistoryFilters
           allowedRoleTabs={allowedRoleTabs}
           activeRole={activeRole}

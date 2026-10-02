@@ -50,7 +50,7 @@ export function PreferenceLogPagination({
           inlineLabel
           size="md"
           aria-label="Records per page"
-          menuClassName="top-auto bottom-full mt-0 mb-1"
+          placement="top"
         />
       </div>
 

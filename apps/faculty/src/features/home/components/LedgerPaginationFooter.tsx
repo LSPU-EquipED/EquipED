@@ -35,7 +35,7 @@ export function LedgerPaginationFooter({
             { value: 10, label: "10 rows" },
             { value: 20, label: "20 rows" },
           ]}
-          menuClassName="top-auto bottom-full mb-1 mt-0"
+          placement="top"
         />
       </div>
 

@@ -18,7 +18,7 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
   }, 0);
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-surface">
+    <div className="rounded-md border border-border bg-surface">
       <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div>
           <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export function ValidationPreparationForm({ form }: { form: ModelValidationFormS
 
       <form onSubmit={handlePrepare} className="p-5 sm:p-6">
         <div className="grid items-start gap-6 lg:grid-cols-12">
-          <div className="space-y-0 divide-y divide-border overflow-hidden rounded-md border border-border lg:col-span-5">
+          <div className="space-y-0 divide-y divide-border rounded-md border border-border lg:col-span-5">
             <ValidationRunSetup form={form} />
             <ValidationLaunchReadiness
               form={form}

@@ -167,7 +167,7 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
 
       {/* Repository ledger */}
       <div
-        className="flex flex-col overflow-hidden rounded-sm border border-border bg-surface"
+        className="flex flex-col rounded-sm border border-border bg-surface"
         role="region"
         aria-label="SLM Storage Repository Ledger"
       >

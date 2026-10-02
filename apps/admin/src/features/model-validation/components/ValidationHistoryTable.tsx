@@ -66,7 +66,7 @@ export function ValidationHistoryTable({
 
   return (
     <section
-      className="w-full overflow-hidden rounded-md border border-border bg-surface"
+      className="w-full rounded-md border border-border bg-surface"
       aria-labelledby="validation-history-heading"
     >
       <div
@@ -260,6 +260,7 @@ export function ValidationHistoryTable({
                   onChange={setPageSize}
                   options={pageSizeOptions}
                   aria-label="Runs per page"
+                  placement="top"
                   size="sm"
                   className="min-w-28"
                 />
