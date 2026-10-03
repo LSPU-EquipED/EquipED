@@ -5,6 +5,7 @@ import type { TrainedAdapterItem } from '../types';
 import { AdapterLoadHint } from './AdapterLoadHint';
 import { formatSize } from '../utils/trainingData.utils';
 import { TrainingRecordMetadata } from './TrainingRecordMetadata';
+import { TrainingSummaryPanel } from './TrainingSummaryPanel';
 
 function loadLabel(loaded: boolean | null) {
   if (loaded === true) return 'Loaded';
@@ -91,15 +92,29 @@ export function AdapterRow({
         </td>
       </tr>
       <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={6} innerClassName="px-4 py-3">
-        <TrainingRecordMetadata
-          entries={[
-            ['Source run', adapter.job_id],
-            ['File SHA-256', adapter.file_sha256],
-            ['Adapter ID', adapter.adapter_id],
-            ['Filename', adapter.gguf_filename],
-            ['Uploaded', uploaded.toLocaleString()],
-          ]}
-        />
+        <TrainingSummaryPanel summary={adapter.training_summary} />
+        <div className="mt-3">
+          <TrainingRecordMetadata
+            entries={[
+              ['Filename', adapter.gguf_filename],
+              ['Uploaded', uploaded.toLocaleString()],
+            ]}
+          />
+        </div>
+        <details className="mt-3 border-t border-border pt-3 text-sm text-text-muted">
+          <summary className="cursor-pointer text-[13px] font-medium text-text">
+            Technical details
+          </summary>
+          <div className="mt-3">
+            <TrainingRecordMetadata
+              entries={[
+                ['Source run', adapter.job_id],
+                ['File SHA-256', adapter.file_sha256],
+                ['Adapter ID', adapter.adapter_id],
+              ]}
+            />
+          </div>
+        </details>
         {adapter.loaded === false && (
           <div className="mt-3 space-y-1.5 border-t border-border pt-3">
             <p className="text-[13px] font-medium leading-5 text-text">Load on the model server</p>
