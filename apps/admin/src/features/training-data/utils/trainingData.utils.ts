@@ -141,7 +141,11 @@ export function buildTrainingSummaryEntries(
   const lastMargin = last?.margin;
   const firstMargin = first?.margin;
   if (isNumber(lastMargin)) {
-    const showStart = isNumber(firstMargin) && first?.step !== last?.step;
+    const stepsDiffer = first?.step !== last?.step;
+    const bothStepsMissing = first?.step == null && last?.step == null;
+    const showStart =
+      isNumber(firstMargin) &&
+      (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
     entries.push([
       'Preference margin',
       showStart ? `${fixed(firstMargin)} → ${fixed(lastMargin)}` : fixed(lastMargin),
@@ -155,7 +159,7 @@ export function buildTrainingSummaryEntries(
     entries.push([
       'Steps',
       isNumber(summary.epochs)
-        ? `${summary.steps} (${summary.epochs} epochs)`
+        ? `${summary.steps} (${summary.epochs} ${summary.epochs === 1 ? 'epoch' : 'epochs'})`
         : `${summary.steps}`,
     ]);
   }

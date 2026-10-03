@@ -43,6 +43,35 @@ it('renders only what exists for a partial summary and never prints NaN', () => 
   expect(screen.queryByText('Preference accuracy')).toBeNull();
 });
 
+it('uses singular "epoch" for one epoch and plural otherwise', () => {
+  render(<TrainingSummaryPanel summary={{ version: 1, steps: 1, epochs: 1 }} />);
+  expect(screen.getByText('1 (1 epoch)')).toBeDefined();
+  cleanup();
+  render(<TrainingSummaryPanel summary={{ version: 1, steps: 12, epochs: 3 }} />);
+  expect(screen.getByText('12 (3 epochs)')).toBeDefined();
+});
+
+it('shows a single margin when first and last are the same row', () => {
+  const { container } = render(
+    <TrainingSummaryPanel
+      summary={{
+        version: 1,
+        first: { step: 1, margin: 0.5 },
+        last: { step: 1, margin: 0.5 },
+      }}
+    />,
+  );
+  expect(screen.getByText('0.50')).toBeDefined();
+  expect(container.textContent).not.toContain('→');
+});
+
+it('shows start and end margin when steps are missing but margins differ', () => {
+  render(
+    <TrainingSummaryPanel summary={{ version: 1, first: { margin: 0.2 }, last: { margin: 1.1 } }} />,
+  );
+  expect(screen.getByText('0.20 → 1.10')).toBeDefined();
+});
+
 it('treats an empty summary object as not recorded', () => {
   render(<TrainingSummaryPanel summary={{ version: 1 }} />);
   expect(screen.getByText('Not recorded')).toBeDefined();
