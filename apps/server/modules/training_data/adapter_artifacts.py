@@ -19,6 +19,7 @@ from server.modules.training_data.paths import (
     ALLOWED_ADAPTER_EXTENSIONS,
     MAX_ADAPTER_UPLOAD_BYTES,
 )
+from server.modules.training_data.training_summary import extract_training_summary
 
 _STREAM_CHUNK_BYTES = 1024 * 1024
 _MAX_ARCHIVE_MEMBER_COUNT = 100
@@ -44,6 +45,7 @@ class StagedAdapterArtifact:
     final_path: Path
     file_sha256: str
     size_bytes: int
+    training_summary: dict | None = None
 
 
 def _validated_extension(filename: str) -> str:
@@ -95,7 +97,7 @@ def _load_bounded_json(zf: zipfile.ZipFile, info: zipfile.ZipInfo) -> dict:
     return value
 
 
-def _validate_archive(path: Path, expected_source_manifest: dict) -> None:
+def _validate_archive(path: Path, expected_source_manifest: dict) -> dict | None:
     try:
         with zipfile.ZipFile(path) as zf:
             member_count = len(zf.namelist())
@@ -154,12 +156,16 @@ def _validate_archive(path: Path, expected_source_manifest: dict) -> None:
                 raise AdapterUploadError(
                     "training manifest does not match the frozen source job manifest"
                 )
+            training_summary = extract_training_summary(
+                training_manifest.get("training_summary")
+            )
 
             corrupt_member = zf.testzip()
             if corrupt_member is not None:
                 raise AdapterUploadError(
                     f"adapter archive member failed CRC validation: {corrupt_member!r}"
                 )
+            return training_summary
     except zipfile.BadZipFile as exc:
         raise AdapterUploadError(
             "uploaded artifact is not a valid ZIP archive"
@@ -207,13 +213,14 @@ def stage_adapter_artifact(
             destination.flush()
             os.fsync(destination.fileno())
 
-        _validate_archive(staging_path, expected_source_manifest)
+        training_summary = _validate_archive(staging_path, expected_source_manifest)
         return StagedAdapterArtifact(
             adapter_id=adapter_id,
             staging_path=staging_path,
             final_path=final_path,
             file_sha256=digest.hexdigest(),
             size_bytes=size_bytes,
+            training_summary=training_summary,
         )
     except Exception:
         staging_path.unlink(missing_ok=True)

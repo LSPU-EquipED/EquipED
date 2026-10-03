@@ -338,6 +338,29 @@ def test_list_adapters_includes_loaded_and_published(
     assert body["server_reachable"] is True
 
 
+def test_list_adapters_returns_training_summary(
+    client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    v1 = make_adapter(db_session, "sme", 1)
+    make_adapter(db_session, "sme", 2)
+    v1.training_summary = {
+        "version": 1,
+        "steps": 12,
+        "last": {"step": 12, "margin": 1.4, "accuracy": 1.0},
+    }
+    db_session.commit()
+    _fake_state(monkeypatch, loaded=[])
+    _auth(client, auth_cookies_admin)
+
+    body = client.get("/api/v1/admin/training-data/sme/adapters").json()
+    by_version = {a["version"]: a for a in body["adapters"]}
+    assert by_version[1]["training_summary"]["last"]["margin"] == 1.4
+    assert by_version[1]["training_summary"]["steps"] == 12
+    assert by_version[2]["training_summary"] is None
+
+
 def test_publish_requires_loaded_adapter(
     client: TestClient, db_session, admin_user, auth_cookies_admin, monkeypatch
 ):

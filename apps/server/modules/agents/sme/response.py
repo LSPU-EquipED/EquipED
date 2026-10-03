@@ -221,7 +221,14 @@ def parse_and_validate_envelope_response(
             payload = payload[start : end + 1]
 
     try:
-        parsed = json.loads(payload, object_pairs_hook=_hook_detect_duplicate_keys)
+        # strict=False allows a raw newline/tab inside a string. The model copies
+        # evidence quotes that span line breaks in the source text and writes the
+        # break unescaped; strict parsing rejected that and, after the one repair
+        # attempt, failed the whole evaluation. Grounding below still requires the
+        # quote to be an exact substring of the source.
+        parsed = json.loads(
+            payload, object_pairs_hook=_hook_detect_duplicate_keys, strict=False
+        )
     except (json.JSONDecodeError, ValueError) as exc:
         raise AgentExecutionError(f"SME response is invalid JSON: {exc}") from exc
 
@@ -259,7 +266,7 @@ def parse_and_validate_envelope_response(
 
     validated_measurements: list[dict[str, Any]] = []
 
-    for idx, (m, crit) in enumerate(zip(measurements, criteria, strict=True)):
+    for idx, (m, crit) in enumerate(zip(measurements, criteria, strict=False)):
         if not isinstance(m, (dict, OrderedDict)):
             raise AgentExecutionError(
                 f"Measurement at index {idx} must be a JSON object"

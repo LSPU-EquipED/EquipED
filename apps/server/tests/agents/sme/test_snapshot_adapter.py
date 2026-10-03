@@ -337,6 +337,33 @@ def test_rev1_threshold_goldens_and_op01_short_sample() -> None:
     assert "no measurable content" in res_a01.justification
 
 
+def test_raw_line_break_inside_a_json_string_is_accepted() -> None:
+    """The model often copies an evidence quote that spans a line break in the
+    source text and writes the break as a raw newline inside the JSON string.
+    Strict JSON rejects that ("Invalid control character") and, after the one
+    repair attempt, failed the whole SME evaluation; it must be accepted."""
+    source = "First line of the module.\nSecond line of the module."
+    criterion = _make_criterion(
+        "G-01",
+        "Guidance Criterion",
+        LlmRubricGuidanceConfig(guidance="Assess factual clarity."),
+        display_order=0,
+    )
+    # json.dumps would escape the newline; write it raw, as the model does.
+    payload = (
+        '{"summary": "ok", "criterion_measurements": [{"criterion_id": "G-01", '
+        '"criterion_title": "Guidance Criterion", "score": 3, '
+        f'"evidence": "{source}", "reasoning": "Clear."}}]}}'
+    )
+    assert "\n" in payload  # the raw newline is really inside the string
+
+    parsed = parse_and_validate_envelope_response(payload, (criterion,), source)
+
+    measurement = parsed["criterion_measurements"][0]
+    assert measurement["evidence"] == source
+    assert measurement["score"] == 3
+
+
 def test_all_three_measurement_shapes() -> None:
     source = (
         "Sample source text containing definition fact and interactive activity "

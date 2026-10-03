@@ -22,22 +22,25 @@ from server.modules.training_data.jobs import (
 from server.modules.training_data.models import DpoTrainingJob
 from server.tests.training_data.conftest import seed_eligible_dpo_pair
 
+_NO_SUMMARY = object()
+
 
 def _make_adapter_zip(
     source_manifest: dict,
     *,
     weights_filename: str = "adapter_model.safetensors",
     weights_content: bytes = b"lora-weights",
+    training_summary: object = _NO_SUMMARY,
 ) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(
             "adapter_config.json", json.dumps({"base_model_name_or_path": "model"})
         )
-        zf.writestr(
-            "training_manifest.json",
-            json.dumps({"source_job_manifest": source_manifest}),
-        )
+        manifest = {"source_job_manifest": source_manifest}
+        if training_summary is not _NO_SUMMARY:
+            manifest["training_summary"] = training_summary
+        zf.writestr("training_manifest.json", json.dumps(manifest))
         zf.writestr(weights_filename, weights_content)
     return buffer.getvalue()
 
@@ -409,3 +412,58 @@ def test_store_adapter_upload_preserves_published_file_on_commit_failure(
     published_files = list(agent_dir.glob("*/adapter.zip"))
     assert len(published_files) == 1
     assert published_files[0].read_bytes() == zip_bytes
+
+
+def _upload(db_session, admin_user, tmp_path, monkeypatch, **zip_kwargs):
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    result = create_training_job(db_session, "gad", admin_user.user_id)
+    zip_bytes = _make_adapter_zip(result.job.manifest_json, **zip_kwargs)
+    return store_adapter_upload(
+        db_session,
+        result.job.job_id,
+        result.raw_upload_token,
+        filename="adapter.zip",
+        source=io.BytesIO(zip_bytes),
+    )
+
+
+def test_store_adapter_upload_persists_training_summary(
+    db_session, admin_user, tmp_path, monkeypatch
+):
+    summary = {
+        "version": 1,
+        "steps": 12,
+        "last": {"step": 12, "margin": 1.4, "accuracy": 1.0},
+    }
+    adapter = _upload(
+        db_session, admin_user, tmp_path, monkeypatch, training_summary=summary
+    )
+    db_session.refresh(adapter)
+    assert adapter.training_summary == summary
+
+
+def test_store_adapter_upload_without_summary_stores_null(
+    db_session, admin_user, tmp_path, monkeypatch
+):
+    adapter = _upload(db_session, admin_user, tmp_path, monkeypatch)
+    db_session.refresh(adapter)
+    assert adapter.training_summary is None
+
+
+def test_store_adapter_upload_with_invalid_summary_still_succeeds(
+    db_session, admin_user, tmp_path, monkeypatch
+):
+    adapter = _upload(
+        db_session,
+        admin_user,
+        tmp_path,
+        monkeypatch,
+        training_summary={"version": 1, "last": {"margin": "huge"}},
+    )
+    db_session.refresh(adapter)
+    assert adapter.version == 1
+    assert adapter.training_summary is None

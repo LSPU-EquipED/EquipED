@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
+from server.modules.training_data.training_summary import TrainingSummary
 
 AgentId = Literal["sme", "coordinator", "gad", "itso"]
 
@@ -76,6 +77,7 @@ class TrainedAdapterResponse(BaseModel):
     file_sha256: str
     size_bytes: int
     created_at: datetime
+    training_summary: TrainingSummary | None = None
 
 
 class TrainedAdapterListItem(TrainedAdapterResponse):

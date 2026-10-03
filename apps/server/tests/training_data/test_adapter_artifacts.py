@@ -20,10 +20,13 @@ from server.modules.training_data.adapter_artifacts import (
 )
 from server.modules.training_data.exceptions import AdapterUploadError
 
+_NO_SUMMARY = object()
+
 
 def _make_adapter_zip_bytes(
     source_manifest: dict,
     *,
+    training_summary: object = _NO_SUMMARY,
     adapter_config: dict | None = None,
     weights_filename: str = "adapter_model.safetensors",
     weights_content: bytes = b"weights-payload",
@@ -46,6 +49,8 @@ def _make_adapter_zip_bytes(
 
         if include_training_manifest:
             manifest_data = {"source_job_manifest": source_manifest}
+            if training_summary is not _NO_SUMMARY:
+                manifest_data["training_summary"] = training_summary
             zf.writestr("training_manifest.json", json.dumps(manifest_data))
 
         if include_weights:
@@ -429,3 +434,57 @@ def test_stage_adapter_artifact_translates_decompression_error(
             expected_source_manifest=manifest,
         )
     assert "failed to read or decompress" in str(exc_info.value)
+
+
+def _stage(monkeypatch, tmp_path, zip_bytes, manifest):
+    monkeypatch.setattr(
+        "server.modules.training_data.adapter_artifacts.ADAPTER_ROOT",
+        tmp_path,
+    )
+    return stage_adapter_artifact(
+        "sme",
+        uuid.uuid4(),
+        filename="adapter.zip",
+        source=io.BytesIO(zip_bytes),
+        expected_source_manifest=manifest,
+    )
+
+
+def test_stage_returns_valid_training_summary(monkeypatch, tmp_path):
+    manifest = {"agent_id": "sme", "pair_count": 1}
+    summary = {"version": 1, "steps": 12, "last": {"step": 12, "margin": 1.4}}
+    staged = _stage(
+        monkeypatch,
+        tmp_path,
+        _make_adapter_zip_bytes(manifest, training_summary=summary),
+        manifest,
+    )
+    assert staged.training_summary == summary
+
+
+def test_stage_without_training_summary_is_none(monkeypatch, tmp_path):
+    manifest = {"agent_id": "sme", "pair_count": 1}
+    staged = _stage(monkeypatch, tmp_path, _make_adapter_zip_bytes(manifest), manifest)
+    assert staged.training_summary is None
+
+
+@pytest.mark.parametrize(
+    "bad_summary",
+    [
+        "not a summary",
+        [1, 2, 3],
+        {"version": 1, "last": {"margin": "high"}},
+        {"version": 2, "last": {"margin": 1.0}},
+        {"version": 1, "last": {"margin": True}},
+    ],
+)
+def test_stage_ignores_invalid_training_summary(monkeypatch, tmp_path, bad_summary):
+    manifest = {"agent_id": "sme", "pair_count": 1}
+    staged = _stage(
+        monkeypatch,
+        tmp_path,
+        _make_adapter_zip_bytes(manifest, training_summary=bad_summary),
+        manifest,
+    )
+    assert staged.training_summary is None
+    assert staged.staging_path.exists()

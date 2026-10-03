@@ -1,4 +1,4 @@
-import type { ReadinessSummary } from '../types';
+import type { ReadinessSummary, TrainingSummary } from '../types';
 
 export function formatCountdown(expiresAtIso: string, now: number): string {
   const diffMs = new Date(expiresAtIso).getTime() - now;
@@ -120,4 +120,54 @@ export function formatSize(bytes: number): string {
   if (mb < 1) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
   return `${mb.toFixed(1)} MB`;
+}
+
+function isNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+const fixed = (value: number, digits = 2) => value.toFixed(digits);
+const percent = (value: number) => `${Math.round(value * 100)}%`;
+
+export function buildTrainingSummaryEntries(
+  summary: TrainingSummary | null | undefined,
+): [string, string][] {
+  if (!summary) return [];
+  const entries: [string, string][] = [];
+  const first = summary.first;
+  const last = summary.last;
+  const heldout = summary.heldout;
+
+  const lastMargin = last?.margin;
+  const firstMargin = first?.margin;
+  if (isNumber(lastMargin)) {
+    const stepsDiffer = first?.step !== last?.step;
+    const bothStepsMissing = first?.step == null && last?.step == null;
+    const showStart =
+      isNumber(firstMargin) &&
+      (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
+    entries.push([
+      'Preference margin',
+      showStart ? `${fixed(firstMargin)} → ${fixed(lastMargin)}` : fixed(lastMargin),
+    ]);
+  }
+  const lastAccuracy = last?.accuracy;
+  if (isNumber(lastAccuracy)) entries.push(['Preference accuracy', percent(lastAccuracy)]);
+  const lastLoss = last?.loss;
+  if (isNumber(lastLoss)) entries.push(['Training loss', fixed(lastLoss, 3)]);
+  if (isNumber(summary.steps)) {
+    entries.push([
+      'Steps',
+      isNumber(summary.epochs)
+        ? `${summary.steps} (${summary.epochs} ${summary.epochs === 1 ? 'epoch' : 'epochs'})`
+        : `${summary.steps}`,
+    ]);
+  }
+  const heldoutMargin = heldout?.margin;
+  if (isNumber(heldoutMargin)) entries.push(['Held-out margin', fixed(heldoutMargin)]);
+  const heldoutAccuracy = heldout?.accuracy;
+  if (isNumber(heldoutAccuracy)) entries.push(['Held-out accuracy', percent(heldoutAccuracy)]);
+  const heldoutPairs = heldout?.pair_count;
+  if (isNumber(heldoutPairs)) entries.push(['Held-out pairs', `${heldoutPairs}`]);
+  return entries;
 }

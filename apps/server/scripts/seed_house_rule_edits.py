@@ -1,0 +1,884 @@
+"""House-rule DPO corrections on REAL SME evaluations (adapter validation).
+
+Teaches one invented, easy-to-measure rule to an SME adapter: for each *edited*
+criterion the score is raised by 1 (capped at 4); every other criterion is a
+*control* and is never corrected. The script reads the stored answers of real,
+COMPLETED SME evaluations and, only with explicit confirmation, inserts small
+score-only ``PreferenceLog`` corrections. The existing exporter turns those into
+DPO pairs, so the exporter, projectors and training flow are unchanged.
+
+It never modifies evaluations, generations, documents or snapshots. Every row it
+writes is tagged ``house-rule-seed:<run-id>`` and can be removed with --cleanup.
+
+DEV/TEST/LOCAL ONLY. The adapter trained on these corrections teaches an INVENTED
+rule: it is a validation artifact and must never be published.
+
+Usage (from apps/):
+    # 1. Read-only report (the default):
+    uv run --project server python -m server.scripts.seed_house_rule_edits \
+        --train-evaluations-file train_ids.txt \
+        --reference-evaluations-file heldout_ids.txt --verify-export \
+        --report-csv expected_scores.csv
+
+    # 2. Write the corrections (both flags are required):
+    uv run --project server python -m server.scripts.seed_house_rule_edits \
+        --train-evaluations-file train_ids.txt \
+        --reference-evaluations-file heldout_ids.txt --verify-export \
+        --confirm SEED --confirm-target <LOCAL or fingerprint>
+
+    # 3. Remove them when the validation is done:
+    uv run --project server python -m server.scripts.seed_house_rule_edits \
+        --cleanup --run-id <UUID> --confirm CLEANUP --confirm-target <T>
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import logging
+import math
+import tempfile
+import uuid
+from collections import Counter
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Literal
+
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from server.core.config import get_settings
+from server.core.database import get_session_factory
+from server.db.metadata import import_model_modules
+from server.modules.auth.models import User, UserRole
+from server.modules.auth.service import create_user
+from server.modules.documents.models import Document
+from server.modules.evaluations.models import EvaluationJob
+from server.modules.feedback.models import PreferenceLog
+from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
+from server.modules.rubrics.snapshot_contracts import SnapshotIntegrityError
+from server.modules.rubrics.snapshots import load_verified_agent_snapshot
+from server.modules.synthesis.models import AgentGeneration
+from server.modules.training_data.exporter import export_dpo_package
+from server.scripts.seed_synthetic_dpo_pairs import (
+    CONFIRM_CLEANUP_KEYWORD,
+    CONFIRM_SEED_KEYWORD,
+    compute_target_fingerprint,
+    is_local_or_test_target,
+    validate_database_target,
+    validate_environment,
+)
+
+AGENT_ID = "sme"
+RUN_NOTE_PREFIX = "house-rule-seed"
+HOUSE_USER_EMAIL = "house-rule-seed@local.test"
+DEFAULT_EDIT_CRITERIA = ("OP-01", "OP-03", "OP-05", "A-01", "A-03", "A-05")
+# The Colab notebook trains with max_prompt_length = 1536 tokens.
+PROMPT_TOKEN_LIMIT = 1536
+CHARS_PER_TOKEN = 4
+CONTRACT_KEY = "criterion_measurements.v1"
+CONTRACT_VERSION = 1
+
+Group = Literal["train", "reference"]
+Role = Literal["edited", "control"]
+
+
+class IneligibleRunError(Exception):
+    """The run cannot proceed; nothing was written."""
+
+
+class FileAccessError(Exception):
+    """An input or output file could not be read or written (exit code 2)."""
+
+
+def _as_score(value: object) -> int | None:
+    """A valid 1-4 integer score, else None. Booleans and strings are invalid."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float) and value.is_integer():
+        number = int(value)
+    else:
+        return None
+    return number if 1 <= number <= 4 else None
+
+
+def apply_rule(score: object) -> tuple[int | None, str | None]:
+    """The house rule: (new_score, skip_reason). Raise by 1, capped at 4."""
+    current = _as_score(score)
+    if current is None:
+        return None, "invalid_score"
+    if current >= 4:
+        return None, "already_max"
+    return current + 1, None
+
+
+def is_score_shaped(measurement: dict[str, Any]) -> bool:
+    """True only for an llm_rubric_guidance measurement (same test as the
+    projector's private helper; a test pins that they agree)."""
+    return (
+        "score" in measurement
+        and "instances" not in measurement
+        and "total_units" not in measurement
+    )
+
+
+def base_reference(scores: Sequence[int]) -> int:
+    """Mean of an SLM's runs, rounded half up (2.5 -> 3)."""
+    return int(sum(scores) / len(scores) + 0.5)
+
+
+def expected_score(role: Role, reference: int) -> int:
+    """What the adapter should score if it learned the rule."""
+    return min(4, reference + 1) if role == "edited" else reference
+
+
+def normalize_codes(raw: Sequence[str]) -> tuple[str, ...]:
+    seen: dict[str, None] = {}
+    for item in raw:
+        code = item.strip().upper()
+        if code:
+            seen.setdefault(code, None)
+    return tuple(seen)
+
+
+def format_note(run_id: uuid.UUID) -> str:
+    return f"{RUN_NOTE_PREFIX}:{run_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class CriterionPlan:
+    evaluation_id: uuid.UUID
+    generation_id: uuid.UUID
+    criterion_code: str
+    role: Role
+    base_score: int | None
+    new_score: int | None
+    skip_reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationInfo:
+    generation_id: uuid.UUID
+    unit_key: str
+    prompt_chars: int
+    criterion_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationPlan:
+    evaluation_id: uuid.UUID
+    document_id: uuid.UUID
+    document_title: str
+    group: Group
+    generations: tuple[GenerationInfo, ...]
+    criteria: tuple[CriterionPlan, ...]
+
+    @property
+    def writes(self) -> tuple[CriterionPlan, ...]:
+        """Corrections to write. Reference (held-out) plans never write."""
+        if self.group != "train":
+            return ()
+        return tuple(c for c in self.criteria if c.new_score is not None)
+
+
+@dataclass(frozen=True, slots=True)
+class RunPlan:
+    plans: tuple[EvaluationPlan, ...]
+    edit_codes: tuple[str, ...]
+
+    @property
+    def writes(self) -> tuple[CriterionPlan, ...]:
+        return tuple(c for plan in self.plans for c in plan.writes)
+
+    @property
+    def pair_generation_ids(self) -> frozenset[uuid.UUID]:
+        """Generations that will produce a DPO pair (>= 1 correction each)."""
+        return frozenset(c.generation_id for c in self.writes)
+
+    def skip_counts(self) -> Counter[str]:
+        return Counter(
+            c.skip_reason for plan in self.plans for c in plan.criteria if c.skip_reason
+        )
+
+
+def _usable_generations(session: Session, evaluation_id: uuid.UUID):
+    """SME generations the exporter would use: ok, criterion_measurements.v1."""
+    return (
+        session.query(AgentGeneration)
+        .filter(
+            AgentGeneration.evaluation_id == evaluation_id,
+            AgentGeneration.agent_id == AGENT_ID,
+            AgentGeneration.envelope_status == "ok",
+            AgentGeneration.response_contract_key == CONTRACT_KEY,
+            AgentGeneration.response_contract_version == CONTRACT_VERSION,
+        )
+        .order_by(AgentGeneration.unit_key.asc(), AgentGeneration.generation_id.asc())
+        .all()
+    )
+
+
+def _measurements(generation: AgentGeneration) -> list[dict[str, Any]]:
+    raw = generation.response_json
+    if not raw and generation.response_text:
+        try:
+            raw = json.loads(generation.response_text)
+        except (TypeError, ValueError):
+            raw = None
+    items = raw.get("criterion_measurements") if isinstance(raw, dict) else None
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def _measured_codes(measurements: list[dict[str, Any]]) -> list[str]:
+    return [
+        m["criterion_id"]
+        for m in measurements
+        if isinstance(m.get("criterion_id"), str) and m["criterion_id"]
+    ]
+
+
+def _existing_log_codes(session: Session, evaluation_id: uuid.UUID) -> set[str]:
+    """Criteria that already have ANY preference log for the SME agent."""
+    rows = (
+        session.query(PreferenceLog.criterion_id)
+        .filter(
+            PreferenceLog.evaluation_id == evaluation_id,
+            func.lower(PreferenceLog.agent_name) == AGENT_ID,
+            PreferenceLog.criterion_id.isnot(None),
+        )
+        .all()
+    )
+    return {code for (code,) in rows}
+
+
+def _decide(
+    role: Role,
+    code: str,
+    measurement: dict[str, Any],
+    strategy: object,
+    existing: set[str],
+    duplicated: bool,
+) -> tuple[int | None, str | None]:
+    """(new_score, skip_reason) for one measured criterion."""
+    if role == "control":
+        return None, None
+    if strategy is None:
+        return None, "not_in_snapshot"
+    if not isinstance(strategy, LlmRubricGuidanceConfig):
+        return None, "not_llm_rubric_guidance"
+    if not is_score_shaped(measurement):
+        return None, "not_score_shaped"
+    if duplicated:
+        return None, "criterion_in_multiple_generations"
+    if code in existing:
+        return None, "existing_log"
+    return apply_rule(measurement.get("score"))
+
+
+def plan_evaluation(
+    session: Session,
+    evaluation_id: uuid.UUID,
+    *,
+    group: Group,
+    edit_codes: Sequence[str],
+) -> EvaluationPlan:
+    """Decide what to correct in one evaluation. Fails closed; reads only."""
+    job = session.get(EvaluationJob, evaluation_id)
+    if job is None:
+        raise IneligibleRunError(f"Evaluation {evaluation_id} does not exist.")
+    status = str(getattr(job.status, "value", job.status))
+    if status != "COMPLETED":
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} is not COMPLETED (status {status})."
+        )
+    # Only present on the per-agent adapter branch; absent columns mean "no adapter".
+    applied = (
+        (getattr(job, "adapter_resolution", None) or {}).get(AGENT_ID) or {}
+    ).get("applied")
+    if applied:
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} was scored with adapter {applied} applied; "
+            "the experiment needs base-model answers only."
+        )
+    # Older Compare-flow runs have no adapter_resolution but set lora_scale.
+    scale = getattr(job, "lora_scale", None)
+    if scale is not None and scale > 0:
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} was scored with lora_scale {scale}; "
+            "the experiment needs base-model answers only."
+        )
+    generations = _usable_generations(session, evaluation_id)
+    if not generations:
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} has no usable SME generation (needs "
+            f"envelope_status 'ok' and contract {CONTRACT_KEY} v{CONTRACT_VERSION})."
+        )
+    try:
+        snapshot = load_verified_agent_snapshot(session, evaluation_id, AGENT_ID)
+    except SnapshotIntegrityError as exc:
+        raise IneligibleRunError(
+            f"Evaluation {evaluation_id} has no verified SME form snapshot: {exc}"
+        ) from exc
+    strategies = {
+        criterion.criterion_code: criterion.strategy_config
+        for domain in snapshot.snapshot_payload.form.domains
+        for criterion in domain.criteria
+    }
+    existing = _existing_log_codes(session, evaluation_id)
+    document = session.get(Document, job.document_id)
+    title = (document.title if document is not None else "") or ""
+    edit_set = frozenset(edit_codes)
+
+    measured = [(g, _measurements(g)) for g in generations]
+    occurrences = Counter(
+        code for _, measurements in measured for code in _measured_codes(measurements)
+    )
+    infos: list[GenerationInfo] = []
+    criteria: list[CriterionPlan] = []
+    for generation, measurements in measured:
+        infos.append(
+            GenerationInfo(
+                generation_id=generation.generation_id,
+                unit_key=generation.unit_key,
+                prompt_chars=len(generation.prompt_text or ""),
+                criterion_codes=tuple(_measured_codes(measurements)),
+            )
+        )
+        for measurement in measurements:
+            code = measurement.get("criterion_id")
+            if not isinstance(code, str) or not code:
+                continue
+            role: Role = "edited" if code in edit_set else "control"
+            new_score, skip_reason = _decide(
+                role,
+                code,
+                measurement,
+                strategies.get(code),
+                existing,
+                occurrences[code] > 1,
+            )
+            criteria.append(
+                CriterionPlan(
+                    evaluation_id=evaluation_id,
+                    generation_id=generation.generation_id,
+                    criterion_code=code,
+                    role=role,
+                    base_score=_as_score(measurement.get("score")),
+                    new_score=new_score,
+                    skip_reason=skip_reason,
+                )
+            )
+    return EvaluationPlan(
+        evaluation_id=evaluation_id,
+        document_id=job.document_id,
+        document_title=title,
+        group=group,
+        generations=tuple(infos),
+        criteria=tuple(criteria),
+    )
+
+
+def plan_run(
+    session: Session,
+    *,
+    train_ids: Sequence[uuid.UUID],
+    reference_ids: Sequence[uuid.UUID],
+    edit_codes: Sequence[str],
+) -> RunPlan:
+    """Plan a whole run. Any problem aborts the run before anything is written."""
+    codes = normalize_codes(edit_codes)
+    if not codes:
+        raise IneligibleRunError("At least one edit criterion is required.")
+    all_ids = [*train_ids, *reference_ids]
+    if not all_ids:
+        raise IneligibleRunError("List at least one evaluation to plan.")
+    duplicates = sorted(str(i) for i, n in Counter(all_ids).items() if n > 1)
+    if duplicates:
+        raise IneligibleRunError(
+            "Evaluation id listed more than once (or in both lists): "
+            + ", ".join(duplicates)
+        )
+    plans = [
+        plan_evaluation(session, eid, group="train", edit_codes=codes)
+        for eid in train_ids
+    ] + [
+        plan_evaluation(session, eid, group="reference", edit_codes=codes)
+        for eid in reference_ids
+    ]
+    train_documents = {p.document_id for p in plans if p.group == "train"}
+    shared = train_documents & {p.document_id for p in plans if p.group == "reference"}
+    if shared:
+        raise IneligibleRunError(
+            "A document is in both the train and the reference list; a held-out SLM "
+            "must never be trained on: " + ", ".join(sorted(str(d) for d in shared))
+        )
+    seen = {c.criterion_code for p in plans for c in p.criteria}
+    unknown = [code for code in codes if code not in seen]
+    if unknown:
+        raise IneligibleRunError(
+            "Edit criteria never seen in any listed evaluation: " + ", ".join(unknown)
+        )
+    return RunPlan(plans=tuple(plans), edit_codes=codes)
+
+
+PROMPT_CHAR_LIMIT = PROMPT_TOKEN_LIMIT * CHARS_PER_TOKEN
+# Room reserved for the model's answer when suggesting a sequence length.
+RESPONSE_TOKEN_ALLOWANCE = 1536
+
+REMINDERS = (
+    "Reminders:",
+    "  - The adapter trained on these corrections teaches an INVENTED rule. It is "
+    "a test artifact: never publish it.",
+    "  - These corrections are counted in every SME training job. Do not start "
+    "another SME training job until you have run the cleanup.",
+)
+
+
+def estimate_tokens(chars: int) -> int:
+    return math.ceil(chars / CHARS_PER_TOKEN)
+
+
+def suggest_limits(max_prompt_tokens: int) -> tuple[int, int]:
+    """(max_prompt_length, MAX_SEQ_LENGTH) for the notebook: the longest prompt
+    plus 15%, rounded up to 256, and room for the answer on top."""
+    # 15% margin in exact integer math: ceil(tokens * 115 / (100 * 256)) blocks.
+    blocks = -(-max_prompt_tokens * 115 // (100 * 256))
+    prompt_limit = blocks * 256
+    return prompt_limit, prompt_limit + RESPONSE_TOKEN_ALLOWANCE
+
+
+def parse_ids(text: str) -> list[uuid.UUID]:
+    """Evaluation ids separated by commas or newlines; '#' starts a comment."""
+    ids: list[uuid.UUID] = []
+    for line in text.splitlines():
+        for part in line.split("#", 1)[0].split(","):
+            part = part.strip()
+            if part:
+                ids.append(uuid.UUID(part))
+    return ids
+
+
+def read_ids_file(path: Path) -> list[uuid.UUID]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise FileAccessError(
+            f"cannot read ids file {path}: {exc.strerror or exc}"
+        ) from exc
+    return parse_ids(text)
+
+
+def _ascii(text: str) -> str:
+    return text.encode("ascii", "replace").decode("ascii")
+
+
+def _short(value: uuid.UUID) -> str:
+    return str(value)[:8]
+
+
+def render_report(run: RunPlan, *, mode: str, baseline_pairs: int | None = None) -> str:
+    """The printable report. ASCII only, so a Windows console cannot choke."""
+    lines = [
+        f"House-rule report ({mode})",
+        f"Edited criteria: {', '.join(run.edit_codes)}",
+        "",
+        "Per evaluation:",
+    ]
+    for plan in run.plans:
+        skips = Counter(c.skip_reason for c in plan.criteria if c.skip_reason)
+        skip_text = ", ".join(f"{k}={v}" for k, v in sorted(skips.items())) or "none"
+        lines.append(
+            f"  {_short(plan.evaluation_id)} [{plan.group}] "
+            f"{_ascii(plan.document_title)!r} generations={len(plan.generations)} "
+            f"corrections={len(plan.writes)} skipped: {skip_text}"
+        )
+    train = [p for p in run.plans if p.group == "train"]
+    reference = [p for p in run.plans if p.group == "reference"]
+    lines += [
+        "",
+        f"Totals: train evaluations: {len(train)} | reference evaluations: "
+        f"{len(reference)} | corrections planned: {len(run.writes)} | "
+        f"expected new pairs: {len(run.pair_generation_ids)}",
+    ]
+    skip_totals = run.skip_counts()
+    if skip_totals:
+        lines.append(
+            "Skips by reason: "
+            + ", ".join(f"{k}={v}" for k, v in sorted(skip_totals.items()))
+        )
+    generations = [g for p in (train or run.plans) for g in p.generations]
+    if generations:
+        longest = max(g.prompt_chars for g in generations)
+        over = sum(
+            1
+            for g in generations
+            if estimate_tokens(g.prompt_chars) > PROMPT_TOKEN_LIMIT
+        )
+        lines += [
+            "",
+            f"Prompt lengths over {len(generations)} generation(s): longest "
+            f"{longest} chars (~{estimate_tokens(longest)} tokens, estimated as "
+            f"chars/{CHARS_PER_TOKEN}).",
+            f"  {over} of {len(generations)} are above the notebook's "
+            f"{PROMPT_TOKEN_LIMIT}-token prompt limit (~{PROMPT_CHAR_LIMIT} chars).",
+        ]
+        if over:
+            prompt_limit, sequence = suggest_limits(estimate_tokens(longest))
+            lines.append(
+                f"  Suggested notebook values: max_prompt_length={prompt_limit}, "
+                f"MAX_SEQ_LENGTH={sequence} (estimates: confirm with a short T4 "
+                "smoke run before the full run)."
+            )
+    if baseline_pairs is not None:
+        lines += [
+            "",
+            f"Existing exportable SME pairs already in the database: {baseline_pairs}.",
+        ]
+        if baseline_pairs:
+            lines.append(
+                "  WARNING: these pairs would be trained on together with the new "
+                "ones. Remove them first (see the runbook), or the adapter also "
+                "learns them."
+            )
+    lines += ["", *REMINDERS]
+    return "\n".join(lines)
+
+
+CSV_COLUMNS = (
+    "group",
+    "document_id",
+    "document_title",
+    "criterion_code",
+    "role",
+    "run_count",
+    "base_scores",
+    "base_reference",
+    "expected_score",
+)
+
+
+def build_expected_scores_rows(run: RunPlan) -> list[dict[str, str]]:
+    """One row per (SLM, criterion): the scores the admin types into Model
+    Validation for the base model and for an adapter that learned the rule."""
+    grouped: dict[tuple[str, uuid.UUID, str, str, str], list[int]] = {}
+    for plan in run.plans:
+        for criterion in plan.criteria:
+            if criterion.base_score is None:
+                continue
+            key = (
+                plan.group,
+                plan.document_id,
+                plan.document_title,
+                criterion.criterion_code,
+                criterion.role,
+            )
+            grouped.setdefault(key, []).append(criterion.base_score)
+    order = {"train": 0, "reference": 1}
+    rows: list[dict[str, str]] = []
+    for (group, document_id, title, code, role), scores in sorted(
+        grouped.items(), key=lambda kv: (order[kv[0][0]], kv[0][2], kv[0][3])
+    ):
+        reference = base_reference(scores)
+        rows.append(
+            {
+                "group": group,
+                "document_id": str(document_id),
+                "document_title": title,
+                "criterion_code": code,
+                "role": role,
+                "run_count": str(len(scores)),
+                "base_scores": ";".join(str(s) for s in scores),
+                "base_reference": str(reference),
+                "expected_score": str(expected_score(role, reference)),
+            }
+        )
+    return rows
+
+
+def write_expected_scores_csv(rows: list[dict[str, str]], path: Path) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+    except OSError as exc:
+        raise FileAccessError(
+            f"cannot write report CSV {path}: {exc.strerror or exc}"
+        ) from exc
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Add house-rule score corrections to real SME evaluations (adapter "
+            "validation). Read-only report by default. DEV/TEST/LOCAL ONLY."
+        ),
+        epilog=(
+            "The adapter trained on these corrections teaches an invented rule and "
+            "must never be published."
+        ),
+    )
+    parser.add_argument("--train-evaluations", default="", help="Comma-separated ids.")
+    parser.add_argument("--train-evaluations-file", type=Path, default=None)
+    parser.add_argument(
+        "--reference-evaluations", default="", help="Held-out ids (never written)."
+    )
+    parser.add_argument("--reference-evaluations-file", type=Path, default=None)
+    parser.add_argument(
+        "--edit-criteria",
+        default=",".join(DEFAULT_EDIT_CRITERIA),
+        help="Criteria to raise; every other SME criterion is a control.",
+    )
+    parser.add_argument("--report-csv", type=Path, default=None)
+    parser.add_argument("--verify-export", action="store_true")
+    parser.add_argument("--confirm", default=None)
+    parser.add_argument("--confirm-target", default=None)
+    parser.add_argument("--cleanup", action="store_true")
+    parser.add_argument("--run-id", default=None)
+    return parser
+
+
+def _collect_ids(text: str, path: Path | None) -> list[uuid.UUID]:
+    ids = parse_ids(text)
+    if path is not None:
+        ids += read_ids_file(path)
+    return ids
+
+
+def count_exportable_pairs(session: Session) -> int:
+    """How many SME DPO pairs the exporter would produce right now (dry run)."""
+    with tempfile.TemporaryDirectory() as scratch:
+        manifest = export_dpo_package(
+            session, AGENT_ID, Path(scratch) / "package", dry_run=True
+        )
+    return manifest.pair_count
+
+
+def _run_plan(args: argparse.Namespace, session_factory: Any) -> int:
+    write = args.confirm is not None or args.confirm_target is not None
+    if write:
+        _check_write_guards(args, keyword=CONFIRM_SEED_KEYWORD)
+    train_ids = _collect_ids(args.train_evaluations, args.train_evaluations_file)
+    reference_ids = _collect_ids(
+        args.reference_evaluations, args.reference_evaluations_file
+    )
+    edit_codes = normalize_codes(args.edit_criteria.split(","))
+    factory = session_factory if session_factory is not None else get_session_factory()
+    session = factory()
+    try:
+        run = plan_run(
+            session,
+            train_ids=train_ids,
+            reference_ids=reference_ids,
+            edit_codes=edit_codes,
+        )
+        baseline = (
+            count_exportable_pairs(session) if (args.verify_export or write) else None
+        )
+        print(
+            render_report(
+                run, mode="WRITE" if write else "DRY RUN", baseline_pairs=baseline
+            )
+        )
+        if args.report_csv is not None:
+            write_expected_scores_csv(build_expected_scores_rows(run), args.report_csv)
+            print(f"Expected-scores CSV written to {args.report_csv}")
+        if not write:
+            target = _target_ack()
+            if target == NO_DATABASE_TARGET:
+                print(
+                    "\nDry run: nothing was written. Set DATABASE_URL before "
+                    "attempting a write run."
+                )
+            else:
+                print(
+                    "\nDry run: nothing was written. To write, re-run the same "
+                    f"command with --confirm SEED --confirm-target {target}."
+                )
+            return 0
+        if not run.writes:
+            print("\nNothing to write (every edited criterion was skipped).")
+            return 0
+        run_id = uuid.UUID(args.run_id) if args.run_id else uuid.uuid4()
+        rows = write_corrections(session, run, run_id=run_id)
+        print(
+            f"\nWrote {rows} correction(s) for run-id {run_id} "
+            f"(notes='{format_note(run_id)}')."
+        )
+        verdict = "OK"
+        if args.verify_export:
+            after = count_exportable_pairs(session)
+            expected = (baseline or 0) + len(run.pair_generation_ids)
+            verdict = "OK" if after == expected else "MISMATCH"
+            print(
+                f"Export check: {after} exportable SME pair(s) now; expected "
+                f"{expected} ({verdict})."
+            )
+        print("\n".join(REMINDERS))
+        print(
+            f"To remove these corrections: --cleanup --run-id {run_id} "
+            f"--confirm CLEANUP --confirm-target {_target_ack()}"
+        )
+        return 3 if verdict == "MISMATCH" else 0
+    finally:
+        session.close()
+
+
+def get_or_create_house_user(session: Session) -> User:
+    """The dedicated user that owns every correction this script writes."""
+    existing = session.query(User).filter_by(email=HOUSE_USER_EMAIL).one_or_none()
+    if existing is not None:
+        return existing
+    user = create_user(
+        session,
+        name="House Rule Seed",
+        email=HOUSE_USER_EMAIL,
+        password=uuid.uuid4().hex,
+        role=UserRole.FACULTY,
+    )
+    session.flush()
+    return user
+
+
+def write_corrections(session: Session, run: RunPlan, *, run_id: uuid.UUID) -> int:
+    """Insert every planned correction in ONE transaction; all or nothing."""
+    try:
+        user = get_or_create_house_user(session)
+        note = format_note(run_id)
+        for correction in run.writes:
+            session.add(
+                PreferenceLog(
+                    evaluation_id=correction.evaluation_id,
+                    generation_id=correction.generation_id,
+                    user_id=user.user_id,
+                    agent_name=AGENT_ID,
+                    criterion_id=correction.criterion_code,
+                    action="EDIT",
+                    edited_json={"score": correction.new_score},
+                    notes=note,
+                )
+            )
+        session.commit()
+        return len(run.writes)
+    except Exception:
+        session.rollback()
+        raise
+
+
+NO_DATABASE_TARGET = "(no DATABASE_URL)"
+
+
+def _target_ack() -> str:
+    """The value --confirm-target must have: LOCAL, or the database fingerprint."""
+    configured = (getattr(get_settings(), "database_url", None) or "").strip()
+    if configured and is_local_or_test_target(configured):
+        return "LOCAL"
+    return compute_target_fingerprint(configured) if configured else NO_DATABASE_TARGET
+
+
+def _check_write_guards(args: argparse.Namespace, *, keyword: str) -> None:
+    """Both acknowledgements, and a database target that is allowed."""
+    if args.confirm != keyword:
+        raise PermissionError(
+            f"Explicit acknowledgement required: pass --confirm {keyword}."
+        )
+    validate_database_target()
+    expected = _target_ack()
+    if (args.confirm_target or "").strip().lower() != expected.lower():
+        raise PermissionError(
+            "Explicit acknowledgement required for the database target: pass "
+            f"--confirm-target {expected}."
+        )
+
+
+def cleanup(session: Session, *, run_id: uuid.UUID | str) -> int:
+    """Delete exactly the corrections this script wrote for `run_id`.
+
+    Only rows whose note equals the run tag, that belong to the house user and
+    whose action is EDIT are removed. Aborts (deleting nothing) if any of them is
+    not for the SME agent. Older decisions become the effective ones again.
+    """
+    parsed = run_id if isinstance(run_id, uuid.UUID) else uuid.UUID(str(run_id))
+    user = session.query(User).filter_by(email=HOUSE_USER_EMAIL).one_or_none()
+    if user is None:
+        return 0
+    try:
+        rows = (
+            session.query(PreferenceLog)
+            .filter(
+                PreferenceLog.notes == format_note(parsed),
+                PreferenceLog.user_id == user.user_id,
+                PreferenceLog.action == "EDIT",
+            )
+            .all()
+        )
+        wrong = [r for r in rows if (r.agent_name or "").lower() != AGENT_ID]
+        if wrong:
+            raise IneligibleRunError(
+                f"{len(wrong)} tagged correction(s) are not for the SME agent; "
+                "cleanup aborted and nothing was deleted."
+            )
+        for row in rows:
+            session.delete(row)
+        session.commit()
+        return len(rows)
+    except Exception:
+        session.rollback()
+        raise
+
+
+def _run_cleanup(args: argparse.Namespace, session_factory: Any) -> int:
+    _check_write_guards(args, keyword=CONFIRM_CLEANUP_KEYWORD)
+    if not args.run_id:
+        raise ValueError("Cleanup requires an exact --run-id <UUID>.")
+    run_id = uuid.UUID(args.run_id)
+    factory = session_factory if session_factory is not None else get_session_factory()
+    session = factory()
+    try:
+        removed = cleanup(session, run_id=run_id)
+    finally:
+        session.close()
+    print(f"Removed {removed} correction(s) for run-id {run_id}.")
+    if removed == 0:
+        print(
+            "Removed 0 rows. Check the run id: it must match the one printed by "
+            "the write step."
+        )
+    return 0
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    session_factory: Callable[[], Session] | None = None,
+) -> int:
+    """Exit codes: 0 ok, 2 aborted (nothing written), 3 refused by a safety check
+    or an export-check MISMATCH after writing (run the cleanup and investigate).
+    """
+    import_model_modules()
+    args = build_parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    try:
+        validate_environment()
+        if args.cleanup:
+            return _run_cleanup(args, session_factory)
+        return _run_plan(args, session_factory)
+    except FileAccessError as exc:
+        print(_ascii(f"ERROR: {exc}"))
+        return 2
+    except PermissionError as exc:
+        print(_ascii(f"REFUSED: {exc}"))
+        return 3
+    except (IneligibleRunError, ValueError) as exc:
+        print(_ascii(f"ABORTED: {exc}"))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

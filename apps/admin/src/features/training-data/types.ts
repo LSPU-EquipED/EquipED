@@ -53,6 +53,31 @@ export interface TrainingJobCreateResponse {
   created_at: string;
 }
 
+export interface TrainingSnapshot {
+  step?: number | null;
+  loss?: number | null;
+  margin?: number | null;
+  accuracy?: number | null;
+  chosen?: number | null;
+  rejected?: number | null;
+}
+
+export interface HeldoutSummary {
+  pair_count?: number | null;
+  loss?: number | null;
+  margin?: number | null;
+  accuracy?: number | null;
+}
+
+export interface TrainingSummary {
+  version: number;
+  steps?: number | null;
+  epochs?: number | null;
+  first?: TrainingSnapshot | null;
+  last?: TrainingSnapshot | null;
+  heldout?: HeldoutSummary | null;
+}
+
 export interface TrainedAdapterItem {
   adapter_id: string;
   agent_id: string;
@@ -64,6 +89,7 @@ export interface TrainedAdapterItem {
   gguf_filename: string;
   loaded: boolean | null;
   published: boolean;
+  training_summary?: TrainingSummary | null;
 }
 
 export interface TrainedAdapterListResponse {
