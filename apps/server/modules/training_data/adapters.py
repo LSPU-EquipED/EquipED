@@ -98,6 +98,7 @@ def store_adapter_upload(
                 file_path=artifact.file_path,
                 file_sha256=artifact.file_sha256,
                 size_bytes=artifact.size_bytes,
+                training_summary=staged.training_summary,
             )
             try:
                 # Use a savepoint so an IntegrityError on the adapter row does not
