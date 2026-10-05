@@ -37,8 +37,10 @@ const EMPTY_HISTORY_ITEMS: ModelValidationItem[] = [];
 
 export function ValidationHistoryTable({
   history,
+  onRerun,
 }: {
   history: UseQueryResult<ModelValidationListResponse>;
+  onRerun?: (item: ModelValidationItem) => void;
 }) {
   const items = history.data?.items ?? EMPTY_HISTORY_ITEMS;
   const {
@@ -216,6 +218,7 @@ export function ValidationHistoryTable({
                           comparedCount={compared.length}
                           exactMatches={exactMatches}
                           onToggle={() => setExpandedValidationId(item.validation_id)}
+                          onRerun={onRerun}
                         />
                       );
                     })

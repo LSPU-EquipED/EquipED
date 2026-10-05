@@ -96,7 +96,13 @@ export function ModelValidationPage() {
               <AgentProgressPanel key={validation.validation_id} validation={validation} />
             ))}
 
-            <ValidationHistoryTable history={history} />
+            <ValidationHistoryTable
+              history={history}
+              onRerun={async (item) => {
+                await formState.preloadFromRun(item);
+                setActiveTab('new-run');
+              }}
+            />
           </div>
         </div>
       ) : null}
