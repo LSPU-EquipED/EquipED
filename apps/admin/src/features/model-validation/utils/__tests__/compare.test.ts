@@ -166,3 +166,38 @@ describe('better markers on rows', () => {
     expect(computePairComparison(run([]), run([]), new Set()).winner).toBeNull();
   });
 });
+
+describe('shared yardstick', () => {
+  it('excludes criteria whose expected scores differ and lists them', () => {
+    const a = run([score('sme', 'A-01', 3, 3), score('sme', 'A-05', 3, 3)]);
+    const b = run([score('sme', 'A-01', 3, 2), score('sme', 'A-05', 4, 4)]);
+    const result = computePairComparison(a, b, new Set());
+    expect(result.differingExpected).toEqual(['A-05']);
+    expect(result.chips.map((c) => c.key)).toEqual([compareChipKey('sme', 'A-01')]);
+    expect(result.rows.find((r) => r.label === 'Exact matches')?.base).toBe('1 of 1');
+    expect(result.baseMeanError).toBe(0);
+    expect(result.adapterMeanError).toBe(1);
+  });
+
+  it('excludes criteria with a non-numeric expected score on either side', () => {
+    const bad = (v: unknown) =>
+      ({ ...score('sme', 'A-02', 3, 3), expected_score: v }) as unknown as ModelValidationCriterionScore;
+    const a = run([score('sme', 'A-01', 3, 3), bad(null)]);
+    const b = run([score('sme', 'A-01', 3, 3), score('sme', 'A-02', 3, 3)]);
+    expect(computePairComparison(a, b, new Set()).chips).toHaveLength(1);
+    expect(computePairComparison(b, a, new Set()).chips).toHaveLength(1);
+  });
+
+  it('reports no-overlap with the differing list when every criterion differs', () => {
+    const a = run([score('sme', 'A-05', 3, 3)]);
+    const b = run([score('sme', 'A-05', 2, 3)]);
+    const result = computePairComparison(a, b, new Set());
+    expect(result.status).toBe('no-overlap');
+    expect(result.differingExpected).toEqual(['A-05']);
+  });
+
+  it('treats errors equal at 2 decimals as a tie', () => {
+    expect(decideWinner(0.4, 0.40004, 1, 1)).toBe('tie');
+    expect(decideWinner(0.4, 0.40004, 1, 2)).toBe('adapter');
+  });
+});

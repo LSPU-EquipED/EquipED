@@ -208,4 +208,19 @@ describe('ValidationCompareTab', () => {
     expect(screen.getByText('Tie')).toBeDefined();
     expect(screen.queryByText('Better')).toBeNull();
   });
+
+  it('lists criteria skipped for differing expected scores without chips', () => {
+    const list = [
+      item('b1', 'base', [score('A-01', 3, 2), score('A-05', 3, 3)]),
+      item('a1', 'adapter', [score('A-01', 3, 3), score('A-05', 4, 4)]),
+    ];
+    render(<ValidationCompareTab history={historyOf(list)} />);
+    choose('Base run', /SLM b1/);
+    choose('Adapter run', /SLM a1/);
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    expect(
+      screen.getByText('Skipped 1 criteria because the two runs have different expected scores: A-05'),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: /A-05/ })).toBeNull();
+  });
 });

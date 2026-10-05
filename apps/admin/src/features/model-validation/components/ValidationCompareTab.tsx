@@ -190,8 +190,11 @@ export function ValidationCompareTab({
 
       {comparison?.status === 'no-overlap' ? (
         <p className="text-sm text-text-muted">
-          These two runs have no criteria in common with real scores, so there is nothing to
-          compare.
+          These two runs have no criteria in common with the same expected score, so there is
+          nothing to compare.
+          {comparison.differingExpected.length > 0
+            ? ` The runs have different expected scores for: ${comparison.differingExpected.join(', ')}.`
+            : ''}
         </p>
       ) : null}
 
@@ -244,6 +247,12 @@ export function ValidationCompareTab({
               <p className="text-sm font-medium text-text">{comparison.summary}</p>
             </>
           )}
+
+          {comparison.differingExpected.length > 0 ? (
+            <p className="text-xs leading-relaxed text-text-muted">
+              {`Skipped ${comparison.differingExpected.length} criteria because the two runs have different expected scores: ${comparison.differingExpected.join(', ')}`}
+            </p>
+          ) : null}
 
           <p className="text-xs leading-relaxed text-text-muted">
             Closer to the expected scores means the model followed them. It means closer to a human

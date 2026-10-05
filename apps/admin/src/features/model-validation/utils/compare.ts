@@ -22,6 +22,8 @@ export type CompareVerdict = 'closer' | 'same' | 'farther';
 
 export interface PairComparison {
   winner: Side | null;
+  /** Criteria left out because the two runs carry different expected scores. */
+  differingExpected: string[];
   status: 'ok' | 'no-overlap' | 'all-skipped';
   chips: CompareChip[];
   rows: CompareRow[];
@@ -46,7 +48,8 @@ export const compareChipKey = (agentId: string, criterionId: string) =>
   criterionKey(agentId, criterionId);
 
 const side = (base: number, adapter: number, lowerIsBetter: boolean): Side => {
-  if (Math.abs(base - adapter) < EPSILON) return 'tie';
+  const round = (v: number) => Math.round(v * 100) / 100;
+  if (Math.abs(round(base) - round(adapter)) < EPSILON) return 'tie';
   return (adapter < base) === lowerIsBetter ? 'adapter' : 'base';
 };
 
@@ -80,12 +83,18 @@ export function computePairComparison(
   );
 
   const chips: CompareChip[] = [];
+  const differingExpected: string[] = [];
   const pairs: { expected: number; base: number; adapter: number }[] = [];
   for (const b of baseItem.criterion_scores) {
     const key = compareChipKey(b.agent_id, b.criterion_id);
     const a = adapterByKey.get(key);
     if (!a || b.actual_score == null || a.actual_score == null) continue;
-    if (!Number.isFinite(b.expected_score)) continue;
+    if (typeof b.expected_score !== 'number' || !Number.isFinite(b.expected_score)) continue;
+    if (typeof a.expected_score !== 'number' || !Number.isFinite(a.expected_score)) continue;
+    if (a.expected_score !== b.expected_score) {
+      differingExpected.push(b.criterion_id);
+      continue;
+    }
     const isSkipped = skipped.has(key);
     chips.push({ key, label: `${b.agent_id.toUpperCase()} ${b.criterion_id}`, skipped: isSkipped });
     if (!isSkipped) {
@@ -95,6 +104,7 @@ export function computePairComparison(
 
   const empty: PairComparison = {
     winner: null,
+    differingExpected,
     status: chips.length === 0 ? 'no-overlap' : 'all-skipped',
     chips,
     rows: [],
@@ -170,6 +180,7 @@ export function computePairComparison(
   ];
 
   return {
+    differingExpected,
     winner: decideWinner(baseMeanError, adapterMeanError, baseExact, adapterExact),
     status: 'ok',
     chips,
