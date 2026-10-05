@@ -786,3 +786,85 @@ describe('preloadFromRun is non-destructive', () => {
     spies.forEach((spy) => expect(spy).not.toHaveBeenCalled());
   });
 });
+
+describe('preloadFromRun error and race handling', () => {
+  async function setup() {
+    mockCatalog();
+    mockAdapters();
+    const rendered = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(rendered.result.current.criterionCatalog.isSuccess).toBe(true));
+    return rendered;
+  }
+
+  it('clears a failed-preload error when a new file is chosen', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'getDocument').mockRejectedValue(new Error('boom'));
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.preloadError).not.toBeNull();
+
+    act(() => {
+      result.current.handleFile({
+        target: { files: [new File(['x'], 'new.pdf', { type: 'application/pdf' })] },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+    expect(result.current.preloadError).toBeNull();
+  });
+
+  it('clears a failed-preload error on "Use a different file"', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'getDocument').mockRejectedValue(new Error('boom'));
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.preloadError).not.toBeNull();
+    act(() => result.current.resetPreparedUpload());
+    expect(result.current.preloadError).toBeNull();
+  });
+
+  it('ignores a slower earlier preload that resolves after a later one', async () => {
+    const { result } = await setup();
+    let releaseFirst: (doc: ClientDocument) => void = () => {};
+    const getDoc = vi.spyOn(documentsApi, 'getDocument');
+    getDoc.mockImplementationOnce(
+      () => new Promise<ClientDocument>((resolve) => (releaseFirst = resolve)),
+    );
+    getDoc.mockResolvedValue({ ...mockReadyDoc, documentId: 'doc-second' });
+
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.preloadFromRun(historyItem({ document_id: 'doc-first' }));
+    });
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem({ document_id: 'doc-second' }));
+    });
+    expect(result.current.uploaded?.documentId).toBe('doc-second');
+
+    await act(async () => {
+      releaseFirst({ ...mockReadyDoc, documentId: 'doc-first' });
+      await first;
+    });
+    expect(result.current.uploaded?.documentId).toBe('doc-second');
+  });
+
+  it('resets an old upload error when a preload starts', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'uploadDocument').mockRejectedValue(new Error('upload broke'));
+    await act(async () => {
+      result.current.uploadMutation.mutate({
+        file: new File(['x'], 'a.pdf', { type: 'application/pdf' }),
+        title: 't',
+        program: 'BSCS',
+      });
+    });
+    await waitFor(() => expect(result.current.uploadMutation.error).not.toBeNull());
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.uploadMutation.error).toBeNull();
+  });
+});

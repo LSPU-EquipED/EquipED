@@ -20,6 +20,7 @@ import { useAdapterChoices, useModelValidationCriteria } from './useModelValidat
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const preloadSeq = useRef(0);
   const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -93,6 +94,7 @@ export function useModelValidationFormState() {
       setExpectedScores({});
       setUploaded(null);
       setUsingStoredDocument(false);
+      setPreloadError(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
   });
@@ -172,6 +174,7 @@ export function useModelValidationFormState() {
     setFile(null);
     setUploaded(null);
     setUsingStoredDocument(false);
+    setPreloadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -180,6 +183,7 @@ export function useModelValidationFormState() {
     setFile(nextFile);
     setUploaded(null);
     setUsingStoredDocument(false);
+    setPreloadError(null);
     if (nextFile && !title.trim()) setTitle(nextFile.name.replace(/\.pdf$/i, ''));
   };
 
@@ -191,12 +195,16 @@ export function useModelValidationFormState() {
   const handlePrepare = (event: FormEvent) => {
     event.preventDefault();
     if (!file || !title.trim() || !program || !allCriterionScoresComplete) return;
+    setPreloadError(null);
     uploadMutation.mutate({ file, title, program });
   };
 
   // Preload the form from a past run: same agent, same scores, the already
   // stored SLM (no re-upload). The Model is left unselected on purpose.
   const preloadFromRun = async (item: ModelValidationItem) => {
+    const requestId = ++preloadSeq.current;
+    setPreloadError(null);
+    uploadMutation.reset();
     const agentId = item.criterion_scores[0]?.agent_id;
     if (agentId !== 'sme' && agentId !== 'gad' && agentId !== 'itso') {
       setPreloadError('This run has no SME, GAD or ITSO agent to re-run.');
@@ -206,9 +214,11 @@ export function useModelValidationFormState() {
     try {
       document = await documentsApi.getDocument(item.document_id);
     } catch (err) {
+      if (requestId !== preloadSeq.current) return;
       setPreloadError(getErrorMessage(err, 'Unable to load the stored SLM for this run.'));
       return;
     }
+    if (requestId !== preloadSeq.current) return;
     setPreloadError(null);
     validationMutation.reset();
     setFile(null);
