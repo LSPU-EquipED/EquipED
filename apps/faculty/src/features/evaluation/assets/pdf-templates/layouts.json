@@ -1,0 +1,1604 @@
+{
+  "coordinator": {
+    "code": "LSPU-CID-SF-003",
+    "width": 595.44,
+    "height": 841.68,
+    "rows": [
+      {
+        "text": "Topics are coherent from Unit to Chapter.",
+        "cells": [
+          [
+            448.24,
+            313.01,
+            467.68,
+            328.13
+          ],
+          [
+            467.68,
+            313.01,
+            487.18,
+            328.13
+          ],
+          [
+            487.18,
+            313.01,
+            506.62,
+            328.13
+          ],
+          [
+            506.62,
+            313.01,
+            526.18,
+            328.13
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            321.67
+          ],
+          [
+            476.34,
+            321.67
+          ],
+          [
+            495.78,
+            321.67
+          ],
+          [
+            515.22,
+            321.67
+          ]
+        ],
+        "criterionCode": "OP-01",
+        "title": "Topic Coherence"
+      },
+      {
+        "text": "Material is interactive in each lesson which makes life-long learning easier.",
+        "cells": [
+          [
+            448.24,
+            328.13,
+            467.68,
+            357.29
+          ],
+          [
+            467.68,
+            328.13,
+            487.18,
+            357.29
+          ],
+          [
+            487.18,
+            328.13,
+            506.62,
+            357.29
+          ],
+          [
+            506.62,
+            328.13,
+            526.18,
+            357.29
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            336.67
+          ],
+          [
+            476.34,
+            336.67
+          ],
+          [
+            495.78,
+            336.67
+          ],
+          [
+            515.22,
+            336.67
+          ]
+        ],
+        "criterionCode": "OP-02",
+        "title": "Interactivity"
+      },
+      {
+        "text": "Directions are clear and complete enough for students to perform required tasks.",
+        "cells": [
+          [
+            448.24,
+            357.29,
+            467.68,
+            386.33
+          ],
+          [
+            467.68,
+            357.29,
+            487.18,
+            386.33
+          ],
+          [
+            487.18,
+            357.29,
+            506.62,
+            386.33
+          ],
+          [
+            506.62,
+            357.29,
+            526.18,
+            386.33
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            365.83
+          ],
+          [
+            476.34,
+            365.83
+          ],
+          [
+            495.78,
+            365.83
+          ],
+          [
+            515.22,
+            365.83
+          ]
+        ],
+        "criterionCode": "OP-03",
+        "title": "Clear Directions"
+      },
+      {
+        "text": "Paragraphs and sections have clear and accurate information.",
+        "cells": [
+          [
+            448.24,
+            386.33,
+            467.68,
+            401.47
+          ],
+          [
+            467.68,
+            386.33,
+            487.18,
+            401.47
+          ],
+          [
+            487.18,
+            386.33,
+            506.62,
+            401.47
+          ],
+          [
+            506.62,
+            386.33,
+            526.18,
+            401.47
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            395.01
+          ],
+          [
+            476.34,
+            395.01
+          ],
+          [
+            495.78,
+            395.01
+          ],
+          [
+            515.22,
+            395.01
+          ]
+        ],
+        "criterionCode": "OP-04",
+        "title": "Accurate Sections"
+      },
+      {
+        "text": "Enhancement activities for students are provided.",
+        "cells": [
+          [
+            448.24,
+            401.47,
+            467.68,
+            416.59
+          ],
+          [
+            467.68,
+            401.47,
+            487.18,
+            416.59
+          ],
+          [
+            487.18,
+            401.47,
+            506.62,
+            416.59
+          ],
+          [
+            506.62,
+            401.47,
+            526.18,
+            416.59
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            410.01
+          ],
+          [
+            476.34,
+            410.01
+          ],
+          [
+            495.78,
+            410.01
+          ],
+          [
+            515.22,
+            410.01
+          ]
+        ],
+        "criterionCode": "OP-05",
+        "title": "Enhancement Activities"
+      },
+      {
+        "text": "Students are engaged in transforming what they learn.",
+        "cells": [
+          [
+            448.24,
+            461.47,
+            467.68,
+            476.59
+          ],
+          [
+            467.68,
+            461.47,
+            487.18,
+            476.59
+          ],
+          [
+            487.18,
+            461.47,
+            506.62,
+            476.59
+          ],
+          [
+            506.62,
+            461.47,
+            526.18,
+            476.59
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            470.01
+          ],
+          [
+            476.34,
+            470.01
+          ],
+          [
+            495.9,
+            470.01
+          ],
+          [
+            515.34,
+            470.01
+          ]
+        ],
+        "criterionCode": "A-01",
+        "title": "Learner Transformation"
+      },
+      {
+        "text": "Teachers can easily assess students\u2019 progress by using varied assessment tools.",
+        "cells": [
+          [
+            448.24,
+            476.59,
+            467.68,
+            505.63
+          ],
+          [
+            467.68,
+            476.59,
+            487.18,
+            505.63
+          ],
+          [
+            487.18,
+            476.59,
+            506.62,
+            505.63
+          ],
+          [
+            506.62,
+            476.59,
+            526.18,
+            505.63
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            485.13
+          ],
+          [
+            476.34,
+            485.13
+          ],
+          [
+            495.9,
+            485.13
+          ],
+          [
+            515.34,
+            485.13
+          ]
+        ],
+        "criterionCode": "A-02",
+        "title": "Varied Assessment Tools"
+      },
+      {
+        "text": "The material keeps an on-going record of students\u2019 progress and allows the teacher to monitor student performance.",
+        "cells": [
+          [
+            448.24,
+            505.63,
+            467.68,
+            534.79
+          ],
+          [
+            467.68,
+            505.63,
+            487.18,
+            534.79
+          ],
+          [
+            487.18,
+            505.63,
+            506.62,
+            534.79
+          ],
+          [
+            506.62,
+            505.63,
+            526.18,
+            534.79
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            514.29
+          ],
+          [
+            476.34,
+            514.29
+          ],
+          [
+            495.9,
+            514.29
+          ],
+          [
+            515.34,
+            514.29
+          ]
+        ],
+        "criterionCode": "A-03",
+        "title": "Progress Monitoring"
+      },
+      {
+        "text": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+        "cells": [
+          [
+            448.24,
+            534.79,
+            467.68,
+            563.98
+          ],
+          [
+            467.68,
+            534.79,
+            487.18,
+            563.98
+          ],
+          [
+            487.18,
+            534.79,
+            506.62,
+            563.98
+          ],
+          [
+            506.62,
+            534.79,
+            526.18,
+            563.98
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            543.45
+          ],
+          [
+            476.34,
+            543.45
+          ],
+          [
+            495.9,
+            543.45
+          ],
+          [
+            515.34,
+            543.45
+          ]
+        ],
+        "criterionCode": "A-04",
+        "title": "Prescriptive Feedback"
+      },
+      {
+        "text": "Objectives are gauged effectively.",
+        "cells": [
+          [
+            448.24,
+            563.98,
+            467.68,
+            579.1
+          ],
+          [
+            467.68,
+            563.98,
+            487.18,
+            579.1
+          ],
+          [
+            487.18,
+            563.98,
+            506.62,
+            579.1
+          ],
+          [
+            506.62,
+            563.98,
+            526.18,
+            579.1
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            572.52
+          ],
+          [
+            476.34,
+            572.52
+          ],
+          [
+            495.9,
+            572.52
+          ],
+          [
+            515.34,
+            572.52
+          ]
+        ],
+        "criterionCode": "A-05",
+        "title": "Objective Gauging"
+      }
+    ],
+    "totals": [
+      [
+        448.24,
+        416.59,
+        526.18,
+        431.59
+      ],
+      [
+        448.24,
+        579.1,
+        526.18,
+        594.1
+      ]
+    ],
+    "averageY": 606.8,
+    "ratingY": 620.8,
+    "sha256": "3fd243bd0089520ac6e7749250ffaa9eec494781c34c31e6bf8780a76816e43f",
+    "ratingX": 409.26,
+    "commentBaselines": [
+      690.46,
+      704.5,
+      718.56,
+      732.72
+    ],
+    "evaluatedDateLine": [
+      386.47,
+      760.8,
+      519.9
+    ]
+  },
+  "gad": {
+    "code": "LSPU-CID-SF-004",
+    "width": 595.44,
+    "height": 841.68,
+    "rows": [
+      {
+        "text": "The material is free from gender stereotypes.",
+        "cells": [
+          [
+            446.86,
+            318.53,
+            466.06,
+            333.65
+          ],
+          [
+            466.06,
+            318.53,
+            485.38,
+            333.65
+          ],
+          [
+            485.38,
+            318.53,
+            504.7,
+            333.65
+          ],
+          [
+            504.7,
+            318.53,
+            524.02,
+            333.65
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            327.07
+          ],
+          [
+            474.78,
+            327.07
+          ],
+          [
+            494.1,
+            327.07
+          ],
+          [
+            513.42,
+            327.07
+          ]
+        ],
+        "criterionCode": "GAD-01",
+        "title": "Free from Stereotypes"
+      },
+      {
+        "text": "The material shows females and males an equal number of times.",
+        "cells": [
+          [
+            446.86,
+            333.65,
+            466.06,
+            348.65
+          ],
+          [
+            466.06,
+            333.65,
+            485.38,
+            348.65
+          ],
+          [
+            485.38,
+            333.65,
+            504.7,
+            348.65
+          ],
+          [
+            504.7,
+            333.65,
+            524.02,
+            348.65
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            342.19
+          ],
+          [
+            474.78,
+            342.19
+          ],
+          [
+            494.1,
+            342.19
+          ],
+          [
+            513.42,
+            342.19
+          ]
+        ],
+        "criterionCode": "GAD-02",
+        "title": "Equal Representation"
+      },
+      {
+        "text": "The material shows females and males with equal respect, and potential",
+        "cells": [
+          [
+            446.86,
+            348.65,
+            466.06,
+            377.81
+          ],
+          [
+            466.06,
+            348.65,
+            485.38,
+            377.81
+          ],
+          [
+            485.38,
+            348.65,
+            504.7,
+            377.81
+          ],
+          [
+            504.7,
+            348.65,
+            524.02,
+            377.81
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            357.19
+          ],
+          [
+            474.78,
+            357.19
+          ],
+          [
+            494.1,
+            357.19
+          ],
+          [
+            513.42,
+            357.19
+          ]
+        ],
+        "criterionCode": "GAD-03",
+        "title": "Equal Respect"
+      },
+      {
+        "text": "The material reflects the needs and life experiences of both male and female students.",
+        "cells": [
+          [
+            446.86,
+            377.81,
+            466.06,
+            408.55
+          ],
+          [
+            466.06,
+            377.81,
+            485.38,
+            408.55
+          ],
+          [
+            485.38,
+            377.81,
+            504.7,
+            408.55
+          ],
+          [
+            504.7,
+            377.81,
+            524.02,
+            408.55
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            386.35
+          ],
+          [
+            474.78,
+            386.35
+          ],
+          [
+            494.1,
+            386.35
+          ],
+          [
+            513.42,
+            386.35
+          ]
+        ],
+        "criterionCode": "GAD-04",
+        "title": "Reflects Experiences"
+      },
+      {
+        "text": "The material promotes peace and equality for males and females, regardless, of their race, class, disability, religion, sexual preference, or ethnic background",
+        "cells": [
+          [
+            446.86,
+            408.55,
+            466.06,
+            451.75
+          ],
+          [
+            466.06,
+            408.55,
+            485.38,
+            451.75
+          ],
+          [
+            485.38,
+            408.55,
+            504.7,
+            451.75
+          ],
+          [
+            504.7,
+            408.55,
+            524.02,
+            451.75
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            417.09
+          ],
+          [
+            474.78,
+            417.09
+          ],
+          [
+            494.1,
+            417.09
+          ],
+          [
+            513.42,
+            417.09
+          ]
+        ],
+        "criterionCode": "GAD-05",
+        "title": "Promotes Equality"
+      }
+    ],
+    "totals": [
+      [
+        446.86,
+        451.75,
+        524.02,
+        466.87
+      ]
+    ],
+    "averageY": 493.49,
+    "ratingY": 507.49,
+    "sha256": "49be30658aae30542e2d0dbbd2b4d35c5e27db615b2a8006b085d2db03167919",
+    "ratingX": 409.26,
+    "commentBaselines": [
+      591.34,
+      605.38,
+      619.42,
+      633.46
+    ],
+    "evaluatedDateLine": [
+      386.47,
+      661.66,
+      519.9
+    ]
+  },
+  "itso": {
+    "code": "LSPU-CID-SF-005",
+    "width": 595.44,
+    "height": 841.68,
+    "rows": [
+      {
+        "text": "The material has no intellectual property issue, such as plagiarism.",
+        "cells": [
+          [
+            446.86,
+            319.73,
+            466.06,
+            334.73
+          ],
+          [
+            466.06,
+            319.73,
+            485.38,
+            334.73
+          ],
+          [
+            485.38,
+            319.73,
+            504.7,
+            334.73
+          ],
+          [
+            504.7,
+            319.73,
+            524.02,
+            334.73
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.42,
+            328.27
+          ],
+          [
+            475.74,
+            328.27
+          ],
+          [
+            495.06,
+            328.27
+          ],
+          [
+            514.38,
+            328.27
+          ]
+        ],
+        "criterionCode": "ITSO-01",
+        "title": "No IP Issue"
+      },
+      {
+        "text": "The material includes reference section where the sources are properly acknowledged.",
+        "cells": [
+          [
+            446.86,
+            334.73,
+            466.06,
+            363.89
+          ],
+          [
+            466.06,
+            334.73,
+            485.38,
+            363.89
+          ],
+          [
+            485.38,
+            334.73,
+            504.7,
+            363.89
+          ],
+          [
+            504.7,
+            334.73,
+            524.02,
+            363.89
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.42,
+            350.35
+          ],
+          [
+            475.74,
+            350.35
+          ],
+          [
+            495.06,
+            350.35
+          ],
+          [
+            514.38,
+            350.35
+          ]
+        ],
+        "criterionCode": "ITSO-02",
+        "title": "Proper References"
+      },
+      {
+        "text": "The material ensures the freedom of the faculty to retain ownership of the teaching materials.",
+        "cells": [
+          [
+            446.86,
+            363.89,
+            466.06,
+            393.06
+          ],
+          [
+            466.06,
+            363.89,
+            485.38,
+            393.06
+          ],
+          [
+            485.38,
+            363.89,
+            504.7,
+            393.06
+          ],
+          [
+            504.7,
+            363.89,
+            524.02,
+            393.06
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.42,
+            379.51
+          ],
+          [
+            475.74,
+            379.51
+          ],
+          [
+            495.06,
+            379.51
+          ],
+          [
+            514.38,
+            379.51
+          ]
+        ],
+        "criterionCode": "ITSO-03",
+        "title": "Faculty Ownership"
+      },
+      {
+        "text": "The material includes confidentiality of student information.",
+        "cells": [
+          [
+            446.86,
+            393.06,
+            466.06,
+            408.19
+          ],
+          [
+            466.06,
+            393.06,
+            485.38,
+            408.19
+          ],
+          [
+            485.38,
+            393.06,
+            504.7,
+            408.19
+          ],
+          [
+            504.7,
+            393.06,
+            524.02,
+            408.19
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.42,
+            401.61
+          ],
+          [
+            475.74,
+            401.61
+          ],
+          [
+            495.06,
+            401.61
+          ],
+          [
+            514.38,
+            401.61
+          ]
+        ],
+        "criterionCode": "ITSO-04",
+        "title": "Student Confidentiality"
+      },
+      {
+        "text": "The material secures the right of the teacher and students.",
+        "cells": [
+          [
+            446.86,
+            408.19,
+            466.06,
+            423.19
+          ],
+          [
+            466.06,
+            408.19,
+            485.38,
+            423.19
+          ],
+          [
+            485.38,
+            408.19,
+            504.7,
+            423.19
+          ],
+          [
+            504.7,
+            408.19,
+            524.02,
+            423.19
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.42,
+            416.73
+          ],
+          [
+            475.74,
+            416.73
+          ],
+          [
+            495.06,
+            416.73
+          ],
+          [
+            514.38,
+            416.73
+          ]
+        ],
+        "criterionCode": "ITSO-05",
+        "title": "Teacher and Student Rights"
+      }
+    ],
+    "totals": [
+      [
+        446.86,
+        423.19,
+        524.02,
+        438.31
+      ]
+    ],
+    "averageY": 464.93,
+    "ratingY": 478.93,
+    "sha256": "f2ff46319f731734934ca8b055ead3c2dd5fb0d955cf7a68b4859738f8450f73",
+    "ratingX": 409.26,
+    "commentBaselines": [
+      573.34,
+      587.38,
+      601.42,
+      615.58
+    ],
+    "evaluatedDateLine": [
+      378.55,
+      643.66,
+      511.98
+    ]
+  },
+  "sme": {
+    "code": "LSPU-CID-SF-002",
+    "width": 595.44,
+    "height": 841.68,
+    "rows": [
+      {
+        "text": "Topics are coherent from Unit to Chapter.",
+        "cells": [
+          [
+            447.52,
+            312.65,
+            466.84,
+            327.77
+          ],
+          [
+            466.84,
+            312.65,
+            486.28,
+            327.77
+          ],
+          [
+            486.28,
+            312.65,
+            505.66,
+            327.77
+          ],
+          [
+            505.66,
+            312.65,
+            525.1,
+            327.77
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            321.19
+          ],
+          [
+            474.78,
+            321.19
+          ],
+          [
+            494.1,
+            321.19
+          ],
+          [
+            513.42,
+            321.19
+          ]
+        ],
+        "criterionCode": "OP-01",
+        "title": "Topic Coherence"
+      },
+      {
+        "text": "Material is interactive in each lesson which makes life-long learning easier.",
+        "cells": [
+          [
+            447.52,
+            327.77,
+            466.84,
+            356.93
+          ],
+          [
+            466.84,
+            327.77,
+            486.28,
+            356.93
+          ],
+          [
+            486.28,
+            327.77,
+            505.66,
+            356.93
+          ],
+          [
+            505.66,
+            327.77,
+            525.1,
+            356.93
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            336.31
+          ],
+          [
+            474.78,
+            336.31
+          ],
+          [
+            494.1,
+            336.31
+          ],
+          [
+            513.42,
+            336.31
+          ]
+        ],
+        "criterionCode": "OP-02",
+        "title": "Interactivity"
+      },
+      {
+        "text": "Directions are clear and complete enough for students to perform required tasks.",
+        "cells": [
+          [
+            447.52,
+            356.93,
+            466.84,
+            385.97
+          ],
+          [
+            466.84,
+            356.93,
+            486.28,
+            385.97
+          ],
+          [
+            486.28,
+            356.93,
+            505.66,
+            385.97
+          ],
+          [
+            505.66,
+            356.93,
+            525.1,
+            385.97
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            365.47
+          ],
+          [
+            474.78,
+            365.47
+          ],
+          [
+            494.1,
+            365.47
+          ],
+          [
+            513.42,
+            365.47
+          ]
+        ],
+        "criterionCode": "OP-03",
+        "title": "Clear Directions"
+      },
+      {
+        "text": "Paragraphs and sections have clear and accurate information.",
+        "cells": [
+          [
+            447.52,
+            385.97,
+            466.84,
+            401.11
+          ],
+          [
+            466.84,
+            385.97,
+            486.28,
+            401.11
+          ],
+          [
+            486.28,
+            385.97,
+            505.66,
+            401.11
+          ],
+          [
+            505.66,
+            385.97,
+            525.1,
+            401.11
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            394.65
+          ],
+          [
+            474.78,
+            394.65
+          ],
+          [
+            494.1,
+            394.65
+          ],
+          [
+            513.42,
+            394.65
+          ]
+        ],
+        "criterionCode": "OP-04",
+        "title": "Accurate Sections"
+      },
+      {
+        "text": "Enhancement activities for students are provided.",
+        "cells": [
+          [
+            447.52,
+            401.11,
+            466.84,
+            416.11
+          ],
+          [
+            466.84,
+            401.11,
+            486.28,
+            416.11
+          ],
+          [
+            486.28,
+            401.11,
+            505.66,
+            416.11
+          ],
+          [
+            505.66,
+            401.11,
+            525.1,
+            416.11
+          ]
+        ],
+        "scoreCenters": [
+          [
+            455.46,
+            409.65
+          ],
+          [
+            474.78,
+            409.65
+          ],
+          [
+            494.1,
+            409.65
+          ],
+          [
+            513.42,
+            409.65
+          ]
+        ],
+        "criterionCode": "OP-05",
+        "title": "Enhancement Activities"
+      },
+      {
+        "text": "Students are engaged in transforming what they learn.",
+        "cells": [
+          [
+            447.52,
+            461.11,
+            466.84,
+            476.11
+          ],
+          [
+            466.84,
+            461.11,
+            486.28,
+            476.11
+          ],
+          [
+            486.28,
+            461.11,
+            505.66,
+            476.11
+          ],
+          [
+            505.66,
+            461.11,
+            525.1,
+            476.11
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            469.65
+          ],
+          [
+            476.34,
+            469.65
+          ],
+          [
+            495.9,
+            469.65
+          ],
+          [
+            515.34,
+            469.65
+          ]
+        ],
+        "criterionCode": "A-01",
+        "title": "Learner Transformation"
+      },
+      {
+        "text": "Teachers can easily assess students\u2019 progress by using varied assessment tools.",
+        "cells": [
+          [
+            447.52,
+            476.11,
+            466.84,
+            505.27
+          ],
+          [
+            466.84,
+            476.11,
+            486.28,
+            505.27
+          ],
+          [
+            486.28,
+            476.11,
+            505.66,
+            505.27
+          ],
+          [
+            505.66,
+            476.11,
+            525.1,
+            505.27
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            484.77
+          ],
+          [
+            476.34,
+            484.77
+          ],
+          [
+            495.9,
+            484.77
+          ],
+          [
+            515.34,
+            484.77
+          ]
+        ],
+        "criterionCode": "A-02",
+        "title": "Varied Assessment Tools"
+      },
+      {
+        "text": "The material keeps an on-going record of students\u2019 progress and allows the teacher to monitor student performance.",
+        "cells": [
+          [
+            447.52,
+            505.27,
+            466.84,
+            534.43
+          ],
+          [
+            466.84,
+            505.27,
+            486.28,
+            534.43
+          ],
+          [
+            486.28,
+            505.27,
+            505.66,
+            534.43
+          ],
+          [
+            505.66,
+            505.27,
+            525.1,
+            534.43
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            513.93
+          ],
+          [
+            476.34,
+            513.93
+          ],
+          [
+            495.9,
+            513.93
+          ],
+          [
+            515.34,
+            513.93
+          ]
+        ],
+        "criterionCode": "A-03",
+        "title": "Progress Monitoring"
+      },
+      {
+        "text": "Positive, meaningful feedback, and prescriptive guides for interventions are provided.",
+        "cells": [
+          [
+            447.52,
+            534.43,
+            466.84,
+            563.62
+          ],
+          [
+            466.84,
+            534.43,
+            486.28,
+            563.62
+          ],
+          [
+            486.28,
+            534.43,
+            505.66,
+            563.62
+          ],
+          [
+            505.66,
+            534.43,
+            525.1,
+            563.62
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            542.97
+          ],
+          [
+            476.34,
+            542.97
+          ],
+          [
+            495.9,
+            542.97
+          ],
+          [
+            515.34,
+            542.97
+          ]
+        ],
+        "criterionCode": "A-04",
+        "title": "Prescriptive Feedback"
+      },
+      {
+        "text": "Objectives are gauged effectively.",
+        "cells": [
+          [
+            447.52,
+            563.62,
+            466.84,
+            578.62
+          ],
+          [
+            466.84,
+            563.62,
+            486.28,
+            578.62
+          ],
+          [
+            486.28,
+            563.62,
+            505.66,
+            578.62
+          ],
+          [
+            505.66,
+            563.62,
+            525.1,
+            578.62
+          ]
+        ],
+        "scoreCenters": [
+          [
+            456.9,
+            572.16
+          ],
+          [
+            476.34,
+            572.16
+          ],
+          [
+            495.9,
+            572.16
+          ],
+          [
+            515.34,
+            572.16
+          ]
+        ],
+        "criterionCode": "A-05",
+        "title": "Objective Gauging"
+      }
+    ],
+    "totals": [
+      [
+        447.52,
+        416.11,
+        525.1,
+        431.23
+      ],
+      [
+        447.52,
+        578.62,
+        525.1,
+        593.74
+      ]
+    ],
+    "averageY": 606.44,
+    "ratingY": 620.44,
+    "sha256": "d95fe78f27f269464eb2f7b99b9fc8794e50a4dbbceaf8f5746c533097dbae6e",
+    "ratingX": 409.26,
+    "commentBaselines": [
+      690.1,
+      704.14,
+      718.2,
+      732.36
+    ],
+    "evaluatedDateLine": [
+      378.55,
+      760.44,
+      511.98
+    ]
+  }
+}
