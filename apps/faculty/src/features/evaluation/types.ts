@@ -1,4 +1,5 @@
 import type {
+  ClientDocument,
   TargetAgent,
   EvaluationListItem,
   EvaluationListResponse,
@@ -219,3 +220,40 @@ export interface CriterionFeedbackResponse {
   notes: string | null;
   created_at: string;
 }
+
+export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
+
+// Minimal domain block used by the per-agent export. The page that owns
+// the export builds this block from the full evaluation result. The metadata
+// loader fills known document and faculty details before download; unresolved
+// values remain blank.
+export type ExportDomainData = {
+  agentId: ExportAgentId | string;
+  documentTitle?: string;
+  program?: string | null;
+  courseTitle?: string | null;
+  courseCode?: string | null;
+  academicYear?: string | null;
+  semester?: string | null;
+  reviewer?: string | null;
+  evaluatedAt?: string | null;
+  facultyName?: string | null;
+  college?: string | null;
+  evaluationId?: string;
+  isPartial?: boolean;
+  partialReason?: string | null;
+  evaluationStatus?: string;
+  criteria: ReadonlyArray<CriterionScoreItem>;
+  subtotal: number;
+  max_score: number;
+  status: string;
+  adjectival_rating?: string;
+  summary?: string;
+  version?: number | null;
+  form_snapshot_id?: string | null;
+  legacy_notice?: string | null;
+  // Carries the saved evaluation state, document ID and completion timestamp
+  // so the export uses the same evaluation record as the scorecard.
+  results?: EvaluationResultsResponse;
+  document?: ClientDocument | null;
+};
