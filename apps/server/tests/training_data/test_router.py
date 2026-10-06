@@ -749,3 +749,76 @@ def test_gguf_delete(
     by_version = {a["version"]: a for a in items}
     assert by_version[2]["gguf"] is None
     assert by_version[1]["gguf"] is not None
+
+
+# ------------------- fix wave: missing storage object, fallback -------------
+
+
+def test_gguf_link_and_file_404_when_object_missing(
+    client, db_session, admin_user, auth_cookies_admin, monkeypatch, fake_storage
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    _patch_storage(monkeypatch, fake_storage)
+    v1 = make_adapter(db_session, "sme", 1)
+    _auth(client, auth_cookies_admin)
+    base = f"{_BASE}/sme/adapters/{v1.adapter_id}/gguf"
+    client.post(base, files={"file": ("a.gguf", _GOOD, "x/y")})
+    fake_storage.objects.clear()
+    assert client.post(base + "/download-link", json={}).status_code == 404
+    assert client.get(base + "/file").status_code == 404
+
+
+def test_zip_upload_survives_token_and_rollback_failure(
+    client, auth_cookies_admin, admin_user, db_session, tmp_path, monkeypatch
+):
+    _patch_adapter_root(monkeypatch, tmp_path)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("nope")
+
+    monkeypatch.setattr(
+        "server.modules.training_data.router.issue_gguf_upload_token", boom
+    )
+    from sqlalchemy.orm import Session
+
+    real_rollback = Session.rollback
+
+    def dead_rollback(self):
+        raise ConnectionError("dead")
+
+    monkeypatch.setattr(Session, "rollback", dead_rollback)
+    try:
+        data = _zip_upload(client, auth_cookies_admin, admin_user, db_session)
+    finally:
+        monkeypatch.setattr(Session, "rollback", real_rollback)
+    assert data["gguf_upload_url"] is None
+    assert data["adapter_id"]
+
+
+def test_zip_upload_survives_dead_connection_after_token_failure(
+    client, auth_cookies_admin, admin_user, db_session, tmp_path, monkeypatch
+):
+    """Even re-reading the adapter after the failure must not 500 the upload."""
+    _patch_adapter_root(monkeypatch, tmp_path)
+
+    def boom(session, adapter):
+        session.expire_all()  # attribute reads now need the (dead) connection
+        raise RuntimeError("nope")
+
+    monkeypatch.setattr(
+        "server.modules.training_data.router.issue_gguf_upload_token", boom
+    )
+    from sqlalchemy.orm import Session
+
+    real_refresh = Session.refresh
+
+    def dead_refresh(self, *a, **k):
+        raise ConnectionError("dead")
+
+    monkeypatch.setattr(Session, "refresh", dead_refresh)
+    try:
+        data = _zip_upload(client, auth_cookies_admin, admin_user, db_session)
+    finally:
+        monkeypatch.setattr(Session, "refresh", real_refresh)
+    assert data["gguf_upload_url"] is None

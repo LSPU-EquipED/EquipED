@@ -147,3 +147,64 @@ def test_missing_upload_response_is_skipped(run_cell, capsys):
     fake = run_cell([], upload_response=None)
     assert fake.calls == []
     assert "Skipping the upload" in capsys.readouterr().out
+
+
+# ---------------- fix wave: the one-time token must never be printed ----------
+
+SECRET_URL = "https://x/upload?token=SECRET123"
+
+
+def test_upload_cell_does_not_print_the_token():
+    """Cell 10 must print the response with gguf_upload_url hidden."""
+    source = "".join(_cells()[10]["source"])
+    ns: dict[str, Any] = {}
+    # Run only the final print, with a stand-in response object.
+    tail = source.split("upload_response.raise_for_status()", 1)[1]
+    ns["upload_response"] = _Response(
+        body={"adapter_id": "a1", "gguf_upload_url": SECRET_URL}
+    )
+    import io
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        exec(tail, ns)  # noqa: S102
+    out = buf.getvalue()
+    assert "SECRET123" not in out
+    assert "a1" in out
+    # the response itself stays intact for cell 17
+    assert ns["upload_response"].json()["gguf_upload_url"] == SECRET_URL
+
+
+def test_failed_attempts_never_print_the_url_or_message(run_cell, capsys):
+    secret = ConnectionError(f"Max retries exceeded with url: {SECRET_URL}")
+    run_cell(
+        [secret, secret, secret],
+        upload_response=_Response(body={"gguf_upload_url": SECRET_URL}),
+    )
+    out = capsys.readouterr().out
+    assert "SECRET123" not in out
+    assert "Max retries" not in out
+    assert "ConnectionError" in out
+
+
+def test_http_error_prints_status_code_but_no_url(run_cell, capsys):
+    class _Boom(Exception):
+        def __init__(self):
+            super().__init__(f"500 Server Error for url: {SECRET_URL}")
+            self.response = types.SimpleNamespace(status_code=500)
+
+    run_cell(
+        [_Boom(), _Boom(), _Boom()],
+        upload_response=_Response(body={"gguf_upload_url": SECRET_URL}),
+    )
+    out = capsys.readouterr().out
+    assert "SECRET123" not in out
+    assert "_Boom" in out
+    assert "500" in out
+
+
+def test_no_sleep_after_the_last_attempt(run_cell, monkeypatch):
+    sleeps: list[float] = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    run_cell([ConnectionError("a")] * 3)
+    assert len(sleeps) == 2

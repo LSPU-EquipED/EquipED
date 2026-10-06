@@ -41,6 +41,14 @@ def gguf_storage_key(adapter: TrainedAdapter) -> str:
     )
 
 
+def _safe_rollback(session: Session) -> None:
+    """Roll back, but never let a dead connection mask the real error."""
+    try:
+        session.rollback()
+    except Exception:
+        logger.warning("rollback failed", exc_info=True)
+
+
 def _clear_metadata(adapter: TrainedAdapter) -> None:
     adapter.gguf_storage_key = None
     adapter.gguf_sha256 = None
@@ -86,10 +94,10 @@ def store_gguf(
         # the one-time token) while this body was being buffered.
         session.refresh(adapter, with_for_update=True)
         if token is not None and not verify_gguf_upload_token(adapter, token):
-            session.rollback()
+            _safe_rollback(session)
             raise GgufNotFoundError("invalid or expired upload token")
         if adapter.gguf_storage_key and not replace:
-            session.rollback()
+            _safe_rollback(session)
             raise GgufAlreadyExistsError("adapter already has a GGUF file")
 
         key = gguf_storage_key(adapter)
@@ -106,7 +114,7 @@ def store_gguf(
     try:
         session.commit()
     except Exception:
-        session.rollback()
+        _safe_rollback(session)
         if created_here:
             storage.delete_artifact(key)
         else:
@@ -132,9 +140,18 @@ def remove_gguf(
     if published_adapter_id is not None and published_adapter_id == adapter.adapter_id:
         raise GgufInUseError("the published adapter's GGUF cannot be removed")
     storage = storage or get_storage_backend()
-    storage.delete_artifact(adapter.gguf_storage_key)
+    key = adapter.gguf_storage_key
+    # Commit first: a failed commit must never leave metadata pointing at a
+    # deleted file. An orphaned object is the lesser evil.
     _clear_metadata(adapter)
     session.commit()
+    try:
+        deleted = storage.delete_artifact(key)
+    except Exception:
+        logger.warning("could not delete GGUF object %s", key, exc_info=True)
+    else:
+        if deleted is False:
+            logger.warning("could not delete GGUF object %s (not removed)", key)
 
 
 def issue_gguf_upload_token(session: Session, adapter: TrainedAdapter) -> str:
@@ -162,6 +179,8 @@ def build_download_link(
     if not adapter.gguf_storage_key:
         raise GgufNotFoundError("adapter has no GGUF file")
     storage = storage or get_storage_backend()
+    if not storage.artifact_exists(adapter.gguf_storage_key):
+        raise GgufNotFoundError("the GGUF file is missing from storage")
     return storage.presign_artifact(
         adapter.gguf_storage_key,
         expires_in=expires_in_seconds,
@@ -175,4 +194,12 @@ def open_gguf_stream(
     if not adapter.gguf_storage_key:
         raise GgufNotFoundError("adapter has no GGUF file")
     storage = storage or get_storage_backend()
-    return storage.open_artifact(adapter.gguf_storage_key)
+    try:
+        return storage.open_artifact(adapter.gguf_storage_key)
+    except Exception as exc:  # FileNotFoundError locally, ClientError on R2
+        logger.warning(
+            "GGUF object %s could not be opened",
+            adapter.gguf_storage_key,
+            exc_info=True,
+        )
+        raise GgufNotFoundError("the GGUF file is missing from storage") from exc

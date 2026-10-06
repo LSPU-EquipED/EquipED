@@ -265,3 +265,121 @@ def test_store_gguf_token_upload_consumes_token(db_session, admin_user, fake_sto
     assert fake_storage.objects == {_key(adapter): PAYLOAD}
     assert adapter.gguf_upload_token_hash is None
     assert gguf_files.verify_gguf_upload_token(adapter, raw) is False
+
+
+# ---------------- fix wave: missing objects, ordering, rollback ---------------
+
+
+class _ClientError(Exception):
+    """Stands in for botocore's ClientError (storage-specific, not a lookup)."""
+
+
+def test_open_gguf_stream_missing_object_is_not_found(
+    db_session, admin_user, fake_storage
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+    fake_storage.objects.clear()  # deleted behind our back
+    with pytest.raises(GgufNotFoundError):
+        gguf_files.open_gguf_stream(adapter, storage=fake_storage)
+
+
+def test_open_gguf_stream_storage_error_is_not_found(
+    db_session, admin_user, fake_storage
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+
+    def boom(key, chunk_size=65536):
+        raise _ClientError("NoSuchKey")
+
+    fake_storage.open_artifact = boom
+    with pytest.raises(GgufNotFoundError):
+        gguf_files.open_gguf_stream(adapter, storage=fake_storage)
+
+
+def test_build_download_link_missing_object_is_not_found(
+    db_session, admin_user, fake_storage
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+    fake_storage.objects.clear()
+    with pytest.raises(GgufNotFoundError):
+        gguf_files.build_download_link(
+            adapter, expires_in_seconds=3600, storage=fake_storage
+        )
+
+
+def test_remove_gguf_commits_before_deleting_object(
+    db_session, admin_user, fake_storage, monkeypatch
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+    order: list[str] = []
+    real_commit = db_session.commit
+    real_delete = fake_storage.delete_artifact
+    monkeypatch.setattr(
+        db_session, "commit", lambda: (order.append("commit"), real_commit())[1]
+    )
+    monkeypatch.setattr(
+        fake_storage,
+        "delete_artifact",
+        lambda key: (order.append("delete"), real_delete(key))[1],
+    )
+    gguf_files.remove_gguf(
+        db_session, adapter, published_adapter_id=None, storage=fake_storage
+    )
+    assert order == ["commit", "delete"]
+
+
+def test_remove_gguf_failed_commit_keeps_object(
+    db_session, admin_user, fake_storage, monkeypatch
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+    key = adapter.gguf_storage_key
+
+    def bad_commit():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(db_session, "commit", bad_commit)
+    with pytest.raises(RuntimeError):
+        gguf_files.remove_gguf(
+            db_session, adapter, published_adapter_id=None, storage=fake_storage
+        )
+    assert key in fake_storage.objects
+
+
+def test_remove_gguf_failed_delete_is_logged_not_raised(
+    db_session, admin_user, fake_storage, caplog
+):
+    adapter = make_adapter(db_session, "sme", 1)
+    _store(db_session, adapter, fake_storage)
+
+    def boom(key):
+        raise RuntimeError("r2 down")
+
+    fake_storage.delete_artifact = boom
+    with caplog.at_level("WARNING"):
+        gguf_files.remove_gguf(
+            db_session, adapter, published_adapter_id=None, storage=fake_storage
+        )
+    _assert_no_metadata(adapter)
+    assert "could not delete" in caplog.text.lower()
+
+
+def test_dead_connection_rollback_does_not_mask_commit_error(
+    db_session, admin_user, fake_storage, monkeypatch
+):
+    adapter = make_adapter(db_session, "sme", 1)
+
+    def bad_commit():
+        raise ValueError("commit failed")
+
+    def bad_rollback():
+        raise ConnectionError("connection is dead")
+
+    monkeypatch.setattr(db_session, "commit", bad_commit)
+    monkeypatch.setattr(db_session, "rollback", bad_rollback)
+    with pytest.raises(ValueError, match="commit failed"):
+        _store(db_session, adapter, fake_storage)

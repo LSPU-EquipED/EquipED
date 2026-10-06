@@ -248,19 +248,27 @@ def upload_trained_adapter(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
+    # Build the response first: issuing the token commits, and a dead
+    # connection afterwards must not turn the stored upload into a 500.
+    response_data = _adapter_response(adapter).model_dump()
     gguf_upload_url: str | None = None
     try:
+        adapter_id = adapter.adapter_id
         raw = issue_gguf_upload_token(db, adapter)
         gguf_upload_url = _build_url(
             request,
-            f"/admin/training-data/adapters/{adapter.adapter_id}/gguf?token={raw}",
+            f"/admin/training-data/adapters/{adapter_id}/gguf?token={raw}",
         )
     except Exception:
         # The adapter zip is already stored; the GGUF link is a convenience.
         logger.warning("could not issue a GGUF upload link", exc_info=True)
-        db.rollback()
+        gguf_upload_url = None
+        try:
+            db.rollback()
+        except Exception:
+            logger.warning("rollback failed", exc_info=True)
     return TrainedAdapterUploadResponse(
-        **_adapter_response(adapter).model_dump(), gguf_upload_url=gguf_upload_url
+        **response_data, gguf_upload_url=gguf_upload_url
     )
 
 
