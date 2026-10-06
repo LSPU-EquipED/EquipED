@@ -169,6 +169,8 @@ class MasterSynthesisDetailResponse(BaseModel):
     document_id: UUID
     document_title: str | None = None
     course_code: str | None = None
+    course_title: str | None = None
+    academic_year: str | None = None
     program: str | None = None
     author: EvaluatorAttribution
     synthesized_score: float | None = None

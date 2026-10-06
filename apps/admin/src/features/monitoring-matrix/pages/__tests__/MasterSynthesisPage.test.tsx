@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import React from 'react';
 import { MasterSynthesisPage } from '../MasterSynthesisPage';
 import * as useMasterSynthesisDetailModule from '../../hooks/useMasterSynthesisDetail';
 import type { MasterSynthesisDetailResponse } from '../../types';
+import { downloadApprovalSheetPdf } from '../../utils/approvalSheetPdf';
+
+vi.mock('../../utils/approvalSheetPdf', () => ({ downloadApprovalSheetPdf: vi.fn() }));
 
 const mockNavigate = vi.fn();
 
@@ -477,7 +480,7 @@ describe('MasterSynthesisPage', () => {
     expect(screen.queryByText('Topical and Technical Rigor')).toBeNull();
   });
 
-  it('triggers window.print when Export Accreditation PDF button is clicked', () => {
+  it('downloads the institutional approval sheet instead of printing the app screen', async () => {
     const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
 
     vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
@@ -492,7 +495,8 @@ describe('MasterSynthesisPage', () => {
     expect(exportBtn).toBeDefined();
 
     fireEvent.click(exportBtn);
-    expect(printSpy).toHaveBeenCalled();
+    await waitFor(() => expect(downloadApprovalSheetPdf).toHaveBeenCalledWith(mockSynthesisDetail));
+    expect(printSpy).not.toHaveBeenCalled();
     printSpy.mockRestore();
   });
 });

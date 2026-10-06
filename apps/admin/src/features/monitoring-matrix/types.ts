@@ -48,6 +48,8 @@ export interface MasterSynthesisDetailResponse {
   document_id: string;
   document_title: string | null;
   course_code: string | null;
+  course_title?: string | null;
+  academic_year?: string | null;
   program: string | null;
   author: EvaluatorAttribution;
   /** Weighted composite percentage (0–100); individual pillar subtotals use 0–4. */
