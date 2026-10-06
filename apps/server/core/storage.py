@@ -35,8 +35,58 @@ def extract_document_filename(path_or_key: str | Path) -> str:
     return Path(raw).name
 
 
+def _validate_artifact_key(key: str) -> str:
+    """Return the key unchanged if it is a safe relative object key, else raise."""
+    if (
+        not key
+        or key.startswith("/")
+        or "\\" in key
+        or "//" in key
+        or any(part in ("", ".", "..") for part in key.split("/"))
+    ):
+        raise ValueError(f"unsafe artifact key: {key!r}")
+    return key
+
+
+def _safe_download_filename(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+
+
 class StorageBackend(ABC):
     """Abstract interface for document file storage."""
+
+    # Generic artifact API (additive; keys are used verbatim, no documents/ prefix).
+    def put_artifact(
+        self,
+        key: str,
+        file_obj: BinaryIO,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Store an artifact under a safe relative key and return the key."""
+        raise NotImplementedError
+
+    def artifact_exists(self, key: str) -> bool:
+        raise NotImplementedError
+
+    def delete_artifact(self, key: str) -> bool:
+        raise NotImplementedError
+
+    def open_artifact(
+        self,
+        key: str,
+        chunk_size: int = 65536,
+    ) -> tuple[Generator[bytes, None, None], int | None]:
+        """Return a generator of byte chunks and the size (if known)."""
+        raise NotImplementedError
+
+    def presign_artifact(
+        self,
+        key: str,
+        expires_in: int = 86400,
+        download_filename: str | None = None,
+    ) -> str | None:
+        """Return a presigned download URL, or None when unsupported."""
+        return None
 
     @abstractmethod
     def upload_file(
@@ -182,6 +232,56 @@ class LocalStorageBackend(StorageBackend):
     def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str | None:
         return None
 
+    def _artifact_path(self, key: str) -> Path:
+        _validate_artifact_key(key)
+        base = (self.root_dir / "artifacts").resolve()
+        target = (base / key).resolve()
+        if not target.is_relative_to(base) or target == base:
+            raise ValueError(f"unsafe artifact key: {key!r}")
+        return target
+
+    def put_artifact(
+        self,
+        key: str,
+        file_obj: BinaryIO,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        target = self._artifact_path(key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with open(target, "wb") as f:
+            file_obj.seek(0)
+            while chunk := file_obj.read(65536):
+                f.write(chunk)
+        return key
+
+    def artifact_exists(self, key: str) -> bool:
+        target = self._artifact_path(key)
+        return target.exists() and target.is_file()
+
+    def delete_artifact(self, key: str) -> bool:
+        target = self._artifact_path(key)
+        if target.is_file():
+            target.unlink(missing_ok=True)
+            return True
+        return False
+
+    def open_artifact(
+        self,
+        key: str,
+        chunk_size: int = 65536,
+    ) -> tuple[Generator[bytes, None, None], int | None]:
+        target = self._artifact_path(key)
+        if not target.is_file():
+            raise FileNotFoundError(f"Artifact {key} not found")
+        size = target.stat().st_size
+
+        def stream() -> Generator[bytes, None, None]:
+            with open(target, "rb") as f:
+                while chunk := f.read(chunk_size):
+                    yield chunk
+
+        return stream(), size
+
 
 class R2StorageBackend(StorageBackend):
     """Cloudflare R2 object storage via boto3 S3 API."""
@@ -314,6 +414,82 @@ class R2StorageBackend(StorageBackend):
             return str(url)
         except Exception as exc:
             logger.warning("Failed to generate presigned URL for %s: %s", r2_key, exc)
+            return None
+
+    def put_artifact(
+        self,
+        key: str,
+        file_obj: BinaryIO,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        _validate_artifact_key(key)
+        file_obj.seek(0)
+        self._s3_client.upload_fileobj(
+            file_obj,
+            self.bucket_name,
+            key,
+            ExtraArgs={"ContentType": content_type},
+        )
+        return key
+
+    def artifact_exists(self, key: str) -> bool:
+        from botocore.exceptions import ClientError
+
+        _validate_artifact_key(key)
+        try:
+            self._s3_client.head_object(Bucket=self.bucket_name, Key=key)
+            return True
+        except ClientError:
+            return False
+
+    def delete_artifact(self, key: str) -> bool:
+        _validate_artifact_key(key)
+        try:
+            self._s3_client.delete_object(Bucket=self.bucket_name, Key=key)
+            return True
+        except Exception:
+            logger.warning(
+                "Failed to delete %s from R2 bucket %s", key, self.bucket_name
+            )
+            return False
+
+    def open_artifact(
+        self,
+        key: str,
+        chunk_size: int = 65536,
+    ) -> tuple[Generator[bytes, None, None], int | None]:
+        _validate_artifact_key(key)
+        response = self._s3_client.get_object(Bucket=self.bucket_name, Key=key)
+        body = response["Body"]
+
+        def stream() -> Generator[bytes, None, None]:
+            try:
+                yield from body.iter_chunks(chunk_size)
+            finally:
+                body.close()
+
+        return stream(), response.get("ContentLength")
+
+    def presign_artifact(
+        self,
+        key: str,
+        expires_in: int = 86400,
+        download_filename: str | None = None,
+    ) -> str | None:
+        _validate_artifact_key(key)
+        params: dict[str, str] = {"Bucket": self.bucket_name, "Key": key}
+        if download_filename:
+            safe = _safe_download_filename(download_filename)
+            params["ResponseContentDisposition"] = f'attachment; filename="{safe}"'
+        try:
+            url = self._s3_client.generate_presigned_url(
+                ClientMethod="get_object",
+                Params=params,
+                ExpiresIn=expires_in,
+            )
+            return str(url)
+        except Exception as exc:
+            logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
             return None
 
 
