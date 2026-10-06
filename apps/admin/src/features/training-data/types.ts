@@ -78,6 +78,20 @@ export interface TrainingSummary {
   heldout?: HeldoutSummary | null;
 }
 
+export interface AdapterGgufInfo {
+  size_bytes: number;
+  sha256: string;
+  uploaded_at: string;
+}
+
+export interface GgufDownloadLink {
+  url: string;
+  filename: string;
+  sha256: string;
+  size_bytes: number;
+  expires_at: string;
+}
+
 export interface TrainedAdapterItem {
   adapter_id: string;
   agent_id: string;
@@ -90,6 +104,7 @@ export interface TrainedAdapterItem {
   loaded: boolean | null;
   published: boolean;
   training_summary?: TrainingSummary | null;
+  gguf?: AdapterGgufInfo | null;
 }
 
 export interface TrainedAdapterListResponse {
