@@ -255,3 +255,63 @@ def test_r2_artifact_rejects_unsafe_keys(bad_key):
     with pytest.raises(ValueError):
         storage.put_artifact(bad_key, io.BytesIO(b"x"))
     s3.upload_fileobj.assert_not_called()
+
+
+_ODD_KEYS = [
+    "C:/x.gguf",
+    "a/b:stream.gguf",
+    "a/b" + chr(0) + ".gguf",
+    "a/b" + chr(10) + ".gguf",
+    "a/b" + chr(127) + ".gguf",
+]
+
+
+@pytest.mark.parametrize("bad_key", _ODD_KEYS)
+def test_local_artifact_rejects_odd_characters(tmp_path, bad_key):
+    with pytest.raises(ValueError):
+        LocalStorageBackend(tmp_path).put_artifact(bad_key, io.BytesIO(b"x"))
+
+
+@pytest.mark.parametrize("bad_key", _ODD_KEYS)
+def test_r2_artifact_rejects_odd_characters(bad_key):
+    storage, s3 = _r2_backend()
+    with pytest.raises(ValueError):
+        storage.put_artifact(bad_key, io.BytesIO(b"x"))
+    s3.upload_fileobj.assert_not_called()
+
+
+class _FailingReader(io.BytesIO):
+    def __init__(self, data: bytes) -> None:
+        super().__init__(data)
+        self.calls = 0
+
+    def read(self, size: int = -1) -> bytes:
+        self.calls += 1
+        if self.calls > 1:
+            raise OSError("stream broke")
+        return super().read(size)
+
+
+def test_local_put_artifact_failure_leaves_no_target(tmp_path):
+    backend = LocalStorageBackend(tmp_path)
+    key = "adapters/sme/abc/sme-v8.gguf"
+    with pytest.raises(OSError):
+        backend.put_artifact(key, _FailingReader(b"GGUFdata"))
+    assert backend.artifact_exists(key) is False
+    assert not list((tmp_path / "artifacts").rglob("*.part*"))
+
+
+def test_local_put_artifact_failure_keeps_old_content(tmp_path):
+    backend = LocalStorageBackend(tmp_path)
+    key = "adapters/sme/abc/sme-v8.gguf"
+    backend.put_artifact(key, io.BytesIO(b"OLD"))
+    with pytest.raises(OSError):
+        backend.put_artifact(key, _FailingReader(b"GGUFdata"))
+    assert b"".join(backend.open_artifact(key)[0]) == b"OLD"
+    assert not list((tmp_path / "artifacts").rglob("*.part*"))
+
+
+def test_local_put_artifact_success_leaves_no_temp(tmp_path):
+    backend = LocalStorageBackend(tmp_path)
+    backend.put_artifact("a/b.gguf", io.BytesIO(b"NEW"))
+    assert not list((tmp_path / "artifacts").rglob("*.part*"))

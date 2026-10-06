@@ -8,7 +8,9 @@ local filesystem storage under the repository's `uploads/` directory.
 from __future__ import annotations
 
 import logging
+import os
 import re
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Generator
 from pathlib import Path
@@ -42,6 +44,8 @@ def _validate_artifact_key(key: str) -> str:
         or key.startswith("/")
         or "\\" in key
         or "//" in key
+        or ":" in key
+        or any(ord(c) < 32 or ord(c) == 127 for c in key)
         or any(part in ("", ".", "..") for part in key.split("/"))
     ):
         raise ValueError(f"unsafe artifact key: {key!r}")
@@ -248,10 +252,18 @@ class LocalStorageBackend(StorageBackend):
     ) -> str:
         target = self._artifact_path(key)
         target.parent.mkdir(parents=True, exist_ok=True)
-        with open(target, "wb") as f:
-            file_obj.seek(0)
-            while chunk := file_obj.read(65536):
-                f.write(chunk)
+        tmp = target.with_name(f"{target.name}.part-{uuid.uuid4().hex}")
+        try:
+            with open(tmp, "wb") as f:
+                file_obj.seek(0)
+                while chunk := file_obj.read(65536):
+                    f.write(chunk)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, target)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         return key
 
     def artifact_exists(self, key: str) -> bool:
