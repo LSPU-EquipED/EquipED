@@ -85,6 +85,8 @@ def test_master_synthesis_detail_success(client, db_session, seeded_user):
         document_id=uuid.uuid4(),
         title="Data Structures & Algorithms",
         course_code="COSC 101",
+        course_title="Data Structures",
+        academic_year="2026-2027",
         program="BSCS",
         source_type="slm",
         file_path="/tmp/ds.pdf",
@@ -144,6 +146,8 @@ def test_master_synthesis_detail_success(client, db_session, seeded_user):
     assert data["document_id"] == str(doc.document_id)
     assert data["document_title"] == "Data Structures & Algorithms"
     assert data["course_code"] == "COSC 101"
+    assert data["course_title"] == "Data Structures"
+    assert data["academic_year"] == "2026-2027"
     assert data["program"] == "BSCS"
     assert data["synthesized_score"] == 3.65
     assert data["evaluation_status"] == "COMPLETED"
@@ -195,6 +199,8 @@ def test_master_synthesis_detail_author_null_safe(client, db_session, seeded_use
     data = response.json()
     assert data["author"]["name"] == "Unknown Author"
     assert data["author"]["user_id"] is None
+    assert data["course_title"] is None
+    assert data["academic_year"] is None
     assert data["can_certify"] is False
 
 

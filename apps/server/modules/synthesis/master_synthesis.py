@@ -257,6 +257,8 @@ def get_master_synthesis_detail(
         document_id=matrix.document_id,
         document_title=document.title if document else None,
         course_code=document.course_code if document else None,
+        course_title=document.course_title if document else None,
+        academic_year=document.academic_year if document else None,
         program=matrix.program or (document.program if document else None),
         author=author,
         synthesized_score=synthesized_score,
