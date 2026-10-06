@@ -15,7 +15,7 @@ function result(agentId: ExportAgentId): ExportDomainData {
   return {
     agentId, documentTitle: 'Human-computer interaction module', program: 'BSCS',
     courseTitle: 'Human-computer interaction', courseCode: 'CS101', academicYear: '2026-2027',
-    semester: '1st', facultyName: 'José Santos', college: 'CCS', reviewer: 'CID reviewer', evaluatedAt: '2026-10-05',
+    semester: '1st', facultyName: 'José Santos', college: 'CCS', reviewer: 'Maria Cruz', evaluatedAt: '2026-10-05',
     subtotal: 3, max_score: 4, status: 'OK', evaluationStatus: 'COMPLETED',
     adjectival_rating: 'Satisfactory', version: 3, form_snapshot_id: 'saved-form',
     summary: 'Advisory review for institutional verification.',
@@ -65,7 +65,8 @@ describe('institutional specialist PDFs', () => {
     expect(fields).toContain('(3) Tj');
     expect(fields).toContain('(Satisfactory) Tj');
     expect(fields).toContain('(Oct 5, 2026) Tj');
-    expect(fields).not.toContain('CID reviewer');
+    expect(fields).toContain('(MARIA CRUZ) Tj');
+    expect(fields).not.toContain('(Maria Cruz) Tj');
     expect(fields).not.toMatch(/Saved rubric|EquipED advisory copy|attached|Page 1/);
     // Resolve the actual face selected by text operators, rather than checking
     // unused standard fonts that jsPDF also includes in its resource dictionary.
@@ -86,6 +87,18 @@ describe('institutional specialist PDFs', () => {
     const [left, baseline, right] = template.evaluatedDateLine;
     expect(Number(datePosition[1]) + dateWidth / 2).toBeCloseTo((left + right) / 2, 0);
     expect(template.height - Number(datePosition[2])).toBeCloseTo(baseline - 2, 2);
+    const namePosition = fields.match(/([\d.]+) ([\d.]+) Td\n\(MARIA CRUZ\) Tj/)!;
+    const nameWidth = face.widthOfTextAtSize('MARIA CRUZ', 12);
+    const [nameLeft, nameBaseline, nameRight] = template.signatureNameLine;
+    expect(Number(namePosition[1]) + nameWidth / 2).toBeCloseTo((nameLeft + nameRight) / 2, 0);
+    expect(template.height - Number(namePosition[2])).toBeCloseTo(nameBaseline - 2, 2);
+  });
+
+  it('leaves the printed name blank when no evaluator is known, without using the module author', async () => {
+    const fields = filledFields(await exportPdf({ ...result('sme'), reviewer: null, facultyName: 'Module Author' }));
+    expect(fields).toContain('(Module Author) Tj');
+    expect(fields).not.toContain('(MODULE AUTHOR) Tj');
+    expect(fields).not.toContain('(MARIA CRUZ) Tj');
   });
 
   it('matches wording independently of row order and typographic punctuation', () => {
