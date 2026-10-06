@@ -1,4 +1,4 @@
-import { CaretRight, FilePdf } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, CaretRight, FilePdf } from '@phosphor-icons/react';
 import { Badge, Button, cn } from '@equiped/ui';
 import type { ModelValidationItem } from '../types';
 import { agentLabel, formatTimestamp, itemModelLabel } from '../utils/helpers';
@@ -9,6 +9,7 @@ type ValidationHistoryRowProps = {
   comparedCount: number;
   exactMatches: number;
   onToggle: () => void;
+  onRerun?: (item: ModelValidationItem) => void;
 };
 
 function formatMaeBadge(mae: number | null | undefined) {
@@ -38,6 +39,7 @@ export function ValidationHistoryRow({
   comparedCount,
   exactMatches,
   onToggle,
+  onRerun,
 }: ValidationHistoryRowProps) {
   return (
     <tr className={cn(isExpanded && 'bg-primary-soft/40 transition-colors')}>
@@ -135,30 +137,45 @@ export function ValidationHistoryRow({
       </td>
 
       <td className="px-3 py-3 text-right align-top sm:px-4">
-        {item.status === 'COMPLETED' ||
-        item.status === 'FAILED' ||
-        item.criterion_scores.length > 0 ? (
-          <Button
-            type="button"
-            variant={isExpanded ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={onToggle}
-            aria-expanded={isExpanded}
-            aria-controls={isExpanded ? `validation-detail-${item.validation_id}` : undefined}
-            aria-label={`${isExpanded ? 'Close' : 'Open'} evaluation for ${item.document_title ?? 'Untitled SLM'}`}
-            className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
-          >
-            <CaretRight
-              className={cn('size-3.5 transition-transform', isExpanded && 'rotate-90')}
-              aria-hidden="true"
-            />
-            <span>{isExpanded ? 'Open' : 'Review'}</span>
-          </Button>
-        ) : item.error_message ? (
-          <span className="text-xs font-semibold text-destructive">{item.error_message}</span>
-        ) : (
-          <span className="text-text-muted">—</span>
-        )}
+        <div className="inline-flex flex-col items-end gap-1.5">
+          {item.status === 'COMPLETED' ||
+          item.status === 'FAILED' ||
+          item.criterion_scores.length > 0 ? (
+            <Button
+              type="button"
+              variant={isExpanded ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={onToggle}
+              aria-expanded={isExpanded}
+              aria-controls={isExpanded ? `validation-detail-${item.validation_id}` : undefined}
+              aria-label={`${isExpanded ? 'Close' : 'Open'} evaluation for ${item.document_title ?? 'Untitled SLM'}`}
+              className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+            >
+              <CaretRight
+                className={cn('size-3.5 transition-transform', isExpanded && 'rotate-90')}
+                aria-hidden="true"
+              />
+              <span>{isExpanded ? 'Open' : 'Review'}</span>
+            </Button>
+          ) : item.error_message ? (
+            <span className="text-xs font-semibold text-destructive">{item.error_message}</span>
+          ) : (
+            <span className="text-text-muted">—</span>
+          )}
+          {onRerun ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => onRerun(item)}
+              aria-label={`Re-run ${item.document_title ?? 'Untitled SLM'}`}
+              className="h-8 gap-1.5 px-2.5 text-xs font-semibold"
+            >
+              <ArrowCounterClockwise className="size-3.5" aria-hidden="true" />
+              <span>Re-run</span>
+            </Button>
+          ) : null}
+        </div>
       </td>
     </tr>
   );

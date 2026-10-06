@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { cn, PageContainer } from '@equiped/ui';
 import { AgentProgressPanel } from '../components/AgentProgressPanel';
+import { ValidationCompareTab } from '../components/ValidationCompareTab';
 import { ValidationHistoryTable } from '../components/ValidationHistoryTable';
 import { ValidationPerformanceMetrics } from '../components/ValidationPerformanceMetrics';
 import { ValidationPreparationForm } from '../components/ValidationPreparationForm';
@@ -11,12 +12,13 @@ import {
 } from '../hooks/useModelValidationQueries';
 import { terminalStatuses } from '../utils/helpers';
 
-export type ValidationTab = 'history' | 'analytics' | 'new-run';
+export type ValidationTab = 'history' | 'analytics' | 'new-run' | 'compare';
 
 const workspaceOptions = [
   { value: 'history' as const, label: 'History' },
   { value: 'analytics' as const, label: 'Analytics' },
   { value: 'new-run' as const, label: 'New benchmark' },
+  { value: 'compare' as const, label: 'Compare' },
 ];
 
 export function ModelValidationPage() {
@@ -56,7 +58,7 @@ export function ModelValidationPage() {
       <div
         role="tablist"
         aria-label="Validation workspace"
-        className="grid grid-cols-3 border-b border-border"
+        className="grid grid-cols-4 border-b border-border"
       >
         {workspaceOptions.map(({ value, label }, index) => (
           <button
@@ -96,7 +98,13 @@ export function ModelValidationPage() {
               <AgentProgressPanel key={validation.validation_id} validation={validation} />
             ))}
 
-            <ValidationHistoryTable history={history} />
+            <ValidationHistoryTable
+              history={history}
+              onRerun={async (item) => {
+                await formState.preloadFromRun(item);
+                setActiveTab('new-run');
+              }}
+            />
           </div>
         </div>
       ) : null}
@@ -126,6 +134,17 @@ export function ModelValidationPage() {
 
             <ValidationPreparationForm form={formState} />
           </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'compare' ? (
+        <div
+          id="validation-panel-compare"
+          role="tabpanel"
+          aria-labelledby="validation-tab-compare"
+          tabIndex={0}
+        >
+          <ValidationCompareTab history={history} />
         </div>
       ) : null}
     </PageContainer>

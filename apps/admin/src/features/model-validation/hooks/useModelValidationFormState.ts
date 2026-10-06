@@ -1,9 +1,14 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@equiped/api-client';
+import { documentsApi, getErrorMessage } from '@equiped/api-client';
 import type { DocumentUploadResponse } from '@equiped/types';
 import { modelValidationApi } from '../api/modelValidation.api';
-import type { ModelChoice, ModelValidationCreateBody, TargetAgent } from '../types';
+import type {
+  ModelChoice,
+  ModelValidationCreateBody,
+  ModelValidationItem,
+  TargetAgent,
+} from '../types';
 import {
   areAllCriterionScoresComplete,
   criterionKey,
@@ -15,13 +20,17 @@ import { useAdapterChoices, useModelValidationCriteria } from './useModelValidat
 export function useModelValidationFormState() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const preloadSeq = useRef(0);
   const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [program, setProgram] = useState('');
   const [expectedScores, setExpectedScores] = useState<Record<string, string>>({});
   const [uploaded, setUploaded] = useState<DocumentUploadResponse | null>(null);
+  // '' means "nothing chosen yet" (used when a run is preloaded from history).
   const [modelChoice, setModelChoice] = useState<ModelChoice>('base');
+  const [usingStoredDocument, setUsingStoredDocument] = useState(false);
+  const [preloadError, setPreloadError] = useState<string | null>(null);
   const [targetAgent, setTargetAgentState] = useState<TargetAgent | null>(null);
   const adapterChoices = useAdapterChoices(targetAgent);
 
@@ -84,6 +93,8 @@ export function useModelValidationFormState() {
       setProgram('');
       setExpectedScores({});
       setUploaded(null);
+      setUsingStoredDocument(false);
+      setPreloadError(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
   });
@@ -162,6 +173,8 @@ export function useModelValidationFormState() {
   const resetPreparedUpload = () => {
     setFile(null);
     setUploaded(null);
+    setUsingStoredDocument(false);
+    setPreloadError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -169,6 +182,8 @@ export function useModelValidationFormState() {
     const nextFile = event.target.files?.[0] ?? null;
     setFile(nextFile);
     setUploaded(null);
+    setUsingStoredDocument(false);
+    setPreloadError(null);
     if (nextFile && !title.trim()) setTitle(nextFile.name.replace(/\.pdf$/i, ''));
   };
 
@@ -180,7 +195,58 @@ export function useModelValidationFormState() {
   const handlePrepare = (event: FormEvent) => {
     event.preventDefault();
     if (!file || !title.trim() || !program || !allCriterionScoresComplete) return;
+    setPreloadError(null);
     uploadMutation.mutate({ file, title, program });
+  };
+
+  // Preload the form from a past run: same agent, same scores, the already
+  // stored SLM (no re-upload). The Model is left unselected on purpose.
+  const preloadFromRun = async (item: ModelValidationItem) => {
+    const requestId = ++preloadSeq.current;
+    setPreloadError(null);
+    uploadMutation.reset();
+    const agentId = item.criterion_scores[0]?.agent_id;
+    if (agentId !== 'sme' && agentId !== 'gad' && agentId !== 'itso') {
+      setPreloadError('This run has no SME, GAD or ITSO agent to re-run.');
+      return;
+    }
+    let document;
+    try {
+      document = await documentsApi.getDocument(item.document_id);
+    } catch (err) {
+      if (requestId !== preloadSeq.current) return;
+      setPreloadError(getErrorMessage(err, 'Unable to load the stored SLM for this run.'));
+      return;
+    }
+    if (requestId !== preloadSeq.current) return;
+    setPreloadError(null);
+    validationMutation.reset();
+    setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setTargetAgentState(agentId);
+    setModelChoice('');
+    setTitle(item.document_title ?? document.title);
+    setProgram(document.program ?? '');
+    setExpectedScores(
+      Object.fromEntries(
+        item.criterion_scores.map((score) => [
+          criterionKey(score.agent_id, score.rubric_criterion_id || score.criterion_id),
+          String(score.expected_score),
+        ]),
+      ),
+    );
+    setUploaded({
+      documentId: document.documentId,
+      title: document.title,
+      courseTitle: document.courseTitle,
+      lessonTitle: document.lessonTitle,
+      sourceType: document.sourceType,
+      processingStatus: document.processingStatus,
+      program: document.program,
+      academicYear: document.academicYear,
+      courseCode: document.courseCode,
+    });
+    setUsingStoredDocument(true);
   };
 
   const registerScoreInput = (key: string, node: HTMLInputElement | null) => {
@@ -267,6 +333,9 @@ export function useModelValidationFormState() {
     isStaleBinding,
     handleReloadCatalog,
     resetPreparedUpload,
+    preloadFromRun,
+    usingStoredDocument,
+    preloadError,
     handleFile,
     handleProgramChange,
     handlePrepare,

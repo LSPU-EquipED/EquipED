@@ -197,6 +197,9 @@ function createMockForm(overrides: Partial<ReturnType<typeof useModelValidationF
     isStaleBinding: false,
     handleReloadCatalog: vi.fn(),
     resetPreparedUpload: vi.fn(),
+    preloadFromRun: vi.fn(),
+    usingStoredDocument: false,
+    preloadError: null,
     handleFile: vi.fn(),
     handleProgramChange: vi.fn(),
     handlePrepare: vi.fn(),
@@ -284,9 +287,7 @@ describe('ValidationPreparationForm', () => {
     expect(target.textContent).toContain('SME only');
     expect(model.textContent).toContain('Base model');
     // Target comes before Model in the document.
-    expect(
-      target.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(target.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('offers SME, GAD and ITSO as targets, with no all-agents option', () => {
@@ -329,7 +330,9 @@ describe('ValidationPreparationForm', () => {
     render(<ValidationPreparationForm form={form} />);
 
     expect(screen.getByRole('button', { name: 'Target' }).textContent).toContain('Choose an agent');
-    const model = screen.getByRole('button', { name: 'Model' }) as HTMLButtonElement;
+    const model = screen.getByRole('button', {
+      name: 'Model',
+    }) as HTMLButtonElement;
     expect(model.textContent).toContain('Choose an agent first');
     expect(model.disabled).toBe(true);
   });
@@ -342,7 +345,13 @@ describe('ValidationPreparationForm', () => {
           agent_id: 'sme',
           server_reachable: true,
           adapters: [
-            { adapter_id: 'sme-v4', version: 4, loaded: false, published: false, gguf_filename: 'sme-v4.gguf' },
+            {
+              adapter_id: 'sme-v4',
+              version: 4,
+              loaded: false,
+              published: false,
+              gguf_filename: 'sme-v4.gguf',
+            },
           ],
         },
       } as unknown as ReturnType<typeof useModelValidationFormState>['adapterChoices'],
@@ -394,7 +403,10 @@ describe('benchmark score editing', () => {
     (shape) => {
       const form = createMockForm({
         criterionDefinitions: [
-          { ...mockAgents[0], domains: shape === 'flat' ? [] : mockAgents[0].domains },
+          {
+            ...mockAgents[0],
+            domains: shape === 'flat' ? [] : mockAgents[0].domains,
+          },
         ],
       });
       function ScoreEditor() {
@@ -423,4 +435,41 @@ describe('benchmark score editing', () => {
       expect(form.registerScoreInput).toHaveBeenCalledWith('sme:crit-sme-1', null);
     },
   );
+});
+
+describe('ValidationPreparationForm stored document', () => {
+  it('shows "Use a different file" only while a stored document is preloaded', () => {
+    const resetPreparedUpload = vi.fn();
+    const { rerender } = render(
+      <ValidationPreparationForm form={createMockForm({ resetPreparedUpload })} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Use a different file' })).toBeNull();
+
+    rerender(
+      <ValidationPreparationForm
+        form={createMockForm({
+          resetPreparedUpload,
+          usingStoredDocument: true,
+          uploaded: {
+            documentId: 'doc-1',
+            title: 'Old SLM',
+          } as unknown as ReturnType<typeof useModelValidationFormState>['uploaded'],
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Use a different file' }));
+    expect(resetPreparedUpload).toHaveBeenCalled();
+  });
+
+  it('opens the Model dropdown unselected when modelChoice is empty', () => {
+    render(<ValidationPreparationForm form={createMockForm({ modelChoice: '' })} />);
+    expect(screen.getByRole('button', { name: 'Model' }).textContent).toContain('Choose a model');
+  });
+
+  it('shows the preload error', () => {
+    render(
+      <ValidationPreparationForm form={createMockForm({ preloadError: 'Could not load SLM' })} />,
+    );
+    expect(screen.getByText('Could not load SLM')).toBeDefined();
+  });
 });

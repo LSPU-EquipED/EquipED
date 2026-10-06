@@ -23,6 +23,9 @@ export function ValidationRunSetup({
     | 'setTargetAgent'
     | 'handleFile'
     | 'handleProgramChange'
+    | 'usingStoredDocument'
+    | 'preloadError'
+    | 'resetPreparedUpload'
   >;
 }) {
   const {
@@ -40,6 +43,9 @@ export function ValidationRunSetup({
     setTargetAgent,
     handleFile,
     handleProgramChange,
+    usingStoredDocument,
+    preloadError,
+    resetPreparedUpload,
   } = form;
 
   const adapters = adapterChoices.data?.adapters ?? [];
@@ -109,6 +115,30 @@ export function ValidationRunSetup({
           </p>
         </div>
 
+        {preloadError ? (
+          <p
+            role="alert"
+            className="rounded-sm border border-destructive/30 bg-destructive-soft p-3 text-xs font-semibold text-destructive"
+          >
+            {preloadError}
+          </p>
+        ) : null}
+
+        {usingStoredDocument && uploaded ? (
+          <div className="flex items-center justify-between gap-3 rounded-sm border border-border bg-surface-subtle/50 px-3 py-2 text-xs">
+            <span className="min-w-0 truncate text-text-muted">
+              Using the stored SLM <strong className="text-text">{uploaded.title}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={resetPreparedUpload}
+              className="shrink-0 font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Use a different file
+            </button>
+          </div>
+        ) : null}
+
         <div className="space-y-3.5">
           <div className="space-y-1.5">
             <label htmlFor="validation-title" className="text-xs font-semibold text-text">
@@ -133,6 +163,7 @@ export function ValidationRunSetup({
             groups={LSPU_SCC_COLLEGE_PROGRAMS}
             placeholder="Select the SLM program (BSCS or BSInfoTech)"
             required
+            disabled={!!uploaded}
             hint="Recorded as the confirmed program for this validation."
           />
 

@@ -156,17 +156,39 @@ const mockAdapterChoices: AdapterChoiceList = {
   agent_id: 'sme',
   server_reachable: true,
   adapters: [
-    { adapter_id: 'sme-v1', version: 1, loaded: false, published: false, gguf_filename: 'sme-v1.gguf' },
-    { adapter_id: 'sme-v2', version: 2, loaded: null, published: false, gguf_filename: 'sme-v2.gguf' },
-    { adapter_id: 'sme-v3', version: 3, loaded: true, published: true, gguf_filename: 'sme-v3.gguf' },
-    { adapter_id: 'sme-v4', version: 4, loaded: true, published: false, gguf_filename: 'sme-v4.gguf' },
+    {
+      adapter_id: 'sme-v1',
+      version: 1,
+      loaded: false,
+      published: false,
+      gguf_filename: 'sme-v1.gguf',
+    },
+    {
+      adapter_id: 'sme-v2',
+      version: 2,
+      loaded: null,
+      published: false,
+      gguf_filename: 'sme-v2.gguf',
+    },
+    {
+      adapter_id: 'sme-v3',
+      version: 3,
+      loaded: true,
+      published: true,
+      gguf_filename: 'sme-v3.gguf',
+    },
+    {
+      adapter_id: 'sme-v4',
+      version: 4,
+      loaded: true,
+      published: false,
+      gguf_filename: 'sme-v4.gguf',
+    },
   ],
 };
 
 function mockCatalog() {
-  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(
-    mockCriteriaCatalog,
-  );
+  vi.spyOn(modelValidationApi, 'getModelValidationCriteria').mockResolvedValue(mockCriteriaCatalog);
 }
 
 function mockAdapters(list: AdapterChoiceList = mockAdapterChoices) {
@@ -241,7 +263,9 @@ async function renderReady() {
   mockAdapters();
   mockUploadedReadyDocument();
   const captured = captureSubmittedBody();
-  const rendered = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
+  const rendered = renderHook(() => useModelValidationFormState(), {
+    wrapper: createWrapper(),
+  });
   await waitFor(() => expect(rendered.result.current.criterionCatalog.isSuccess).toBe(true));
   await uploadDocument(rendered.result);
   return { ...rendered, captured };
@@ -327,7 +351,13 @@ describe('useModelValidationFormState', () => {
       agent_id: 'sme',
       server_reachable: true,
       adapters: [
-        { adapter_id: 'sme-v1', version: 1, loaded: true, published: false, gguf_filename: 'a' },
+        {
+          adapter_id: 'sme-v1',
+          version: 1,
+          loaded: true,
+          published: false,
+          gguf_filename: 'a',
+        },
       ],
     });
     const { result } = renderHook(() => useModelValidationFormState(), {
@@ -342,7 +372,13 @@ describe('useModelValidationFormState', () => {
       agent_id: 'gad',
       server_reachable: true,
       adapters: [
-        { adapter_id: 'gad-v1', version: 1, loaded: false, published: true, gguf_filename: 'g' },
+        {
+          adapter_id: 'gad-v1',
+          version: 1,
+          loaded: false,
+          published: true,
+          gguf_filename: 'g',
+        },
       ],
     });
     act(() => result.current.setTargetAgent('gad'));
@@ -406,7 +442,10 @@ describe('useModelValidationFormState', () => {
       result.current.handleStart();
     });
 
-    expect(captured.body).toMatchObject({ model_variant: 'adapter', adapter_id: 'sme-v4' });
+    expect(captured.body).toMatchObject({
+      model_variant: 'adapter',
+      adapter_id: 'sme-v4',
+    });
   });
 
   it('resets the model choice to base when the target agent changes', async () => {
@@ -502,14 +541,20 @@ it('advances to registered score inputs and releases them when unmounted', async
         domains: [],
         criteria: [
           ...smeAgent.criteria,
-          { ...smeAgent.criteria[0], rubric_criterion_id: 'crit-sme-2', criterion_id: 'crit-sme-2' },
+          {
+            ...smeAgent.criteria[0],
+            rubric_criterion_id: 'crit-sme-2',
+            criterion_id: 'crit-sme-2',
+          },
         ],
       },
     ],
     total_criteria: 2,
   });
   mockAdapters();
-  const { result } = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
+  const { result } = renderHook(() => useModelValidationFormState(), {
+    wrapper: createWrapper(),
+  });
   await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
   act(() => result.current.setTargetAgent('sme'));
   await waitFor(() => expect(result.current.criterionDefinitions.length).toBe(1));
@@ -530,4 +575,296 @@ it('advances to registered score inputs and releases them when unmounted', async
   result.current.registerScoreInput('sme:crit-sme-2', null);
   result.current.handleScoreKeyDown(event, 'sme:crit-sme-1');
   expect(focus).toHaveBeenCalledOnce();
+});
+
+function historyItem(overrides: Partial<ModelValidationItem> = {}): ModelValidationItem {
+  return {
+    validation_id: 'val-old',
+    evaluation_id: 'eval-old',
+    document_id: 'doc-ready-1',
+    document_title: 'SLM 1',
+    model_variant: 'adapter',
+    adapter_id: 'sme-v3',
+    adapter_label: 'v3',
+    adapter_resolution: null,
+    compare_group_id: null,
+    partial_without_curriculum: false,
+    bound_forms: [],
+    criterion_scores: [
+      {
+        expected_score_id: 'es-1',
+        agent_id: 'sme',
+        rubric_set_id: 'set-sme-123',
+        rubric_criterion_id: 'crit-sme-1',
+        criterion_id: 'crit-sme-1',
+        criterion_title: 'Accuracy',
+        expected_score: 3,
+        actual_score: 2,
+        absolute_error: 1,
+      },
+    ],
+    absolute_error: 1,
+    latency_seconds: 1,
+    score_perplexity: null,
+    toxicity_score: null,
+    toxicity_label: null,
+    toxicity_explanation: null,
+    toxicity_model: null,
+    toxicity_error: null,
+    status: 'COMPLETED',
+    error_message: null,
+    created_at: '2026-09-29T00:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('preloadFromRun', () => {
+  async function renderEmpty() {
+    mockCatalog();
+    mockAdapters();
+    const upload = vi.spyOn(documentsApi, 'uploadDocument');
+    const captured = captureSubmittedBody();
+    const rendered = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(rendered.result.current.criterionCatalog.isSuccess).toBe(true));
+    return { ...rendered, upload, captured };
+  }
+
+  it('fills agent, title, program, scores and the stored document, leaving Model unselected', async () => {
+    const { result, upload } = await renderEmpty();
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue({
+      ...mockReadyDoc,
+      program: 'BSCS',
+    });
+
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+
+    expect(result.current.targetAgent).toBe('sme');
+    expect(result.current.title).toBe('SLM 1');
+    expect(result.current.program).toBe('BSCS');
+    expect(result.current.expectedScores).toEqual({ 'sme:crit-sme-1': '3' });
+    expect(result.current.uploaded?.documentId).toBe('doc-ready-1');
+    expect(result.current.usingStoredDocument).toBe(true);
+    expect(result.current.modelChoice).toBe('');
+    expect(result.current.preloadError).toBeNull();
+    expect(upload).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.uploadedDocumentReady).toBe(true));
+  });
+
+  it('stays blocked until a Model is chosen, then posts the same document_id with edited scores', async () => {
+    const { result, captured } = await renderEmpty();
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    await waitFor(() => expect(result.current.uploadedDocumentReady).toBe(true));
+    await waitFor(() => expect(result.current.adapterChoices.isSuccess).toBe(true));
+
+    expect(result.current.allCriterionScoresComplete).toBe(true);
+    expect(result.current.canSubmitEvaluation).toBe(false);
+    await act(async () => {
+      result.current.handleStart();
+    });
+    expect(captured.body).toBeUndefined();
+
+    act(() => {
+      result.current.setExpectedScores({ 'sme:crit-sme-1': '4' });
+      result.current.setModelChoice('sme-v4');
+    });
+    expect(result.current.canSubmitEvaluation).toBe(true);
+    await act(async () => {
+      result.current.handleStart();
+    });
+    expect(captured.body).toMatchObject({
+      document_id: 'doc-ready-1',
+      target_agent: 'sme',
+      model_variant: 'adapter',
+      adapter_id: 'sme-v4',
+    });
+    expect(captured.body?.expected_scores[0].expected_score).toBe(4);
+  });
+
+  it('"Use a different file" (resetPreparedUpload) drops the stored document', async () => {
+    const { result } = await renderEmpty();
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.usingStoredDocument).toBe(true);
+
+    act(() => result.current.resetPreparedUpload());
+    expect(result.current.uploaded).toBeNull();
+    expect(result.current.usingStoredDocument).toBe(false);
+    expect(result.current.file).toBeNull();
+  });
+
+  it('reports a getDocument failure and leaves the form untouched', async () => {
+    const { result } = await renderEmpty();
+    act(() => result.current.setTitle('Typed by hand'));
+    vi.spyOn(documentsApi, 'getDocument').mockRejectedValue(new Error('boom'));
+
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+
+    expect(result.current.preloadError).toMatch(/boom|Unable to load/);
+    expect(result.current.title).toBe('Typed by hand');
+    expect(result.current.targetAgent).toBeNull();
+    expect(result.current.uploaded).toBeNull();
+  });
+
+  it('keeps launch blocked for a FAILED stored document', async () => {
+    const { result } = await renderEmpty();
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue({
+      ...mockReadyDoc,
+      processingStatus: 'FAILED',
+      chunks: [],
+    });
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    await waitFor(() => expect(result.current.uploadedProcessingStatus).toBe('FAILED'));
+    expect(result.current.uploadedDocumentReady).toBe(false);
+    expect(result.current.canSubmitEvaluation).toBe(false);
+  });
+
+  it('refuses a run with no supported agent', async () => {
+    const { result } = await renderEmpty();
+    const getDoc = vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem({ criterion_scores: [] }));
+    });
+    expect(getDoc).not.toHaveBeenCalled();
+    expect(result.current.preloadError).toMatch(/agent/i);
+    expect(result.current.uploaded).toBeNull();
+  });
+});
+
+describe('preloadFromRun is non-destructive', () => {
+  it('creates a new validation on the same document without mutating the original or calling update/delete APIs', async () => {
+    mockCatalog();
+    mockAdapters();
+    const captured = captureSubmittedBody();
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    const spies = [
+      ...Object.keys(documentsApi)
+        .filter((k) => /^(update|delete|remove|patch)/i.test(k))
+        .map((k) =>
+          vi.spyOn(documentsApi as unknown as Record<string, () => unknown>, k).mockResolvedValue(undefined),
+        ),
+      ...Object.keys(modelValidationApi)
+        .filter((k) => /^(update|delete|remove|patch)/i.test(k))
+        .map((k) =>
+          vi.spyOn(modelValidationApi as unknown as Record<string, () => unknown>, k).mockResolvedValue(undefined),
+        ),
+    ];
+    const { result } = renderHook(() => useModelValidationFormState(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.criterionCatalog.isSuccess).toBe(true));
+
+    const original = historyItem();
+    const snapshot = JSON.parse(JSON.stringify(original));
+    await act(async () => {
+      await result.current.preloadFromRun(original);
+    });
+    await waitFor(() => expect(result.current.uploadedDocumentReady).toBe(true));
+    await waitFor(() => expect(result.current.adapterChoices.isSuccess).toBe(true));
+    act(() => {
+      result.current.setExpectedScores({ 'sme:crit-sme-1': '1' });
+      result.current.setModelChoice('base');
+    });
+    await act(async () => {
+      result.current.handleStart();
+    });
+
+    expect(captured.body?.document_id).toBe(original.document_id);
+    expect(captured.body?.expected_scores[0].expected_score).toBe(1);
+    expect(original).toEqual(snapshot);
+    expect(original.criterion_scores[0].expected_score).toBe(3);
+    spies.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+  });
+});
+
+describe('preloadFromRun error and race handling', () => {
+  async function setup() {
+    mockCatalog();
+    mockAdapters();
+    const rendered = renderHook(() => useModelValidationFormState(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(rendered.result.current.criterionCatalog.isSuccess).toBe(true));
+    return rendered;
+  }
+
+  it('clears a failed-preload error when a new file is chosen', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'getDocument').mockRejectedValue(new Error('boom'));
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.preloadError).not.toBeNull();
+
+    act(() => {
+      result.current.handleFile({
+        target: { files: [new File(['x'], 'new.pdf', { type: 'application/pdf' })] },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+    expect(result.current.preloadError).toBeNull();
+  });
+
+  it('clears a failed-preload error on "Use a different file"', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'getDocument').mockRejectedValue(new Error('boom'));
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.preloadError).not.toBeNull();
+    act(() => result.current.resetPreparedUpload());
+    expect(result.current.preloadError).toBeNull();
+  });
+
+  it('ignores a slower earlier preload that resolves after a later one', async () => {
+    const { result } = await setup();
+    let releaseFirst: (doc: ClientDocument) => void = () => {};
+    const getDoc = vi.spyOn(documentsApi, 'getDocument');
+    getDoc.mockImplementationOnce(
+      () => new Promise<ClientDocument>((resolve) => (releaseFirst = resolve)),
+    );
+    getDoc.mockResolvedValue({ ...mockReadyDoc, documentId: 'doc-second' });
+
+    let first: Promise<void> = Promise.resolve();
+    act(() => {
+      first = result.current.preloadFromRun(historyItem({ document_id: 'doc-first' }));
+    });
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem({ document_id: 'doc-second' }));
+    });
+    expect(result.current.uploaded?.documentId).toBe('doc-second');
+
+    await act(async () => {
+      releaseFirst({ ...mockReadyDoc, documentId: 'doc-first' });
+      await first;
+    });
+    expect(result.current.uploaded?.documentId).toBe('doc-second');
+  });
+
+  it('resets an old upload error when a preload starts', async () => {
+    const { result } = await setup();
+    vi.spyOn(documentsApi, 'uploadDocument').mockRejectedValue(new Error('upload broke'));
+    await act(async () => {
+      result.current.uploadMutation.mutate({
+        file: new File(['x'], 'a.pdf', { type: 'application/pdf' }),
+        title: 't',
+        program: 'BSCS',
+      });
+    });
+    await waitFor(() => expect(result.current.uploadMutation.error).not.toBeNull());
+    vi.spyOn(documentsApi, 'getDocument').mockResolvedValue(mockReadyDoc);
+    await act(async () => {
+      await result.current.preloadFromRun(historyItem());
+    });
+    expect(result.current.uploadMutation.error).toBeNull();
+  });
 });

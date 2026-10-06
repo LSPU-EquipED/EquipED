@@ -161,13 +161,16 @@ describe('ModelValidationPage', () => {
     const historyTab = screen.getByRole('tab', { name: 'History' });
     const analyticsTab = screen.getByRole('tab', { name: 'Analytics' });
     const benchmarkTab = screen.getByRole('tab', { name: 'New benchmark' });
+    const compareTab = screen.getByRole('tab', { name: 'Compare' });
 
     for (const [from, key, to] of [
       [historyTab, 'ArrowRight', analyticsTab],
-      [analyticsTab, 'End', benchmarkTab],
-      [benchmarkTab, 'ArrowRight', historyTab],
-      [historyTab, 'ArrowLeft', benchmarkTab],
-      [benchmarkTab, 'Home', historyTab],
+      [analyticsTab, 'ArrowRight', benchmarkTab],
+      [benchmarkTab, 'ArrowRight', compareTab],
+      [compareTab, 'ArrowRight', historyTab],
+      [historyTab, 'ArrowLeft', compareTab],
+      [compareTab, 'Home', historyTab],
+      [historyTab, 'End', compareTab],
     ] as const) {
       fireEvent.keyDown(from, { key });
       expect(document.activeElement).toBe(to);
@@ -176,7 +179,26 @@ describe('ModelValidationPage', () => {
       expect(from.tabIndex).toBe(-1);
       expect(screen.getByRole('tabpanel').id).toBe(to.getAttribute('aria-controls'));
     }
-    expect(screen.queryByRole('tab', { name: /Compare/i })).toBeNull();
+  });
+
+  it('opens the Compare tab by click', () => {
+    vi.spyOn(queriesModule, 'useModelValidationHistory').mockReturnValue({
+      data: mockHistoryData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationListResponse>);
+    vi.spyOn(queriesModule, 'useModelValidationMetrics').mockReturnValue({
+      data: mockMetricsData,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<ModelValidationMetricsResponse>);
+
+    renderPage();
+    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }));
+
+    expect(screen.getByRole('tab', { name: 'Compare', selected: true })).toBeDefined();
+    expect(screen.getByRole('tabpanel', { name: 'Compare' })).toBeDefined();
+    expect(screen.getByText('Nothing to compare yet')).toBeDefined();
   });
 
   it('shows the Model and Target controls and in-flight progress under New Benchmark Run', () => {
