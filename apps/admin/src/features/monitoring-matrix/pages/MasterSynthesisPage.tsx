@@ -3,13 +3,13 @@ import { Link, useParams } from '@tanstack/react-router';
 import {
   ArrowLeft,
   Calendar,
-  Printer,
   WarningCircle,
 } from '@phosphor-icons/react';
 import { Badge, Button, Skeleton, getEvaluationStatusVariant } from '@equiped/ui';
 import { SpecialistInspectionPanel } from '../components/SpecialistInspectionPanel';
 import { SynthesisOverviewRail } from '../components/SynthesisOverviewRail';
 import { useMasterSynthesisDetail } from '../hooks/useMasterSynthesisDetail';
+import { ApprovalSheetExportButton } from '../components/ApprovalSheetExportButton';
 import type { TargetDomainId } from '../utils';
 
 export function MasterSynthesisPage() {
@@ -19,10 +19,6 @@ export function MasterSynthesisPage() {
   const [activeTab, setActiveTab] = useState<TargetDomainId>('sme');
 
   const activePillar = data?.pillars?.[activeTab];
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   if (isLoading) {
     return (
@@ -120,17 +116,7 @@ export function MasterSynthesisPage() {
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">Back to Monitoring Matrix</span>
             </Link>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              className="h-9 gap-1.5 text-xs font-semibold"
-              data-testid="export-pdf-button"
-            >
-              <Printer className="size-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Export PDF</span>
-            </Button>
+            <ApprovalSheetExportButton data={data} />
           </div>
         </div>
 
