@@ -235,6 +235,7 @@ export type ExportDomainData = {
   courseCode?: string | null;
   academicYear?: string | null;
   semester?: string | null;
+  // Human evaluator's printed name; never an automated agent or signature.
   reviewer?: string | null;
   evaluatedAt?: string | null;
   facultyName?: string | null;

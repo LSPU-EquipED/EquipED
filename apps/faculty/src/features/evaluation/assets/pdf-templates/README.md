@@ -33,8 +33,11 @@ APIs: faculty name from the authenticated faculty account, course title and
 academic year from the selected module, and the college code from its canonical
 program mapping. Explicit values take precedence; unsupported/missing fields
 stay blank. Program, module title and reviewer are not substitutes for college,
-course title and faculty name respectively. The reviewer signature/name line
-stays blank. Date evaluated uses the saved completion date only for completed
+course title and faculty name respectively. The evaluator’s printed name is centered in uppercase on
+`signatureNameLine`, using the same 12 pt Times face. An explicit reviewer name
+takes precedence; otherwise use the authenticated faculty account that owns the
+evaluation. Missing names stay blank. The signature itself remains for manual
+signing. Date evaluated uses the saved completion date only for completed
 evaluations, never the download date. No external service receives report data.
 
 When replacing a source PDF, update its copy, layout and checksum together,

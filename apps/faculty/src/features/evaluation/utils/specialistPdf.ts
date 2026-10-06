@@ -66,8 +66,11 @@ export async function createSpecialistPdf(data: ExportDomainData, assets: Export
   const mapping = matchTemplateCriteria(agent, data.criteria);
   const canMark = state === 'Completed' || state === 'Intentional partial evaluation';
   if (canMark) {
-    // Keep the human reviewer line blank. The date is the saved evaluation
-    // completion, never the download date or an inferred signing date.
+    // Prefill only the printed name, leaving the signature for the evaluator.
+    const [nameX, nameY, nameRight] = layout.signatureNameLine;
+    text((data.reviewer || '').toUpperCase(), nameX + 4, nameY - 2, nameRight - nameX - 8, 'center');
+    // The date is the saved evaluation completion, never the download date or
+    // an inferred signing date.
     const [dateX, dateY, dateRight] = layout.evaluatedDateLine;
     text(formatDateWithFallback(data.evaluatedAt || data.results?.completed_at, ''),
       dateX + 4, dateY - 2, dateRight - dateX - 8, 'center');

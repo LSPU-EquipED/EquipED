@@ -38,7 +38,7 @@ describe('specialist PDF metadata', () => {
       facultyName: 'José Santos', courseTitle: 'Human-computer interaction', college: 'CCS',
       academicYear: '2026-2027', evaluatedAt: '2026-10-05T07:30:00Z',
     });
-    expect(resolved.reviewer).toBeUndefined();
+    expect(resolved.reviewer).toBe('José Santos');
   });
 
   it('reuses the selected desk document rather than fetching it again', async () => {
@@ -55,11 +55,11 @@ describe('specialist PDF metadata', () => {
   it('preserves explicitly provided faculty and document fields', async () => {
     const resolved = await loadSpecialistPdfMetadata({
       ...data, document, facultyName: 'Maria Cruz', college: 'CID', courseTitle: 'Confirmed course',
-      academicYear: '2025-2026', evaluatedAt: '2026-09-15',
+      academicYear: '2025-2026', evaluatedAt: '2026-09-15', reviewer: 'Ana Reyes',
     });
     expect(resolved).toMatchObject({
       facultyName: 'Maria Cruz', college: 'CID', courseTitle: 'Confirmed course',
-      academicYear: '2025-2026', evaluatedAt: '2026-09-15',
+      academicYear: '2025-2026', evaluatedAt: '2026-09-15', reviewer: 'Ana Reyes',
     });
     expect(authApi.me).not.toHaveBeenCalled();
   });
@@ -68,12 +68,18 @@ describe('specialist PDF metadata', () => {
     const resolved = resolveSpecialistPdfMetadata(data,
       { ...document, courseTitle: null, academicYear: null, program: 'Unknown' },
       { ...faculty, role: 'admin' });
-    expect(resolved).toMatchObject({ facultyName: null, college: null, courseTitle: null, academicYear: null });
+    expect(resolved).toMatchObject({ facultyName: null, reviewer: null, college: null, courseTitle: null, academicYear: null });
   });
 
   it('does not fill a faculty name from an unauthenticated session', async () => {
     vi.mocked(authApi.me).mockResolvedValue({ authenticated: false, user: null });
-    expect((await loadSpecialistPdfMetadata(data)).facultyName).toBeNull();
+    expect(await loadSpecialistPdfMetadata(data)).toMatchObject({ facultyName: null, reviewer: null });
+  });
+
+  it('loads the evaluator independently of an explicitly supplied module author', async () => {
+    const resolved = await loadSpecialistPdfMetadata({ ...data, document, facultyName: 'Maria Cruz' });
+    expect(authApi.me).toHaveBeenCalledOnce();
+    expect(resolved).toMatchObject({ facultyName: 'Maria Cruz', reviewer: 'José Santos' });
   });
 
   it('does not export substituted metadata when the selected module is inaccessible', async () => {
