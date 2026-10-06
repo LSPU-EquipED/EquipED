@@ -203,3 +203,65 @@ def test_open_gguf_stream(db_session, admin_user, fake_storage):
     chunks, size = gguf_files.open_gguf_stream(adapter, storage=fake_storage)
     assert b"".join(chunks) == PAYLOAD
     assert size == len(PAYLOAD)
+
+
+class _RacingSource:
+    """Reads PAYLOAD, then at EOF lets a second request win the race."""
+
+    def __init__(self, on_eof):
+        self.on_eof = on_eof
+        self.sent = False
+
+    def read(self, n=-1):
+        if not self.sent:
+            self.sent = True
+            return PAYLOAD
+        self.on_eof()
+        return b""
+
+
+def _winner(db_session, adapter, fake_storage, winner_body):
+    from server.modules.training_data.models import TrainedAdapter
+    from sqlalchemy.orm import sessionmaker
+
+    def run():
+        other = sessionmaker(bind=db_session.get_bind())()
+        try:
+            row = other.get(TrainedAdapter, adapter.adapter_id)
+            gguf_files.store_gguf(
+                other, row, io.BytesIO(winner_body), storage=fake_storage
+            )
+        finally:
+            other.close()
+
+    return run
+
+
+WINNER = b"GGUF" + b"	" * 20
+
+
+def test_store_gguf_recheck_under_lock_no_replace(db_session, admin_user, fake_storage):
+    adapter = make_adapter(db_session, "sme", 1)
+    src = _RacingSource(_winner(db_session, adapter, fake_storage, WINNER))
+    with pytest.raises(GgufAlreadyExistsError):
+        gguf_files.store_gguf(db_session, adapter, src, storage=fake_storage)
+    assert fake_storage.objects == {_key(adapter): WINNER}
+    assert adapter.gguf_sha256 == hashlib.sha256(WINNER).hexdigest()
+
+
+def test_store_gguf_token_cannot_be_used_twice(db_session, admin_user, fake_storage):
+    adapter = make_adapter(db_session, "sme", 1)
+    raw = gguf_files.issue_gguf_upload_token(db_session, adapter)
+    src = _RacingSource(_winner(db_session, adapter, fake_storage, WINNER))
+    with pytest.raises(GgufNotFoundError):
+        gguf_files.store_gguf(db_session, adapter, src, token=raw, storage=fake_storage)
+    assert fake_storage.objects == {_key(adapter): WINNER}
+
+
+def test_store_gguf_token_upload_consumes_token(db_session, admin_user, fake_storage):
+    adapter = make_adapter(db_session, "sme", 1)
+    raw = gguf_files.issue_gguf_upload_token(db_session, adapter)
+    _store(db_session, adapter, fake_storage, token=raw)
+    assert fake_storage.objects == {_key(adapter): PAYLOAD}
+    assert adapter.gguf_upload_token_hash is None
+    assert gguf_files.verify_gguf_upload_token(adapter, raw) is False

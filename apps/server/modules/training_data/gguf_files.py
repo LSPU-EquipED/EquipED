@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 import tempfile
 import uuid
@@ -23,6 +24,8 @@ from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.serving import gguf_filename
 from server.modules.training_data.tokens import generate_raw_token, hash_token
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 GGUF_MAGIC = b"GGUF"
 MAX_GGUF_BYTES = MAX_ADAPTER_UPLOAD_BYTES
@@ -51,6 +54,7 @@ def store_gguf(
     source: BinaryIO,
     *,
     replace: bool = False,
+    token: str | None = None,
     storage: Any = None,
 ) -> TrainedAdapter:
     """Validate and store the GGUF; metadata is written only after success."""
@@ -78,6 +82,16 @@ def store_gguf(
         if total <= len(GGUF_MAGIC):
             raise GgufUploadError("not a GGUF file")
 
+        # Re-read under a row lock: another request may have finished (or used
+        # the one-time token) while this body was being buffered.
+        session.refresh(adapter, with_for_update=True)
+        if token is not None and not verify_gguf_upload_token(adapter, token):
+            session.rollback()
+            raise GgufNotFoundError("invalid or expired upload token")
+        if adapter.gguf_storage_key and not replace:
+            session.rollback()
+            raise GgufAlreadyExistsError("adapter already has a GGUF file")
+
         key = gguf_storage_key(adapter)
         created_here = not adapter.gguf_storage_key
         tmp.seek(0)
@@ -95,6 +109,13 @@ def store_gguf(
         session.rollback()
         if created_here:
             storage.delete_artifact(key)
+        else:
+            logger.error(
+                "GGUF replace for adapter %s failed to commit; the stored file "
+                "no longer matches the recorded sha256 and the upload must be "
+                "retried",
+                adapter.adapter_id,
+            )
         raise
     return adapter
 
