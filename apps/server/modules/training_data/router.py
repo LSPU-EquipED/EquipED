@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from fastapi import (
     APIRouter,
@@ -14,7 +16,8 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
 from server.core.config import get_settings
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin
@@ -29,8 +32,21 @@ from server.modules.training_data.exceptions import (
     AdapterNotLoadedError,
     AdapterUploadError,
     EmptyTrainingDatasetError,
+    GgufAlreadyExistsError,
+    GgufInUseError,
+    GgufNotFoundError,
+    GgufUploadError,
     InvalidAgentIdError,
     TrainingJobNotFoundError,
+)
+from server.modules.training_data.gguf_files import (
+    MAX_GGUF_BYTES,
+    build_download_link,
+    issue_gguf_upload_token,
+    open_gguf_stream,
+    remove_gguf,
+    store_gguf,
+    verify_gguf_upload_token,
 )
 from server.modules.training_data.job_packages import preview_dataset_manifest
 from server.modules.training_data.jobs import (
@@ -38,6 +54,7 @@ from server.modules.training_data.jobs import (
     get_job_download_package,
     list_training_jobs,
 )
+from server.modules.training_data.models import TrainedAdapter
 from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.publication import (
     get_adapter_for_agent,
@@ -46,14 +63,17 @@ from server.modules.training_data.publication import (
     unpublish_adapter,
 )
 from server.modules.training_data.schemas import (
+    GgufDownloadLinkResponse,
     PublishAdapterRequest,
     TrainedAdapterListItem,
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
+    TrainedAdapterUploadResponse,
     TrainingDatasetReadinessResponse,
     TrainingJobCreateResponse,
     TrainingJobListItem,
     TrainingJobListResponse,
+    adapter_gguf_info,
 )
 from server.modules.training_data.serving import (
     get_server_adapter_state,
@@ -61,7 +81,62 @@ from server.modules.training_data.serving import (
 )
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/admin/training-data", tags=["training-data"])
+
+
+class GgufDownloadLinkRequest(BaseModel):
+    expires_in_hours: int = Field(default=24, ge=1, le=168)
+
+
+def _adapter_response(adapter: TrainedAdapter) -> TrainedAdapterResponse:
+    response = TrainedAdapterResponse.model_validate(adapter)
+    response.gguf = adapter_gguf_info(adapter)
+    return response
+
+
+def _not_found() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+
+def _get_owned_adapter(db: Session, agent_id: str, adapter_id: uuid.UUID):
+    adapter = db.get(TrainedAdapter, adapter_id)
+    if adapter is None or adapter.agent_id != agent_id:
+        raise _not_found()
+    return adapter
+
+
+def _check_gguf_upload(file: UploadFile) -> None:
+    """Cheap early rejection; store_gguf enforces the real limits while reading."""
+    if not (file.filename or "").lower().endswith(".gguf"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="file must have a .gguf extension",
+        )
+    if file.size is not None and file.size > MAX_GGUF_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"file exceeds max size of {MAX_GGUF_BYTES} bytes",
+        )
+
+
+def _gguf_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, GgufUploadError):
+        code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    elif isinstance(exc, GgufNotFoundError):
+        code = status.HTTP_404_NOT_FOUND
+    else:  # GgufAlreadyExistsError, GgufInUseError
+        code = status.HTTP_409_CONFLICT
+    return HTTPException(status_code=code, detail=str(exc))
+
+
+_GGUF_ERRORS = (
+    GgufUploadError,
+    GgufAlreadyExistsError,
+    GgufNotFoundError,
+    GgufInUseError,
+)
 
 
 def _build_url(request: Request, path: str) -> str:
@@ -143,15 +218,16 @@ def download_training_job_package(
 
 @router.post(
     "/jobs/{job_id}/adapter",
-    response_model=TrainedAdapterResponse,
+    response_model=TrainedAdapterUploadResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def upload_trained_adapter(
     job_id: uuid.UUID,
+    request: Request,
     token: str = Query(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db_session),
-) -> TrainedAdapterResponse:
+) -> TrainedAdapterUploadResponse:
     # This metadata check is only an early rejection. The artifact layer
     # independently enforces the authoritative limit while streaming.
     if file.size is not None and file.size > MAX_ADAPTER_UPLOAD_BYTES:
@@ -172,7 +248,150 @@ def upload_trained_adapter(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
 
-    return TrainedAdapterResponse.model_validate(adapter)
+    # Build the response first: issuing the token commits, and a dead
+    # connection afterwards must not turn the stored upload into a 500.
+    response_data = _adapter_response(adapter).model_dump()
+    gguf_upload_url: str | None = None
+    try:
+        adapter_id = adapter.adapter_id
+        raw = issue_gguf_upload_token(db, adapter)
+        gguf_upload_url = _build_url(
+            request,
+            f"/admin/training-data/adapters/{adapter_id}/gguf?token={raw}",
+        )
+    except Exception:
+        # The adapter zip is already stored; the GGUF link is a convenience.
+        logger.warning("could not issue a GGUF upload link", exc_info=True)
+        gguf_upload_url = None
+        try:
+            db.rollback()
+        except Exception:
+            logger.warning("rollback failed", exc_info=True)
+    return TrainedAdapterUploadResponse(
+        **response_data, gguf_upload_url=gguf_upload_url
+    )
+
+
+@router.post(
+    "/adapters/{adapter_id}/gguf",
+    response_model=TrainedAdapterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_gguf_with_token(
+    adapter_id: uuid.UUID,
+    token: str = Query(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db_session),
+) -> TrainedAdapterResponse:
+    _check_gguf_upload(file)
+    adapter = db.get(TrainedAdapter, adapter_id)
+    if adapter is None or not verify_gguf_upload_token(adapter, token):
+        raise _not_found()
+    try:
+        adapter = store_gguf(db, adapter, file.file, replace=False, token=token)
+    except GgufNotFoundError as exc:
+        raise _not_found() from exc
+    except _GGUF_ERRORS as exc:
+        raise _gguf_http_error(exc) from exc
+    return _adapter_response(adapter)
+
+
+@router.post(
+    "/{agent_id}/adapters/{adapter_id}/gguf",
+    response_model=TrainedAdapterResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_gguf_as_admin(
+    agent_id: str,
+    adapter_id: uuid.UUID,
+    replace: bool = Query(False),
+    file: UploadFile = File(...),
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> TrainedAdapterResponse:
+    adapter = _get_owned_adapter(db, agent_id, adapter_id)
+    _check_gguf_upload(file)
+    try:
+        adapter = store_gguf(db, adapter, file.file, replace=replace)
+    except _GGUF_ERRORS as exc:
+        raise _gguf_http_error(exc) from exc
+    return _adapter_response(adapter)
+
+
+@router.post(
+    "/{agent_id}/adapters/{adapter_id}/gguf/download-link",
+    response_model=GgufDownloadLinkResponse,
+)
+def create_gguf_download_link(
+    agent_id: str,
+    adapter_id: uuid.UUID,
+    request: Request,
+    body: GgufDownloadLinkRequest | None = None,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> GgufDownloadLinkResponse:
+    adapter = _get_owned_adapter(db, agent_id, adapter_id)
+    hours = (body or GgufDownloadLinkRequest()).expires_in_hours
+    try:
+        url = build_download_link(adapter, expires_in_seconds=hours * 3600)
+    except _GGUF_ERRORS as exc:
+        raise _gguf_http_error(exc) from exc
+    if url is None:
+        url = _build_url(
+            request,
+            f"/admin/training-data/{agent_id}/adapters/{adapter_id}/gguf/file",
+        )
+    return GgufDownloadLinkResponse(
+        url=url,
+        filename=gguf_filename(adapter.agent_id, adapter.version),
+        sha256=adapter.gguf_sha256,
+        size_bytes=adapter.gguf_size_bytes,
+        expires_at=datetime.now(UTC) + timedelta(hours=hours),
+    )
+
+
+@router.get("/{agent_id}/adapters/{adapter_id}/gguf/file")
+def stream_gguf_file(
+    agent_id: str,
+    adapter_id: uuid.UUID,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> StreamingResponse:
+    adapter = _get_owned_adapter(db, agent_id, adapter_id)
+    try:
+        chunks, size = open_gguf_stream(adapter)
+    except (GgufNotFoundError, FileNotFoundError) as exc:
+        raise _not_found() from exc
+    name = gguf_filename(adapter.agent_id, adapter.version)
+    headers = {"Content-Disposition": f'attachment; filename="{name}"'}
+    if size is not None:
+        headers["Content-Length"] = str(size)
+    return StreamingResponse(
+        chunks, media_type="application/octet-stream", headers=headers
+    )
+
+
+@router.delete(
+    "/{agent_id}/adapters/{adapter_id}/gguf",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_gguf_file(
+    agent_id: str,
+    adapter_id: uuid.UUID,
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    adapter = _get_owned_adapter(db, agent_id, adapter_id)
+    publication = get_publication(db, agent_id)
+    try:
+        remove_gguf(
+            db,
+            adapter,
+            published_adapter_id=publication.adapter_id if publication else None,
+        )
+    except _GGUF_ERRORS as exc:
+        raise _gguf_http_error(exc) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{agent_id}/jobs", response_model=TrainingJobListResponse)
@@ -218,7 +437,7 @@ def _adapter_list_response(db: Session, agent_id: str) -> TrainedAdapterListResp
     published_id = publication.adapter_id if publication else None
     items = []
     for adapter in adapters:
-        base = TrainedAdapterResponse.model_validate(adapter).model_dump()
+        base = _adapter_response(adapter).model_dump()
         items.append(
             TrainedAdapterListItem(
                 **base,

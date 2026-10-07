@@ -56,6 +56,12 @@ cannot match (wrong pattern, an unknown agent or version, or two files that
 resolve to the same agent and version) is listed on the admin page as
 "unrecognized" and is never used.
 
+If the adapter's GGUF was uploaded to EquipED, open its Details on the admin
+Training Data page and use **Download** (or **Copy download link** to send a
+temporary link to the host owner). The file is already named
+`<agent>-v<version>.gguf`, so save it unchanged into the adapters folder, then
+restart the server.
+
 Check the file arrived intact (compare with the value in the `.sha256` file,
 which still carries the original name):
 

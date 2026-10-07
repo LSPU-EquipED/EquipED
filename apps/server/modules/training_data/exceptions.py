@@ -37,7 +37,27 @@ class AdapterNotLoadedError(TrainingDataError):
     """The adapter is not loaded on the model server (or that cannot be verified)."""
 
 
+class GgufUploadError(TrainingDataError):
+    """The uploaded GGUF file is empty, too large, unreadable or not GGUF."""
+
+
+class GgufAlreadyExistsError(TrainingDataError):
+    """The adapter already has a GGUF file and replace was not requested."""
+
+
+class GgufNotFoundError(TrainingDataError):
+    """The adapter has no GGUF file."""
+
+
+class GgufInUseError(TrainingDataError):
+    """The adapter is the published one; its GGUF file cannot be removed."""
+
+
 __all__ = [
+    "GgufUploadError",
+    "GgufAlreadyExistsError",
+    "GgufNotFoundError",
+    "GgufInUseError",
     "AdapterNotFoundError",
     "AdapterAgentMismatchError",
     "AdapterNotLoadedError",

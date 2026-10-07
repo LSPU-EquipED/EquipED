@@ -67,6 +67,28 @@ class TrainingDatasetReadinessResponse(BaseModel):
     export_timestamp: str
 
 
+class AdapterGgufInfo(BaseModel):
+    size_bytes: int
+    sha256: str
+    uploaded_at: datetime
+
+
+def adapter_gguf_info(adapter: Any) -> AdapterGgufInfo | None:
+    """Metadata of the stored GGUF, or None unless every field is present."""
+    if (
+        adapter.gguf_storage_key is None
+        or adapter.gguf_sha256 is None
+        or adapter.gguf_size_bytes is None
+        or adapter.gguf_uploaded_at is None
+    ):
+        return None
+    return AdapterGgufInfo(
+        size_bytes=adapter.gguf_size_bytes,
+        sha256=adapter.gguf_sha256,
+        uploaded_at=adapter.gguf_uploaded_at,
+    )
+
+
 class TrainedAdapterResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -78,6 +100,19 @@ class TrainedAdapterResponse(BaseModel):
     size_bytes: int
     created_at: datetime
     training_summary: TrainingSummary | None = None
+    gguf: AdapterGgufInfo | None = None
+
+
+class TrainedAdapterUploadResponse(TrainedAdapterResponse):
+    gguf_upload_url: str | None = None
+
+
+class GgufDownloadLinkResponse(BaseModel):
+    url: str
+    filename: str
+    sha256: str
+    size_bytes: int
+    expires_at: datetime
 
 
 class TrainedAdapterListItem(TrainedAdapterResponse):
@@ -104,7 +139,11 @@ __all__ = [
     "TrainingJobListItem",
     "TrainingJobListResponse",
     "TrainingDatasetReadinessResponse",
+    "AdapterGgufInfo",
+    "adapter_gguf_info",
+    "GgufDownloadLinkResponse",
     "TrainedAdapterResponse",
+    "TrainedAdapterUploadResponse",
     "TrainedAdapterListItem",
     "TrainedAdapterListResponse",
     "PublishAdapterRequest",

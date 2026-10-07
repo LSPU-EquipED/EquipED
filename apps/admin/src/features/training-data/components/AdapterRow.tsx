@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { CaretDown } from '@phosphor-icons/react';
 import { Badge, Button, CollapsibleRow, TABLE_STYLES, TYPOGRAPHY, cn } from '@equiped/ui';
 import type { TrainedAdapterItem } from '../types';
+import { AdapterGgufPanel } from './AdapterGgufPanel';
 import { AdapterLoadHint } from './AdapterLoadHint';
 import { formatSize } from '../utils/trainingData.utils';
 import { TrainingRecordMetadata } from './TrainingRecordMetadata';
@@ -101,6 +102,7 @@ export function AdapterRow({
             ]}
           />
         </div>
+        <AdapterGgufPanel adapter={adapter} published={adapter.published} />
         <details className="mt-3 border-t border-border pt-3 text-sm text-text-muted">
           <summary className="cursor-pointer text-[13px] font-medium text-text">
             Technical details

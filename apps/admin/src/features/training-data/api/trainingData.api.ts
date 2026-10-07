@@ -1,6 +1,8 @@
 import { requestJson } from '@equiped/api-client';
 import type {
   DatasetReadiness,
+  GgufDownloadLink,
+  TrainedAdapterItem,
   TrainedAdapterListResponse,
   TrainingJobCreateResponse,
   TrainingJobListResponse,
@@ -24,6 +26,23 @@ export const trainingDataApi = {
     }),
   unpublishAdapter: (agentId: string) =>
     requestJson<void>(`/admin/training-data/${agentId}/published`, {
+      method: 'DELETE',
+    }),
+  uploadGguf: (agentId: string, adapterId: string, file: File, replace: boolean) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestJson<TrainedAdapterItem>(
+      `/admin/training-data/${agentId}/adapters/${adapterId}/gguf?replace=${replace}`,
+      { method: 'POST', body: formData },
+    );
+  },
+  createGgufDownloadLink: (agentId: string, adapterId: string, hours: number) =>
+    requestJson<GgufDownloadLink>(
+      `/admin/training-data/${agentId}/adapters/${adapterId}/gguf/download-link`,
+      { method: 'POST', body: JSON.stringify({ expires_in_hours: hours }) },
+    ),
+  deleteGguf: (agentId: string, adapterId: string) =>
+    requestJson<void>(`/admin/training-data/${agentId}/adapters/${adapterId}/gguf`, {
       method: 'DELETE',
     }),
 };

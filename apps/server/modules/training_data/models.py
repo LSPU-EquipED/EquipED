@@ -97,6 +97,18 @@ class TrainedAdapter(Base):
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    gguf_storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    gguf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    gguf_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gguf_uploaded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    gguf_upload_token_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    gguf_upload_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     training_summary: Mapped[dict | None] = mapped_column(sa.JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=sa.func.now()

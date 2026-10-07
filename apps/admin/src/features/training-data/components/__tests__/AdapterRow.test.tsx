@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdapterRow } from '../AdapterRow';
+
+const wrap = (ui: React.ReactElement) => (
+  <QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>
+);
 
 afterEach(cleanup);
 it('keeps adapter provenance accessible from the version row', () => {
   render(
-    <table>
+    wrap(<table>
       <tbody>
         <AdapterRow
           onPublish={vi.fn()}
@@ -25,7 +30,7 @@ it('keeps adapter provenance accessible from the version row', () => {
           }}
         />
       </tbody>
-    </table>,
+    </table>),
   );
   expect(screen.getByText('v2')).toBeDefined();
   expect(screen.getByText('1.0 MB')).toBeDefined();
@@ -51,7 +56,7 @@ const base = {
 
 function renderRow(adapter: typeof base & { training_summary?: unknown }) {
   return render(
-    <table>
+    wrap(<table>
       <tbody>
         <AdapterRow
           onPublish={vi.fn()}
@@ -59,7 +64,7 @@ function renderRow(adapter: typeof base & { training_summary?: unknown }) {
           adapter={adapter as never}
         />
       </tbody>
-    </table>,
+    </table>),
   );
 }
 
@@ -80,4 +85,11 @@ it('shows "Not recorded" for adapters without a training summary', () => {
   renderRow(base);
   fireEvent.click(screen.getByRole('button', { name: /show details for adapter v7/i }));
   expect(screen.getByText('Not recorded')).toBeDefined();
+});
+
+it('renders the GGUF panel inside the details area', () => {
+  renderRow({ ...base, gguf: null } as never);
+  fireEvent.click(screen.getByRole('button', { name: /show details for adapter v7/i }));
+  expect(screen.getByText('GGUF file')).toBeDefined();
+  expect(screen.getByText('Not uploaded')).toBeDefined();
 });

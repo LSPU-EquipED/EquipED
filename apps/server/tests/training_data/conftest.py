@@ -226,3 +226,43 @@ def _hermetic_server_adapter_state(monkeypatch):
     )
     yield
     clear_server_adapter_cache()
+
+
+class FakeStorage:
+    """In-memory stand-in for the storage backend's artifact API."""
+
+    def __init__(self):
+        self.objects: dict[str, bytes] = {}
+        self.presigned: list[tuple] = []
+        self.put_error: Exception | None = None
+        self.presign_result: str | None = "__default__"
+
+    def put_artifact(self, key, file_obj, content_type="application/octet-stream"):
+        if self.put_error is not None:
+            raise self.put_error
+        file_obj.seek(0)
+        self.objects[key] = file_obj.read()
+        return key
+
+    def artifact_exists(self, key):
+        return key in self.objects
+
+    def delete_artifact(self, key):
+        return self.objects.pop(key, None) is not None
+
+    def open_artifact(self, key, chunk_size=65536):
+        if key not in self.objects:
+            raise FileNotFoundError(key)
+        data = self.objects[key]
+        return iter([data]), len(data)
+
+    def presign_artifact(self, key, expires_in=86400, download_filename=None):
+        self.presigned.append((key, expires_in, download_filename))
+        if self.presign_result != "__default__":
+            return self.presign_result
+        return f"https://r2.example/{key}?exp={expires_in}"
+
+
+@pytest.fixture
+def fake_storage():
+    return FakeStorage()
