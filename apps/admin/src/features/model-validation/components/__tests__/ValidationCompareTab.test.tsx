@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type {
@@ -96,7 +96,9 @@ describe('ValidationCompareTab', () => {
 
   it('keeps Compare disabled until both runs are chosen, then shows the summary', () => {
     render(<ValidationCompareTab history={history()} />);
-    const button = screen.getByRole('button', { name: 'Compare' }) as HTMLButtonElement;
+    const button = screen.getByRole('button', {
+      name: 'Compare',
+    }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     choose('Base run', /SLM b1/);
     expect(button.disabled).toBe(true);
@@ -110,36 +112,35 @@ describe('ValidationCompareTab', () => {
     expect(within(table).getByText('Mean error vs expected')).toBeDefined();
     expect(within(table).getByText('1.00')).toBeDefined();
     expect(within(table).getByText('0.33')).toBeDefined();
-    expect(within(table).getByText('CLOSER')).toBeDefined();
+    expect(within(table).getByText('0.67 closer')).toBeDefined();
     expect(within(table).getByText('1 of 3')).toBeDefined();
     expect(within(table).getByText('2 of 3')).toBeDefined();
+    expect(screen.getByLabelText('Adapter criterion changes')).toBeDefined();
+    expect(screen.getByLabelText('Mean absolute error comparison')).toBeDefined();
+    expect(screen.getByText('Lower is better')).toBeDefined();
     expect(
-      screen.getByText(
-        'The adapter got closer to the expected scores on 2 criteria, stayed the same on 1 and moved away on 0.',
-      ),
-    ).toBeDefined();
-    expect(
-      screen.getByText(/Closer to the expected scores means the model followed them/),
+      screen.getByText(/Agreement with human reviewers depends on who supplied them/),
     ).toBeDefined();
   });
 
-  it('skip chips change the numbers', () => {
+  it('criterion inclusion updates the numbers and can exclude every criterion', () => {
     render(<ValidationCompareTab history={history()} />);
     choose('Base run', /SLM b1/);
     choose('Adapter run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
 
-    fireEvent.click(screen.getByRole('button', { name: /A-03/ }));
+    fireEvent.click(screen.getByText('Criterion details'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include SME A-03' }));
     const table = screen.getByRole('table');
     // remaining: base errors 1,0 -> 0.50 ; adapter 0,0 -> 0.00
     expect(within(table).getByText('0.50')).toBeDefined();
     expect(within(table).getByText('0.00')).toBeDefined();
     expect(within(table).getByText('1 of 2')).toBeDefined();
 
-    fireEvent.click(screen.getByRole('button', { name: /A-01/ }));
-    fireEvent.click(screen.getByRole('button', { name: /A-02/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include SME A-01' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include SME A-02' }));
     expect(screen.queryByRole('table')).toBeNull();
-    expect(screen.getByText(/skipped every criterion/i)).toBeDefined();
+    expect(screen.getByText(/excluded every criterion/i)).toBeDefined();
   });
 
   it('shows the different-copy note only when document ids differ', () => {
@@ -183,20 +184,19 @@ describe('ValidationCompareTab', () => {
     ).toBeDefined();
   });
 
-  it('shows the winner banner and Better badges', () => {
+  it('shows one outcome without repeated winner badges', () => {
     render(<ValidationCompareTab history={history()} />);
     choose('Base run', /SLM b1/);
     choose('Adapter run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.getByText('Adapter is closer to the expected scores')).toBeDefined();
     const table = screen.getByRole('table');
-    // mean error and exact matches both favour the adapter
-    expect(within(table).getAllByText('Better')).toHaveLength(2);
-    expect(within(table).getAllByLabelText('Adapter is better')).toHaveLength(2);
-    expect(within(table).queryByLabelText('Base is better')).toBeNull();
+    expect(within(table).queryByText('Better')).toBeNull();
+    expect(within(table).getByRole('columnheader', { name: 'Change' })).toBeDefined();
+    expect(within(table).queryByText('Criteria: closer / same / farther')).toBeNull();
   });
 
-  it('shows Tie and no Better badge when the runs score the same', () => {
+  it('shows a tied outcome when the runs score the same', () => {
     const twin = [
       item('b1', 'base', [score('A-01', 3, 2)]),
       item('a1', 'adapter', [score('A-01', 3, 2)]),
@@ -205,11 +205,11 @@ describe('ValidationCompareTab', () => {
     choose('Base run', /SLM b1/);
     choose('Adapter run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
-    expect(screen.getByText('Tie')).toBeDefined();
+    expect(screen.getByText('The runs are tied')).toBeDefined();
     expect(screen.queryByText('Better')).toBeNull();
   });
 
-  it('lists criteria skipped for differing expected scores without chips', () => {
+  it('keeps expected-score mismatch exclusions visible and unavailable for inclusion', () => {
     const list = [
       item('b1', 'base', [score('A-01', 3, 2), score('A-05', 3, 3)]),
       item('a1', 'adapter', [score('A-01', 3, 3), score('A-05', 4, 4)]),
@@ -218,9 +218,71 @@ describe('ValidationCompareTab', () => {
     choose('Base run', /SLM b1/);
     choose('Adapter run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    expect(screen.getByText('1 criterion excluded: expected scores differ (A-05).')).toBeDefined();
+    expect(screen.queryByRole('checkbox', { name: /A-05/ })).toBeNull();
+  });
+
+  it('hides the previous results after changing a run, and resets exclusions when comparing again', () => {
+    const nextBase = item('b3', 'base', [
+      score('A-01', 3, 3),
+      score('A-02', 3, 3),
+      score('A-03', 3, 3),
+    ]);
+    render(<ValidationCompareTab history={historyOf([...items, nextBase])} />);
+    choose('Base run', /SLM b1/);
+    choose('Adapter run', /SLM a1/);
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    fireEvent.click(screen.getByText('Criterion details'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Include SME A-03' }));
+
+    choose('Base run', /SLM b3/);
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.queryByText('Criterion details')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('Selections changed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    expect(screen.getByText('Base is closer to the expected scores')).toBeDefined();
+    fireEvent.click(screen.getByText('Criterion details'));
     expect(
-      screen.getByText('Skipped 1 criteria because the two runs have different expected scores: A-05'),
-    ).toBeDefined();
-    expect(screen.queryByRole('button', { name: /A-05/ })).toBeNull();
+      (
+        screen.getByRole('checkbox', {
+          name: 'Include SME A-03',
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(screen.getByText('3 of 3 included')).toBeDefined();
+  });
+
+  it('shows criterion titles and both predictions in the inclusion disclosure', () => {
+    const titledBase = {
+      ...items[0],
+      criterion_scores: [{ ...score('A-01', 3, 2), criterion_title: 'Topic coherence' }],
+    };
+    render(<ValidationCompareTab history={historyOf([titledBase, items[1]])} />);
+    choose('Base run', /SLM b1/);
+    choose('Adapter run', /SLM a1/);
+    fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
+    fireEvent.click(screen.getByText('Criterion details'));
+    expect(screen.getByText('Topic coherence')).toBeDefined();
+    expect(
+      (
+        screen.getByRole('checkbox', {
+          name: 'Include SME A-01',
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    expect(screen.getByText('1 of 1 included')).toBeDefined();
+  });
+
+  it('offers retry and a direct action to prepare a missing benchmark', () => {
+    const refetch = vi.fn().mockResolvedValue({});
+    render(<ValidationCompareTab history={history({ isError: true, refetch })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+    cleanup();
+    const onNewBenchmark = vi.fn();
+    render(<ValidationCompareTab history={historyOf([])} onNewBenchmark={onNewBenchmark} />);
+    fireEvent.click(screen.getByRole('button', { name: 'New benchmark' }));
+    expect(onNewBenchmark).toHaveBeenCalledOnce();
   });
 });

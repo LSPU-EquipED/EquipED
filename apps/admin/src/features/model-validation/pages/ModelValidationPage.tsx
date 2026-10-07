@@ -144,7 +144,7 @@ export function ModelValidationPage() {
           aria-labelledby="validation-tab-compare"
           tabIndex={0}
         >
-          <ValidationCompareTab history={history} />
+          <ValidationCompareTab history={history} onNewBenchmark={() => setActiveTab('new-run')} />
         </div>
       ) : null}
     </PageContainer>
