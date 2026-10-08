@@ -118,6 +118,22 @@ describe('institutional specialist PDFs', () => {
     expect(matchTemplateCriteria(agent, [{ ...data.criteria[0], criterion_text: 'Revised criterion' }]).matches.every((row) => !row)).toBe(true);
   });
 
+  it('keeps restored Coordinator objective gauging and excludes supplemental curriculum advice', async () => {
+    const data = {
+      ...result('coordinator'),
+      advisory_outputs: { criterion_id: 'C-01', score: 1 },
+    };
+    const mapping = matchTemplateCriteria('coordinator', data.criteria);
+    expect(mapping.complete).toBe(true);
+    expect(mapping.matches).toHaveLength(10);
+    expect(mapping.matches[9]?.criterion_text).toBe('Objective Gauging');
+    const fields = filledFields(await exportPdf(data));
+    expect(fields).toContain('(3) Tj');
+    expect(fields).toContain('(Satisfactory) Tj');
+    expect(fields).not.toContain('C-01');
+    expect(fields).not.toContain('Curriculum Alignment');
+  });
+
   it('leaves revised criteria blank even when their IDs and positions are unchanged', () => {
     const data = result('coordinator');
     data.criteria = data.criteria.map((row, index) => index === 9
