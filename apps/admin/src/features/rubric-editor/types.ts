@@ -2,7 +2,8 @@ export type ScoringStrategy =
   | 'llm_rubric_guidance'
   | 'count_band'
   | 'ratio_band'
-  | 'curriculum_alignment';
+  | 'curriculum_alignment'
+  | 'objective_gauging';
 
 export type LlmScoreDescriptor = {
   score: number;
@@ -52,7 +53,8 @@ export type StrategyConfig =
   | LlmRubricGuidanceConfig
   | CountBandConfig
   | RatioBandConfig
-  | CurriculumAlignmentConfig;
+  | CurriculumAlignmentConfig
+  | { strategy: 'objective_gauging' };
 
 export type RubricCriterion = {
   rubric_criterion_id: string;
@@ -194,6 +196,13 @@ export const AGENT_LABELS: Record<string, string> = {
 export const AGENT_ORDER = ['sme', 'coordinator', 'gad', 'itso'] as const;
 export type AgentId = (typeof AGENT_ORDER)[number];
 
+export function getAgentStrategyCapabilities(agentId: string, adapterVersion?: number | null) {
+  if (agentId === 'coordinator' && adapterVersion === 3) {
+    return COORDINATOR_V3_STRATEGY_CAPABILITIES;
+  }
+  return AGENT_STRATEGY_CAPABILITIES[agentId];
+}
+
 export const AGENT_STRATEGY_CAPABILITIES: Record<
   string,
   {
@@ -236,4 +245,11 @@ export const AGENT_STRATEGY_CAPABILITIES: Record<
     description:
       'Scores all 10 criteria independently through a curriculum-alignment lens: curriculum objective alignment plus LLM guidance, count thresholds (minimum), and coverage ratios.',
   },
+};
+
+const COORDINATOR_V3_STRATEGY_CAPABILITIES: (typeof AGENT_STRATEGY_CAPABILITIES)[string] = {
+  ...AGENT_STRATEGY_CAPABILITIES.coordinator,
+  allowedStrategies: ['llm_rubric_guidance', 'count_band', 'ratio_band'],
+  requiredStrategiesByCriterion: { 'A-05': 'objective_gauging' },
+  description: 'Ten official criteria with Objective Gauging; curriculum alignment is a separately scored advisory supplement excluded from the official subtotal.',
 };

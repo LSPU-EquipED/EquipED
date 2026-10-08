@@ -105,6 +105,22 @@ describe('CriterionModal', () => {
     );
   });
 
+  it('preserves the new-version Objective Gauging strategy on save', () => {
+    const onSave = vi.fn();
+    render(<CriterionModal isOpen onClose={vi.fn()} agentId="coordinator" adapterVersion={3}
+      domainTitle="Assessment" isPending={false} onSave={onSave} criterion={{
+        rubric_criterion_id: 'v3-a05', criterion_code: 'A-05', title: 'Objective Gauging',
+        description: 'Objectives are gauged effectively.', display_order: 4,
+        strategy_config: { strategy: 'objective_gauging' },
+      }} />);
+    expect(screen.getByText('Objective Gauging')).toBeTruthy();
+    expect(screen.queryByLabelText(/curriculum alignment guidance/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      criterion_code: 'A-05', strategy_config: { strategy: 'objective_gauging' },
+    }));
+  });
+
   it('normalizes an existing invalid Coordinator A-05 strategy', () => {
     const onSave = vi.fn();
     render(

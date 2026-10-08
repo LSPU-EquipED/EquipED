@@ -92,6 +92,22 @@ describe('SpecialistInspectionPanel', () => {
     expect(screen.queryByText('ITSO flag')).toBeNull();
   });
 
+  it('shows Coordinator curriculum advice separately from the official score', () => {
+    render(<SpecialistInspectionPanel activePillarId="coordinator" pillar={{
+      ...mockPillar, subtotal: 3.9,
+      advisory_outputs: {
+        contract: 'coordinator_alignment.v1', criterion_id: 'C-01',
+        criterion_title: 'Curriculum Alignment', advisory_only: true,
+        score: 1, justification: 'No objectives supported by curriculum.',
+        objective_matches: [{ objective_id: 'OBJ-0001', objective_text: 'An objective.', matched: false, excerpt: '', rejected: false }],
+      },
+    }} />);
+    expect(screen.getByText('3.90')).toBeTruthy();
+    expect(screen.getByText('1 / 4')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).toBeTruthy();
+    expect(screen.getByText(/Excluded from the official subtotal/)).toBeTruthy();
+  });
+
   it('renders awaiting specialist review when evaluator is absent', () => {
     const unreviewedPillar: MasterSynthesisPillar = {
       weight: 0.25,

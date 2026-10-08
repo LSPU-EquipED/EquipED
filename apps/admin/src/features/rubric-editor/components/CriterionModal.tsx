@@ -13,6 +13,7 @@ interface CriterionModalProps {
   isOpen: boolean;
   onClose: () => void;
   agentId: string;
+  adapterVersion?: number | null;
   domainTitle: string;
   criterion?: RubricCriterion | null;
   onSave: (data: {
@@ -29,6 +30,7 @@ interface CriterionModalProps {
 function CriterionModalContent({
   onClose,
   agentId,
+  adapterVersion,
   domainTitle,
   criterion,
   onSave,
@@ -45,14 +47,15 @@ function CriterionModalContent({
     normalizeRequiredStrategyConfig(
       agentId,
       criterion?.criterion_code ?? '',
-      criterion?.strategy_config ?? getDefaultStrategyConfigForAgent(agentId),
+      criterion?.strategy_config ?? getDefaultStrategyConfigForAgent(agentId, adapterVersion),
+      adapterVersion,
     ),
   );
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleCriterionCodeChange = (value: string) => {
     setCriterionCode(value);
-    setStrategyConfig((current) => normalizeRequiredStrategyConfig(agentId, value, current));
+    setStrategyConfig((current) => normalizeRequiredStrategyConfig(agentId, value, current, adapterVersion));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,7 +71,7 @@ function CriterionModalContent({
       setLocalError('Criterion ID is required (e.g. OP-01, GAD-02).');
       return;
     }
-    const requiredStrategy = getRequiredStrategy(agentId, cleanCode);
+    const requiredStrategy = getRequiredStrategy(agentId, cleanCode, adapterVersion);
     if (requiredStrategy && strategyConfig.strategy !== requiredStrategy) {
       setLocalError('This criterion must use its required scoring strategy.');
       return;
@@ -225,6 +228,7 @@ function CriterionModalContent({
           {/* Strategy Editor */}
           <StrategyConfigEditor
             agentId={agentId}
+            adapterVersion={adapterVersion}
             criterionCode={criterionCode}
             value={strategyConfig}
             onChange={setStrategyConfig}
@@ -261,7 +265,7 @@ export function CriterionModal(props: CriterionModalProps) {
 
   return (
     <CriterionModalContent
-      key={`${props.agentId}-${props.domainTitle}-${props.criterion?.rubric_criterion_id || 'new'}`}
+      key={`${props.agentId}-${props.adapterVersion}-${props.domainTitle}-${props.criterion?.rubric_criterion_id || 'new'}`}
       {...props}
     />
   );
