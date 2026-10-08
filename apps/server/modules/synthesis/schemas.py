@@ -7,6 +7,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+from server.modules.agents.contracts import CoordinatorAlignmentAdvisory
 from server.modules.rubrics.presentation import (
     EvaluationFormCriterionPresentation,
     EvaluationFormDomainPresentation,
@@ -66,6 +67,7 @@ def score_to_adjectival(score: float) -> str:
 
 
 class DomainScoreBlock(BaseModel):
+    advisory_outputs: CoordinatorAlignmentAdvisory | None = None
     form_snapshot_id: UUID | None = None
     rubric_set_id: UUID | None = None
     version: int | None = None
@@ -157,6 +159,7 @@ class EvaluatorAttribution(BaseModel):
 
 
 class MasterSynthesisPillar(BaseModel):
+    advisory_outputs: CoordinatorAlignmentAdvisory | None = None
     weight: float
     subtotal: float | None = None
     status: str

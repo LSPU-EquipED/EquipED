@@ -196,6 +196,9 @@ def get_master_synthesis_detail(
         evaluator = evaluator_by_agent.get(agent) or fallback_bundle_evaluator
         pillars[agent] = MasterSynthesisPillar(
             weight=weight,
+            advisory_outputs=domain_data.get("advisory_outputs")
+            if isinstance(domain_data, dict)
+            else None,
             subtotal=subtotal,
             status=status_str,
             criteria=criteria_items,

@@ -52,6 +52,15 @@ def compute_synthesized_score(
             "status": "OK" if result.success else "ERROR",
         }
 
+        advisory = getattr(result, "advisory_outputs", None)
+        if (
+            result.success
+            and result.agent_name == "coordinator"
+            and isinstance(advisory, dict)
+            and advisory.get("contract") == "coordinator_alignment.v1"
+        ):
+            domain_scores[result.agent_name]["advisory_outputs"] = advisory
+
     if active:
         active_weight_sum = sum(AGENT_WEIGHTS.get(a.agent_name, 0.0) for a in active)
         normalized = {

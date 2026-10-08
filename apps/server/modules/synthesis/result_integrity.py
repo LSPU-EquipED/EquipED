@@ -13,11 +13,14 @@ from server.modules.agents.contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CapturedGeneration,
+    CoordinatorAlignmentAdvisory,
+    CurriculumObjectiveMatch,
 )
 from server.modules.agents.contracts import (
     CriterionScore as InputCriterionScore,
 )
 from server.modules.agents.provenance import sanitize_provenance
+from server.modules.agents.runtime.bands import ratio_band
 from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
@@ -188,7 +191,7 @@ class PersistableAgentResult:
     envelope_status_json: str | None
     provenance_json: str | None
     advisory_outputs_json: str | None
-    advisory_output_dto: AdvisoryOutput | None
+    advisory_output_dto: AdvisoryOutput | CoordinatorAlignmentAdvisory | None
     criterion_scores: tuple[PersistableCriterionScore, ...]
     generations: tuple[CapturedGeneration, ...] = ()
 
@@ -382,8 +385,69 @@ def build_persistable_agent_result(
         else None
     )
 
-    if result.agent_name not in ADVISORY_CAPABLE_AGENTS and (
-        result.advisory_outputs is not None
+    coordinator_v3 = (
+        result.agent_name == "coordinator" and snapshot.adapter_version == 3
+    )
+    scored_advisory = isinstance(result.advisory_outputs, CoordinatorAlignmentAdvisory)
+    if coordinator_v3:
+        if not scored_advisory:
+            raise EvaluationResultIntegrityError(
+                "Coordinator v3 requires scored curriculum advisory"
+            )
+        try:
+            advisory = CoordinatorAlignmentAdvisory.from_dict(
+                result.advisory_outputs.to_dict()
+            )
+            rows = (
+                (group_responses or {}).get("envelope_2", {}).get("objective_matches")
+            )
+            if not isinstance(rows, list) or len(rows) != len(
+                advisory.objective_matches
+            ):
+                raise ValueError("objective inventory mismatch")
+            assessment_matches = []
+            for row, c_match in zip(rows, advisory.objective_matches, strict=True):
+                if not isinstance(row, dict) or set(row) != {
+                    "objective_id",
+                    "objective_text",
+                    "assessment_matched",
+                    "assessment_excerpt",
+                    "assessment_rejected",
+                    "curriculum_matched",
+                    "curriculum_excerpt",
+                    "curriculum_rejected",
+                }:
+                    raise ValueError("invalid objective measurement fields")
+
+                def match_for(dimension: str) -> CurriculumObjectiveMatch:
+                    return CurriculumObjectiveMatch(
+                        objective_id=row["objective_id"],
+                        objective_text=row["objective_text"],
+                        matched=row[f"{dimension}_matched"],
+                        excerpt=row[f"{dimension}_excerpt"],
+                        rejected=row[f"{dimension}_rejected"],
+                    )
+
+                if match_for("curriculum") != c_match:
+                    raise ValueError(
+                        "curriculum advisory disagrees with frozen measurement"
+                    )
+                assessment_matches.append(match_for("assessment"))
+            a05 = next(s for s in result.criterion_scores if s.criterion_id == "A-05")
+            derived_score = ratio_band(
+                sum(m.matched for m in assessment_matches), len(rows)
+            ).band
+            if a05.score != derived_score or a05.evidence != tuple(
+                m.excerpt for m in assessment_matches if m.matched
+            ):
+                raise ValueError("objective gauging disagrees with frozen measurement")
+        except (ValueError, TypeError, AttributeError, KeyError, StopIteration) as exc:
+            raise EvaluationResultIntegrityError(
+                "Invalid Coordinator coverage/advisory payload"
+            ) from exc
+    elif scored_advisory or (
+        result.agent_name not in ADVISORY_CAPABLE_AGENTS
+        and result.advisory_outputs is not None
     ):
         raise EvaluationResultIntegrityError("Agent does not support advisory_outputs")
 
@@ -411,6 +475,11 @@ def build_persistable_agent_result(
             raise EvaluationResultIntegrityError(
                 "Duplicate criterion in advisory outputs"
             )
+        adv_json = _serialize_bounded_json(
+            adv_dto.to_dict(), MAX_GROUP_PAYLOAD_BYTES, "advisory_outputs"
+        )
+    elif coordinator_v3:
+        adv_dto = result.advisory_outputs
         adv_json = _serialize_bounded_json(
             adv_dto.to_dict(), MAX_GROUP_PAYLOAD_BYTES, "advisory_outputs"
         )
@@ -446,7 +515,7 @@ def build_persistable_agent_result(
             "Criterion code set mismatch against snapshot"
         )
 
-    if adv_dto is not None:
+    if isinstance(adv_dto, AdvisoryOutput):
         for u in adv_dto.ungrounded_criteria:
             if u.criterion_id not in set(returned_codes):
                 raise EvaluationResultIntegrityError(

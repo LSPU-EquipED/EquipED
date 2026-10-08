@@ -45,7 +45,10 @@ from server.modules.synthesis.models import (
     CriterionScore,
     EvaluationFlag,
 )
-from server.modules.synthesis.persistence import _scheduled_ids_for_job
+from server.modules.synthesis.persistence import (
+    _scheduled_ids_for_job,
+    load_verified_persisted_agent_results,
+)
 from server.modules.synthesis.schemas import (
     CriterionScoreItem,
     DomainScoreBlock,
@@ -341,6 +344,13 @@ def get_evaluation_results(
                     "against verified snapshot"
                 )
 
+        if any(
+            s.agent_id == "coordinator" and s.adapter_version == 3
+            for s in verified_snapshots
+        ):
+            # A completed v3 read must not silently omit or trust a tampered supplement.
+            load_verified_persisted_agent_results(db, evaluation_id, job.document_id)
+
         ungrounded_cids = {f.criterion_id for f in flags if f.chunk_id is None}
         item_rejections_batch = get_effective_item_rejections_batch(
             db, evaluation_id, _ITEM_LEVEL_AGENTS
@@ -449,6 +459,13 @@ def get_evaluation_results(
                 snapshot_hash=snapshot.snapshot_hash,
                 adapter_key=snapshot.adapter_key,
                 adapter_version=snapshot.adapter_version,
+                advisory_outputs=(
+                    result.advisory_outputs
+                    if result.success
+                    and agent_id == "coordinator"
+                    and snapshot.adapter_version == 3
+                    else None
+                ),
                 domain_id=domain_id,
                 domain_name=domain_name,
                 domain_display_order=domain_display_order,
