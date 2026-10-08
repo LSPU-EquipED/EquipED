@@ -301,7 +301,9 @@ A persistent record of:
 
 ### 9.3 Score Aggregation
 
-Individual criterion scores within each domain are summed per rubric. The institutional aggregation formula applied across domains produces the consolidated evaluation total. The exact formula is defined in the CID rubric documents and will be implemented in the scoring layer upon full data collection.
+The backend uses each specialist's mean criterion score on the 1–4 scale. The completed document matrix combines SME (35%), Coordinator (30%), GAD (20%), and ITSO (15%); it withholds the composite until all four domains complete. These generated results remain advisory, not institutional certification.
+
+Coordinator adapter v3 restores official A-05 Objective Gauging and retains C-01 Curriculum Alignment as a separately scored advisory supplement, excluded from the ten-criterion mean, composite, and institutional PDF. Curriculum remains required. V3 fails ambiguous source objective inventories rather than accepting a model-selected denominator. Existing contracts and historical meanings remain unchanged; the default is still v2 pending an explicitly approved new rubric revision and activation. See the [v3 specification](docs/superpowers/specs/2026-10-05-coordinator-objective-gauging-advisory-alignment.md).
 
 ---
 

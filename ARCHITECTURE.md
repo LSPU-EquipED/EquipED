@@ -210,6 +210,8 @@ Execution follows an active supervisor pattern with deterministic terminal synth
 5. **Layer 4 Deterministic Synthesis**: Each successful faculty job merges its persisted domain result into the document's monitoring matrix. With fewer than four completed domains, the matrix remains `IN_PROGRESS` without a composite score; after all four, it computes the weighted composite and marks the matrix `COMPLETED`.
 6. **Completion**: The single-specialist evaluation job marks `COMPLETED` for its targeted domain, independently of matrix completion. Intentional `COMPLETED_PARTIAL` applies only to eligible benchmark/legacy bundles, never to unhandled failures. No automated evaluation layers run beyond Layer 4.
 
+Coordinator adapter v3 is an opt-in versioned harness: a source-based objective inventory drives official A-05 Objective Gauging and supplemental C-01 Curriculum Alignment. The supplement uses existing advisory JSON storage and additive presentation fields; it never enters official criterion rows or weighted synthesis. Both dimensions are required for v3 success. Default v2 behavior and historical snapshot hashes remain unchanged until separate publication/activation approval. See the [v3 contract](docs/superpowers/specs/2026-10-05-coordinator-objective-gauging-advisory-alignment.md).
+
 ---
 
 ## 3. Architecture Decisions & Status
