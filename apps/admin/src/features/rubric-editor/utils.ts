@@ -1,5 +1,6 @@
 import {
   AGENT_STRATEGY_CAPABILITIES,
+  getAgentStrategyCapabilities,
   type CountBandConfig,
   type CurriculumAlignmentConfig,
   type LlmRubricGuidanceConfig,
@@ -56,8 +57,9 @@ export const DEFAULT_CURRICULUM_CONFIG: CurriculumAlignmentConfig = {
 export function getRequiredStrategy(
   agentId: string,
   criterionCode: string,
+  adapterVersion?: number | null,
 ): ScoringStrategy | undefined {
-  return AGENT_STRATEGY_CAPABILITIES[agentId]?.requiredStrategiesByCriterion?.[
+  return getAgentStrategyCapabilities(agentId, adapterVersion)?.requiredStrategiesByCriterion?.[
     criterionCode.trim().toUpperCase()
   ];
 }
@@ -80,6 +82,8 @@ export function getDefaultStrategyConfig(
         : DEFAULT_RATIO_COVERAGE_CONFIG;
     case 'curriculum_alignment':
       return DEFAULT_CURRICULUM_CONFIG;
+    case 'objective_gauging':
+      return { strategy: 'objective_gauging' };
   }
 }
 
@@ -87,19 +91,20 @@ export function normalizeRequiredStrategyConfig(
   agentId: string,
   criterionCode: string,
   config: StrategyConfig,
+  adapterVersion?: number | null,
 ): StrategyConfig {
-  const requiredStrategy = getRequiredStrategy(agentId, criterionCode);
+  const requiredStrategy = getRequiredStrategy(agentId, criterionCode, adapterVersion);
   return requiredStrategy && config.strategy !== requiredStrategy
     ? getDefaultStrategyConfig(requiredStrategy, agentId)
     : config;
 }
 
-export function getDefaultStrategyConfigForAgent(agentId: string): StrategyConfig {
+export function getDefaultStrategyConfigForAgent(agentId: string, adapterVersion?: number | null): StrategyConfig {
   switch (agentId) {
     case 'gad':
       return getDefaultStrategyConfig('count_band', agentId);
     case 'coordinator':
-      return getDefaultStrategyConfig('curriculum_alignment', agentId);
+      return getDefaultStrategyConfig(adapterVersion === 3 ? 'llm_rubric_guidance' : 'curriculum_alignment', agentId);
     default:
       return getDefaultStrategyConfig('llm_rubric_guidance', agentId);
   }

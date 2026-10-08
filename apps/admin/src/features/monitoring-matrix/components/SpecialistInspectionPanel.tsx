@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { CheckCircle, Clock, Warning } from '@phosphor-icons/react';
-import { Badge, getEvaluationStatusVariant } from '@equiped/ui';
+import { Badge, CurriculumAlignmentSupplement, getEvaluationStatusVariant } from '@equiped/ui';
 import { SynthesisCriteriaInspection } from './SynthesisCriteriaInspection';
 import type { EvaluationFlagItem, MasterSynthesisPillar } from '../types';
 import {
@@ -63,7 +63,7 @@ export function SpecialistInspectionPanel({
           <div className="min-w-0">
             <p className="text-xs font-semibold text-text-muted">Specialist review</p>
             <h2 className="mt-1 truncate text-2xl font-semibold leading-tight text-text">
-              {pillarConfig.label}
+              {pillar?.advisory_outputs ? 'Program Coordinator' : pillarConfig.label}
             </h2>
             <p className="mt-1.5 text-sm text-text-muted">{pillarConfig.roleTitle}</p>
           </div>
@@ -117,6 +117,10 @@ export function SpecialistInspectionPanel({
 
       {/* Collapsible Rubric Criteria Inspection List */}
       <SynthesisCriteriaInspection key={activePillarId} criteria={currentCriteria} />
+
+      {activePillarId === 'coordinator' && pillar?.advisory_outputs && (
+        <CurriculumAlignmentSupplement advisory={pillar.advisory_outputs} />
+      )}
 
       {/* Specialist Compliance Flags */}
       {activePillarFlags.length > 0 ? (

@@ -1,5 +1,5 @@
 import {
-  AGENT_STRATEGY_CAPABILITIES,
+  getAgentStrategyCapabilities,
   type CountBandMode,
   type LlmScoreDescriptor,
   type RatioBandMode,
@@ -18,6 +18,7 @@ import {
 
 interface StrategyConfigEditorProps {
   agentId: string;
+  adapterVersion?: number | null;
   criterionCode?: string;
   value: StrategyConfig;
   onChange: (config: StrategyConfig) => void;
@@ -26,17 +27,18 @@ interface StrategyConfigEditorProps {
 
 export function StrategyConfigEditor({
   agentId,
+  adapterVersion,
   criterionCode = '',
   value,
   onChange,
   disabled = false,
 }: StrategyConfigEditorProps) {
-  const agentCaps = AGENT_STRATEGY_CAPABILITIES[agentId] ?? {
+  const agentCaps = getAgentStrategyCapabilities(agentId, adapterVersion) ?? {
     allowedStrategies: ['llm_rubric_guidance'],
     maxCriteria: 20,
     description: '',
   };
-  const requiredStrategy = getRequiredStrategy(agentId, criterionCode);
+  const requiredStrategy = getRequiredStrategy(agentId, criterionCode, adapterVersion);
   const allowedStrategies = requiredStrategy ? [requiredStrategy] : agentCaps.allowedStrategies;
   const hasDescriptors =
     value.strategy === 'llm_rubric_guidance' && Boolean(value.level_descriptors?.length);
@@ -76,12 +78,15 @@ export function StrategyConfigEditor({
                 {strat === 'count_band' && 'Count Band (Discrete Count)'}
                 {strat === 'ratio_band' && 'Ratio Band (Percentage / Difference)'}
                 {strat === 'curriculum_alignment' && 'Curriculum Alignment'}
+                {strat === 'objective_gauging' && 'Objective Gauging'}
               </option>
             ))}
           </select>
         ) : (
           <span className="rounded-sm bg-surface-subtle border border-border px-2 py-1 text-xs font-semibold text-text">
-            {value.strategy === 'curriculum_alignment'
+            {value.strategy === 'objective_gauging'
+              ? 'Objective Gauging'
+              : value.strategy === 'curriculum_alignment'
               ? 'Curriculum Alignment'
               : value.strategy === 'llm_rubric_guidance'
                 ? 'LLM Rubric Guidance'
@@ -89,6 +94,13 @@ export function StrategyConfigEditor({
           </span>
         )}
       </div>
+
+      {value.strategy === 'objective_gauging' && (
+        <p className="text-xs text-text-muted">
+          Frozen source objectives measured by actual SLM assessments. Fixed coverage bands: 4 ≥80%, 3 ≥50%, 2 ≥20%, otherwise 1.
+          Curriculum alignment is separate and excluded from the official subtotal.
+        </p>
+      )}
 
       {/* LLM Rubric Guidance Form */}
       {value.strategy === 'llm_rubric_guidance' && (

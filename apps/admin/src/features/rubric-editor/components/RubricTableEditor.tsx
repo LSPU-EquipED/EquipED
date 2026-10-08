@@ -34,7 +34,7 @@ import {
 import {
   AGENT_LABELS,
   AGENT_ORDER,
-  AGENT_STRATEGY_CAPABILITIES,
+  getAgentStrategyCapabilities,
   type AgentId,
   type RubricCriterion,
   type RubricDomain,
@@ -82,6 +82,9 @@ function formatStrategyBadge(strategyConfig?: StrategyConfig | null): {
         label: `Ratio Band (${mode}${sample})`,
         detail: `T4:${strategyConfig.threshold_4} T3:${strategyConfig.threshold_3} T2:${strategyConfig.threshold_2}`,
       };
+    }
+    case 'objective_gauging': {
+      return { label: 'Objective Gauging', detail: 'Assessment coverage: 80% / 50% / 20%' };
     }
     case 'curriculum_alignment': {
       return {
@@ -217,7 +220,7 @@ export function RubricTableEditor() {
       Boolean(currentRevision.is_active));
 
   const hasDraftForAgent = agentRevisions.some((r) => r.status === 'draft');
-  const agentCaps = AGENT_STRATEGY_CAPABILITIES[selectedAgent] ?? {
+  const agentCaps = getAgentStrategyCapabilities(selectedAgent, currentRevision?.adapter_version) ?? {
     allowedStrategies: ['llm_rubric_guidance'],
     maxCriteria: 20,
     description: '',
@@ -1060,6 +1063,7 @@ export function RubricTableEditor() {
         <CriterionModal
           isOpen={criterionModal.isOpen}
           agentId={selectedAgent}
+          adapterVersion={currentRevision.adapter_version}
           domainTitle={criterionModal.domainTitle ?? ''}
           criterion={criterionModal.criterion}
           onClose={() => setCriterionModal({ isOpen: false })}

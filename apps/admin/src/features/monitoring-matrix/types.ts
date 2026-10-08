@@ -4,6 +4,7 @@ import type {
   MatrixListResponse,
   MatrixMetrics,
   MonitoringMatrixRow,
+  CoordinatorAlignmentAdvisory,
 } from '@equiped/types';
 
 export type {
@@ -36,6 +37,7 @@ export interface EvaluationFlagItem {
 }
 
 export interface MasterSynthesisPillar {
+  advisory_outputs?: CoordinatorAlignmentAdvisory | null;
   weight: number;
   subtotal: number | null;
   status: string;
