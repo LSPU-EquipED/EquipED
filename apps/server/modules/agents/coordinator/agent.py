@@ -3,8 +3,9 @@
 Adapter v2 scores all ten rubric criteria (five Organization and Presentation
 OP-* and five Assessment A-*). Recovery also executes historical adapter-v1
 snapshots containing the single A-05 criterion through this same pipeline.
-Coordinator always scores independently and never inherits or merges Subject
-Matter Expert (SME) scores.
+Adapter v3 restores official A-05 Objective Gauging with a strict source inventory
+and a separate C-01 curriculum advisory. Coordinator always scores independently
+and never inherits or merges Subject Matter Expert (SME) scores.
 
 Entry point:
 - run() -- called by Supervisor in parallel with every other agent. It packs
@@ -26,11 +27,18 @@ from server.modules.rubrics.contracts import DomainDefinition
 from server.modules.rubrics.manifests import get_agent_manifest, validate_form
 from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..contracts import AgentEvaluationResult, CapturedGeneration, CriterionScore
+from ..contracts import (
+    AgentEvaluationResult,
+    CapturedGeneration,
+    CoordinatorAlignmentAdvisory,
+    CriterionScore,
+    CurriculumObjectiveMatch,
+)
 from ..exceptions import AgentExecutionError
 from ..provenance import sanitize_provenance
 from ..runtime.llm import RunLLMClient
-from .execution import execute_envelope
+from .execution import execute_envelope, execute_objective_envelope
+from .objective_gauging import inventory_source, score_dimension
 from .packing import pack_domains
 from .summary import build_alignment_summary
 
@@ -186,6 +194,10 @@ class Coordinator:
             )
         )
 
+        inventory = (
+            inventory_source(full_text) if form_snapshot.adapter_version == 3 else None
+        )
+        advisory = None
         start = time.perf_counter()
         roadmap_note = _format_roadmap_note(roadmap_context) or None
         envelopes = pack_domains(domains)
@@ -199,14 +211,60 @@ class Coordinator:
         generations: list[CapturedGeneration] = []
         for idx, env_criteria in enumerate(envelopes):
             env_key = f"envelope_{idx}"
-            scores, prompt, parsed, repaired = execute_envelope(
-                idx,
-                env_criteria,
-                adapter,
-                full_text,
-                curriculum_text,
-                prompt_preamble=roadmap_note,
-            )
+            contract_key = "criterion_measurements.v1"
+            if (
+                inventory is not None
+                and len(env_criteria) == 1
+                and env_criteria[0].criterion_code == "A-05"
+            ):
+                prompt, parsed, repaired = execute_objective_envelope(
+                    inventory,
+                    adapter,
+                    curriculum_text,
+                )
+                rows = parsed["objective_matches"]
+                score, justification, evidence = score_dimension(rows, "assessment")
+                scores = (
+                    CriterionScore(
+                        criterion_id="A-05",
+                        criterion_title=env_criteria[0].title,
+                        score=score,
+                        justification=justification,
+                        evidence=evidence,
+                    ),
+                )
+                c_score, c_justification, _ = score_dimension(rows, "curriculum")
+                advisory = CoordinatorAlignmentAdvisory(
+                    contract="coordinator_alignment.v1",
+                    criterion_id="C-01",
+                    criterion_title="Curriculum Alignment",
+                    advisory_only=True,
+                    score=c_score,
+                    justification=c_justification,
+                    objective_matches=tuple(
+                        CurriculumObjectiveMatch(
+                            objective_id=r["objective_id"],
+                            objective_text=r["objective_text"],
+                            matched=r["curriculum_matched"],
+                            excerpt=r["curriculum_excerpt"],
+                            rejected=r["curriculum_rejected"],
+                        )
+                        for r in rows
+                    ),
+                )
+                grounding_rejected += sum(
+                    r["assessment_rejected"] + r["curriculum_rejected"] for r in rows
+                )
+                contract_key = "coordinator_objective_coverage.v1"
+            else:
+                scores, prompt, parsed, repaired = execute_envelope(
+                    idx,
+                    env_criteria,
+                    adapter,
+                    full_text,
+                    curriculum_text,
+                    prompt_preamble=roadmap_note,
+                )
             all_scores.extend(scores)
             envelope_prompts[env_key] = prompt.render_flat()
             envelope_responses[env_key] = parsed
@@ -233,15 +291,28 @@ class Coordinator:
                     ),
                     response_text=json.dumps(parsed, ensure_ascii=False),
                     response_json=parsed,
-                    response_contract_key="criterion_measurements.v1",
+                    response_contract_key=contract_key,
                     response_contract_version=1,
                     model_name=adapter.model,
                     envelope_status=envelope_status[env_key],
                 )
             )
 
+        if inventory is not None and advisory is None:
+            raise AgentExecutionError(
+                "Coordinator v3 requires the curriculum alignment supplement"
+            )
         criterion_scores = tuple(all_scores)
         expected = tuple(c.criterion_code for d in domains for c in d.criteria)
+        if inventory is not None:
+            scores_by_id = {s.criterion_id: s for s in criterion_scores}
+            if len(criterion_scores) != len(expected) or set(scores_by_id) != set(
+                expected
+            ):
+                raise AgentExecutionError(
+                    "Coordinator v3 official criterion set mismatch"
+                )
+            criterion_scores = tuple(scores_by_id[cid] for cid in expected)
         if tuple(s.criterion_id for s in criterion_scores) != expected:
             raise AgentExecutionError(
                 "Coordinator scored criterion order does not match the frozen snapshot"
@@ -278,7 +349,9 @@ class Coordinator:
             document_id=document_id,
             subtotal=subtotal,
             criterion_scores=criterion_scores,
-            summary=build_alignment_summary(criterion_scores),
+            summary=build_alignment_summary(
+                criterion_scores, adapter_version=form_snapshot.adapter_version
+            ),
             model_name=actual_model,
             processing_seconds=total_seconds,
             token_count=len(full_text.split()),
@@ -290,6 +363,7 @@ class Coordinator:
                 "envelope_status": envelope_status,
             },
             provenance=sanitize_provenance(provenance),
+            advisory_outputs=advisory,
             generations=tuple(generations),
         )
 

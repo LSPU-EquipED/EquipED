@@ -411,6 +411,65 @@ AGENT_MANIFEST_REGISTRY_V1: MappingProxyType[str, AgentCapabilityManifest] = (
     )
 )
 
+COORDINATOR_MANIFEST_V3 = AgentCapabilityManifest(
+    agent_id="coordinator",
+    adapter_key="coordinator",
+    adapter_version=3,
+    prompt_budget_setting="agent_total_prompt_budget_chars",
+    supported_strategies=(
+        "llm_rubric_guidance",
+        "count_band",
+        "ratio_band",
+        "objective_gauging",
+    ),
+    supported_count_modes=("minimum_count",),
+    supported_ratio_modes=("coverage_percentage",),
+    capabilities=(
+        StrategyCapability(
+            strategy="llm_rubric_guidance",
+            mode=None,
+            measurement_shape="grounded_score",
+        ),
+        StrategyCapability(
+            strategy="count_band",
+            mode="minimum_count",
+            measurement_shape="grounded_instances",
+        ),
+        StrategyCapability(
+            strategy="ratio_band",
+            mode="coverage_percentage",
+            measurement_shape="qualifying_units",
+        ),
+        StrategyCapability(
+            strategy="objective_gauging",
+            mode=None,
+            measurement_shape="objective_gauging",
+        ),
+    ),
+    supported_measurement_shapes=(
+        "grounded_score",
+        "grounded_instances",
+        "qualifying_units",
+        "objective_gauging",
+    ),
+    min_criteria=10,
+    max_criteria=10,
+    default_prompt_budget_chars=32000,
+    allowed_criterion_codes=(
+        "OP-01",
+        "OP-02",
+        "OP-03",
+        "OP-04",
+        "OP-05",
+        "A-01",
+        "A-02",
+        "A-03",
+        "A-04",
+        "A-05",
+    ),
+    required_criterion_strategies=(("A-05", "objective_gauging"),),
+)
+
 AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
     tuple[str, int], AgentCapabilityManifest
 ] = MappingProxyType(
@@ -421,6 +480,7 @@ AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
         ("itso", 1): ITSO_MANIFEST_V1,
         ("coordinator", 1): COORDINATOR_MANIFEST_V1,
         ("coordinator", 2): COORDINATOR_MANIFEST_V2,
+        ("coordinator", 3): COORDINATOR_MANIFEST_V3,
     }
 )
 
@@ -673,6 +733,15 @@ def validate_form(
                     )
                 )
 
+            if strategy == "objective_gauging" and criterion.criterion_code != "A-05":
+                issues.append(
+                    ValidationIssue(
+                        path=f"{c_path}.strategy_config.strategy",
+                        code="INVALID_OBJECTIVE_GAUGING_CRITERION",
+                        message="Objective gauging is reserved for Coordinator A-05",
+                    )
+                )
+
             # Mode compatibility for count_band
             if isinstance(criterion.strategy_config, CountBandConfig):
                 mode = criterion.strategy_config.mode
@@ -792,6 +861,7 @@ __all__ = [
     "AGENT_MANIFEST_VERSION_REGISTRY",
     "COORDINATOR_MANIFEST_V1",
     "COORDINATOR_MANIFEST_V2",
+    "COORDINATOR_MANIFEST_V3",
     "GAD_MANIFEST_V1",
     "GAD_MANIFEST_V2",
     "ITSO_MANIFEST_V1",
