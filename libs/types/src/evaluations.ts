@@ -100,3 +100,20 @@ export const TARGET_AGENT_META: Record<TargetAgent, TargetAgentMeta> = {
 export interface LatestEvaluationsResponse {
   items: LatestEvaluationItem[];
 }
+
+/** Coordinator v3 supplement; never part of official criterion arrays or totals. */
+export interface CoordinatorAlignmentAdvisory {
+  contract: 'coordinator_alignment.v1';
+  criterion_id: 'C-01';
+  criterion_title: 'Curriculum Alignment';
+  advisory_only: true;
+  score: number;
+  justification: string;
+  objective_matches: ReadonlyArray<{
+    objective_id: string;
+    objective_text: string;
+    matched: boolean;
+    excerpt: string;
+    rejected: boolean;
+  }>;
+}
