@@ -281,11 +281,18 @@ class CurriculumAlignmentConfig(FrozenStrategyConfig):
         return _clean_optional_str(value, "guidance", MAX_GUIDANCE_LENGTH)
 
 
+class ObjectiveGaugingConfig(FrozenStrategyConfig):
+    """Coordinator v3: fixed 80/50/20 objective-to-assessment coverage bands."""
+
+    strategy: Literal["objective_gauging"] = "objective_gauging"
+
+
 StrategyConfig = Annotated[
     LlmRubricGuidanceConfig
     | CountBandConfig
     | RatioBandConfig
-    | CurriculumAlignmentConfig,
+    | CurriculumAlignmentConfig
+    | ObjectiveGaugingConfig,
     Field(discriminator="strategy"),
 ]
 
@@ -750,6 +757,7 @@ __all__ = [
     "CountBandConfig",
     "CriterionDefinition",
     "CurriculumAlignmentConfig",
+    "ObjectiveGaugingConfig",
     "CurriculumAlignmentMeasurement",
     "DomainDefinition",
     "FormDefinition",

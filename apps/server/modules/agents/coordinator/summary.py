@@ -7,7 +7,11 @@ from ..contracts import CriterionScore
 _WEAK_THRESHOLD = 2
 
 
-def build_alignment_summary(criterion_scores: tuple[CriterionScore, ...]) -> str:
+def build_alignment_summary(
+    criterion_scores: tuple[CriterionScore, ...],
+    *,
+    adapter_version: int = 2,
+) -> str:
     """One-line deterministic summary of Coordinator's 10-criterion result."""
     if not criterion_scores:
         return ""
@@ -18,7 +22,8 @@ def build_alignment_summary(criterion_scores: tuple[CriterionScore, ...]) -> str
     )
     parts: list[str] = []
     if a05 is not None:
-        parts.append(f"Curriculum alignment (A-05) scored {a05.score}/4.")
+        title = "Objective gauging" if adapter_version == 3 else "Curriculum alignment"
+        parts.append(f"{title} (A-05) scored {a05.score}/4.")
     if weak:
         titles = ", ".join(c.criterion_title for c in weak)
         parts.append(f"Weakest areas: {titles}.")
