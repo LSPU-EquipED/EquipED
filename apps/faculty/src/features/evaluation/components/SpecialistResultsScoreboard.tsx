@@ -10,7 +10,7 @@ import {
   NotePencil,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { Button } from "@equiped/ui";
+import { Button, CurriculumAlignmentSupplement } from "@equiped/ui";
 import { cn } from "@equiped/ui";
 import type {
   TargetAgentMeta,
@@ -437,6 +437,10 @@ export function SpecialistResultsScoreboard({
                 {domainScore.summary}
               </p>
             </details>
+          )}
+
+          {validAgent === "coordinator" && domainScore?.advisory_outputs && (
+            <CurriculumAlignmentSupplement advisory={domainScore.advisory_outputs} />
           )}
 
           <section aria-labelledby="criteria-breakdown">

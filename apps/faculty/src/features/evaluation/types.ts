@@ -1,5 +1,6 @@
 import type {
   ClientDocument,
+  CoordinatorAlignmentAdvisory,
   TargetAgent,
   EvaluationListItem,
   EvaluationListResponse,
@@ -92,6 +93,7 @@ export interface CriterionScoreItem {
 }
 
 export interface DomainScoreBlock {
+  advisory_outputs?: CoordinatorAlignmentAdvisory | null;
   form_snapshot_id?: string | null;
   rubric_set_id?: string | null;
   version?: number | null;

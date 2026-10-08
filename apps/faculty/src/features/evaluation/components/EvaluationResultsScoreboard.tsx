@@ -5,7 +5,7 @@ import type {
   EvaluationResponse,
   EvaluationResultsResponse,
 } from "../types";
-import { Button, cn, Skeleton } from "@equiped/ui";
+import { Button, cn, Skeleton, CurriculumAlignmentSupplement } from "@equiped/ui";
 import {
   ArrowsClockwise,
   CaretDown,
@@ -575,6 +575,11 @@ export function EvaluationResultsScoreboard({
               );
             })}
           </div>
+          {effectiveDomainId === "coordinator" && activeDomainData.advisory_outputs && (
+            <div className="p-4 sm:p-5">
+              <CurriculumAlignmentSupplement advisory={activeDomainData.advisory_outputs} />
+            </div>
+          )}
         </section>
       </div>
     </div>
