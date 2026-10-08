@@ -14,6 +14,7 @@ from typing import Any
 from server.modules.agents.contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
+    parse_advisory_output,
 )
 from server.modules.agents.contracts import (
     CriterionScore as InputCriterionScore,
@@ -332,7 +333,7 @@ def persist_agent_outputs(
                     )
                     db.add(flag_row)
 
-        if p_result.advisory_output_dto is not None:
+        if isinstance(p_result.advisory_output_dto, AdvisoryOutput):
             for item in p_result.advisory_output_dto.ungrounded_criteria:
                 crit_id = item.criterion_id
                 score_row = criterion_score_map[crit_id]
@@ -582,7 +583,7 @@ def load_verified_persisted_agent_results(
                     "Persisted advisory_outputs must be a dict"
                 )
             try:
-                adv_dto = AdvisoryOutput.from_dict(row.advisory_outputs)
+                adv_dto = parse_advisory_output(row.advisory_outputs)
             except (TypeError, ValueError) as exc:
                 raise EvaluationResultIntegrityError(
                     "Invalid advisory outputs"
