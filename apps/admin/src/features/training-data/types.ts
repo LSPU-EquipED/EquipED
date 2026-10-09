@@ -25,6 +25,12 @@ export interface TrainingJobItem {
   reviewer_count?: number | null;
   pairs_sha256?: string | null;
   export_timestamp?: string | null;
+  run_stage?: string | null;
+  run_step?: number | null;
+  run_total?: number | null;
+  run_message?: string | null;
+  run_reported_at?: string | null;
+  seconds_since_report?: number | null;
 }
 
 export interface DatasetReadiness {

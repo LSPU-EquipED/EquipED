@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareToLatestJob,
+  describeRunProgress,
+  isRunActive,
+  STALE_AFTER_SECONDS,
   describeFunnel,
   formatCountdown,
   formatSize,
@@ -121,7 +124,9 @@ describe('describeFunnel', () => {
   });
 
   it('says none were skipped when nothing was', () => {
-    expect(describeFunnel(4, {})).toBe('4 AI results examined: 4 became correction examples, none skipped.');
+    expect(describeFunnel(4, {})).toBe(
+      '4 AI results examined: 4 became correction examples, none skipped.',
+    );
   });
 
   it('ignores zero counts and uses the singular for one result', () => {
@@ -173,5 +178,72 @@ describe('formatSize', () => {
   it('formats bytes 1024 MB or greater as GB with 2 decimal places', () => {
     expect(formatSize(1024 * 1024 * 1024)).toBe('1.00 GB');
     expect(formatSize(2.567 * 1024 * 1024 * 1024)).toBe('2.57 GB');
+  });
+});
+
+const base = {
+  job_id: 'j',
+  agent_id: 'sme',
+  status: 'downloaded' as const,
+  created_at: '2026-10-10T00:00:00Z',
+};
+
+describe('describeRunProgress', () => {
+  it('returns null for runs without a reported stage', () => {
+    expect(describeRunProgress(base)).toBeNull();
+    expect(isRunActive(base)).toBe(false);
+  });
+
+  it('shows the step counter while training', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'training',
+      run_step: 14,
+      run_total: 30,
+      seconds_since_report: 120,
+    });
+    expect(p).toEqual({
+      label: 'Training',
+      detail: 'step 14 of 30 · updated 2 min ago',
+      stale: false,
+      failed: false,
+    });
+  });
+
+  it('flags a quiet active run as stale after 15 minutes', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'training',
+      seconds_since_report: STALE_AFTER_SECONDS,
+    });
+    expect(p?.stale).toBe(true);
+  });
+
+  it('never marks finished or failed runs stale', () => {
+    for (const run_stage of ['finished', 'failed']) {
+      const p = describeRunProgress({ ...base, run_stage, seconds_since_report: 99999 });
+      expect(p?.stale).toBe(false);
+      expect(isRunActive({ ...base, run_stage })).toBe(false);
+    }
+  });
+
+  it('shows the failure reason', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'failed',
+      run_message: 'OOM',
+      seconds_since_report: 5,
+    });
+    expect(p).toMatchObject({ label: 'Failed', failed: true });
+    expect(p?.detail).toContain('OOM');
+  });
+
+  it('says just now for fresh reports and hours for old ones', () => {
+    expect(
+      describeRunProgress({ ...base, run_stage: 'converting', seconds_since_report: 10 })?.detail,
+    ).toBe('updated just now');
+    expect(
+      describeRunProgress({ ...base, run_stage: 'converting', seconds_since_report: 7300 })?.detail,
+    ).toBe('updated 2 h ago');
   });
 });

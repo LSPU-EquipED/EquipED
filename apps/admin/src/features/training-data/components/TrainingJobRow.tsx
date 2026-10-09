@@ -3,6 +3,7 @@ import { CaretDown } from '@phosphor-icons/react';
 import { Badge, Button, CollapsibleRow, TABLE_STYLES, TYPOGRAPHY, cn } from '@equiped/ui';
 import type { StatusVariant } from '@equiped/ui';
 import type { TrainingJobItem } from '../types';
+import { describeRunProgress } from '../utils/trainingData.utils';
 import { TrainingRecordMetadata } from './TrainingRecordMetadata';
 
 const JOB_STATUS: Record<TrainingJobItem['status'], { label: string; variant: StatusVariant }> = {
@@ -16,6 +17,7 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
   const detailsId = useId();
   const status = JOB_STATUS[job.status];
   const created = new Date(job.created_at);
+  const progress = describeRunProgress(job);
 
   return (
     <>
@@ -36,9 +38,20 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
           </span>
         </td>
         <td className="px-4 py-2">
-          <Badge variant={status.variant} className="whitespace-normal tracking-normal">
-            {status.label}
+          <Badge
+            variant={progress?.failed ? 'destructive' : status.variant}
+            className="whitespace-normal tracking-normal"
+          >
+            {progress ? progress.label : status.label}
           </Badge>
+          {progress?.detail ? (
+            <span className="mt-1 block text-xs leading-4 text-text-muted">{progress.detail}</span>
+          ) : null}
+          {progress?.stale ? (
+            <span className="mt-1 block text-xs leading-4 text-warning">
+              No update for 15 minutes. Colab may have disconnected.
+            </span>
+          ) : null}
         </td>
         <td className="px-3 py-2 text-right">
           <Button

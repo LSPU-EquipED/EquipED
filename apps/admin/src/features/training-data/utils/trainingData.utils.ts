@@ -1,4 +1,4 @@
-import type { ReadinessSummary, TrainingSummary } from '../types';
+import type { ReadinessSummary, TrainingJobItem, TrainingSummary } from '../types';
 
 export function formatCountdown(expiresAtIso: string, now: number): string {
   const diffMs = new Date(expiresAtIso).getTime() - now;
@@ -144,8 +144,7 @@ export function buildTrainingSummaryEntries(
     const stepsDiffer = first?.step !== last?.step;
     const bothStepsMissing = first?.step == null && last?.step == null;
     const showStart =
-      isNumber(firstMargin) &&
-      (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
+      isNumber(firstMargin) && (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
     entries.push([
       'Preference margin',
       showStart ? `${fixed(firstMargin)} → ${fixed(lastMargin)}` : fixed(lastMargin),
@@ -170,4 +169,49 @@ export function buildTrainingSummaryEntries(
   const heldoutPairs = heldout?.pair_count;
   if (isNumber(heldoutPairs)) entries.push(['Held-out pairs', `${heldoutPairs}`]);
   return entries;
+}
+
+export const STALE_AFTER_SECONDS = 15 * 60;
+
+const RUN_STAGE_LABELS: Record<string, string> = {
+  starting: 'Starting',
+  training: 'Training',
+  sending_model: 'Sending model',
+  converting: 'Converting file',
+  sending_file: 'Sending file',
+  finished: 'Finished',
+  failed: 'Failed',
+};
+
+export function isRunActive(job: Partial<TrainingJobItem>): boolean {
+  return !!job.run_stage && job.run_stage !== 'finished' && job.run_stage !== 'failed';
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return 'updated just now';
+  if (seconds < 3600) return `updated ${Math.floor(seconds / 60)} min ago`;
+  return `updated ${Math.floor(seconds / 3600)} h ago`;
+}
+
+export interface RunProgress {
+  label: string;
+  detail: string | null;
+  stale: boolean;
+  failed: boolean;
+}
+
+export function describeRunProgress(job: TrainingJobItem): RunProgress | null {
+  if (!job.run_stage) return null;
+  const parts: string[] = [];
+  if (job.run_stage === 'training' && job.run_step != null && job.run_total != null) {
+    parts.push(`step ${job.run_step} of ${job.run_total}`);
+  }
+  if (job.run_stage === 'failed' && job.run_message) parts.push(job.run_message);
+  if (job.seconds_since_report != null) parts.push(formatAge(job.seconds_since_report));
+  return {
+    label: RUN_STAGE_LABELS[job.run_stage] ?? job.run_stage,
+    detail: parts.length > 0 ? parts.join(' · ') : null,
+    stale: isRunActive(job) && (job.seconds_since_report ?? 0) >= STALE_AFTER_SECONDS,
+    failed: job.run_stage === 'failed',
+  };
 }

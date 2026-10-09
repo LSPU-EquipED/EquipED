@@ -109,4 +109,35 @@ describe('TrainingJobsPanel', () => {
     renderJobs([job]);
     expect(screen.queryByRole('navigation', { name: 'Training runs pagination' })).toBeNull();
   });
+
+  it('shows the live stage, counter and a disconnect warning', () => {
+    renderJobs([
+      {
+        ...job,
+        job_id: 'a',
+        status: 'downloaded',
+        run_stage: 'training',
+        run_step: 14,
+        run_total: 30,
+        seconds_since_report: 120,
+      },
+      {
+        ...job,
+        job_id: 'b',
+        status: 'downloaded',
+        run_stage: 'training',
+        run_step: 2,
+        run_total: 30,
+        seconds_since_report: 1000,
+      },
+    ]);
+    expect(screen.getAllByText('Training')).toHaveLength(2);
+    expect(screen.getByText(/step 14 of 30/)).toBeDefined();
+    expect(screen.getAllByText(/colab may have disconnected/i)).toHaveLength(1);
+  });
+
+  it('falls back to the old status for runs without a stage', () => {
+    renderJobs([{ ...job, status: 'pending' }]);
+    expect(screen.getByText('Waiting to start')).toBeDefined();
+  });
 });
