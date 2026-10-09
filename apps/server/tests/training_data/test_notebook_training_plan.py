@@ -157,3 +157,101 @@ def test_cell_7_uses_the_plans_and_new_defaults():
     # the old fixed values are gone
     assert "num_train_epochs=1," not in source
     assert "max_prompt_length=1536" not in source
+
+
+# ---- Task 3: plan recorded in the manifest ---------------------------------
+
+
+class _FakePeftConfig:
+    def to_dict(self):
+        return {
+            "r": 16,
+            "lora_alpha": 32,
+            "lora_dropout": 0,
+            "target_modules": {"q_proj", "v_proj"},
+        }
+
+
+class _FakeModel:
+    peft_config = {"default": _FakePeftConfig()}
+
+
+class _FakeTrainingArgs:
+    seed = 42
+    learning_rate = 2e-5
+    num_train_epochs = 3
+    beta = 0.1
+    per_device_train_batch_size = 1
+    gradient_accumulation_steps = 4
+
+
+def _run_manifest(tmp_path: Path, extra: dict) -> dict:
+    adapter_dir = tmp_path / "trained_adapter"
+    adapter_dir.mkdir()
+    ctx = {
+        "ADAPTER_DIR": str(adapter_dir),
+        "manifest": {"pairs_sha256": "a" * 64, "provenance_sha256": "b" * 64},
+        "BASE_MODEL_NAME": "unsloth/gemma-3-4b-it",
+        "BASE_MODEL_REVISION": "rev",
+        "training_args": _FakeTrainingArgs(),
+        "TRAINING_SEED": 42,
+        "PRECISION_NAME": "float16",
+        "USE_FP16": True,
+        "USE_BF16": False,
+        "MAX_SEQ_LENGTH": 2048,
+        "model": _FakeModel(),
+        "metrics": None,
+        "pairs": [],
+        "heldout_rows": [{"pair_id": "x", "evaluation_id": "e"}],
+        "HELDOUT_METHOD": "group_by_evaluation_id",
+        "HELDOUT_SEED": 42,
+        "HELDOUT_PERCENT": 20,
+    }
+    ctx.update(extra)
+    exec(_cell(9), ctx)  # noqa: S102
+    return json.loads((adapter_dir / "training_manifest.json").read_text())
+
+
+def test_manifest_records_the_training_plan(tmp_path):
+    length_plan = {
+        "dropped": [4, 9],
+        "max_prompt_length": 1024,
+        "max_seq_length": 2048,
+    }
+    dose_plan = {
+        "steps_per_epoch": 7,
+        "epochs": 3,
+        "planned_updates": 21,
+        "max_steps": None,
+    }
+    manifest = _run_manifest(
+        tmp_path,
+        {
+            "LENGTH_PLAN": length_plan,
+            "DOSE_PLAN": dose_plan,
+            "LEARNING_RATE": 2e-5,
+            "GRAD_ACCUM": 4,
+            "HARD_MAX_SEQ_LENGTH": 8192,
+            "_gpu_gb": 22.46,
+            "train_dataset": [1] * 25,
+        },
+    )
+    assert manifest["training_plan"] == {
+        "train_pairs": 25,
+        "heldout_pairs": 1,
+        "dropped_pairs": 2,
+        "max_prompt_length": 1024,
+        "max_seq_length": 2048,
+        "hard_max_seq_length": 8192,
+        "steps_per_epoch": 7,
+        "epochs": 3,
+        "planned_updates": 21,
+        "max_steps": None,
+        "learning_rate": 2e-5,
+        "grad_accum": 4,
+        "gpu_memory_gb": 22.5,
+    }
+
+
+def test_manifest_without_plan_variables_has_a_null_plan(tmp_path):
+    assert _run_manifest(tmp_path, {})["training_plan"] is None
