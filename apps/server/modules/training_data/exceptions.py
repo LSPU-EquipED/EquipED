@@ -53,11 +53,16 @@ class GgufInUseError(TrainingDataError):
     """The adapter is the published one; its GGUF file cannot be removed."""
 
 
+class NotebookTemplateError(TrainingDataError):
+    """The Colab notebook template could not be read or filled in."""
+
+
 __all__ = [
     "GgufUploadError",
     "GgufAlreadyExistsError",
     "GgufNotFoundError",
     "GgufInUseError",
+    "NotebookTemplateError",
     "AdapterNotFoundError",
     "AdapterAgentMismatchError",
     "AdapterNotLoadedError",
