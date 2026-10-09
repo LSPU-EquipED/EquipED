@@ -255,3 +255,28 @@ def test_manifest_records_the_training_plan(tmp_path):
 
 def test_manifest_without_plan_variables_has_a_null_plan(tmp_path):
     assert _run_manifest(tmp_path, {})["training_plan"] is None
+
+
+# ---- Review fixes ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("index", [6, 7, 9])
+def test_edited_cells_compile(index):
+    compile(_cell(index), f"cell{index}", "exec")
+
+
+def test_all_eval_pairs_dropped_leaves_an_empty_eval_selection():
+    keep_train, keep_eval = _helpers(6)["split_keep"]([0, 1, 2], 3, 5)
+    assert keep_train == [0, 1, 2] and keep_eval == []
+    source = _cell(6)
+    assert "eval_dataset = None" in source and "heldout_rows = []" in source
+
+
+def test_split_keep_offsets_eval_positions():
+    keep_train, keep_eval = _helpers(6)["split_keep"]([0, 2, 3, 5], 3, 6)
+    assert keep_train == [0, 2] and keep_eval == [0, 2]
+
+
+def test_no_training_pairs_left_gives_a_clear_error():
+    with pytest.raises(ValueError, match="GPU length ceiling"):
+        _helpers(6)["split_keep"]([3, 4], 3, 5)
