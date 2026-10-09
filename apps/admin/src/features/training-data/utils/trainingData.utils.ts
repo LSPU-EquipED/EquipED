@@ -187,6 +187,32 @@ export function isRunActive(job: Partial<TrainingJobItem>): boolean {
   return !!job.run_stage && job.run_stage !== 'finished' && job.run_stage !== 'failed';
 }
 
+/** A fresh run with no report yet is watched for as long as its download link lives. */
+export const WAITING_POLL_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** A run silent for this long is treated as abandoned and no longer polled. */
+export const POLL_GIVE_UP_AFTER_SECONDS = 2 * 60 * 60;
+/** Upload tokens expire after 7 days; nothing newer than this can still report. */
+export const RUN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Should the job list keep refreshing for this run? Pure: `now` is injected.
+ * Separate from isRunActive (which drives the stale warning), because a run can
+ * be "active" yet abandoned, and a run that has not reported yet is waiting.
+ */
+export function shouldPollRun(job: Partial<TrainingJobItem>, now: number): boolean {
+  const created = job.created_at ? Date.parse(job.created_at) : NaN;
+  const age = now - created; // NaN when created_at is unreadable
+  if (!job.run_stage) {
+    return job.status !== 'completed' && age >= 0 && age <= WAITING_POLL_WINDOW_MS;
+  }
+  // An unreadable date skips only the 7-day cap; the silence cap still applies.
+  return (
+    isRunActive(job) &&
+    !(age > RUN_MAX_AGE_MS) &&
+    (job.seconds_since_report ?? 0) < POLL_GIVE_UP_AFTER_SECONDS
+  );
+}
+
 function formatAge(seconds: number): string {
   if (seconds < 60) return 'updated just now';
   if (seconds < 3600) return `updated ${Math.floor(seconds / 60)} min ago`;

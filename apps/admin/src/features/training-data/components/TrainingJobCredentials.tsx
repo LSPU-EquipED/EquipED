@@ -52,7 +52,7 @@ export function TrainingJobCredentials({ credentials, onSaved }: TrainingJobCred
         />
         <TrainingCredentialField
           label="Step 2 link"
-          hint="Sends back the result. Paste into the final Colab cell."
+          hint="Sends back the result. Paste into the first Colab cell with the other links."
           url={credentials.upload_url}
           expiresAt={credentials.upload_expires_at}
           now={now}

@@ -36,6 +36,11 @@ describe('TrainingJobCredentials', () => {
       credentials.download_url,
     );
     expect((screen.getByLabelText('Step 2 link') as HTMLInputElement).readOnly).toBe(true);
+    expect(
+      screen.getByText(
+        'Sends back the result. Paste into the first Colab cell with the other links.',
+      ),
+    ).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: /saved both links/i }));
     expect(onSaved).toHaveBeenCalledOnce();
   });

@@ -103,4 +103,35 @@ describe('HostSyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /revoke key/i }));
     await waitFor(() => expect(screen.queryByLabelText('Host key')).toBeNull());
   });
+
+  describe('copying the new key', () => {
+    async function createKey() {
+      vi.mocked(trainingDataApi.getHostSync).mockResolvedValue({ has_active_key: false });
+      vi.mocked(trainingDataApi.createHostKey).mockResolvedValue({
+        key: 'hsk_secret123',
+        created_at: '2026-10-10T00:00:00Z',
+      });
+      renderPanel();
+      fireEvent.click(await screen.findByRole('button', { name: /create host key/i }));
+      await screen.findByLabelText('Host key');
+    }
+
+    it('copies the key and confirms it', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      await createKey();
+      fireEvent.click(screen.getByRole('button', { name: 'Copy host key' }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('hsk_secret123'));
+      expect(await screen.findByText('Copied')).toBeDefined();
+      expect(screen.getByRole('status').textContent).toMatch(/host key copied/i);
+    });
+
+    it('shows an error when copying fails', async () => {
+      const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      await createKey();
+      fireEvent.click(screen.getByRole('button', { name: 'Copy host key' }));
+      expect((await screen.findByRole('alert')).textContent).toMatch(/could not copy/i);
+    });
+  });
 });

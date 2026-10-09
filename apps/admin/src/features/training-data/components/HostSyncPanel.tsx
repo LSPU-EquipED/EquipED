@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { Check, Copy } from '@phosphor-icons/react';
 import { Button, Input, TYPOGRAPHY } from '@equiped/ui';
+import { useCredentialCopy } from '../hooks/useCredentialCopy';
 import { useCreateHostKey, useHostSync, useRevokeHostKey } from '../hooks/useHostSync';
 
 function checkedText(lastSeen?: string | null): string {
@@ -8,6 +10,56 @@ function checkedText(lastSeen?: string | null): string {
   if (minutes < 1) return 'Host last checked just now.';
   if (minutes < 60) return `Host last checked ${minutes} min ago.`;
   return `Host last checked ${Math.floor(minutes / 60)} h ago.`;
+}
+
+function NewHostKey({ value }: { value: string }) {
+  const { copyState, copy } = useCredentialCopy(value);
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor="host-key" className="block text-[13px] font-medium text-text">
+        Host key
+      </label>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            id="host-key"
+            value={value}
+            readOnly
+            className="min-w-0 font-mono text-sm"
+            onFocus={(event) => event.currentTarget.select()}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="shrink-0"
+          aria-label="Copy host key"
+          disabled={copyState === 'copying'}
+          onClick={() => void copy()}
+        >
+          {copyState === 'copied' ? (
+            <Check className="size-4" aria-hidden="true" />
+          ) : (
+            <Copy className="size-4" aria-hidden="true" />
+          )}
+          {copyState === 'copied' ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      <p className="text-xs text-text-muted">
+        Shown once. Copy it into the script&apos;s settings now.
+      </p>
+      {copyState === 'copied' && (
+        <span role="status" className="sr-only">
+          Host key copied.
+        </span>
+      )}
+      {copyState === 'error' && (
+        <p role="alert" className="text-[13px] leading-5 text-destructive">
+          Could not copy. Select the key and copy it manually.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function HostSyncPanel() {
@@ -41,23 +93,7 @@ export function HostSyncPanel() {
           <p className="text-sm text-text">
             {data.has_active_key ? checkedText(data.last_seen_at) : 'No key yet.'}
           </p>
-          {newKey ? (
-            <div className="space-y-1.5">
-              <label htmlFor="host-key" className="block text-[13px] font-medium text-text">
-                Host key
-              </label>
-              <Input
-                id="host-key"
-                value={newKey}
-                readOnly
-                className="font-mono text-sm"
-                onFocus={(event) => event.currentTarget.select()}
-              />
-              <p className="text-xs text-text-muted">
-                Shown once. Copy it into the script&apos;s settings now.
-              </p>
-            </div>
-          ) : null}
+          {newKey ? <NewHostKey value={newKey} /> : null}
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

@@ -12,6 +12,7 @@ vi.mock('../../api/trainingData.api', () => ({
     listAdapters: vi.fn(),
     publishAdapter: vi.fn(),
     unpublishAdapter: vi.fn(),
+    getHostSync: vi.fn().mockResolvedValue({ has_active_key: false }),
   },
 }));
 
@@ -126,7 +127,9 @@ describe('AdapterListTable', () => {
       ),
     );
     expect(screen.queryByText('v7')).toBeNull();
-    expect(screen.getByRole('alert').textContent).toContain('Published fine-tuned model v7 is not loaded on the model server');
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Published fine-tuned model v7 is not loaded on the model server',
+    );
   });
 
   it('enables Publish only for a loaded, unpublished version and confirms before calling', async () => {
