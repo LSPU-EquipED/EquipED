@@ -16,9 +16,9 @@ export function HostSyncPanel() {
   const revoke = useRevokeHostKey();
   const [newKey, setNewKey] = useState<string | null>(null);
 
-  async function onCreate() {
-    const created = await create.mutateAsync();
-    setNewKey(created.key);
+  function onCreate() {
+    if (create.isPending) return;
+    create.mutate(undefined, { onSuccess: (created) => setNewKey(created.key) });
   }
 
   return (
@@ -63,7 +63,7 @@ export function HostSyncPanel() {
               type="button"
               variant="secondary"
               disabled={create.isPending}
-              onClick={() => void onCreate()}
+              onClick={onCreate}
             >
               {data.has_active_key ? 'Replace host key' : 'Create host key'}
             </Button>
@@ -73,8 +73,7 @@ export function HostSyncPanel() {
                 variant="secondary"
                 disabled={revoke.isPending}
                 onClick={() => {
-                  setNewKey(null);
-                  revoke.mutate();
+                  revoke.mutate(undefined, { onSuccess: () => setNewKey(null) });
                 }}
               >
                 Revoke key
