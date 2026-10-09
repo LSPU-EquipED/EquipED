@@ -51,6 +51,8 @@ export interface TrainingJobCreateResponse {
   download_expires_at: string;
   upload_expires_at: string;
   created_at: string;
+  notebook?: string | null;
+  notebook_filename?: string | null;
 }
 
 export interface TrainingSnapshot {

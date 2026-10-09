@@ -1,6 +1,7 @@
 import { Button, TYPOGRAPHY } from '@equiped/ui';
 import { useCredentialClock } from '../hooks/useCredentialClock';
 import type { TrainingJobCreateResponse } from '../types';
+import { downloadTextFile } from '../utils/downloadTextFile';
 import { TrainingCredentialField } from './TrainingCredentialField';
 
 export interface TrainingJobCredentialsProps {
@@ -23,6 +24,23 @@ export function TrainingJobCredentials({ credentials, onSaved }: TrainingJobCred
         <p className="max-w-3xl text-[13px] leading-5 text-text-muted">
           Save these two single-use links before leaving or reloading; they cannot be shown again.
         </p>
+        {credentials.notebook && credentials.notebook_filename ? (
+          <div className="pt-1.5">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                downloadTextFile(credentials.notebook_filename!, credentials.notebook!)
+              }
+            >
+              Download notebook
+            </Button>
+            <p className="mt-1.5 text-xs leading-4 text-text-muted">
+              Open it in Colab (File &gt; Upload notebook), choose the T4 GPU, then Run all. The
+              file contains your single-use links, so do not share it.
+            </p>
+          </div>
+        ) : null}
       </div>
       <div className="divide-y divide-border">
         <TrainingCredentialField

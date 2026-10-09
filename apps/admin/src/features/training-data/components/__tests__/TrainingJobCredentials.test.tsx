@@ -2,7 +2,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TrainingJobCredentials } from '../TrainingJobCredentials';
+import { downloadTextFile } from '../../utils/downloadTextFile';
 import type { TrainingJobCreateResponse } from '../../types';
+
+vi.mock('../../utils/downloadTextFile');
 
 const credentials: TrainingJobCreateResponse = {
   job_id: 'job-1',
@@ -116,5 +119,21 @@ describe('TrainingJobCredentials', () => {
     ).toBe(true);
     cleanup();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('offers the filled notebook as a download when the server sent one', () => {
+    const withNotebook = {
+      ...credentials,
+      notebook: '{"cells":[]}',
+      notebook_filename: 'equiped-gad-run-12345678.ipynb',
+    };
+    render(<TrainingJobCredentials credentials={withNotebook} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /download notebook/i }));
+    expect(downloadTextFile).toHaveBeenCalledWith('equiped-gad-run-12345678.ipynb', '{"cells":[]}');
+  });
+
+  it('hides the download button when no notebook was built', () => {
+    render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /download notebook/i })).toBeNull();
   });
 });
