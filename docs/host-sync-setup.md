@@ -64,12 +64,17 @@ from python.org (tick "Add python.exe to PATH"). Nothing else needs installing.
    - `keep_latest`: how many newest versions per agent to load (default 2).
    - `notify`: `true` to show a notification when a new model arrives.
 
+   **`host_sync.ini` contains your secret key.** Keep it private: do not email
+   it, paste it in a chat, or commit it to git. If it is shared by mistake,
+   revoke the key in the admin Host sync panel and create a new one.
+
    The log is written next to `host_sync.ini` as `host_sync.log` (you can set
    `log_file` to put it elsewhere).
 
 Important about the adapters folder path:
 
-- Use plain English letters, numbers, spaces and `\` only. No accented or
+- Use plain ASCII characters only (English letters, numbers, spaces and
+  ordinary punctuation such as `\` `:` `.` `-` `_`). No accented or
   non-English characters: the flags file is saved as UTF-8 but `cmd` reads it
   in the older Windows codepage, so such characters get garbled.
 - Do not use `!` or `%` anywhere in the path. The batch file below treats
@@ -82,10 +87,16 @@ python F:\Dev\Models\gemma\host-sync\host_sync.py --config F:\Dev\Models\gemma\h
 ```
 
 It prints nothing when there is nothing new. When it downloads a model it
-prints `New model sme-v11 ready, restart the model server to load it`. Errors
-are printed and also written to `host_sync.log`. Exit code 0 means all fine,
-1 means something went wrong (see the log), 2 means the settings file is
-missing or wrong.
+prints `New model sme-v11 ready, restart the model server to load it`. On the
+very first run it downloads every model version EquipED has (about 60 MB each),
+even though only the newest 2 per agent plus the published one are loaded.
+
+Errors found while syncing are printed and also written to `host_sync.log`.
+Exit code 0 means all fine and 1 means something went wrong (see the log).
+Exit code 2 means the settings file is missing or wrong; it prints
+`Configuration error: ...` on screen only and is **not** written to the log. So
+if a scheduled run does nothing and the log shows nothing new, run the command
+above by hand from a Command Prompt window to see the message.
 
 ### 4. Make `start-gemma.bat` read the flags file
 
@@ -152,6 +163,26 @@ A model keeps showing **Not loaded** until the server has been restarted.
 - **"checksum does not match; discarded"** or a failed download: nothing
   partial is kept. The next scheduled run tries again. If it keeps happening,
   check your internet connection.
+- **"could not read the manifest from EquipED: ..."**: the script could not
+  reach EquipED or could not understand the reply (internet down, wrong
+  `server_url`, server down, or a damaged reply). Check the address in
+  `host_sync.ini` and your connection; it retries on the next run. If it
+  persists, send the log lines to the developer.
+- **"EquipED returned HTTP N for the manifest"**: EquipED answered with an
+  error (N is the number, for example 500 or 503). Usually the server is having
+  trouble; try again later, and if it persists send the log lines to the
+  developer.
+- **"could not write the flags file: ..."**: the script could not save
+  `lora-flags.txt` (folder missing rights, disk full, or the file is open in
+  another program). Fix that and the next run rewrites it.
+- **"ignored an unsafe or malformed entry"**: EquipED listed a model the script
+  refuses (odd file name or size). It is skipped and nothing is written for it.
+  Send the log line to the developer.
+- **"larger than announced; discarded"**: a download was bigger than EquipED
+  said. The partial file is thrown away and the next run tries again; if it
+  repeats, send the log line to the developer.
+- **"Configuration error: ..."**: shown on screen only, not in the log. Run
+  the command by hand to see it, then fix `host_sync.ini`.
 - **"answered with a redirect"**: `server_url` is not the final address. Use
   the final https address.
 - **Model still shows Not loaded**: the server has not been restarted since the
