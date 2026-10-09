@@ -1,4 +1,5 @@
 import { AdapterListTable } from './AdapterListTable';
+import { HostSyncPanel } from './HostSyncPanel';
 import { DatasetReadinessCard } from './DatasetReadinessCard';
 import { TrainingJobsPanel } from './TrainingJobsPanel';
 import { TrainingJobCredentials } from './TrainingJobCredentials';
@@ -30,8 +31,8 @@ export function TrainingDataWorkspace({
       className="min-w-0 space-y-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <p className="max-w-3xl text-sm leading-6 text-text-muted">
-        A fine-tuned model is the base AI after it has learned from reviewer corrections.
-        Start a training run, finish it in Colab, then choose which fine-tuned model to use.
+        A fine-tuned model is the base AI after it has learned from reviewer corrections. Start a
+        training run, finish it in Colab, then choose which fine-tuned model to use.
       </p>
       <div className="space-y-4">
         <DatasetReadinessCard
@@ -51,6 +52,7 @@ export function TrainingDataWorkspace({
       </div>
       <TrainingJobsPanel agentId={agentId} />
       <AdapterListTable agentId={agentId} />
+      <HostSyncPanel />
     </div>
   );
 }

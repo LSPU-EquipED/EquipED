@@ -6,7 +6,7 @@ export function AdapterLoadHint({ filename }: { filename: string }) {
   return (
     <div className="space-y-2 text-[13px] leading-5 text-text-muted">
       <p className="max-w-3xl [overflow-wrap:anywhere]">
-        {`Save the file as ${filename} and add this to start-gemma.bat with the file's full path (for example F:\\Dev\\Models\\gemma\\adapters\\${filename}), then restart the server.`}
+        {`If the host sync script is set up, it downloads this file for you; then restart the model server. Save the file as ${filename} and add this to start-gemma.bat with the file's full path (for example F:\\Dev\\Models\\gemma\\adapters\\${filename}), then restart the server.`}
       </p>
       <p className="max-w-3xl">
         Download the file from this page, put it in the models folder and restart the server.

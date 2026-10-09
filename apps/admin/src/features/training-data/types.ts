@@ -122,3 +122,14 @@ export interface TrainedAdapterListResponse {
   server_reachable: boolean;
   unrecognized_server_adapters: string[];
 }
+
+export interface HostSyncState {
+  has_active_key: boolean;
+  created_at?: string | null;
+  last_seen_at?: string | null;
+}
+
+export interface HostKeyCreated {
+  key: string;
+  created_at: string;
+}

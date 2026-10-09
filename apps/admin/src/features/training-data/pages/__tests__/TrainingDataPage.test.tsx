@@ -42,6 +42,7 @@ beforeEach(() => {
     pairs_sha256: 'hash',
     export_timestamp: '2026-09-29T00:00:00Z',
   }));
+  vi.mocked(trainingDataApi.getHostSync).mockResolvedValue({ has_active_key: false });
   vi.mocked(trainingDataApi.listJobs).mockImplementation(async (agentId) => ({
     agent_id: agentId,
     jobs: [],
