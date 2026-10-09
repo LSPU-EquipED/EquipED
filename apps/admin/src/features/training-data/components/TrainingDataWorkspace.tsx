@@ -29,6 +29,10 @@ export function TrainingDataWorkspace({
       tabIndex={0}
       className="min-w-0 space-y-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
+      <p className="max-w-3xl text-sm leading-6 text-text-muted">
+        A fine-tuned model is the base AI after it has learned from reviewer corrections.
+        Start a training run, finish it in Colab, then choose which fine-tuned model to use.
+      </p>
       <div className="space-y-4">
         <DatasetReadinessCard
           agentId={agentId}

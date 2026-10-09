@@ -14,7 +14,7 @@ export function formatCountdown(expiresAtIso: string, now: number): string {
 
 export const RECOMMENDED_MIN_PAIRS = 20;
 
-export const RULE_OF_THUMB_NOTE = `${RECOMMENDED_MIN_PAIRS} pairs is a rule of thumb, not a guarantee: consistent corrections matter more than the count.`;
+export const RULE_OF_THUMB_NOTE = `${RECOMMENDED_MIN_PAIRS} correction examples is a rule of thumb, not a guarantee: consistent corrections matter more than the count.`;
 
 export const SEEDED_DATA_NOTE =
   "Counts cover the whole database and include any seeded test data, which can't be told apart here.";
@@ -23,31 +23,31 @@ export function getReadinessTier(pairCount: number, evaluationCount: number): Re
   if (pairCount <= 0) {
     return {
       tier: 'empty',
-      message: 'No trainable pairs yet. Starting a job would be refused.',
+      message: 'No correction examples yet. A training run cannot be started.',
     };
   }
   if (evaluationCount < 2) {
     return {
       tier: 'single-evaluation',
       message:
-        'All pairs come from one evaluation, so nothing can be held out to check the adapter.',
+        'All examples come from one evaluation, so none can be set aside to check the fine-tuned model.',
     };
   }
   if (pairCount < RECOMMENDED_MIN_PAIRS) {
     return {
       tier: 'small',
-      message: `Under ${RECOMMENDED_MIN_PAIRS} pairs: fine for a smoke test, unlikely to show real learning.`,
+      message: `Under ${RECOMMENDED_MIN_PAIRS} correction examples: fine for a quick test, unlikely to show real learning.`,
     };
   }
   return {
     tier: 'reasonable',
-    message: 'Enough volume to attempt a training run.',
+    message: 'Enough examples to try a training run.',
   };
 }
 
 export function getReviewerNote(reviewerCount: number): string | null {
   return reviewerCount === 1
-    ? "All corrections come from one reviewer, so an adapter would learn that person's judgement only."
+    ? "All corrections come from one reviewer, so a fine-tuned model would learn that person's judgement only."
     : null;
 }
 
@@ -74,11 +74,11 @@ export function compareToLatestJob(
 export function describeComparison(comparison: LatestJobComparison): string | null {
   switch (comparison.kind) {
     case 'identical':
-      return 'Unchanged since the latest run; preparing again uses the same data.';
+      return 'Unchanged since the latest run; starting again uses the same examples.';
     case 'changed':
-      return `Since the latest run: ${comparison.from} → ${comparison.to} pairs.`;
+      return `Since the latest run: ${comparison.from} → ${comparison.to} correction examples.`;
     case 'unknown':
-      return 'Previous dataset unavailable for comparison.';
+      return "The previous run's examples are unavailable for comparison.";
     case 'no-jobs':
       return null;
   }
@@ -103,8 +103,8 @@ export function describeFunnel(pairCount: number, skipped: Record<string, number
   const reasons = Object.entries(skipped).filter(([, count]) => count > 0);
   const skippedTotal = totalSkipped(skipped);
   const examined = pairCount + skippedTotal;
-  const noun = examined === 1 ? 'generation' : 'generations';
-  const base = `${examined} ${noun} examined: ${pairCount} became pairs`;
+  const noun = examined === 1 ? 'AI result' : 'AI results';
+  const base = `${examined} ${noun} examined: ${pairCount} became correction examples`;
   if (skippedTotal === 0) return `${base}, none skipped.`;
   const detail =
     reasons.length === 1

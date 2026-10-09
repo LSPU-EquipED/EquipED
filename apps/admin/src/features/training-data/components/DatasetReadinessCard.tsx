@@ -6,7 +6,7 @@ import { DatasetNotes } from './DatasetNotes';
 
 // Volume alone does not validate an adapter; the highest tier is informational.
 const TIER_BADGE: Record<ReadinessTier, { label: string; variant: StatusVariant }> = {
-  empty: { label: 'No pairs', variant: 'neutral' },
+  empty: { label: 'No examples', variant: 'neutral' },
   'single-evaluation': { label: 'Single evaluation', variant: 'warning' },
   small: { label: 'Limited data', variant: 'warning' },
   reasonable: { label: 'Enough to try', variant: 'info' },
@@ -39,7 +39,7 @@ export function DatasetReadinessCard({
         <div className="min-w-0 space-y-4 p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 id="dataset-preparation-title" className={TYPOGRAPHY.headingSm}>
-              Dataset preparation
+              Learning material
             </h2>
             {readiness && !isError && !isLoading && (
               <Badge className="tracking-normal" variant={TIER_BADGE[readiness.tier].variant}>
@@ -53,7 +53,7 @@ export function DatasetReadinessCard({
               aria-busy="true"
               className="divide-y divide-border border-y border-border"
             >
-              <span className="sr-only">Checking dataset…</span>
+              <span className="sr-only">Checking learning material…</span>
               {[0, 1, 2].map((index) => (
                 <div key={index} className="flex items-center justify-between py-2.5">
                   <Skeleton className="h-5 w-20" />
@@ -66,15 +66,15 @@ export function DatasetReadinessCard({
               role="alert"
               className="flex flex-wrap items-center gap-3 text-sm text-destructive"
             >
-              <p>Failed to check dataset readiness. Try again to prepare a run.</p>
+              <p>Could not check the learning material. Try again to start a run.</p>
               <Button variant="secondary" size="sm" onClick={() => void refetch()}>
-                Retry readiness
+                Try again
               </Button>
             </div>
           ) : (
             <dl className="divide-y divide-border border-y border-border">
               {[
-                ['Pairs', data.pair_count],
+                ['Correction examples', data.pair_count],
                 ['Evaluations', data.evaluation_count],
                 ['Reviewers', data.reviewer_count],
               ].map(([label, value]) => (
@@ -97,10 +97,10 @@ export function DatasetReadinessCard({
               aria-busy={isPreparing}
               className="w-full sm:w-auto"
             >
-              {isPreparing ? 'Preparing run…' : 'Prepare training run'}
+              {isPreparing ? 'Starting run…' : 'Start a training run'}
             </Button>
             <p className="text-xs leading-4 text-text-muted">
-              Training continues in your notebook.
+              Training continues in Colab.
             </p>
           </div>
         </div>
@@ -118,7 +118,7 @@ export function DatasetReadinessCard({
           id="training-handoff-reminder"
           className="border-t border-border px-4 py-3 text-sm text-text-muted sm:px-5"
         >
-          Save the notebook URLs below before preparing another run.
+          Save the two links below before starting another run.
         </p>
       )}
       {preparationError && (

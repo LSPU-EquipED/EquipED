@@ -18,23 +18,23 @@ export function TrainingJobCredentials({ credentials, onSaved }: TrainingJobCred
     >
       <div className="space-y-1.5 border-b border-border px-4 py-4 sm:px-5">
         <h2 id="notebook-handoff-title" className={TYPOGRAPHY.headingSm}>
-          Continue in your notebook
+          Continue in Colab
         </h2>
         <p className="max-w-3xl text-[13px] leading-5 text-text-muted">
-          Save these single-use URLs before leaving or reloading; they cannot be retrieved again.
+          Save these two single-use links before leaving or reloading; they cannot be shown again.
         </p>
       </div>
       <div className="divide-y divide-border">
         <TrainingCredentialField
-          label="Download URL"
-          hint="First notebook cell"
+          label="Step 1 link"
+          hint="Gets the data. Paste into the first Colab cell."
           url={credentials.download_url}
           expiresAt={credentials.download_expires_at}
           now={now}
         />
         <TrainingCredentialField
-          label="Upload URL"
-          hint="Final notebook cell"
+          label="Step 2 link"
+          hint="Sends back the result. Paste into the final Colab cell."
           url={credentials.upload_url}
           expiresAt={credentials.upload_expires_at}
           now={now}
@@ -42,7 +42,7 @@ export function TrainingJobCredentials({ credentials, onSaved }: TrainingJobCred
       </div>
       <div className="flex justify-end border-t border-border px-4 py-3 sm:px-5">
         <Button variant="secondary" className="w-full sm:w-auto" onClick={onSaved}>
-          I've saved both URLs
+          I've saved both links
         </Button>
       </div>
     </section>

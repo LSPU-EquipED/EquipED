@@ -29,11 +29,11 @@ describe('TrainingJobCredentials', () => {
   it('provides labeled read-only URLs for manual copying and an explicit saved action', () => {
     const onSaved = vi.fn();
     render(<TrainingJobCredentials credentials={credentials} onSaved={onSaved} />);
-    expect((screen.getByLabelText('Download URL') as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText('Step 1 link') as HTMLInputElement).value).toBe(
       credentials.download_url,
     );
-    expect((screen.getByLabelText('Upload URL') as HTMLInputElement).readOnly).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /saved both URLs/i }));
+    expect((screen.getByLabelText('Step 2 link') as HTMLInputElement).readOnly).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /saved both links/i }));
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
@@ -47,7 +47,7 @@ describe('TrainingJobCredentials', () => {
     );
     mockClipboard(writeText);
     render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Download URL' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Step 1 link' }));
     expect(writeText).toHaveBeenCalledWith(credentials.download_url);
     expect(screen.queryByText('Copied')).toBeNull();
     await act(async () => resolveCopy());
@@ -57,7 +57,7 @@ describe('TrainingJobCredentials', () => {
   it('offers manual copying when clipboard access fails', async () => {
     mockClipboard(vi.fn().mockRejectedValue(new Error('Clipboard blocked')));
     render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Download URL' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Step 1 link' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/copy it manually/));
     expect(screen.queryByText('Copied')).toBeNull();
   });
@@ -66,9 +66,9 @@ describe('TrainingJobCredentials', () => {
     vi.useFakeTimers();
     mockClipboard(vi.fn().mockResolvedValue(undefined));
     render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Download URL' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Step 1 link' }));
     await act(async () => {});
-    const input = screen.getByLabelText('Download URL') as HTMLInputElement;
+    const input = screen.getByLabelText('Step 1 link') as HTMLInputElement;
     input.focus();
 
     act(() => vi.advanceTimersByTime(1000));
@@ -93,7 +93,7 @@ describe('TrainingJobCredentials', () => {
       ),
     );
     const view = render(<TrainingJobCredentials credentials={credentials} onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Download URL' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Step 1 link' }));
     view.unmount();
     await act(async () => resolveCopy());
     expect(vi.getTimerCount()).toBe(0);
@@ -112,7 +112,7 @@ describe('TrainingJobCredentials', () => {
     act(() => vi.advanceTimersByTime(65000));
     expect(screen.getAllByText('Expired')).toHaveLength(2);
     expect(
-      (screen.getByRole('button', { name: 'Copy Download URL' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Copy Step 1 link' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     cleanup();
     expect(vi.getTimerCount()).toBe(0);

@@ -110,7 +110,7 @@ export function useModelValidationFormState() {
   const adapters = adapterChoices.data?.adapters ?? [];
   const published = adapters.find((a) => a.published) ?? null;
   const adapterOptions = [
-    { value: 'base', label: 'Base model (no adapter)', disabled: false },
+    { value: 'base', label: 'Base model (no fine-tuning)', disabled: false },
     ...(published
       ? [
           {

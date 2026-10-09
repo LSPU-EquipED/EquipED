@@ -146,7 +146,7 @@ export function AdapterGgufPanel({
               disabled={published || remove.isPending}
               title={
                 published
-                  ? 'The published adapter file cannot be removed. Unpublish it first.'
+                  ? 'The published fine-tuned model file cannot be removed. Unpublish it first.'
                   : undefined
               }
               onClick={() => setConfirming(true)}

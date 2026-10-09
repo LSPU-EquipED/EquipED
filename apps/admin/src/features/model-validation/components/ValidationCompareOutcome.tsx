@@ -2,7 +2,7 @@ import { TABLE_STYLES, cn } from '@equiped/ui';
 import type { PairComparison } from '../utils/compare';
 
 const WINNER_TEXT = {
-  adapter: 'Adapter is closer to the expected scores',
+  adapter: 'Fine-tuned model is closer to the expected scores',
   base: 'Base is closer to the expected scores',
   tie: 'The runs are tied',
 } as const;
@@ -19,7 +19,7 @@ function ErrorBars({ base, adapter }: { base: number; adapter: number }) {
       <div className="space-y-4">
         {[
           { label: 'Base', value: base, color: 'bg-text-muted' },
-          { label: 'Adapter', value: adapter, color: 'bg-primary' },
+          { label: 'Fine-tuned', value: adapter, color: 'bg-primary' },
         ].map(({ label, value, color }) => (
           <div
             key={label}
@@ -78,7 +78,7 @@ export function ValidationCompareOutcome({ comparison }: { comparison: PairCompa
       </div>
 
       <dl
-        aria-label="Adapter criterion changes"
+        aria-label="Fine-tuned model criterion changes"
         className="grid grid-cols-3 border-y border-border bg-surface-subtle/40"
       >
         {[
@@ -119,7 +119,7 @@ export function ValidationCompareOutcome({ comparison }: { comparison: PairCompa
                 Base
               </th>
               <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
-                Adapter
+                Fine-tuned
               </th>
               <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
                 Change

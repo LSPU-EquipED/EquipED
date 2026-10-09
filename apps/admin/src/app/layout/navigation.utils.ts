@@ -55,7 +55,7 @@ export const adminNavGroups: readonly NavGroup[] = [
       { to: '/evaluation-map', label: 'Knowledge Map', icon: GitFork, exact: true },
       { to: '/admin/model-validation', label: 'Model Validation', icon: Scan, exact: true },
       { to: '/admin/prompts', label: 'Agent Prompts', icon: Gear, exact: false },
-      { to: '/admin/training-data', label: 'Training Data', icon: GraduationCap, exact: false },
+      { to: '/admin/training-data', label: 'Model Training', icon: GraduationCap, exact: false },
       { to: '/admin/preferences', label: 'Preference Logs', icon: BookOpen, exact: true },
     ],
   },
@@ -112,14 +112,14 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   }
 
   if (cleanPath === '/admin/training-data') {
-    return [{ label: 'Training Data' }];
+    return [{ label: 'Model Training' }];
   }
 
   if (cleanPath.startsWith('/admin/training-data/')) {
     const agentId = cleanPath.replace('/admin/training-data/', '');
     const agentLabel = getAgentBreadcrumbLabel(agentId);
     return [
-      { label: 'Training Data', to: '/admin/training-data' },
+      { label: 'Model Training', to: '/admin/training-data' },
       { label: agentLabel },
     ];
   }
@@ -160,7 +160,7 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/admin/rubrics') return 'Rubric Editor';
   if (cleanPath === '/admin/model-validation') return 'Model Validation';
   if (cleanPath.startsWith('/admin/prompts')) return 'Agent Prompts';
-  if (cleanPath.startsWith('/admin/training-data')) return 'Training Data';
+  if (cleanPath.startsWith('/admin/training-data')) return 'Model Training';
   if (cleanPath === '/admin/preferences') return 'Preference Logs';
   return 'EquipED Admin';
 }

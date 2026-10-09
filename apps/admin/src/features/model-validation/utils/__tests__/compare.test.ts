@@ -56,7 +56,7 @@ describe('computePairComparison', () => {
     expect(result.baseAverage).toBeCloseTo(3.2);
     expect(result.adapterAverage).toBeCloseTo(3.0);
     expect(result.summary).toBe(
-      'The adapter got closer to the expected scores on 1 criteria, stayed the same on 3 and moved away on 1.',
+      'The fine-tuned model got closer to the expected scores on 1 criteria, stayed the same on 3 and moved away on 1.',
     );
     const meanRow = result.rows.find((r) => r.label === 'Mean error vs expected');
     expect(meanRow).toEqual({

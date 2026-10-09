@@ -9,7 +9,7 @@ export function AdapterLoadHint({ filename }: { filename: string }) {
         {`Save the file as ${filename} and add this to start-gemma.bat with the file's full path (for example F:\\Dev\\Models\\gemma\\adapters\\${filename}), then restart the server.`}
       </p>
       <p className="max-w-3xl">
-        Download the file from this page, put it in the adapters folder and restart the server.
+        Download the file from this page, put it in the models folder and restart the server.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <code className="min-w-0 rounded-sm bg-surface-subtle px-3 py-2 font-mono text-xs [overflow-wrap:anywhere]">

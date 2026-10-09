@@ -94,7 +94,7 @@ export function ValidationCompareTab({
         <ArrowsLeftRight className="mx-auto mb-3 size-6 text-primary" aria-hidden="true" />
         <p className="text-sm font-semibold text-text">Nothing to compare yet</p>
         <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-text-muted">
-          Comparing needs at least one completed base run and one completed adapter run. Submit them
+          Comparing needs at least one completed base run and one completed fine-tuned run. Submit them
           in the New benchmark workspace first.
         </p>
         {onNewBenchmark ? (

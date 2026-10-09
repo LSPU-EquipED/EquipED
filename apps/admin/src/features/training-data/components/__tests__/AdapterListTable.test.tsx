@@ -98,7 +98,7 @@ describe('AdapterListTable', () => {
 
   it('paginates adapters and publishes the selected version on another page', async () => {
     await renderTable(listing(Array.from({ length: 7 }, (_, index) => adapter(index + 1))));
-    const pagination = screen.getByRole('navigation', { name: 'Uploaded adapters pagination' });
+    const pagination = screen.getByRole('navigation', { name: 'Fine-tuned models pagination' });
     expect(screen.queryByText('v6')).toBeNull();
     expect(screen.getAllByRole('button', { name: /show details/i })).toHaveLength(5);
     fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }));
@@ -126,7 +126,7 @@ describe('AdapterListTable', () => {
       ),
     );
     expect(screen.queryByText('v7')).toBeNull();
-    expect(screen.getByRole('alert').textContent).toContain('Published adapter v7 is not loaded');
+    expect(screen.getByRole('alert').textContent).toContain('Published fine-tuned model v7 is not loaded on the model server');
   });
 
   it('enables Publish only for a loaded, unpublished version and confirms before calling', async () => {
@@ -189,7 +189,7 @@ describe('AdapterListTable', () => {
   it('warns when the published adapter is not loaded, and not when it is', async () => {
     await renderTable(listing([adapter(1), adapter(3, { published: true, loaded: false })]));
     expect(screen.getByRole('alert').textContent).toContain(
-      'Published adapter v3 is not loaded on the model server',
+      'Published fine-tuned model v3 is not loaded on the model server',
     );
     cleanup();
 
@@ -257,7 +257,7 @@ describe('AdapterListTable', () => {
     fireEvent.click(details);
     fireEvent.click(within(rowFor(1)).getByRole('button', { name: 'Publish' }));
     const dialog = await screen.findByRole('dialog');
-    fireEvent.click(within(dialog).getByRole('button', { name: /publish/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /confirm|publish/i }));
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toContain('Publication failed.'),
     );

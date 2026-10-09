@@ -6,9 +6,9 @@ import type { TrainingJobItem } from '../types';
 import { TrainingRecordMetadata } from './TrainingRecordMetadata';
 
 const JOB_STATUS: Record<TrainingJobItem['status'], { label: string; variant: StatusVariant }> = {
-  pending: { label: 'Prepared', variant: 'neutral' },
-  downloaded: { label: 'Downloaded', variant: 'info' },
-  completed: { label: 'Adapter received', variant: 'info' },
+  pending: { label: 'Waiting to start', variant: 'neutral' },
+  downloaded: { label: 'In progress', variant: 'info' },
+  completed: { label: 'Finished', variant: 'info' },
 };
 
 export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
@@ -30,7 +30,7 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
           </time>
         </td>
         <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>
-          <span className="block font-medium">{job.pair_count ?? '—'} pairs</span>
+          <span className="block font-medium">{job.pair_count ?? '—'} examples</span>
           <span className="block text-xs leading-4 text-text-muted">
             {job.evaluation_count ?? '—'} evaluations
           </span>
@@ -64,18 +64,30 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
         <TrainingRecordMetadata
           tabularValues
           entries={[
-            ['Run ID', job.job_id],
-            ['Created', created.toLocaleString()],
-            ['Dataset SHA-256', job.pairs_sha256 ?? 'Not recorded'],
+            ['Started', created.toLocaleString()],
             ['Reviewers', job.reviewer_count ?? 'Not recorded'],
-            [
-              'Snapshot created',
-              job.export_timestamp
-                ? new Date(job.export_timestamp).toLocaleString()
-                : 'Not recorded',
-            ],
           ]}
         />
+        <details className="mt-3 border-t border-border pt-3 text-sm text-text-muted">
+          <summary className="cursor-pointer text-[13px] font-medium text-text">
+            For IT staff
+          </summary>
+          <div className="mt-3">
+            <TrainingRecordMetadata
+              tabularValues
+              entries={[
+                ['Run ID', job.job_id],
+                ['Examples SHA-256', job.pairs_sha256 ?? 'Not recorded'],
+                [
+                  'Examples exported',
+                  job.export_timestamp
+                    ? new Date(job.export_timestamp).toLocaleString()
+                    : 'Not recorded',
+                ],
+              ]}
+            />
+          </div>
+        </details>
       </CollapsibleRow>
     </>
   );

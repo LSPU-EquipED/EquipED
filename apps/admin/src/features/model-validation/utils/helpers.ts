@@ -78,22 +78,22 @@ export const agentLabel = (id: string) =>
 
 export function variantLabel(variant: 'base' | 'adapter' | null): string | null {
   if (variant === 'base') return 'Base';
-  if (variant === 'adapter') return 'Adapter';
+  if (variant === 'adapter') return 'Fine-tuned';
   return null;
 }
 
-/** "Adapter sme-v3" for runs that record a version; the plain label for older rows. */
+/** "Fine-tuned sme-v3" for runs that record a version; the plain label for older rows. */
 export function itemModelLabel(
   item: Pick<ModelValidationItem, 'model_variant' | 'adapter_label'>,
 ): string | null {
-  if (item.adapter_label) return `Adapter ${item.adapter_label}`;
+  if (item.adapter_label) return `Fine-tuned ${item.adapter_label}`;
   return variantLabel(item.model_variant);
 }
 
 const FALLBACK_REASON_TEXT: Record<string, string> = {
   not_loaded: 'not loaded on the server',
   server_unreachable: 'model server unreachable',
-  adapter_not_found: 'adapter not found',
+  adapter_not_found: 'fine-tuned model not found',
 };
 
 /** Notices for agents whose requested adapter was not applied (base used instead). */
@@ -104,9 +104,9 @@ export function adapterFallbackNotices(
   return Object.values(resolution)
     .filter((entry) => entry.requested !== 'base' && entry.applied === null)
     .map((entry) => {
-      if (entry.requested === 'unknown-adapter') return 'Requested adapter not found, base used';
+      if (entry.requested === 'unknown-adapter') return 'Requested fine-tuned model not found, base used';
       const reason = entry.reason ? (FALLBACK_REASON_TEXT[entry.reason] ?? entry.reason) : null;
-      return `Adapter ${entry.requested} requested, base used${reason ? ` (${reason})` : ''}`;
+      return `Fine-tuned model ${entry.requested} requested, base used${reason ? ` (${reason})` : ''}`;
     });
 }
 

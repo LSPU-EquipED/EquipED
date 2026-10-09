@@ -66,6 +66,11 @@ export function AdapterRow({
               variant="secondary"
               size="sm"
               disabled={adapter.loaded !== true}
+              title={
+                adapter.loaded !== true
+                  ? 'Not loaded on the model server. Ask IT staff to add it first.'
+                  : undefined
+              }
               onClick={onPublish}
             >
               Publish
@@ -77,7 +82,7 @@ export function AdapterRow({
             variant="ghost"
             size="icon"
             title={expanded ? 'Hide details' : 'Show details'}
-            aria-label={`${expanded ? 'Hide' : 'Show'} details for adapter v${adapter.version}`}
+            aria-label={`${expanded ? 'Hide' : 'Show'} details for fine-tuned model v${adapter.version}`}
             aria-expanded={expanded}
             aria-controls={detailsId}
             onClick={() => setExpanded(!expanded)}
@@ -93,36 +98,35 @@ export function AdapterRow({
         </td>
       </tr>
       <CollapsibleRow id={detailsId} isExpanded={expanded} colSpan={6} innerClassName="px-4 py-3">
-        <TrainingSummaryPanel summary={adapter.training_summary} />
-        <div className="mt-3">
-          <TrainingRecordMetadata
-            entries={[
-              ['Filename', adapter.gguf_filename],
-              ['Uploaded', uploaded.toLocaleString()],
-            ]}
-          />
-        </div>
-        <AdapterGgufPanel adapter={adapter} published={adapter.published} />
+        <TrainingRecordMetadata entries={[['Added', uploaded.toLocaleString()]]} />
+        <p className="mt-3 text-xs leading-5 text-text-muted">
+          Whether this fine-tuned model scores better is shown on the Model Validation page.
+        </p>
         <details className="mt-3 border-t border-border pt-3 text-sm text-text-muted">
           <summary className="cursor-pointer text-[13px] font-medium text-text">
-            Technical details
+            For IT staff
           </summary>
+          <div className="mt-3">
+            <TrainingSummaryPanel summary={adapter.training_summary} />
+          </div>
           <div className="mt-3">
             <TrainingRecordMetadata
               entries={[
-                ['Source run', adapter.job_id],
+                ['File name', adapter.gguf_filename],
+                ['Training run ID', adapter.job_id],
                 ['File SHA-256', adapter.file_sha256],
-                ['Adapter ID', adapter.adapter_id],
+                ['Fine-tuned model ID', adapter.adapter_id],
               ]}
             />
           </div>
+          <AdapterGgufPanel adapter={adapter} published={adapter.published} />
+          {adapter.loaded === false && (
+            <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+              <p className="text-[13px] font-medium leading-5 text-text">Add to the model server</p>
+              <AdapterLoadHint filename={adapter.gguf_filename} />
+            </div>
+          )}
         </details>
-        {adapter.loaded === false && (
-          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-            <p className="text-[13px] font-medium leading-5 text-text">Load on the model server</p>
-            <AdapterLoadHint filename={adapter.gguf_filename} />
-          </div>
-        )}
       </CollapsibleRow>
     </>
   );

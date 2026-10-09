@@ -110,23 +110,23 @@ describe('skip reason helpers', () => {
 describe('describeFunnel', () => {
   it('folds a single skip reason into one sentence', () => {
     expect(describeFunnel(25, { no_reviewer_feedback: 7 })).toBe(
-      '32 generations examined: 25 became pairs, 7 skipped (no reviewer feedback).',
+      '32 AI results examined: 25 became correction examples, 7 skipped (no reviewer feedback).',
     );
   });
 
   it('breaks several skip reasons down by count', () => {
     expect(describeFunnel(10, { no_reviewer_feedback: 5, some_new_reason: 2 })).toBe(
-      '17 generations examined: 10 became pairs, 7 skipped (5 no reviewer feedback, 2 some new reason).',
+      '17 AI results examined: 10 became correction examples, 7 skipped (5 no reviewer feedback, 2 some new reason).',
     );
   });
 
   it('says none were skipped when nothing was', () => {
-    expect(describeFunnel(4, {})).toBe('4 generations examined: 4 became pairs, none skipped.');
+    expect(describeFunnel(4, {})).toBe('4 AI results examined: 4 became correction examples, none skipped.');
   });
 
-  it('ignores zero counts and uses the singular for one generation', () => {
+  it('ignores zero counts and uses the singular for one result', () => {
     expect(describeFunnel(1, { no_reviewer_feedback: 0 })).toBe(
-      '1 generation examined: 1 became pairs, none skipped.',
+      '1 AI result examined: 1 became correction examples, none skipped.',
     );
   });
 });
