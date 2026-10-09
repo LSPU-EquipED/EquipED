@@ -83,7 +83,9 @@ class _Server:
 
         self.httpd = HTTPServer(("127.0.0.1", 0), Handler)
         self.url = f"http://127.0.0.1:{self.httpd.server_port}"
-        self.thread = threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+        )
         self.thread.start()
         self.closed = False
 
@@ -215,7 +217,13 @@ def test_keep_latest_applies_per_agent(tmp_path, make_server):
 
 @pytest.mark.parametrize(
     "filename",
-    ["..\\..\\evil.gguf", "../evil-v1.gguf", "sub/sme-v1.gguf", "SME-v1.gguf", "x.gguf"],
+    [
+        "..\\..\\evil.gguf",
+        "../evil-v1.gguf",
+        "sub/sme-v1.gguf",
+        "SME-v1.gguf",
+        "x.gguf",
+    ],
 )
 def test_unsafe_filenames_are_rejected(tmp_path, make_server, filename):
     bad = _entry("sme", 3, P3, filename=filename)
@@ -240,7 +248,9 @@ def test_oversized_entries_are_rejected_without_downloading(tmp_path, make_serve
 
 def test_a_failed_file_does_not_stop_the_others(tmp_path, make_server):
     entries = [_entry("sme", 3, P3), _entry("sme", 4, P4)]
-    server = make_server(entries, {"sme-3-id": P3, "sme-4-id": P4}, corrupt={"sme-3-id"})
+    server = make_server(
+        entries, {"sme-3-id": P3, "sme-4-id": P4}, corrupt={"sme-3-id"}
+    )
     config = _config(tmp_path, server)
     result = host_sync.sync(config)
     assert result.downloaded == ["sme-v4.gguf"]
@@ -334,7 +344,9 @@ def test_a_dropped_chunked_download_is_an_error_not_a_crash(tmp_path, make_serve
 
 
 def test_main_returns_one_for_a_dropped_download(tmp_path, make_server):
-    server = make_server([_entry("sme", 3, P3)], {"sme-3-id": P3}, truncate={"sme-3-id"})
+    server = make_server(
+        [_entry("sme", 3, P3)], {"sme-3-id": P3}, truncate={"sme-3-id"}
+    )
     ini = tmp_path / "host_sync.ini"
     ini.write_text(
         f"[host_sync]\nserver_url = {server.url}\nkey = {KEY}\n"
@@ -344,9 +356,7 @@ def test_main_returns_one_for_a_dropped_download(tmp_path, make_server):
     assert host_sync.main(["--config", str(ini)]) == 1
 
 
-def test_redirects_are_refused_and_the_key_is_not_sent_elsewhere(
-    tmp_path, make_server
-):
+def test_redirects_are_refused_and_the_key_is_not_sent_elsewhere(tmp_path, make_server):
     elsewhere = make_server([], {})
     server = make_server([], {}, redirect_to=elsewhere.url)
     config = _config(tmp_path, server)
@@ -356,3 +366,22 @@ def test_redirects_are_refused_and_the_key_is_not_sent_elsewhere(
     assert result.errors and "redirect" in result.errors[0].lower()
     assert KEY not in "".join(result.errors)
     assert elsewhere.requests == []
+
+
+def test_a_percent_sign_in_a_setting_is_plain_text(tmp_path):
+    ini = tmp_path / "host_sync.ini"
+    ini.write_text(
+        "[host_sync]\nserver_url = https://app.example\nkey = hsk_100%x\n"
+        f"adapters_dir = {tmp_path / '100%models'}\n",
+        encoding="utf-8",
+    )
+    config = host_sync.load_config(ini)
+    assert config.key == "hsk_100%x"
+    assert config.adapters_dir.name == "100%models"
+
+
+def test_main_returns_two_for_a_malformed_config(tmp_path, capsys):
+    ini = tmp_path / "host_sync.ini"
+    ini.write_text("server_url = no section header\n", encoding="utf-8")
+    assert host_sync.main(["--config", str(ini)]) == 2
+    assert "Configuration error" in capsys.readouterr().err

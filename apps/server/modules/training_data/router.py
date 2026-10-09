@@ -112,6 +112,14 @@ def _adapter_response(adapter: TrainedAdapter) -> TrainedAdapterResponse:
     return response
 
 
+def _mark_finished(db: Session, job_id: uuid.UUID | None) -> None:
+    """Best effort: the GGUF is already stored, so a status problem is only logged."""
+    try:
+        mark_run_stage(db, job_id, "finished")
+    except Exception:
+        logger.warning("could not mark the run finished", exc_info=True)
+
+
 def _not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
 
@@ -430,14 +438,18 @@ def upload_gguf_with_token(
     adapter = db.get(TrainedAdapter, adapter_id)
     if adapter is None or not verify_gguf_upload_token(adapter, token):
         raise _not_found()
+    job_id = adapter.job_id  # read before store_gguf commits and expires the row
     try:
         adapter = store_gguf(db, adapter, file.file, replace=False, token=token)
     except GgufNotFoundError as exc:
         raise _not_found() from exc
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
-    mark_run_stage(db, adapter.job_id, "finished")
-    return _adapter_response(adapter)
+    # Build the response first: a status problem must never turn a stored
+    # upload into a 500.
+    response = _adapter_response(adapter)
+    _mark_finished(db, job_id)
+    return response
 
 
 @router.post(
@@ -455,12 +467,14 @@ def upload_gguf_as_admin(
 ) -> TrainedAdapterResponse:
     adapter = _get_owned_adapter(db, agent_id, adapter_id)
     _check_gguf_upload(file)
+    job_id = adapter.job_id  # read before store_gguf commits and expires the row
     try:
         adapter = store_gguf(db, adapter, file.file, replace=replace)
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
-    mark_run_stage(db, adapter.job_id, "finished")
-    return _adapter_response(adapter)
+    response = _adapter_response(adapter)
+    _mark_finished(db, job_id)
+    return response
 
 
 @router.post(

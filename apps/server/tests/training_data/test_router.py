@@ -838,9 +838,7 @@ def test_start_job_returns_a_filled_notebook(
     assert body["upload_url"] in cell
     assert "PASTE_DOWNLOAD_URL_HERE" not in cell
     assert "PASTE_UPLOAD_URL_HERE" not in cell
-    assert body["notebook_filename"] == (
-        f"equiped-gad-run-{body['job_id'][:8]}.ipynb"
-    )
+    assert body["notebook_filename"] == (f"equiped-gad-run-{body['job_id'][:8]}.ipynb")
 
 
 def test_start_job_still_succeeds_when_the_notebook_cannot_be_built(
@@ -862,3 +860,49 @@ def test_start_job_still_succeeds_when_the_notebook_cannot_be_built(
     assert body["notebook"] is None
     assert body["notebook_filename"] is None
     assert "token=" in body["download_url"]
+
+
+def _break_run_stage(monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("status store is down")
+
+    monkeypatch.setattr("server.modules.training_data.router.mark_run_stage", boom)
+
+
+def test_token_gguf_upload_survives_a_run_status_failure(
+    client,
+    auth_cookies_admin,
+    admin_user,
+    db_session,
+    tmp_path,
+    monkeypatch,
+    fake_storage,
+):
+    _patch_adapter_root(monkeypatch, tmp_path)
+    _patch_storage(monkeypatch, fake_storage)
+    data = _zip_upload(client, auth_cookies_admin, admin_user, db_session)
+    _break_run_stage(monkeypatch)
+    r = client.post(
+        _gguf_path(data["gguf_upload_url"]),
+        files={"file": ("a.gguf", _GOOD, "application/octet-stream")},
+    )
+    assert r.status_code == 201
+    assert r.json()["gguf"]["size_bytes"] == len(_GOOD)
+    assert len(fake_storage.objects) == 1
+
+
+def test_admin_gguf_upload_survives_a_run_status_failure(
+    client, db_session, admin_user, auth_cookies_admin, monkeypatch, fake_storage
+):
+    from server.tests.training_data.conftest import make_adapter
+
+    _patch_storage(monkeypatch, fake_storage)
+    v1 = make_adapter(db_session, "sme", 1)
+    _break_run_stage(monkeypatch)
+    _auth(client, auth_cookies_admin)
+    r = client.post(
+        f"{_BASE}/sme/adapters/{v1.adapter_id}/gguf",
+        files={"file": ("a.gguf", _GOOD, "x/y")},
+    )
+    assert r.status_code == 201
+    assert r.json()["gguf"]["size_bytes"] == len(_GOOD)

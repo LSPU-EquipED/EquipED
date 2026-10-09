@@ -67,9 +67,11 @@ def run_cell(tmp_path, monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _s: None)
 
     reported: list[str] = []
+    messages: list[str | None] = []
 
     def run(outcomes, *, upload_response: Any = "default"):
         reported.clear()
+        messages.clear()
         fake = _FakeRequests(outcomes)
         monkeypatch.setitem(sys.modules, "requests", fake)
 
@@ -87,7 +89,10 @@ def run_cell(tmp_path, monkeypatch):
             "conversion_step": conversion_step,
             "OUTPUT_GGUF": "sme-v8.gguf",
             "GGUF_OUTPUT_FILES": ["sme-v8.gguf"],
-            "report": lambda stage, **kw: reported.append(stage),
+            "report": lambda stage, **kw: (
+                reported.append(stage),
+                messages.append(kw.get("message")),
+            ),
         }
         if upload_response == "default":
             upload_response = _Response(body={"gguf_upload_url": UPLOAD_URL})
@@ -97,6 +102,7 @@ def run_cell(tmp_path, monkeypatch):
         return fake
 
     run.reported = reported
+    run.messages = messages
     return run
 
 
@@ -218,3 +224,29 @@ def test_no_sleep_after_the_last_attempt(run_cell, monkeypatch):
     monkeypatch.setattr(time, "sleep", sleeps.append)
     run_cell([ConnectionError("a")] * 3)
     assert len(sleeps) == 2
+
+
+# ---------------- final fix wave: a skipped/failed upload is reported ---------
+
+
+def test_successful_upload_reports_no_failure(run_cell):
+    run_cell([_Response(200)])
+    assert "failed" not in run_cell.reported
+
+
+def test_failed_upload_reports_failed_with_a_hint(run_cell):
+    run_cell([ConnectionError("a")] * 3)
+    assert run_cell.reported == ["sending_file", "failed"]
+    assert "Upload GGUF button" in run_cell.messages[-1]
+
+
+def test_refused_upload_reports_failed(run_cell):
+    run_cell([_Response(403)])
+    assert run_cell.reported[-1] == "failed"
+
+
+def test_missing_upload_link_reports_failed(run_cell):
+    run_cell([], upload_response=_Response(body={"adapter_id": "x"}))
+    assert run_cell.reported == ["sending_file", "failed"]
+    run_cell([], upload_response=None)
+    assert run_cell.reported == ["sending_file", "failed"]

@@ -58,10 +58,11 @@ class SyncResult:
 
 
 def load_config(path: Path) -> Config:
-    parser = configparser.ConfigParser()
-    if not parser.read(path, encoding="utf-8"):
-        raise SyncError(f"config file not found: {path}")
+    # interpolation=None: a "%" in a path or key is plain text, not a reference.
+    parser = configparser.ConfigParser(interpolation=None)
     try:
+        if not parser.read(path, encoding="utf-8"):
+            raise SyncError(f"config file not found: {path}")
         section = parser["host_sync"]
         adapters_dir = Path(section["adapters_dir"])
         return Config(
@@ -77,7 +78,7 @@ def load_config(path: Path) -> Config:
             keep_latest=section.getint("keep_latest", 2),
             notify=section.getboolean("notify", True),
         )
-    except (KeyError, ValueError) as exc:
+    except (KeyError, ValueError, configparser.Error) as exc:
         raise SyncError(f"missing or invalid setting in {path}: {exc}") from exc
 
 

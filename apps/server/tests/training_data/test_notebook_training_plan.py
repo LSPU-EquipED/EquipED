@@ -280,3 +280,95 @@ def test_split_keep_offsets_eval_positions():
 def test_no_training_pairs_left_gives_a_clear_error():
     with pytest.raises(ValueError, match="GPU length ceiling"):
         _helpers(6)["split_keep"]([3, 4], 3, 5)
+
+
+# ---- final fix wave: the split cell feeds the length-plan cell ------------------
+
+
+class _FakeDataset:
+    def __init__(self, rows):
+        self.rows = list(rows)
+
+    @classmethod
+    def from_list(cls, rows):
+        return cls(rows)
+
+    def __iter__(self):
+        return iter(self.rows)
+
+    def __len__(self):
+        return len(self.rows)
+
+    def select(self, indices):
+        return _FakeDataset(self.rows[i] for i in indices)
+
+
+def _strict_count(text):
+    # Like AutoTokenizer.__call__: only text is accepted, chat rows are not.
+    if not isinstance(text, str):
+        raise ValueError(f"text input must be of type str, got {type(text)}")
+    return len(text.split())
+
+
+def _run_split_then_measure(monkeypatch, sizes):
+    """Run the real split cell, then the measuring part of the length-plan cell."""
+    import sys
+    import types
+
+    fake_datasets = types.ModuleType("datasets")
+    fake_datasets.Dataset = _FakeDataset
+    monkeypatch.setitem(sys.modules, "datasets", fake_datasets)
+    pairs, records = [], []
+    for n, words in enumerate(sizes):
+        pairs.append(_row(words))
+        records.append({"pair_id": f"p{n}", "evaluation_id": f"e{n % 10}"})
+    namespace: dict = {
+        "pairs": pairs,
+        "pair_provenance_records": list(zip(pairs, records, strict=True)),
+    }
+    exec(_cell(5), namespace)  # noqa: S102
+    assert isinstance(namespace["train_dataset"].rows[0]["prompt"], list)
+    source = _cell(6)
+    block = source[source.index(START) : source.index(END)]
+    helpers: dict = {"math": __import__("math")}
+    exec(block, helpers)  # noqa: S102
+    namespace.update(
+        {k: helpers[k] for k in ("plan_lengths", "split_keep", "gpu_ceiling")}
+    )
+    namespace.update(
+        _count_tokens=_strict_count,
+        HARD_MAX_SEQ_LENGTH=6144,
+        LONG_PAIR_POLICY="drop",
+        MAX_DROP_FRACTION=0.2,
+    )
+    start = source.index("# Measure the plain text")
+    end = source.index("MAX_SEQ_LENGTH = LENGTH_PLAN[")
+    exec(source[start:end], namespace)  # noqa: S102
+    return namespace
+
+
+def test_length_plan_measures_plain_text_not_chat_rows(monkeypatch):
+    ns = _run_split_then_measure(monkeypatch, [100] * 30)
+    assert ns["LENGTH_PLAN"]["stats"]["pairs"] == 30
+    assert len(ns["train_dataset"]) + len(ns["eval_dataset"]) == 30
+    assert ns["LENGTH_PLAN"]["stats"]["prompt_max"] == 100
+
+
+def test_dropped_rows_stay_aligned_after_the_split(monkeypatch):
+    sizes = [100] * 28 + [7000] * 2
+    ns = _run_split_then_measure(monkeypatch, sizes)
+    dropped = set(ns["LENGTH_PLAN"]["dropped"])
+    assert len(dropped) == 2
+    total = len(ns["train_dataset"]) + (
+        len(ns["eval_dataset"]) if ns["eval_dataset"] is not None else 0
+    )
+    assert total == 28
+    for dataset in (ns["train_dataset"], ns["eval_dataset"]):
+        for row in dataset or []:
+            assert len(row["prompt"][0]["content"].split()) == 100
+
+
+def test_max_prompt_length_leaves_room_for_the_chat_template():
+    # 64 words round up to 64 exactly; the 16 template tokens must push it to 128.
+    plan = _helpers(6)["plan_lengths"]([_row(64)], _count, 6144)
+    assert plan["max_prompt_length"] == 128
