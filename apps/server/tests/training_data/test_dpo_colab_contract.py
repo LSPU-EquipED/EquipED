@@ -168,6 +168,7 @@ def _execute_notebook_validation_cell(package_bytes: bytes) -> dict[str, Any]:
     code = raw_code.replace("import requests\n", mock_requests_module_code)
 
     globals_dict = {
+        "report": lambda *args, **kwargs: None,
         "DOWNLOAD_URL": "http://mock-test/download",
         "_mock_response": MockResponse(package_bytes),
     }
@@ -397,6 +398,7 @@ def test_adapter_packaging_cell_creates_deterministic_archive_with_relative_path
                 "ADAPTER_DIR": str(adapter_dir),
                 "UPLOAD_URL": "http://mock-test/upload",
                 "_mock_post": mock_post,
+                "report": lambda *args, **kwargs: None,
             }
             exec(code, ctx)  # noqa: S102
 
@@ -1178,7 +1180,14 @@ def test_packaging_cell_archives_the_heldout_file(monkeypatch, tmp_path):
         'ADAPTER_ZIP_PATH = "trained_adapter.zip"',
         f"ADAPTER_ZIP_PATH = {str(zip_path)!r}",
     )
-    exec(code, {"ADAPTER_DIR": str(adapter_dir), "UPLOAD_URL": "http://mock"})  # noqa: S102
+    exec(  # noqa: S102
+        code,
+        {
+            "ADAPTER_DIR": str(adapter_dir),
+            "UPLOAD_URL": "http://mock",
+            "report": lambda *args, **kwargs: None,
+        },
+    )
 
     with zipfile.ZipFile(zip_path) as zf:
         assert "heldout_pairs.jsonl" in zf.namelist()

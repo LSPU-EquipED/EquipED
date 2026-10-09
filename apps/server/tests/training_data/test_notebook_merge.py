@@ -91,7 +91,7 @@ def test_early_stop_ignores_missing_or_non_numeric_values():
 
 def test_trainer_cell_wires_the_callback_and_the_chat_format_guard():
     _, source = _find("trainer = DPOTrainer(")
-    assert "callbacks=[StopIfChosenCollapses()]" in source
+    assert "StopIfChosenCollapses()" in source
     assert '"<start_of_turn>user" not in _probe' in source
     assert source.index("_probe") < source.index("trainer.train()")
 

@@ -53,6 +53,7 @@ def _new_code_sources() -> list[str]:
 
 def _run_cell(index: int, namespace: dict | None = None) -> dict:
     namespace = {} if namespace is None else namespace
+    namespace.setdefault("report", lambda *args, **kwargs: None)  # status helper
     exec(compile(_source(index), f"<cell-{index}>", "exec"), namespace)  # noqa: S102
     return namespace
 
@@ -84,7 +85,7 @@ def test_conversion_happens_after_the_upload_and_download_after_verification():
     def first(predicate):
         return next(i for i, source in enumerate(sources) if predicate(source))
 
-    upload = first(lambda s: "UPLOAD_URL" in s and "requests.post(" in s)
+    upload = first(lambda s: "UPLOAD_URL" in s and "upload_response = requests.post(" in s)
     first_conversion = first(
         lambda s: "conversion_step" in s or "convert_lora_to_gguf" in s
     )

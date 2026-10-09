@@ -66,7 +66,10 @@ def run_cell(tmp_path, monkeypatch):
     (tmp_path / "sme-v8.gguf").write_bytes(b"GGUF" + b"\x00" * 16)
     monkeypatch.setattr(time, "sleep", lambda _s: None)
 
+    reported: list[str] = []
+
     def run(outcomes, *, upload_response: Any = "default"):
+        reported.clear()
         fake = _FakeRequests(outcomes)
         monkeypatch.setitem(sys.modules, "requests", fake)
 
@@ -84,6 +87,7 @@ def run_cell(tmp_path, monkeypatch):
             "conversion_step": conversion_step,
             "OUTPUT_GGUF": "sme-v8.gguf",
             "GGUF_OUTPUT_FILES": ["sme-v8.gguf"],
+            "report": lambda stage, **kw: reported.append(stage),
         }
         if upload_response == "default":
             upload_response = _Response(body={"gguf_upload_url": UPLOAD_URL})
@@ -92,6 +96,7 @@ def run_cell(tmp_path, monkeypatch):
         exec(_last_cell(), ctx)  # noqa: S102
         return fake
 
+    run.reported = reported
     return run
 
 
@@ -108,6 +113,11 @@ def test_upload_succeeds_once(run_cell, capsys):
     assert call["head"] == b"GGUF"
     assert isinstance(call["timeout"], (int, float)) and call["timeout"] > 0
     assert "Uploaded sme-v8.gguf to EquipED" in capsys.readouterr().out
+
+
+def test_cell_reports_sending_file_first(run_cell):
+    run_cell([_Response(200)])
+    assert run_cell.reported[0] == "sending_file"
 
 
 def test_retries_then_succeeds(run_cell, capsys):
