@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -80,11 +81,24 @@ def load_config(path: Path) -> Config:
         raise SyncError(f"missing or invalid setting in {path}: {exc}") from exc
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects so the host key is never sent to another address."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise SyncError(
+            f"EquipED answered with a redirect (HTTP {code}); refusing to follow it "
+            "so the key is not sent elsewhere. Check server_url in the config"
+        )
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def _open(config: Config, path: str):
     request = urllib.request.Request(
         config.server_url + _API + path, headers={"X-Host-Sync-Key": config.key}
     )
-    return urllib.request.urlopen(request, timeout=_TIMEOUT)
+    return _OPENER.open(request, timeout=_TIMEOUT)
 
 
 def _fetch_manifest(config: Config) -> list[dict]:
@@ -97,7 +111,14 @@ def _fetch_manifest(config: Config) -> list[dict]:
                 "EquipED rejected the host key (revoked or wrong key)"
             ) from exc
         raise SyncError(f"EquipED returned HTTP {exc.code} for the manifest") from exc
-    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as exc:
+    except (
+        urllib.error.URLError,
+        http.client.HTTPException,
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+    ) as exc:
         raise SyncError(f"could not read the manifest from EquipED: {exc}") from exc
 
 
@@ -158,7 +179,7 @@ def _download(config: Config, entry: dict, target: Path) -> None:
     except SyncError:
         part.unlink(missing_ok=True)
         raise
-    except (urllib.error.URLError, OSError) as exc:
+    except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
         part.unlink(missing_ok=True)
         raise SyncError(f"{entry['filename']}: download failed ({exc})") from exc
 

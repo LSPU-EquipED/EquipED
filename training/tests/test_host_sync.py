@@ -36,17 +36,26 @@ def _entry(agent, version, payload, *, published=False, filename=None, adapter_i
 class _Server:
     """A fake EquipED serving a manifest and files."""
 
-    def __init__(self, entries, files, *, corrupt=()):
+    def __init__(self, entries, files, *, corrupt=(), truncate=(), redirect_to=None):
         self.entries, self.files, self.corrupt = entries, files, set(corrupt)
+        self.truncate, self.redirect_to = set(truncate), redirect_to
         self.requests = []
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
             def log_message(self, *args):
                 pass
 
             def do_GET(self):
                 outer.requests.append((self.path, self.headers.get("X-Host-Sync-Key")))
+                if outer.redirect_to:
+                    self.send_response(301)
+                    self.send_header("Location", outer.redirect_to + self.path)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 if self.headers.get("X-Host-Sync-Key") != KEY:
                     self.send_error(404)
                     return
@@ -55,6 +64,16 @@ class _Server:
                 else:
                     adapter_id = self.path.rsplit("/", 1)[1]
                     body = outer.files[adapter_id]
+                    if adapter_id in outer.truncate:
+                        # chunked reply that drops before the terminating chunk
+                        self.send_response(200)
+                        self.send_header("Transfer-Encoding", "chunked")
+                        self.end_headers()
+                        half = body[: len(body) // 2]
+                        self.wfile.write(f"{len(half):x}\r\n".encode() + half + b"\r\n")
+                        self.wfile.flush()
+                        self.close_connection = True
+                        return
                     if adapter_id in outer.corrupt:
                         body = body[:-1] + b"X"
                 self.send_response(200)
@@ -296,3 +315,44 @@ def test_main_returns_nonzero_when_something_failed(tmp_path, make_server):
 
 def test_main_returns_two_for_a_missing_config(tmp_path):
     assert host_sync.main(["--config", str(tmp_path / "missing.ini")]) == 2
+
+
+def test_a_dropped_chunked_download_is_an_error_not_a_crash(tmp_path, make_server):
+    entries = [_entry("sme", 3, P3), _entry("sme", 4, P4)]
+    server = make_server(
+        entries, {"sme-3-id": P3, "sme-4-id": P4}, truncate={"sme-3-id"}
+    )
+    config = _config(tmp_path, server)
+
+    result = host_sync.sync(config)
+
+    assert result.downloaded == ["sme-v4.gguf"]
+    assert len(result.errors) == 1 and "sme-v3.gguf" in result.errors[0]
+    assert not (config.adapters_dir / "sme-v3.gguf").exists()
+    assert not list(config.adapters_dir.glob("*.part"))
+    assert "sme-v3.gguf" in config.log_file.read_text(encoding="utf-8")
+
+
+def test_main_returns_one_for_a_dropped_download(tmp_path, make_server):
+    server = make_server([_entry("sme", 3, P3)], {"sme-3-id": P3}, truncate={"sme-3-id"})
+    ini = tmp_path / "host_sync.ini"
+    ini.write_text(
+        f"[host_sync]\nserver_url = {server.url}\nkey = {KEY}\n"
+        f"adapters_dir = {tmp_path / 'adapters'}\nnotify = false\n",
+        encoding="utf-8",
+    )
+    assert host_sync.main(["--config", str(ini)]) == 1
+
+
+def test_redirects_are_refused_and_the_key_is_not_sent_elsewhere(
+    tmp_path, make_server
+):
+    elsewhere = make_server([], {})
+    server = make_server([], {}, redirect_to=elsewhere.url)
+    config = _config(tmp_path, server)
+
+    result = host_sync.sync(config)
+
+    assert result.errors and "redirect" in result.errors[0].lower()
+    assert KEY not in "".join(result.errors)
+    assert elsewhere.requests == []
