@@ -176,6 +176,31 @@ class PublishAdapterRequest(BaseModel):
     adapter_id: uuid.UUID
 
 
+class HostStateResponse(BaseModel):
+    has_active_key: bool
+    created_at: datetime | None = None
+    last_seen_at: datetime | None = None
+
+
+class HostKeyCreatedResponse(BaseModel):
+    key: str
+    created_at: datetime
+
+
+class HostManifestEntry(BaseModel):
+    adapter_id: uuid.UUID
+    agent_id: str
+    version: int
+    filename: str
+    sha256: str
+    size_bytes: int
+    published: bool
+
+
+class HostManifestResponse(BaseModel):
+    adapters: list[HostManifestEntry]
+
+
 __all__ = [
     "AgentId",
     "TrainingJobCreateResponse",
@@ -190,4 +215,8 @@ __all__ = [
     "TrainedAdapterListItem",
     "TrainedAdapterListResponse",
     "PublishAdapterRequest",
+    "HostStateResponse",
+    "HostKeyCreatedResponse",
+    "HostManifestEntry",
+    "HostManifestResponse",
 ]

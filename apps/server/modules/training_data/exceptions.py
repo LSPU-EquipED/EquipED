@@ -57,6 +57,10 @@ class NotebookTemplateError(TrainingDataError):
     """The Colab notebook template could not be read or filled in."""
 
 
+class HostKeyInvalidError(TrainingDataError):
+    """The host sync key is missing, wrong, or revoked."""
+
+
 __all__ = [
     "GgufUploadError",
     "GgufAlreadyExistsError",
@@ -71,4 +75,5 @@ __all__ = [
     "TrainingJobNotFoundError",
     "EmptyTrainingDatasetError",
     "AdapterUploadError",
+    "HostKeyInvalidError",
 ]
