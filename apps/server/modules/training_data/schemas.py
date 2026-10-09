@@ -21,6 +21,8 @@ class TrainingJobCreateResponse(BaseModel):
     download_expires_at: datetime
     upload_expires_at: datetime
     created_at: datetime
+    notebook: str | None = None
+    notebook_filename: str | None = None
 
 
 class TrainingJobListItem(BaseModel):

@@ -822,3 +822,43 @@ def test_zip_upload_survives_dead_connection_after_token_failure(
     finally:
         monkeypatch.setattr(Session, "refresh", real_refresh)
     assert data["gguf_upload_url"] is None
+
+
+def test_start_job_returns_a_filled_notebook(
+    client: TestClient, auth_cookies_admin, admin_user, db_session
+):
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    _auth(client, auth_cookies_admin)
+
+    body = client.post("/api/v1/admin/training-data/gad/jobs").json()
+
+    notebook = json.loads(body["notebook"])
+    cell = "".join(notebook["cells"][1]["source"])
+    assert body["download_url"] in cell
+    assert body["upload_url"] in cell
+    assert "PASTE_DOWNLOAD_URL_HERE" not in cell
+    assert "PASTE_UPLOAD_URL_HERE" not in cell
+    assert body["notebook_filename"] == (
+        f"equiped-gad-run-{body['job_id'][:8]}.ipynb"
+    )
+
+
+def test_start_job_still_succeeds_when_the_notebook_cannot_be_built(
+    client: TestClient, auth_cookies_admin, admin_user, db_session, monkeypatch
+):
+    from server.modules.training_data.exceptions import NotebookTemplateError
+
+    def boom(*args, **kwargs):
+        raise NotebookTemplateError("broken template")
+
+    monkeypatch.setattr("server.modules.training_data.router.build_job_notebook", boom)
+    seed_eligible_dpo_pair(db_session, owner_id=admin_user.user_id, agent_id="gad")
+    _auth(client, auth_cookies_admin)
+
+    response = client.post("/api/v1/admin/training-data/gad/jobs")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["notebook"] is None
+    assert body["notebook_filename"] is None
+    assert "token=" in body["download_url"]

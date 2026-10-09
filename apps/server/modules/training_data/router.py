@@ -55,6 +55,7 @@ from server.modules.training_data.jobs import (
     list_training_jobs,
 )
 from server.modules.training_data.models import TrainedAdapter
+from server.modules.training_data.notebook import build_job_notebook
 from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.publication import (
     get_adapter_for_agent,
@@ -188,15 +189,32 @@ def start_training_job(
         f"?token={result.raw_upload_token}"
     )
 
+    download_url = _build_url(request, download_path)
+    upload_url = _build_url(request, upload_path)
+
+    notebook: str | None = None
+    notebook_filename: str | None = None
+    try:
+        notebook = build_job_notebook(download_url, upload_url)
+        notebook_filename = (
+            f"equiped-{result.job.agent_id}-run-{str(result.job.job_id)[:8]}.ipynb"
+        )
+    except Exception:
+        # The notebook is a convenience; the links alone are enough to train.
+        logger.warning("could not build the training notebook", exc_info=True)
+        notebook = None
+
     return TrainingJobCreateResponse(
         job_id=result.job.job_id,
         agent_id=result.job.agent_id,
         status=result.job.status,
-        download_url=_build_url(request, download_path),
-        upload_url=_build_url(request, upload_path),
+        download_url=download_url,
+        upload_url=upload_url,
         download_expires_at=result.job.download_expires_at,
         upload_expires_at=result.job.upload_expires_at,
         created_at=result.job.created_at,
+        notebook=notebook,
+        notebook_filename=notebook_filename,
     )
 
 
