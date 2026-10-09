@@ -58,3 +58,6 @@ tessdata_local/
 Thumbs.db
 .vscode/
 .idea/
+
+# Host sync settings hold the secret host key (the .example.ini template stays tracked)
+host_sync.ini
