@@ -149,8 +149,8 @@ def test_training_cell_uses_the_safe_memory_settings():
     assert "use_logits_to_keep=True" in code
     assert "per_device_eval_batch_size=1" in code
     assert "logging_steps=1" in code
-    assert "max_prompt_length=1536" in code  # experiment values stay out
-    assert "num_train_epochs=1" in code
+    assert 'max_prompt_length=LENGTH_PLAN["' in code  # measured, not fixed
+    assert 'num_train_epochs=DOSE_PLAN["' in code  # planned from the dataset size
 
 
 def test_first_cell_sets_expandable_segments():

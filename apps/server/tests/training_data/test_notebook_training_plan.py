@@ -109,3 +109,51 @@ def test_cell_6_sets_max_seq_length_from_the_plan_before_loading_the_model():
         "FastLanguageModel.from_pretrained("
     )
     assert "MAX_SEQ_LENGTH = 2048" not in source
+
+
+# ---- Task 2: dose plan ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("pairs", "steps_per_epoch", "epochs", "planned", "max_steps"),
+    [
+        (25, 7, 3, 21, None),  # small dataset: three epochs reach about 20 updates
+        (100, 25, 1, 25, None),  # one pass is already past the target
+        (234, 59, 1, 59, None),  # one pass, below the cap
+        (300, 75, 1, 75, 60),  # one pass would exceed the cap, so it is capped
+        (3, 1, 4, 4, None),  # fewer pairs than one update: at least 1 step per epoch
+    ],
+)
+def test_dose_follows_the_dataset_size(
+    pairs, steps_per_epoch, epochs, planned, max_steps
+):
+    plan = _helpers(7)["plan_dose"](pairs, 1, 4)
+    assert plan == {
+        "steps_per_epoch": steps_per_epoch,
+        "epochs": epochs,
+        "planned_updates": planned,
+        "max_steps": max_steps,
+    }
+
+
+def test_dose_accumulation_changes_the_steps():
+    plan = _helpers(7)["plan_dose"](25, 1, 8)
+    assert plan["steps_per_epoch"] == 4 and plan["epochs"] == 4  # capped at max epochs
+
+
+def test_dose_needs_at_least_one_pair():
+    with pytest.raises(ValueError):
+        _helpers(7)["plan_dose"](0, 1, 4)
+
+
+def test_cell_7_uses_the_plans_and_new_defaults():
+    source = _cell(7)
+    assert "DOSE_PLAN = plan_dose(" in source
+    assert "num_train_epochs=DOSE_PLAN[" in source
+    assert "max_prompt_length=LENGTH_PLAN[" in source
+    assert "learning_rate=LEARNING_RATE" in source
+    assert "LEARNING_RATE = 2e-5" in source
+    assert "max_steps" in source
+    # the old fixed values are gone
+    assert "num_train_epochs=1," not in source
+    assert "max_prompt_length=1536" not in source
