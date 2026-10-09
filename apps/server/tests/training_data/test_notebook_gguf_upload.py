@@ -22,7 +22,7 @@ def _cells() -> list[dict]:
 
 
 def _last_cell() -> str:
-    return "".join(_cells()[17]["source"])
+    return "".join(_cells()[18]["source"])
 
 
 class _Response:
@@ -95,8 +95,8 @@ def run_cell(tmp_path, monkeypatch):
     return run
 
 
-def test_notebook_still_has_18_cells():
-    assert len(_cells()) == 18
+def test_notebook_still_has_19_cells():
+    assert len(_cells()) == 19
 
 
 def test_upload_succeeds_once(run_cell, capsys):
@@ -155,8 +155,8 @@ SECRET_URL = "https://x/upload?token=SECRET123"
 
 
 def test_upload_cell_does_not_print_the_token():
-    """Cell 10 must print the response with gguf_upload_url hidden."""
-    source = "".join(_cells()[10]["source"])
+    """Cell 11 must print the response with gguf_upload_url hidden."""
+    source = "".join(_cells()[11]["source"])
     ns: dict[str, Any] = {}
     # Run only the final print, with a stand-in response object.
     tail = source.split("upload_response.raise_for_status()", 1)[1]
@@ -171,7 +171,7 @@ def test_upload_cell_does_not_print_the_token():
     out = buf.getvalue()
     assert "SECRET123" not in out
     assert "a1" in out
-    # the response itself stays intact for cell 17
+    # the response itself stays intact for cell 18
     assert ns["upload_response"].json()["gguf_upload_url"] == SECRET_URL
 
 

@@ -208,7 +208,7 @@ def _run_manifest(tmp_path: Path, extra: dict) -> dict:
         "HELDOUT_PERCENT": 20,
     }
     ctx.update(extra)
-    exec(_cell(9), ctx)  # noqa: S102
+    exec(_cell(10), ctx)  # noqa: S102
     return json.loads((adapter_dir / "training_manifest.json").read_text())
 
 

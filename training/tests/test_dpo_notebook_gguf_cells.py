@@ -25,9 +25,9 @@ DOCS_COLAB = Path(__file__).resolve().parents[2] / "docs" / "colab"
 TRAINING_NOTEBOOK = DOCS_COLAB / "dpo_training_template.ipynb"
 STANDALONE_NOTEBOOK = DOCS_COLAB / "adapter_to_gguf_template.ipynb"
 
-FIRST_NEW_CELL = 11
-UPLOAD_CELL = 10
-HEADER, CONFIG, READ_ADAPTER, PREPARE, CONVERT, VERIFY, DOWNLOAD = range(11, 18)
+FIRST_NEW_CELL = 12
+UPLOAD_CELL = 11
+HEADER, CONFIG, READ_ADAPTER, PREPARE, CONVERT, VERIFY, DOWNLOAD = range(12, 19)
 COPIED_HELPERS = ("run", "sha256_of", "check_lora_fields", "gguf_output_name")
 
 # Mirrors the file-name rule in apps/server/modules/training_data/serving.py
@@ -66,10 +66,10 @@ def _helpers(base_model_name: str = "unsloth/gemma-3-4b-it") -> dict:
 
 def test_new_cells_follow_the_untouched_training_cells():
     cells = _cells(TRAINING_NOTEBOOK)
-    assert len(cells) == 18
+    assert len(cells) == 19
     assert cells[HEADER]["cell_type"] == "markdown"
     assert all(cells[i]["cell_type"] == "code" for i in range(CONFIG, DOWNLOAD + 1))
-    # cell 10 is still the upload cell the earlier tests pin
+    # cell 11 is still the upload cell the earlier tests pin
     assert "UPLOAD_URL" in _source(UPLOAD_CELL)
 
 

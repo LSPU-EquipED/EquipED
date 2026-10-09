@@ -70,7 +70,7 @@ def _run_cell_8(
         "eval_dataset": eval_dataset,
         "heldout_rows": list(heldout_rows),
     }
-    exec(_cell(8), ctx)  # noqa: S102
+    exec(_cell(9), ctx)  # noqa: S102
     return ctx
 
 
@@ -159,6 +159,6 @@ def test_first_cell_sets_expandable_segments():
 
 
 def test_manifest_cell_includes_the_summary(tmp_path):
-    code = _cell(9)
+    code = _cell(10)
     assert '"training_summary"' in code
     assert 'globals().get("TRAINING_SUMMARY")' in code
