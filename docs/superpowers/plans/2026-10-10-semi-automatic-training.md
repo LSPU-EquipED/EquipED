@@ -118,7 +118,7 @@ After any edit run `git diff --stat docs/colab/dpo_training_template.ipynb`. If 
 - [ ] **Step 1: Run that plan's Tasks 1, 2 and 3 exactly as written**, with one change: ignore its "Branch `feat/notebook-training-plan`" constraint. Stay on `feat/plain-language-model-training`. Its own rule "do not add or remove notebook cells" stays in force until Task A2.
 - [ ] **Step 2: Verify the whole suite is green**
 
-Run: `cd apps && uv run --project server pytest tests/training_data -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data -q`
 Expected: all pass (the plan's tests included).
 
 - [ ] **Step 3: Confirm the commits exist** (`git log --oneline -5` shows that plan's three task commits). Nothing else to do here.
@@ -245,7 +245,7 @@ def test_header_explains_the_rescue_cell():
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_notebook_merge.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_notebook_merge.py -q`
 Expected: FAIL (no `_chat_row`, no callback, no rescue cell).
 
 - [ ] **Step 3: Create the edit script and apply it**
@@ -364,7 +364,7 @@ print("done")
 
 - [ ] **Step 4: Run the new tests**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_notebook_merge.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_notebook_merge.py -q`
 Expected: PASS. Then `git diff --stat docs/colab/dpo_training_template.ipynb` must show a small diff.
 
 - [ ] **Step 5: Fix every index-based notebook test (+1 for old index 8 and up)**
@@ -373,7 +373,7 @@ Run: `grep -rnE "cells(\(\))?\[[0-9]+\]|_cell\([0-9]+\)|_helpers\([0-9]+\)" apps
 
 For every hit whose index is 8 or higher, add 1 (for example `_cells()[17]` becomes `_cells()[18]`, `_cell(9)` becomes `_cell(10)`). Indices 0 to 7 stay. Also fix any docstrings or comments that name an index. Do not weaken any assertion.
 
-Then run: `cd apps && uv run --project server pytest tests/training_data ../training/tests -q`
+Then run: `cd apps && uv run --project server pytest server/tests/training_data ../training/tests -q`
 Expected: all PASS.
 
 - [ ] **Step 6: Commit**
@@ -490,7 +490,7 @@ def test_unreadable_template_raises_template_error(tmp_path):
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_notebook_builder.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_notebook_builder.py -q`
 Expected: FAIL (ImportError: no `notebook` module / `NotebookTemplateError`).
 
 - [ ] **Step 3: Implement**
@@ -556,7 +556,7 @@ __all__ = ["TEMPLATE_PATH", "NotebookTemplateError", "build_job_notebook"]
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_notebook_builder.py -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_notebook_builder.py -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
 Expected: PASS, ruff clean.
 
 - [ ] **Step 5: Commit**
@@ -621,7 +621,7 @@ def test_start_job_still_succeeds_when_the_notebook_cannot_be_built(
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_router.py -k "notebook" -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_router.py -k "notebook" -q`
 Expected: FAIL (`KeyError: 'notebook'`).
 
 - [ ] **Step 3: Implement**
@@ -676,7 +676,7 @@ In `router.py` add the import `from server.modules.training_data.notebook import
 
 - [ ] **Step 4: Run to verify pass**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_router.py -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_router.py -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
 Expected: PASS, ruff clean.
 
 - [ ] **Step 5: Commit**
@@ -955,7 +955,7 @@ def test_mark_run_stage_never_raises_for_an_unknown_job(db_session):
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_run_status.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_run_status.py -q`
 Expected: FAIL (ImportError: `mark_run_stage`).
 
 - [ ] **Step 3: Add the columns and migration**
@@ -1143,7 +1143,7 @@ Add `"RUN_STAGES"`, `"mark_run_stage"`, `"report_run_status"` to `__all__`.
 
 Run:
 ```
-cd apps && uv run --project server pytest tests/training_data -q
+cd apps && uv run --project server pytest server/tests/training_data -q
 cd server && uv run alembic upgrade 20261006_0001:head --sql | tail -20
 cd .. && uv run --project server ruff check server/modules/training_data server/alembic && uv run --project server ruff format --check server/modules/training_data server/alembic
 ```
@@ -1335,7 +1335,7 @@ def test_status_link_stays_empty_when_not_given():
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_run_status_api.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_run_status_api.py -q`
 Expected: FAIL (404 for the status route / missing fields).
 
 - [ ] **Step 3: Implement schemas**
@@ -1467,7 +1467,7 @@ def build_job_notebook(
 
 - [ ] **Step 5: Run tests and lint**
 
-Run: `cd apps && uv run --project server pytest tests/training_data -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
+Run: `cd apps && uv run --project server pytest server/tests/training_data -q && uv run --project server ruff check server/modules/training_data && uv run --project server ruff format --check server/modules/training_data`
 Expected: PASS (the two status-link builder tests pass once Task C3 added the template line; if running C2 before C3, only those two fail and are fixed in C3). Ruff clean.
 
 - [ ] **Step 6: Commit**
@@ -1636,7 +1636,7 @@ def test_gguf_upload_cell_reports_sending_file_first():
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_notebook_status.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_notebook_status.py -q`
 Expected: FAIL (`AssertionError: ... len(hits) == 0`).
 
 - [ ] **Step 3: Edit the notebook**
@@ -1769,7 +1769,7 @@ In `test_notebook_merge.py` (Task A2), `test_trainer_cell_wires_the_callback_and
 
 In `test_notebook_gguf_upload.py`, wherever the last cell is executed (search for the `exec(` that runs `_last_cell()`), add to its namespace a recorder: `"report": lambda stage, **kw: reported.append(stage)` with `reported: list[str] = []` in the test helper, and add one test asserting `reported[0] == "sending_file"`. Keep every existing assertion.
 
-Run: `cd apps && uv run --project server pytest tests/training_data ../training/tests -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data ../training/tests -q`
 Expected: all PASS, including the two status-link builder tests from C2. `git diff --stat docs/colab/dpo_training_template.ipynb` stays small.
 
 - [ ] **Step 5: Commit**
@@ -2191,7 +2191,7 @@ def test_host_key_cannot_use_admin_endpoints(
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cd apps && uv run --project server pytest tests/training_data/test_host_keys.py -q`
+Run: `cd apps && uv run --project server pytest server/tests/training_data/test_host_keys.py -q`
 Expected: FAIL (404s on the new routes).
 
 - [ ] **Step 3: Model, migration, exceptions, schemas**
@@ -2472,7 +2472,7 @@ If the authenticated-user object's id attribute is not `id`, copy exactly what `
 
 Run:
 ```
-cd apps && uv run --project server pytest tests/training_data -q
+cd apps && uv run --project server pytest server/tests/training_data -q
 cd server && uv run alembic upgrade 20261006_0001:head --sql | tail -30
 cd .. && uv run --project server ruff check server/modules/training_data server/alembic && uv run --project server ruff format --check server/modules/training_data server/alembic
 ```
@@ -3356,7 +3356,7 @@ git commit -m "docs: host sync setup guide"
 
 - [ ] **Step 1: Full backend and script tests**
 
-Run: `cd apps && uv run --project server pytest tests/training_data ../training/tests -q && uv run --project server ruff check && uv run --project server ruff format --check`
+Run: `cd apps && uv run --project server pytest server/tests/training_data ../training/tests -q && uv run --project server ruff check && uv run --project server ruff format --check`
 Expected: all PASS, ruff clean. (If `ruff format --check` flags files you did not touch, leave them.)
 
 - [ ] **Step 2: Migration chain**
