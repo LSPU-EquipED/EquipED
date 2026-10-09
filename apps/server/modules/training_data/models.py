@@ -71,6 +71,18 @@ class DpoTrainingJob(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    status_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    run_stage: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    run_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    run_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    run_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    run_reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class TrainedAdapter(Base):
     """A trained LoRA adapter uploaded back from a Colab training run."""
