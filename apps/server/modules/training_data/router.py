@@ -53,6 +53,8 @@ from server.modules.training_data.jobs import (
     create_training_job,
     get_job_download_package,
     list_training_jobs,
+    mark_run_stage,
+    report_run_status,
 )
 from server.modules.training_data.models import TrainedAdapter
 from server.modules.training_data.notebook import build_job_notebook
@@ -66,6 +68,7 @@ from server.modules.training_data.publication import (
 from server.modules.training_data.schemas import (
     GgufDownloadLinkResponse,
     PublishAdapterRequest,
+    RunStatusRequest,
     TrainedAdapterListItem,
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
@@ -189,13 +192,19 @@ def start_training_job(
         f"?token={result.raw_upload_token}"
     )
 
+    status_path = (
+        f"/admin/training-data/jobs/{result.job.job_id}/status"
+        f"?token={result.raw_status_token}"
+    )
+
     download_url = _build_url(request, download_path)
     upload_url = _build_url(request, upload_path)
+    status_url = _build_url(request, status_path)
 
     notebook: str | None = None
     notebook_filename: str | None = None
     try:
-        notebook = build_job_notebook(download_url, upload_url)
+        notebook = build_job_notebook(download_url, upload_url, status_url=status_url)
         notebook_filename = (
             f"equiped-{result.job.agent_id}-run-{str(result.job.job_id)[:8]}.ipynb"
         )
@@ -232,6 +241,30 @@ def download_training_job_package(
         ) from exc
 
     return Response(content=zip_bytes, media_type="application/zip")
+
+
+@router.post("/jobs/{job_id}/status", status_code=status.HTTP_204_NO_CONTENT)
+def report_training_status(
+    job_id: uuid.UUID,
+    body: RunStatusRequest,
+    token: str = Query(...),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    try:
+        report_run_status(
+            db,
+            job_id,
+            token,
+            body.stage,
+            step=body.step,
+            total=body.total,
+            message=body.message,
+        )
+    except TrainingJobNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="not found"
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -285,6 +318,7 @@ def upload_trained_adapter(
             db.rollback()
         except Exception:
             logger.warning("rollback failed", exc_info=True)
+    mark_run_stage(db, job_id, "converting")
     return TrainedAdapterUploadResponse(
         **response_data, gguf_upload_url=gguf_upload_url
     )
@@ -311,6 +345,7 @@ def upload_gguf_with_token(
         raise _not_found() from exc
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
+    mark_run_stage(db, adapter.job_id, "finished")
     return _adapter_response(adapter)
 
 
@@ -333,6 +368,7 @@ def upload_gguf_as_admin(
         adapter = store_gguf(db, adapter, file.file, replace=replace)
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
+    mark_run_stage(db, adapter.job_id, "finished")
     return _adapter_response(adapter)
 
 

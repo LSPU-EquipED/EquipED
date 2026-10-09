@@ -13,6 +13,7 @@ TEMPLATE_PATH = _PROJECT_ROOT / "docs" / "colab" / "dpo_training_template.ipynb"
 _LINKS_CELL = 1
 _DOWNLOAD_PLACEHOLDER = 'DOWNLOAD_URL = "PASTE_DOWNLOAD_URL_HERE"'
 _UPLOAD_PLACEHOLDER = 'UPLOAD_URL = "PASTE_UPLOAD_URL_HERE"'
+_STATUS_PLACEHOLDER = 'STATUS_URL = ""'
 
 
 def _fill(source: str, placeholder: str, name: str, value: str) -> str:
@@ -24,7 +25,11 @@ def _fill(source: str, placeholder: str, name: str, value: str) -> str:
 
 
 def build_job_notebook(
-    download_url: str, upload_url: str, *, template_path: Path = TEMPLATE_PATH
+    download_url: str,
+    upload_url: str,
+    *,
+    status_url: str | None = None,
+    template_path: Path = TEMPLATE_PATH,
 ) -> str:
     """Return the template notebook (JSON text) with this job's links filled in.
 
@@ -40,6 +45,8 @@ def build_job_notebook(
 
     source = _fill(source, _DOWNLOAD_PLACEHOLDER, "DOWNLOAD_URL", download_url)
     source = _fill(source, _UPLOAD_PLACEHOLDER, "UPLOAD_URL", upload_url)
+    if status_url is not None:
+        source = _fill(source, _STATUS_PLACEHOLDER, "STATUS_URL", status_url)
     cell["source"] = source.splitlines(keepends=True)
     return json.dumps(notebook, indent=1)
 

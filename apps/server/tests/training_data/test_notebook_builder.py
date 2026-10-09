@@ -86,3 +86,26 @@ def test_duplicated_placeholder_fails_loudly(tmp_path):
 def test_unreadable_template_raises_template_error(tmp_path):
     with pytest.raises(NotebookTemplateError):
         build_job_notebook(DOWNLOAD, UPLOAD, template_path=tmp_path / "missing.ipynb")
+
+
+STATUS = "https://app.example/api/v1/admin/training-data/jobs/j/status?token=ccc"
+
+
+def test_status_link_is_filled_when_given():
+    cell = _links_cell(build_job_notebook(DOWNLOAD, UPLOAD, status_url=STATUS))
+    assert f'STATUS_URL = "{STATUS}"' in cell
+
+
+def test_status_link_stays_empty_when_not_given():
+    cell = _links_cell(build_job_notebook(DOWNLOAD, UPLOAD))
+    assert 'STATUS_URL = ""' in cell
+
+
+def test_status_url_without_template_line_fails_loudly(tmp_path):
+    path = _write_template(
+        tmp_path,
+        'DOWNLOAD_URL = "PASTE_DOWNLOAD_URL_HERE"\n'
+        'UPLOAD_URL = "PASTE_UPLOAD_URL_HERE"\n',
+    )
+    with pytest.raises(NotebookTemplateError):
+        build_job_notebook(DOWNLOAD, UPLOAD, status_url=STATUS, template_path=path)
