@@ -90,9 +90,7 @@ def error_total(key: dict[str, int], scores: dict[str, int] | None) -> int:
     if scores is None:
         return WORST_ERROR * len(key)
     return sum(
-        abs(scores[criterion_id] - gold)
-        if criterion_id in scores
-        else WORST_ERROR
+        abs(scores[criterion_id] - gold) if criterion_id in scores else WORST_ERROR
         for criterion_id, gold in key.items()
     )
 
@@ -285,8 +283,9 @@ def load_heldout_zip(path: Path) -> HeldoutSet:
         if not isinstance(heldout, dict):
             raise ValueError(
                 "this adapter has no held-out set (it was trained on fewer than "
-                "20 pairs, from a single evaluation, or with a notebook that "
-                "predates the grouped split); pass --heldout to use another file"
+                "20 pairs, from a single document/group, had all held-out pairs "
+                "dropped for length, or used an older notebook without a split); "
+                "pass --heldout to use independently reserved pairs"
             )
         data = _read_member(archive, HELDOUT_FILENAME)
     actual_sha256 = hashlib.sha256(data).hexdigest()
@@ -477,7 +476,9 @@ def build_report(
 
 def format_report(evaluation: Evaluation) -> str:
     n = evaluation.scoreable
-    header = f"Adapter evaluation: {evaluation.total_pairs} held-out pair(s), {n} scoreable"
+    header = (
+        f"Adapter evaluation: {evaluation.total_pairs} held-out pair(s), {n} scoreable"
+    )
     if evaluation.skipped:
         header += f", {evaluation.skipped} skipped (no reviewer-changed score)"
     lines = [
