@@ -12,9 +12,14 @@ It needs a running llama-server with the adapter loaded at scale 0.0 (see
 
 1. **An adapter zip trained with the grouped-split notebook.** The training
    notebook (`docs/colab/dpo_training_template.ipynb`) holds out whole
-   evaluations, prints how many, and saves them inside the zip as
-   `heldout_pairs.jsonl`. An adapter trained with fewer than 20 pairs, or from a
-   single evaluation, has no held-out set and cannot be evaluated.
+   documents, keeping all evaluations of each SLM on the same side. It saves
+   the retained held-out pairs inside the zip as `heldout_pairs.jsonl`.
+   Fewer than 20 source pairs, a single document, or removal of every held-out
+   pair for length produces an explicit training-only run with no internal
+   held-out file. The existing length safety limit still stops the run if
+   more than 20% of all pairs would be dropped; the training-only fallback
+   applies only within that limit. Evaluate training-only adapters using
+   separately reserved data.
 2. **The adapter loaded on the server.** Convert the zip to a GGUF LoRA
    (`docs/colab/adapter_to_gguf_template.ipynb`) and ask the host owner to load
    it with `--lora-scaled <file>.gguf:0.0`. Every new adapter needs this step
@@ -23,6 +28,38 @@ It needs a running llama-server with the adapter loaded at scale 0.0 (see
 3. **The server URL and API key**, in `LLM_API_BASE` and `LLM_API_KEY` (or
    `--base-url` / `--api-key`; the environment is safer, arguments end up in
    shell history). The key is never printed or written to the report.
+
+## Check the dataset split
+
+The notebook assigns 20% of document groups (rounded up, with at least one
+document left for training) using seed 42. Pair counts can differ from 20%
+because documents contribute different numbers of examples. It stops before
+model loading if document identity is missing or an exact prompt occurs on
+both sides. Repeated prompts within one side are counted and retained.
+This does not detect near-duplicate SLMs or revisions uploaded under new IDs.
+
+The final summary is printed after length filtering. In `training_manifest.json`,
+`dataset_split` records assigned document IDs, retained pair/document IDs and
+counts, dropped pair IDs, overlap counts and any training-only reason.
+`heldout.method` is `group_by_document_id`; its count and checksum describe the
+actual saved file. Held-out rows include `document_id` alongside existing IDs.
+
+Older archives with `group_by_evaluation_id`, including SME v10, remain readable.
+Their held-out evaluations may contain documents seen during training; the
+reader does not retrospectively certify document independence. The separate
+house-rule reference SLMs are outside the frozen training package and remain
+the appropriate unseen-document comparison for those experiments. For the
+synthetic +1 experiment, closer scores demonstrate the taught behavior, not
+greater agreement with institutional reviewers.
+
+Before a real run, check:
+
+- [ ] Start with a newly downloaded notebook from the updated server/template.
+- [ ] Check assigned and final document/pair counts and zero cross-split overlap.
+- [ ] Review any dropped pairs or explicit training-only reason.
+- [ ] Check `dataset_split`, `heldout.method`, counts and IDs in the adapter ZIP.
+- [ ] When the model host is available, compare Base and the adapter on training
+      and unseen SLMs, recording edited-score movement, control drift and validity.
 
 ## Run it
 
@@ -78,7 +115,7 @@ Exit code: 0 better, 1 worse or inconclusive, 2 the run could not happen (or the
 
 | Message | Cause and fix |
 |---|---|
-| `this adapter has no held-out set` | The zip has no `heldout` block: too few pairs, one evaluation, or trained with the older notebook. Retrain, or pass `--heldout` with pairs the adapter was NOT trained on (the tool cannot check this, so a bare file gives no guarantee). |
+| `this adapter has no held-out set` | Too few pairs, one document, all held-out pairs dropped for length, or an older notebook without a split. Check `dataset_split.no_heldout_reason` when available. Retrain, or pass `--heldout` with independently reserved pairs (the tool cannot verify a bare file's independence). |
 | `no LoRA adapter is loaded on the server` | Ask the host to start llama-server with `--lora-scaled <file>.gguf:0.0`. |
 | `WARNING: the adapter's replies are identical...` | The adapter is probably not being applied. Check `GET /lora-adapters` and retry with `--scale-mode global`. |
 | adapter valid-JSON rate below the plain model's | The adapter damaged the output format; a `better` verdict is withheld. |

@@ -1,6 +1,6 @@
 # DPO document-level split and dataset integrity
 
-Date: 2026-10-10. Status: proposed; in-chat scope approved, written-spec review pending.
+Date: 2026-10-10. Status: approved for implementation by the user on 2026-10-10.
 Classification: architectural follow-up to the DPO deployment-readiness discussion, scoped to the existing notebook and its artifact contracts.
 
 ## Intended outcome
@@ -37,7 +37,7 @@ Repeated prompts within one side are permitted and counted; do not deduplicate o
 
 Apply the length planner's retained indices to train_items and heldout_items as well as their datasets. Rebuild heldout_rows from the retained heldout_items, preserving source pair IDs, evaluation IDs and raw strings, and adding document_id for traceability. Keep dropped pair IDs and their original assignment in metadata. Do not move dropped examples to the other side or rerun the split after filtering.
 
-If no training pairs remain, fail before training. If all held-out pairs are dropped, proceed as an explicitly reported training-only run, set eval_dataset to None, save no heldout_pairs.jsonl, and retain the reason and original assignment in split metadata. The heldout manifest remains null, as today. Recompute final overlap checks and counts on retained rows.
+If no training pairs remain, fail before training. Preserve the existing length planner's 20% maximum drop fraction: exceeding that limit stops the run, even when only held-out pairs would be dropped. Within that limit, if all held-out pairs are dropped, proceed as an explicitly reported training-only run, set eval_dataset to None, save no heldout_pairs.jsonl, and retain the reason and original assignment in split metadata. The heldout manifest remains null, as today. Recompute final overlap checks and counts on retained rows.
 
 ## Artifact contract
 

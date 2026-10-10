@@ -202,8 +202,13 @@ def _run_manifest(tmp_path: Path, extra: dict) -> dict:
         "model": _FakeModel(),
         "metrics": None,
         "pairs": [],
-        "heldout_rows": [{"pair_id": "x", "evaluation_id": "e"}],
-        "HELDOUT_METHOD": "group_by_evaluation_id",
+        "heldout_rows": [{"pair_id": "x", "evaluation_id": "e", "document_id": "d"}],
+        "HELDOUT_METHOD": "group_by_document_id",
+        "DATASET_SPLIT": {
+            "version": 1,
+            "method": "group_by_document_id",
+            "dropped": {"train_pair_ids": [], "heldout_pair_ids": []},
+        },
         "HELDOUT_SEED": 42,
         "HELDOUT_PERCENT": 20,
     }
@@ -228,6 +233,14 @@ def test_manifest_records_the_training_plan(tmp_path):
         tmp_path,
         {
             "LENGTH_PLAN": length_plan,
+            "DATASET_SPLIT": {
+                "version": 1,
+                "method": "group_by_document_id",
+                "dropped": {
+                    "train_pair_ids": ["pair-4", "pair-9"],
+                    "heldout_pair_ids": [],
+                },
+            },
             "DOSE_PLAN": dose_plan,
             "LEARNING_RATE": 2e-5,
             "GRAD_ACCUM": 4,
@@ -320,8 +333,17 @@ def _run_split_then_measure(monkeypatch, sizes):
     monkeypatch.setitem(sys.modules, "datasets", fake_datasets)
     pairs, records = [], []
     for n, words in enumerate(sizes):
-        pairs.append(_row(words))
-        records.append({"pair_id": f"p{n}", "evaluation_id": f"e{n % 10}"})
+        pair = _row(words)
+        # Distinct source prompts of the same length; do not introduce leakage.
+        pair["prompt"] = f"document{n % 10} " + " ".join(["p"] * (words - 1))
+        pairs.append(pair)
+        records.append(
+            {
+                "pair_id": f"p{n}",
+                "evaluation_id": f"e{n % 10}",
+                "document_id": f"d{n % 10}",
+            }
+        )
     namespace: dict = {
         "pairs": pairs,
         "pair_provenance_records": list(zip(pairs, records, strict=True)),

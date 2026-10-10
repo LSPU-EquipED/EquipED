@@ -984,6 +984,7 @@ def _pairs_and_provenance(n_evaluations: int, pairs_per_evaluation: int):
                 {
                     "pair_id": f"{n + 1:08x}-1111-1111-1111-111111111111",
                     "evaluation_id": f"{e + 1:08x}-2222-2222-2222-222222222222",
+                    "document_id": f"{e + 1:08x}-3333-3333-3333-333333333333",
                 }
             )
     return pairs, list(zip(pairs, records, strict=True))
@@ -1023,6 +1024,7 @@ def test_split_cell_rows_carry_ids_and_datasets_carry_only_training_columns(
         assert set(row) == {
             "pair_id",
             "evaluation_id",
+            "document_id",
             "prompt",
             "chosen",
             "rejected",
@@ -1064,7 +1066,7 @@ def test_split_cell_holds_nothing_out_for_a_single_evaluation(monkeypatch, capsy
     assert ctx["eval_dataset"] is None
     assert ctx["heldout_rows"] == []
     assert len(ctx["train_dataset"]) == 25
-    assert "single evaluation" in capsys.readouterr().out
+    assert "single document" in capsys.readouterr().out
 
 
 class _FakePeftConfig:
@@ -1129,11 +1131,12 @@ def test_manifest_cell_writes_heldout_file_and_records_its_hash(monkeypatch, tmp
         (adapter_dir / "training_manifest.json").read_text(encoding="utf-8")
     )
     assert training_manifest["heldout"] == {
-        "method": "group_by_evaluation_id",
+        "method": "group_by_document_id",
         "seed": 42,
         "fraction": 0.2,
         "pair_count": 6,
         "evaluation_count": 2,
+        "document_count": 2,
         "sha256": hashlib.sha256(heldout_bytes).hexdigest(),
     }
 

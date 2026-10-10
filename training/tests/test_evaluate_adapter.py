@@ -214,6 +214,23 @@ def test_load_heldout_zip_reads_and_verifies_the_file(tmp_path):
     assert str(path) in heldout.source
 
 
+def test_load_document_split_archive_with_additive_document_ids(tmp_path):
+    rows = [_heldout_row(n, document_id=f"document-{n}") for n in range(4)]
+    manifest = {
+        "method": "group_by_document_id",
+        "seed": 42,
+        "fraction": 0.2,
+        "pair_count": 4,
+        "document_count": 4,
+        "evaluation_count": 4,
+        "sha256": hashlib.sha256(_jsonl(rows)).hexdigest(),
+    }
+    path = _make_adapter_zip(tmp_path, rows, heldout=manifest)
+    result = ev.load_heldout_zip(path)
+    assert result.sha256_verified
+    assert [pair.pair_id for pair in result.pairs] == [f"pair-{n}" for n in range(4)]
+
+
 def test_load_heldout_zip_without_a_heldout_block_says_so(tmp_path):
     for heldout in (None, "missing"):
         path = _make_adapter_zip(tmp_path, heldout=heldout)
@@ -268,7 +285,10 @@ def test_load_heldout_file_reads_a_bare_jsonl_unverified(tmp_path):
         (b"", "no pairs"),
         (b"{not json}\n", "line 1: not valid JSON"),
         (b"[1]\n", "line 1: not a JSON object"),
-        (_jsonl([{k: v for k, v in _heldout_row(0).items() if k != "prompt"}]), "'prompt'"),
+        (
+            _jsonl([{k: v for k, v in _heldout_row(0).items() if k != "prompt"}]),
+            "'prompt'",
+        ),
         (_jsonl([_heldout_row(0, chosen="  ")]), "'chosen'"),
         (_jsonl([_heldout_row(0), _heldout_row(1, pair_id=5)]), "line 2"),
     ],
@@ -356,9 +376,7 @@ def test_run_evaluation_skips_unscoreable_pairs_without_sending_them():
         "skip", "eval-x", "SKIPPED-PROMPT", _reply({"A-01": 2}), _reply({"A-01": 2})
     )
     calls: list = []
-    evaluation = ev.run_evaluation(
-        [*_pairs(2), unscoreable], _complete(1, 3, calls)
-    )
+    evaluation = ev.run_evaluation([*_pairs(2), unscoreable], _complete(1, 3, calls))
 
     assert evaluation.total_pairs == 3
     assert evaluation.skipped == 1
@@ -574,9 +592,10 @@ def test_cli_better_adapter_exits_0_and_writes_the_report(
     assert report["verdict"] == "better"
     assert report["pairs"]["wins"] == 25
     assert report["heldout"]["sha256_verified"] is True
-    assert report["adapter"]["zip_sha256"] == hashlib.sha256(
-        zip_path.read_bytes()
-    ).hexdigest()
+    assert (
+        report["adapter"]["zip_sha256"]
+        == hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    )
     assert report["parameters"]["model"] == "gemma-3-4b-it"
     chats = _chats(fake_server)
     assert [c["body"]["lora"] for c in chats] == (
@@ -757,9 +776,7 @@ def test_cli_unreachable_server_exits_2(tmp_path, capsys, monkeypatch):
 
 def test_cli_without_a_base_url_exits_2(tmp_path, capsys, monkeypatch):
     monkeypatch.delenv("LLM_API_BASE", raising=False)
-    code, _, err = _run_cli(
-        ["--adapter-zip", str(_zip_with_pairs(tmp_path))], capsys
-    )
+    code, _, err = _run_cli(["--adapter-zip", str(_zip_with_pairs(tmp_path))], capsys)
     assert code == 2
     assert "LLM_API_BASE" in err
 
