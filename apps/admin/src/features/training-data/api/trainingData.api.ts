@@ -2,6 +2,8 @@ import { requestJson } from '@equiped/api-client';
 import type {
   DatasetReadiness,
   GgufDownloadLink,
+  HostKeyCreated,
+  HostSyncState,
   TrainedAdapterItem,
   TrainedAdapterListResponse,
   TrainingJobCreateResponse,
@@ -45,4 +47,8 @@ export const trainingDataApi = {
     requestJson<void>(`/admin/training-data/${agentId}/adapters/${adapterId}/gguf`, {
       method: 'DELETE',
     }),
+  getHostSync: () => requestJson<HostSyncState>('/admin/training-data/host'),
+  createHostKey: () =>
+    requestJson<HostKeyCreated>('/admin/training-data/host/key', { method: 'POST' }),
+  revokeHostKey: () => requestJson<void>('/admin/training-data/host/key', { method: 'DELETE' }),
 };

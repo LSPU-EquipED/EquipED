@@ -22,7 +22,7 @@ def _cells() -> list[dict]:
 
 
 def _last_cell() -> str:
-    return "".join(_cells()[17]["source"])
+    return "".join(_cells()[18]["source"])
 
 
 class _Response:
@@ -66,7 +66,12 @@ def run_cell(tmp_path, monkeypatch):
     (tmp_path / "sme-v8.gguf").write_bytes(b"GGUF" + b"\x00" * 16)
     monkeypatch.setattr(time, "sleep", lambda _s: None)
 
+    reported: list[str] = []
+    messages: list[str | None] = []
+
     def run(outcomes, *, upload_response: Any = "default"):
+        reported.clear()
+        messages.clear()
         fake = _FakeRequests(outcomes)
         monkeypatch.setitem(sys.modules, "requests", fake)
 
@@ -84,6 +89,10 @@ def run_cell(tmp_path, monkeypatch):
             "conversion_step": conversion_step,
             "OUTPUT_GGUF": "sme-v8.gguf",
             "GGUF_OUTPUT_FILES": ["sme-v8.gguf"],
+            "report": lambda stage, **kw: (
+                reported.append(stage),
+                messages.append(kw.get("message")),
+            ),
         }
         if upload_response == "default":
             upload_response = _Response(body={"gguf_upload_url": UPLOAD_URL})
@@ -92,11 +101,13 @@ def run_cell(tmp_path, monkeypatch):
         exec(_last_cell(), ctx)  # noqa: S102
         return fake
 
+    run.reported = reported
+    run.messages = messages
     return run
 
 
-def test_notebook_still_has_18_cells():
-    assert len(_cells()) == 18
+def test_notebook_still_has_19_cells():
+    assert len(_cells()) == 19
 
 
 def test_upload_succeeds_once(run_cell, capsys):
@@ -108,6 +119,11 @@ def test_upload_succeeds_once(run_cell, capsys):
     assert call["head"] == b"GGUF"
     assert isinstance(call["timeout"], (int, float)) and call["timeout"] > 0
     assert "Uploaded sme-v8.gguf to EquipED" in capsys.readouterr().out
+
+
+def test_cell_reports_sending_file_first(run_cell):
+    run_cell([_Response(200)])
+    assert run_cell.reported[0] == "sending_file"
 
 
 def test_retries_then_succeeds(run_cell, capsys):
@@ -155,8 +171,8 @@ SECRET_URL = "https://x/upload?token=SECRET123"
 
 
 def test_upload_cell_does_not_print_the_token():
-    """Cell 10 must print the response with gguf_upload_url hidden."""
-    source = "".join(_cells()[10]["source"])
+    """Cell 11 must print the response with gguf_upload_url hidden."""
+    source = "".join(_cells()[11]["source"])
     ns: dict[str, Any] = {}
     # Run only the final print, with a stand-in response object.
     tail = source.split("upload_response.raise_for_status()", 1)[1]
@@ -171,7 +187,7 @@ def test_upload_cell_does_not_print_the_token():
     out = buf.getvalue()
     assert "SECRET123" not in out
     assert "a1" in out
-    # the response itself stays intact for cell 17
+    # the response itself stays intact for cell 18
     assert ns["upload_response"].json()["gguf_upload_url"] == SECRET_URL
 
 
@@ -208,3 +224,29 @@ def test_no_sleep_after_the_last_attempt(run_cell, monkeypatch):
     monkeypatch.setattr(time, "sleep", sleeps.append)
     run_cell([ConnectionError("a")] * 3)
     assert len(sleeps) == 2
+
+
+# ---------------- final fix wave: a skipped/failed upload is reported ---------
+
+
+def test_successful_upload_reports_no_failure(run_cell):
+    run_cell([_Response(200)])
+    assert "failed" not in run_cell.reported
+
+
+def test_failed_upload_reports_failed_with_a_hint(run_cell):
+    run_cell([ConnectionError("a")] * 3)
+    assert run_cell.reported == ["sending_file", "failed"]
+    assert "Upload GGUF button" in run_cell.messages[-1]
+
+
+def test_refused_upload_reports_failed(run_cell):
+    run_cell([_Response(403)])
+    assert run_cell.reported[-1] == "failed"
+
+
+def test_missing_upload_link_reports_failed(run_cell):
+    run_cell([], upload_response=_Response(body={"adapter_id": "x"}))
+    assert run_cell.reported == ["sending_file", "failed"]
+    run_cell([], upload_response=None)
+    assert run_cell.reported == ["sending_file", "failed"]

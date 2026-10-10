@@ -25,13 +25,13 @@ it('shows margin, accuracy, loss, steps and the held-out numbers', () => {
   expect(screen.getByText('12 (3 epochs)')).toBeDefined();
   expect(screen.getByText('0.90')).toBeDefined();
   expect(screen.getByText('86%')).toBeDefined();
-  expect(screen.getByText(/measured on the training pairs/i)).toBeDefined();
+  expect(screen.getByText(/measured on the training examples/i)).toBeDefined();
 });
 
 it('says "Not recorded" when there is no summary', () => {
   render(<TrainingSummaryPanel summary={null} />);
   expect(screen.getByText('Not recorded')).toBeDefined();
-  expect(screen.queryByText(/measured on the training pairs/i)).toBeNull();
+  expect(screen.queryByText(/measured on the training examples/i)).toBeNull();
 });
 
 it('renders only what exists for a partial summary and never prints NaN', () => {

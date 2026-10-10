@@ -3,13 +3,36 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from server.modules.training_data.training_summary import TrainingSummary
 
 AgentId = Literal["sme", "coordinator", "gad", "itso"]
+
+RunStage = Literal[
+    "starting",
+    "training",
+    "sending_model",
+    "converting",
+    "sending_file",
+    "finished",
+    "failed",
+]
+
+
+class RunStatusRequest(BaseModel):
+    stage: RunStage
+    step: int | None = Field(default=None, ge=0)
+    total: int | None = Field(default=None, ge=1)
+    message: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def _step_within_total(self) -> RunStatusRequest:
+        if self.step is not None and self.total is not None and self.step > self.total:
+            raise ValueError("step cannot be greater than total")
+        return self
 
 
 class TrainingJobCreateResponse(BaseModel):
@@ -21,6 +44,8 @@ class TrainingJobCreateResponse(BaseModel):
     download_expires_at: datetime
     upload_expires_at: datetime
     created_at: datetime
+    notebook: str | None = None
+    notebook_filename: str | None = None
 
 
 class TrainingJobListItem(BaseModel):
@@ -35,10 +60,22 @@ class TrainingJobListItem(BaseModel):
     reviewer_count: int | None = None
     pairs_sha256: str | None = None
     export_timestamp: str | None = None
+    run_stage: str | None = None
+    run_step: int | None = None
+    run_total: int | None = None
+    run_message: str | None = None
+    run_reported_at: datetime | None = None
+    seconds_since_report: int | None = None
 
     @classmethod
     def from_job(cls, job: Any) -> TrainingJobListItem:
         manifest = job.manifest_json if isinstance(job.manifest_json, dict) else {}
+        reported = getattr(job, "run_reported_at", None)
+        seconds_since: int | None = None
+        if reported is not None:
+            if reported.tzinfo is None:
+                reported = reported.replace(tzinfo=UTC)
+            seconds_since = max(0, int((datetime.now(UTC) - reported).total_seconds()))
         return cls(
             job_id=job.job_id,
             agent_id=job.agent_id,
@@ -49,6 +86,12 @@ class TrainingJobListItem(BaseModel):
             reviewer_count=manifest.get("reviewer_count"),
             pairs_sha256=manifest.get("pairs_sha256"),
             export_timestamp=manifest.get("export_timestamp"),
+            run_stage=getattr(job, "run_stage", None),
+            run_step=getattr(job, "run_step", None),
+            run_total=getattr(job, "run_total", None),
+            run_message=getattr(job, "run_message", None),
+            run_reported_at=reported,
+            seconds_since_report=seconds_since,
         )
 
 
@@ -133,6 +176,31 @@ class PublishAdapterRequest(BaseModel):
     adapter_id: uuid.UUID
 
 
+class HostStateResponse(BaseModel):
+    has_active_key: bool
+    created_at: datetime | None = None
+    last_seen_at: datetime | None = None
+
+
+class HostKeyCreatedResponse(BaseModel):
+    key: str
+    created_at: datetime
+
+
+class HostManifestEntry(BaseModel):
+    adapter_id: uuid.UUID
+    agent_id: str
+    version: int
+    filename: str
+    sha256: str
+    size_bytes: int
+    published: bool
+
+
+class HostManifestResponse(BaseModel):
+    adapters: list[HostManifestEntry]
+
+
 __all__ = [
     "AgentId",
     "TrainingJobCreateResponse",
@@ -147,4 +215,8 @@ __all__ = [
     "TrainedAdapterListItem",
     "TrainedAdapterListResponse",
     "PublishAdapterRequest",
+    "HostStateResponse",
+    "HostKeyCreatedResponse",
+    "HostManifestEntry",
+    "HostManifestResponse",
 ]

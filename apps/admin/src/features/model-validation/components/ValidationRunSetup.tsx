@@ -65,7 +65,7 @@ export function ValidationRunSetup({
           <p className="text-xs font-semibold text-primary">1. Define the run</p>
           <h3 className="mt-1 text-base font-semibold text-text">Run configuration</h3>
           <p className="mt-1 text-xs leading-relaxed text-text-muted">
-            Choose the evaluator agent, then the base model or one of its adapter versions.
+            Choose the evaluator agent, then the base model or one of its fine-tuned versions.
           </p>
         </div>
 

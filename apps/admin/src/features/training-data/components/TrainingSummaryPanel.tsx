@@ -13,7 +13,7 @@ export function TrainingSummaryPanel({ summary }: { summary?: TrainingSummary | 
         <>
           <TrainingRecordMetadata entries={entries} tabularValues />
           <p className="text-xs leading-5 text-text-muted">
-            Measured on the training pairs. It shows the model learned the preference, not how
+            Measured on the training examples. It shows the model learned the corrections, not how
             it scores new documents.
           </p>
         </>

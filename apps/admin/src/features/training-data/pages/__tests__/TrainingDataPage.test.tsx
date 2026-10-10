@@ -42,6 +42,7 @@ beforeEach(() => {
     pairs_sha256: 'hash',
     export_timestamp: '2026-09-29T00:00:00Z',
   }));
+  vi.mocked(trainingDataApi.getHostSync).mockResolvedValue({ has_active_key: false });
   vi.mocked(trainingDataApi.listJobs).mockImplementation(async (agentId) => ({
     agent_id: agentId,
     jobs: [],
@@ -81,10 +82,10 @@ function renderPage() {
 async function prepareRun() {
   await waitFor(() =>
     expect(
-      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Start a training run' }) as HTMLButtonElement).disabled,
     ).toBe(false),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Prepare training run' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start a training run' }));
 }
 
 describe('TrainingDataPage', () => {
@@ -120,22 +121,22 @@ describe('TrainingDataPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Subject Matter Expert' }));
     view.refreshRoute();
     expect(
-      (screen.getByRole('button', { name: 'Preparing run…' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Starting run…' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     await act(async () => resolveJob(credentials));
-    expect(screen.queryByLabelText('Download URL')).toBeNull();
+    expect(screen.queryByLabelText('Step 1 link')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Program Coordinator' }));
     view.refreshRoute();
-    expect(((await screen.findByLabelText('Download URL')) as HTMLInputElement).value).toBe(
+    expect(((await screen.findByLabelText('Step 1 link')) as HTMLInputElement).value).toBe(
       credentials.download_url,
     );
     expect(
-      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Start a training run' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /saved both URLs/i }));
-    expect(screen.queryByLabelText('Download URL')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /saved both links/i }));
+    expect(screen.queryByLabelText('Step 1 link')).toBeNull();
     expect(
-      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Start a training run' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(trainingDataApi.listJobs).toHaveBeenCalledWith('coordinator');
   });
@@ -152,8 +153,8 @@ describe('TrainingDataPage', () => {
       ),
     );
     expect(
-      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Start a training run' }) as HTMLButtonElement).disabled,
     ).toBe(false);
-    expect(screen.queryByLabelText('Download URL')).toBeNull();
+    expect(screen.queryByLabelText('Step 1 link')).toBeNull();
   });
 });

@@ -25,9 +25,9 @@ DOCS_COLAB = Path(__file__).resolve().parents[2] / "docs" / "colab"
 TRAINING_NOTEBOOK = DOCS_COLAB / "dpo_training_template.ipynb"
 STANDALONE_NOTEBOOK = DOCS_COLAB / "adapter_to_gguf_template.ipynb"
 
-FIRST_NEW_CELL = 11
-UPLOAD_CELL = 10
-HEADER, CONFIG, READ_ADAPTER, PREPARE, CONVERT, VERIFY, DOWNLOAD = range(11, 18)
+FIRST_NEW_CELL = 12
+UPLOAD_CELL = 11
+HEADER, CONFIG, READ_ADAPTER, PREPARE, CONVERT, VERIFY, DOWNLOAD = range(12, 19)
 COPIED_HELPERS = ("run", "sha256_of", "check_lora_fields", "gguf_output_name")
 
 # Mirrors the file-name rule in apps/server/modules/training_data/serving.py
@@ -53,6 +53,7 @@ def _new_code_sources() -> list[str]:
 
 def _run_cell(index: int, namespace: dict | None = None) -> dict:
     namespace = {} if namespace is None else namespace
+    namespace.setdefault("report", lambda *args, **kwargs: None)  # status helper
     exec(compile(_source(index), f"<cell-{index}>", "exec"), namespace)  # noqa: S102
     return namespace
 
@@ -66,10 +67,10 @@ def _helpers(base_model_name: str = "unsloth/gemma-3-4b-it") -> dict:
 
 def test_new_cells_follow_the_untouched_training_cells():
     cells = _cells(TRAINING_NOTEBOOK)
-    assert len(cells) == 18
+    assert len(cells) == 19
     assert cells[HEADER]["cell_type"] == "markdown"
     assert all(cells[i]["cell_type"] == "code" for i in range(CONFIG, DOWNLOAD + 1))
-    # cell 10 is still the upload cell the earlier tests pin
+    # cell 11 is still the upload cell the earlier tests pin
     assert "UPLOAD_URL" in _source(UPLOAD_CELL)
 
 
@@ -84,7 +85,7 @@ def test_conversion_happens_after_the_upload_and_download_after_verification():
     def first(predicate):
         return next(i for i, source in enumerate(sources) if predicate(source))
 
-    upload = first(lambda s: "UPLOAD_URL" in s and "requests.post(" in s)
+    upload = first(lambda s: "UPLOAD_URL" in s and "upload_response = requests.post(" in s)
     first_conversion = first(
         lambda s: "conversion_step" in s or "convert_lora_to_gguf" in s
     )

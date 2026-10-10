@@ -1,4 +1,4 @@
-import type { ReadinessSummary, TrainingSummary } from '../types';
+import type { ReadinessSummary, TrainingJobItem, TrainingSummary } from '../types';
 
 export function formatCountdown(expiresAtIso: string, now: number): string {
   const diffMs = new Date(expiresAtIso).getTime() - now;
@@ -14,7 +14,7 @@ export function formatCountdown(expiresAtIso: string, now: number): string {
 
 export const RECOMMENDED_MIN_PAIRS = 20;
 
-export const RULE_OF_THUMB_NOTE = `${RECOMMENDED_MIN_PAIRS} pairs is a rule of thumb, not a guarantee: consistent corrections matter more than the count.`;
+export const RULE_OF_THUMB_NOTE = `${RECOMMENDED_MIN_PAIRS} correction examples is a rule of thumb, not a guarantee: consistent corrections matter more than the count.`;
 
 export const SEEDED_DATA_NOTE =
   "Counts cover the whole database and include any seeded test data, which can't be told apart here.";
@@ -23,31 +23,31 @@ export function getReadinessTier(pairCount: number, evaluationCount: number): Re
   if (pairCount <= 0) {
     return {
       tier: 'empty',
-      message: 'No trainable pairs yet. Starting a job would be refused.',
+      message: 'No correction examples yet. A training run cannot be started.',
     };
   }
   if (evaluationCount < 2) {
     return {
       tier: 'single-evaluation',
       message:
-        'All pairs come from one evaluation, so nothing can be held out to check the adapter.',
+        'All examples come from one evaluation, so none can be set aside to check the fine-tuned model.',
     };
   }
   if (pairCount < RECOMMENDED_MIN_PAIRS) {
     return {
       tier: 'small',
-      message: `Under ${RECOMMENDED_MIN_PAIRS} pairs: fine for a smoke test, unlikely to show real learning.`,
+      message: `Under ${RECOMMENDED_MIN_PAIRS} correction examples: fine for a quick test, unlikely to show real learning.`,
     };
   }
   return {
     tier: 'reasonable',
-    message: 'Enough volume to attempt a training run.',
+    message: 'Enough examples to try a training run.',
   };
 }
 
 export function getReviewerNote(reviewerCount: number): string | null {
   return reviewerCount === 1
-    ? "All corrections come from one reviewer, so an adapter would learn that person's judgement only."
+    ? "All corrections come from one reviewer, so a fine-tuned model would learn that person's judgement only."
     : null;
 }
 
@@ -74,11 +74,11 @@ export function compareToLatestJob(
 export function describeComparison(comparison: LatestJobComparison): string | null {
   switch (comparison.kind) {
     case 'identical':
-      return 'Unchanged since the latest run; preparing again uses the same data.';
+      return 'Unchanged since the latest run; starting again uses the same examples.';
     case 'changed':
-      return `Since the latest run: ${comparison.from} → ${comparison.to} pairs.`;
+      return `Since the latest run: ${comparison.from} → ${comparison.to} correction examples.`;
     case 'unknown':
-      return 'Previous dataset unavailable for comparison.';
+      return "The previous run's examples are unavailable for comparison.";
     case 'no-jobs':
       return null;
   }
@@ -103,8 +103,8 @@ export function describeFunnel(pairCount: number, skipped: Record<string, number
   const reasons = Object.entries(skipped).filter(([, count]) => count > 0);
   const skippedTotal = totalSkipped(skipped);
   const examined = pairCount + skippedTotal;
-  const noun = examined === 1 ? 'generation' : 'generations';
-  const base = `${examined} ${noun} examined: ${pairCount} became pairs`;
+  const noun = examined === 1 ? 'AI result' : 'AI results';
+  const base = `${examined} ${noun} examined: ${pairCount} became correction examples`;
   if (skippedTotal === 0) return `${base}, none skipped.`;
   const detail =
     reasons.length === 1
@@ -144,8 +144,7 @@ export function buildTrainingSummaryEntries(
     const stepsDiffer = first?.step !== last?.step;
     const bothStepsMissing = first?.step == null && last?.step == null;
     const showStart =
-      isNumber(firstMargin) &&
-      (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
+      isNumber(firstMargin) && (stepsDiffer || (bothStepsMissing && firstMargin !== lastMargin));
     entries.push([
       'Preference margin',
       showStart ? `${fixed(firstMargin)} → ${fixed(lastMargin)}` : fixed(lastMargin),
@@ -170,4 +169,75 @@ export function buildTrainingSummaryEntries(
   const heldoutPairs = heldout?.pair_count;
   if (isNumber(heldoutPairs)) entries.push(['Held-out pairs', `${heldoutPairs}`]);
   return entries;
+}
+
+export const STALE_AFTER_SECONDS = 15 * 60;
+
+const RUN_STAGE_LABELS: Record<string, string> = {
+  starting: 'Starting',
+  training: 'Training',
+  sending_model: 'Sending model',
+  converting: 'Converting file',
+  sending_file: 'Sending file',
+  finished: 'Finished',
+  failed: 'Failed',
+};
+
+export function isRunActive(job: Partial<TrainingJobItem>): boolean {
+  return !!job.run_stage && job.run_stage !== 'finished' && job.run_stage !== 'failed';
+}
+
+/** A fresh run with no report yet is watched for as long as its download link lives. */
+export const WAITING_POLL_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** A run silent for this long is treated as abandoned and no longer polled. */
+export const POLL_GIVE_UP_AFTER_SECONDS = 2 * 60 * 60;
+/** Upload tokens expire after 7 days; nothing newer than this can still report. */
+export const RUN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Should the job list keep refreshing for this run? Pure: `now` is injected.
+ * Separate from isRunActive (which drives the stale warning), because a run can
+ * be "active" yet abandoned, and a run that has not reported yet is waiting.
+ */
+export function shouldPollRun(job: Partial<TrainingJobItem>, now: number): boolean {
+  const created = job.created_at ? Date.parse(job.created_at) : NaN;
+  const age = now - created; // NaN when created_at is unreadable
+  if (!job.run_stage) {
+    return job.status !== 'completed' && age >= 0 && age <= WAITING_POLL_WINDOW_MS;
+  }
+  // An unreadable date skips only the 7-day cap; the silence cap still applies.
+  return (
+    isRunActive(job) &&
+    !(age > RUN_MAX_AGE_MS) &&
+    (job.seconds_since_report ?? 0) < POLL_GIVE_UP_AFTER_SECONDS
+  );
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 60) return 'updated just now';
+  if (seconds < 3600) return `updated ${Math.floor(seconds / 60)} min ago`;
+  return `updated ${Math.floor(seconds / 3600)} h ago`;
+}
+
+export interface RunProgress {
+  label: string;
+  detail: string | null;
+  stale: boolean;
+  failed: boolean;
+}
+
+export function describeRunProgress(job: TrainingJobItem): RunProgress | null {
+  if (!job.run_stage) return null;
+  const parts: string[] = [];
+  if (job.run_stage === 'training' && job.run_step != null && job.run_total != null) {
+    parts.push(`step ${job.run_step} of ${job.run_total}`);
+  }
+  if (job.run_stage === 'failed' && job.run_message) parts.push(job.run_message);
+  if (job.seconds_since_report != null) parts.push(formatAge(job.seconds_since_report));
+  return {
+    label: RUN_STAGE_LABELS[job.run_stage] ?? job.run_stage,
+    detail: parts.length > 0 ? parts.join(' · ') : null,
+    stale: isRunActive(job) && (job.seconds_since_report ?? 0) >= STALE_AFTER_SECONDS,
+    failed: job.run_stage === 'failed',
+  };
 }

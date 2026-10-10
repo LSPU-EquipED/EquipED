@@ -77,7 +77,7 @@ export function TrainingCredentialField({
         )}
         {copyState === 'error' && (
           <p role="alert" className="text-[13px] leading-5 text-destructive">
-            Could not copy. Select the URL and copy it manually.
+            Could not copy. Select the link and copy it manually.
           </p>
         )}
       </div>

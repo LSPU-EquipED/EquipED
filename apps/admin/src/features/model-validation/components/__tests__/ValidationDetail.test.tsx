@@ -181,7 +181,7 @@ describe('HistoryRow', () => {
       </table>,
     );
 
-    expect(screen.getByText('Adapter')).toBeDefined();
+    expect(screen.getByText('Fine-tuned')).toBeDefined();
   });
 
   it('shows no variant badge when model_variant is null', () => {
@@ -199,7 +199,7 @@ describe('HistoryRow', () => {
       </table>,
     );
 
-    expect(screen.queryByText('Adapter')).toBeNull();
+    expect(screen.queryByText('Fine-tuned')).toBeNull();
     expect(screen.queryByText('Base')).toBeNull();
   });
 });
@@ -224,13 +224,13 @@ describe('adapter labelling', () => {
   it('shows the adapter version label on a history row when present', () => {
     renderRow({ ...mockItem, model_variant: 'adapter', adapter_id: 'sme-v3', adapter_label: 'sme-v3' });
 
-    expect(screen.getByText('Adapter sme-v3')).toBeDefined();
+    expect(screen.getByText('Fine-tuned sme-v3')).toBeDefined();
   });
 
   it('falls back to the plain Adapter text for old rows without a label', () => {
     renderRow({ ...mockItem, model_variant: 'adapter', adapter_label: null });
 
-    expect(screen.getByText('Adapter')).toBeDefined();
+    expect(screen.getByText('Fine-tuned')).toBeDefined();
   });
 
   it('shows the adapter version label in the review panel', () => {
@@ -241,7 +241,7 @@ describe('adapter labelling', () => {
       />,
     );
 
-    expect(screen.getByText('Adapter sme-v3')).toBeDefined();
+    expect(screen.getByText('Fine-tuned sme-v3')).toBeDefined();
   });
 
   it('keeps the plain Base/Adapter text in the review panel for old rows', () => {
@@ -267,7 +267,7 @@ describe('adapter labelling', () => {
     );
 
     expect(
-      screen.getByText('Adapter sme-v3 requested, base used (not loaded on the server)'),
+      screen.getByText('Fine-tuned model sme-v3 requested, base used (not loaded on the server)'),
     ).toBeDefined();
   });
 

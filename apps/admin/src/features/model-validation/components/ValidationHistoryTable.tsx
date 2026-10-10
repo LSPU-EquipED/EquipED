@@ -25,7 +25,7 @@ const statusOptions = [
 const modelOptions = [
   { value: 'all', label: 'All models' },
   { value: 'base', label: 'Base model' },
-  { value: 'adapter', label: 'Adapter' },
+  { value: 'adapter', label: 'Fine-tuned' },
 ];
 
 const pageSizeOptions = [10, 20, 50].map((value) => ({

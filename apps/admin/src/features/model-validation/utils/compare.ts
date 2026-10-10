@@ -185,7 +185,7 @@ export function computePairComparison(
     status: 'ok',
     chips,
     rows,
-    summary: `The adapter got closer to the expected scores on ${closerCount} criteria, stayed the same on ${sameCount} and moved away on ${fartherCount}.`,
+    summary: `The fine-tuned model got closer to the expected scores on ${closerCount} criteria, stayed the same on ${sameCount} and moved away on ${fartherCount}.`,
     includedCount: n,
     baseMeanError,
     adapterMeanError,

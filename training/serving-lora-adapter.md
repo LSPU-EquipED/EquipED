@@ -5,6 +5,8 @@ started by `start-gemma.bat`). This adds a trained adapter **on top of** the
 model file you already serve. It never changes that file, and you can remove it
 again at any time.
 
+With host sync set up, steps 1 to 3 below are done by the script; see docs/host-sync-setup.md. The manual steps stay valid as a fallback.
+
 You can serve one adapter per agent (SME, GAD, ITSO, Coordinator), and several
 versions of each, side by side. The app picks which one each agent uses per
 request; you only decide which files the server loads.

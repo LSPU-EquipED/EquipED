@@ -323,7 +323,7 @@ describe('formatTimestamp', () => {
 describe('variantLabel', () => {
   it('labels base and adapter variants, and returns null for neither', () => {
     expect(variantLabel('base')).toBe('Base');
-    expect(variantLabel('adapter')).toBe('Adapter');
+    expect(variantLabel('adapter')).toBe('Fine-tuned');
     expect(variantLabel(null)).toBeNull();
   });
 });
@@ -334,26 +334,26 @@ describe('adapterFallbackNotices', () => {
 
   it('maps known reason codes to readable text', () => {
     expect(notice('sme-v3', 'not_loaded')).toEqual([
-      'Adapter sme-v3 requested, base used (not loaded on the server)',
+      'Fine-tuned model sme-v3 requested, base used (not loaded on the server)',
     ]);
     expect(notice('sme-v3', 'server_unreachable')).toEqual([
-      'Adapter sme-v3 requested, base used (model server unreachable)',
+      'Fine-tuned model sme-v3 requested, base used (model server unreachable)',
     ]);
     expect(notice('sme-v3', 'adapter_not_found')).toEqual([
-      'Adapter sme-v3 requested, base used (adapter not found)',
+      'Fine-tuned model sme-v3 requested, base used (fine-tuned model not found)',
     ]);
   });
 
   it('falls back to the raw code for unknown reasons and omits a missing reason', () => {
     expect(notice('sme-v3', 'weird_code')).toEqual([
-      'Adapter sme-v3 requested, base used (weird_code)',
+      'Fine-tuned model sme-v3 requested, base used (weird_code)',
     ]);
-    expect(notice('sme-v3', null)).toEqual(['Adapter sme-v3 requested, base used']);
+    expect(notice('sme-v3', null)).toEqual(['Fine-tuned model sme-v3 requested, base used']);
   });
 
   it('words the unknown-adapter placeholder plainly', () => {
     expect(notice('unknown-adapter', 'adapter_not_found')).toEqual([
-      'Requested adapter not found, base used',
+      'Requested fine-tuned model not found, base used',
     ]);
   });
 

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareToLatestJob,
+  describeRunProgress,
+  isRunActive,
+  STALE_AFTER_SECONDS,
   describeFunnel,
   formatCountdown,
   formatSize,
@@ -110,23 +113,25 @@ describe('skip reason helpers', () => {
 describe('describeFunnel', () => {
   it('folds a single skip reason into one sentence', () => {
     expect(describeFunnel(25, { no_reviewer_feedback: 7 })).toBe(
-      '32 generations examined: 25 became pairs, 7 skipped (no reviewer feedback).',
+      '32 AI results examined: 25 became correction examples, 7 skipped (no reviewer feedback).',
     );
   });
 
   it('breaks several skip reasons down by count', () => {
     expect(describeFunnel(10, { no_reviewer_feedback: 5, some_new_reason: 2 })).toBe(
-      '17 generations examined: 10 became pairs, 7 skipped (5 no reviewer feedback, 2 some new reason).',
+      '17 AI results examined: 10 became correction examples, 7 skipped (5 no reviewer feedback, 2 some new reason).',
     );
   });
 
   it('says none were skipped when nothing was', () => {
-    expect(describeFunnel(4, {})).toBe('4 generations examined: 4 became pairs, none skipped.');
+    expect(describeFunnel(4, {})).toBe(
+      '4 AI results examined: 4 became correction examples, none skipped.',
+    );
   });
 
-  it('ignores zero counts and uses the singular for one generation', () => {
+  it('ignores zero counts and uses the singular for one result', () => {
     expect(describeFunnel(1, { no_reviewer_feedback: 0 })).toBe(
-      '1 generation examined: 1 became pairs, none skipped.',
+      '1 AI result examined: 1 became correction examples, none skipped.',
     );
   });
 });
@@ -173,5 +178,72 @@ describe('formatSize', () => {
   it('formats bytes 1024 MB or greater as GB with 2 decimal places', () => {
     expect(formatSize(1024 * 1024 * 1024)).toBe('1.00 GB');
     expect(formatSize(2.567 * 1024 * 1024 * 1024)).toBe('2.57 GB');
+  });
+});
+
+const base = {
+  job_id: 'j',
+  agent_id: 'sme',
+  status: 'downloaded' as const,
+  created_at: '2026-10-10T00:00:00Z',
+};
+
+describe('describeRunProgress', () => {
+  it('returns null for runs without a reported stage', () => {
+    expect(describeRunProgress(base)).toBeNull();
+    expect(isRunActive(base)).toBe(false);
+  });
+
+  it('shows the step counter while training', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'training',
+      run_step: 14,
+      run_total: 30,
+      seconds_since_report: 120,
+    });
+    expect(p).toEqual({
+      label: 'Training',
+      detail: 'step 14 of 30 · updated 2 min ago',
+      stale: false,
+      failed: false,
+    });
+  });
+
+  it('flags a quiet active run as stale after 15 minutes', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'training',
+      seconds_since_report: STALE_AFTER_SECONDS,
+    });
+    expect(p?.stale).toBe(true);
+  });
+
+  it('never marks finished or failed runs stale', () => {
+    for (const run_stage of ['finished', 'failed']) {
+      const p = describeRunProgress({ ...base, run_stage, seconds_since_report: 99999 });
+      expect(p?.stale).toBe(false);
+      expect(isRunActive({ ...base, run_stage })).toBe(false);
+    }
+  });
+
+  it('shows the failure reason', () => {
+    const p = describeRunProgress({
+      ...base,
+      run_stage: 'failed',
+      run_message: 'OOM',
+      seconds_since_report: 5,
+    });
+    expect(p).toMatchObject({ label: 'Failed', failed: true });
+    expect(p?.detail).toContain('OOM');
+  });
+
+  it('says just now for fresh reports and hours for old ones', () => {
+    expect(
+      describeRunProgress({ ...base, run_stage: 'converting', seconds_since_report: 10 })?.detail,
+    ).toBe('updated just now');
+    expect(
+      describeRunProgress({ ...base, run_stage: 'converting', seconds_since_report: 7300 })?.detail,
+    ).toBe('updated 2 h ago');
   });
 });

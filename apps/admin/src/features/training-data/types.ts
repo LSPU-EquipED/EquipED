@@ -25,6 +25,12 @@ export interface TrainingJobItem {
   reviewer_count?: number | null;
   pairs_sha256?: string | null;
   export_timestamp?: string | null;
+  run_stage?: string | null;
+  run_step?: number | null;
+  run_total?: number | null;
+  run_message?: string | null;
+  run_reported_at?: string | null;
+  seconds_since_report?: number | null;
 }
 
 export interface DatasetReadiness {
@@ -51,6 +57,8 @@ export interface TrainingJobCreateResponse {
   download_expires_at: string;
   upload_expires_at: string;
   created_at: string;
+  notebook?: string | null;
+  notebook_filename?: string | null;
 }
 
 export interface TrainingSnapshot {
@@ -113,4 +121,15 @@ export interface TrainedAdapterListResponse {
   published_adapter_id: string | null;
   server_reachable: boolean;
   unrecognized_server_adapters: string[];
+}
+
+export interface HostSyncState {
+  has_active_key: boolean;
+  created_at?: string | null;
+  last_seen_at?: string | null;
+}
+
+export interface HostKeyCreated {
+  key: string;
+  created_at: string;
 }

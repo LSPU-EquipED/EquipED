@@ -19,7 +19,7 @@ export function useTrainingPreparation(agentId: string) {
       prepare.isError && prepare.variables === agentId
         ? prepare.error instanceof Error
           ? prepare.error.message
-          : 'Failed to prepare the training run. Try again.'
+          : 'Could not start the training run. Try again.'
         : null,
     acknowledgeHandoff: () => setHandoffs((current) => ({ ...current, [agentId]: undefined })),
   };

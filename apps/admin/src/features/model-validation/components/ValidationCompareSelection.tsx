@@ -36,7 +36,7 @@ export function ValidationCompareSelection({
           onChange: onBaseChange,
         },
         {
-          label: 'Adapter run',
+          label: 'Fine-tuned run',
           runs: adapterRuns,
           value: adapterId,
           selected: selectedAdapter,
@@ -53,7 +53,7 @@ export function ValidationCompareSelection({
             options={runs.map((run) => ({
               value: run.validation_id,
               label: run.document_title ?? 'Untitled SLM',
-              description: `${formatTimestamp(run.created_at)} · ${run.adapter_label ?? (run.model_variant === 'base' ? 'Base' : 'Adapter')}`,
+              description: `${formatTimestamp(run.created_at)} · ${run.adapter_label ?? (run.model_variant === 'base' ? 'Base' : 'Fine-tuned')}`,
             }))}
             size="md"
             className="w-full"

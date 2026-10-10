@@ -168,6 +168,7 @@ def _execute_notebook_validation_cell(package_bytes: bytes) -> dict[str, Any]:
     code = raw_code.replace("import requests\n", mock_requests_module_code)
 
     globals_dict = {
+        "report": lambda *args, **kwargs: None,
         "DOWNLOAD_URL": "http://mock-test/download",
         "_mock_response": MockResponse(package_bytes),
     }
@@ -354,8 +355,8 @@ def test_notebook_validation_rejects_non_object_provenance_record():
 
 
 def test_adapter_packaging_cell_creates_deterministic_archive_with_relative_paths():
-    """Verify notebook cell 10 verifies outputs, builds relative paths, and uploads."""
-    raw_code = _get_notebook_cell_code(10)
+    """Verify notebook cell 11 verifies outputs, builds relative paths, and uploads."""
+    raw_code = _get_notebook_cell_code(11)
     mock_requests_module_code = (
         "class _MockRequests:\n"
         "    @staticmethod\n"
@@ -397,6 +398,7 @@ def test_adapter_packaging_cell_creates_deterministic_archive_with_relative_path
                 "ADAPTER_DIR": str(adapter_dir),
                 "UPLOAD_URL": "http://mock-test/upload",
                 "_mock_post": mock_post,
+                "report": lambda *args, **kwargs: None,
             }
             exec(code, ctx)  # noqa: S102
 
@@ -419,7 +421,7 @@ def test_adapter_packaging_cell_creates_deterministic_archive_with_relative_path
 
 
 def test_adapter_packaging_cell_rejects_missing_required_files():
-    code = _get_notebook_cell_code(10)
+    code = _get_notebook_cell_code(11)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         adapter_dir = Path(tmpdir) / "trained_adapter"
@@ -438,7 +440,7 @@ def test_adapter_packaging_cell_rejects_missing_required_files():
 
 
 def test_adapter_packaging_cell_rejects_missing_weights_file():
-    code = _get_notebook_cell_code(10)
+    code = _get_notebook_cell_code(11)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         adapter_dir = Path(tmpdir) / "trained_adapter"
@@ -954,7 +956,7 @@ def test_notebook_validation_rejects_corrupted_response_sha256_relationship():
         _execute_notebook_validation_cell(package_bytes)
 
 
-# --- grouped held-out split (cell 5) and held-out artifact (cells 8-10) -------
+# --- grouped held-out split (cell 5) and held-out artifact (cells 9-11) -------
 
 
 class _FakeDatasetsModule:
@@ -1106,7 +1108,7 @@ def _run_manifest_cell(split_ctx: dict[str, Any], adapter_dir: Path) -> dict[str
             "metrics": None,
         }
     )
-    exec(_get_notebook_cell_code(9), ctx)  # noqa: S102
+    exec(_get_notebook_cell_code(10), ctx)  # noqa: S102
     return ctx
 
 
@@ -1172,20 +1174,27 @@ def test_packaging_cell_archives_the_heldout_file(monkeypatch, tmp_path):
         "        return _Resp()\n"
         "requests = _MockRequests()\n"
     )
-    code = _get_notebook_cell_code(10).replace("import requests\n", mock_requests)
+    code = _get_notebook_cell_code(11).replace("import requests\n", mock_requests)
     zip_path = tmp_path / "out.zip"
     code = code.replace(
         'ADAPTER_ZIP_PATH = "trained_adapter.zip"',
         f"ADAPTER_ZIP_PATH = {str(zip_path)!r}",
     )
-    exec(code, {"ADAPTER_DIR": str(adapter_dir), "UPLOAD_URL": "http://mock"})  # noqa: S102
+    exec(  # noqa: S102
+        code,
+        {
+            "ADAPTER_DIR": str(adapter_dir),
+            "UPLOAD_URL": "http://mock",
+            "report": lambda *args, **kwargs: None,
+        },
+    )
 
     with zipfile.ZipFile(zip_path) as zf:
         assert "heldout_pairs.jsonl" in zf.namelist()
         assert "training_manifest.json" in zf.namelist()
 
 
-# --- Fail-fast guards (cells 1, 2, 4, 9) ---------------------------------
+# --- Fail-fast guards (cells 1, 2, 4, 10) ---------------------------------
 
 _GOOD_URLS = {
     "DOWNLOAD_URL": "https://example.test/download",
@@ -1347,5 +1356,5 @@ def test_manifest_cell_records_unsloth_zoo_version(monkeypatch, tmp_path):
     assert "unsloth_zoo" in manifest["dependencies"]
 
 
-def test_training_notebook_still_has_eighteen_cells():
-    assert len(_load_notebook()["cells"]) == 18
+def test_training_notebook_still_has_nineteen_cells():
+    assert len(_load_notebook()["cells"]) == 19

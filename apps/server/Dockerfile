@@ -25,6 +25,10 @@ RUN uv sync --project apps/server --frozen --no-dev --no-install-project
 
 COPY apps/server ./apps/server
 
+# The Colab notebook template served by the Training Data page's download button
+# (server.modules.training_data.notebook.TEMPLATE_PATH is relative to /app).
+COPY docs/colab/dpo_training_template.ipynb ./docs/colab/dpo_training_template.ipynb
+
 # Development target: runs uvicorn server.main:app with hot reload
 FROM base AS dev
 

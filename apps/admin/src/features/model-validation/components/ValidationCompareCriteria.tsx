@@ -53,7 +53,7 @@ export function ValidationCompareCriteria({
           <span className="text-left">Criterion / include</span>
           <span>Expected</span>
           <span>Base</span>
-          <span>Adapter</span>
+          <span>Fine-tuned</span>
         </div>
         <div className="divide-y divide-border">
           {chips.map((chip) => {
@@ -86,7 +86,7 @@ export function ValidationCompareCriteria({
                   {[
                     { label: 'Expected', value: score?.expected_score },
                     { label: 'Base', value: score?.actual_score },
-                    { label: 'Adapter', value: adapterScore?.actual_score },
+                    { label: 'Fine-tuned', value: adapterScore?.actual_score },
                   ].map(({ label, value }) => (
                     <dl key={label} className="text-sm tabular-nums text-text sm:text-right">
                       <dt className="text-xs text-text-muted sm:sr-only">{label}</dt>

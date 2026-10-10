@@ -40,9 +40,9 @@ describe('TrainingJobsPanel', () => {
 
   it('summarizes the snapshot and describes completion as adapter receipt', () => {
     renderJobs([job]);
-    expect(screen.getByText('42 pairs')).toBeDefined();
+    expect(screen.getByText('42 examples')).toBeDefined();
     expect(screen.getByText('7 evaluations')).toBeDefined();
-    expect(screen.getByText('Adapter received')).toBeDefined();
+    expect(screen.getByText('Finished')).toBeDefined();
     expect(screen.queryByText('Validated')).toBeNull();
   });
 
@@ -60,7 +60,7 @@ describe('TrainingJobsPanel', () => {
 
   it('does not present missing historical counts as zero', () => {
     renderJobs([{ ...job, pair_count: null, evaluation_count: null, pairs_sha256: null }]);
-    expect(screen.getByText('— pairs')).toBeDefined();
+    expect(screen.getByText('— examples')).toBeDefined();
     expect(screen.getByText('— evaluations')).toBeDefined();
   });
 
@@ -71,7 +71,7 @@ describe('TrainingJobsPanel', () => {
       pair_count: index + 1,
     }));
     renderJobs(jobs);
-    const pagination = screen.getByRole('navigation', { name: 'Run history pagination' });
+    const pagination = screen.getByRole('navigation', { name: 'Training runs pagination' });
     expect(screen.getAllByRole('button', { name: /show details/i })).toHaveLength(5);
     expect(within(pagination).getByText('1–5 of 12')).toBeDefined();
     expect(
@@ -79,8 +79,8 @@ describe('TrainingJobsPanel', () => {
     ).toBe(true);
 
     fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }));
-    expect(screen.queryByText('1 pairs')).toBeNull();
-    expect(screen.getByText('6 pairs')).toBeDefined();
+    expect(screen.queryByText('1 examples')).toBeNull();
+    expect(screen.getByText('6 examples')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Show details for run run-6' }));
     expect(screen.getByText('run-6')).toBeDefined();
 
@@ -91,14 +91,14 @@ describe('TrainingJobsPanel', () => {
       (within(pagination).getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     fireEvent.click(within(pagination).getByRole('button', { name: 'Previous' }));
-    expect(screen.getByText('6 pairs')).toBeDefined();
+    expect(screen.getByText('6 examples')).toBeDefined();
   });
 
   it('resets to the first page when selecting a different row count', () => {
     renderJobs(Array.from({ length: 12 }, (_, index) => ({ ...job, job_id: `run-${index}` })));
-    const pagination = screen.getByRole('navigation', { name: 'Run history pagination' });
+    const pagination = screen.getByRole('navigation', { name: 'Training runs pagination' });
     fireEvent.click(within(pagination).getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Run history rows per page' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Training runs rows per page' }));
     fireEvent.click(screen.getByRole('option', { name: '10' }));
     expect(screen.getAllByRole('button', { name: /show details/i })).toHaveLength(10);
     expect(within(pagination).getByText('1–10 of 12')).toBeDefined();
@@ -107,6 +107,37 @@ describe('TrainingJobsPanel', () => {
 
   it('omits pagination for a short history', () => {
     renderJobs([job]);
-    expect(screen.queryByRole('navigation', { name: 'Run history pagination' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Training runs pagination' })).toBeNull();
+  });
+
+  it('shows the live stage, counter and a disconnect warning', () => {
+    renderJobs([
+      {
+        ...job,
+        job_id: 'a',
+        status: 'downloaded',
+        run_stage: 'training',
+        run_step: 14,
+        run_total: 30,
+        seconds_since_report: 120,
+      },
+      {
+        ...job,
+        job_id: 'b',
+        status: 'downloaded',
+        run_stage: 'training',
+        run_step: 2,
+        run_total: 30,
+        seconds_since_report: 1000,
+      },
+    ]);
+    expect(screen.getAllByText('Training')).toHaveLength(2);
+    expect(screen.getByText(/step 14 of 30/)).toBeDefined();
+    expect(screen.getAllByText(/colab may have disconnected/i)).toHaveLength(1);
+  });
+
+  it('falls back to the old status for runs without a stage', () => {
+    renderJobs([{ ...job, status: 'pending' }]);
+    expect(screen.getByText('Waiting to start')).toBeDefined();
   });
 });

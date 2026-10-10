@@ -10,6 +10,7 @@ from fastapi import (
     APIRouter,
     Depends,
     File,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -36,6 +37,7 @@ from server.modules.training_data.exceptions import (
     GgufInUseError,
     GgufNotFoundError,
     GgufUploadError,
+    HostKeyInvalidError,
     InvalidAgentIdError,
     TrainingJobNotFoundError,
 )
@@ -48,13 +50,23 @@ from server.modules.training_data.gguf_files import (
     store_gguf,
     verify_gguf_upload_token,
 )
+from server.modules.training_data.host_keys import (
+    authenticate_host_key,
+    create_host_key,
+    get_active_key,
+    list_host_manifest,
+    revoke_host_key,
+)
 from server.modules.training_data.job_packages import preview_dataset_manifest
 from server.modules.training_data.jobs import (
     create_training_job,
     get_job_download_package,
     list_training_jobs,
+    mark_run_stage,
+    report_run_status,
 )
 from server.modules.training_data.models import TrainedAdapter
+from server.modules.training_data.notebook import build_job_notebook
 from server.modules.training_data.paths import MAX_ADAPTER_UPLOAD_BYTES
 from server.modules.training_data.publication import (
     get_adapter_for_agent,
@@ -64,7 +76,11 @@ from server.modules.training_data.publication import (
 )
 from server.modules.training_data.schemas import (
     GgufDownloadLinkResponse,
+    HostKeyCreatedResponse,
+    HostManifestResponse,
+    HostStateResponse,
     PublishAdapterRequest,
+    RunStatusRequest,
     TrainedAdapterListItem,
     TrainedAdapterListResponse,
     TrainedAdapterResponse,
@@ -94,6 +110,14 @@ def _adapter_response(adapter: TrainedAdapter) -> TrainedAdapterResponse:
     response = TrainedAdapterResponse.model_validate(adapter)
     response.gguf = adapter_gguf_info(adapter)
     return response
+
+
+def _mark_finished(db: Session, job_id: uuid.UUID | None) -> None:
+    """Best effort: the GGUF is already stored, so a status problem is only logged."""
+    try:
+        mark_run_stage(db, job_id, "finished")
+    except Exception:
+        logger.warning("could not mark the run finished", exc_info=True)
 
 
 def _not_found() -> HTTPException:
@@ -157,6 +181,85 @@ def _build_url(request: Request, path: str) -> str:
     return f"{base}{settings.api_prefix}{path}"
 
 
+def _host_not_found() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+
+def _require_host_key(
+    db: Session = Depends(get_db_session),
+    x_host_sync_key: str | None = Header(default=None, alias="X-Host-Sync-Key"),
+):
+    try:
+        return authenticate_host_key(db, x_host_sync_key)
+    except HostKeyInvalidError as exc:
+        raise _host_not_found() from exc
+
+
+@router.get("/host", response_model=HostStateResponse)
+def get_host_state(
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> HostStateResponse:
+    key = get_active_key(db)
+    if key is None:
+        return HostStateResponse(has_active_key=False)
+    return HostStateResponse(
+        has_active_key=True, created_at=key.created_at, last_seen_at=key.last_seen_at
+    )
+
+
+@router.post(
+    "/host/key",
+    response_model=HostKeyCreatedResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_host_sync_key(
+    current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> HostKeyCreatedResponse:
+    row, raw = create_host_key(db, current_user.id)
+    return HostKeyCreatedResponse(key=raw, created_at=row.created_at)
+
+
+@router.delete("/host/key", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_host_sync_key(
+    _current_user: AuthenticatedUser = Depends(require_admin),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    revoke_host_key(db)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/host/manifest", response_model=HostManifestResponse)
+def get_host_manifest(
+    _key=Depends(_require_host_key),
+    db: Session = Depends(get_db_session),
+) -> HostManifestResponse:
+    return HostManifestResponse(adapters=list_host_manifest(db))
+
+
+@router.get("/host/gguf/{adapter_id}")
+def stream_host_gguf(
+    adapter_id: uuid.UUID,
+    _key=Depends(_require_host_key),
+    db: Session = Depends(get_db_session),
+) -> StreamingResponse:
+    adapter = db.get(TrainedAdapter, adapter_id)
+    if adapter is None or not adapter.gguf_storage_key:
+        raise _host_not_found()
+    try:
+        chunks, size = open_gguf_stream(adapter)
+    except (GgufNotFoundError, FileNotFoundError) as exc:
+        raise _host_not_found() from exc
+    name = gguf_filename(adapter.agent_id, adapter.version)
+    headers = {"Content-Disposition": f'attachment; filename="{name}"'}
+    if size is not None:
+        headers["Content-Length"] = str(size)
+    return StreamingResponse(
+        chunks, media_type="application/octet-stream", headers=headers
+    )
+
+
 @router.post(
     "/{agent_id}/jobs",
     response_model=TrainingJobCreateResponse,
@@ -188,15 +291,38 @@ def start_training_job(
         f"?token={result.raw_upload_token}"
     )
 
+    status_path = (
+        f"/admin/training-data/jobs/{result.job.job_id}/status"
+        f"?token={result.raw_status_token}"
+    )
+
+    download_url = _build_url(request, download_path)
+    upload_url = _build_url(request, upload_path)
+    status_url = _build_url(request, status_path)
+
+    notebook: str | None = None
+    notebook_filename: str | None = None
+    try:
+        notebook = build_job_notebook(download_url, upload_url, status_url=status_url)
+        notebook_filename = (
+            f"equiped-{result.job.agent_id}-run-{str(result.job.job_id)[:8]}.ipynb"
+        )
+    except Exception:
+        # The notebook is a convenience; the links alone are enough to train.
+        logger.warning("could not build the training notebook", exc_info=True)
+        notebook = None
+
     return TrainingJobCreateResponse(
         job_id=result.job.job_id,
         agent_id=result.job.agent_id,
         status=result.job.status,
-        download_url=_build_url(request, download_path),
-        upload_url=_build_url(request, upload_path),
+        download_url=download_url,
+        upload_url=upload_url,
         download_expires_at=result.job.download_expires_at,
         upload_expires_at=result.job.upload_expires_at,
         created_at=result.job.created_at,
+        notebook=notebook,
+        notebook_filename=notebook_filename,
     )
 
 
@@ -214,6 +340,30 @@ def download_training_job_package(
         ) from exc
 
     return Response(content=zip_bytes, media_type="application/zip")
+
+
+@router.post("/jobs/{job_id}/status", status_code=status.HTTP_204_NO_CONTENT)
+def report_training_status(
+    job_id: uuid.UUID,
+    body: RunStatusRequest,
+    token: str = Query(...),
+    db: Session = Depends(get_db_session),
+) -> Response:
+    try:
+        report_run_status(
+            db,
+            job_id,
+            token,
+            body.stage,
+            step=body.step,
+            total=body.total,
+            message=body.message,
+        )
+    except TrainingJobNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="not found"
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -267,6 +417,7 @@ def upload_trained_adapter(
             db.rollback()
         except Exception:
             logger.warning("rollback failed", exc_info=True)
+    mark_run_stage(db, job_id, "converting")
     return TrainedAdapterUploadResponse(
         **response_data, gguf_upload_url=gguf_upload_url
     )
@@ -287,13 +438,18 @@ def upload_gguf_with_token(
     adapter = db.get(TrainedAdapter, adapter_id)
     if adapter is None or not verify_gguf_upload_token(adapter, token):
         raise _not_found()
+    job_id = adapter.job_id  # read before store_gguf commits and expires the row
     try:
         adapter = store_gguf(db, adapter, file.file, replace=False, token=token)
     except GgufNotFoundError as exc:
         raise _not_found() from exc
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
-    return _adapter_response(adapter)
+    # Build the response first: a status problem must never turn a stored
+    # upload into a 500.
+    response = _adapter_response(adapter)
+    _mark_finished(db, job_id)
+    return response
 
 
 @router.post(
@@ -311,11 +467,14 @@ def upload_gguf_as_admin(
 ) -> TrainedAdapterResponse:
     adapter = _get_owned_adapter(db, agent_id, adapter_id)
     _check_gguf_upload(file)
+    job_id = adapter.job_id  # read before store_gguf commits and expires the row
     try:
         adapter = store_gguf(db, adapter, file.file, replace=replace)
     except _GGUF_ERRORS as exc:
         raise _gguf_http_error(exc) from exc
-    return _adapter_response(adapter)
+    response = _adapter_response(adapter)
+    _mark_finished(db, job_id)
+    return response
 
 
 @router.post(

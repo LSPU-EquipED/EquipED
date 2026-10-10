@@ -22,7 +22,7 @@ export function DatasetNotes({
 }: DatasetNotesProps) {
   return (
     <div className="min-w-0 border-t border-border bg-surface-subtle/30 p-4 sm:p-5 lg:border-t-0 lg:border-l">
-      <h3 className="text-sm font-medium leading-5 text-text">Dataset notes</h3>
+      <h3 className="text-sm font-medium leading-5 text-text">Notes</h3>
       {isLoading ? (
         <div aria-hidden="true" className="mt-3 space-y-2">
           <Skeleton className="h-4 w-full" />
@@ -31,7 +31,7 @@ export function DatasetNotes({
         </div>
       ) : isError || !data || !readiness ? (
         <p className="mt-3 text-[13px] leading-5 text-text-muted">
-          Dataset notes will appear when readiness is available.
+          Notes will appear once the check finishes.
         </p>
       ) : (
         <div className="mt-3 divide-y divide-border text-[13px] leading-5">
@@ -49,7 +49,7 @@ export function DatasetNotes({
           )}
           <details className="dataset-inclusion-details pt-3 text-text-muted">
             <summary className="w-fit cursor-pointer rounded-sm font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Dataset inclusion details
+              How these counts were worked out
             </summary>
             <div className="space-y-2 pt-2">
               {readiness.tier === 'reasonable' && <p>{readiness.message}</p>}

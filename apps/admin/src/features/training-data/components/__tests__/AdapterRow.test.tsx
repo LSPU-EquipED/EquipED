@@ -34,7 +34,7 @@ it('keeps adapter provenance accessible from the version row', () => {
   );
   expect(screen.getByText('v2')).toBeDefined();
   expect(screen.getByText('1.0 MB')).toBeDefined();
-  const toggle = screen.getByRole('button', { name: /show details for adapter v2/i });
+  const toggle = screen.getByRole('button', { name: /show details for fine-tuned model v2/i });
   fireEvent.click(toggle);
   expect(toggle.getAttribute('aria-expanded')).toBe('true');
   expect(screen.getByText('source-job')).toBeDefined();
@@ -68,14 +68,14 @@ function renderRow(adapter: typeof base & { training_summary?: unknown }) {
   );
 }
 
-it('shows the training summary above a collapsed technical-details section', () => {
+it('shows the training summary above a collapsed IT-staff section', () => {
   renderRow({
     ...base,
     training_summary: { version: 1, steps: 12, last: { step: 12, margin: 1.4 } },
   });
-  fireEvent.click(screen.getByRole('button', { name: /show details for adapter v7/i }));
+  fireEvent.click(screen.getByRole('button', { name: /show details for fine-tuned model v7/i }));
   expect(screen.getByText('1.40')).toBeDefined();
-  const technical = screen.getByText('Technical details');
+  const technical = screen.getByText('For IT staff');
   expect(technical.closest('details')?.hasAttribute('open')).toBe(false);
   expect(screen.getByText('sme-v7.gguf')).toBeDefined();
   expect(screen.getByText('source-job-7')).toBeDefined();
@@ -83,13 +83,13 @@ it('shows the training summary above a collapsed technical-details section', () 
 
 it('shows "Not recorded" for adapters without a training summary', () => {
   renderRow(base);
-  fireEvent.click(screen.getByRole('button', { name: /show details for adapter v7/i }));
+  fireEvent.click(screen.getByRole('button', { name: /show details for fine-tuned model v7/i }));
   expect(screen.getByText('Not recorded')).toBeDefined();
 });
 
 it('renders the GGUF panel inside the details area', () => {
   renderRow({ ...base, gguf: null } as never);
-  fireEvent.click(screen.getByRole('button', { name: /show details for adapter v7/i }));
+  fireEvent.click(screen.getByRole('button', { name: /show details for fine-tuned model v7/i }));
   expect(screen.getByText('GGUF file')).toBeDefined();
   expect(screen.getByText('Not uploaded')).toBeDefined();
 });

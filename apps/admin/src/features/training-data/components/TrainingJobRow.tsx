@@ -3,12 +3,13 @@ import { CaretDown } from '@phosphor-icons/react';
 import { Badge, Button, CollapsibleRow, TABLE_STYLES, TYPOGRAPHY, cn } from '@equiped/ui';
 import type { StatusVariant } from '@equiped/ui';
 import type { TrainingJobItem } from '../types';
+import { describeRunProgress } from '../utils/trainingData.utils';
 import { TrainingRecordMetadata } from './TrainingRecordMetadata';
 
 const JOB_STATUS: Record<TrainingJobItem['status'], { label: string; variant: StatusVariant }> = {
-  pending: { label: 'Prepared', variant: 'neutral' },
-  downloaded: { label: 'Downloaded', variant: 'info' },
-  completed: { label: 'Adapter received', variant: 'info' },
+  pending: { label: 'Waiting to start', variant: 'neutral' },
+  downloaded: { label: 'In progress', variant: 'info' },
+  completed: { label: 'Finished', variant: 'info' },
 };
 
 export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
@@ -16,6 +17,7 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
   const detailsId = useId();
   const status = JOB_STATUS[job.status];
   const created = new Date(job.created_at);
+  const progress = describeRunProgress(job);
 
   return (
     <>
@@ -30,15 +32,26 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
           </time>
         </td>
         <td className={cn(TYPOGRAPHY.dataMd, 'px-4 py-2')}>
-          <span className="block font-medium">{job.pair_count ?? '—'} pairs</span>
+          <span className="block font-medium">{job.pair_count ?? '—'} examples</span>
           <span className="block text-xs leading-4 text-text-muted">
             {job.evaluation_count ?? '—'} evaluations
           </span>
         </td>
         <td className="px-4 py-2">
-          <Badge variant={status.variant} className="whitespace-normal tracking-normal">
-            {status.label}
+          <Badge
+            variant={progress?.failed ? 'destructive' : status.variant}
+            className="whitespace-normal tracking-normal"
+          >
+            {progress ? progress.label : status.label}
           </Badge>
+          {progress?.detail ? (
+            <span className="mt-1 block text-xs leading-4 text-text-muted">{progress.detail}</span>
+          ) : null}
+          {progress?.stale ? (
+            <span className="mt-1 block text-xs leading-4 text-warning">
+              No update for 15 minutes. Colab may have disconnected.
+            </span>
+          ) : null}
         </td>
         <td className="px-3 py-2 text-right">
           <Button
@@ -64,18 +77,30 @@ export function TrainingJobRow({ job }: { job: TrainingJobItem }) {
         <TrainingRecordMetadata
           tabularValues
           entries={[
-            ['Run ID', job.job_id],
-            ['Created', created.toLocaleString()],
-            ['Dataset SHA-256', job.pairs_sha256 ?? 'Not recorded'],
+            ['Started', created.toLocaleString()],
             ['Reviewers', job.reviewer_count ?? 'Not recorded'],
-            [
-              'Snapshot created',
-              job.export_timestamp
-                ? new Date(job.export_timestamp).toLocaleString()
-                : 'Not recorded',
-            ],
           ]}
         />
+        <details className="mt-3 border-t border-border pt-3 text-sm text-text-muted">
+          <summary className="cursor-pointer text-[13px] font-medium text-text">
+            For IT staff
+          </summary>
+          <div className="mt-3">
+            <TrainingRecordMetadata
+              tabularValues
+              entries={[
+                ['Run ID', job.job_id],
+                ['Examples SHA-256', job.pairs_sha256 ?? 'Not recorded'],
+                [
+                  'Examples exported',
+                  job.export_timestamp
+                    ? new Date(job.export_timestamp).toLocaleString()
+                    : 'Not recorded',
+                ],
+              ]}
+            />
+          </div>
+        </details>
       </CollapsibleRow>
     </>
   );

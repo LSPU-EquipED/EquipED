@@ -87,7 +87,7 @@ describe('ValidationCompareTab', () => {
     cleanup();
 
     render(<ValidationCompareTab history={history()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Adapter run' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fine-tuned run' }));
     options = screen.getAllByRole('option');
     expect(options).toHaveLength(1);
     expect(options[0].textContent).toContain('SLM a1');
@@ -102,7 +102,7 @@ describe('ValidationCompareTab', () => {
     expect(button.disabled).toBe(true);
     choose('Base run', /SLM b1/);
     expect(button.disabled).toBe(true);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     expect(button.disabled).toBe(false);
     expect(screen.queryByText('Mean error vs expected')).toBeNull();
 
@@ -115,7 +115,7 @@ describe('ValidationCompareTab', () => {
     expect(within(table).getByText('0.67 closer')).toBeDefined();
     expect(within(table).getByText('1 of 3')).toBeDefined();
     expect(within(table).getByText('2 of 3')).toBeDefined();
-    expect(screen.getByLabelText('Adapter criterion changes')).toBeDefined();
+    expect(screen.getByLabelText('Fine-tuned model criterion changes')).toBeDefined();
     expect(screen.getByLabelText('Mean absolute error comparison')).toBeDefined();
     expect(screen.getByText('Lower is better')).toBeDefined();
     expect(
@@ -126,7 +126,7 @@ describe('ValidationCompareTab', () => {
   it('criterion inclusion updates the numbers and can exclude every criterion', () => {
     render(<ValidationCompareTab history={history()} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
 
     fireEvent.click(screen.getByText('Criterion details'));
@@ -146,7 +146,7 @@ describe('ValidationCompareTab', () => {
   it('shows the different-copy note only when document ids differ', () => {
     render(<ValidationCompareTab history={history()} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.getByText(/different uploaded copies/)).toBeDefined();
     cleanup();
@@ -154,7 +154,7 @@ describe('ValidationCompareTab', () => {
     const same = [items[0], { ...items[1], document_id: 'doc-1' } as ModelValidationItem];
     render(<ValidationCompareTab history={historyOf(same)} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.queryByText(/different uploaded copies/)).toBeNull();
   });
@@ -163,7 +163,7 @@ describe('ValidationCompareTab', () => {
     const lonely = [items[0], item('a3', 'adapter', [score('Z-09', 3, 3)])];
     render(<ValidationCompareTab history={historyOf(lonely)} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a3/);
+    choose('Fine-tuned run', /SLM a3/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.getByText(/no criteria in common/i)).toBeDefined();
     expect(screen.queryByRole('table')).toBeNull();
@@ -180,16 +180,16 @@ describe('ValidationCompareTab', () => {
   it('says so when there are no completed runs of a kind', () => {
     render(<ValidationCompareTab history={historyOf([])} />);
     expect(
-      screen.getByText(/at least one completed base run and one completed adapter run/i),
+      screen.getByText(/at least one completed base run and one completed fine-tuned run/i),
     ).toBeDefined();
   });
 
   it('shows one outcome without repeated winner badges', () => {
     render(<ValidationCompareTab history={history()} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
-    expect(screen.getByText('Adapter is closer to the expected scores')).toBeDefined();
+    expect(screen.getByText('Fine-tuned model is closer to the expected scores')).toBeDefined();
     const table = screen.getByRole('table');
     expect(within(table).queryByText('Better')).toBeNull();
     expect(within(table).getByRole('columnheader', { name: 'Change' })).toBeDefined();
@@ -203,7 +203,7 @@ describe('ValidationCompareTab', () => {
     ];
     render(<ValidationCompareTab history={historyOf(twin)} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.getByText('The runs are tied')).toBeDefined();
     expect(screen.queryByText('Better')).toBeNull();
@@ -216,7 +216,7 @@ describe('ValidationCompareTab', () => {
     ];
     render(<ValidationCompareTab history={historyOf(list)} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     expect(screen.getByText('1 criterion excluded: expected scores differ (A-05).')).toBeDefined();
     expect(screen.queryByRole('checkbox', { name: /A-05/ })).toBeNull();
@@ -230,7 +230,7 @@ describe('ValidationCompareTab', () => {
     ]);
     render(<ValidationCompareTab history={historyOf([...items, nextBase])} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     fireEvent.click(screen.getByText('Criterion details'));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Include SME A-03' }));
@@ -260,7 +260,7 @@ describe('ValidationCompareTab', () => {
     };
     render(<ValidationCompareTab history={historyOf([titledBase, items[1]])} />);
     choose('Base run', /SLM b1/);
-    choose('Adapter run', /SLM a1/);
+    choose('Fine-tuned run', /SLM a1/);
     fireEvent.click(screen.getByRole('button', { name: 'Compare' }));
     fireEvent.click(screen.getByText('Criterion details'));
     expect(screen.getByText('Topic coherence')).toBeDefined();

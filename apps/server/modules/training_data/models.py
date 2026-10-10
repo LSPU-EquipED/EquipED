@@ -71,6 +71,18 @@ class DpoTrainingJob(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    status_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    run_stage: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    run_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    run_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    run_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    run_reported_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class TrainedAdapter(Base):
     """A trained LoRA adapter uploaded back from a Colab training run."""
@@ -134,4 +146,34 @@ class AgentAdapterPublication(Base):
     )
 
 
-__all__ = ["AgentAdapterPublication", "DpoTrainingJob", "TrainedAdapter"]
+class HostSyncKey(Base):
+    """A read-only key the model-server host script uses to pull GGUF files."""
+
+    __tablename__ = "host_sync_keys"
+
+    key_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+__all__ = [
+    "AgentAdapterPublication",
+    "DpoTrainingJob",
+    "HostSyncKey",
+    "TrainedAdapter",
+]

@@ -8,7 +8,7 @@ import { TrainingTablePagination } from './TrainingTablePagination';
 
 const LOADING_COLUMNS: TableSkeletonColumn[] = [
   { label: 'Created', skeletonClassName: 'h-4 w-24' },
-  { label: 'Dataset', skeletonClassName: 'h-4 w-16' },
+  { label: 'Corrections used', skeletonClassName: 'h-4 w-16' },
   { label: 'Status', skeletonClassName: 'h-5 w-20' },
   {
     label: 'Details',
@@ -27,7 +27,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
     <section aria-labelledby="run-history-title" className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="run-history-title" className={TYPOGRAPHY.headingSm}>
-          Run history
+          Training runs
         </h2>
         {!isLoading && !isError && (
           <span className="text-xs leading-5 tabular-nums text-text-muted">
@@ -37,7 +37,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
       </div>
       {isLoading ? (
         <TableSkeleton
-          ariaLabel="Loading training jobs"
+          ariaLabel="Loading training runs"
           className={TABLE_STYLES.wrapper}
           tableClassName="min-w-[32rem] table-fixed [&_td]:py-2"
           rows={3}
@@ -48,7 +48,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
           role="alert"
           className="rounded-md border border-border bg-destructive-soft px-4 py-5 text-sm text-destructive"
         >
-          Failed to load training jobs.
+          Failed to load training runs.
         </p>
       ) : jobs.length === 0 ? (
         <div className="flex items-start gap-3 rounded-md border border-border bg-surface px-4 py-5 sm:px-5">
@@ -59,7 +59,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
           <div className="space-y-1">
             <p className="text-sm font-medium text-text">No training runs yet.</p>
             <p className="text-sm leading-5 text-text-muted">
-              Prepare a run above to record a dataset snapshot.
+              Start a run above to record the corrections it will learn from.
             </p>
           </div>
         </div>
@@ -68,7 +68,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
           <div className={TABLE_STYLES.wrapper}>
             <table
               className={`${TABLE_STYLES.table} min-w-[32rem] table-fixed`}
-              aria-label="Training run history"
+              aria-label="Training runs"
             >
               <thead className={TABLE_STYLES.thead}>
                 <tr>
@@ -76,7 +76,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
                     Created
                   </th>
                   <th scope="col" className={TABLE_STYLES.th}>
-                    Dataset
+                    Corrections used
                   </th>
                   <th scope="col" className={TABLE_STYLES.th}>
                     Status
@@ -93,7 +93,7 @@ export function TrainingJobsPanel({ agentId }: { agentId: string }) {
               </tbody>
             </table>
           </div>
-          <TrainingTablePagination label="Run history" pagination={pagination} />
+          <TrainingTablePagination label="Training runs" pagination={pagination} />
         </>
       )}
     </section>

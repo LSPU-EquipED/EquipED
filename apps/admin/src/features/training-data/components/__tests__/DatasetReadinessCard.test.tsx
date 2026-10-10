@@ -78,7 +78,7 @@ describe('DatasetReadinessCard', () => {
   it('shows a loading state that is announced and keeps the card layout', () => {
     mockReadiness({ data: undefined, isLoading: true, isError: false });
     const { container } = renderCard();
-    expect(screen.getByRole('status').textContent).toMatch(/checking dataset/i);
+    expect(screen.getByRole('status').textContent).toMatch(/checking learning material/i);
     expect(container.querySelectorAll('.skeleton-shimmer').length).toBeGreaterThan(0);
   });
 
@@ -86,8 +86,8 @@ describe('DatasetReadinessCard', () => {
     mockReadiness({ data: undefined, isLoading: false, isError: true });
     renderCard();
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toMatch(/failed to check dataset readiness/i);
-    expect(screen.getByRole('button', { name: /retry readiness/i })).toBeDefined();
+    expect(alert.textContent).toMatch(/could not check the learning material/i);
+    expect(screen.getByRole('button', { name: /try again/i })).toBeDefined();
   });
 
   it('shows counts, the funnel, and the skip reason', () => {
@@ -98,7 +98,7 @@ describe('DatasetReadinessCard', () => {
     expect(screen.getByText('6')).toBeDefined();
     expect(
       screen.getByText(
-        '40 generations examined: 31 became pairs, 9 skipped (no reviewer feedback).',
+        '40 AI results examined: 31 became correction examples, 9 skipped (no reviewer feedback).',
       ),
     ).toBeDefined();
     expect(screen.getByText(/enough to try/i)).toBeDefined();
@@ -114,22 +114,22 @@ describe('DatasetReadinessCard', () => {
     mockReadiness({ data: readiness, isLoading: false, isError: false });
     renderCard();
     const note = screen.getByText(/seeded test data/i);
-    const verdict = screen.getByText(/enough volume to attempt/i);
+    const verdict = screen.getByText(/enough examples to try/i);
     expect(note.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('keeps inclusion details available in a disclosure', () => {
     mockReadiness({ data: readiness, isLoading: false, isError: false });
     renderCard();
-    const summary = screen.getByText('Dataset inclusion details');
+    const summary = screen.getByText('How these counts were worked out');
     expect(summary.closest('details')?.open).toBe(false);
-    expect(summary.closest('details')?.textContent).toMatch(/40 generations examined/);
+    expect(summary.closest('details')?.textContent).toMatch(/40 AI results examined/);
   });
 
   it('keeps inclusion details open when readiness refreshes', () => {
     mockReadiness({ data: readiness, isLoading: false, isError: false });
     const view = renderCard();
-    const details = screen.getByText('Dataset inclusion details').closest('details')!;
+    const details = screen.getByText('How these counts were worked out').closest('details')!;
     details.open = true;
 
     mockReadiness({
@@ -149,9 +149,9 @@ describe('DatasetReadinessCard', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText('Dataset inclusion details').closest('details')).toBe(details);
+    expect(screen.getByText('How these counts were worked out').closest('details')).toBe(details);
     expect(details.open).toBe(true);
-    expect(details.textContent).toMatch(/32 became pairs/);
+    expect(details.textContent).toMatch(/32 became correction examples/);
   });
 
   it.each([
@@ -163,7 +163,7 @@ describe('DatasetReadinessCard', () => {
     const prepare = vi.fn();
     renderCard({ onPrepare: prepare });
     const button = screen.getByRole('button', {
-      name: 'Prepare training run',
+      name: 'Start a training run',
     }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
@@ -174,18 +174,18 @@ describe('DatasetReadinessCard', () => {
     mockReadiness({ data: { ...readiness, pair_count: 2 }, isLoading: false, isError: false });
     const prepare = vi.fn();
     renderCard({ onPrepare: prepare });
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare training run' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start a training run' }));
     expect(prepare).toHaveBeenCalledOnce();
-    expect(screen.getByText(/smoke test/i)).toBeDefined();
+    expect(screen.getByText(/quick test/i)).toBeDefined();
   });
 
   it('prevents replacing unsaved notebook credentials', () => {
     mockReadiness({ data: readiness, isLoading: false, isError: false });
     renderCard({ hasHandoff: true });
     expect(
-      (screen.getByRole('button', { name: 'Prepare training run' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Start a training run' }) as HTMLButtonElement).disabled,
     ).toBe(true);
-    expect(screen.getByText(/save the notebook URLs below/i)).toBeDefined();
+    expect(screen.getByText(/save the two links below/i)).toBeDefined();
   });
 
   it('warns when every correction comes from a single reviewer', () => {
@@ -230,7 +230,7 @@ describe('DatasetReadinessCard', () => {
       isError: false,
     });
     renderCard();
-    expect(screen.getByText(/nothing can be held out/i)).toBeDefined();
+    expect(screen.getByText(/none can be set aside/i)).toBeDefined();
   });
 
   it('always carries the seeded-test-data caveat', () => {
@@ -251,7 +251,7 @@ describe('DatasetReadinessCard', () => {
     } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
     renderCard();
     expect(screen.getByText(/unchanged since the latest run/i)).toBeDefined();
-    expect(screen.getByText(/preparing again uses the same data/i)).toBeDefined();
+    expect(screen.getByText(/starting again uses the same examples/i)).toBeDefined();
   });
 
   it('shows the count change against the latest job when the dataset differs', () => {
@@ -262,6 +262,6 @@ describe('DatasetReadinessCard', () => {
       isError: false,
     } as unknown as ReturnType<typeof useTrainingJobsModule.useTrainingJobs>);
     renderCard();
-    expect(screen.getByText(/25 → 31 pairs/)).toBeDefined();
+    expect(screen.getByText(/25 → 31 correction examples/)).toBeDefined();
   });
 });
