@@ -89,7 +89,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs transition-opacity duration-240 ease-out',
+        'fixed inset-0 z-50 flex justify-end bg-overlay/50 backdrop-blur-xs transition-opacity duration-240 ease-out',
         isAnimating ? 'opacity-100' : 'opacity-0 pointer-events-none',
       )}
       onClick={handleClose}

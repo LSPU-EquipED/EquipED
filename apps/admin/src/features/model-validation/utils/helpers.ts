@@ -111,9 +111,9 @@ export function adapterFallbackNotices(
 }
 
 export function statusClass(status: ModelValidationItem['status']) {
-  if (status === 'COMPLETED') return 'bg-success text-white';
-  if (status === 'FAILED') return 'bg-destructive text-white';
-  if (status === 'EVALUATING' || status === 'SYNTHESIZING') return 'bg-primary text-white';
+  if (status === 'COMPLETED') return 'bg-success text-success-foreground';
+  if (status === 'FAILED') return 'bg-destructive text-destructive-foreground';
+  if (status === 'EVALUATING' || status === 'SYNTHESIZING') return 'bg-primary text-primary-foreground';
   return 'bg-warning-soft text-warning border border-warning/20';
 }
 

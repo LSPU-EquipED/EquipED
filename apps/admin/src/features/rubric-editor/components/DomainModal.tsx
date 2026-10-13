@@ -55,7 +55,7 @@ function DomainModalContent({
       role="dialog"
       aria-modal="true"
       aria-labelledby="domain-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 backdrop-blur-xs"
     >
       <div className="relative w-full max-w-md rounded-sm border border-border bg-surface shadow-xl">
         <div className="flex items-center justify-between border-b border-border p-4 bg-surface-subtle">

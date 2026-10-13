@@ -196,9 +196,9 @@ export function ConfusionMatrix({
                               className="h-16 min-w-[5.5rem] border border-border text-base sm:text-lg font-bold tabular-nums text-text transition-colors"
                               style={{
                                 backgroundColor: diagonal
-                                  ? `rgba(47, 125, 50, ${0.08 + intensity * 0.42})`
+                                  ? `rgba(var(--heatmap-match-rgb), ${0.08 + intensity * 0.42})`
                                   : count > 0
-                                    ? `rgba(138, 90, 0, ${0.05 + intensity * 0.45})`
+                                    ? `rgba(var(--heatmap-difference-rgb), ${0.05 + intensity * 0.45})`
                                     : 'transparent',
                               }}
                               aria-label={`Expected ${labels[rowIndex]}, predicted ${labels[columnIndex]}: ${count}`}
