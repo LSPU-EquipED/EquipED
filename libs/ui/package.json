@@ -13,6 +13,7 @@
     "./assets": "./src/assets/index.ts",
     "./hooks": "./src/hooks/index.ts",
     "./layout": "./src/layout/index.ts",
+    "./theme/base.css": "./src/theme/base.css",
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/fonts.css": "./src/theme/fonts.css",
     "./theme/motion.css": "./src/theme/motion.css"

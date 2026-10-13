@@ -129,4 +129,6 @@
   --duration-compact: 180ms; /* Dialogs, confirmation popups, dropdowns */
   --duration-surface: 240ms; /* Slide-out drawers, large sheets, side panels */
   --duration-decay: 1400ms;  /* Upload highlight decay */
+  --duration-skeleton: 2s;  /* Loading shimmer */
+  --ease-skeleton: cubic-bezier(0.4, 0, 0.6, 1);
 }
