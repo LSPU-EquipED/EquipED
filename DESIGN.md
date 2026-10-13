@@ -79,7 +79,7 @@ Authentication forms use a bounded, unboxed content column with sentence-case la
 
 ## Foundations
 
-`libs/ui/src/theme/tokens.css` owns the runtime colors, font stacks, radii, Tailwind theme aliases, and motion values. Both portals import it through `@equiped/ui/theme/tokens.css`; do not duplicate these definitions in app stylesheets. Shared component class mappings live in `tokens.ts`, and animation rules in `motion.css`. TypeScript motion mappings reference the CSS variables rather than redefining their values. The values documented below describe the current design; the CSS token file is their executable source.
+`libs/ui/src/theme/tokens.css` owns the runtime colors, font stacks, radii, Tailwind theme aliases, and motion values. Both portals import it through `@equiped/ui/theme/tokens.css`; do not duplicate these definitions in app stylesheets. Shared component class mappings live in `tokens.ts`, global portal base rules in `base.css`, and animation rules (including skeleton shimmer) in `motion.css`. Both portals import these shared styles; app stylesheets retain only their imports and Tailwind source configuration. TypeScript motion mappings reference the CSS variables rather than redefining their values. The values documented below describe the current design; the CSS token file is their executable source.
 
 ### Color
 

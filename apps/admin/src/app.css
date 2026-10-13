@@ -1,72 +1,9 @@
 @import 'tailwindcss';
 @import '@equiped/ui/theme/tokens.css';
 @import '@equiped/ui/theme/fonts.css';
+@import '@equiped/ui/theme/base.css';
 @import '@equiped/ui/theme/motion.css';
 
 @source "./**/*.{ts,tsx}";
 @source "../../../libs/ui/src/**/*.{ts,tsx}";
 @source "../../../libs/auth/src/**/*.{ts,tsx}";
-
-* {
-  border-color: var(--border);
-}
-
-html {
-  min-height: 100%;
-  background: var(--canvas);
-  color: var(--foreground);
-}
-
-body {
-  min-height: 100vh;
-  margin: 0;
-  background: var(--canvas);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  font-synthesis-weight: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-.evaluation-split-pane {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-@media (min-width: 1024px) {
-  .evaluation-split-pane {
-    grid-template-columns:
-      minmax(0, var(--evaluation-left-pane, 47fr))
-      0.75rem
-      minmax(24rem, var(--evaluation-right-pane, 53fr));
-  }
-}
-
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.skeleton-shimmer {
-  background-color: var(--surface-subtle);
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--skeleton-highlight) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
