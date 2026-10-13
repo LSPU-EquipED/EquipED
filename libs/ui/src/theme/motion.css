@@ -1,21 +1,6 @@
 /* -------------------------------------------------------------------------- */
-/* Design Tokens: Functional Motion (Institutional Workbench)                  */
+/* Functional motion rules; values are defined in tokens.css.                 */
 /* -------------------------------------------------------------------------- */
-
-:root {
-  /* Fast deceleration entrance that settles with institutional restraint (no bounce) */
-  --ease-ledger-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Snappy exit acceleration */
-  --ease-ledger-in: cubic-bezier(0.4, 0, 1, 1);
-  /* Standard symmetrical transition */
-  --ease-ledger-standard: cubic-bezier(0.4, 0, 0.2, 1);
-
-  /* Duration Tiers */
-  --duration-micro: 120ms;   /* Buttons, active tabs, toggle switches */
-  --duration-compact: 180ms; /* Dialogs, confirmation popups, dropdowns */
-  --duration-surface: 240ms; /* Slide-out drawers, large sheets, side panels */
-  --duration-decay: 1400ms;  /* Upload highlight decay */
-}
 
 /* Prevent layout shift during overlay mount/dismount and scrollbar appearance */
 html {
@@ -82,7 +67,7 @@ body {
 
 @keyframes ledger-flash-decay {
   0% {
-    background-color: rgba(237, 242, 255, 0.9); /* primary-soft */
+    background-color: var(--upload-highlight);
   }
   100% {
     background-color: transparent;

@@ -39,21 +39,24 @@ typography:
   family: "Public Sans, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
   tracking: normal
   body: "15px / 1.6"
-  label: "12px / 1.4 / 600"
+  label: "12px / 1.4 / 600 / 0.04em for compact label tokens"
   data: "13px / 1.35 / 500"
 
 spacing:
   unit: 4px
   control: 40px
+  native-select-md: 38px
   topbar: 56px
   sidebar: 256px
   sidebar-collapsed: 72px
 
 rounded:
   none: 0px
-  sm: 2px
-  md: 4px
+  xs: 2px
+  sm: 4px
+  md: 6px
   lg: 6px
+  xl: 6px
 ---
 
 # EquipED Design System
@@ -76,6 +79,8 @@ Authentication forms use a bounded, unboxed content column with sentence-case la
 
 ## Foundations
 
+`libs/ui/src/theme/tokens.css` owns the runtime colors, font stacks, radii, Tailwind theme aliases, and motion values. Both portals import it through `@equiped/ui/theme/tokens.css`; do not duplicate these definitions in app stylesheets. Shared component class mappings live in `tokens.ts`, and animation rules in `motion.css`. TypeScript motion mappings reference the CSS variables rather than redefining their values. The values documented below describe the current design; the CSS token file is their executable source.
+
 ### Color
 
 - **Canvas** `#eef2f3` is the page background.
@@ -91,11 +96,11 @@ Authentication forms use a bounded, unboxed content column with sentence-case la
 
 ### Type
 
-Use Public Sans throughout the product. Headings are sentence case, compact, and left aligned. Letter spacing is normal; do not use negative tracking or all-caps labels to manufacture hierarchy. Use tabular numerals for scores, counts, dates, and evaluation IDs.
+Use Public Sans throughout the product. Headings are sentence case, compact, and left aligned. Headings and body copy use normal letter spacing. Existing compact label tokens retain 0.04em tracking, and sidebar group labels use 0.08em. Do not use negative tracking or all-caps labels to manufacture hierarchy. Use tabular numerals for scores, counts, dates, and evaluation IDs.
 
 ### Shape and spacing
 
-Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px tall. Borders are structural: use one-pixel separators and modest contrast instead of heavy shadows. Cards are reserved for genuinely framed tools, repeated records, and dialogs; page sections should remain full-width and unframed.
+Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px tall; the existing medium native Select retains its 38px height. Radius names follow the runtime scale: none 0px, xs 2px, sm 4px, and md/lg/xl 6px. Borders are structural: use one-pixel separators and modest contrast instead of heavy shadows. Cards are reserved for genuinely framed tools, repeated records, and dialogs; page sections should remain full-width and unframed.
 
 ## Application shell
 
@@ -157,7 +162,7 @@ Run history and uploaded adapters show five records per page by default. Lists l
 
 - Primary buttons use primary fill, white text, a 2-4px radius, and a visible pressed state.
 - Secondary buttons use a surface fill with a border. Icon-only controls require an accessible label and tooltip.
-- Inputs, selects, and tabs share the 40px control height and use the input border token.
+- Inputs, custom dropdowns, and tabs use the standard 40px control height. Medium native Select retains its 38px height. Inputs use the input border token; select and dropdown borders retain the structural border token.
 - Tables use strong column alignment, compact rows, sticky context only when it improves review, and tabular numerals for data.
 - Status badges pair a semantic color with text and an icon or label. Do not rely on hue alone.
 - Empty, loading, error, and partial states are first-class layouts with clear next actions. Loading states use geometry-matched skeletons that preserve the final layout; do not use freestanding loading spinners.
@@ -165,7 +170,7 @@ Run history and uploaded adapters show five records per page by default. Lists l
 
 ## Motion and accessibility
 
-Motion is short and functional: 120ms micro interactions, 180ms compact transitions, and 240ms surface transitions. Respect `prefers-reduced-motion`. Preserve visible focus rings, keyboard navigation, semantic landmarks, and sufficient contrast. Mobile drawers must manage focus and expose their open state to assistive technology.
+Motion is short and functional: 120ms micro interactions, 180ms compact transitions, and 240ms surface transitions. Upload feedback fades over 1400ms and uses the dedicated `--upload-highlight` color (rgba(237, 242, 255, 0.9)), preserving its established appearance separately from the selected-item primary-soft color. Respect `prefers-reduced-motion`. Preserve visible focus rings, keyboard navigation, semantic landmarks, and sufficient contrast. Mobile drawers must manage focus and expose their open state to assistive technology.
 
 ## Product content
 
