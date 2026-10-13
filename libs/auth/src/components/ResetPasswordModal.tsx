@@ -74,7 +74,7 @@ export function ResetPasswordModal({
       aria-labelledby="reset-dialog-title"
       aria-describedby="reset-dialog-description"
       className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 transition-opacity duration-180 ease-out motion-reduce:transition-none',
+        'fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 transition-opacity duration-180 ease-out motion-reduce:transition-none',
         isAnimating ? 'opacity-100' : 'pointer-events-none opacity-0',
       )}
     >

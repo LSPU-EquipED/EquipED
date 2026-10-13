@@ -226,7 +226,7 @@ export function ConfirmationModal({
       {...(!isOpen ? { inert: '' } as { inert: string } : {})}
       aria-labelledby={titleId}
       className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 transition-opacity duration-180 ease-out backdrop-blur-xs',
+        'fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 transition-opacity duration-180 ease-out backdrop-blur-xs',
         isAnimating ? 'opacity-100' : 'opacity-0 pointer-events-none',
       )}
       onClick={() => {
@@ -303,7 +303,7 @@ export function ConfirmationModal({
               isLoading={isEffectivelyPending}
               className={cn(
                 'text-xs h-9 px-4 font-semibold gap-1.5',
-                isWarning && 'bg-amber-600 hover:bg-amber-700 text-white focus-visible:ring-amber-500 border-transparent',
+                isWarning && 'border-transparent',
               )}
             >
               <span>{isEffectivelyPending ? 'Processing…' : (confirmLabel || defaultConfirmLabel)}</span>
