@@ -1,0 +1,120 @@
+/* -------------------------------------------------------------------------- */
+/* Design Tokens (Institutional Workbench)                                      */
+/* -------------------------------------------------------------------------- */
+
+@theme inline {
+  --font-sans: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  color-scheme: light;
+  --radius: 0.25rem;
+
+  /* Brand Colors */
+  --primary: #1b3b87;
+  --primary-strong: #142f70;
+  --primary-soft: #e8eef9;
+  --primary-foreground: #ffffff;
+
+  --secondary: #d9ad1d;
+  --secondary-foreground: #1b2b33;
+
+  --accent: #d9ad1d;
+  --accent-soft: #fbf3cf;
+  --accent-foreground: #493b08;
+
+  /* Semantic Status */
+  --success: #28754b;
+  --success-soft: #e8f3ec;
+  --success-foreground: #ffffff;
+
+  --info: #28758a;
+  --info-soft: #e4f1f4;
+  --info-foreground: #ffffff;
+
+  --warning: #86620a;
+  --warning-soft: #fbf3d9;
+  --warning-foreground: #ffffff;
+
+  --destructive: #b13b32;
+  --destructive-soft: #fbeceb;
+  --destructive-foreground: #ffffff;
+
+  /* Surfaces and Neutrals */
+  --canvas: #eef2f3;
+  --surface: #fbfcfc;
+  --surface-subtle: #e7edef;
+  --background: #eef2f3;
+  --foreground: #1b2b33;
+  --text: #1b2b33;
+  --text-muted: #60717a;
+  --border: #cad6da;
+  --border-strong: #91a5ad;
+  --input: #b7c7cc;
+  --ring: #1b3b87;
+
+  /* Existing transient upload feedback, separate from selected-item primary-soft. */
+  --upload-highlight: rgba(237, 242, 255, 0.9);
+
+  /* Functional motion */
+  /* Fast deceleration entrance that settles with institutional restraint (no bounce) */
+  --ease-ledger-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Snappy exit acceleration */
+  --ease-ledger-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Standard symmetrical transition */
+  --ease-ledger-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Duration Tiers */
+  --duration-micro: 120ms;   /* Buttons, active tabs, toggle switches */
+  --duration-compact: 180ms; /* Dialogs, confirmation popups, dropdowns */
+  --duration-surface: 240ms; /* Slide-out drawers, large sheets, side panels */
+  --duration-decay: 1400ms;  /* Upload highlight decay */
+}

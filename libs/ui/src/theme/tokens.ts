@@ -1,6 +1,7 @@
 /**
  * Reusable Design System Tokens & Tailwind Class Mappings
- * EquipED institutional workbench tokens.
+ * EquipED institutional workbench class mappings.
+ * CSS values and Tailwind theme aliases live in ./tokens.css.
  */
 
 export const TYPOGRAPHY = {
@@ -10,6 +11,7 @@ export const TYPOGRAPHY = {
   headingSm: 'text-[16px] font-semibold leading-[1.4] tracking-normal text-text',
   bodyMd: 'text-[15px] font-normal leading-[1.6] tracking-normal text-text',
   bodySm: 'text-[14px] font-medium leading-[1.4] tracking-normal text-text',
+  // Compact labels retain their established 0.04em tracking.
   labelSm: 'text-[12px] font-semibold leading-[1.4] tracking-[0.04em] text-text',
   labelMuted: 'text-[12px] font-semibold leading-[1.4] tracking-[0.04em] text-text-muted',
   dataMd: 'text-[13px] font-medium leading-[1.35] tabular-nums text-text',
@@ -123,6 +125,7 @@ export const SELECT_STYLES = {
   base: 'appearance-none rounded-sm border border-border bg-surface text-text font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer',
   sizes: {
     sm: 'h-8 text-xs pl-2.5 pr-7',
+    // Native select keeps its established 38px height; custom dropdowns use 40px.
     md: 'h-9.5 text-xs sm:text-sm pl-3 pr-8.5',
     lg: 'h-11 text-sm pl-3.5 pr-10',
   },
@@ -178,15 +181,15 @@ export const DROPDOWN_STYLES = {
 
 export const MOTION_TOKENS = {
   timing: {
-    out: 'cubic-bezier(0.16, 1, 0.3, 1)',
-    in: 'cubic-bezier(0.4, 0, 1, 1)',
-    standard: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    out: 'var(--ease-ledger-out)',
+    in: 'var(--ease-ledger-in)',
+    standard: 'var(--ease-ledger-standard)',
   },
   durations: {
-    micro: '120ms',
-    compact: '180ms',
-    surface: '240ms',
-    decay: '1400ms',
+    micro: 'var(--duration-micro)',
+    compact: 'var(--duration-compact)',
+    surface: 'var(--duration-surface)',
+    decay: 'var(--duration-decay)',
   },
   classes: {
     drawerIn: 'animate-ledger-drawer-in',
