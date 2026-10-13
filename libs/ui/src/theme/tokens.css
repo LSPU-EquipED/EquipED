@@ -52,6 +52,9 @@
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-overlay: var(--overlay);
+  --color-overlay-navigation: var(--overlay-navigation);
 }
 
 :root {
@@ -103,6 +106,15 @@
 
   /* Existing transient upload feedback, separate from selected-item primary-soft. */
   --upload-highlight: rgba(237, 242, 255, 0.9);
+
+  /* Preserve the existing overlay tones across both portals. */
+  --overlay: #000000;
+  --overlay-navigation: oklch(20.8% 0.042 265.755);
+  --skeleton-highlight: rgba(255, 255, 255, 0.45);
+
+  /* Heatmap channels retain their existing intensity-dependent transparency. */
+  --heatmap-match-rgb: 47, 125, 50;
+  --heatmap-difference-rgb: 138, 90, 0;
 
   /* Functional motion */
   /* Fast deceleration entrance that settles with institutional restraint (no bounce) */

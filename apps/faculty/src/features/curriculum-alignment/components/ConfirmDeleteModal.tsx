@@ -72,7 +72,7 @@ export function ConfirmDeleteModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-delete-title"

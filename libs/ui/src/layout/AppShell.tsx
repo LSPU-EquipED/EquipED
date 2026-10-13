@@ -213,7 +213,7 @@ export function AppShell({
 
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-overlay-navigation/50 backdrop-blur-xs md:hidden"
           aria-hidden="true"
           onClick={() => closeMobileMenu(true)}
         />

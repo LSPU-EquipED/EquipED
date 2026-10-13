@@ -605,7 +605,7 @@ export function RubricTableEditor() {
                         setRollbackModal({ isOpen: true, targetRevision: currentRevision })
                       }
                       disabled={activateRevisionMutation.isPending}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-success px-3.5 text-xs font-semibold text-white hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success disabled:opacity-50 cursor-pointer transition-colors"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-sm bg-success px-3.5 text-xs font-semibold text-success-foreground hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success disabled:opacity-50 cursor-pointer transition-colors"
                     >
                       <Check className="size-4" />
                       <span>Activate (rollback)</span>
@@ -970,7 +970,7 @@ export function RubricTableEditor() {
         <div
           data-testid="history-drawer-overlay"
           className={cn(
-            'fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity duration-240 ease-out',
+            'fixed inset-0 z-50 flex justify-end bg-overlay/40 backdrop-blur-xs transition-opacity duration-240 ease-out',
             isHistorySidebarClosing ? 'opacity-0' : 'opacity-100',
           )}
           onClick={closeHistorySidebar}

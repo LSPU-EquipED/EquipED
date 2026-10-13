@@ -94,6 +94,8 @@ Authentication forms use a bounded, unboxed content column with sentence-case la
 - **Text** `#1b2b33` and **text muted** `#60717a` provide the reading hierarchy.
 - Semantic colors use their matching soft background tokens. Status must never be conveyed by color alone.
 
+Use matching `primary-foreground`, `success-foreground`, and `destructive-foreground` tokens for text on solid status fills. Modal backdrops use `overlay` with the existing 40%, 50%, or 60% opacity; the mobile navigation backdrop uses `overlay-navigation` at 50%. Warning confirmation actions retain the primary button styling; warning text and icons use the warning token. Loading highlights use `--skeleton-highlight`. Analytics heatmaps use `--heatmap-match-rgb` and `--heatmap-difference-rgb` with their calculated opacity. These presentation-specific tokens retain existing colors; do not substitute the main semantic palette when that would change the rendered design. Standalone branding and illustration SVGs retain self-contained color values for use outside the app.
+
 ### Type
 
 Use Public Sans throughout the product. Headings are sentence case, compact, and left aligned. Headings and body copy use normal letter spacing. Existing compact label tokens retain 0.04em tracking, and sidebar group labels use 0.08em. Do not use negative tracking or all-caps labels to manufacture hierarchy. Use tabular numerals for scores, counts, dates, and evaluation IDs.

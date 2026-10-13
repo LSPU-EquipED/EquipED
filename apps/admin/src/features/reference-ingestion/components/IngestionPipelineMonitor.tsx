@@ -84,7 +84,7 @@ export function IngestionPipelineMonitor({
                     'inline-flex items-center rounded-sm px-2.5 py-0.5 text-xs font-medium',
                     isSuccess && 'bg-success-soft text-success border border-success/30',
                     isProcessing && 'bg-surface-subtle text-text-muted border border-border',
-                    isFailed && 'bg-destructive text-white',
+                    isFailed && 'bg-destructive text-destructive-foreground',
                   )}
                 >
                   {isSuccess ? 'Ready' : isProcessing ? 'Processing…' : 'Failed'}

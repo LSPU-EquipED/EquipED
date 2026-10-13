@@ -109,7 +109,7 @@ function CriterionModalContent({
       role="dialog"
       aria-modal="true"
       aria-labelledby="criterion-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/50 p-4 backdrop-blur-xs"
     >
       <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-sm border border-border bg-surface shadow-xl">
         {/* Header */}
