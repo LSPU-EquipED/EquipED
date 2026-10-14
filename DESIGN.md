@@ -192,6 +192,8 @@ Specialist exports fill only the original single-page LSPU-CID-SF-002 (SME), 003
 
 ### Faculty evaluation results
 
+Evaluation History keeps its main rows to Module, Status, Submitted, and Action. Use one sentence-case status indicator without stacked duration or role badges; the selected specialist belongs in the filter toolbar. Keep submission time to distinguish repeated runs. Full evaluation and document IDs, copy controls, specialist identity, completion time, duration, references, and failure details belong in the expandable Run details area. Retain the functional disclosure chevron and exact-run links; omit decorative row icons and relative dates. Filter and search controls must wrap into their own rows before they collide, using the shared dropdown component.
+
 Use one evaluation results presentation for specialist workspaces and exact history records. Keep the current flat specialist layout: compact module/run context and actions, a secondary metadata rail that collapses on smaller screens, a score profile, and criteria with expandable evidence and findings. Both entry points use the same filters, saved rubric ordering, legacy notices, and PDF export. Navigation and breadcrumbs call the screen Evaluation results.
 
 The specialist workspace resolves the newest run when a module opens, then pins that run during the review. Announce newer runs without replacing the displayed record; switching requires View latest run. History always loads its selected evaluation ID. Back to history restores account-scoped filters and pagination in memory. Reviewing, exporting, and re-evaluating must use the displayed run and its selected specialist; never substitute another specialist's domain when data is missing.

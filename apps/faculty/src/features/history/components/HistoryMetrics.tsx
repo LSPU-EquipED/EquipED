@@ -106,7 +106,6 @@ export function HistoryMetrics({
               <span className="text-2xl font-semibold tabular-nums text-success">
                 {completedCount}
               </span>
-              <span className="ml-1.5 text-xs text-text-muted">verified</span>
             </>
           )}
         </div>

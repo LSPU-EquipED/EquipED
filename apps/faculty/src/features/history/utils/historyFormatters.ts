@@ -47,22 +47,7 @@ export function formatDuration(
   return null;
 }
 
-export function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffSecs = Math.round((now.getTime() - date.getTime()) / 1000);
-    if (Number.isNaN(diffSecs)) return '';
-    if (diffSecs < 60) return 'just now';
-    const diffMins = Math.round(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.round(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.round(diffHours / 24);
-    if (diffDays < 30) return `${diffDays}d ago`;
-    const diffMonths = Math.round(diffDays / 30);
-    return `${diffMonths}mo ago`;
-  } catch {
-    return '';
-  }
+export function formatStatus(status: string): string {
+  const label = status.replace(/_/g, ' ').toLowerCase();
+  return label ? label[0].toUpperCase() + label.slice(1) : '—';
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatDate,
   formatDuration,
-  formatRelativeTime,
+  formatStatus,
   getStatusVariant,
 } from '../historyFormatters';
 
@@ -68,20 +68,17 @@ describe('historyFormatters', () => {
     });
   });
 
-  describe('formatRelativeTime', () => {
-    it('formats relative times gracefully', () => {
-      const now = new Date();
-      expect(formatRelativeTime(now.toISOString())).toBe('just now');
-
-      const pastTenMins = new Date(now.getTime() - 10 * 60 * 1000);
-      expect(formatRelativeTime(pastTenMins.toISOString())).toBe('10m ago');
-
-      const pastTwoHours = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-      expect(formatRelativeTime(pastTwoHours.toISOString())).toBe('2h ago');
+  describe('formatStatus', () => {
+    it('uses sentence case and preserves status qualifiers', () => {
+      expect(formatStatus('COMPLETED')).toBe('Completed');
+      expect(formatStatus('COMPLETED_WITH_WARNINGS')).toBe('Completed with warnings');
+      expect(formatStatus('IN_PROGRESS')).toBe('In progress');
+      expect(formatStatus('FAILED')).toBe('Failed');
     });
 
-    it('returns empty string on parse error', () => {
-      expect(formatRelativeTime('invalid')).toBe('');
+    it('keeps unknown statuses readable and missing labels neutral', () => {
+      expect(formatStatus('CUSTOM_STATE')).toBe('Custom state');
+      expect(formatStatus('')).toBe('—');
     });
   });
 });
