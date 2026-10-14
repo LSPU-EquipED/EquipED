@@ -7,8 +7,9 @@ export function useHostSync() {
   return useQuery({
     queryKey: KEY,
     queryFn: () => trainingDataApi.getHostSync(),
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 

@@ -89,6 +89,26 @@ async function prepareRun() {
 }
 
 describe('TrainingDataPage', () => {
+  it('refreshes the selected specialist data and host status on demand', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('No training runs yet.')).toBeDefined());
+    const before = {
+      jobs: vi.mocked(trainingDataApi.listJobs).mock.calls.length,
+      adapters: vi.mocked(trainingDataApi.listAdapters).mock.calls.length,
+      host: vi.mocked(trainingDataApi.getHostSync).mock.calls.length,
+      readiness: vi.mocked(trainingDataApi.getReadiness).mock.calls.length,
+    };
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh training data' }));
+    await waitFor(() => {
+      expect(trainingDataApi.listJobs).toHaveBeenCalledTimes(before.jobs + 1);
+      expect(trainingDataApi.listAdapters).toHaveBeenCalledTimes(before.adapters + 1);
+      expect(trainingDataApi.getHostSync).toHaveBeenCalledTimes(before.host + 1);
+      expect(trainingDataApi.getReadiness).toHaveBeenCalledTimes(before.readiness + 1);
+    });
+    expect(trainingDataApi.listJobs).toHaveBeenLastCalledWith('coordinator');
+    expect(trainingDataApi.listAdapters).toHaveBeenLastCalledWith('coordinator');
+  });
+
   it('supports keyboard navigation with matching selected tabs and panels', () => {
     const view = renderPage();
     const coordinator = screen.getByRole('tab', { name: 'Program Coordinator' });
