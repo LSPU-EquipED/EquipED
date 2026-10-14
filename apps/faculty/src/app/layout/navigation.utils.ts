@@ -125,7 +125,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/sme/')) {
     return [
       { label: 'SME Specialist', to: '/specialists/sme' },
-      { label: 'Scoreboard' },
+      { label: 'Evaluation results' },
     ];
   }
 
@@ -136,7 +136,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/coordinator/')) {
     return [
       { label: 'Program Coordinator', to: '/specialists/coordinator' },
-      { label: 'Scoreboard' },
+      { label: 'Evaluation results' },
     ];
   }
 
@@ -147,7 +147,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/gad/')) {
     return [
       { label: 'GAD Specialist', to: '/specialists/gad' },
-      { label: 'Scoreboard' },
+      { label: 'Evaluation results' },
     ];
   }
 
@@ -158,7 +158,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/itso/')) {
     return [
       { label: 'ITSO Specialist', to: '/specialists/itso' },
-      { label: 'Scoreboard' },
+      { label: 'Evaluation results' },
     ];
   }
 
@@ -180,7 +180,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/evaluations/')) {
     return [
       { label: 'Evaluation History', to: '/evaluations' },
-      { label: 'Scorecard' },
+      { label: 'Evaluation results' },
     ];
   }
 
@@ -225,8 +225,9 @@ export function getRouteTitle(pathname: string): string {
   if (cleanPath === '/specialists/coordinator') return 'Program Coordinator';
   if (cleanPath === '/specialists/gad') return 'GAD Specialist';
   if (cleanPath === '/specialists/itso') return 'ITSO Specialist';
+  if (/^\/specialists\/(sme|coordinator|gad|itso)\/[^/]+$/.test(cleanPath)) return 'Evaluation results';
   if (cleanPath === '/evaluations') return 'Evaluation History';
-  if (cleanPath.startsWith('/evaluations/')) return 'Scorecard';
+  if (cleanPath.startsWith('/evaluations/')) return 'Evaluation results';
   if (cleanPath === '/syllabus-alignment') return 'Syllabus';
   if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) return 'Report';
   if (cleanPath.startsWith('/syllabus-alignment/')) return 'Workstation';

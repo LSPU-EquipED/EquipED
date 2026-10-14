@@ -111,7 +111,7 @@ describe('getRouteTitle', () => {
   });
 
   it('returns Scorecard for /evaluations/$id', () => {
-    expect(getRouteTitle('/evaluations/eval-1')).toBe('Scorecard');
+    expect(getRouteTitle('/evaluations/eval-1')).toBe('Evaluation results');
   });
 
   it('returns Syllabus for /syllabus-alignment', () => {
@@ -152,7 +152,7 @@ describe('getBreadcrumbs', () => {
     ]);
     expect(getBreadcrumbs('/specialists/sme/doc-1')).toEqual([
       { label: 'SME Specialist', to: '/specialists/sme' },
-      { label: 'Scoreboard' },
+      { label: 'Evaluation results' },
     ]);
     expect(getBreadcrumbs('/specialists/gad')).toEqual([
       { label: 'GAD Specialist' },
@@ -165,7 +165,7 @@ describe('getBreadcrumbs', () => {
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1')).toEqual([
       { label: 'Evaluation History', to: '/evaluations' },
-      { label: 'Scorecard' },
+      { label: 'Evaluation results' },
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1/report')).toEqual([
       { label: 'Evaluation History', to: '/evaluations' },

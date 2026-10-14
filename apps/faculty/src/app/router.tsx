@@ -136,6 +136,7 @@ function EvaluationsRouteView() {
     <HistoryPage
       evaluatorPermissions={auth.user?.evaluatorPermissions}
       userRole={auth.user?.role}
+      userId={auth.user?.id}
     />
   );
 }

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useHistoryViewState } from '../hooks/useHistoryViewState';
+import { useMemo } from 'react';
 import { Outlet } from '@tanstack/react-router';
 import type { TargetAgent } from '@equiped/types';
 import { HISTORY_ROLE_TABS } from '../constants';
@@ -8,11 +9,13 @@ import { EvaluationHistoryTableView } from './EvaluationHistoryTableView';
 export interface EvaluationHistoryTableProps {
   evaluatorPermissions?: readonly string[] | null;
   userRole?: string;
+  userId?: string;
 }
 
 export function EvaluationHistoryTable({
   evaluatorPermissions,
   userRole = 'faculty',
+  userId,
 }: EvaluationHistoryTableProps = {}) {
   const allowedRoleTabs = useMemo(() => {
     if (
@@ -28,11 +31,7 @@ export function EvaluationHistoryTable({
   }, [userRole, evaluatorPermissions]);
 
   const defaultRole: TargetAgent = allowedRoleTabs[0]?.id ?? 'sme';
-  const [status, setStatus] = useState('all');
-  const [role, setRole] = useState<TargetAgent>(defaultRole);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const { status, role, search, page, pageSize, update } = useHistoryViewState(defaultRole, userId);
 
   const activeRole = allowedRoleTabs.some((tab) => tab.id === role) ? role : defaultRole;
   const { data, isLoading, isFetching, isError } = useEvaluationHistory({
@@ -59,10 +58,7 @@ export function EvaluationHistoryTable({
   const hasActiveFilters = status !== 'all' || activeRole !== defaultRole || search.trim().length > 0;
 
   const resetFilters = () => {
-    setStatus('all');
-    setRole(defaultRole);
-    setSearch('');
-    setPage(1);
+    update({ status: 'all', role: defaultRole, search: '', page: 1 });
   };
 
   return (
@@ -73,16 +69,14 @@ export function EvaluationHistoryTable({
         allowedRoleTabs={allowedRoleTabs}
         activeRole={activeRole}
         onRoleChange={(nextRole) => {
-          setRole(nextRole as TargetAgent);
-          setPage(1);
+          update({ role: nextRole as TargetAgent, page: 1 });
         }}
         status={status}
         onStatusChange={(nextStatus) => {
-          setStatus(nextStatus);
-          setPage(1);
+          update({ status: nextStatus, page: 1 });
         }}
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={(search) => update({ search })}
         hasActiveFilters={hasActiveFilters}
         onResetFilters={resetFilters}
         items={filteredItems}
@@ -95,10 +89,9 @@ export function EvaluationHistoryTable({
         page={page}
         pageSize={pageSize}
         totalPages={totalPages}
-        onPageChange={setPage}
+        onPageChange={(nextPage) => update({ page: typeof nextPage === "function" ? nextPage(page) : nextPage })}
         onPageSizeChange={(nextPageSize) => {
-          setPageSize(nextPageSize);
-          setPage(1);
+          update({ pageSize: nextPageSize, page: 1 });
         }}
       />
 

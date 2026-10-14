@@ -243,7 +243,7 @@ export function HistoryRows({
                   <Link
                     to="/evaluations/$id"
                     params={{ id: record.evaluation_id }}
-                    aria-label={`View audit scorecard for ${record.document_title || record.evaluation_id}`}
+                    aria-label={`View evaluation results for ${record.document_title || record.evaluation_id}`}
                     className={cn(
                       BUTTON_STYLES.base,
                       BUTTON_STYLES.variants.secondary,
@@ -251,7 +251,7 @@ export function HistoryRows({
                       'h-8 px-2.5 text-xs',
                     )}
                   >
-                    Scorecard
+                    View results
                   </Link>
                 </td>
               </tr>

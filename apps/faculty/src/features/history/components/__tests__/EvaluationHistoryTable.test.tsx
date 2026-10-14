@@ -126,10 +126,10 @@ describe('EvaluationHistoryTable Component', () => {
     expect(screen.getByText('Syllabus for Data Structures')).toBeDefined();
     expect(screen.getByText('COMPLETED')).toBeDefined();
     expect(screen.getByText('1 evaluation found')).toBeDefined();
-    const scorecardLink = screen.getByRole('link', { name: /View audit scorecard for Syllabus for Data Structures/i });
+    const scorecardLink = screen.getByRole('link', { name: /View evaluation results for Syllabus for Data Structures/i });
     expect(scorecardLink).toBeDefined();
     expect(scorecardLink.getAttribute('href')).toBe('/evaluations/eval-12345678-abcd');
-    expect(scorecardLink.textContent).toBe('Scorecard');
+    expect(scorecardLink.textContent).toBe('View results');
   });
 
   it('renders role badge and links directly to specialist desk for single-agent runs', () => {
@@ -165,10 +165,10 @@ describe('EvaluationHistoryTable Component', () => {
 
     expect(screen.getByText('SME')).toBeDefined();
     expect(screen.queryByRole('link', { name: /workspace/i })).toBeNull();
-    const actionLink = screen.getByRole('link', { name: /View audit scorecard for Operating Systems SLM/i });
+    const actionLink = screen.getByRole('link', { name: /View evaluation results for Operating Systems SLM/i });
     expect(actionLink).toBeDefined();
     expect(actionLink.getAttribute('href')).toBe('/evaluations/eval-targeted-1234');
-    expect(actionLink.textContent).toBe('Scorecard');
+    expect(actionLink.textContent).toBe('View results');
   });
   it('renders scorecard link with text Scorecard when target_agent is explicitly all', () => {
     const mockData: HistoryListResponse = {
@@ -202,10 +202,10 @@ describe('EvaluationHistoryTable Component', () => {
     renderTable();
 
     expect(screen.getByText('All Domains')).toBeDefined();
-    const scorecardLink = screen.getByRole('link', { name: /View audit scorecard for Full Curriculum Bundle/i });
+    const scorecardLink = screen.getByRole('link', { name: /View evaluation results for Full Curriculum Bundle/i });
     expect(scorecardLink).toBeDefined();
     expect(scorecardLink.getAttribute('href')).toBe('/evaluations/eval-all-5678');
-    expect(scorecardLink.textContent).toBe('Scorecard');
+    expect(scorecardLink.textContent).toBe('View results');
   });
 
   it('triggers history query with selected target_agent when role filter is changed', () => {
