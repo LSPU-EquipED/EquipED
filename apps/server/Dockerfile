@@ -18,8 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:0.7.22 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /uvx /bin/
 
+COPY libs/evaluation-harness ./libs/evaluation-harness
 COPY apps/server/pyproject.toml apps/server/uv.lock ./apps/server/
 RUN uv sync --project apps/server --frozen --no-dev --no-install-project
 

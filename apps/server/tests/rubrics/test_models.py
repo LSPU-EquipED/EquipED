@@ -6,9 +6,9 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from equiped_harness.contracts import FormDefinition
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.rubrics.contracts import FormDefinition
 from server.modules.rubrics.models import (
     EvaluationFormSnapshot,
     RubricAgentActivation,

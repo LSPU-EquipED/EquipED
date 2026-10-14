@@ -50,21 +50,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote_plus, urlparse
 
+from equiped_harness.contracts import (
+    CriterionDefinition,
+    LlmRubricGuidanceConfig,
+)
+from equiped_harness.prompts import build_envelope_prompt_and_source
 from sqlalchemy.orm import Session
 
 from server.core.config import get_settings
 from server.core.database import get_session_factory
 from server.db.metadata import import_model_modules
-from server.modules.agents.sme.prompt import build_envelope_prompt_and_source
 from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.feedback.models import PreferenceLog
-from server.modules.rubrics.contracts import (
-    CriterionDefinition,
-    LlmRubricGuidanceConfig,
-)
 from server.modules.rubrics.repository import get_active_form_definition
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import AgentGeneration, AgentResult

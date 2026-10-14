@@ -31,8 +31,8 @@ import json
 import logging
 from uuid import uuid4
 
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.runtime.prompt_budget import enforce_total_prompt_budget
+from equiped_harness.runtime.prompt_budget import enforce_total_prompt_budget
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.tests.agents.helpers import (
     _DummyAgent,
     _FakeLLM,
@@ -242,9 +242,7 @@ def test_invalid_json_returns_prompt_unchanged(caplog) -> None:
 def test_non_object_payload_returns_prompt_unchanged(caplog) -> None:
     """A top-level JSON array (not a dict) cannot be safely trimmed."""
     bad_prompt = json.dumps(["not", "a", "dict"] * 200)  # large array
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
-    )
+    caplog.set_level(logging.WARNING, logger="equiped_harness.runtime.prompt_budget")
 
     result = enforce_total_prompt_budget(bad_prompt, budget_chars=100)
 
@@ -261,9 +259,7 @@ def test_trim_emits_warning_with_expected_fields(caplog) -> None:
     """The trim path should log a warning with original/trimmed/budget fields."""
     long_refs = [f"ref {i} " + ("X" * 500) for i in range(3)]
     prompt = _build_payload(reference_context=long_refs)
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
-    )
+    caplog.set_level(logging.WARNING, logger="equiped_harness.runtime.prompt_budget")
 
     enforce_total_prompt_budget(prompt, budget_chars=600, agent_name="dummy")
 
@@ -279,9 +275,7 @@ def test_trim_emits_warning_with_expected_fields(caplog) -> None:
 def test_no_trim_emits_no_budget_warning(caplog) -> None:
     """A prompt that already fits should NOT emit EVAL_PROMPT_BUDGET warning."""
     prompt = _build_payload(reference_context=["small"])
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
-    )
+    caplog.set_level(logging.WARNING, logger="equiped_harness.runtime.prompt_budget")
 
     enforce_total_prompt_budget(prompt, budget_chars=100_000)
 
@@ -298,7 +292,9 @@ def _patch_retrieval(monkeypatch) -> None:
     pass
 
 
-def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
+def test_run_enforces_budget_when_prompt_oversized(
+    monkeypatch, caplog, harness_config
+) -> None:
     """When the assembled prompt exceeds the total budget, run() should
     call _enforce_total_prompt_budget and emit both EVAL_PROMPT_SIZE and
     EVAL_PROMPT_BUDGET logs."""
@@ -308,6 +304,7 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     huge_ref = "R" * 5000
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_prompt_budget_chars=5000,
         agent_total_prompt_budget_chars=3500,
     )
@@ -338,13 +335,16 @@ def test_run_enforces_budget_when_prompt_oversized(monkeypatch, caplog) -> None:
     )
 
 
-def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) -> None:
+def test_run_under_budget_logs_size_without_trim_warning(
+    monkeypatch, caplog, harness_config
+) -> None:
     """When the prompt is within budget, EVAL_PROMPT_SIZE logs but no
     EVAL_PROMPT_BUDGET warning should fire."""
     caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_total_prompt_budget_chars=8000,
     )
 
@@ -369,7 +369,7 @@ def test_run_under_budget_logs_size_without_trim_warning(monkeypatch, caplog) ->
     assert not any("EVAL_PROMPT_BUDGET" in r.message for r in caplog.records)
 
 
-def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
+def test_run_drops_overgrown_reference_context(monkeypatch, harness_config) -> None:
     """Integration: run() should drop overgrown reference_context entries
     when the prompt exceeds the total budget."""
     _patch_retrieval(monkeypatch)
@@ -377,6 +377,7 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_prompt_budget_chars=5000,
         agent_total_prompt_budget_chars=3500,
     )
@@ -433,6 +434,7 @@ def test_run_drops_overgrown_reference_context(monkeypatch) -> None:
 
 def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     monkeypatch,
+    harness_config,
 ) -> None:
     """When the prompt is trimmed, run() must record ``prompt_trimmed=True``
     and the count of dropped reference entries in metadata."""
@@ -442,6 +444,7 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_prompt_budget_chars=5000,
         agent_total_prompt_budget_chars=3500,
     )
@@ -471,12 +474,14 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
 
 def test_run_metadata_records_no_trim_when_under_budget(
     monkeypatch,
+    harness_config,
 ) -> None:
     """When the prompt fits the budget, run() must record
     ``prompt_trimmed=False`` and ``reference_context_dropped=0``."""
     _patch_retrieval(monkeypatch)
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_total_prompt_budget_chars=8000,
     )
 
@@ -501,6 +506,7 @@ def test_run_metadata_records_no_trim_when_under_budget(
 
 def test_run_metadata_partial_drop_counts_only_actually_dropped(
     monkeypatch,
+    harness_config,
 ) -> None:
     """When only some reference entries are dropped, the count must reflect
     only the actual removals (not the surviving entries)."""
@@ -509,6 +515,7 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_prompt_budget_chars=5000,
         agent_total_prompt_budget_chars=3500,
     )

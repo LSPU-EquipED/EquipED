@@ -8,12 +8,7 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import Any
 
-from server.core.llm import CompletionResult, ResponseContract, get_llm_model_name
-from server.modules.admin.models import PromptVersion
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.runtime.prompt_budget import pack_chunks
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     CurriculumAlignmentConfig,
@@ -23,10 +18,16 @@ from server.modules.rubrics.contracts import (
     RatioBandConfig,
     ShortSampleConfig,
 )
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.itso.agent import ITSO
+from equiped_harness.result_contracts import AgentEvaluationResult
+from equiped_harness.runtime.prompt_budget import pack_chunks
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )
+from equiped_harness.transport import CompletionResult, ResponseContract
+from server.core.llm import get_llm_model_name
+from server.modules.admin.models import PromptVersion
 
 
 def _make_dummy_snapshot(
@@ -718,6 +719,9 @@ def _mock_settings(**overrides):
         "llm_temperature": 0.2,
         "llm_temperature_itso": 0.0,
         "llm_max_new_tokens": 2048,
+        "llm_request_timeout_seconds": 120,
+        "llm_response_mode": "json_object",
+        "sme_total_prompt_budget_chars": 15000,
         "agent_max_chunks": 12,
         "agent_max_excerpt_chars": 800,
         "agent_prompt_budget_chars": 5000,
@@ -736,39 +740,13 @@ def _mock_settings(**overrides):
     return type("Settings", (), defaults)()
 
 
-def patch_settings(monkeypatch, **overrides) -> None:
-    """Monkeypatch every ``get_settings`` import the agents touch.
-
-    ``ITSO.run()`` calls both ``get_settings`` (in
-    ``server.modules.agents.itso.execution``) and ``get_llm_model_name()`` (which
-    transitively calls ``get_settings`` in ``server.core.llm``). The
-    supervisor also imports ``get_settings`` directly. If the real one
-    raises (because the new 8,000-char total budget default conflicts
-    with the 5,000-char chunk budget default), the cached
-    ``get_engine()`` / ``get_session_factory()`` would refuse to
-    build, breaking ``get_active_rubric_context`` for any test that
-    hits the real database.
-
-    Patching all three ``get_settings`` references with a mock silences
-    the cross-field validation everywhere it would fire inside the
-    agent layer. The database module keeps its real ``get_settings``
-    reference so the engine chain can still build against the
-    ``DATABASE_URL`` from the project's ``.env``.
-    """
+def patch_settings(monkeypatch, harness_config, **overrides) -> None:
+    """Scope library controls separately from backend transport/storage settings."""
     mock = _mock_settings(**overrides)
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings", lambda: mock
-    )
-    monkeypatch.setattr("server.modules.agents.itso.prompt.get_settings", lambda: mock)
-    monkeypatch.setattr(
+    harness_config(mock)
+    for target in (
         "server.core.llm.get_settings",
-        lambda: mock,
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_settings",
-        lambda: mock,
-    )
-    monkeypatch.setattr(
+        "server.modules.evaluations.harness.dispatch.get_settings",
         "server.core.database.get_settings",
-        lambda: mock,
-    )
+    ):
+        monkeypatch.setattr(target, lambda: mock)

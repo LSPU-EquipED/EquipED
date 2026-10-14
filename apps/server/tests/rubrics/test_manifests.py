@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     CurriculumAlignmentConfig,
@@ -15,7 +15,7 @@ from server.modules.rubrics.contracts import (
     RatioBandConfig,
     ShortSampleConfig,
 )
-from server.modules.rubrics.manifests import (
+from equiped_harness.manifests import (
     AGENT_MANIFEST_REGISTRY_V1,
     AGENT_MANIFEST_VERSION_REGISTRY,
     COORDINATOR_MANIFEST_V1,
@@ -1204,9 +1204,9 @@ def test_get_agent_manifest_success_and_unknown_failure():
 
 
 def test_no_duplicate_public_manifest_registry_remains():
+    import equiped_harness.snapshot_contracts as snap
     import server.modules.rubrics as pkg
     import server.modules.rubrics.repository as repo
-    import server.modules.rubrics.snapshot_contracts as snap
 
     assert not hasattr(repo, "MANIFEST_BY_AGENT")
     assert not hasattr(snap, "MANIFEST_BY_AGENT")

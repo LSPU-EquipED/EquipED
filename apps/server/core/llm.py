@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import threading
 import time
 from collections import deque
@@ -12,9 +11,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Any
 from urllib import error, request
 from urllib.parse import urlsplit
+
+from equiped_harness.transport import CompletionResult, parse_json_payload
 
 from .config import get_settings
 from .endpoint_security import is_private_endpoint
@@ -106,25 +106,6 @@ READY_RESPONSE_CONTRACT = ResponseContract.json_schema(
     },
     name="readiness_canary",
 )
-
-
-@dataclass(frozen=True, slots=True)
-class CompletionResult:
-    """Deeply immutable, bounded completion metadata."""
-
-    content: str
-    served_model: str
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
-    total_tokens: int | None = None
-    finish_reason: str | None = None
-    wall_seconds: float | None = None
-    provider_seconds: float | None = None
-    attempts: int = 1
-    requested_max_tokens: int | None = None
-    rate_fields: MappingProxyType | None = None
-    output_cap_hit: bool = False
-    response_format_downgraded: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -577,27 +558,6 @@ class LocalLLMClient:
 
     def generate(self, prompt, **kwargs):
         return self.generate_result(prompt, **kwargs).content
-
-
-def parse_json_payload(raw: str) -> dict[str, Any]:
-    """Parse JSON from LLM responses, stripping code fences or preambles."""
-    if not isinstance(raw, str):
-        raise ValueError("raw response must be a string")
-    payload = raw.strip()
-    match = re.match(
-        r"^```(?:json)?\s*(.*?)\s*```$", payload, flags=re.IGNORECASE | re.DOTALL
-    )
-    if match:
-        payload = match.group(1).strip()
-    elif not payload.startswith("{") and not payload.startswith("["):
-        start = payload.find("{")
-        end = payload.rfind("}")
-        if start >= 0 and end > start:
-            payload = payload[start : end + 1]
-    parsed = json.loads(payload)
-    if not isinstance(parsed, dict):
-        raise ValueError(f"expected JSON object, got {type(parsed).__name__}")
-    return parsed
 
 
 def probe_local_model_readiness(*, probe=None, canary=None, required_contract=None):

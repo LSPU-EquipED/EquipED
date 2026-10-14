@@ -4,13 +4,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.itso.evidence import ITSOEvidenceBuilder
-from server.modules.agents.itso.prompt import build_prompt
-from server.modules.agents.runtime.context import ITSOExecutionContext
+from equiped_harness.itso.prompt import build_prompt
+from equiped_harness.runtime.context import ITSOExecutionContext
 from server.modules.embeddings.policy_retrieval import (
     PolicyEvidenceChunk,
     PolicyRetrievalResult,
 )
+from server.modules.evaluations.harness.evidence import ITSOEvidenceBuilder
 from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 CRITERIA = {
@@ -74,7 +74,7 @@ def _available_snapshot():
 @pytest.mark.parametrize("settings", [_settings(False), SimpleNamespace()])
 def test_blocked_policy_does_no_embedding_or_retrieval(monkeypatch, settings):
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: settings
+        "server.modules.evaluations.harness.evidence.get_settings", lambda: settings
     )
 
     def fail(*args, **kwargs):
@@ -82,7 +82,7 @@ def test_blocked_policy_does_no_embedding_or_retrieval(monkeypatch, settings):
 
     monkeypatch.setattr(ITSOEvidenceBuilder, "_compute_query_embedding", fail)
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.retrieve_policy_context", fail
+        "server.modules.evaluations.harness.evidence.retrieve_policy_context", fail
     )
     snapshot = ITSOEvidenceBuilder(db=object()).build(
         [{"chunk_id": "x", "text": "text"}]
@@ -105,7 +105,8 @@ def test_blocked_policy_does_no_embedding_or_retrieval(monkeypatch, settings):
 
 def test_enabled_delivery_without_db_is_blocked_from_retrieval(monkeypatch):
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: _settings(True)
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(True),
     )
     snapshot = ITSOEvidenceBuilder(db=None).build([{"chunk_id": "x", "text": "text"}])
     assert snapshot.policy_evidence is None
@@ -119,7 +120,8 @@ def test_enabled_delivery_without_db_is_blocked_from_retrieval(monkeypatch):
 
 def test_enabled_delivery_groups_concrete_clauses(monkeypatch):
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: _settings(True)
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(True),
     )
     monkeypatch.setattr(
         ITSOEvidenceBuilder, "_compute_query_embedding", lambda self, text: [1.0]
@@ -139,7 +141,7 @@ def test_enabled_delivery_groups_concrete_clauses(monkeypatch):
         return PolicyRetrievalResult(area, "available", (chunk,), "b" * 64)
 
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.retrieve_policy_context", retrieve
+        "server.modules.evaluations.harness.evidence.retrieve_policy_context", retrieve
     )
     snapshot_evidence = ITSOEvidenceBuilder(
         db=object()
@@ -163,7 +165,8 @@ def test_one_embedding_object_is_reused_for_all_retrievals(monkeypatch):
     embeddings = []
     retrievals = []
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: _settings(True)
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(True),
     )
 
     def embed(text):
@@ -177,7 +180,7 @@ def test_one_embedding_object_is_reused_for_all_retrievals(monkeypatch):
 
     monkeypatch.setattr(builder, "_compute_query_embedding", embed)
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.retrieve_policy_context", retrieve
+        "server.modules.evaluations.harness.evidence.retrieve_policy_context", retrieve
     )
     builder.build([{"chunk_id": "x", "text": "text"}])
     assert len(embeddings) == 1
@@ -187,7 +190,8 @@ def test_one_embedding_object_is_reused_for_all_retrievals(monkeypatch):
 
 def test_retrieval_failure_is_unavailable_and_other_criteria_continue(monkeypatch):
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: _settings(True)
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(True),
     )
     monkeypatch.setattr(
         ITSOEvidenceBuilder, "_compute_query_embedding", lambda self, text: [1.0]
@@ -201,7 +205,7 @@ def test_retrieval_failure_is_unavailable_and_other_criteria_continue(monkeypatc
         return PolicyRetrievalResult("area", "unavailable", (), "c" * 64)
 
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.retrieve_policy_context", retrieve
+        "server.modules.evaluations.harness.evidence.retrieve_policy_context", retrieve
     )
     result = ITSOEvidenceBuilder(db=object())._build_policy_evidence_snapshot()
     assert seen == list(CRITERIA)
@@ -241,13 +245,14 @@ def test_blocked_and_unavailable_prompt_has_no_clause_text():
 
 def test_builder_snapshot_is_recursively_immutable(monkeypatch):
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.get_settings", lambda: _settings(True)
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(True),
     )
     monkeypatch.setattr(
         ITSOEvidenceBuilder, "_compute_query_embedding", lambda self, text: [1.0]
     )
     monkeypatch.setattr(
-        "server.modules.agents.itso.evidence.retrieve_policy_context",
+        "server.modules.evaluations.harness.evidence.retrieve_policy_context",
         lambda *args, **kwargs: PolicyRetrievalResult(
             "area",
             "available",

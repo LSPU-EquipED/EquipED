@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
+from equiped_harness.contracts import LlmRubricGuidanceConfig
 from server.modules.rubrics.models import (
     RubricAgentActivation,
     RubricCriterion,

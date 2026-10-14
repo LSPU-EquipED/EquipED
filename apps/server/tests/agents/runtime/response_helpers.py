@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
 
 
 def itso_response(*, chunk_ids: tuple[str, ...] = ("c1",), score: int = 3) -> dict:

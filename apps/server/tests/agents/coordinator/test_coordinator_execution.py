@@ -5,20 +5,22 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from server.core.config import get_settings
-from server.core.llm import get_llm_model_name
-from server.modules.agents.coordinator.execution import execute_envelope
-from server.modules.agents.coordinator.prompt import REPAIR_SUFFIX
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.agents.runtime.prompts import AgentPrompt
-from server.modules.agents.runtime.slicing import GAP_MARKER, downsample_source_text
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     CurriculumAlignmentConfig,
     RatioBandConfig,
 )
+from equiped_harness.coordinator.execution import execute_envelope
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.runtime.llm import RunLLMClient
+from equiped_harness.runtime.prompts import (
+    AgentPrompt,
+    build_diagnostic_repair_prompt,
+)
+from equiped_harness.runtime.slicing import GAP_MARKER, downsample_source_text
+from server.core.config import get_settings
+from server.core.llm import get_llm_model_name
 from server.tests.agents.helpers import SequencedFakeClient
 
 SOURCE = (
@@ -136,7 +138,18 @@ def test_execute_envelope_bounds_large_curriculum_context() -> None:
     assert repaired is False
     assert scores[0].criterion_id == "A-05"
     budget = get_settings().agent_total_prompt_budget_chars
-    assert len(prompt_text) + len(REPAIR_SUFFIX) <= budget
+    repair_prompt = build_diagnostic_repair_prompt(
+        prompt_text,
+        AgentExecutionError(
+            "criterion_measurements[0].alignments[0].objective_text must be an "
+            "exact verbatim substring of the source text"
+        ),
+        total_budget=budget,
+    )
+    assert len(repair_prompt) <= budget
+    assert repair_prompt.system_instruction == prompt_text.system_instruction
+    assert repair_prompt.user_context.startswith(prompt_text.user_context)
+    assert huge_curriculum[:100] in repair_prompt.user_context
 
 
 def test_execute_envelope_grounds_against_raw_large_curriculum_context() -> None:
@@ -368,7 +381,17 @@ def test_long_document_multiunit_a01_succeeds_with_full_envelope_budget() -> Non
     )
 
     assert repair_occurred is False
-    assert len(prompt_text) + len(REPAIR_SUFFIX) <= budget
+    repair_prompt = build_diagnostic_repair_prompt(
+        prompt_text,
+        AgentExecutionError(
+            "criterion_measurements[0].total_units[0].evidence must be an exact "
+            "verbatim substring of the source text"
+        ),
+        total_budget=budget,
+    )
+    assert len(repair_prompt) <= budget
+    assert repair_prompt.system_instruction == prompt_text.system_instruction
+    assert repair_prompt.user_context.startswith(prompt_text.user_context)
     # Both head and tail units survive downsampling with full envelope budget.
     assert head_sentence in prompt_text.user_context
     assert tail_sentence in prompt_text.user_context

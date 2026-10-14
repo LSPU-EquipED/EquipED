@@ -25,9 +25,23 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server.modules.agents.contracts import AgentEvaluationResult  # noqa: E402
-from server.modules.agents.itso.agent import ITSO  # noqa: E402
-from server.modules.agents.itso.precheck import run_itso_precheck  # noqa: E402
+from equiped_harness import (  # noqa: E402
+    CompletionResult,
+    EvaluationRequest,
+    ExecutionConfig,
+    evaluate,
+    run_itso_precheck,
+)
+from equiped_harness.contracts import (  # noqa: E402
+    CriterionDefinition,
+    DomainDefinition,
+    FormDefinition,
+    LlmRubricGuidanceConfig,
+)
+from equiped_harness.result_contracts import AgentEvaluationResult  # noqa: E402
+from equiped_harness.snapshot_contracts import (  # noqa: E402
+    build_evaluation_form_snapshot,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures — known, reproducible SLM-like text and chunk data
@@ -142,8 +156,16 @@ class DeterministicFakeLLM:
     def __init__(self, response_json: str | None = None) -> None:
         self._response = response_json or _DEFAULT_FAKE_RESPONSE
 
-    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
-        return self._response
+    def generate_result(
+        self,
+        prompt,
+        *,
+        temperature,
+        max_new_tokens,
+        deadline=None,
+        response_contract=None,
+    ) -> CompletionResult:
+        return CompletionResult(self._response, self.model)
 
 
 class VariedFakeLLM:
@@ -158,48 +180,23 @@ class VariedFakeLLM:
         self._responses = list(responses)
         self._call_count = 0
 
-    def generate(self, prompt: str, *, temperature: float, max_new_tokens: int) -> str:
+    def generate_result(
+        self,
+        prompt,
+        *,
+        temperature,
+        max_new_tokens,
+        deadline=None,
+        response_contract=None,
+    ) -> CompletionResult:
         idx = self._call_count % len(self._responses)
         self._call_count += 1
-        return self._responses[idx]
+        return CompletionResult(self._responses[idx], self.model)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-# Monkeypatch target paths used by the ITSO runtime.
-_MONKEYPATCH_TARGETS = (
-    "server.modules.agents.itso.execution.get_settings",
-    "server.core.llm.get_settings",
-)
-
-
-def _patch_settings() -> dict[str, Any]:
-    """Return a mock settings dict that avoids DB/embedding dependencies.
-
-    Inline type + method so the benchmark script has no external file deps.
-    """
-    mock_settings = {
-        "llm_model_name": "benchmark-model",
-        "llm_temperature": 0.2,
-        "llm_temperature_itso": 0.0,
-        "llm_max_new_tokens": 4096,
-        "agent_max_chunks": 12,
-        "agent_max_excerpt_chars": 800,
-        "agent_prompt_budget_chars": 5000,
-        "agent_small_doc_threshold": 6,
-        "agent_total_prompt_budget_chars": 8000,
-    }
-
-    def get_agent_temperature(_self: Any, agent_name: str) -> float:
-        if agent_name == "itso":
-            return mock_settings["llm_temperature_itso"]
-        return mock_settings["llm_temperature"]
-
-    mock_settings["get_agent_temperature"] = get_agent_temperature
-    return mock_settings
-
 
 # ---------------------------------------------------------------------------
 # Benchmark runs
@@ -262,37 +259,58 @@ def run_agent_benchmark(
 
     Returns a summary with per-run results and drift detection.
     """
-    mock_settings = _patch_settings()
-    _Settings = type("Settings", (), mock_settings)
-
-    import importlib
-
-    for target in _MONKEYPATCH_TARGETS:
-        mod_path, _, attr = target.rpartition(".")
-        mod = importlib.import_module(mod_path)
-        setattr(mod, attr, _Settings)
-
-    # Also patch core.config.get_settings so itso_precheck imports work
-    import server.core.config as core_config_mod
-
-    core_config_mod.get_settings = lambda: _Settings()  # type: ignore[method-assign]
+    config = ExecutionConfig(agent_total_prompt_budget_chars=8000)
 
     if fake_llm is None:
         fake_llm = DeterministicFakeLLM()
 
-    # Inject precomputed_context so ITSO execution uses the cache instead of
-    # querying the database for rubric/reference context.
+    # Supply prepared context explicitly; the library never queries storage.
     precomputed_context = {"rubric_itso": []}
 
     results: list[dict[str, Any]] = []
     for i in range(runs):
-        agent = ITSO(llm_client=fake_llm)
-        result = agent.run(
-            evaluation_id=uuid4(),
-            document_id=uuid4(),
-            chunk_infos=chunk_infos,
-            provenance=provenance,
-            precomputed_context=precomputed_context,
+        evaluation_id = uuid4()
+        rows = json.loads(_DEFAULT_FAKE_RESPONSE)["criterion_scores"]
+        form = FormDefinition(
+            rubric_set_id=uuid4(),
+            agent_id="itso",
+            adapter_key="itso",
+            adapter_version=1,
+            name="Deterministic ITSO benchmark",
+            version_number=1,
+            domains=(
+                DomainDefinition(
+                    rubric_domain_id=uuid4(),
+                    code="ITSO",
+                    title="ITSO",
+                    display_order=1,
+                    criteria=tuple(
+                        CriterionDefinition(
+                            rubric_criterion_id=uuid4(),
+                            criterion_code=row["criterion_id"],
+                            title=row["criterion_title"],
+                            description=row["criterion_title"],
+                            display_order=index,
+                            strategy_config=LlmRubricGuidanceConfig(
+                                guidance=row["criterion_title"]
+                            ),
+                        )
+                        for index, row in enumerate(rows)
+                    ),
+                ),
+            ),
+        )
+        result = evaluate(
+            EvaluationRequest(
+                evaluation_id=evaluation_id,
+                document_id=uuid4(),
+                chunk_infos=chunk_infos,
+                form_snapshot=build_evaluation_form_snapshot(evaluation_id, form),
+                provenance=provenance,
+                precomputed_context=precomputed_context,
+            ),
+            fake_llm,
+            config,
         )
         results.append(_normalize_result(result))
 

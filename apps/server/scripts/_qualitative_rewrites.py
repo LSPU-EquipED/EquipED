@@ -13,12 +13,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from equiped_harness.contracts import LlmRubricGuidanceConfig, LlmScoreDescriptor
+
 # Force registration of models referenced by rubric FKs (e.g. RubricSet's
 # published_by/retired_by -> users.user_id) before any query/flush touches
 # them -- otherwise SQLAlchemy can't resolve the foreign key at flush time.
 import server.modules.auth.models  # noqa: F401
 from server.modules.rubrics.authoring import update_criterion
-from server.modules.rubrics.contracts import LlmRubricGuidanceConfig, LlmScoreDescriptor
 from server.modules.rubrics.models import RubricCriterion, RubricDomain
 from server.modules.rubrics.repository import (
     create_draft_from_active,
@@ -99,8 +100,7 @@ OP_A_QUALITATIVE_REWRITES: dict[str, dict[str, Any]] = {
         "bands": {
             4: "Nearly all sections are clear and internally consistent, "
             "with no contradictions or garbled content.",
-            3: "Most sections are clear and consistent, with a few "
-            "exceptions.",
+            3: "Most sections are clear and consistent, with a few exceptions.",
             2: "Only some sections are clear and consistent; several "
             "contain confusing or contradictory content.",
             1: "Most sections are unclear, garbled, or contradictory.",
@@ -112,8 +112,7 @@ OP_A_QUALITATIVE_REWRITES: dict[str, dict[str, Any]] = {
         "guidance": "Judge how many genuine enhancement activities the "
         "module offers beyond the core lesson content.",
         "bands": {
-            4: "Several genuine enhancement activities beyond the core "
-            "content.",
+            4: "Several genuine enhancement activities beyond the core content.",
             3: "A couple of genuine enhancement activities.",
             2: "At most one genuine enhancement activity.",
             1: "No enhancement activities beyond the core content.",
@@ -126,8 +125,7 @@ OP_A_QUALITATIVE_REWRITES: dict[str, dict[str, Any]] = {
         "higher-order thinking (apply/analyze/evaluate/create), not just "
         "recall/understanding.",
         "bands": {
-            4: "Nearly all tasks engage higher-order thinking, not just "
-            "recall.",
+            4: "Nearly all tasks engage higher-order thinking, not just recall.",
             3: "Most tasks engage higher-order thinking, with some limited "
             "to recall/understanding.",
             2: "Only some tasks engage higher-order thinking; most are "
@@ -146,8 +144,7 @@ OP_A_QUALITATIVE_REWRITES: dict[str, dict[str, Any]] = {
             4: "Wide variety of assessment types used.",
             3: "Moderate variety of assessment types.",
             2: "Very limited variety in assessment types.",
-            1: "Essentially one assessment type, or no clear assessment at "
-            "all.",
+            1: "Essentially one assessment type, or no clear assessment at all.",
         },
         "scoring_rule": "4 = wide variety of assessment types. 3 = "
         "moderate variety. 2 = very limited variety. 1 = essentially one "
@@ -172,8 +169,7 @@ OP_A_QUALITATIVE_REWRITES: dict[str, dict[str, Any]] = {
         "positive reinforcement) the module provides.",
         "bands": {
             4: "Several distinct types of feedback/intervention support.",
-            3: "A couple of distinct types of feedback/intervention "
-            "support.",
+            3: "A couple of distinct types of feedback/intervention support.",
             2: "One type of feedback/intervention support.",
             1: "No meaningful feedback or intervention support.",
         },

@@ -7,12 +7,7 @@ import uuid
 from typing import Any
 
 import pytest
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.gad.envelope import parse_combined_response
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     DomainDefinition,
@@ -20,9 +15,14 @@ from server.modules.rubrics.contracts import (
     LlmRubricGuidanceConfig,
     RatioBandConfig,
 )
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.gad.agent import GAD
+from equiped_harness.gad.envelope import parse_combined_response
+from equiped_harness.result_contracts import AgentEvaluationResult
+from equiped_harness.snapshot_contracts import (
     build_evaluation_form_snapshot,
 )
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.tests.agents.gad.conftest import (
     make_gad_snapshot,
 )

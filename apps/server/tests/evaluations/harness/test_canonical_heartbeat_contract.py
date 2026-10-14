@@ -5,10 +5,10 @@ from types import MappingProxyType
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.exceptions import SupervisorExecutionError
-from server.modules.agents.supervision import dispatch
-from server.modules.agents.supervision.context import (
+from equiped_harness.exceptions import SupervisorExecutionError
+from equiped_harness.result_contracts import AgentEvaluationResult
+from server.modules.evaluations.harness import dispatch
+from server.modules.evaluations.harness.context import (
     EvaluationContextBuilder,
     PromptSnapshot,
 )
@@ -94,7 +94,7 @@ def test_canonical_preparation_failure_submits_zero_futures(monkeypatch):
         lambda self: MappingProxyType({}),
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.prepare_canonical_source",
+        "server.modules.evaluations.harness.context.prepare_canonical_source",
         lambda _: (_ for _ in ()).throw(OSError()),
     )
     builder = EvaluationContextBuilder(None, [])

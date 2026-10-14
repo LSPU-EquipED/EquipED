@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
+from equiped_harness.contracts import CriterionDefinition
 from server.core.config import get_settings
 from server.modules.documents.exceptions import DocumentNotFoundError
 from server.modules.documents.models import Document
@@ -22,7 +23,6 @@ from server.modules.rubrics import (
     lock_and_load_requested_active_forms,
     persist_evaluation_form_snapshots,
 )
-from server.modules.rubrics.contracts import CriterionDefinition
 from server.modules.rubrics.models import (
     EvaluationFormSnapshot,
     RubricAgentActivation,

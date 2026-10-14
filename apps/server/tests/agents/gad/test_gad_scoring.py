@@ -6,26 +6,7 @@ import json
 from uuid import uuid4
 
 import pytest
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.exceptions import AgentExecutionError, AgentLLMError
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.gad.envelope import (
-    EXTRACTION_SCHEMA_VERSION,
-    extraction_schema,
-    parse_combined_response,
-)
-from server.modules.agents.gad.grounding import (
-    MAX_INSTANCES_PER_CRITERION,
-    ground_instances,
-)
-from server.modules.agents.gad.prompt import (
-    build_combined_prompt,
-)
-from server.modules.agents.gad.registry import (
-    REGISTRY_VERSION,
-    score_from_combined,
-)
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     GroundedInstance,
@@ -33,7 +14,26 @@ from server.modules.rubrics.contracts import (
     PairedCountsMeasurement,
     RatioBandConfig,
 )
-from server.modules.rubrics.strategies.calculators import score_count, score_ratio
+from equiped_harness.exceptions import AgentExecutionError, AgentLLMError
+from equiped_harness.gad.agent import GAD
+from equiped_harness.gad.envelope import (
+    EXTRACTION_SCHEMA_VERSION,
+    extraction_schema,
+    parse_combined_response,
+)
+from equiped_harness.gad.grounding import (
+    MAX_INSTANCES_PER_CRITERION,
+    ground_instances,
+)
+from equiped_harness.gad.prompt import (
+    build_combined_prompt,
+)
+from equiped_harness.gad.registry import (
+    REGISTRY_VERSION,
+    score_from_combined,
+)
+from equiped_harness.strategies.calculators import score_count, score_ratio
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.tests.agents.gad.conftest import (
     REVISION_1_GAD_CRITERIA,
     make_gad_snapshot,
@@ -753,7 +753,7 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
 
 
 def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
-    import server.modules.agents.gad.registry as _sp
+    import equiped_harness.gad.registry as _sp
 
     class _ScoreFailLLM(_TypedResultMixin):
         model = "test-model"
@@ -798,18 +798,17 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
     assert result.metadata["scoring_mode"] == "single_pass_failed"
 
 
-def test_repair_budget_overhead_reserved_fails_before_transport(monkeypatch) -> None:
-    from server.core.config import Settings
-    from server.modules.agents.gad.pipeline import (
+def test_repair_budget_overhead_reserved_fails_before_transport(
+    monkeypatch, harness_config
+) -> None:
+    from equiped_harness.gad.pipeline import (
         _REPAIR_OVERHEAD_RESERVE,
     )
+    from server.core.config import Settings
 
     tiny_budget = _REPAIR_OVERHEAD_RESERVE - 1
     tiny_settings = Settings(agent_total_prompt_budget_chars=tiny_budget)
-    monkeypatch.setattr(
-        "server.modules.agents.gad.pipeline.get_settings",
-        lambda: tiny_settings,
-    )
+    harness_config(tiny_settings)
 
     class _NoopLLM(_TypedResultMixin):
         model = "test"
@@ -1275,12 +1274,12 @@ def test_no_db_or_deleted_modules_imported_by_gad() -> None:
     """Ensure GAD modules never import database or deleted fixed-code modules."""
     import inspect
 
-    import server.modules.agents.gad.agent as gad_agent
-    import server.modules.agents.gad.envelope as gad_envelope
-    import server.modules.agents.gad.grounding as gad_grounding
-    import server.modules.agents.gad.pipeline as gad_pipeline
-    import server.modules.agents.gad.prompt as gad_prompt
-    import server.modules.agents.gad.registry as gad_registry
+    import equiped_harness.gad.agent as gad_agent
+    import equiped_harness.gad.envelope as gad_envelope
+    import equiped_harness.gad.grounding as gad_grounding
+    import equiped_harness.gad.pipeline as gad_pipeline
+    import equiped_harness.gad.prompt as gad_prompt
+    import equiped_harness.gad.registry as gad_registry
 
     banned_terms = (
         "get_session_factory",

@@ -204,7 +204,7 @@ Refer to `docker-compose.yml` for infrastructure ports and environment overrides
 apps/server/     FastAPI modular monolith
 apps/faculty/    Faculty portal React Vite app (port 5173)
 apps/admin/      Admin portal React Vite app (port 5174, base /)
-libs/            Extracted shared workspace packages (types, api-client, ui, auth)
+libs/            Shared packages (types, api-client, ui, auth, evaluation-harness)
 openspec/specs/  Historical specification references
 docs/            Product and architecture reference material
 uploads/         Local uploaded documents
@@ -218,7 +218,14 @@ Key entry points:
 - `apps/faculty/src/app/router.tsx` — Faculty route tree
 - `apps/admin/src/main.tsx` — Admin app bootstrap
 - `apps/admin/src/app/router.tsx` — Admin route tree
-- `libs/` — workspace packages (@equiped/types, @equiped/api-client, @equiped/ui, @equiped/auth)
+- `libs/` — shared TypeScript packages and the pure Python evaluation harness
+- `libs/evaluation-harness/equiped_harness/evaluation.py` — `EvaluationRequest` and `evaluate(request, client, ExecutionConfig)` for all four specialist pipelines; `apps/server/modules/evaluations/harness/` prepares evidence and supplies transport/config. See the [harness guide](libs/evaluation-harness/README.md).
+
+Run independent harness tests with `pnpm harness:test`. The server UV lock installs
+the local package; Docker copies it before frozen dependency installation. Use UV
+0.11.25 or newer (native build backend `uv_build>=0.11.25,<0.12`).
+Admin model validation only updates shared-contract imports in this extraction;
+its workflow, API, and persisted schema are unchanged.
 
 ## Documentation and authority model
 

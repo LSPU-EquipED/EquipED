@@ -8,25 +8,27 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+from equiped_harness.contracts import (
+    CriterionDefinition,
+    CurriculumAlignmentConfig,
+    DomainDefinition,
+    FormDefinition,
+)
+from equiped_harness.snapshot_contracts import (
+    SnapshotIntegrityError,
+    build_evaluation_form_snapshot,
+)
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.rubrics import (
-    CurriculumAlignmentConfig,
     EvaluationFormSnapshot,
     RubricAgentActivation,
     RubricSet,
-    SnapshotIntegrityError,
-    build_evaluation_form_snapshot,
     load_active_form_definitions,
     load_verified_evaluation_snapshots,
     resolve_or_reuse_evaluation_snapshots,
-)
-from server.modules.rubrics.contracts import (
-    CriterionDefinition,
-    DomainDefinition,
-    FormDefinition,
 )
 from sqlalchemy import event
 
@@ -661,11 +663,11 @@ def test_prepare_snapshots_and_enter_evaluating_atomic_success_full(
     job.execution_token = token
     db_session.commit()
 
+    from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
     from server.modules.evaluations.agent_schedule import scheduled_agent_ids
     from server.modules.evaluations.orchestrator import (
         _prepare_snapshots_and_enter_evaluating,
     )
-    from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
     scheduled_ids = scheduled_agent_ids(partial_without_curriculum=False)
     assert scheduled_ids == ("sme", "coordinator", "gad", "itso")
@@ -713,11 +715,11 @@ def test_prepare_snapshots_and_enter_evaluating_atomic_success_partial(
     job.partial_without_curriculum = True
     db_session.commit()
 
+    from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
     from server.modules.evaluations.agent_schedule import scheduled_agent_ids
     from server.modules.evaluations.orchestrator import (
         _prepare_snapshots_and_enter_evaluating,
     )
-    from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
     scheduled_ids = scheduled_agent_ids(partial_without_curriculum=True)
     assert scheduled_ids == ("sme", "gad", "itso")

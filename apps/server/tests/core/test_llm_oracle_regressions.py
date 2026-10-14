@@ -378,7 +378,7 @@ def test_schema_downgrade_sets_response_format_downgraded(monkeypatch):
 
 
 def test_response_format_downgraded_provenance_allowlisted_and_preserved():
-    from server.modules.agents.provenance import (
+    from equiped_harness.provenance import (
         PROVENANCE_ALLOWLIST,
         sanitize_provenance,
     )
@@ -395,4 +395,3 @@ def test_response_format_downgraded_provenance_allowlisted_and_preserved():
         {"response_format_downgraded": "not_a_bool"}
     )
     assert sanitized_invalid is None
-

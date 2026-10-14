@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from equiped_harness.itso.agent import ITSO
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.itso.agent import ITSO
 from server.tests.agents.helpers import _mock_settings
 from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 from server.tests.agents.itso.test_itso_execution import _response
@@ -98,7 +98,7 @@ def test_get_agent_temperature_returns_global_for_other() -> None:
     assert settings.get_agent_temperature("sme") == 0.3
 
 
-def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
+def test_itso_agent_run_uses_itso_temperature(monkeypatch, harness_config) -> None:
     """ITSO should receive the ITSO-specific temperature when
     llm_temperature is passed explicitly (as the supervisor does)."""
     captured_temps: list[float] = []
@@ -127,10 +127,7 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch) -> None:
                 served_model=self.model,
             )
 
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings",
-        lambda: _mock_settings(llm_temperature=0.5, llm_temperature_itso=0.0),
-    )
+    harness_config(_mock_settings(llm_temperature=0.5, llm_temperature_itso=0.0))
 
     agent = ITSO(llm_client=_TempCaptureLLM())
     eval_id = uuid4()

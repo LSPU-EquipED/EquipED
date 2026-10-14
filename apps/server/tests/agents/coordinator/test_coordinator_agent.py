@@ -6,17 +6,17 @@ import json
 import uuid
 
 import pytest
-from server.core.llm import get_llm_model_name
-from server.modules.agents.coordinator.agent import Coordinator
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CriterionDefinition,
     CurriculumAlignmentConfig,
     DomainDefinition,
     FormDefinition,
 )
-from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.coordinator.agent import Coordinator
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.runtime.llm import RunLLMClient
+from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
+from server.core.llm import get_llm_model_name
 from server.tests.agents.helpers import SequencedFakeClient, make_coordinator_snapshot
 
 TEN = (

@@ -6,10 +6,10 @@ import json
 import uuid
 from typing import Any
 
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.sme.agent import SME
-from server.modules.agents.supervision.context import PromptSnapshot
-from server.modules.agents.supervision.dispatch import AgentDispatcher
+from equiped_harness.sme.agent import SME
+from equiped_harness.transport import CompletionResult, ResponseContract
+from server.modules.evaluations.harness.context import PromptSnapshot
+from server.modules.evaluations.harness.dispatch import AgentDispatcher
 from server.tests.agents.helpers import _make_dummy_snapshot
 
 _MANAGED_PROMPT = "MANAGED SME PROMPT -- immutable dispatch contract"
@@ -81,7 +81,7 @@ def test_dispatch_passes_immutable_prompt_to_sme(monkeypatch):
         return client
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent", factory
+        "server.modules.evaluations.harness.dispatch.get_llm_client_for_agent", factory
     )
     monkeypatch.setattr(SME, "run", capture_run)
 

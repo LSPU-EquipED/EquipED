@@ -6,17 +6,17 @@ import json
 import uuid
 
 import pytest
-from server.core.llm import CompletionResult
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.sme.agent import SME
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     DomainDefinition,
     FormDefinition,
     RatioBandConfig,
 )
-from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.sme.agent import SME
+from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.transport import CompletionResult
 
 _CHUNK_INFOS = [{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}]
 _SOURCE = (
@@ -276,9 +276,10 @@ def test_fallback_used_when_repair_also_fails_grounding() -> None:
     # Fallback measurements must never claim grounded instances/units.
     envelope_0_response = result.metadata["group_responses"]["envelope_0"]
     for measurement in envelope_0_response["criterion_measurements"]:
-        assert measurement.get("instances", []) == [] or measurement.get(
-            "total_units", []
-        ) == []
+        assert (
+            measurement.get("instances", []) == []
+            or measurement.get("total_units", []) == []
+        )
 
 
 def test_repair_failure_raises() -> None:

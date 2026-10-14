@@ -9,15 +9,15 @@ from types import MappingProxyType
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.itso.evidence import ITSOEvidenceSnapshot
-from server.modules.agents.supervision.context import (
+from equiped_harness.result_contracts import AgentEvaluationResult
+from server.modules.evaluations.harness.context import (
     EvaluationContextBuilder,
     PreparedEvaluationContext,
     PromptSnapshot,
 )
-from server.modules.agents.supervision.dispatch import AgentDispatcher
-from server.modules.agents.supervision.supervisor import Supervisor
+from server.modules.evaluations.harness.dispatch import AgentDispatcher
+from server.modules.evaluations.harness.evidence import ITSOEvidenceSnapshot
+from server.modules.evaluations.harness.supervisor import Supervisor
 from server.tests.agents.helpers import _make_dummy_snapshot
 
 
@@ -132,7 +132,7 @@ def test_supervisor_builds_context_and_evidence_before_dispatch(monkeypatch) -> 
         lambda *a, **k: events.append("context") or prepared,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.supervisor.ITSOEvidenceBuilder.build",
+        "server.modules.evaluations.harness.supervisor.ITSOEvidenceBuilder.build",
         lambda self, chunks: events.append("evidence") or evidence,
     )
 
@@ -163,10 +163,10 @@ def test_dispatch_submits_once_and_creates_one_client_per_agent(monkeypatch) -> 
     agents = [_Agent(name, []) for name in ("sme", "gad", "itso")]
     submitted, clients = [], []
     monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
+        "server.modules.evaluations.harness.dispatch.get_llm_client_for_agent",
         lambda name: clients.append(name) or object(),
     )
-    import server.modules.agents.supervision.dispatch as module
+    import server.modules.evaluations.harness.dispatch as module
 
     class Executor:
         def __init__(self, **kwargs):
@@ -213,7 +213,7 @@ def test_client_factory_failure_isolated_and_other_agent_succeeds(monkeypatch) -
         return object()
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent", factory
+        "server.modules.evaluations.harness.dispatch.get_llm_client_for_agent", factory
     )
     results, failures = _dispatch(
         monkeypatch, [_Agent("sme", []), _Agent("gad", [])], _context()
@@ -252,7 +252,7 @@ def _capturing_agent(name, captured):
 def test_dispatch_gives_each_agent_its_own_lora_list(monkeypatch) -> None:
     captured: dict[str, object] = {}
     monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
+        "server.modules.evaluations.harness.dispatch.get_llm_client_for_agent",
         lambda _agent_name: _LoraFakeClient(),
     )
     sme_list = [{"id": 0, "scale": 1.0}, {"id": 1, "scale": 0.0}]
@@ -271,7 +271,7 @@ def test_dispatch_gives_each_agent_its_own_lora_list(monkeypatch) -> None:
 def test_dispatch_leaves_client_untouched_without_a_list(monkeypatch, mapping) -> None:
     captured: dict[str, object] = {}
     monkeypatch.setattr(
-        "server.modules.agents.supervision.dispatch.get_llm_client_for_agent",
+        "server.modules.evaluations.harness.dispatch.get_llm_client_for_agent",
         lambda _agent_name: _NoLoraFakeClient(),
     )
     _dispatch(

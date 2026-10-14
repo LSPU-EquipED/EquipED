@@ -40,6 +40,7 @@ services:
       CHROMA_SSL: "false"
     volumes:
       - ./apps/server:/app/apps/server
+      - ./libs/evaluation-harness:/app/libs/evaluation-harness
       - ./uploads:/app/uploads
     ports:
       - "8000:8000"

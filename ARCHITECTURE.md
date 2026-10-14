@@ -35,114 +35,100 @@ The system operates as a unified **pnpm + uv monorepo** consisting of a single-p
 ```mermaid
 graph TD
     subgraph Ingress ["Edge Ingress & Reverse Proxy"]
-        Caddy["Caddy (Single-Origin Reverse Proxy :3000 / Caddyfile.dev)"]
+        Caddy["Caddy reverse proxy :3000"]
     end
 
-    subgraph Client_Applications ["apps/ (Vite React 18 SPAs)"]
-        FacultyApp["apps/faculty (Port 5173 / Faculty Workstation & Auth)"]
-        AdminApp["apps/admin (Port 5174 / Admin Workstations & Matrix)"]
+    subgraph Client_Applications ["apps/ React SPAs"]
+        FacultyApp["apps/faculty"]
+        AdminApp["apps/admin"]
     end
 
-    subgraph Backend_Monolith ["apps/server (FastAPI Modular Monolith :8000)"]
-        APIRouter["FastAPI API Routers (/api/v1/*)"]
-        AuthModule["Auth Module (Session Cookies, RBAC)"]
-        DocModule["Documents Module (Uploads, Journaling, PyMuPDF)"]
-        EmbedModule["Embeddings Module (Sentence Transformers)"]
-        EvalModule["Evaluations Module (FIFO Queue, Recovery, Orchestrator)"]
-        AgentCluster["Agents Module (Layer 3 Evaluators: SME, Coord, GAD, ITSO)"]
-        SynthModule["Synthesis Module (Deterministic Layer 4 Matrix Synthesis)"]
-        AdminModule["Admin Module (Prompt Versions, Preference Logs, Rubrics)"]
+    subgraph Backend_Monolith ["apps/server FastAPI modular monolith :8000"]
+        APIRouter["FastAPI API routers"]
+        AuthModule["Auth and RBAC"]
+        DocModule["Documents and uploads"]
+        EmbedModule["Embeddings"]
+        EvalModule["Evaluations queue and orchestrator"]
+        AgentCluster["evaluations/harness: supervision, dispatch, evidence"]
+        SynthModule["Deterministic Layer 4 synthesis"]
+        AdminModule["Admin services"]
     end
 
-    subgraph Shared_Libraries ["libs/ (Shared Workspace Packages)"]
-        LibAuth["libs/auth (@equiped/auth: Session Provider, Hooks, Guards)"]
-        LibApiClient["libs/api-client (@equiped/api-client: Typed Fetch & Endpoints)"]
-        LibTypes["libs/types (@equiped/types: Domain Interfaces & Schemas)"]
-        LibUI["libs/ui (@equiped/ui: Tokens, Atomic Components, Fonts)"]
+    subgraph Shared_Libraries ["libs shared workspace packages"]
+        LibAuth["libs/auth"]
+        LibApiClient["libs/api-client"]
+        LibTypes["libs/types"]
+        LibUI["libs/ui"]
+        Harness["libs/evaluation-harness"]
     end
 
-    subgraph Data_Storage ["Data Infrastructure"]
-        Postgres[(PostgreSQL: Neon Cloud or Local pg15)]
-        Chroma[(ChromaDB: Local HTTP Service :8001)]
-        LocalFS["Local Filesystem: uploads/"]
+    subgraph Data_Storage ["Data infrastructure"]
+        Postgres[("PostgreSQL")]
+        Chroma[("ChromaDB")]
+        LocalFS["Local uploads filesystem"]
     end
 
-    Caddy -->|/api and /api/*| Backend_Monolith
-    Caddy -->|/admin-dev/*, /admin-assets/*, /admin, /admin/*, /matrix*, /evaluation-map*| AdminApp
-    Caddy -->|All other paths /*| FacultyApp
+    Caddy -->|API routes| Backend_Monolith
+    Caddy -->|Admin routes| AdminApp
+    Caddy -->|Other routes| FacultyApp
 
     FacultyApp -.->|Imports| LibAuth
     FacultyApp -.->|Imports| LibApiClient
     FacultyApp -.->|Imports| LibTypes
     FacultyApp -.->|Imports| LibUI
-
     AdminApp -.->|Imports| LibAuth
     AdminApp -.->|Imports| LibApiClient
     AdminApp -.->|Imports| LibTypes
     AdminApp -.->|Imports| LibUI
-
     LibAuth -.->|Imports| LibApiClient
     LibAuth -.->|Imports| LibTypes
     LibApiClient -.->|Imports| LibTypes
     LibUI -.->|Imports| LibTypes
 
+    Backend_Monolith --> APIRouter
     Backend_Monolith --> AuthModule
     Backend_Monolith --> DocModule
     Backend_Monolith --> EvalModule
     Backend_Monolith --> SynthModule
     Backend_Monolith --> AdminModule
-
-    DocModule -->|Plain Text Chunks| EvalModule
-    DocModule -->|PDF Artifacts| LocalFS
-    EmbedModule -->|Rubric/Syllabus Vectors| Chroma
-    AgentCluster -->|RAG Retrieval Context| Chroma
+    DocModule -->|Plain text chunks| EvalModule
+    DocModule -->|PDF artifacts| LocalFS
+    EmbedModule -->|Rubric and syllabus vectors| Chroma
+    AgentCluster -->|RAG retrieval context| Chroma
     EvalModule -->|Execute Layer 3| AgentCluster
-    EvalModule -->|Persist Specialist Outputs| Postgres
-    EvalModule -->|Trigger Deterministic Layer 4| SynthModule
-    SynthModule -->|Persist Synthesis & Matrix| Postgres
-    AuthModule -->|Session & User Scopes| Postgres
+    EvalModule -->|Persist specialist outputs| Postgres
+    EvalModule -->|Trigger Layer 4 synthesis| SynthModule
+    SynthModule -->|Persist synthesis and matrix| Postgres
+    AuthModule -->|Session and user scopes| Postgres
+    AgentCluster -->|Prepared inputs| Harness
+    Harness -->|LLM runtime calls| CoreLLM["apps/server/core LLM client"]
 ```
 
 ### Current Repository Layout
 
-```text
-EquipED/
-├── apps/
-│   ├── faculty/                # Public & Faculty portal (React 18 + Vite, port 5173)
-│   │   ├── src/
-│   │   │   ├── features/       # Feature modules: home, documents, evaluation, history,
-│   │   │   │                   # curriculum-alignment, syllabus-alignment, auth
-│   │   │   └── app/            # Composition root: shell, providers, TanStack router
-│   │   └── package.json
-│   ├── admin/                  # Institutional Administrator portal (React 18 + Vite, port 5174)
-│   │   ├── src/
-│   │   │   ├── features/       # Workstations: home, user-management, reference-ingestion,
-│   │   │   │                   # reference-library, agent-prompt, preference-log,
-│   │   │   │                   # rubric-editor, model-validation, monitoring-matrix,
-│   │   │   │                   # evaluation-map
-│   │   │   └── app/            # Composition root: shell, providers, TanStack router
-│   │   └── package.json
-│   └── server/                 # Single-process modular monolith (Python 3.12 + FastAPI, port 8000)
-│       ├── core/               # Infrastructure only (DB pools, LLM clients, Chroma adapter, logging)
-│       ├── modules/            # Domain modules (documents, evaluations, agents, synthesis, etc.)
-│       ├── alembic/            # Database schema migrations
-│       ├── scripts/            # Database seeds and benchmark runners
-│       ├── tests/              # Backend test suites
-│       └── pyproject.toml      # Server dependencies and tool settings
-├── libs/
-│   ├── auth/                   # Shared session provider (AuthProvider), useAuth hook, RBAC guards,
-│   │                           # authApi, BrandHero, and ResetPasswordModal (@equiped/auth)
-│   ├── api-client/             # Typed fetch client (requestJson, ApiError, buildApiUrl) and
-│   │                           # endpoint modules (@equiped/api-client)
-│   ├── types/                  # Leaf TypeScript contracts: documents, evaluations, programs (@equiped/types)
-│   └── ui/                     # Design tokens, primitives (Button, Badge, Card, Input, Skeleton,
-│                               # TableSkeleton, ProgramSelector, cn), fonts, and styles (@equiped/ui)
-├── infra/
-│   └── caddy/                  # Caddy reverse proxy ingress configuration (Caddyfile.dev)
-├── uploads/                    # Local document file storage (git-ignored, root-anchored)
-├── chroma_data/                # Local ChromaDB vector storage (git-ignored, root-anchored)
-├── pnpm-workspace.yaml         # pnpm monorepo workspace definition
-└── package.json                # Root workspace orchestration scripts
+```mermaid
+flowchart TD
+    Root["EquipED repository"] --> Apps["apps/"]
+    Root --> Libs["libs/"]
+    Root --> Infra["infra/caddy/ Caddyfile.dev"]
+    Root --> Storage["uploads/ and chroma_data/"]
+    Root --> Config["pnpm workspace and package configuration"]
+
+    Apps --> Faculty["faculty/ SPA: src/features, src/app"]
+    Apps --> Admin["admin/ SPA: src/features, src/app"]
+    Apps --> Server["server/ FastAPI modular monolith"]
+    Server --> Core["core/ infrastructure"]
+    Server --> Modules["modules/ domain packages"]
+    Server --> Alembic["alembic/ migrations"]
+    Server --> Scripts["scripts/ seeds and benchmarks"]
+    Server --> Tests["tests/ backend suites"]
+    Server --> Pyproject["pyproject.toml"]
+
+    Libs --> Harness["evaluation-harness/ specialist pipelines"]
+    Libs --> Auth["auth/ session, hooks and guards"]
+    Libs --> APIClient["api-client/ typed fetch and endpoints"]
+    Libs --> Types["types/ shared contracts"]
+    Libs --> UI["ui/ tokens, components and styles"]
 ```
 
 ### Ingress, Routing & Same-Origin Topology
@@ -192,13 +178,15 @@ The backend (`apps/server/`) is structured strictly as an in-process modular mon
   - `documents`: SLM and reference PDF ingestion, OCR processing, text chunking, and journaled deletion.
   - `embeddings`: Embedding pipeline and similarity retrieval scoped **exclusively** to syllabi, curricula, and institutional rubrics.
   - `evaluations`: DB-backed FIFO queue, CAS claim token admission, worker drain loop, Layer 3 agent dispatch, and crash recovery.
-  - `agents`: Evaluator prompts, LLM client execution, and individual rubric scoring for SME, Program Coordinator, GAD, and ITSO.
+  - `evaluations/harness`: Backend supervision, parallel dispatch, prepared evidence retrieval, and transport/config translation. Its public API exposes `Supervisor` and explicit DB-backed envelope helpers.
   - `synthesis`: Deterministically merges persisted specialist outputs into the progressive monitoring matrix and computes the composite after all four domains complete.
   - `curriculum` & `curriculum_alignment`: Program curriculum structure and degree-level alignment checking.
   - `syllabus_alignment`: Course-level learning outcome alignment and standalone alignment runs.
   - `rubrics`: Rubric domain definitions, criteria trees, and versioned rubric configurations.
   - `feedback`: Preference logging (accept/reject/edit) on agent outputs for administrative review.
   - `admin`: User administration, prompt versioning, reference catalog ingestion, and model calibration history.
+
+The shared `libs/evaluation-harness` library contains pure SME, Coordinator, GAD, and ITSO pipelines, prompts, scoring, semantic rubric validation, result contracts, and immutable snapshot hashing. Its public `evaluate(EvaluationRequest, client, ExecutionConfig)` seam requires prepared inputs and an explicit neutral model client; it owns no queues, settings/environment loading, network transport, retrieval, or persistence. Production dispatch supplies immutable controls per worker via a reset-on-exit context scope and wraps the core client with `HarnessModelClient`. Backend identity/storage guards remain in force.
 
 ### Layer 3 / Layer 4 Execution Lifecycle
 
@@ -220,7 +208,7 @@ The monorepo structure, ingress proxying, package boundaries, and operational sc
 
 | Architecture Area | Status | Current Directive / Boundary |
 |---|---|---|
-| **Monorepo Layout** (`apps/*`, `libs/*`) | **Implemented** | Applications reside in `apps/` (`faculty`, `admin`, `server`); shared TypeScript libraries reside in `libs/` (`types`, `api-client`, `ui`, `auth`). |
+| **Monorepo Layout** (`apps/*`, `libs/*`) | **Implemented** | Applications reside in `apps/` (`faculty`, `admin`, `server`); shared TypeScript libraries and the Python `evaluation-harness` reside in `libs/`. |
 | **Development Edge Ingress Proxy** | **Implemented** | Caddy reverse-proxy manages local single-origin routing (`:3000`) across frontends and API monolith using `infra/caddy/Caddyfile.dev`. Vite internal proxy serves as a container-free host fallback. Production must retain the same-origin route contract, but its static-serving topology is deferred. |
 | **Modular Monolith Backend** | **Implemented** | Backend relocated to `apps/server/` while preserving `server.*` import namespace with `apps/` as import root. Core contains infrastructure only. |
 | **Shared Auth & Session Cookie** | **Implemented** | HttpOnly session cookie (`equiped_session`) shared across same-origin paths (`Path=/`); server-authoritative RBAC. `@equiped/auth` handles session hydration and guards. |
@@ -235,12 +223,34 @@ The monorepo structure, ingress proxying, package boundaries, and operational sc
 
 Architectural hygiene is enforced by clear boundaries and strict dependency directions:
 
-```text
-apps/faculty  ───►  libs/auth, libs/api-client, libs/types, libs/ui
-apps/admin    ───►  libs/auth, libs/api-client, libs/types, libs/ui
-libs/ui       ───►  libs/types
-libs/auth     ───►  libs/types, libs/api-client
-apps/server   ───►  Self-contained modular monolith (Python 3.12)
+```mermaid
+flowchart TD
+    subgraph Applications["Applications"]
+        Faculty["apps/faculty"]
+        Admin["apps/admin"]
+        Server["apps/server"]
+    end
+    subgraph Libraries["Shared libraries"]
+        Auth["libs/auth"]
+        APIClient["libs/api-client"]
+        Types["libs/types"]
+        UI["libs/ui"]
+        Harness["libs/evaluation-harness"]
+    end
+
+    Faculty --> Auth
+    Faculty --> APIClient
+    Faculty --> Types
+    Faculty --> UI
+    Admin --> Auth
+    Admin --> APIClient
+    Admin --> Types
+    Admin --> UI
+    Server --> Harness
+    UI --> Types
+    Auth --> Types
+    Auth --> APIClient
+    APIClient --> Types
 ```
 
 1. **Libraries Must Never Import Applications**: No code under `libs/` may import from `apps/*`.
