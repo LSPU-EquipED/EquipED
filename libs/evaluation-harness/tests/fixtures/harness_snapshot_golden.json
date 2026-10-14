@@ -1,0 +1,49 @@
+{
+  "evaluation_id": "10000000-0000-4000-8000-000000000001",
+  "form": {
+    "rubric_set_id": "20000000-0000-4000-8000-000000000001",
+    "agent_id": "sme",
+    "name": "Pag-aaral ng Rubric — 日本語",
+    "version_number": 3,
+    "adapter_key": "sme",
+    "adapter_version": 1,
+    "domains": [
+      {
+        "rubric_domain_id": "30000000-0000-4000-8000-000000000001",
+        "code": "DOM-01",
+        "title": "Nilalaman",
+        "display_order": 0,
+        "criteria": [
+          {
+            "rubric_criterion_id": "40000000-0000-4000-8000-000000000002",
+            "criterion_code": "B-02",
+            "title": "Pagsusuri — 二",
+            "description": "Gabay: üñîçødé 🚀",
+            "scoring_rule": null,
+            "display_order": 1,
+            "strategy_config": {
+              "strategy": "llm_rubric_guidance",
+              "guidance": "Tayahin ang lalim at konteksto — 日本語",
+              "level_descriptors": null
+            }
+          },
+          {
+            "rubric_criterion_id": "40000000-0000-4000-8000-000000000001",
+            "criterion_code": "A-01",
+            "title": "Batayan 一",
+            "description": "Nilalaman at ebidensiya",
+            "scoring_rule": "Suriin ang batayan.",
+            "display_order": 0,
+            "strategy_config": {
+              "strategy": "llm_rubric_guidance",
+              "guidance": "Kilalanin ang malinaw na ebidensiya.",
+              "level_descriptors": null
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected_serialized": "{\"adapter_key\":\"sme\",\"adapter_version\":1,\"agent_id\":\"sme\",\"evaluation_id\":\"10000000-0000-4000-8000-000000000001\",\"form\":{\"adapter_key\":\"sme\",\"adapter_version\":1,\"agent_id\":\"sme\",\"domains\":[{\"code\":\"DOM-01\",\"criteria\":[{\"criterion_code\":\"A-01\",\"description\":\"Nilalaman at ebidensiya\",\"display_order\":0,\"rubric_criterion_id\":\"40000000-0000-4000-8000-000000000001\",\"scoring_rule\":\"Suriin ang batayan.\",\"strategy_config\":{\"guidance\":\"Kilalanin ang malinaw na ebidensiya.\",\"level_descriptors\":null,\"strategy\":\"llm_rubric_guidance\"},\"title\":\"Batayan 一\"},{\"criterion_code\":\"B-02\",\"description\":\"Gabay: üñîçødé 🚀\",\"display_order\":1,\"rubric_criterion_id\":\"40000000-0000-4000-8000-000000000002\",\"scoring_rule\":null,\"strategy_config\":{\"guidance\":\"Tayahin ang lalim at konteksto — 日本語\",\"level_descriptors\":null,\"strategy\":\"llm_rubric_guidance\"},\"title\":\"Pagsusuri — 二\"}],\"display_order\":0,\"rubric_domain_id\":\"30000000-0000-4000-8000-000000000001\",\"title\":\"Nilalaman\"}],\"name\":\"Pag-aaral ng Rubric — 日本語\",\"rubric_set_id\":\"20000000-0000-4000-8000-000000000001\",\"version_number\":3},\"rubric_set_id\":\"20000000-0000-4000-8000-000000000001\"}",
+  "expected_sha256": "52fa13d885eb0aa8d2779264067c223831e68444aa588f100e492bbb48c09de3"
+}
