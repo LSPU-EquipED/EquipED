@@ -10,13 +10,17 @@ import type { EvaluationResponse, EvaluationResultsResponse } from '../../types'
 const mockNavigate = vi.fn();
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mockNavigate,
+  useBlocker: () => ({ status: 'idle' }),
   useParams: () => ({ id: 'eval-123' }),
+  Link: ({ children }: { children: React.ReactNode }) => <a href='/evaluations'>{children}</a>,
   Outlet: () => null,
 }));
 
 vi.mock('../../api/evaluation.api', () => ({
   evaluationApi: {
     getEvaluationResults: vi.fn(),
+    getEvaluation: vi.fn(),
+    listEvaluations: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 }),
     submitEvaluation: vi.fn(),
     submitCriterionFeedback: vi.fn(),
   },
@@ -27,6 +31,7 @@ vi.mock('@equiped/api-client', async (importOriginal) => {
   return {
     ...actual,
     documentsApi: {
+      getDocument: vi.fn().mockResolvedValue({ documentId: 'doc-456', sourceType: 'slm', courseCode: 'CS101', program: 'BSCS', uploadedAt: '2026-08-20T10:00:00Z' }),
       getCurriculumSuggestion: vi.fn().mockResolvedValue({
         documentId: 'doc-456',
         detectedProgram: 'BSCS',
@@ -50,6 +55,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
       },
     });
     vi.clearAllMocks();
+    vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({ items: [], total: 0, page: 1, page_size: 5 });
   });
 
   afterEach(() => {
@@ -98,7 +104,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
       isError: false,
     } as ReturnType<typeof useEvaluationModule.useEvaluation>);
     renderScorecard();
-    expect(screen.getByRole('heading', { name: 'Evaluation Failed' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Evaluation could not be completed' })).toBeDefined();
     expect(screen.queryByRole('list', { name: 'Evaluation stages' })).toBeNull();
     expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
   });
@@ -191,7 +197,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
 
     expect(await screen.findByText('Results could not be loaded')).toBeDefined();
     expect(screen.getByRole('alert')).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Retry loading results' })).toBeDefined();
   });
 
   it('renders explicit ungrounded status for criteria marked as ungrounded', async () => {
@@ -598,9 +604,26 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     renderScorecard();
 
     await waitFor(() => {
-      expect(screen.getByText('Authoritative CID Human Override Applied')).toBeDefined();
-      expect(screen.getByText('Override Score: 4 / 4')).toBeDefined();
+      expect(screen.getAllByText('Reviewer correction')[0]).toBeDefined();
+      expect(screen.getByText('Override score: 4 / 4')).toBeDefined();
       expect(screen.getByText(/Approved upon manual verification/i)).toBeDefined();
     });
   });
+  it('identifies an earlier history run without fetching or substituting the newer result', async () => {
+    vi.spyOn(useEvaluationModule, 'useEvaluation').mockReturnValue({
+      data: { evaluation_id: 'eval-123', document_id: 'doc-456', target_agent: 'sme', status: 'COMPLETED', submitted_at: '2026-10-01T01:00:00Z' },
+      isLoading: false, isError: false,
+    } as ReturnType<typeof useEvaluationModule.useEvaluation>);
+    vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({ items: [{ evaluation_id: 'newer-run', document_id: 'doc-456', target_agent: 'sme', status: 'COMPLETED', submitted_at: '2026-10-02T01:00:00Z' }], total: 1, page: 1, page_size: 5 } as Awaited<ReturnType<typeof evaluationApi.listEvaluations>>);
+    vi.mocked(evaluationApi.getEvaluationResults).mockResolvedValue({
+      evaluation_id: 'eval-123', document_id: 'doc-456', document_title: 'Recorded result', synthesized_score: 75,
+      domain_scores: { sme: { subtotal: 3, max_score: 4, status: 'OK', criteria: [] } }, flags: [], active_agents: ['sme'], failed_agents: [], is_partial: false, evaluation_status: 'COMPLETED',
+    });
+    renderScorecard();
+    await screen.findByRole('heading', { name: 'Recorded result' });
+    expect(await screen.findByRole('link', { name: 'View latest run' })).toBeDefined();
+    expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith('eval-123');
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalledWith('newer-run');
+  });
+
 });

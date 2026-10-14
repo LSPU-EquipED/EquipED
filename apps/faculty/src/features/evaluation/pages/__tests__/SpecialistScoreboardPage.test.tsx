@@ -24,6 +24,7 @@ const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({}),
   useNavigate: () => mockNavigate,
+  useBlocker: () => ({ status: 'idle' }),
   Link: ({
     children,
     to,
@@ -59,6 +60,7 @@ vi.mock("../../api/evaluation.api", () => ({
   evaluationApi: {
     listEvaluations: vi.fn(),
     getEvaluationResults: vi.fn(),
+    getEvaluation: vi.fn(),
     getDeskQueue: vi.fn(),
     submitEvaluation: vi.fn(),
     submitCriterionFeedback: vi.fn(),
@@ -363,7 +365,7 @@ describe("SpecialistScoreboardPage", () => {
 
     expect(screen.getAllByText("3.80 / 4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Very Satisfactory").length).toBeGreaterThan(0);
-    expect(screen.getByText(/95% Compliance/i)).toBeDefined();
+    expect(screen.getByText(/95% of maximum score/i)).toBeDefined();
     const summaryDetails = screen
       .getByText("Specialist summary")
       .closest("details")!;
@@ -392,18 +394,18 @@ describe("SpecialistScoreboardPage", () => {
     ).toBeDefined();
     expect(screen.queryByText("Criterion 1")).toBeNull();
     expect(
-      screen.getAllByRole("heading", { name: mockDoc.lessonTitle! }).length,
+      screen.getAllByRole("heading", { name: "Data Structures SLM" }).length,
     ).toBe(1);
     const firstCriterion = screen.getByText("SME-01").closest("details")!;
     const secondCriterion = screen.getByText("SME-02").closest("details")!;
     expect(firstCriterion.open).toBe(false);
     expect(secondCriterion.open).toBe(false);
     expect(
-      screen.getByText("Reviewer correction").closest("summary"),
+      screen.getAllByText("Reviewer correction").find(el => el.closest("summary")),
     ).not.toBeNull();
     fireEvent.click(firstCriterion.querySelector("summary")!);
     expect(firstCriterion.open).toBe(true);
-    expect(screen.getAllByText("Score").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Generated score").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Specialist finding").length).toBeGreaterThan(0);
 
     // Criterion 1 row with SLM quoted evidence
@@ -422,12 +424,12 @@ describe("SpecialistScoreboardPage", () => {
     expect(screen.getByText("SME-02")).toBeDefined();
     expect(screen.getByText("Pedagogical Sequencing")).toBeDefined();
     fireEvent.click(secondCriterion.querySelector("summary")!);
-    expect(screen.getByText(/CID reviewer override/i)).toBeDefined();
+    expect(screen.getAllByText("Reviewer correction").length).toBeGreaterThan(0);
 
-    // Breadcrumb and SLM Storage links
-    expect(screen.getByText("Back to SME Desk")).toBeDefined();
-    expect(screen.getAllByText("View in SLM Storage").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SLM Storage").length).toBeGreaterThan(0);
+    // Breadcrumb and Module Library links
+    expect(screen.getByText("Back to SME workspace")).toBeDefined();
+    expect(screen.queryByText("View in Module Library")).toBeNull();
+    expect(screen.getAllByText("Module Library").length).toBeGreaterThan(0);
 
     // Criteria triage filters
     expect(screen.getByRole("button", { name: /All \(2\)/i })).toBeDefined();
@@ -486,9 +488,9 @@ describe("SpecialistScoreboardPage", () => {
     renderPage({ agentId: "sme", documentId: "doc-slm-001" });
 
     expect(
-      await screen.findByText("Specialist results could not be loaded"),
+      await screen.findByText("Results could not be loaded"),
     ).toBeDefined();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Retry loading results" })).toBeDefined();
   });
 
   it("keeps unevaluated launchpad when a completed evaluation exists for a different desk (multi-permission account)", async () => {
@@ -675,7 +677,7 @@ describe("SpecialistScoreboardPage", () => {
     });
     if (terminalStatus === "FAILED") {
       await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("The review could not finish."));
-      expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "Retry evaluation" })).toBeDefined();
       expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
       expect(screen.queryByRole("list", { name: "Evaluation stages" })).toBeNull();
 
@@ -687,7 +689,7 @@ describe("SpecialistScoreboardPage", () => {
         syllabus_id: null, curriculum_id: null,
         duration_seconds: null,
       });
-      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+      fireEvent.click(screen.getByRole("button", { name: "Retry evaluation" }));
       fireEvent.click(screen.getByRole("button", { name: "Run SME Evaluation" }));
       await waitFor(() => expect(screen.getByRole("heading", { name: "Checking evaluation status" })).toBeDefined());
       expect(screen.queryByRole("alert")).toBeNull();
@@ -923,4 +925,23 @@ describe("SpecialistScoreboardPage", () => {
       });
     });
   });
+  it('keeps the opened run pinned when a newer evaluation appears, until explicitly selected', async () => {
+    const original = { evaluation_id: 'opened-run', document_id: 'doc-slm-001', target_agent: 'sme', status: 'COMPLETED', submitted_at: '2026-10-01T01:00:00Z' } as EvaluationListItem;
+    const next = { ...original, evaluation_id: 'newer-run', submitted_at: '2026-10-02T01:00:00Z' };
+    vi.mocked(evaluationApi.listEvaluations).mockResolvedValue({ items: [original], total: 1, page: 1, page_size: 5 });
+    vi.mocked(evaluationApi.getEvaluationResults).mockImplementation(async id => ({
+      evaluation_id: id, document_id: 'doc-slm-001', document_title: id === 'opened-run' ? 'Opened SLM result' : 'Newer SLM result',
+      synthesized_score: 75, domain_scores: { sme: { subtotal: 3, max_score: 4, status: 'OK', criteria: [] } }, flags: [], active_agents: ['sme'], failed_agents: [], is_partial: false, evaluation_status: 'COMPLETED',
+    }));
+    const { queryClient } = renderPage({ agentId: 'sme', documentId: 'doc-slm-001' });
+    await screen.findByRole('heading', { name: 'Opened SLM result' });
+    act(() => queryClient.setQueryData(['specialist-evaluations', 'doc-slm-001', 'sme'], { items: [next, original], total: 2, page: 1, page_size: 5 }));
+    await screen.findByRole('button', { name: 'View latest run' });
+    expect(screen.getByRole('heading', { name: 'Opened SLM result' })).toBeDefined();
+    expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalledWith('newer-run');
+    fireEvent.click(screen.getByRole('button', { name: 'View latest run' }));
+    await screen.findByRole('heading', { name: 'Newer SLM result' });
+    expect(evaluationApi.getEvaluationResults).toHaveBeenCalledWith('newer-run');
+  });
+
 });
