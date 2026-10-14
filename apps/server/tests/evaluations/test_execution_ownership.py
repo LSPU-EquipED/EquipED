@@ -17,16 +17,16 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from equiped_harness.result_contracts import AgentEvaluationResult, CriterionScore
 from server.core.database import Base
 from server.db.metadata import import_model_modules
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-from server.modules.agents.supervision.result import SupervisorResult
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.exceptions import (
     EvaluationExecutionOwnershipError,
     EvaluationPipelineFailure,
 )
+from server.modules.evaluations.harness.result import SupervisorResult
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.orchestrator import (
     _execute_claimed_evaluation,

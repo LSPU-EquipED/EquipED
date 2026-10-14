@@ -72,7 +72,7 @@ def test_app_registers_syllabus_alignment_routes() -> None:
 def test_new_module_has_independent_import_boundary() -> None:
     root = Path(__file__).resolve().parents[3]
     package = root / "server" / "modules" / "syllabus_alignment"
-    forbidden = {"server.modules.evaluations", "server.modules.agents"}
+    forbidden = {"server.modules.evaluations", "server.modules.evaluations.harness"}
     for source_path in package.glob("*.py"):
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
         for node in ast.walk(tree):
@@ -102,7 +102,7 @@ for name in (
     'server.modules.evaluations.alignment_router',
     'server.modules.evaluations.alignment_service',
     'server.modules.evaluations.alignment_schemas',
-    'server.modules.agents.syllabus_alignment',
+    'server.modules.evaluations.harness.syllabus_alignment',
 ):
     try:
         importlib.import_module(name)

@@ -5,24 +5,24 @@ from dataclasses import replace
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.contracts import (
-    CoordinatorAlignmentAdvisory,
-    parse_advisory_output,
+from equiped_harness.contracts import (
+    LlmRubricGuidanceConfig,
+    ObjectiveGaugingConfig,
 )
-from server.modules.agents.coordinator.agent import Coordinator
-from server.modules.agents.coordinator.objective_gauging import (
+from equiped_harness.coordinator.agent import Coordinator
+from equiped_harness.coordinator.objective_gauging import (
     coverage_score,
     inventory_source,
     validate_matches,
 )
-from server.modules.agents.coordinator.packing import pack_domains
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.rubrics.contracts import (
-    LlmRubricGuidanceConfig,
-    ObjectiveGaugingConfig,
+from equiped_harness.coordinator.packing import pack_domains
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.manifests import get_agent_manifest, validate_form
+from equiped_harness.result_contracts import (
+    CoordinatorAlignmentAdvisory,
+    parse_advisory_output,
 )
-from server.modules.rubrics.manifests import get_agent_manifest, validate_form
-from server.modules.rubrics.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.result_integrity import build_persistable_agent_result
 from server.tests.agents.helpers import SequencedFakeClient, make_coordinator_snapshot
@@ -164,7 +164,7 @@ def test_inventory_accepts_uppercase_entries_and_preserves_trimmed_spans():
 
 
 def test_inventory_overflow_and_truncation_fail():
-    from server.modules.agents.runtime.slicing import GAP_MARKER
+    from equiped_harness.runtime.slicing import GAP_MARKER
 
     for source in (SOURCE + "x" * 200000, SOURCE + GAP_MARKER):
         with pytest.raises(AgentExecutionError):
@@ -248,8 +248,10 @@ def test_v3_official_mean_is_ten_rows_and_advisory_is_independent():
 
 
 def test_full_reference_overflow_fails_before_llm_call():
-    from server.modules.agents.coordinator.execution import execute_objective_envelope
-    from server.modules.agents.runtime.llm import RunLLMClient
+    from equiped_harness.coordinator.execution import (
+        execute_objective_envelope,
+    )
+    from equiped_harness.runtime.llm import RunLLMClient
 
     fake = SequencedFakeClient([])
     with pytest.raises(AgentExecutionError, match="full-source prompt budget"):

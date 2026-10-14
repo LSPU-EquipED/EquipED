@@ -8,14 +8,14 @@ from dataclasses import FrozenInstanceError
 from types import MappingProxyType
 
 import pytest
-from server.modules.agents.contracts import AgentEvaluationResult
-from server.modules.agents.itso.evidence import ITSOEvidenceSnapshot
-from server.modules.agents.supervision import dispatch
-from server.modules.agents.supervision.context import (
+from equiped_harness.result_contracts import AgentEvaluationResult
+from server.modules.evaluations.harness import dispatch
+from server.modules.evaluations.harness.context import (
     PreparedEvaluationContext,
     PromptSnapshot,
 )
-from server.modules.agents.supervision.supervisor import Supervisor
+from server.modules.evaluations.harness.evidence import ITSOEvidenceSnapshot
+from server.modules.evaluations.harness.supervisor import Supervisor
 from server.tests.agents.helpers import _make_dummy_snapshot
 
 
@@ -131,12 +131,12 @@ def test_supervisor_builds_itso_evidence_once_only_when_included(
         authoritative_curriculum_text=None,
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.supervisor.EvaluationContextBuilder.build",
+        "server.modules.evaluations.harness.supervisor.EvaluationContextBuilder.build",
         lambda *a, **k: prepared,
     )
     builder = type("Builder", (), {"build": lambda self, _: _frozen_snapshot()})()
     monkeypatch.setattr(
-        "server.modules.agents.supervision.supervisor.ITSOEvidenceBuilder",
+        "server.modules.evaluations.harness.supervisor.ITSOEvidenceBuilder",
         lambda db: builder,
     )
     calls = {"count": 0}

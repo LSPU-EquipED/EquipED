@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 import pytest
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     DomainDefinition,
@@ -15,7 +15,7 @@ from server.modules.rubrics.contracts import (
     LlmScoreDescriptor,
     RatioBandConfig,
 )
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )

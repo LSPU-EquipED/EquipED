@@ -9,8 +9,7 @@ import uuid
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     CurriculumAlignmentConfig,
@@ -19,9 +18,8 @@ from server.modules.rubrics.contracts import (
     LlmRubricGuidanceConfig,
     RatioBandConfig,
 )
-from server.modules.rubrics.manifests import get_agent_manifest
-from server.modules.rubrics.repository import validate_form_definition
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.manifests import get_agent_manifest
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotPayload,
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
@@ -29,6 +27,8 @@ from server.modules.rubrics.snapshot_contracts import (
     serialize_snapshot_payload,
     verify_evaluation_form_snapshot,
 )
+from pydantic import ValidationError
+from server.modules.rubrics.repository import validate_form_definition
 from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 
 
@@ -815,7 +815,7 @@ def test_verifier_does_not_swallow_programming_defects(monkeypatch):
         raise RuntimeError("Unexpected internal crash / defect")
 
     monkeypatch.setattr(
-        "server.modules.rubrics.snapshot_contracts.validate_form",
+        "equiped_harness.snapshot_contracts.validate_form",
         _buggy_validate,
     )
 

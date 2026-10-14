@@ -17,21 +17,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from server.core.database import get_session_factory
-from server.modules.agents.coordinator.scoring_rules import COORDINATOR_SCORING_RULES
-from server.modules.rubrics.contracts import (
+from equiped_harness import COORDINATOR_SCORING_RULES
+from equiped_harness.contracts import (
     CriterionDefinition,
     DomainDefinition,
     FormDefinition,
     canonicalize_form,
 )
-from server.modules.rubrics.manifests import (
+from equiped_harness.manifests import (
     COORDINATOR_MANIFEST_V1,
     GAD_MANIFEST_V1,
     ITSO_MANIFEST_V1,
     SME_MANIFEST_V1,
     AgentCapabilityManifest,
 )
+
+from server.core.database import get_session_factory
 from server.modules.rubrics.models import (
     RubricAgentActivation,
     RubricCriterion,
@@ -704,8 +705,7 @@ _COORDINATOR_V3_DOMAINS: list[dict[str, Any]] = [
                 "criterion_code": "OP-04",
                 "title": "Accurate Sections",
                 "description": (
-                    "Paragraphs and sections have clear and accurate "
-                    "information."
+                    "Paragraphs and sections have clear and accurate information."
                 ),
                 "display_order": 4,
             },
@@ -831,8 +831,7 @@ def build_coordinator_v3_rubric_set(
             strat, cfg = _resolve_criterion_strategy("coordinator", code, desc, {})
             if strat is None or cfg is None:
                 raise ValueError(
-                    f"Coordinator criterion {code} could not resolve a "
-                    "scoring strategy"
+                    f"Coordinator criterion {code} could not resolve a scoring strategy"
                 )
             session.add(
                 RubricCriterion(

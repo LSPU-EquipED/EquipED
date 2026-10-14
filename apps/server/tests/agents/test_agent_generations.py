@@ -6,14 +6,14 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from equiped_harness.coordinator.agent import Coordinator
+from equiped_harness.gad.agent import GAD
+from equiped_harness.itso import execution as itso_execution
+from equiped_harness.runtime.context import ITSOExecutionContext
+from equiped_harness.runtime.llm import RunLLMClient
+from equiped_harness.sme.agent import SME
+from equiped_harness.sme.packing import pack_domains
 from server.core.llm import get_llm_model_name
-from server.modules.agents.coordinator.agent import Coordinator
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.itso import execution as itso_execution
-from server.modules.agents.runtime.context import ITSOExecutionContext
-from server.modules.agents.runtime.llm import RunLLMClient
-from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.packing import pack_domains
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
@@ -191,8 +191,8 @@ def test_gad_emits_generations():
     assert g.response_text == json.dumps(response_payload, ensure_ascii=False)
 
 
-def test_itso_emits_generations(monkeypatch):
-    monkeypatch.setattr(itso_execution, "get_settings", lambda: _settings())
+def test_itso_emits_generations(harness_config):
+    harness_config(_settings())
     client = _LLM([_response("ok")])
     eval_id = uuid4()
     snapshot = make_itso_test_snapshot(evaluation_id=eval_id)
@@ -295,9 +295,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
         json.dumps(
             {
                 "summary": f"Env {idx} summary",
-                "criterion_measurements": [
-                    _sme_criterion_payload(c) for c in env
-                ],
+                "criterion_measurements": [_sme_criterion_payload(c) for c in env],
             }
         )
         for idx, env in enumerate(envelopes)
@@ -315,9 +313,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
     # 2. Coordinator
     coord_snap = snapshots["coordinator"]
     titles = {
-        c.criterion_code: c.title
-        for d in coord_snap.form.domains
-        for c in d.criteria
+        c.criterion_code: c.title for d in coord_snap.form.domains for c in d.criteria
     }
     raw_responses = [
         _envelope_response(TEN[:5], titles),
@@ -378,9 +374,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
     itso_ctx = ITSOExecutionContext(
         evaluation_id=job.evaluation_id,
         document_id=document_id,
-        chunk_infos=(
-            {"chunk_id": chunk_id_str, "page_number": 1, "text": "security"},
-        ),
+        chunk_infos=({"chunk_id": chunk_id_str, "page_number": 1, "text": "security"},),
         form_snapshot=snapshots["itso"],
         llm_client=itso_client,
     )

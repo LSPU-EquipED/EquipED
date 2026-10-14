@@ -20,25 +20,25 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.gad.envelope import (
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.gad.agent import GAD
+from equiped_harness.gad.envelope import (
     EXTRACTION_SCHEMA_VERSION,
     parse_combined_response,
 )
-from server.modules.agents.gad.grounding import (
+from equiped_harness.gad.grounding import (
     MAX_INSTANCES_PER_CRITERION,
     ground_instances,
 )
-from server.modules.agents.gad.prompt import (
+from equiped_harness.gad.prompt import (
     build_combined_prompt,
     build_combined_repair_prompt,
 )
-from server.modules.agents.gad.registry import (
+from equiped_harness.gad.registry import (
     REGISTRY_VERSION,
     score_from_combined,
 )
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.tests.agents.gad.conftest import make_gad_snapshot
 from server.tests.agents.gad.gad_comparison_harness import (
     GADComparisonHarness,
@@ -834,7 +834,7 @@ _REPAIR_CONTEXT = "Extract facts from the provided chunks. Return a JSON object.
 
 
 def _base_prompt():
-    from server.modules.agents.runtime.prompts import AgentPrompt
+    from equiped_harness.runtime.prompts import AgentPrompt
 
     return AgentPrompt(
         system_instruction=_REPAIR_CONTEXT,

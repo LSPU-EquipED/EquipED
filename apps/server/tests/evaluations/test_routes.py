@@ -70,11 +70,11 @@ def test_no_api_path_can_fake_completed(
 def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     client: TestClient, db_session, monkeypatch
 ) -> None:
+    from equiped_harness.result_contracts import AgentEvaluationResult, CriterionScore
     from server.core import database as core_database
-    from server.modules.agents.contracts import AgentEvaluationResult, CriterionScore
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations import router as evaluations_router
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     faculty = create_user(

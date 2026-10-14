@@ -34,12 +34,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from equiped_harness.contracts import LlmRubricGuidanceConfig, LlmScoreDescriptor
+
 # Force registration of models referenced by rubric FKs before any
 # query/flush touches them (same reason _qualitative_rewrites.py does this).
 import server.modules.auth.models  # noqa: F401
 from server.core.database import get_session_factory
 from server.modules.rubrics.authoring import update_criterion
-from server.modules.rubrics.contracts import LlmRubricGuidanceConfig, LlmScoreDescriptor
 from server.modules.rubrics.models import RubricCriterion, RubricDomain
 from server.modules.rubrics.repository import (
     create_draft_from_active,

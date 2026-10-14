@@ -2,14 +2,13 @@
 
 from uuid import uuid4
 
-from server.core.llm import CompletionResult
-from server.modules.agents.itso import execution
-from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.itso.agent import ITSO
+from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.transport import CompletionResult
 from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 
-def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
+def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_config):
     class Client:
         model = "primary"
 
@@ -25,10 +24,8 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
                 next(self.responses), "primary", 2, 3, 5, "stop", attempts=1
             )
 
-    monkeypatch.setattr(
-        execution,
-        "get_settings",
-        lambda: type(
+    harness_config(
+        type(
             "S",
             (),
             {
@@ -40,7 +37,7 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch):
                 "llm_max_new_tokens": 2048,
                 "get_agent_temperature": lambda s, n: 0.0,
             },
-        )(),
+        )()
     )
     client = Client()
     eval_id = uuid4()

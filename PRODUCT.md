@@ -9,7 +9,7 @@ product
 * **CID (Curriculum Instruction Development) Staff & Admin**: Institutional Quality Assurance reviewers who manage system-wide prompts, monitor evaluations across academic programs (BSIT, BSCS, BSIS), validate agent scorecards, and provide authoritative human decisions.
 
 ## Product Purpose
-To automate the initial quality-assurance review layer of Self-Paced Learning Modules (SLMs) against institutional rubrics across four independent domains (SME content accuracy, Coordinator curriculum alignment, GAD gender sensitivity, and ITSO IP compliance). The system serves as an advisory co-pilot that aggregates evaluation scores and compliance flags under the authoritative review of human CID experts.
+To automate the initial quality-assurance review layer of Self-Paced Learning Modules (SLMs) against institutional rubrics across four independent domains (SME content accuracy, Coordinator objective gauging (A-05) and supplemental curriculum alignment (C-01), GAD gender sensitivity, and ITSO IP compliance). The system serves as an advisory co-pilot that aggregates evaluation scores and compliance flags under the authoritative review of human CID experts.
 
 ## Brand Personality
 * **Institutional**: Academic, formal, professional, and highly structured, reflecting official Laguna State Polytechnic University guidelines.

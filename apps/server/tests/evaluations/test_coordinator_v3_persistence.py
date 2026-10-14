@@ -1,8 +1,8 @@
 """Versioned Coordinator advisory survives storage, replay and result presentation."""
 
 import pytest
+from equiped_harness.snapshot_contracts import verify_evaluation_form_snapshot
 from server.modules.rubrics.models import EvaluationFormSnapshot
-from server.modules.rubrics.snapshot_contracts import verify_evaluation_form_snapshot
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.matrix import (
     compute_synthesized_score,

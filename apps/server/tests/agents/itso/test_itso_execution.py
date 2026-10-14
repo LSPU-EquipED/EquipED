@@ -6,23 +6,23 @@ import json
 from uuid import uuid4
 
 import pytest
-from server.core.llm import CompletionResult
-from server.modules.agents.contracts import (
-    AdvisoryOutput,
-    AgentEvaluationResult,
-    UngroundedCriterionAdvisory,
-)
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.itso import execution
-from server.modules.agents.itso.response import (
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.itso import execution
+from equiped_harness.itso.response import (
     ITSO_CRITERIA,
     ITSO_CRITERIA_TITLES,
     collect_advisory_outputs,
     criterion_scores,
     parse_response,
 )
-from server.modules.agents.runtime.context import ITSOExecutionContext
-from server.modules.agents.supervision.dispatch import AgentDispatcher
+from equiped_harness.result_contracts import (
+    AdvisoryOutput,
+    AgentEvaluationResult,
+    UngroundedCriterionAdvisory,
+)
+from equiped_harness.runtime.context import ITSOExecutionContext
+from equiped_harness.transport import CompletionResult
+from server.modules.evaluations.harness.dispatch import AgentDispatcher
 from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 
@@ -59,8 +59,8 @@ def _context(client, form_snapshot=None, evaluation_id=None, **kwargs):
     )
 
 
-def test_itso_executes_and_preserves_provenance(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_itso_executes_and_preserves_provenance(monkeypatch, harness_config):
+    harness_config(_settings())
     result = execution.execute(
         _context(
             _LLM([_response("ok")]),
@@ -74,8 +74,8 @@ def test_itso_executes_and_preserves_provenance(monkeypatch):
     assert result.provenance["actual_model"] == "primary"
 
 
-def test_itso_executes_and_snapshots_prompt_text(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_itso_executes_and_snapshots_prompt_text(monkeypatch, harness_config):
+    harness_config(_settings())
     client = _LLM([_response("ok")])
     result = execution.execute(_context(client))
     assert result.prompt_text is None
@@ -393,14 +393,16 @@ class _DowngradeLLM:
         )
 
 
-def test_execution_propagates_response_format_downgraded(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_execution_propagates_response_format_downgraded(monkeypatch, harness_config):
+    harness_config(_settings())
     result = execution.execute(_context(_DowngradeLLM([_response("ok")])))
     assert result.provenance["response_format_downgraded"] is True
 
 
-def test_execution_succeeds_on_attempt_0_for_shorthand_dict(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_execution_succeeds_on_attempt_0_for_shorthand_dict(
+    monkeypatch, harness_config
+):
+    harness_config(_settings())
     dict_response = json.dumps(
         {
             "summary": "shorthand response",
@@ -424,8 +426,8 @@ def test_execution_succeeds_on_attempt_0_for_shorthand_dict(monkeypatch):
     assert len(result.criterion_scores) == 5
 
 
-def test_repair_records_actual_model_without_fallback(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_repair_records_actual_model_without_fallback(monkeypatch, harness_config):
+    harness_config(_settings())
     client = _LLM(["{broken", _response("repaired")])
     result = execution.execute(_context(client))
     assert result.model_name == "primary"
@@ -434,8 +436,8 @@ def test_repair_records_actual_model_without_fallback(monkeypatch):
     assert len(client.prompts) == 2
 
 
-def test_semantic_failure_repairs_once(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_semantic_failure_repairs_once(monkeypatch, harness_config):
+    harness_config(_settings())
     client = _LLM(
         [
             json.dumps(
@@ -451,8 +453,10 @@ def test_semantic_failure_repairs_once(monkeypatch):
     assert len(client.prompts) == 2
 
 
-def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(
+    monkeypatch, harness_config
+):
+    harness_config(_settings())
     client = _LLM(["{bad", "secret raw"])
     with pytest.raises(AgentExecutionError) as exc:
         execution.execute(_context(client))
@@ -479,8 +483,8 @@ def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(monkeypatch)
     assert "secret" not in (failure.error_message or "")
 
 
-def test_repair_prompt_caps_partial_output_at_4000(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_repair_prompt_caps_partial_output_at_4000(monkeypatch, harness_config):
+    harness_config(_settings())
     client = _LLM(["x" * 4001, "still invalid"])
     with pytest.raises(AgentExecutionError):
         execution.execute(_context(client))
@@ -673,7 +677,7 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
 def test_itso_gate_accepts_any_registered_adapter_version(monkeypatch):
     from types import MappingProxyType
 
-    from server.modules.rubrics import manifests
+    from equiped_harness import manifests
 
     v2 = manifests.ITSO_MANIFEST_V1.model_copy(update={"adapter_version": 2})
     monkeypatch.setattr(
@@ -711,8 +715,8 @@ def test_itso_gate_rejects_unregistered_adapter_version():
         execution._extract_and_validate_snapshot(context)
 
 
-def test_itso_novel_subset_reorder_and_title_edits(monkeypatch):
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+def test_itso_novel_subset_reorder_and_title_edits(monkeypatch, harness_config):
+    harness_config(_settings())
     eval_id = uuid4()
 
     # Novel criteria, reordered, custom titles
@@ -765,9 +769,9 @@ def test_itso_novel_subset_reorder_and_title_edits(monkeypatch):
     assert "ITSO-CUSTOM-01 = Custom Title One" in client.prompts[0]
 
 
-def test_itso_no_worker_db_or_chroma_fallback(monkeypatch):
+def test_itso_no_worker_db_or_chroma_fallback(monkeypatch, harness_config):
     """Ensure worker execution does not call rubric DB or Chroma retrieval fallback."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     eval_id = uuid4()
     client = _LLM([_response("ok")])
 
@@ -855,23 +859,25 @@ def test_evidence_rejects_whitespace_only_or_untrimmed():
         parse_response(_response(chunk_ids=["  c1  "]))
 
 
-def test_agent_llm_error_non_truncation_raises_without_repair(monkeypatch):
+def test_agent_llm_error_non_truncation_raises_without_repair(
+    monkeypatch, harness_config
+):
     """Only AgentLLMError truncation triggers repair; other errors raise."""
-    from server.modules.agents.exceptions import AgentLLMError
+    from equiped_harness.exceptions import AgentLLMError
 
     class _ErrorLLM:
         def generate_result(self, *args, **kwargs):
             raise AgentLLMError("API connection failed")
 
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     context = _context(_ErrorLLM())
     with pytest.raises(AgentLLMError, match="API connection failed"):
         execution.execute(context)
 
 
-def test_duplicate_chunk_ids_fail_before_llm(monkeypatch):
+def test_duplicate_chunk_ids_fail_before_llm(monkeypatch, harness_config):
     """Duplicate chunk IDs in chunk_infos must be rejected before packing."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     client = _LLM([_response("ok")])
     eval_id = uuid4()
     context = ITSOExecutionContext(
@@ -889,13 +895,13 @@ def test_duplicate_chunk_ids_fail_before_llm(monkeypatch):
     assert len(client.prompts) == 0
 
 
-def test_omitted_chunk_citation_fails(monkeypatch):
+def test_omitted_chunk_citation_fails(monkeypatch, harness_config):
     """Citing a chunk that was omitted during packing must fail."""
     settings_obj = _settings()
     settings_obj.agent_max_chunks = 2
     settings_obj.agent_small_doc_threshold = 1
 
-    monkeypatch.setattr(execution, "get_settings", lambda: settings_obj)
+    harness_config(settings_obj)
     eval_id = uuid4()
     # c3 will be dropped because max_chunks=2 and c1/c2 match domain keywords
     chunk_infos = (
@@ -932,9 +938,9 @@ def test_omitted_chunk_citation_fails(monkeypatch):
         execution.execute(context)
 
 
-def test_foreign_chunk_id_fails(monkeypatch):
+def test_foreign_chunk_id_fails(monkeypatch, harness_config):
     """Citing a foreign chunk ID unknown to the packed prompt must fail."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     resp = json.dumps(
         {
             "summary": "evaluation",
@@ -957,9 +963,11 @@ def test_foreign_chunk_id_fails(monkeypatch):
         execution.execute(context)
 
 
-def test_arbitrary_evidence_not_contained_in_cited_packed_chunk_fails(monkeypatch):
+def test_arbitrary_evidence_not_contained_in_cited_packed_chunk_fails(
+    monkeypatch, harness_config
+):
     """Evidence excerpt not in cited packed chunk must fail."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     resp = json.dumps(
         {
             "summary": "evaluation",
@@ -982,9 +990,9 @@ def test_arbitrary_evidence_not_contained_in_cited_packed_chunk_fails(monkeypatc
         execution.execute(context)
 
 
-def test_valid_exact_quote_passes(monkeypatch):
+def test_valid_exact_quote_passes(monkeypatch, harness_config):
     """Exact substring quote from cited packed chunk must succeed."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     exact_quote = "security credentials must be encrypted"
     eval_id = uuid4()
     context = ITSOExecutionContext(
@@ -1069,9 +1077,11 @@ def test_evidence_without_cited_chunk_fails():
         )
 
 
-def test_advisory_output_remains_correct_for_ungrounded_and_grounded_mix(monkeypatch):
+def test_advisory_output_remains_correct_for_ungrounded_and_grounded_mix(
+    monkeypatch, harness_config
+):
     """ITSO advisory output correctly records only ungrounded criteria."""
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     resp = json.dumps(
         {
             "summary": "mixed evaluation",
@@ -1130,12 +1140,14 @@ def test_advisory_output_remains_correct_for_ungrounded_and_grounded_mix(monkeyp
     assert ungrounded_ids == {"ITSO-03", "ITSO-04", "ITSO-05"}
 
 
-def test_itso_prompt_and_raw_response_are_none_and_persistence_invariant(monkeypatch):
+def test_itso_prompt_and_raw_response_are_none_and_persistence_invariant(
+    monkeypatch, harness_config
+):
     """ITSO live result must emit None prompt/raw response and builder enforces it."""
     from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
     from server.modules.synthesis.result_integrity import build_persistable_agent_result
 
-    monkeypatch.setattr(execution, "get_settings", lambda: _settings())
+    harness_config(_settings())
     client = _LLM([_response("ok")])
     eval_id = uuid4()
     snapshot = make_itso_test_snapshot(evaluation_id=eval_id)

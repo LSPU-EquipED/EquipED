@@ -7,23 +7,7 @@ import uuid
 from typing import Any
 
 import pytest
-from server.core.llm import CompletionResult
-from server.modules.agents.exceptions import AgentExecutionError, AgentLLMError
-from server.modules.agents.runtime.prompts import AgentPrompt
-from server.modules.agents.sme.agent import SME
-from server.modules.agents.sme.packing import pack_domains
-from server.modules.agents.sme.prompt import (
-    REPAIR_SUFFIX,
-    build_envelope_prompt_and_source,
-)
-from server.modules.agents.sme.response import (
-    build_envelope_schema,
-    parse_and_validate_envelope_response,
-)
-from server.modules.agents.sme.scoring import (
-    score_criterion_measurement,
-)
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     DomainDefinition,
@@ -33,10 +17,26 @@ from server.modules.rubrics.contracts import (
     RatioBandConfig,
     ShortSampleConfig,
 )
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.exceptions import AgentExecutionError, AgentLLMError
+from equiped_harness.runtime.prompts import (
+    AgentPrompt,
+    build_diagnostic_repair_prompt,
+)
+from equiped_harness.sme.agent import SME
+from equiped_harness.sme.packing import pack_domains
+from equiped_harness.sme.prompt import build_envelope_prompt_and_source
+from equiped_harness.sme.response import (
+    build_envelope_schema,
+    parse_and_validate_envelope_response,
+)
+from equiped_harness.sme.scoring import (
+    score_criterion_measurement,
+)
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )
+from equiped_harness.transport import CompletionResult
 
 
 def _make_criterion(
@@ -882,7 +882,18 @@ def test_prompt_budgeting_and_source_downsampling_true_tail() -> None:
         canonical_source_text=long_text,
         prompt_budget=15000,
     )
-    assert len(prompt) + len(REPAIR_SUFFIX) <= 15000
+    repair_prompt = build_diagnostic_repair_prompt(
+        prompt,
+        AgentExecutionError(
+            "criterion_measurements[0].instances[0].excerpt must be an exact "
+            "verbatim substring of the source text"
+        ),
+        total_budget=15000,
+    )
+    assert len(repair_prompt) <= 15000
+    assert repair_prompt.system_instruction == prompt.system_instruction
+    assert repair_prompt.user_context.startswith(prompt.user_context)
+    assert source_packet in repair_prompt.user_context
     assert "TRUE TAIL END." in source_packet
     assert "HEAD START" in source_packet
     assert "\n\n[...]\n\n" in source_packet
@@ -917,8 +928,8 @@ def test_envelope_prompt_is_role_separated() -> None:
 def test_sme_gate_accepts_any_registered_adapter_version(monkeypatch) -> None:
     from types import MappingProxyType
 
-    from server.modules.agents.sme.pipeline import validate_sme_snapshot
-    from server.modules.rubrics import manifests
+    from equiped_harness import manifests
+    from equiped_harness.sme.pipeline import validate_sme_snapshot
 
     v2 = manifests.SME_MANIFEST_V1.model_copy(update={"adapter_version": 2})
     monkeypatch.setattr(
@@ -936,7 +947,7 @@ def test_sme_gate_accepts_any_registered_adapter_version(monkeypatch) -> None:
 
 
 def test_sme_gate_rejects_unregistered_adapter_version() -> None:
-    from server.modules.agents.sme.pipeline import validate_sme_snapshot
+    from equiped_harness.sme.pipeline import validate_sme_snapshot
 
     eval_id = uuid.uuid4()
     form = _full_rev1_form().model_copy(update={"adapter_version": 99})

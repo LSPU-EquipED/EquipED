@@ -5,9 +5,9 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
+from equiped_harness.result_contracts import AgentEvaluationResult
 from server.core.database import Base
 from server.db.metadata import import_model_modules
-from server.modules.agents.contracts import AgentEvaluationResult
 from server.modules.auth.models import User, UserRole
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.exceptions import EvaluationExecutionOwnershipError

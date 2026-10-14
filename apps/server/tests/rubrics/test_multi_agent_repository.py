@@ -6,12 +6,12 @@ import uuid
 from unittest.mock import MagicMock, patch
 
 import pytest
+from equiped_harness.contracts import FormDefinition
+from equiped_harness.snapshot_contracts import SnapshotIntegrityError
 from server.modules.rubrics import (
     EvaluationFormSnapshot,
-    FormDefinition,
     RubricAgentActivation,
     RubricSet,
-    SnapshotIntegrityError,
     lock_and_load_requested_active_forms,
     persist_evaluation_form_snapshots,
 )

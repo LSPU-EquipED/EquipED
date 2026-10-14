@@ -5,14 +5,14 @@ from __future__ import annotations
 import json
 import uuid
 
-from server.core.llm import CompletionResult, ResponseContract
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.gad.prompt import (
-    build_combined_prompt,
-)
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CriterionDefinition,
 )
+from equiped_harness.gad.agent import GAD
+from equiped_harness.gad.prompt import (
+    build_combined_prompt,
+)
+from equiped_harness.transport import CompletionResult, ResponseContract
 from server.tests.agents.gad.conftest import (
     REVISION_1_GAD_CRITERIA,
     REVISION_1_GAD_RULES,
@@ -262,7 +262,7 @@ def test_criterion_agnostic_gad_prompt_with_novel_codes():
     """Criterion-agnostic GAD prompt formats arbitrary criteria without legacy codes."""
     import importlib
 
-    from server.modules.rubrics.contracts import CountBandConfig
+    from equiped_harness.contracts import CountBandConfig
 
     mig = importlib.import_module(
         "server.alembic.versions.20260829_0005_criterion_agnostic_agent_prompts"

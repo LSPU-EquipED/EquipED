@@ -6,8 +6,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
-from server.modules.agents.supervision.supervisor import Supervisor
 from server.modules.documents.models import DocumentChunk
+from server.modules.evaluations.harness.supervisor import Supervisor
 from server.tests.agents.helpers import (
     _BatchAgent,
     _FailingAgent,
@@ -34,11 +34,11 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
         ),
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.resolve_document_pdf_path",
+        "server.modules.evaluations.harness.context.resolve_document_pdf_path",
         lambda _path: Path("/owned/uploads/source.pdf"),
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.prepare_canonical_source",
+        "server.modules.evaluations.harness.context.prepare_canonical_source",
         lambda path: (assert_path(path), "canonical source")[1],
     )
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
@@ -84,7 +84,7 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     ]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_prompt",
+        "server.modules.evaluations.harness.context.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
 
@@ -116,11 +116,11 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
         ),
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.resolve_document_pdf_path",
+        "server.modules.evaluations.harness.context.resolve_document_pdf_path",
         lambda _path: Path("/owned/uploads/source.pdf"),
     )
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.prepare_canonical_source",
+        "server.modules.evaluations.harness.context.prepare_canonical_source",
         lambda path: (assert_path(path), "canonical source")[1],
     )
     failing_agent = _FailingAgent()
@@ -133,7 +133,7 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     }
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.get_active_prompt",
+        "server.modules.evaluations.harness.context.get_active_prompt",
         lambda agent_id, db: prompt_rows[agent_id],
     )
 
@@ -188,8 +188,8 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
 
 def test_precomputed_context_references() -> None:
     """ITSO execution _references extracts syllabus/curriculum context."""
-    from server.modules.agents.itso import execution
-    from server.modules.agents.runtime.context import ITSOExecutionContext
+    from equiped_harness.itso import execution
+    from equiped_harness.runtime.context import ITSOExecutionContext
 
     precomputed = {
         "syllabus": ["syllabus-context-1", "syllabus-context-2"],
@@ -213,8 +213,8 @@ def test_precomputed_context_references() -> None:
 
 def test_precomputed_context_references_empty_when_missing() -> None:
     """ITSO execution _references returns empty list when no syllabus or curriculum."""
-    from server.modules.agents.itso import execution
-    from server.modules.agents.runtime.context import ITSOExecutionContext
+    from equiped_harness.itso import execution
+    from equiped_harness.runtime.context import ITSOExecutionContext
 
     context = ITSOExecutionContext(
         evaluation_id=uuid4(),
@@ -230,10 +230,10 @@ def test_prepared_context_loads_authoritative_curriculum_text(
     db_session, monkeypatch
 ) -> None:
     """Full evaluation context builder loads curriculum chunk text in canonical order."""  # noqa: E501
-    from server.modules.agents.supervision.context import EvaluationContextBuilder
     from server.modules.auth.models import UserRole
     from server.modules.auth.service import create_user
     from server.modules.documents.models import Document
+    from server.modules.evaluations.harness.context import EvaluationContextBuilder
 
     monkeypatch.setattr(
         "server.modules.documents.curriculum_readiness.check_chroma_availability",
@@ -297,11 +297,11 @@ def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
 ) -> None:
     """Unready curriculum (e.g. non-admin, missing chroma, not PROCESSED) raises SupervisorExecutionError."""  # noqa: E501
     import pytest
-    from server.modules.agents.exceptions import SupervisorExecutionError
-    from server.modules.agents.supervision.context import EvaluationContextBuilder
+    from equiped_harness.exceptions import SupervisorExecutionError
     from server.modules.auth.models import UserRole
     from server.modules.auth.service import create_user
     from server.modules.documents.models import Document
+    from server.modules.evaluations.harness.context import EvaluationContextBuilder
 
     faculty = create_user(
         db_session,
@@ -344,9 +344,9 @@ def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
 
 def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
     """Default supervisor includes Coordinator for full; explicit partial agent list excludes Coordinator."""  # noqa: E501
-    from server.modules.agents.gad.agent import GAD
-    from server.modules.agents.itso.agent import ITSO
-    from server.modules.agents.sme.agent import SME
+    from equiped_harness.gad.agent import GAD
+    from equiped_harness.itso.agent import ITSO
+    from equiped_harness.sme.agent import SME
 
     # Full intent (default agents)
     full_supervisor = Supervisor(db=db_session)
@@ -364,10 +364,10 @@ def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
 def test_context_builder_rejects_legacy_fixed_criterion_prompts(db_session) -> None:
     """EvaluationContextBuilder rejects active prompt text with legacy identifiers."""
     import pytest
-    from server.modules.agents.exceptions import SupervisorExecutionError
-    from server.modules.agents.gad.agent import GAD
-    from server.modules.agents.itso.agent import ITSO
-    from server.modules.agents.supervision.context import EvaluationContextBuilder
+    from equiped_harness.exceptions import SupervisorExecutionError
+    from equiped_harness.gad.agent import GAD
+    from equiped_harness.itso.agent import ITSO
+    from server.modules.evaluations.harness.context import EvaluationContextBuilder
 
     # Seed GAD with legacy GAD-01 identifier
     gad_legacy = PromptVersion(

@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from server.modules.agents.supervision.context import EvaluationContextBuilder
 from server.modules.embeddings.retrieval import RetrievedChunk
+from server.modules.evaluations.harness.context import EvaluationContextBuilder
 from server.tests.agents.helpers import _RetrievedChunk
 
 # ------------------------------------------------------------------
@@ -352,7 +352,7 @@ def test_build_precomputed_context_uses_single_query_for_single_chunk(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -390,7 +390,7 @@ def test_build_precomputed_context_uses_single_query_for_legacy_caller(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -686,7 +686,7 @@ def test_build_precomputed_context_short_doc_does_not_use_anchor_text_filtering(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -846,7 +846,7 @@ def test_build_precomputed_context_empty_chunk_infos_list_uses_single_query(
         return []
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._retrieve_reference_context_for_queries",  # noqa: E501
         trap_multi_anchor,
     )
     monkeypatch.setattr(
@@ -939,7 +939,7 @@ def test_build_precomputed_context_long_doc_does_not_compute_full_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(
@@ -979,7 +979,7 @@ def test_build_precomputed_context_no_reference_ids_does_not_compute_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(
@@ -1019,7 +1019,7 @@ def test_build_precomputed_context_short_doc_still_computes_embedding(
         return [0.1, 0.2, 0.3]
 
     monkeypatch.setattr(
-        "server.modules.agents.supervision.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
+        "server.modules.evaluations.harness.context.EvaluationContextBuilder._compute_query_embedding",  # noqa: E501
         trap_compute,
     )
     monkeypatch.setattr(

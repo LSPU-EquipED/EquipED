@@ -7,10 +7,10 @@ import logging
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.gad.agent import GAD
-from server.modules.agents.itso.agent import ITSO
-from server.modules.agents.runtime.prompt_budget import pack_chunks, select_chunks
-from server.modules.agents.sme.agent import SME
+from equiped_harness.gad.agent import GAD
+from equiped_harness.itso.agent import ITSO
+from equiped_harness.runtime.prompt_budget import pack_chunks, select_chunks
+from equiped_harness.sme.agent import SME
 from server.tests.agents.helpers import (
     _FakeLLM,
     _make_chunk_infos,
@@ -306,10 +306,11 @@ def test_small_doc_long_chunk_passes_through_unchanged(monkeypatch) -> None:
         assert not packed["text"].endswith("...")
 
 
-def test_note_present_when_chunks_dropped(monkeypatch) -> None:
+def test_note_present_when_chunks_dropped(monkeypatch, harness_config) -> None:
     """Prompt note should be present when chunks are dropped."""
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_max_chunks=2,
         agent_max_excerpt_chars=800,
         agent_prompt_budget_chars=5000,
@@ -345,10 +346,11 @@ def test_note_present_when_chunks_dropped(monkeypatch) -> None:
     assert "subset of chunks" in payload["note"]
 
 
-def test_note_present_when_text_excerpted(monkeypatch) -> None:
+def test_note_present_when_text_excerpted(monkeypatch, harness_config) -> None:
     """Prompt note should be present when text is excerpted."""
     patch_settings(
         monkeypatch,
+        harness_config,
         agent_max_chunks=12,
         agent_max_excerpt_chars=30,  # Very short, forces excerpting
         agent_prompt_budget_chars=5000,
@@ -427,9 +429,7 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
 def test_hard_trim_emits_warning_when_excerpt_becomes_tiny(monkeypatch, caplog) -> None:
     """When the budget guard hard-trims a single chunk to a tiny excerpt,
     a warning should be emitted (algorithm and prompt contract unchanged)."""
-    caplog.set_level(
-        logging.WARNING, logger="server.modules.agents.runtime.prompt_budget"
-    )
+    caplog.set_level(logging.WARNING, logger="equiped_harness.runtime.prompt_budget")
     monkeypatch.setattr(
         "server.core.config.get_settings",
         lambda: _mock_settings(

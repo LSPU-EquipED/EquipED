@@ -7,6 +7,10 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
+from equiped_harness.contracts import (
+    CriterionDefinition,
+    RatioBandConfig,
+)
 from server.modules.feedback.exceptions import InvalidFeedbackTargetError
 from server.modules.feedback.items import (
     apply_item_rejections,
@@ -18,10 +22,6 @@ from server.modules.feedback.items import (
     validate_item_id,
 )
 from server.modules.feedback.models import PreferenceLog
-from server.modules.rubrics.contracts import (
-    CriterionDefinition,
-    RatioBandConfig,
-)
 from server.modules.synthesis.models import AgentResult
 
 _COUNT_MEASUREMENT = {
@@ -274,9 +274,10 @@ def test_get_corrected_criterion_score_returns_none_without_rejections(
 
 
 def test_get_corrected_criterion_score_returns_none_for_non_item_correctable_strategy(
-    db_session, evaluation_job,
+    db_session,
+    evaluation_job,
 ):
-    from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
+    from equiped_harness.contracts import LlmRubricGuidanceConfig
 
     criterion = CriterionDefinition(
         rubric_criterion_id=uuid.uuid4(),

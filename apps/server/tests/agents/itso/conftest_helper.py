@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from server.modules.agents.itso.response import ITSO_CRITERIA_TITLES
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CriterionDefinition,
     DomainDefinition,
     FormDefinition,
     LlmRubricGuidanceConfig,
     LlmScoreDescriptor,
 )
-from server.modules.rubrics.snapshot_contracts import (
+from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )

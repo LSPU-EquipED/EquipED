@@ -53,8 +53,8 @@ def test_scheduled_agent_ids_single_target() -> None:
 
 def test_orchestrator_single_gad_dispatches_only_gad(db_session, monkeypatch) -> None:
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as orch
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     owner = create_user(

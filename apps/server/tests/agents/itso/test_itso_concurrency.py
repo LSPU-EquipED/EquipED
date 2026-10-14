@@ -4,8 +4,9 @@ import json
 from threading import Barrier, Thread
 from uuid import uuid4
 
-from server.core.llm import CompletionResult
-from server.modules.agents.itso.agent import ITSO
+from equiped_harness import ExecutionConfig, execution_scope
+from equiped_harness.itso.agent import ITSO
+from equiped_harness.transport import CompletionResult
 
 
 class BarrierClient:
@@ -47,7 +48,7 @@ def _response(summary):
                 {
                     "criterion_id": f"ITSO-0{i}",
                     "criterion_title": __import__(
-                        "server.modules.agents.itso.response",
+                        "equiped_harness.itso.response",
                         fromlist=["ITSO_CRITERIA_TITLES"],
                     ).ITSO_CRITERIA_TITLES[f"ITSO-0{i}"],
                     "score": 3,
@@ -61,27 +62,15 @@ def _response(summary):
     )
 
 
-def test_shared_instance_real_runs_are_isolated(monkeypatch):
-    settings = type(
-        "Settings",
-        (),
-        {
-            "agent_max_chunks": 10,
-            "agent_max_excerpt_chars": 1000,
-            "agent_prompt_budget_chars": 10000,
-            "agent_small_doc_threshold": 20,
-            "agent_total_prompt_budget_chars": 10000,
-            "agent_temperature": 0.0,
-            "llm_max_new_tokens": 2048,
-            "llm_response_mode": "json_schema",
-            "get_agent_temperature": lambda self, name: 0.0,
-        },
-    )()
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings", lambda: settings
-    )
-    monkeypatch.setattr(
-        "server.modules.agents.itso.prompt.get_settings", lambda: settings
+def test_shared_instance_real_runs_are_isolated():
+    config = ExecutionConfig(
+        agent_max_chunks=10,
+        agent_max_excerpt_chars=1000,
+        agent_prompt_budget_chars=10000,
+        agent_small_doc_threshold=20,
+        agent_total_prompt_budget_chars=10000,
+        llm_max_new_tokens=2048,
+        llm_response_mode="json_schema",
     )
 
     barrier = Barrier(2)
@@ -104,21 +93,22 @@ def test_shared_instance_real_runs_are_isolated(monkeypatch):
                 evaluation_id=eval_id, criteria_specs=crit_specs
             )
 
-            results.append(
-                agent.run(
-                    evaluation_id=eval_id,
-                    document_id=uuid4(),
-                    chunk_infos=({"chunk_id": label, "text": f"marker-{label}"},),
-                    form_snapshot=snapshot,
-                    provenance={"precheck_version": label},
-                    policy_evidence={"delivery_state": "blocked"},
-                    precomputed_context={
-                        "syllabus": [],
-                        "curriculum": [],
-                    },
-                    llm_client=client,
+            with execution_scope(config):
+                results.append(
+                    agent.run(
+                        evaluation_id=eval_id,
+                        document_id=uuid4(),
+                        chunk_infos=({"chunk_id": label, "text": f"marker-{label}"},),
+                        form_snapshot=snapshot,
+                        provenance={"precheck_version": label},
+                        policy_evidence={"delivery_state": "blocked"},
+                        precomputed_context={
+                            "syllabus": [],
+                            "curriculum": [],
+                        },
+                        llm_client=client,
+                    )
                 )
-            )
         except Exception as exc:  # collected so thread failures are explicit
             errors.append(exc)
 

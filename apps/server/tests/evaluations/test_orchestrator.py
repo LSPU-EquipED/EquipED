@@ -105,7 +105,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
     )
 
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
+    from server.modules.evaluations.harness.result import SupervisorResult
 
     monkeypatch.setattr(core_database, "get_session_factory", lambda: SessionLocal)
 
@@ -249,8 +249,8 @@ def test_orchestrator_partial_without_curriculum_completes(
 ) -> None:
     """A deliberate no-curriculum partial job skips Coordinator and ends COMPLETED."""
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     owner = create_user(
@@ -382,8 +382,8 @@ def test_orchestrator_model_validation_failure_is_nonfatal_and_secret_free(
 
     from server.core import database as core_database
     from server.modules.admin import model_validation_service
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     owner = create_user(
@@ -474,8 +474,8 @@ def test_orchestrator_loads_slm_chunks_once(monkeypatch, db_session) -> None:
     and the supervisor/synthesis path — no duplicate back-to-back query.
     """
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     owner = create_user(
@@ -564,8 +564,8 @@ def test_orchestrator_completes_when_layer3_returns_outputs(
     db_session, monkeypatch
 ) -> None:
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     admin = create_user(
@@ -663,8 +663,8 @@ def test_orchestrator_accidental_agent_failure_ends_failed(
 ) -> None:
     """Accidental partial caused by agent failure in a full evaluation ends FAILED."""
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     admin = create_user(
@@ -786,8 +786,8 @@ def test_four_terminal_cases_regression(db_session, monkeypatch) -> None:
        job FAILED, matrix FAILED, full intent.
     """
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
     from server.modules.synthesis.models import MonitoringMatrix
     from server.modules.synthesis.service import get_evaluation_results
@@ -1212,8 +1212,8 @@ def _run_adapter_scenario(
     """Run a partial evaluation with `plans` (a callable or dict) standing in
     for build_adapter_plans; return (kwargs seen by run_evaluation, job, calls)."""
     from server.core import database as core_database
-    from server.modules.agents.supervision.result import SupervisorResult
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
+    from server.modules.evaluations.harness.result import SupervisorResult
     from sqlalchemy.orm import sessionmaker
 
     owner = create_user(

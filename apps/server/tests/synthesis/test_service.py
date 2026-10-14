@@ -297,7 +297,7 @@ def test_get_evaluation_results_surfaces_sme_reviewer_correction(
 def test_persist_agent_outputs_creates_flags_for_ungrounded_criteria(
     db_session, seeded_user
 ):
-    from server.modules.agents.contracts import (
+    from equiped_harness.result_contracts import (
         AdvisoryOutput,
         UngroundedCriterionAdvisory,
     )
@@ -645,13 +645,11 @@ def test_get_evaluation_results_surfaces_item_level_correction(db_session, seede
     assert op02.corrected_score is None
 
 
-def test_persist_agent_outputs_saves_captured_generations(
-    db_session, seeded_user
-):
+def test_persist_agent_outputs_saves_captured_generations(db_session, seeded_user):
     """Verify CapturedGeneration dataclasses are persisted to agent_generations."""
     import hashlib
 
-    from server.modules.agents.contracts import CapturedGeneration
+    from equiped_harness.result_contracts import CapturedGeneration
     from server.modules.documents.models import Document
     from server.modules.evaluations.models import EvaluationJob
     from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots

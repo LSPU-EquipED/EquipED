@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from server.modules.agents.contracts import (
+from equiped_harness.result_contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CriterionScore,
@@ -2124,7 +2124,7 @@ def test_real_itso_producer_to_persistence_flow(db_session) -> None:
     """Producer-to-persistence test using real ITSO parser and DTOs."""
     import json
 
-    from server.modules.agents.itso.response import (
+    from equiped_harness.itso.response import (
         collect_advisory_outputs,
         criterion_scores,
         parse_response,
@@ -2314,7 +2314,7 @@ def test_dispatch_sanitizer_clears_prompt_text_and_fits_persistence_contract(
     db_session,
 ) -> None:
     """Sanitizer in dispatch strips prompt, raw, advisory, groups for failed results."""
-    from server.modules.agents.supervision.dispatch import AgentDispatcher
+    from server.modules.evaluations.harness.dispatch import AgentDispatcher
     from server.modules.synthesis.result_integrity import build_persistable_agent_result
 
     owner, doc, job, _ = _setup_evaluation(db_session)

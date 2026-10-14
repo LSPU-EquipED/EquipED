@@ -7,11 +7,9 @@ import json
 from uuid import uuid4
 
 import pytest
-from jsonschema import Draft202012Validator
-from server.core.llm import CompletionResult
-from server.modules.agents.exceptions import AgentExecutionError
-from server.modules.agents.itso.execution import execute as run_itso_execution
-from server.modules.agents.itso.response import (
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.itso.execution import execute as run_itso_execution
+from equiped_harness.itso.response import (
     ITSO_CHUNK_ID_MAX,
     ITSO_CRITERIA,
     ITSO_CRITERIA_TITLES,
@@ -20,10 +18,12 @@ from server.modules.agents.itso.response import (
     build_response_schema,
     criterion_scores,
 )
-from server.modules.agents.itso.response import (
+from equiped_harness.itso.response import (
     parse_response as parse_itso_response,
 )
-from server.modules.agents.runtime.context import ITSOExecutionContext
+from equiped_harness.runtime.context import ITSOExecutionContext
+from equiped_harness.transport import CompletionResult
+from jsonschema import Draft202012Validator
 from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
 
@@ -256,10 +256,10 @@ def _settings(budget=8000):
     return Settings()
 
 
-def test_real_execution_regenerates_once_with_bounded_prompts(monkeypatch):
-    monkeypatch.setattr(
-        "server.modules.agents.itso.execution.get_settings", lambda: _settings()
-    )
+def test_real_execution_regenerates_once_with_bounded_prompts(
+    monkeypatch, harness_config
+):
+    harness_config(_settings())
     client = _CapturingClient(["invalid", json.dumps(_payload())])
     result = run_itso_execution(_context(client))
     assert len(client.prompts) == 2

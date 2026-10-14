@@ -14,7 +14,8 @@
 
 - Evaluation execution is backed by durable DB-backed FIFO admission with ownership-safe compare-and-swap (CAS) claim tokens, heartbeat tracking, startup recovery, and a single worker/drainer.
 - The HTTP request trigger initiates admission but is not the execution contract.
-- The supervisor owns Layer 3 parallel specialist execution; evaluation orchestrator persists agent outputs and runs deterministic Layer 4 synthesis terminally.
+- Pure specialist pipelines, prompts, scoring, semantic rubric contracts and snapshot hashing live in `libs/evaluation-harness`; never duplicate them in backend consumers. Production dispatch calls `evaluate` with an immutable `EvaluationRequest`, explicit `ExecutionConfig`, and `HarnessModelClient` wrapping core transport. Backend retains retrieval (including residency-gated ITSO evidence), authorization, snapshot/storage identity checks and persistence. Custom test agents still use `.run`.
+- `modules/evaluations/harness` owns backend context preparation, dispatch, evidence and transport integration. Its public API exposes `Supervisor` and DB-backed envelope helpers. The supervisor owns Layer 3 parallel specialist execution; evaluation orchestrator persists agent outputs and runs deterministic Layer 4 synthesis terminally.
 - Preserve explicit full/partial completion truth: full evaluations never downgrade silently; partial evaluation succeeds only when all non-skipped required agents succeed.
 - Never share SQLAlchemy sessions or ORM-attached state across worker threads; pass immutable precomputed context into worker threads.
 
@@ -28,7 +29,7 @@
 ## Verification
 
 - Run commands from repository root via package scripts or `apps/`:
-- Linting check: `pnpm server:lint` or `cd apps && uv run --project server ruff check server`
-- Formatting check: `pnpm server:format` or `cd apps && uv run --project server ruff format --check server`
+- Linting check: `pnpm server:lint` or `cd apps && uv run --project server ruff check server ../libs/evaluation-harness`
+- Formatting check: `pnpm server:format` or `cd apps && uv run --project server ruff format --check server ../libs/evaluation-harness`
 - Targeted tests: run narrow test suites matching modified areas (e.g., `cd apps && uv run --project server pytest server/tests/<area>`).
 - Broader suite: run `pnpm server:test` (or `cd apps && uv run --project server pytest`) only for cross-module or integration changes.
