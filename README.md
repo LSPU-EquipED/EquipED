@@ -31,9 +31,13 @@ approval.
 
 ## Data and deployment model
 
-Development currently uses local frontend/backend processes, local uploads and
-Chroma state, and may use a shared Neon PostgreSQL database for team work.
+Development currently uses local frontend/backend processes, configured document
+storage and local Chroma state, and a shared Neon PostgreSQL database for team work.
 Neon is temporary development infrastructure only.
+
+Use the project's least-privilege runtime connection with required TLS. The
+Windows PostgreSQL database is retained as a point-in-time fallback, not a live
+replica; see [migration verification and fallback operations](infra/postgres/README.md).
 
 The production target is an institution-controlled LSPU server with local
 PostgreSQL, uploads, and ChromaDB. Policy evidence delivery to an LLM is
@@ -43,14 +47,14 @@ disabled by default and must remain local/residency-gated when enabled.
 
 - Python 3.12 and [uv](https://docs.astral.sh/uv/)
 - Node 20, Corepack, and pnpm 9.12.0
-- [Caddy](https://caddyserver.com/) (required for unified single-origin reverse proxy `pnpm dev` or `pnpm dev:proxy`)
+- [Caddy](https://caddyserver.com/) for the optional unified `localhost:3000` origin; without it, use the Faculty Vite proxy at `localhost:5173`
 - Docker Compose only when using optional container services (such as ChromaDB via `pnpm infra:chroma`)
 - Tesseract with `eng` and `fil` language packs to process scanned PDFs
   (required in production; optional for text-only development)
 
 ## Quick start
 
-From the repository root:
+From the repository root, for a new checkout only (do not overwrite an existing `.env`):
 
 ```bash
 cp .env.example .env
@@ -58,9 +62,35 @@ uv sync --project apps/server
 pnpm install
 ```
 
+On Windows PowerShell, replace `cp .env.example .env` with:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
 Configure `.env` with the development database URL, Gmail SMTP account, and
-local model endpoint before running the app. Add OCR settings only when scanned
-PDF support is required. Do not commit credentials.
+existing inference connection before running the app. Use the privately shared
+Neon runtime URL (`equiped_app`, pooled endpoint, `sslmode=require`); do not
+substitute a Neon API key or the migration-owner URL. Other developer laptops
+need internet access, not Tailscale or an always-on Windows PC, to reach Neon.
+The inference connection is independent of the database; preserve its approved
+endpoint, model, and adapter configuration. Add OCR settings only when scanned
+PDF support is required. Do not commit credentials or print connection URLs.
+
+Document binaries and reference vectors are separate from PostgreSQL. Configure
+the existing approved R2 bucket privately to read shared documents; a new local
+`uploads/` directory does not contain the migrated files. Chroma uses local
+persistence unless `CHROMA_HOST` is configured. Preserve existing vector data;
+do not treat an empty Chroma store as a completed database migration.
+
+### Database migrations
+
+`equiped_app` intentionally cannot run schema migrations. Temporarily supply
+the separate Neon owner URL through the **direct** endpoint while running
+`pnpm server:migrate`; restore the runtime URL before starting the backend.
+Keep both URLs private. An exported `DATABASE_URL` overrides the `.env` value,
+so clear any temporary owner override afterwards. The old Windows
+`equiped_owner` credentials do not apply to the new Neon project.
 
 Registration and account-status emails use Gmail SMTP. Set `SMTP_USERNAME` and
 `EMAIL_FROM` to the sender account, then place a Google App Password—not the
@@ -69,20 +99,40 @@ Gmail account password—in `SMTP_PASSWORD`. The application defaults already us
 
 ### Starting Development
 
-You can run the development environment in two ways:
+Run the application processes locally; Docker PostgreSQL is not needed for the
+shared Neon development database.
 
-**Option 1: Two-Terminal Host Workflow (Standard Workflow)**
+**Recommended: one terminal for application processes**
+
+```bash
+pnpm dev:all
+```
+
+This starts Faculty, Admin, FastAPI, and the optional Caddy runner. It does not
+start Chroma. Without Caddy installed, use `http://localhost:5173` instead of
+port 3000. Set `APP_PUBLIC_URL` to the chosen origin.
+
+**Alternatively: separate terminals**
 ```bash
 # Terminal 1: Start FastAPI backend
-make server
+pnpm server:dev
 
 # Terminal 2: Start Frontends (Faculty Vite and Admin Vite)
 pnpm dev
+
+# Terminal 3: Optional unified localhost:3000 proxy (requires Caddy)
+pnpm dev:proxy
 ```
 
-**Option 2: Docker Compose Workflows (All-in-One)**
+**Optional Docker Compose workflows (not the shared development topology)**
 
-EquipED maintains separate Docker Compose configurations for Development and Production:
+The explicit development/production Compose files remain available. The dev
+file starts another PostgreSQL container and configures the backend to use Chroma
+over HTTP. It is not a drop-in alternative to the native/shared Neon workflow:
+container-local `localhost` is not the Windows host, additional application
+settings need forwarding, and the bundled Chroma image (0.5.0) differs from the
+locked client (1.5.9). These configuration issues were not repaired by the
+database migration. Do not run the full stack to initialize or restore team data.
 
 ```bash
 # Development (with hot-reloading, preserving local ./uploads and ./chroma_data)
@@ -146,7 +196,7 @@ from `apps/` (or via root package scripts) so `apps/` is the Python package impo
 ```bash
 pnpm server:dev
 # or directly:
-cd apps && uv run --project server uvicorn server.main:app --reload --host 0.0.0.0 --port 8000
+cd apps && uv run --project server uvicorn server.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 > Note: Running `uv run --project apps/server` directly from the repository root
@@ -158,16 +208,17 @@ cd apps && uv run --project server uvicorn server.main:app --reload --host 0.0.0
 
 | Task | Command |
 | --- | --- |
-| Start all dev services (Faculty, Admin, Server, Caddy) | `pnpm dev` |
+| Start application dev services (Faculty, Admin, Server, Caddy) | `pnpm dev:all` |
+| Start both frontend dev servers only | `pnpm dev` |
 | Start Caddy dev reverse proxy | `pnpm dev:proxy` |
 | Start Faculty dev server | `pnpm dev:faculty` |
 | Start Admin dev server | `pnpm dev:admin` |
 | Start local ChromaDB container | `pnpm infra:chroma` |
-| Start the backend alone | `make server` (or `pnpm server:dev`) |
+| Start the backend alone | `pnpm server:dev` |
 | Run backend tests | `pnpm server:test` (or `cd apps && uv run --project server pytest`) |
 | Lint backend | `pnpm server:lint` (or `cd apps && uv run --project server ruff check server`) |
 | Format backend | `pnpm server:format` |
-| Run migrations | `pnpm server:migrate` |
+| Run migrations with a temporary direct Neon owner URL | `pnpm server:migrate` |
 | Run all frontend/lib tests | `pnpm test` |
 | Run Caddy contract test | `pnpm test:caddy` |
 | Lint all workspace packages | `pnpm lint` |
@@ -185,7 +236,11 @@ By default, local runtime data is anchored at the repository root:
 
 - `uploads/` — uploaded PDF files
 - `chroma_data/` — local Chroma persistence
-- `equiped_dev.db` — local development database, when used
+
+The configured R2 backend stores document binaries in the approved private
+bucket; local paths may also be used for cached/downloaded artifacts. The shared
+relational database is Neon, not a repository-local SQLite file. PC fallback
+dumps do not protect new Neon writes or replace R2/Chroma backups.
 
 Docker is optional for local infrastructure and smoke testing; it is not the
 canonical full-stack development workflow. To run the optional Chroma service:
@@ -194,8 +249,10 @@ canonical full-stack development workflow. To run the optional Chroma service:
 docker compose -f docker-compose.dev.yml up --build chroma
 ```
 
-The Compose file also provides optional `db`, `server`, and `server-smoke`
-services. Frontend container packaging remains deferred; run apps locally with `pnpm dev`.
+The dev Compose file defines `db`, `chroma`, `server`, `faculty`, `admin`, and
+`caddy`; there is no `server-smoke` service. Use host-native application processes
+for the shared development workflow. Do not assume the Chroma service is
+compatible with the installed client without resolving the version mismatch.
 Refer to `docker-compose.dev.yml` for development infrastructure ports and environment overrides.
 
 ## Repository guide

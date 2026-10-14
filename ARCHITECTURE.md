@@ -137,13 +137,13 @@ In development, `apps/faculty` and `apps/admin` function under a single unified 
 
 1. **Caddy Dev Ingress (`infra/caddy/Caddyfile.dev`)**:
    - Single-origin local ingress listening on `:3000` (configurable via `CADDY_DEV_ADDR`).
-   - Run via `pnpm dev` (concurrent orchestration) or `pnpm dev:proxy` (standalone proxy).
+   - Run application orchestration via `pnpm dev:all`, or only the proxy via `pnpm dev:proxy`. `pnpm dev` starts the two frontends only.
    - Route precedence rules:
      1. `/api` and `/api/*` → Proxied directly to FastAPI backend `127.0.0.1:8000`. Does not rewrite or strip paths, and does not fall back to SPA index on upstream errors.
      2. `/admin-dev/*`, `/admin-assets/*`, `/admin`, `/admin/*`, `/matrix`, `/matrix/*`, `/evaluation-map`, `/evaluation-map/*` → Proxied to Admin Vite server `127.0.0.1:5174`.
      3. All remaining paths (`/*`) → Proxied to Faculty Vite server `127.0.0.1:5173`.
 2. **Vite Namespacing & Assets**:
-   - In development, Admin Vite serves with `base: '/admin-dev/'` so Vite's module graph does not collide with Faculty Vite's `/src/*` namespace.
+   - Current Admin Vite uses `base: '/'` with a route-entry middleware, while the proxies retain `/admin-dev/*` matchers. Inspection identified this as an unresolved development asset-namespacing mismatch; the intended isolation from Faculty's `/src/*` graph must not be represented as already implemented or verified. This documentation update does not change routing code.
    - Built assets for admin are partitioned under `assetsDir: 'admin-assets'`, ensuring no static asset collisions when proxied.
 3. **Internal Vite Dev Proxy (Container-Free / No-Caddy Fallback)**:
    - If Caddy is not installed on the local machine, developers can open Faculty Vite directly at `http://localhost:5173`.
@@ -166,9 +166,9 @@ In development, `apps/faculty` and `apps/admin` function under a single unified 
 In local development, the topology operates as follows:
 - **Client Applications**: Host-native Vite dev servers running at `127.0.0.1:5173` (`apps/faculty`) and `127.0.0.1:5174` (`apps/admin`), exposed via Caddy at `http://localhost:3000`.
 - **Backend Server**: Host-native FastAPI server running at `127.0.0.1:8000`, invoked via `pnpm server:dev` or `cd apps && uv run --project server uvicorn server.main:app --reload --port 8000`. Backend modules use absolute `server.*` imports; running from `apps/` ensures `apps/` is the Python import root.
-- **Relational Database**: Shared native PostgreSQL 18 on the Windows development host, privately reachable over Tailscale and configured via `DATABASE_URL`. Developer backends use the least-privilege runtime role; migrations use the separate owner role. PostgreSQL is not run in Docker for this shared topology. See [host setup, migration verification, and backups](infra/postgres/README.md). Checkouts still pointing to Neon require an explicit local environment cutover; the source project remains intact.
-- **Vector Database**: Local Chroma instance running as an HTTP service on port 8001 via Docker Compose (`pnpm infra:chroma` or `docker compose -f docker-compose.dev.yml up -d chroma`). Compose persists data in the `chroma_data` volume; host-mode scripts resolve root `chroma_data/`.
-- **Document Storage**: Stored on the local host filesystem under repository root `uploads/` directory with transactional crash-journaling.
+- **Relational Database**: Shared Neon PostgreSQL development database, configured via `DATABASE_URL` with required TLS. Developer backends use the least-privilege `equiped_app` runtime role and the pooled endpoint; migrations use a separately stored owner connection through the direct endpoint. The native PostgreSQL 18 Windows database and its local backups are retained as a point-in-time fallback, not a live replica. See [migration verification and PC fallback operations](infra/postgres/README.md). Other developer checkouts require an explicit environment cutover to the new Neon project.
+- **Vector Database**: Local Chroma persistence under repository-root `chroma_data/` by default; `CHROMA_HOST` selects HTTP mode instead. The optional Compose Chroma service binds host port 8001 and mounts `./chroma_data`; its 0.5.0 image currently differs from the locked 1.5.9 client. Compatibility and reference-vector availability remain unverified; PostgreSQL migration does not populate or restore Chroma.
+- **Document Storage**: The current team development configuration uses the existing approved private R2 bucket. Without complete R2 configuration, the implementation falls back to local repository-root `uploads/`; local paths also support cached/downloaded artifacts and transactional crash-journaling. Database records alone do not restore file contents. Developers must retain the approved storage configuration; no inference infrastructure changes are implied by the database cutover.
 
 ### Backend Modular Monolith Structure
 
@@ -214,7 +214,7 @@ The monorepo structure, ingress proxying, package boundaries, and operational sc
 | **Shared Auth & Session Cookie** | **Implemented** | HttpOnly session cookie (`equiped_session`) shared across same-origin paths (`Path=/`); server-authoritative RBAC. `@equiped/auth` handles session hydration and guards. |
 | **Local-vs-Full Container Dev** | **Deferred** | Host-native hybrid dev (local apps/faculty, apps/admin, apps/server + optional Chroma container via `pnpm infra:chroma`) remains current. Full-container local development workflows are deferred. Docker Compose is optional infrastructure only, not the canonical dev workflow. |
 | **Production Frontend Packaging** | **Deferred** | Whether production containers package Caddy + apps together or run separate static containers is deferred. Production static serving configuration remains deferred. |
-| **Production PostgreSQL Host** | **Deferred** | Choice between self-hosted Postgres, managed cloud instance, or Neon is deferred to production deployment phase. Dev currently uses shared Neon or local Postgres. |
+| **Production PostgreSQL Host** | **Deferred** | Choice between self-hosted Postgres, managed cloud instance, or Neon is deferred to production deployment phase. Dev uses the new shared Neon project; native Windows PostgreSQL remains a point-in-time fallback only. |
 | **Advanced Observability** | **Deferred** | Formal APM, OpenTelemetry, or distributed tracing beyond `/health`, `/ready`, and structured logging is deferred. |
 
 ---
