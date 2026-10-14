@@ -1,29 +1,16 @@
 import { useEffect, useState } from 'react';
 import { usePresence } from '@equiped/ui';
-import type { ClientDocument, LatestEvaluationItem, TargetAgent } from '@equiped/types';
-import {
-  getSlmDisplayStatus,
-  type SlmStatusQueryState,
-} from '@/shared/utils/slmDisplayStatus';
+import type { ClientDocument } from '@equiped/types';
 import { getHumanReadableTitle } from '../utils/moduleInspector.utils';
 import { useClipboardCopy } from '../hooks/useClipboardCopy';
 import { ModuleInspectorDrawerContent } from './ModuleInspectorDrawerContent';
 
 export interface ModuleInspectorDrawerProps {
   document: ClientDocument | null;
-  latestEvaluation?: LatestEvaluationItem;
-  latestEvalsState?: SlmStatusQueryState;
-  targetAgent?: TargetAgent;
   onClose: () => void;
 }
 
-export function ModuleInspectorDrawer({
-  document,
-  latestEvaluation,
-  latestEvalsState,
-  targetAgent = 'sme',
-  onClose,
-}: ModuleInspectorDrawerProps) {
+export function ModuleInspectorDrawer({ document, onClose }: ModuleInspectorDrawerProps) {
   const isOpen = Boolean(document);
   const { isMounted, isAnimating } = usePresence({ isOpen, durationMs: 240 });
   const [cachedDoc, setCachedDoc] = useState<ClientDocument | null>(document);
@@ -46,12 +33,6 @@ export function ModuleInspectorDrawer({
   if (!isMounted || !cachedDoc) return null;
 
   const outline = cachedDoc.structuredOutline ?? [];
-  const slmDisplay = getSlmDisplayStatus(
-    cachedDoc,
-    latestEvaluation,
-    latestEvalsState,
-    targetAgent,
-  );
   const humanReadableTitle = getHumanReadableTitle(cachedDoc);
 
   const handleCopyId = () => {
@@ -67,7 +48,6 @@ export function ModuleInspectorDrawer({
       isAnimating={isAnimating}
       cachedDoc={cachedDoc}
       humanReadableTitle={humanReadableTitle}
-      slmDisplay={slmDisplay}
       outline={outline}
       isCopied={isCopied}
       onClose={onClose}

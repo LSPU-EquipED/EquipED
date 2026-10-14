@@ -27,9 +27,7 @@ afterEach(() => {
 
 describe('ModuleInspectorDrawer Component', () => {
   it('does not render anything when document is null', () => {
-    const { container } = render(
-      <ModuleInspectorDrawer document={null} onClose={vi.fn()} />,
-    );
+    const { container } = render(<ModuleInspectorDrawer document={null} onClose={vi.fn()} />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -43,7 +41,7 @@ describe('ModuleInspectorDrawer Component', () => {
     ).toBeDefined();
 
     expect(screen.getByText('Data Structures and Algorithms SLM')).toBeDefined();
-    expect(screen.getAllByText(/Ready/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/Ready to Evaluate/)).toBeNull();
     expect(screen.getAllByText('BSCS').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('CS 201').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Data Structures & Algorithms')).toBeDefined();
@@ -69,9 +67,7 @@ describe('ModuleInspectorDrawer Component', () => {
 
   it('invokes onClose when clicking the header close button', () => {
     const handleClose = vi.fn();
-    render(
-      <ModuleInspectorDrawer document={mockDocument} onClose={handleClose} />,
-    );
+    render(<ModuleInspectorDrawer document={mockDocument} onClose={handleClose} />);
 
     const closeBtn = screen.getByRole('button', {
       name: /Close module details/i,
@@ -83,9 +79,7 @@ describe('ModuleInspectorDrawer Component', () => {
 
   it('invokes onClose when pressing Escape key', () => {
     const handleClose = vi.fn();
-    render(
-      <ModuleInspectorDrawer document={mockDocument} onClose={handleClose} />,
-    );
+    render(<ModuleInspectorDrawer document={mockDocument} onClose={handleClose} />);
 
     fireEvent.keyDown(window, { key: 'Escape' });
 
@@ -123,16 +117,12 @@ describe('ModuleInspectorDrawer Component', () => {
       ],
     };
 
-    render(
-      <ModuleInspectorDrawer document={docWithOutline} onClose={vi.fn()} />,
-    );
+    render(<ModuleInspectorDrawer document={docWithOutline} onClose={vi.fn()} />);
 
     expect(screen.getByText('Module outline')).toBeDefined();
     expect(screen.getByText('2 sections')).toBeDefined();
     expect(screen.getByText('Unit 1: Introduction to Graphs')).toBeDefined();
-    expect(
-      screen.getByText('Vertices, edges, and representations'),
-    ).toBeDefined();
+    expect(screen.getByText('Vertices, edges, and representations')).toBeDefined();
     expect(screen.getByText('Unit 2: Depth-First Search')).toBeDefined();
   });
 
@@ -162,19 +152,12 @@ describe('ModuleInspectorDrawer Component', () => {
     expect(screen.queryByText('Accreditation')).toBeNull();
   });
 
-  it('retains evaluation information without the duplicate launch action', () => {
-    render(
-      <ModuleInspectorDrawer
-        document={mockDocument}
-        targetAgent="sme"
-        onClose={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByText('Multi-agent evaluation'),
-    ).toBeDefined();
-    expect(screen.queryByRole('link', { name: /Launch Evaluation/i })).toBeNull();
+  it('shows file information without evaluation status or multi-agent guidance', () => {
+    render(<ModuleInspectorDrawer document={mockDocument} onClose={vi.fn()} />);
+    expect(screen.queryByText('Multi-agent evaluation')).toBeNull();
+    expect(screen.queryByText(/Ready to Evaluate|Evaluated|Evaluation Failed/)).toBeNull();
+    expect(screen.getByText('Processing status')).toBeDefined();
+    expect(screen.getByText('Indexed')).toBeDefined();
   });
 
   it('renders document file section and handles copy action for document ID', async () => {

@@ -32,3 +32,7 @@ The user-management directory excludes the signed-in administrator from its reco
 ## Accessibility & Inclusion
 * **WCAG 2.1 AA Compliance**: Strict color contrast, focus indicators on all interactive elements, keyboard-navigable dialogs, and clear aria roles.
 * **Reduced Motion Respect**: Disable all complex animations and replace with immediate or basic opacity transitions when `@media (prefers-reduced-motion: reduce)` is active.
+
+## Faculty module storage and evaluation
+
+Module Library stores owned SLMs and exposes document details and original PDFs. Evaluation status, launch, progress, result inspection, and retry belong to the permitted specialist workspace, where status is specific to that specialist. Module Library does not summarize the latest specialist job as overall module completion.

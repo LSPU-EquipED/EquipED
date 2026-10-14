@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from '@tanstack/react-router';
-import { CheckCircle, FileText, MagnifyingGlass, UploadSimple, Warning } from '@phosphor-icons/react';
+import {
+  CheckCircle,
+  FileText,
+  MagnifyingGlass,
+  UploadSimple,
+  Warning,
+} from '@phosphor-icons/react';
 
 import { getErrorMessage } from '@equiped/api-client';
 import { Button } from '@equiped/ui';
-import { useLatestEvaluations } from '@/shared/hooks/useLatestEvaluations';
-import type { TargetAgent } from '@equiped/types';
 import { useSlmStorage } from '../hooks/useSlmStorage';
 import { StorageToolbar } from './StorageToolbar';
 import { DocumentTable, DocumentTableSkeleton } from './DocumentTable';
@@ -14,7 +18,7 @@ import { ModuleInspectorDrawer } from './ModuleInspectorDrawer';
 import { StorageUploadModal } from './StorageUploadModal';
 import { sortDocuments, type DocumentSortOption } from '../utils/storage.utils';
 
-export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: TargetAgent }) {
+export function DocumentDashboard() {
   const location = useLocation();
 
   const highlightId = useMemo(
@@ -57,28 +61,6 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
     return sortDocuments(documents, sortOption);
   }, [documents, sortOption]);
 
-
-  const documentIds = useMemo(
-    () => sortedDocuments.map((d) => d.documentId),
-    [sortedDocuments],
-  );
-
-  const {
-    latestEvalsByDocId,
-    isLoading: isLatestEvalsLoading,
-    isError: isLatestEvalsError,
-    isSuccess: isLatestEvalsSuccess,
-  } = useLatestEvaluations(documentIds);
-
-  const latestEvalsState = useMemo(
-    () => ({
-      isLoading: isLatestEvalsLoading,
-      isError: isLatestEvalsError,
-      isSuccess: isLatestEvalsSuccess,
-    }),
-    [isLatestEvalsLoading, isLatestEvalsError, isLatestEvalsSuccess],
-  );
-
   useEffect(() => {
     if (flashId) {
       const timer = setTimeout(() => setFlashId(null), 6000);
@@ -94,7 +76,7 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
 
   return (
     <section className="mx-auto flex w-full max-w-[108rem] flex-col gap-7 px-4 py-6 sm:px-7 sm:py-8">
-      <h1 className="sr-only">SLM Storage</h1>
+      <h1 className="sr-only">Module Library</h1>
 
       {/* ── Success Flash Banner ───────────────────────────────────── */}
       {flashId ? (
@@ -103,7 +85,7 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
           role="status"
         >
           <CheckCircle className="size-4 shrink-0 text-success" aria-hidden="true" />
-          <span>Document uploaded successfully and is now indexed in SLM Storage.</span>
+          <span>SLM uploaded to Module Library.</span>
         </div>
       ) : null}
 
@@ -169,7 +151,7 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
       <div
         className="flex flex-col rounded-sm border border-border bg-surface"
         role="region"
-        aria-label="SLM Storage Repository Ledger"
+        aria-label="Module Library inventory"
       >
         <div className="min-w-0 w-full">
           {isLoading && documents.length === 0 ? <DocumentTableSkeleton /> : null}
@@ -180,12 +162,12 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
                 <FileText className="size-8 text-text-muted/50" aria-hidden="true" />
                 <p className="font-semibold text-text text-base">
                   {stats.total === 0
-                    ? 'No SLMs in Storage Yet'
+                    ? 'No SLMs in Module Library yet'
                     : 'No matching modules found'}
                 </p>
                 <p className="text-xs text-text-muted leading-relaxed">
                   {stats.total === 0
-                    ? 'Upload course learning modules in PDF format to index them for multi-agent accreditation.'
+                    ? 'Upload course learning modules in PDF format to keep them in your library.'
                     : 'Try changing your program filter or searching by course code or topic.'}
                 </p>
               </div>
@@ -196,9 +178,6 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
             <DocumentTable
               documents={sortedDocuments}
               flashId={flashId}
-              latestEvalsByDocId={latestEvalsByDocId}
-              latestEvalsState={latestEvalsState}
-              targetAgent={targetAgent}
               onInspect={(doc) => setInspectingDoc(doc)}
             />
           ) : null}
@@ -216,15 +195,7 @@ export function DocumentDashboard({ targetAgent = 'sme' }: { targetAgent?: Targe
       </div>
 
       {/* ── File Technical Inspector Drawer ────────────────────────── */}
-      <ModuleInspectorDrawer
-        document={inspectingDoc}
-        latestEvaluation={
-          inspectingDoc ? latestEvalsByDocId[inspectingDoc.documentId] : undefined
-        }
-        latestEvalsState={latestEvalsState}
-        targetAgent={targetAgent}
-        onClose={() => setInspectingDoc(null)}
-      />
+      <ModuleInspectorDrawer document={inspectingDoc} onClose={() => setInspectingDoc(null)} />
 
       {/* ── In-Place SLM Upload Dialog ─────────────────────────────── */}
       <StorageUploadModal

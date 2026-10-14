@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentProps, ReactNode } from 'react';
-import type { ClientDocument, LatestEvaluationItem } from '@equiped/types';
+import type { ClientDocument } from '@equiped/types';
 import { DocumentTable, DocumentTableSkeleton } from '../DocumentTable';
 
 vi.mock('@tanstack/react-router', () => ({
@@ -63,14 +63,7 @@ const sampleDocuments: ClientDocument[] = [
 ];
 
 function renderTable(props: Partial<ComponentProps<typeof DocumentTable>> = {}) {
-  return render(
-    <DocumentTable
-      documents={sampleDocuments}
-      flashId={null}
-      latestEvalsState={{ isSuccess: true }}
-      {...props}
-    />,
-  );
+  return render(<DocumentTable documents={sampleDocuments} flashId={null} {...props} />);
 }
 
 function openActions(title = sampleDocuments[0].title) {
@@ -81,7 +74,7 @@ describe('DocumentTable', () => {
   it('keeps column semantics and shows only a three-dot action trigger per row', () => {
     renderTable();
     const headers = screen.getAllByRole('columnheader');
-    expect(headers).toHaveLength(6);
+    expect(headers).toHaveLength(5);
     headers.forEach((header) => expect(header.getAttribute('scope')).toBe('col'));
     expect(screen.getByText('Module Name')).toBeDefined();
     expect(screen.getByText('Actions')).toBeDefined();
@@ -101,78 +94,29 @@ describe('DocumentTable', () => {
         },
       ],
     });
-    expect(screen.getAllByRole('columnheader')).toHaveLength(7);
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6);
     expect(screen.getByText('Type')).toBeDefined();
   });
 
-  it('offers the ready specialist workspace inside the menu', () => {
-    renderTable({ documents: [sampleDocuments[0]] });
-    expect(screen.getByText('Ready to Evaluate')).toBeDefined();
-    openActions();
-    const evaluate = screen.getByRole('menuitem', {
-      name: 'Start evaluation for Data Structures SLM',
-    });
-    expect(evaluate.getAttribute('href')).toBe('/specialists/sme/doc-1');
-    expect(evaluate.textContent).toBe('Evaluate');
-  });
-
-  it.each([
-    ['COMPLETED_PARTIAL', 'Evaluated', 'Open evaluation for Data Structures SLM'],
-    ['EVALUATING', 'Evaluating', 'View evaluation progress for Data Structures SLM'],
-    ['FAILED', 'Evaluation Failed', 'Inspect evaluation for Data Structures SLM'],
-  ])('preserves the %s evaluation action and its specialist destination', (status, badge, name) => {
-    const latest: LatestEvaluationItem = {
-      document_id: 'doc-1',
-      evaluation_id: 'evaluation-1',
-      status,
-      target_agent: 'sme',
-      submitted_at: '2026-08-20T10:00:00Z',
-    };
-    renderTable({ documents: [sampleDocuments[0]], latestEvalsByDocId: { 'doc-1': latest } });
-    expect(screen.getByText(badge)).toBeDefined();
-    openActions();
-    expect(screen.getByRole('menuitem', { name }).getAttribute('href')).toBe(
-      '/specialists/sme/doc-1',
-    );
-  });
-
-  it('preserves the historical all-specialist result destination', () => {
-    renderTable({
-      documents: [sampleDocuments[0]],
-      latestEvalsByDocId: {
-        'doc-1': {
-          document_id: 'doc-1',
-          evaluation_id: 'all-result',
-          status: 'COMPLETED',
-          target_agent: 'all',
-          submitted_at: '2026-08-20T10:00:00Z',
-        },
-      },
-    });
-    openActions();
-    expect(
-      screen
-        .getByRole('menuitem', { name: 'Open evaluation for Data Structures SLM' })
-        .getAttribute('href'),
-    ).toBe('/evaluations/all-result');
-  });
-
-  it.each([
-    [sampleDocuments[0], { isLoading: true }, 'Checking Status'],
-    [sampleDocuments[0], { isError: true }, 'Status Unavailable'],
-    [sampleDocuments[1], { isSuccess: true }, 'Processing'],
-    [sampleDocuments[2], { isSuccess: true }, 'Upload Failed'],
-  ])('does not offer evaluation when the module state is %s', (document, state, badge) => {
-    const inspect = vi.fn();
-    renderTable({ documents: [document], latestEvalsState: state, onInspect: inspect });
-    expect(screen.getByText(badge)).toBeDefined();
-    openActions(document.title);
-    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
-    expect(screen.getByRole('menuitem', { name: `Open ${document.title} PDF` })).toBeDefined();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'View details' }));
-    expect(inspect).toHaveBeenCalledOnce();
-    expect(inspect).toHaveBeenCalledWith(document);
-  });
+  it.each(sampleDocuments)(
+    'keeps module actions storage-only for $processingStatus files',
+    (storedDocument) => {
+      const inspect = vi.fn();
+      renderTable({ documents: [storedDocument], onInspect: inspect });
+      expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull();
+      expect(
+        screen.queryByText(/Evaluated|Ready to Evaluate|Checking Status|Evaluation Failed/),
+      ).toBeNull();
+      openActions(storedDocument.title);
+      expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+      expect(
+        screen.getByRole('menuitem', { name: `Open ${storedDocument.title} PDF` }),
+      ).toBeDefined();
+      expect(screen.queryByRole('menuitem', { name: /evaluation|evaluate|progress/i })).toBeNull();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'View details' }));
+      expect(inspect).toHaveBeenCalledWith(storedDocument);
+    },
+  );
 
   it('opens the PDF in a separate tab and opens module details only through the menu', () => {
     const inspect = vi.fn();
@@ -227,7 +171,7 @@ describe('DocumentTable', () => {
   it('keeps semantic headers and a matching action placeholder while loading', () => {
     const { container } = render(<DocumentTableSkeleton />);
     const headers = screen.getAllByRole('columnheader');
-    expect(headers).toHaveLength(6);
+    expect(headers).toHaveLength(5);
     headers.forEach((header) => expect(header.getAttribute('scope')).toBe('col'));
     expect(container.querySelector('.size-10')).toBeTruthy();
   });

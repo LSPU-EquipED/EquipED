@@ -123,18 +123,11 @@ const dashboardRoute = createRoute({
   component: FacultyHomePage,
 });
 
-function DocumentsRouteView() {
-  const { user } = useAuth();
-  const firstPermission = user?.evaluatorPermissions?.[0];
-  const targetAgent = isTargetAgent(firstPermission) ? firstPermission : 'sme';
-  return <DocumentsPage targetAgent={targetAgent} />;
-}
-
 const documentsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: 'documents',
   beforeLoad: requireRole(['faculty']),
-  component: DocumentsRouteView,
+  component: DocumentsPage,
 });
 
 function EvaluationsRouteView() {
