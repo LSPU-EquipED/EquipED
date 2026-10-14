@@ -1,6 +1,7 @@
-# Alembic migrations placeholder
+# Legacy migrations placeholder
 
-Migration scripts will live here later.
+This directory is a historical structural placeholder, not the active Alembic
+revision location. Current migrations live in `apps/server/alembic/versions/`.
 
-For now this directory is structural only and contains no generated revisions
-or migration logic.
+See [database metadata and migration guidance](../README.md). Do not add new
+revisions here.
