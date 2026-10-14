@@ -1,17 +1,22 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@equiped/api-client';
-import { evaluationApi } from '../api/evaluation.api';
-import { useSpecialistQueue } from './useSpecialistQueue';
+import { useEvaluationResults } from "./useEvaluationResults";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { documentsApi } from "@equiped/api-client";
+import { evaluationApi } from "../api/evaluation.api";
+import { useSpecialistQueue } from "./useSpecialistQueue";
 import {
   isTargetAgent,
   TARGET_AGENT_META,
   type TargetAgent,
-} from '@equiped/types';
-import type { ClientDocument } from '@equiped/types';
-import type { DeskQueueItem, DomainScoreBlock } from '../types';
-import { isActiveEvaluationStatus } from '../utils/evaluationProgress';
+} from "@equiped/types";
+import type { ClientDocument } from "@equiped/types";
+import type {
+  DeskQueueItem,
+  DomainScoreBlock,
+  EvaluationListItem,
+} from "../types";
+import { isActiveEvaluationStatus } from "../utils/evaluationProgress";
 
 export interface UseSpecialistWorkspaceOptions {
   agentId?: TargetAgent;
@@ -27,13 +32,20 @@ export function useSpecialistWorkspace({
     documentId?: string;
   };
   const resolvedAgent = propAgentId ?? params.agentId;
-  const validAgent: TargetAgent = isTargetAgent(resolvedAgent) ? resolvedAgent : 'sme';
+  const validAgent: TargetAgent = isTargetAgent(resolvedAgent)
+    ? resolvedAgent
+    : "sme";
   const meta = TARGET_AGENT_META[validAgent];
   const routeDocId = propDocId ?? params.documentId;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [openedRun, setOpenedRun] = useState<{
+    scope: string;
+    evaluationId: string;
+    job?: EvaluationListItem;
+  } | null>(null);
 
   const [submittedJob, setSubmittedJob] = useState<{
     evaluationId: string;
@@ -56,8 +68,9 @@ export function useSpecialistWorkspace({
 
   // 2. Fetch available processed SLMs from Storage to identify modules in storage
   const { data: docsData, isLoading: isLoadingDocs } = useQuery({
-    queryKey: ['storage-slm-documents'],
-    queryFn: () => documentsApi.listDocuments({ sourceType: 'slm', page: 1, pageSize: 100 }),
+    queryKey: ["storage-slm-documents"],
+    queryFn: () =>
+      documentsApi.listDocuments({ sourceType: "slm", page: 1, pageSize: 100 }),
     staleTime: 30000,
   });
 
@@ -67,7 +80,7 @@ export function useSpecialistWorkspace({
     isLoading: isLoadingExactDoc,
     isError: _isExactDocError,
   } = useQuery({
-    queryKey: ['storage-document', routeDocId],
+    queryKey: ["storage-document", routeDocId],
     queryFn: () => documentsApi.getDocument(routeDocId!),
     enabled: Boolean(routeDocId),
     staleTime: 30000,
@@ -76,15 +89,23 @@ export function useSpecialistWorkspace({
 
   const targetedDoc: ClientDocument | null = useMemo(() => {
     if (!routeDocId || !exactDocData) return null;
-    if (exactDocData.sourceType === 'slm' && exactDocData.processingStatus === 'PROCESSED') {
+    if (
+      exactDocData.sourceType === "slm" &&
+      exactDocData.processingStatus === "PROCESSED"
+    ) {
       return exactDocData;
     }
     return null;
   }, [routeDocId, exactDocData]);
 
   const slmDocuments: ClientDocument[] = useMemo(() => {
-    const list = (docsData?.items ?? []).filter((d: ClientDocument) => d.processingStatus === 'PROCESSED');
-    if (targetedDoc && !list.some((doc) => doc.documentId === targetedDoc.documentId)) {
+    const list = (docsData?.items ?? []).filter(
+      (d: ClientDocument) => d.processingStatus === "PROCESSED",
+    );
+    if (
+      targetedDoc &&
+      !list.some((doc) => doc.documentId === targetedDoc.documentId)
+    ) {
       return [targetedDoc, ...list];
     }
     return list;
@@ -99,10 +120,13 @@ export function useSpecialistWorkspace({
   // A targeted route must resolve to an owned queue item; never substitute another module.
   const activeDocId = useMemo(() => {
     if (routeDocId) {
-      return allQueueItems.find((item) => item.document_id === routeDocId)?.document_id ?? null;
+      return (
+        allQueueItems.find((item) => item.document_id === routeDocId)
+          ?.document_id ?? null
+      );
     }
     const firstPending = allQueueItems.find(
-      (item) => (item.my_status || '').toUpperCase() !== 'COMPLETED',
+      (item) => (item.my_status || "").toUpperCase() !== "COMPLETED",
     );
     if (firstPending) return firstPending.document_id;
     return allQueueItems[0]?.document_id ?? null;
@@ -113,9 +137,14 @@ export function useSpecialistWorkspace({
     if (isLoadingDocs || isLoadingQueue || isLoadingExactDoc) return;
 
     // If routeDocId is provided and the desk returns no item for that document, redirect to /specialists/$agentId
-    const isPresentInQueue = allQueueItems.some((item) => item.document_id === routeDocId);
+    const isPresentInQueue = allQueueItems.some(
+      (item) => item.document_id === routeDocId,
+    );
     if (!isPresentInQueue) {
-      void navigate({ to: '/specialists/$agentId', params: { agentId: validAgent } });
+      void navigate({
+        to: "/specialists/$agentId",
+        params: { agentId: validAgent },
+      });
     }
   }, [
     routeDocId,
@@ -129,7 +158,9 @@ export function useSpecialistWorkspace({
 
   const activeItem = useMemo(() => {
     if (!activeDocId) return null;
-    return allQueueItems.find((item) => item.document_id === activeDocId) ?? null;
+    return (
+      allQueueItems.find((item) => item.document_id === activeDocId) ?? null
+    );
   }, [allQueueItems, activeDocId]);
 
   const activeDocument = useMemo(() => {
@@ -137,38 +168,100 @@ export function useSpecialistWorkspace({
     return slmDocuments.find((doc) => doc.documentId === activeDocId) ?? null;
   }, [slmDocuments, activeDocId]);
 
-  const submittedJobId = submittedJob?.documentId === activeDocId && submittedJob?.agentId === validAgent
-    ? submittedJob.evaluationId : undefined;
-  const isQueueEvaluating = activeItem?.my_status === 'EVALUATING';
+  const submittedJobId =
+    submittedJob?.documentId === activeDocId &&
+    submittedJob?.agentId === validAgent
+      ? submittedJob.evaluationId
+      : undefined;
+  const isQueueEvaluating = activeItem?.my_status === "EVALUATING";
 
   // 4. Resolve the latest evaluation job for this SLM and this specialist role
-  const { data: evalsData, isLoading: isLoadingEvals, refetch: refetchEvals } = useQuery({
-    queryKey: ['specialist-evaluations', activeDocId, validAgent],
+  const {
+    data: evalsData,
+    isLoading: isLoadingEvals,
+    refetch: refetchEvals,
+  } = useQuery({
+    queryKey: ["specialist-evaluations", activeDocId, validAgent],
     queryFn: () => evaluationApi.listEvaluations(activeDocId!, validAgent),
     enabled: Boolean(activeDocId),
     staleTime: 5000,
     refetchInterval: (query) => {
       const latest = query.state.data?.items?.find(
-        (job) => job.target_agent === validAgent && (!submittedJobId || job.evaluation_id === submittedJobId),
+        (job) =>
+          job.target_agent === validAgent &&
+          (!submittedJobId || job.evaluation_id === submittedJobId),
       );
       // Keep polling while admission has not appeared in the list yet. A known
       // terminal job takes precedence over a stale desk queue response.
       return isActiveEvaluationStatus(latest?.status) ||
-        (!latest && (isQueueEvaluating || Boolean(submittedJobId))) ? 2000 : false;
+        (!latest && (isQueueEvaluating || Boolean(submittedJobId)))
+        ? 2000
+        : false;
     },
   });
 
-  const latestJob = useMemo(() => {
-    if (!evalsData?.items) return null;
-    return evalsData.items.find((job) => job.target_agent === validAgent && (!submittedJobId || job.evaluation_id === submittedJobId)) ?? null;
-  }, [evalsData, validAgent, submittedJobId]);
-  const latestJobId = latestJob?.evaluation_id;
-  const isCompleted = Boolean(latestJobId && latestJob?.status === 'COMPLETED');
-  const isFailed = latestJob?.status === 'FAILED' || (!latestJob && !submittedJobId && activeItem?.my_status === 'FAILED');
-  const isEvaluating = !isCompleted && !isFailed && (
-    isActiveEvaluationStatus(latestJob?.status) ||
-    (!latestJob && (isQueueEvaluating || Boolean(submittedJobId)))
+  const runScope = `${validAgent}:${routeDocId || activeDocId || ""}`;
+  const newestJob =
+    evalsData?.items?.find((job) => job.target_agent === validAgent) ?? null;
+  const pinnedId =
+    openedRun?.scope === runScope ? openedRun.evaluationId : undefined;
+  // A bounded state adjustment pins the first resolved run before rendering its findings.
+  // This is reset by resource identity, rather than an effect that can flash another run.
+  if (routeDocId && newestJob && !pinnedId && !submittedJobId) {
+    setOpenedRun({
+      scope: runScope,
+      evaluationId: newestJob.evaluation_id,
+      job: newestJob,
+    });
+  }
+  const selectedJobId = submittedJobId || pinnedId || newestJob?.evaluation_id;
+  const selectedListJob =
+    evalsData?.items?.find(
+      (job) =>
+        job.target_agent === validAgent && job.evaluation_id === selectedJobId,
+    ) ?? null;
+  const { data: recordedJob } = useQuery({
+    queryKey: ["evaluation", pinnedId],
+    queryFn: () => evaluationApi.getEvaluation(pinnedId!),
+    enabled: Boolean(
+      pinnedId && !submittedJobId && evalsData && !selectedListJob,
+    ),
+    staleTime: 5000,
+    refetchInterval: (query) =>
+      isActiveEvaluationStatus(query.state.data?.status) ? 2000 : false,
+  });
+  const latestJob =
+    selectedListJob ||
+    (recordedJob?.target_agent === validAgent &&
+    recordedJob.document_id === activeDocId
+      ? recordedJob
+      : null) ||
+    (openedRun?.scope === runScope &&
+    openedRun.job?.evaluation_id === selectedJobId
+      ? openedRun.job
+      : null);
+  const hasNewerRun = Boolean(
+    pinnedId && newestJob && newestJob.evaluation_id !== selectedJobId,
   );
+  const openLatestRun = () => {
+    setSubmittedJob(null);
+    if (newestJob)
+      setOpenedRun({
+        scope: runScope,
+        evaluationId: newestJob.evaluation_id,
+        job: newestJob,
+      });
+  };
+  const latestJobId = latestJob?.evaluation_id;
+  const isCompleted = Boolean(latestJobId && latestJob?.status === "COMPLETED");
+  const isFailed =
+    latestJob?.status === "FAILED" ||
+    (!latestJob && !submittedJobId && activeItem?.my_status === "FAILED");
+  const isEvaluating =
+    !isCompleted &&
+    !isFailed &&
+    (isActiveEvaluationStatus(latestJob?.status) ||
+      (!latestJob && (isQueueEvaluating || Boolean(submittedJobId))));
 
   // Fetch completed evaluation results for the specialist desk
   const {
@@ -176,12 +269,7 @@ export function useSpecialistWorkspace({
     isLoading: isLoadingResults,
     isError: isResultsError,
     refetch: refetchResults,
-  } = useQuery({
-    queryKey: ['specialist-results', latestJobId],
-    queryFn: () => evaluationApi.getEvaluationResults(latestJobId!),
-    enabled: Boolean(latestJobId && isCompleted),
-    staleTime: 30000,
-  });
+  } = useEvaluationResults(latestJobId, latestJob?.status);
 
   const domainScore: DomainScoreBlock | undefined = useMemo(() => {
     if (!results?.domain_scores) return undefined;
@@ -193,10 +281,11 @@ export function useSpecialistWorkspace({
 
   const handleReviewModalClose = useCallback(() => {
     setShowReviewModal(false);
-    void queryClient.invalidateQueries({ queryKey: ['specialist-results'] });
-    void queryClient.invalidateQueries({ queryKey: ['specialist-evaluations'] });
-    void queryClient.invalidateQueries({ queryKey: ['specialist-queue'] });
-    void queryClient.invalidateQueries({ queryKey: ['evaluation-results'] });
+    void queryClient.invalidateQueries({
+      queryKey: ["specialist-evaluations"],
+    });
+    void queryClient.invalidateQueries({ queryKey: ["specialist-queue"] });
+    void queryClient.invalidateQueries({ queryKey: ["evaluation-results"] });
     void refetchResults();
     void refetchQueue();
   }, [queryClient, refetchResults, refetchQueue]);
@@ -204,25 +293,45 @@ export function useSpecialistWorkspace({
   const handleModalSubmitted = useCallback(
     (newEvalId?: string) => {
       if (newEvalId && activeDocId) {
-        setSubmittedJob({ evaluationId: newEvalId, documentId: activeDocId, agentId: validAgent });
+        setOpenedRun({
+          scope: `${validAgent}:${routeDocId || activeDocId}`,
+          evaluationId: newEvalId,
+        });
+        setSubmittedJob({
+          evaluationId: newEvalId,
+          documentId: activeDocId,
+          agentId: validAgent,
+        });
       }
       setShowConfirmModal(false);
-      void queryClient.invalidateQueries({ queryKey: ['specialist-queue'] });
-      void queryClient.invalidateQueries({ queryKey: ['specialist-evaluations'] });
-      void queryClient.invalidateQueries({ queryKey: ['specialist-results'] });
+      void queryClient.invalidateQueries({ queryKey: ["specialist-queue"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["specialist-evaluations"],
+      });
       void refetchQueue();
       void refetchEvals();
       if (activeDocId) {
         void navigate({
-          to: '/specialists/$agentId/$documentId',
+          to: "/specialists/$agentId/$documentId",
           params: { agentId: validAgent, documentId: activeDocId },
         });
       }
     },
-    [queryClient, refetchQueue, refetchEvals, activeDocId, validAgent, navigate],
+    [
+      queryClient,
+      refetchQueue,
+      refetchEvals,
+      activeDocId,
+      routeDocId,
+      validAgent,
+      navigate,
+    ],
   );
 
-  const isLoading = isLoadingDocs || isLoadingQueue || (Boolean(routeDocId) && (isLoadingExactDoc || isLoadingEvals));
+  const isLoading =
+    isLoadingDocs ||
+    isLoadingQueue ||
+    (Boolean(routeDocId) && (isLoadingExactDoc || isLoadingEvals));
 
   return {
     validAgent,
@@ -234,6 +343,8 @@ export function useSpecialistWorkspace({
     activeDocId,
     latestJob,
     latestJobId,
+    hasNewerRun,
+    openLatestRun,
     isCompleted,
     isFailed,
     isEvaluating,

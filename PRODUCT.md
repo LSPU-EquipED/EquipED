@@ -36,3 +36,5 @@ The user-management directory excludes the signed-in administrator from its reco
 ## Faculty module storage and evaluation
 
 Module Library stores owned SLMs and exposes document details and original PDFs. Evaluation status, launch, progress, result inspection, and retry belong to the permitted specialist workspace, where status is specific to that specialist. Module Library does not summarize the latest specialist job as overall module completion.
+
+Faculty evaluation results use a consistent presentation across specialist workspaces and Evaluation History. An opened result remains tied to one evaluation run, including its evidence, rubric snapshot, reviewer corrections, and PDF export. Re-evaluation creates a new run rather than replacing the earlier record. Specialist completion and score review do not constitute institutional approval.

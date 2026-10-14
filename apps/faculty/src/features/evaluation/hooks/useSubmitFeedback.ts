@@ -14,7 +14,9 @@ export function useSubmitCriterionFeedback(evaluationId: string) {
       body: CriterionFeedbackRequest;
     }) => evaluationApi.submitCriterionFeedback(evaluationId, criterionId, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['evaluation-results', evaluationId] });
+      void queryClient.invalidateQueries({ queryKey: ['evaluation-results', evaluationId] });
+      void queryClient.invalidateQueries({ queryKey: ['specialist-queue'] });
+      void queryClient.invalidateQueries({ queryKey: ['history'] });
     },
   });
 }
