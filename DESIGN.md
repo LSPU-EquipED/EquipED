@@ -111,7 +111,7 @@ Use a 4px spacing unit and restrained 0-6px radii. Controls are normally 40px ta
 - Main content uses the canvas background and begins below the top bar and beside the sidebar.
 - The top bar carries breadcrumbs, the mobile menu control, and the account control. The account control is a compact circular initials avatar, with the shared primary-soft fill and a visible focus ring.
 - Sidebar navigation is grouped by responsibility. Group labels use sentence case, 11px text, and modest tracking. Active items use primary-soft, primary text, and a clear leading rule.
-- Keep navigation labels short and descriptive. Faculty uses `Dashboard`, `Module Library`, `SME Specialist`, `Program Coordinator`, `GAD Specialist`, `ITSO Specialist`, `Syllabus`, `Curriculum`, and `Evaluation History`. Admin retains its descriptive operational labels. Sidebar groups remain organized by responsibility, and breadcrumbs use the same names as their navigation items.
+- Keep navigation labels short and descriptive. Faculty uses `Dashboard`, `Module library`, `Subject Matter Expert`, `Program Coordinator`, `Gender and Development`, `ITSO`, `Syllabus check`, `Curriculum check`, and `Evaluation history`. Faculty groups remain Home, Documents, Evaluations, Alignment, and Records. Admin retains its descriptive operational labels. Sidebar groups remain organized by responsibility, and breadcrumbs and dashboard shortcuts use the same names as their navigation items.
 
 ## Page composition
 

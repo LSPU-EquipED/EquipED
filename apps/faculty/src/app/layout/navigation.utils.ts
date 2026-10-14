@@ -26,32 +26,32 @@ export const facultyNavGroups: readonly NavGroup[] = [
     id: 'storage',
     label: 'Documents',
     items: [
-      { to: '/documents', label: 'Module Library', icon: FolderOpen, exact: false },
+      { to: '/documents', label: 'Module library', icon: FolderOpen, exact: false },
     ],
   },
   {
     id: 'specialists',
     label: 'Evaluations',
     items: [
-      { to: '/specialists/sme', label: 'SME Specialist', icon: GraduationCap, exact: false },
+      { to: '/specialists/sme', label: 'Subject Matter Expert', icon: GraduationCap, exact: false },
       { to: '/specialists/coordinator', label: 'Program Coordinator', icon: ListChecks, exact: false },
-      { to: '/specialists/gad', label: 'GAD Specialist', icon: ShieldCheck, exact: false },
-      { to: '/specialists/itso', label: 'ITSO Specialist', icon: Lightbulb, exact: false },
+      { to: '/specialists/gad', label: 'Gender and Development', icon: ShieldCheck, exact: false },
+      { to: '/specialists/itso', label: 'ITSO', icon: Lightbulb, exact: false },
     ],
   },
   {
     id: 'alignment',
     label: 'Alignment',
     items: [
-      { to: '/syllabus-alignment', label: 'Syllabus', icon: FileText, exact: false },
-      { to: '/curriculum-alignment', label: 'Curriculum', icon: BookOpenText, exact: false },
+      { to: '/syllabus-alignment', label: 'Syllabus check', icon: FileText, exact: false },
+      { to: '/curriculum-alignment', label: 'Curriculum check', icon: BookOpenText, exact: false },
     ],
   },
   {
     id: 'logs',
-    label: 'Logs',
+    label: 'Records',
     items: [
-      { to: '/evaluations', label: 'Evaluation History', icon: ClockCounterClockwise, exact: true },
+      { to: '/evaluations', label: 'Evaluation history', icon: ClockCounterClockwise, exact: true },
     ],
   },
 ] as const;
@@ -112,25 +112,25 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   }
 
   if (cleanPath === '/documents' || cleanPath === '/storage') {
-    return [{ label: 'Module Library' }];
+    return [{ label: 'Module library' }];
   }
 
   if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) {
     return [
-      { label: 'Module Library', to: '/documents' },
+      { label: 'Module library', to: '/documents' },
       { label: 'Review' },
     ];
   }
 
   if (cleanPath.startsWith('/specialists/sme/')) {
     return [
-      { label: 'SME Specialist', to: '/specialists/sme' },
+      { label: 'Subject Matter Expert', to: '/specialists/sme' },
       { label: 'Evaluation results' },
     ];
   }
 
   if (cleanPath === '/specialists/sme') {
-    return [{ label: 'SME Specialist' }];
+    return [{ label: 'Subject Matter Expert' }];
   }
 
   if (cleanPath.startsWith('/specialists/coordinator/')) {
@@ -146,71 +146,71 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (cleanPath.startsWith('/specialists/gad/')) {
     return [
-      { label: 'GAD Specialist', to: '/specialists/gad' },
+      { label: 'Gender and Development', to: '/specialists/gad' },
       { label: 'Evaluation results' },
     ];
   }
 
   if (cleanPath === '/specialists/gad') {
-    return [{ label: 'GAD Specialist' }];
+    return [{ label: 'Gender and Development' }];
   }
 
   if (cleanPath.startsWith('/specialists/itso/')) {
     return [
-      { label: 'ITSO Specialist', to: '/specialists/itso' },
+      { label: 'ITSO', to: '/specialists/itso' },
       { label: 'Evaluation results' },
     ];
   }
 
   if (cleanPath === '/specialists/itso') {
-    return [{ label: 'ITSO Specialist' }];
+    return [{ label: 'ITSO' }];
   }
 
   if (cleanPath === '/evaluations') {
-    return [{ label: 'Evaluation History' }];
+    return [{ label: 'Evaluation history' }];
   }
 
   if (cleanPath.startsWith('/evaluations/') && cleanPath.endsWith('/report')) {
     return [
-      { label: 'Evaluation History', to: '/evaluations' },
+      { label: 'Evaluation history', to: '/evaluations' },
       { label: 'Report' },
     ];
   }
 
   if (cleanPath.startsWith('/evaluations/')) {
     return [
-      { label: 'Evaluation History', to: '/evaluations' },
+      { label: 'Evaluation history', to: '/evaluations' },
       { label: 'Evaluation results' },
     ];
   }
 
   if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) {
     return [
-      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Syllabus check', to: '/syllabus-alignment' },
       { label: 'Report' },
     ];
   }
 
   if (cleanPath.startsWith('/syllabus-alignment/')) {
     return [
-      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Syllabus check', to: '/syllabus-alignment' },
       { label: 'Workstation' },
     ];
   }
 
   if (cleanPath === '/syllabus-alignment') {
-    return [{ label: 'Syllabus' }];
+    return [{ label: 'Syllabus check' }];
   }
 
   if (cleanPath.startsWith('/curriculum-alignment/')) {
     return [
-      { label: 'Curriculum', to: '/curriculum-alignment' },
+      { label: 'Curriculum check', to: '/curriculum-alignment' },
       { label: 'Matrix' },
     ];
   }
 
   if (cleanPath === '/curriculum-alignment') {
-    return [{ label: 'Curriculum' }];
+    return [{ label: 'Curriculum check' }];
   }
 
   return [{ label: 'Portal' }];
@@ -219,18 +219,18 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
 export function getRouteTitle(pathname: string): string {
   const cleanPath = pathname.split('?')[0].replace(/\/+$/, '') || '/';
   if (cleanPath === '/dashboard' || cleanPath === '/') return 'Dashboard';
-  if (cleanPath === '/documents') return 'Module Library';
+  if (cleanPath === '/documents') return 'Module library';
   if (cleanPath.startsWith('/documents/') && cleanPath.endsWith('/evaluation')) return 'Review';
-  if (cleanPath === '/specialists/sme') return 'SME Specialist';
+  if (cleanPath === '/specialists/sme') return 'Subject Matter Expert';
   if (cleanPath === '/specialists/coordinator') return 'Program Coordinator';
-  if (cleanPath === '/specialists/gad') return 'GAD Specialist';
-  if (cleanPath === '/specialists/itso') return 'ITSO Specialist';
+  if (cleanPath === '/specialists/gad') return 'Gender and Development';
+  if (cleanPath === '/specialists/itso') return 'ITSO';
   if (/^\/specialists\/(sme|coordinator|gad|itso)\/[^/]+$/.test(cleanPath)) return 'Evaluation results';
-  if (cleanPath === '/evaluations') return 'Evaluation History';
+  if (cleanPath === '/evaluations') return 'Evaluation history';
   if (cleanPath.startsWith('/evaluations/')) return 'Evaluation results';
-  if (cleanPath === '/syllabus-alignment') return 'Syllabus';
+  if (cleanPath === '/syllabus-alignment') return 'Syllabus check';
   if (cleanPath.startsWith('/syllabus-alignment/') && cleanPath.endsWith('/report')) return 'Report';
   if (cleanPath.startsWith('/syllabus-alignment/')) return 'Workstation';
-  if (cleanPath === '/curriculum-alignment') return 'Curriculum';
+  if (cleanPath === '/curriculum-alignment') return 'Curriculum check';
   return 'EquipED';
 }

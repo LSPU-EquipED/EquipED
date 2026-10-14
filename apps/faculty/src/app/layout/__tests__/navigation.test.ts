@@ -50,42 +50,49 @@ describe('navigation group structure', () => {
     expect(storageGroup.id).toBe('storage');
     expect(storageGroup.label).toBe('Documents');
     expect(storageGroup.items).toHaveLength(1);
-    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'Module Library', exact: false });
+    expect(storageGroup.items[0]).toMatchObject({ to: '/documents', label: 'Module library', exact: false });
 
     expect(specialistsGroup.id).toBe('specialists');
     expect(specialistsGroup.label).toBe('Evaluations');
     expect(specialistsGroup.items).toHaveLength(4);
-    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'SME Specialist', exact: false });
+    expect(specialistsGroup.items[0]).toMatchObject({ to: '/specialists/sme', label: 'Subject Matter Expert', exact: false });
     expect(specialistsGroup.items[1]).toMatchObject({ to: '/specialists/coordinator', label: 'Program Coordinator', exact: false });
-    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'GAD Specialist', exact: false });
-    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'ITSO Specialist', exact: false });
+    expect(specialistsGroup.items[2]).toMatchObject({ to: '/specialists/gad', label: 'Gender and Development', exact: false });
+    expect(specialistsGroup.items[3]).toMatchObject({ to: '/specialists/itso', label: 'ITSO', exact: false });
 
     expect(alignmentGroup.id).toBe('alignment');
     expect(alignmentGroup.label).toBe('Alignment');
     expect(alignmentGroup.items).toHaveLength(2);
     expect(alignmentGroup.items[0]).toMatchObject({
       to: '/syllabus-alignment',
-      label: 'Syllabus',
+      label: 'Syllabus check',
       exact: false,
     });
     expect(alignmentGroup.items[1]).toMatchObject({
       to: '/curriculum-alignment',
-      label: 'Curriculum',
+      label: 'Curriculum check',
       exact: false,
     });
 
     expect(logsGroup.id).toBe('logs');
-    expect(logsGroup.label).toBe('Logs');
+    expect(logsGroup.label).toBe('Records');
     expect(logsGroup.items).toHaveLength(1);
     expect(logsGroup.items[0]).toMatchObject({
       to: '/evaluations',
-      label: 'Evaluation History',
+      label: 'Evaluation history',
       exact: true,
     });
   });
 
   it('leaves faculty secondary nav empty after moving Evaluation Map to admin', () => {
     expect(facultySecondaryNavItems).toHaveLength(0);
+  });
+
+  it('keeps every sidebar destination aligned with its root breadcrumb and route title', () => {
+    for (const item of facultyNavGroups.flatMap((group) => group.items)) {
+      expect(getBreadcrumbs(item.to)).toEqual([{ label: item.label }]);
+      expect(getRouteTitle(item.to)).toBe(item.label);
+    }
   });
 });
 
@@ -94,20 +101,20 @@ describe('getRouteTitle', () => {
     expect(getRouteTitle('/dashboard')).toBe('Dashboard');
   });
 
-  it('returns Module Library for /documents', () => {
-    expect(getRouteTitle('/documents')).toBe('Module Library');
+  it('returns Module library for /documents', () => {
+    expect(getRouteTitle('/documents')).toBe('Module library');
   });
 
   it('returns Review for /documents/$documentId/evaluation (redirect)', () => {
     expect(getRouteTitle('/documents/doc-1/evaluation')).toBe('Review');
   });
 
-  it('returns SME Specialist for /specialists/sme', () => {
-    expect(getRouteTitle('/specialists/sme')).toBe('SME Specialist');
+  it('returns Subject Matter Expert for /specialists/sme', () => {
+    expect(getRouteTitle('/specialists/sme')).toBe('Subject Matter Expert');
   });
 
-  it('returns Evaluation History for /evaluations', () => {
-    expect(getRouteTitle('/evaluations')).toBe('Evaluation History');
+  it('returns Evaluation history for /evaluations', () => {
+    expect(getRouteTitle('/evaluations')).toBe('Evaluation history');
   });
 
   it('returns Scorecard for /evaluations/$id', () => {
@@ -115,84 +122,101 @@ describe('getRouteTitle', () => {
   });
 
   it('returns Syllabus for /syllabus-alignment', () => {
-    expect(getRouteTitle('/syllabus-alignment')).toBe('Syllabus');
+    expect(getRouteTitle('/syllabus-alignment')).toBe('Syllabus check');
   });
 
   it('returns Curriculum for /curriculum-alignment', () => {
-    expect(getRouteTitle('/curriculum-alignment')).toBe('Curriculum');
+    expect(getRouteTitle('/curriculum-alignment')).toBe('Curriculum check');
   });
 });
 
 describe('getBreadcrumbs', () => {
+  it.each([
+    ['sme', 'Subject Matter Expert'],
+    ['coordinator', 'Program Coordinator'],
+    ['gad', 'Gender and Development'],
+    ['itso', 'ITSO'],
+  ])('matches the sidebar label for the %s workspace and its result breadcrumb', (agent, label) => {
+    const route = `/specialists/${agent}`;
+    const item = facultyNavGroups.find((group) => group.id === 'specialists')?.items.find((item) => item.to === route);
+    expect(item?.label).toBe(label);
+    expect(getRouteTitle(route)).toBe(label);
+    expect(getBreadcrumbs(route)).toEqual([{ label }]);
+    expect(getBreadcrumbs(`${route}/document-1`)).toEqual([
+      { label, to: route },
+      { label: 'Evaluation results' },
+    ]);
+  });
+
   it('returns Dashboard for /dashboard', () => {
     expect(getBreadcrumbs('/dashboard')).toEqual([
       { label: 'Dashboard' },
     ]);
   });
 
-  it('returns Module Library for /documents and /storage', () => {
+  it('returns Module library for /documents and /storage', () => {
     expect(getBreadcrumbs('/documents')).toEqual([
-      { label: 'Module Library' },
+      { label: 'Module library' },
     ]);
     expect(getBreadcrumbs('/storage')).toEqual([
-      { label: 'Module Library' },
+      { label: 'Module library' },
     ]);
   });
 
   it('returns Documents > Review for /documents/doc-123/evaluation', () => {
     expect(getBreadcrumbs('/documents/doc-123/evaluation')).toEqual([
-      { label: 'Module Library', to: '/documents' },
+      { label: 'Module library', to: '/documents' },
       { label: 'Review' },
     ]);
   });
 
   it('returns direct specialist breadcrumbs for specialist routes', () => {
     expect(getBreadcrumbs('/specialists/sme')).toEqual([
-      { label: 'SME Specialist' },
+      { label: 'Subject Matter Expert' },
     ]);
     expect(getBreadcrumbs('/specialists/sme/doc-1')).toEqual([
-      { label: 'SME Specialist', to: '/specialists/sme' },
+      { label: 'Subject Matter Expert', to: '/specialists/sme' },
       { label: 'Evaluation results' },
     ]);
     expect(getBreadcrumbs('/specialists/gad')).toEqual([
-      { label: 'GAD Specialist' },
+      { label: 'Gender and Development' },
     ]);
   });
 
-  it('returns Evaluation History breadcrumbs for evaluation routes', () => {
+  it('returns Evaluation history breadcrumbs for evaluation routes', () => {
     expect(getBreadcrumbs('/evaluations')).toEqual([
-      { label: 'Evaluation History' },
+      { label: 'Evaluation history' },
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1')).toEqual([
-      { label: 'Evaluation History', to: '/evaluations' },
+      { label: 'Evaluation history', to: '/evaluations' },
       { label: 'Evaluation results' },
     ]);
     expect(getBreadcrumbs('/evaluations/eval-1/report')).toEqual([
-      { label: 'Evaluation History', to: '/evaluations' },
+      { label: 'Evaluation history', to: '/evaluations' },
       { label: 'Report' },
     ]);
   });
 
   it('returns Syllabus breadcrumbs for syllabus routes', () => {
     expect(getBreadcrumbs('/syllabus-alignment')).toEqual([
-      { label: 'Syllabus' },
+      { label: 'Syllabus check' },
     ]);
     expect(getBreadcrumbs('/syllabus-alignment/doc-1')).toEqual([
-      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Syllabus check', to: '/syllabus-alignment' },
       { label: 'Workstation' },
     ]);
     expect(getBreadcrumbs('/syllabus-alignment/doc-1/report')).toEqual([
-      { label: 'Syllabus', to: '/syllabus-alignment' },
+      { label: 'Syllabus check', to: '/syllabus-alignment' },
       { label: 'Report' },
     ]);
   });
 
   it('returns Curriculum breadcrumbs for curriculum routes', () => {
     expect(getBreadcrumbs('/curriculum-alignment')).toEqual([
-      { label: 'Curriculum' },
+      { label: 'Curriculum check' },
     ]);
     expect(getBreadcrumbs('/curriculum-alignment/check-1')).toEqual([
-      { label: 'Curriculum', to: '/curriculum-alignment' },
+      { label: 'Curriculum check', to: '/curriculum-alignment' },
       { label: 'Matrix' },
     ]);
   });

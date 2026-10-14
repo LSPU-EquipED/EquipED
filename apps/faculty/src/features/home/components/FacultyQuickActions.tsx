@@ -21,7 +21,7 @@ const specialists: {
 }[] = [
   {
     id: "sme",
-    label: "SME Specialist",
+    label: "Subject Matter Expert",
     description: "Content accuracy and mastery",
     icon: GraduationCap,
   },
@@ -33,13 +33,13 @@ const specialists: {
   },
   {
     id: "gad",
-    label: "GAD Specialist",
+    label: "Gender and Development",
     description: "Inclusivity and representation",
     icon: ShieldCheck,
   },
   {
     id: "itso",
-    label: "ITSO Specialist",
+    label: "ITSO",
     description: "Intellectual property and citations",
     icon: Lightbulb,
   },
@@ -48,7 +48,7 @@ const specialists: {
 const alignmentActions = [
   {
     to: "/syllabus-alignment",
-    label: "Syllabus alignment",
+    label: "Syllabus check",
     icon: BookOpenText,
   },
   { to: "/curriculum-alignment", label: "Curriculum check", icon: GitFork },
