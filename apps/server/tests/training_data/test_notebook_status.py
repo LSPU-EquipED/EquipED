@@ -37,14 +37,50 @@ class _FakeRequests(types.ModuleType):
             raise RuntimeError("network down")
 
 
-def _report(monkeypatch, status_url, *, raises=False):
+def _report(monkeypatch, status_url, *, raises=False, enabled=True):
     source = _find(START)
     block = source[source.index(START) : source.index(END)]
     fake = _FakeRequests(raises=raises)
     monkeypatch.setitem(sys.modules, "requests", fake)
-    namespace = {"STATUS_URL": status_url}
+    namespace = {"STATUS_URL": status_url, "ENABLE_PROGRESS_REPORTING": enabled}
     exec(block, namespace)  # noqa: S102
     return namespace["report"], fake
+
+
+def test_disabled_reporting_sends_no_requests_for_any_stage(monkeypatch):
+    report, fake = _report(monkeypatch, "https://app/status?token=t", enabled=False)
+    for stage in ("starting", "training", "sending_model", "sending_file", "failed"):
+        report(stage, step=14, total=30, message="diagnostic")
+    assert fake.calls == []
+
+
+def test_generated_notebook_disables_reporting_even_with_a_status_url(monkeypatch):
+    from server.modules.training_data.notebook import build_job_notebook
+
+    notebook = json.loads(
+        build_job_notebook(
+            "https://app/download?token=d",
+            "https://app/upload?token=u",
+            status_url="https://app/status?token=s",
+        )
+    )
+    source = "".join(notebook["cells"][1]["source"])
+    namespace = {}
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id in {
+                    "STATUS_URL",
+                    "ENABLE_PROGRESS_REPORTING",
+                }:
+                    namespace[target.id] = ast.literal_eval(node.value)
+    assert namespace["ENABLE_PROGRESS_REPORTING"] is False
+    fake = _FakeRequests()
+    monkeypatch.setitem(sys.modules, "requests", fake)
+    exec(source[source.index(START) : source.index(END)], namespace)  # noqa: S102
+    namespace["report"]("starting")
+    namespace["report"]("training", step=1, total=24)
+    assert fake.calls == []
 
 
 def test_report_posts_stage_step_total_with_a_short_timeout(monkeypatch):
