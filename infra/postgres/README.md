@@ -1,12 +1,59 @@
-# Shared native Windows PostgreSQL
+# Development PostgreSQL: Neon and Windows fallback
 
-## Verified host setup (2026-10-14)
+## Current development destination (2026-10-14)
+
+Development has subsequently moved to a new **Neon PostgreSQL 18.6** project.
+The Windows database described below remains intact as a point-in-time fallback,
+not a replica of later Neon writes. Tailscale is not required for Neon access.
+
+A fresh PC dump was taken from an exported repeatable-read snapshot, restored
+through the direct Neon endpoint without owner/ACL mappings, and verified by
+exact row counts and content digests across all 36 tables. Sequence state,
+immutable snapshot trigger, admission constraint, and active Coordinator rubric
+v5 / adapter v3 were preserved. Owner-role Alembic upgrade passed at
+`20261010_0002`. The destination was empty before restore; no tables were dropped.
+
+The Windows checkout's root `.env` now uses the new project's pooled connection
+as `equiped_app` with required TLS. This role has runtime table/sequence access,
+no schema CREATE, and no superuser/CREATEDB/CREATEROLE/replication/BYPASSRLS.
+Owner default privileges cover future tables/sequences. Real runtime-role matrix
+reads passed. Other developer checkouts still need their own local URL updated;
+Mac and inference infrastructure were not modified, and web/login checks were
+not performed.
+
+### Developer connection checklist
+
+1. Obtain the new `neon-runtime.env` connection privately and update only
+   DATABASE_URL in the checkout's existing `.env`. Do not overwrite other settings.
+2. Use the pooled endpoint and required TLS as `equiped_app` for the backend.
+   Neon access needs internet connectivity, not PC uptime or Tailscale enrollment.
+3. A migration administrator uses `neon-owner.env` through its direct endpoint
+   only for migrations, then restores the runtime connection. Clear any temporary
+   exported DATABASE_URL so it cannot override `.env` on backend startup.
+4. Retain the approved document-storage, local Chroma, and independent inference
+   settings. The SQL restore does not restore document binaries or vector state.
+
+Protected fresh dump, manifests, and connection files:
+`F:\Dev\Backups\EquipED\migration-to-neon-20261014-172834`.
+`neon-runtime.env` contains the new runtime URL; `neon-owner.env` contains the
+separate **direct** owner connection for migrations. Share only the runtime
+connection privately; never commit either file. The old Windows owner password
+does not grant migration access to Neon.
+
+The scheduled PC backup below still backs up the **PC fallback**, not new Neon
+writes. The fresh migration dump is not continuous Neon backup coverage. No
+scheduled Neon export or off-PC sync was configured by this cutover. Original
+Neon and PC resources were not deleted or suspended.
+
+## PC fallback host setup (verified 2026-10-14)
 
 - Host: `DESKTOP-J752SQK`, Windows 10 Pro, native PostgreSQL 18.6.
 - Service: `postgresql-x64-18`, running with Automatic startup.
 - Database: `equiped`; port: `5432`; Tailscale IPv4: `100.123.191.41`.
 - Listening: `127.0.0.1`, `::1`, and the Tailscale IPv4 only; no wildcard listener.
-- Tailscale runs as an Automatic service with unattended mode enabled. AC sleep
+- Tailscale was initially configured as an Automatic service with unattended mode
+  enabled; its startup type was later changed to **Manual** at the user's
+  preference and verified during inspection. AC sleep
   was already disabled. The host's current Tailscale key expires 2027-04-12;
   the Tailnet administrator must manage renewal or disable expiry in the console
   for this trusted host. No auth keys are stored in this repository.
@@ -19,7 +66,7 @@
 - Configs: `F:\Dev\Servers\PostgreSQL\data\postgresql.conf` and `pg_hba.conf`.
   Protected pre-change copies are in the migration directory below.
 
-## Migration evidence
+## Historical Neon-to-PC migration evidence
 
 The complete Neon custom-format dump was restored in a single transaction with
 `--no-owner --no-privileges --role=equiped_owner`. All **36 tables** match the
@@ -51,7 +98,7 @@ Protected migration files:
 the comparisons. The directory contains sensitive backups and connection files:
 never commit, publish, or send it wholesale.
 
-## Roles and developer cutover
+## PC fallback roles and access (not required for Neon)
 
 - `equiped_owner`: LOGIN, owns database/schema/objects; use only for migrations.
 - `equiped_app`: LOGIN, CONNECT, public schema USAGE, table SELECT/INSERT/UPDATE/
@@ -61,7 +108,7 @@ never commit, publish, or send it wholesale.
 - All three have no SUPERUSER, CREATEDB, CREATEROLE, REPLICATION, or BYPASSRLS.
   Owner default privileges cover future tables/sequences for runtime and backup.
 
-Developer connection template:
+Use this template only for a deliberate PC fallback, with its separate password:
 
 ```dotenv
 DATABASE_URL="postgresql://equiped_app:<URL_ENCODED_PASSWORD>@100.123.191.41:5432/equiped?sslmode=prefer"
@@ -76,15 +123,18 @@ these generated passwords. Tailscale encrypts network traffic; `sslmode=prefer`
 allows native PostgreSQL without independently configured TLS. `disable` is
 also appropriate only over this private link; `require` needs configured TLS.
 
-The Windows checkout's root `.env` was backed up and only DATABASE_URL was
-changed, using `equiped_app` on `127.0.0.1`. All other settings are preserved.
-No Mac files or services were modified. On the Mac, copy the runtime connection
-line into the existing server/root `.env` in
-`/Users/admin/Developer/repos/EquipED`; avoid conflicting values in two files
-or an already-exported DATABASE_URL. Run migrations separately using the owner
-connection, then run the backend with the runtime connection.
+At the initial PC cutover, the Windows checkout's root `.env` was backed up and
+only DATABASE_URL was changed, using `equiped_app` on `127.0.0.1`. It has since
+been switched to the new Neon project as described above. Other settings are preserved.
+No Mac files or services were modified. For normal development, use the **new
+Neon runtime** connection from the checklist above in
+`/Users/admin/Developer/repos/EquipED` or another developer's local checkout.
+Do not copy the old PC URL unless intentionally testing or performing a planned
+fallback. Such a fallback loses later Neon writes unless they are explicitly
+migrated back first.
 
-Teammates are **not enrolled or authorized yet**. Each must join this Tailnet
+For PC fallback access only, teammates are **not enrolled or authorized yet**.
+Each must join this Tailnet
 with their own invited account, install Tailscale, and provide their laptop's
 IPv4. An administrator must add each verified `/32` to both the Firewall rule's
 RemoteAddress list and an HBA rule of this form, preserving existing entries:
@@ -97,7 +147,7 @@ Back up HBA before each change and reload PostgreSQL. Do not authorize the whole
 `100.64.0.0/10` range or enable unrestricted inbound TCP 5432. After authorization,
 teammates use the same runtime URL and their own local frontend/backend.
 
-## Verification boundaries
+## PC migration verification boundaries
 
 - Real SQLAlchemy runtime connection passed as `equiped_app`; historical users,
   document metadata, matrix rows, snapshots, and jobs are readable.
@@ -120,7 +170,7 @@ teammates use the same runtime URL and their own local frontend/backend.
   still need their runtime URL changed to stop using it. No billing change is
   implied by this database migration.
 
-## Daily backups
+## Daily PC fallback backups (not live Neon backups)
 
 - Source script: `infra/postgres/Backup-EquipED.ps1`.
 - Operational script: `F:\Dev\Backups\EquipED\daily\Backup-EquipED.ps1`.
@@ -146,7 +196,7 @@ For a manual backup, run elevated PowerShell:
 Get-ScheduledTaskInfo -TaskName 'EquipED-Daily-PostgreSQL-Backup'
 ```
 
-## Restore without overwriting an existing database
+## Restore a PC backup without overwriting an existing database
 
 Use an elevated local terminal and interactive PostgreSQL password prompts.
 Confirm the owner role exists first. Choose a **new, absent** restore database:
