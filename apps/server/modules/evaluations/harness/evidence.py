@@ -8,14 +8,13 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from equiped_harness import run_itso_precheck
 from server.core.config import get_settings
 from server.core.endpoint_security import is_private_endpoint
 from server.modules.embeddings.policy_retrieval import (
     ITSO_POLICY_MAP,
     retrieve_policy_context,
 )
-
-from .precheck import run_itso_precheck
 
 logger = logging.getLogger(__name__)
 

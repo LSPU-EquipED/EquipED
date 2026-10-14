@@ -10,14 +10,19 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
-from server.modules.admin.prompt_service import get_active_prompt
+from equiped_harness.exceptions import SupervisorExecutionError
 from server.modules.documents.ingestion.pipeline import prepare_canonical_source
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.documents.paths import resolve_document_pdf_path
 
-from ..exceptions import SupervisorExecutionError
-
 logger = logging.getLogger(__name__)
+
+
+def get_active_prompt(agent_name, db):
+    # Avoid importing admin ORM initialization through the public Supervisor API.
+    from server.modules.admin.prompt_service import get_active_prompt as load_prompt
+
+    return load_prompt(agent_name, db)
 
 
 _AGENT_FIXED_CRITERION_PATTERNS = {

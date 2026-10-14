@@ -6,15 +6,14 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-from .contracts import (
+from equiped_harness.contracts import (
     MAX_CODE_LENGTH,
     MAX_DESCRIPTION_LENGTH,
     MAX_SCORING_RULE_LENGTH,
     MAX_TITLE_LENGTH,
     StrategyConfig,
 )
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def _clean_str(value: str, *, max_length: int, field_name: str) -> str:

@@ -5,21 +5,21 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping, Sequence
 
-from pydantic import ValidationError
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session
-
-from .contracts import MAX_CODE_LENGTH, FormDefinition
-from .manifests import get_agent_manifest
-from .models import EvaluationFormSnapshot
-from .repository import load_active_form_definitions, validate_form_definition
-from .snapshot_contracts import (
+from equiped_harness.contracts import MAX_CODE_LENGTH, FormDefinition
+from equiped_harness.manifests import get_agent_manifest
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
     verify_evaluation_form_snapshot,
 )
+from pydantic import ValidationError
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session
+
+from .models import EvaluationFormSnapshot
+from .repository import load_active_form_definitions, validate_form_definition
 
 
 def _normalize_and_validate_scheduled_agents(

@@ -3,7 +3,7 @@
 import uuid
 from dataclasses import dataclass, field
 
-from ..contracts import AgentEvaluationResult
+from equiped_harness.result_contracts import AgentEvaluationResult
 
 
 @dataclass(slots=True)

@@ -9,20 +9,19 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from server.modules.agents.contracts import (
+from equiped_harness.contracts import LlmRubricGuidanceConfig
+from equiped_harness.provenance import sanitize_provenance
+from equiped_harness.result_contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CapturedGeneration,
     CoordinatorAlignmentAdvisory,
-    CurriculumObjectiveMatch,
 )
-from server.modules.agents.contracts import (
+from equiped_harness.result_contracts import (
     CriterionScore as InputCriterionScore,
 )
-from server.modules.agents.provenance import sanitize_provenance
-from server.modules.agents.runtime.bands import ratio_band
-from server.modules.rubrics.contracts import LlmRubricGuidanceConfig
-from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.scoring import validate_coordinator_coverage, validate_score_band
+from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 
 ERROR_MESSAGE_PATTERN = re.compile(
@@ -395,52 +394,7 @@ def build_persistable_agent_result(
                 "Coordinator v3 requires scored curriculum advisory"
             )
         try:
-            advisory = CoordinatorAlignmentAdvisory.from_dict(
-                result.advisory_outputs.to_dict()
-            )
-            rows = (
-                (group_responses or {}).get("envelope_2", {}).get("objective_matches")
-            )
-            if not isinstance(rows, list) or len(rows) != len(
-                advisory.objective_matches
-            ):
-                raise ValueError("objective inventory mismatch")
-            assessment_matches = []
-            for row, c_match in zip(rows, advisory.objective_matches, strict=True):
-                if not isinstance(row, dict) or set(row) != {
-                    "objective_id",
-                    "objective_text",
-                    "assessment_matched",
-                    "assessment_excerpt",
-                    "assessment_rejected",
-                    "curriculum_matched",
-                    "curriculum_excerpt",
-                    "curriculum_rejected",
-                }:
-                    raise ValueError("invalid objective measurement fields")
-
-                def match_for(dimension: str) -> CurriculumObjectiveMatch:
-                    return CurriculumObjectiveMatch(
-                        objective_id=row["objective_id"],
-                        objective_text=row["objective_text"],
-                        matched=row[f"{dimension}_matched"],
-                        excerpt=row[f"{dimension}_excerpt"],
-                        rejected=row[f"{dimension}_rejected"],
-                    )
-
-                if match_for("curriculum") != c_match:
-                    raise ValueError(
-                        "curriculum advisory disagrees with frozen measurement"
-                    )
-                assessment_matches.append(match_for("assessment"))
-            a05 = next(s for s in result.criterion_scores if s.criterion_id == "A-05")
-            derived_score = ratio_band(
-                sum(m.matched for m in assessment_matches), len(rows)
-            ).band
-            if a05.score != derived_score or a05.evidence != tuple(
-                m.excerpt for m in assessment_matches if m.matched
-            ):
-                raise ValueError("objective gauging disagrees with frozen measurement")
+            validate_coordinator_coverage(result)
         except (ValueError, TypeError, AttributeError, KeyError, StopIteration) as exc:
             raise EvaluationResultIntegrityError(
                 "Invalid Coordinator coverage/advisory payload"
@@ -526,12 +480,10 @@ def build_persistable_agent_result(
     total_score = 0
     total_evidence_bytes = 0
     for score in result.criterion_scores:
-        if (
-            isinstance(score.score, bool)
-            or not isinstance(score.score, int)
-            or not (1 <= score.score <= 4)
-        ):
-            raise EvaluationResultIntegrityError("criterion score out of bounds")
+        try:
+            validate_score_band(score.score)
+        except ValueError as exc:
+            raise EvaluationResultIntegrityError(str(exc)) from exc
 
         is_claimed_ungrounded = (
             result.agent_name in ADVISORY_CAPABLE_AGENTS

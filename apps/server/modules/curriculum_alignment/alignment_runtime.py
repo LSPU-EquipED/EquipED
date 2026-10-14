@@ -13,8 +13,8 @@ Owns the transport/retry boundary for the single alignment LLM call:
   client on model failure.
 
 Other agents' client behavior is preserved: this module only wraps whatever
-client the caller passes in, and ``server/modules/agents/base.py`` keeps its
-own retry/fallback handling untouched.
+client the caller passes in. Evaluation transport remains owned by
+``server/core/llm.py`` and keeps its retry/fallback handling untouched.
 """
 
 from __future__ import annotations

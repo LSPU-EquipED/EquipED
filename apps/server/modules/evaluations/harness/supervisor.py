@@ -9,18 +9,15 @@ from collections.abc import Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
 
-from server.modules.agents.itso.evidence import (
+from equiped_harness import GAD, ITSO, SME, Coordinator
+from equiped_harness.exceptions import SupervisorExecutionError
+from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+from server.modules.documents.models import DocumentChunk
+from server.modules.evaluations.harness.evidence import (
     ITSOEvidenceBuilder,
     ITSOEvidenceSnapshot,
 )
-from server.modules.documents.models import DocumentChunk
-from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 
-from ..coordinator.agent import Coordinator
-from ..exceptions import SupervisorExecutionError
-from ..gad.agent import GAD
-from ..itso.agent import ITSO
-from ..sme.agent import SME
 from .context import EvaluationContextBuilder
 from .dispatch import AgentDispatcher
 from .result import SupervisorResult

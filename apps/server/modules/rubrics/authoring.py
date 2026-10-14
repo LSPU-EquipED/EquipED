@@ -6,9 +6,9 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
+from equiped_harness.contracts import StrategyConfig
 from sqlalchemy import func
 
-from .contracts import StrategyConfig
 from .exceptions import (
     RubricConflictError,
     RubricNotFoundError,

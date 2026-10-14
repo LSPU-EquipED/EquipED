@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 
+from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
 from pydantic import BaseModel, ConfigDict
-
-from .snapshot_contracts import EvaluationFormSnapshotDTO
 
 
 class EvaluationFormCriterionPresentation(BaseModel):
