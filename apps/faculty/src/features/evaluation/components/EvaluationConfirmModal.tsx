@@ -123,6 +123,7 @@ export function EvaluationConfirmModal({
           </button>
         </div>
 
+        <p className="px-5 pt-4 text-xs leading-relaxed text-text-muted">This creates a new evaluation run. Previous results remain in Evaluation History.</p>
         <div className="space-y-4 px-5 py-4">
           <p className="text-xs leading-relaxed text-text-muted">
             {meta.requirement}

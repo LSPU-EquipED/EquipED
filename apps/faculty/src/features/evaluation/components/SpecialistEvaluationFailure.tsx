@@ -29,7 +29,7 @@ export function SpecialistEvaluationFailure({
               "The evaluation stopped before it could produce a result. Review the submission details and try again."}
           </p>
           <Button size="sm" onClick={onRetry}>
-            Try again
+            Retry evaluation
           </Button>
         </div>
       </div>

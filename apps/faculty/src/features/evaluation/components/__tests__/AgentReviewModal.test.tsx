@@ -17,7 +17,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderModal(criteria: readonly CriterionScoreItem[]) {
+function renderModal(criteria: readonly CriterionScoreItem[], onClose = vi.fn()) {
   const queryClient = new QueryClient();
   return render(
     <QueryClientProvider client={queryClient}>
@@ -25,7 +25,7 @@ function renderModal(criteria: readonly CriterionScoreItem[]) {
         agentName="sme"
         evaluationId="eval-1"
         criteria={criteria}
-        onClose={vi.fn()}
+        onClose={onClose}
       />
     </QueryClientProvider>,
   );
@@ -149,5 +149,128 @@ describe('AgentReviewModal item-level correction', () => {
     expect(
       screen.queryByRole('button', { name: /what counted toward this score/i }),
     ).toBeNull();
+  });
+});
+
+
+describe('review draft protection', () => {
+  it('confirms discarding changed item selections, but leaves untouched reviews immediately', async () => {
+    const onClose = vi.fn();
+    renderModal([criterionWithItems], onClose);
+    expandItemsChecklist();
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(evaluationApi.submitCriterionFeedback).not.toHaveBeenCalled();
+  });
+  it('does not ask for confirmation when no changes were made', () => {
+    const onClose = vi.fn(); renderModal([criterionWithItems], onClose);
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog', { name: 'Discard unsaved changes?' })).toBeNull();
+  });
+});
+
+describe('review save and focus behavior', () => {
+  it('keeps a saved correction visible without submitting it again', async () => {
+    const onClose = vi.fn();
+    renderModal([{
+      ...criterionWithItems,
+      reviewer_correction: { action: 'EDIT', score: 2, justification: 'Saved correction.' },
+    }], onClose);
+    expect(screen.getByText('Edited')).toBeDefined();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('Saved correction.');
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(evaluationApi.submitCriterionFeedback).not.toHaveBeenCalled();
+  });
+
+  it('saves the changed score and trimmed justification for the displayed run and criterion', async () => {
+    const onClose = vi.fn();
+    renderModal([criterionWithItems], onClose);
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Reviewer finding.  ' } });
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(evaluationApi.submitCriterionFeedback).toHaveBeenCalledOnce();
+    expect(evaluationApi.submitCriterionFeedback).toHaveBeenCalledWith(
+      'eval-1', 'OP-01',
+      { agent_name: 'sme', action: 'EDIT', score: 2, justification: 'Reviewer finding.' },
+    );
+  });
+
+  it('blocks saving an empty justification without discarding the draft', () => {
+    renderModal([criterionWithItems]);
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '   ' } });
+    expect(screen.getByText('Justification cannot be empty.')).toBeDefined();
+    expect((screen.getByRole('button', { name: /save changes/i }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(evaluationApi.submitCriterionFeedback).not.toHaveBeenCalled();
+  });
+
+  it('sends only the criterion rejection when a changed item belongs to a flagged criterion', async () => {
+    const onClose = vi.fn();
+    renderModal([criterionWithItems], onClose);
+    expandItemsChecklist();
+    fireEvent.click(screen.getAllByRole('checkbox')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Flag as incorrect' }));
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(evaluationApi.submitCriterionFeedback).toHaveBeenCalledOnce();
+    expect(evaluationApi.submitCriterionFeedback).toHaveBeenCalledWith(
+      'eval-1', 'OP-01', { agent_name: 'sme', action: 'REJECT' },
+    );
+  });
+
+  it('keeps an already rejected criterion locked and submits no repeat rejection', async () => {
+    const onClose = vi.fn();
+    renderModal([{
+      ...criterionWithItems,
+      reviewer_correction: { action: 'REJECT', score: null, justification: null },
+    }], onClose);
+    expect((screen.getByRole('button', { name: /already flagged as incorrect/i }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(evaluationApi.submitCriterionFeedback).not.toHaveBeenCalled();
+  });
+
+  it('keeps the draft after a failed save and allows retrying the same corrections', async () => {
+    const submit = vi.mocked(evaluationApi.submitCriterionFeedback);
+    submit.mockRejectedValueOnce(new Error('Unavailable'));
+    const onClose = vi.fn();
+    renderModal([criterionWithItems], onClose);
+    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText("Some corrections couldn't be saved. Please try again.")).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe(criterionWithItems.justification);
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(submit.mock.calls[1]).toEqual(submit.mock.calls[0]);
+  });
+
+  it('wraps focus within the review and restores the opener when unmounted', () => {
+    const opener = document.createElement('button');
+    document.body.append(opener);
+    opener.focus();
+    const { unmount } = renderModal([criterionWithItems]);
+    const close = screen.getByRole('button', { name: 'Close review' });
+    const save = screen.getByRole('button', { name: /save changes/i });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(save);
+    fireEvent.keyDown(save, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    unmount();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
   });
 });
