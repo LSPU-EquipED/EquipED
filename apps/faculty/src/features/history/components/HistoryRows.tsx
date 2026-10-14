@@ -1,15 +1,5 @@
 import { Fragment, useState } from 'react';
-import {
-  ArrowSquareOut,
-  CaretDown,
-  Check,
-  ClipboardText,
-  Clock,
-  Copy,
-  FileText,
-  FolderOpen,
-  Warning,
-} from '@phosphor-icons/react';
+import { CaretDown, ClipboardText, Warning } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { TARGET_AGENT_META, isTargetAgent } from '@equiped/types';
 import {
@@ -24,7 +14,7 @@ import type { HistoryEvaluationItem } from '../types';
 import {
   formatDate,
   formatDuration,
-  formatRelativeTime,
+  formatStatus,
   getStatusVariant,
 } from '../utils/historyFormatters';
 
@@ -65,12 +55,14 @@ export function HistoryRows({
       <TableSkeleton
         ariaLabel="Loading evaluation history"
         columns={[
-          { label: 'Document / SLM', headerClassName: 'min-w-[18rem]', cellClassName: 'min-w-[18rem]', skeletonClassName: 'h-4 w-56' },
-          { label: 'Role', skeletonClassName: 'h-5 w-16' },
+          { label: 'Module', skeletonClassName: 'h-4 w-48' },
           { label: 'Status', skeletonClassName: 'h-5 w-24' },
           { label: 'Submitted', skeletonClassName: 'h-4 w-28' },
-          { label: 'Completed', skeletonClassName: 'h-4 w-28' },
-          { label: 'Action', headerClassName: 'text-right', skeletonClassName: 'ml-auto h-7 w-24' },
+          {
+            label: 'Action',
+            headerClassName: 'text-right',
+            skeletonClassName: 'ml-auto h-7 w-24',
+          },
         ]}
       />
     );
@@ -78,10 +70,17 @@ export function HistoryRows({
 
   if (isError) {
     return (
-      <div className="flex min-h-44 flex-col items-center justify-center gap-2 border-b border-border bg-destructive-soft/35 px-6 py-12 text-center" role="alert">
+      <div
+        className="flex min-h-44 flex-col items-center justify-center gap-2 border-b border-border bg-destructive-soft/35 px-6 py-12 text-center"
+        role="alert"
+      >
         <Warning className="size-6 text-destructive" aria-hidden="true" />
-        <p className="text-sm font-semibold text-text">Failed to load evaluation history.</p>
-        <p className="max-w-sm text-xs text-text-muted">Refresh the page or try again in a moment.</p>
+        <p className="text-sm font-semibold text-text">
+          Failed to load evaluation history.
+        </p>
+        <p className="max-w-sm text-xs text-text-muted">
+          Refresh the page or try again in a moment.
+        </p>
       </div>
     );
   }
@@ -90,21 +89,30 @@ export function HistoryRows({
     return (
       <div className="px-6 py-16 text-center text-sm text-text-muted">
         {isFetching ? (
-          <div className="space-y-3 px-6 py-5" role="status" aria-label="Loading evaluation history">
+          <div
+            className="space-y-3 px-6 py-5"
+            role="status"
+            aria-label="Loading evaluation history"
+          >
             <Skeleton className="mx-auto h-3 w-40" />
             <Skeleton className="mx-auto h-3 w-64 max-w-full" />
             <Skeleton className="mx-auto h-8 w-28" />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-2">
-            <ClipboardText className="size-6 text-text-muted/60" aria-hidden="true" />
+            <ClipboardText
+              className="size-6 text-text-muted/60"
+              aria-hidden="true"
+            />
             <p className="font-semibold text-text">
-              {hasActiveFilters ? 'No evaluations match your filters' : 'No evaluations yet'}
+              {hasActiveFilters
+                ? 'No evaluations match your filters'
+                : 'No evaluations yet'}
             </p>
             <p className="max-w-sm text-xs text-text-muted">
               {hasActiveFilters
                 ? 'Try another title on this page, or reset the filters.'
-                : 'Evaluations will appear here once you run one from SLM Storage or the specialist workspaces.'}
+                : 'Evaluations will appear here once you run one from a specialist workspace.'}
             </p>
             {hasActiveFilters ? (
               <button
@@ -122,18 +130,26 @@ export function HistoryRows({
   }
 
   return (
-    <table className={cn(TABLE_STYLES.table, isFetching && 'opacity-60 transition-opacity')}>
+    <table
+      className={cn(
+        TABLE_STYLES.table,
+        isFetching && 'opacity-60 transition-opacity',
+      )}
+    >
       <thead className={TABLE_STYLES.thead}>
         <tr>
-          <th scope="col" className={cn(TABLE_STYLES.th, 'w-8 px-2')}>
-            <span className="sr-only">Expand</span>
+          <th scope="col" className={TABLE_STYLES.th}>
+            Module
           </th>
-          <th scope="col" className={cn(TABLE_STYLES.th, 'min-w-[18rem]')}>Document / SLM</th>
-          <th scope="col" className={TABLE_STYLES.th}>Role</th>
-          <th scope="col" className={TABLE_STYLES.th}>Status</th>
-          <th scope="col" className={TABLE_STYLES.th}>Submitted</th>
-          <th scope="col" className={TABLE_STYLES.th}>Completed</th>
-          <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>Action</th>
+          <th scope="col" className={TABLE_STYLES.th}>
+            Status
+          </th>
+          <th scope="col" className={TABLE_STYLES.th}>
+            Submitted
+          </th>
+          <th scope="col" className={cn(TABLE_STYLES.th, 'text-right')}>
+            Action
+          </th>
         </tr>
       </thead>
       <tbody className={TABLE_STYLES.tbody}>
@@ -144,106 +160,69 @@ export function HistoryRows({
             record.submitted_at,
             record.completed_at,
           );
-          const relativeSubmitted = formatRelativeTime(record.submitted_at);
+          const isCompleted = record.status
+            .toUpperCase()
+            .startsWith('COMPLETED');
+          const actionLabel = isCompleted
+            ? 'View results'
+            : getStatusVariant(record.status) === 'destructive'
+              ? 'View details'
+              : 'View progress';
 
           return (
             <Fragment key={record.evaluation_id}>
-              <tr className={cn(TABLE_STYLES.tr, isExpanded && 'bg-surface-subtle/30')}>
-                <td className="w-8 px-2 text-center align-middle">
-                  <button
-                    type="button"
-                    onClick={() => toggleRow(record.evaluation_id)}
-                    aria-expanded={isExpanded}
-                    aria-label={
-                      isExpanded
-                        ? `Collapse details for ${record.document_title || record.evaluation_id}`
-                        : `Expand details for ${record.document_title || record.evaluation_id}`
-                    }
-                    className="inline-flex size-6 items-center justify-center rounded-xs text-text-muted transition-colors hover:bg-surface-subtle hover:text-text focus-visible:outline-2 focus-visible:outline-ring"
-                  >
-                    <CaretDown
-                      className={cn(
-                        'size-3.5 transition-transform duration-150',
-                        isExpanded ? 'rotate-180' : '-rotate-90',
-                      )}
-                      aria-hidden="true"
-                    />
-                  </button>
-                </td>
-                <td className={TABLE_STYLES.td}>
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-sm border border-border bg-surface-subtle text-primary">
-                      <FileText className="size-3.5" aria-hidden="true" />
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="line-clamp-1 font-semibold text-text">
-                        {record.document_title ?? '—'}
-                      </span>
-                      <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-text-muted">
-                        <span>ID: {record.evaluation_id.slice(0, 18)}...</span>
-                        <button
-                          type="button"
-                          onClick={() => handleCopy(record.evaluation_id)}
-                          title="Copy full evaluation ID"
-                          aria-label="Copy full evaluation ID"
-                          className="text-text-muted hover:text-text transition-colors p-0.5"
-                        >
-                          {copiedId === record.evaluation_id ? (
-                            <Check className="size-3 text-success" aria-hidden="true" />
-                          ) : (
-                            <Copy className="size-3" aria-hidden="true" />
-                          )}
-                        </button>
-                      </span>
+              <tr
+                className={cn(
+                  TABLE_STYLES.tr,
+                  isExpanded && 'bg-surface-subtle/30',
+                )}
+              >
+                <td className={cn(TABLE_STYLES.td, 'min-w-[14rem]')}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleRow(record.evaluation_id)}
+                      aria-expanded={isExpanded}
+                      aria-label={
+                        isExpanded
+                          ? `Collapse details for ${record.document_title || record.evaluation_id}`
+                          : `Expand details for ${record.document_title || record.evaluation_id}`
+                      }
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-xs text-text-muted transition-colors hover:bg-surface-subtle hover:text-text focus-visible:outline-2 focus-visible:outline-ring"
+                    >
+                      <CaretDown
+                        className={cn(
+                          'size-3.5 transition-transform duration-150 motion-reduce:transition-none',
+                          isExpanded ? 'rotate-180' : '-rotate-90',
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <span className="max-w-xl break-words font-medium text-text [overflow-wrap:anywhere]">
+                      {record.document_title ?? '—'}
                     </span>
                   </div>
                 </td>
                 <td className={TABLE_STYLES.td}>
-                  {isTargetAgent(record.target_agent) ? (
-                    <Badge variant="info">
-                      {TARGET_AGENT_META[record.target_agent].shortLabel}
-                    </Badge>
-                  ) : (
-                    <Badge variant="neutral">
-                      {record.target_agent === 'all'
-                        ? 'All Domains'
-                        : record.target_agent ?? '—'}
-                    </Badge>
+                  <Badge variant={getStatusVariant(record.status)}>
+                    {formatStatus(record.status)}
+                  </Badge>
+                </td>
+                <td
+                  className={cn(
+                    TABLE_STYLES.tdData,
+                    'whitespace-nowrap text-xs text-text-muted tabular-nums',
                   )}
-                </td>
-                <td className={TABLE_STYLES.td}>
-                  <div className="flex flex-col items-start gap-1">
-                    <Badge variant={getStatusVariant(record.status)} withDot>
-                      {record.status.replace('_', ' ')}
-                    </Badge>
-                    {duration ? (
-                      <span className="inline-flex items-center gap-1 font-mono text-[10px] text-text-muted">
-                        <Clock className="size-2.5" aria-hidden="true" />
-                        {duration}
-                      </span>
-                    ) : null}
-                  </div>
-                </td>
-                <td className={cn(TABLE_STYLES.tdData, 'text-xs text-text-muted tabular-nums')}>
-                  <div className="flex flex-col">
-                    <span>{formatDate(record.submitted_at)}</span>
-                    {relativeSubmitted && (
-                      <span className="text-[10px] text-text-muted/70">{relativeSubmitted}</span>
-                    )}
-                  </div>
-                </td>
-                <td className={cn(TABLE_STYLES.tdData, 'text-xs text-text-muted tabular-nums')}>
-                  {record.completed_at ? (
-                    <span>{formatDate(record.completed_at)}</span>
-                  ) : (
-                    <span className="italic text-text-muted">In progress…</span>
-                  )}
+                >
+                  <time dateTime={record.submitted_at}>
+                    {formatDate(record.submitted_at)}
+                  </time>
                 </td>
                 <td className={cn(TABLE_STYLES.td, 'text-right')}>
                   <Link
                     to="/evaluations/$id"
                     params={{ id: record.evaluation_id }}
-                    aria-label={`View evaluation results for ${record.document_title || record.evaluation_id}`}
+                    aria-label={`${isCompleted ? 'View evaluation results' : actionLabel} for ${record.document_title || record.evaluation_id}`}
                     className={cn(
                       BUTTON_STYLES.base,
                       BUTTON_STYLES.variants.secondary,
@@ -251,31 +230,25 @@ export function HistoryRows({
                       'h-8 px-2.5 text-xs',
                     )}
                   >
-                    View results
+                    {actionLabel}
                   </Link>
                 </td>
               </tr>
 
-              {/* Expandable Inline Audit Dossier */}
               {isExpanded && (
-                <tr className="bg-surface-subtle/25 border-b border-border">
-                  <td colSpan={7} className="p-4 sm:p-5">
-                    <div className="rounded-sm border border-border bg-surface p-4 text-xs space-y-3 shadow-none">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-text">Audit Trace Snapshot</span>
-                          <span className="font-mono text-[10px] text-text-muted">
-                            UUID: {record.evaluation_id}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
+                <tr className="border-b border-border bg-surface-subtle/25">
+                  <td colSpan={4} className="px-4 py-5 sm:px-6">
+                    <div className="space-y-4 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="font-semibold text-text">
+                          Run details
+                        </span>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                           <Link
                             to="/documents"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                            className="font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                           >
-                            <FolderOpen className="size-3.5" aria-hidden="true" />
-                            <span>SLM Storage</span>
-                            <ArrowSquareOut className="size-3" aria-hidden="true" />
+                            Module Library
                           </Link>
                           {isTargetAgent(record.target_agent) && (
                             <Link
@@ -284,57 +257,106 @@ export function HistoryRows({
                                 agentId: record.target_agent,
                                 documentId: record.document_id,
                               }}
-                              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                              className="font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                             >
-                              <span>
-                                {TARGET_AGENT_META[record.target_agent].shortLabel} Desk
-                              </span>
-                              <ArrowSquareOut className="size-3" aria-hidden="true" />
+                              {
+                                TARGET_AGENT_META[record.target_agent]
+                                  .shortLabel
+                              }{' '}
+                              workspace
                             </Link>
                           )}
                         </div>
                       </div>
-
-                      <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4 text-xs">
+                      <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+                          <dt className="text-text-muted">Evaluation ID</dt>
+                          <dd className="m-0 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="break-all font-mono text-xs text-text">
+                              {record.evaluation_id}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopy(record.evaluation_id)}
+                              aria-label="Copy full evaluation ID"
+                              className="inline-flex min-h-8 items-center font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                            >
+                              {copiedId === record.evaluation_id
+                                ? 'Copied'
+                                : 'Copy ID'}
+                            </button>
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
+                          <dt className="text-text-muted">Specialist</dt>
+                          <dd className="m-0 mt-1 text-text">
+                            {isTargetAgent(record.target_agent)
+                              ? TARGET_AGENT_META[record.target_agent].fullName
+                              : record.target_agent === 'all'
+                                ? 'All domains'
+                                : (record.target_agent ?? '—')}
+                          </dd>
+                        </div>
                         <div>
+                          <dt className="text-text-muted">Completed</dt>
+                          <dd className="m-0 mt-1 text-text tabular-nums">
+                            {record.completed_at ? (
+                              <time dateTime={record.completed_at}>
+                                {formatDate(record.completed_at)}
+                              </time>
+                            ) : (
+                              '—'
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-text-muted">Duration</dt>
+                          <dd className="m-0 mt-1 text-text tabular-nums">
+                            {duration ?? '—'}
+                          </dd>
+                        </div>
+                        <div className="min-w-0">
                           <dt className="text-text-muted">Document ID</dt>
-                          <dd className="m-0 mt-0.5 font-mono text-[11px] text-text break-all">
+                          <dd className="m-0 mt-1 break-all font-mono text-xs text-text">
                             {record.document_id}
                           </dd>
                         </div>
-                        <div>
-                          <dt className="text-text-muted">Execution Timing</dt>
-                          <dd className="m-0 mt-0.5 text-text">
-                            {duration ? `${duration} total execution` : 'Timing pending'}
-                          </dd>
-                        </div>
                         {record.syllabus_id && (
-                          <div>
-                            <dt className="text-text-muted">Syllabus Reference</dt>
-                            <dd className="m-0 mt-0.5 font-mono text-[11px] text-text break-all">
+                          <div className="min-w-0">
+                            <dt className="text-text-muted">
+                              Syllabus reference
+                            </dt>
+                            <dd className="m-0 mt-1 break-all font-mono text-xs text-text">
                               {record.syllabus_id}
                             </dd>
                           </div>
                         )}
                         {record.curriculum_id && (
-                          <div>
-                            <dt className="text-text-muted">Curriculum Reference</dt>
-                            <dd className="m-0 mt-0.5 font-mono text-[11px] text-text break-all">
+                          <div className="min-w-0">
+                            <dt className="text-text-muted">
+                              Curriculum reference
+                            </dt>
+                            <dd className="m-0 mt-1 break-all font-mono text-xs text-text">
                               {record.curriculum_id}
                             </dd>
                           </div>
                         )}
                         {record.submitted_by && (
-                          <div>
-                            <dt className="text-text-muted">Submitted By</dt>
-                            <dd className="m-0 mt-0.5 text-text">{record.submitted_by}</dd>
+                          <div className="min-w-0">
+                            <dt className="text-text-muted">Submitted by</dt>
+                            <dd className="m-0 mt-1 break-words text-text">
+                              {record.submitted_by}
+                            </dd>
                           </div>
                         )}
                       </dl>
 
                       {record.error_message && (
                         <div className="flex items-center gap-2 rounded-xs border border-destructive/30 bg-destructive-soft p-2.5 text-xs text-destructive">
-                          <Warning className="size-4 shrink-0" aria-hidden="true" />
+                          <Warning
+                            className="size-4 shrink-0"
+                            aria-hidden="true"
+                          />
                           <span>{record.error_message}</span>
                         </div>
                       )}

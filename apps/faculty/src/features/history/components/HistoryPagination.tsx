@@ -19,7 +19,7 @@ export function HistoryPagination({
   onPageSizeChange,
 }: HistoryPaginationProps) {
   return (
-    <div className="flex flex-col gap-3 border-t border-border bg-surface-subtle/65 px-4 py-3 text-xs text-text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface-subtle/65 px-4 py-3 text-xs text-text-muted sm:px-6">
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-medium tabular-nums">
           Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total} evaluations
@@ -42,7 +42,7 @@ export function HistoryPagination({
         />
       </div>
 
-      <nav aria-label="Pagination" className="flex items-center gap-1">
+      <nav aria-label="Pagination" className="flex shrink-0 items-center gap-1">
         <Button
           type="button"
           variant="secondary"
@@ -55,7 +55,7 @@ export function HistoryPagination({
           <CaretLeft className="size-3" aria-hidden="true" />
           <span className="hidden sm:inline">Previous</span>
         </Button>
-        <span className="px-2 font-medium tabular-nums text-text" aria-live="polite">
+        <span className="whitespace-nowrap px-2 font-medium tabular-nums text-text" aria-live="polite">
           {page} / {totalPages}
         </span>
         <Button
