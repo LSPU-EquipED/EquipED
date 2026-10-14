@@ -15,3 +15,9 @@ export function formatDateWithFallback(
     return fallback;
   }
 }
+
+/** Includes time to distinguish multiple evaluation runs on the same day. */
+export function formatEvaluationDateTime(value?: string | null): string {
+  if (!value || Number.isNaN(new Date(value).getTime())) return 'Not recorded';
+  return new Date(value).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}

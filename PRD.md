@@ -85,6 +85,8 @@ The system includes four internal evaluator subagents that operate on institutio
 
 **Terminology Note:** "Evaluator" in this document refers to the automated agent domains (SME, Coordinator, GAD, ITSO) unless explicitly qualified as "human evaluator" or "admin user." Human system roles are limited to Faculty Member and Admin / CID Staff (Section 3.1).
 
+**Current implementation discrepancy:** The feedback API and its ownership tests also permit faculty to review evaluations they submitted. The admin-only policy stated below remains unresolved; the results-screen consolidation preserves existing backend authorization and does not introduce institutional approval authority.
+
 **Note:** Admin users review and validate all agent-generated outputs. Feedback submitted by admin users on agent outputs is logged for iterative prompt refinement. Faculty members may view evaluation results but do not submit formal feedback on agent outputs.
 
 ---

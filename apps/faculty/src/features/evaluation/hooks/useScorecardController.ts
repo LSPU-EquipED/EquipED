@@ -1,9 +1,11 @@
+import { evaluationApi } from "../api/evaluation.api";
+import { documentsApi } from "@equiped/api-client";
+import { useEvaluationResults } from "./useEvaluationResults";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isTargetAgent, TARGET_AGENT_META } from "@equiped/types";
 import { useEvaluation } from "./useEvaluationStatus";
-import { evaluationApi } from "../api/evaluation.api";
 import { sortCriteriaGrouped } from "../utils/scoreHelpers";
 
 export function useScorecardController() {
@@ -15,6 +17,18 @@ export function useScorecardController() {
   const { data: evaluation, isLoading, isError } = useEvaluation(id ?? "");
   const [reviewModalAgent, setReviewModalAgent] = useState<string | null>(null);
   const [showReevaluateModal, setShowReevaluateModal] = useState(false);
+  const { data: moduleDocument } = useQuery({
+    queryKey: ["storage-document", evaluation?.document_id],
+    queryFn: () => documentsApi.getDocument(evaluation!.document_id),
+    enabled: Boolean(evaluation?.document_id),
+    staleTime: 30000,
+    retry: false,
+  });
+  const activeDocument =
+    moduleDocument?.documentId === evaluation?.document_id &&
+    moduleDocument?.sourceType === "slm"
+      ? moduleDocument
+      : null;
   const isCompleted = evaluation?.status === "COMPLETED";
   const isFailed = evaluation?.status === "FAILED";
   const isTerminal = isCompleted || isFailed;
@@ -29,15 +43,7 @@ export function useScorecardController() {
     isLoading: isLoadingResults,
     isError: isResultsError,
     refetch: refetchResults,
-  } = useQuery({
-    queryKey: ["evaluation-results", id],
-    queryFn: () => evaluationApi.getEvaluationResults(id!),
-    enabled: !!id && isCompleted,
-    retry: 2,
-    staleTime: 5000,
-    refetchInterval: (query) =>
-      isCompleted && !query.state.data ? 1500 : false,
-  });
+  } = useEvaluationResults(id, evaluation?.status);
 
   const isPartial = Boolean(
     results?.is_partial || evaluation?.partial_without_curriculum,
@@ -68,6 +74,27 @@ export function useScorecardController() {
       ? TARGET_AGENT_META[evaluation.target_agent]
       : null;
   const isSingleAgentRun = singleAgentMeta !== null;
+  const { data: specialistRuns } = useQuery({
+    queryKey: [
+      "specialist-evaluations",
+      evaluation?.document_id,
+      singleAgentMeta?.id,
+    ],
+    queryFn: () =>
+      evaluationApi.listEvaluations(
+        evaluation!.document_id,
+        singleAgentMeta!.id,
+      ),
+    enabled: Boolean(evaluation && singleAgentMeta),
+    staleTime: 5000,
+  });
+  const newestRun = specialistRuns?.items.find(
+    (run) => run.target_agent === singleAgentMeta?.id,
+  );
+  const newerEvaluationId =
+    newestRun && newestRun.evaluation_id !== evaluation?.evaluation_id
+      ? newestRun.evaluation_id
+      : undefined;
 
   // Active domain data on the right (auto-falls back to target agent or first available domain with scores)
   const targetAgentKey =
@@ -77,12 +104,11 @@ export function useScorecardController() {
   const availableDomains = domainKeys.filter(
     (k) => results?.domain_scores[k] != null,
   );
-  const effectiveDomainId =
-    targetAgentKey && results?.domain_scores[targetAgentKey] != null
-      ? targetAgentKey
-      : availableDomains.includes(selectedDomainId)
-        ? selectedDomainId
-        : availableDomains[0] || domainKeys[0] || "sme";
+  const effectiveDomainId = targetAgentKey
+    ? targetAgentKey
+    : availableDomains.includes(selectedDomainId)
+      ? selectedDomainId
+      : availableDomains[0] || domainKeys[0] || "sme";
   const activeDomainData = results?.domain_scores[effectiveDomainId];
 
   const effectiveFormPresentation = results?.forms?.[effectiveDomainId];
@@ -114,7 +140,7 @@ export function useScorecardController() {
       queryKey: ["evaluation-results"],
     });
     void queryClient.invalidateQueries({
-      queryKey: ["evaluation-history"],
+      queryKey: ["history"],
     });
     void navigate({
       to: "/evaluations/$id",
@@ -125,6 +151,8 @@ export function useScorecardController() {
   return {
     id,
     evaluation,
+    activeDocument,
+    newerEvaluationId,
     isLoading,
     isError,
     results,

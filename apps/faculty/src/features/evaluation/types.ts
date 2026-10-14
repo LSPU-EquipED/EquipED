@@ -44,6 +44,17 @@ export type CriterionReviewerCorrection = {
   justification: string | null;
 };
 
+export type CriterionReviewDraft = {
+  score: number;
+  justification: string;
+  rejected: boolean;
+  expanded: boolean;
+  /** Whether the "what counted toward this score" checklist is open. */
+  itemsExpanded: boolean;
+  /** item_id -> locally rejected? Only populated for criteria with raw_items. */
+  itemRejections: Record<string, boolean>;
+};
+
 export interface EvaluationFormCriterionPresentation {
   rubric_criterion_id: string;
   criterion_code: string;
