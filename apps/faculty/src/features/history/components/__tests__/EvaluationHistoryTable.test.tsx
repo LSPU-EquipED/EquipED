@@ -124,7 +124,7 @@ describe('EvaluationHistoryTable Component', () => {
     renderTable();
 
     expect(screen.getByText('Syllabus for Data Structures')).toBeDefined();
-    expect(screen.getByText('COMPLETED')).toBeDefined();
+    expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
     expect(screen.getByText('1 evaluation found')).toBeDefined();
     const scorecardLink = screen.getByRole('link', { name: /View evaluation results for Syllabus for Data Structures/i });
     expect(scorecardLink).toBeDefined();
@@ -132,7 +132,7 @@ describe('EvaluationHistoryTable Component', () => {
     expect(scorecardLink.textContent).toBe('View results');
   });
 
-  it('renders role badge and links directly to specialist desk for single-agent runs', () => {
+  it('keeps specialist details collapsed and opens the exact single-agent result', () => {
     const mockData: HistoryListResponse = {
       items: [
         {
@@ -163,14 +163,14 @@ describe('EvaluationHistoryTable Component', () => {
 
     renderTable();
 
-    expect(screen.getByText('SME')).toBeDefined();
+    expect(screen.queryByRole('columnheader', { name: 'Specialist' })).toBeNull();
     expect(screen.queryByRole('link', { name: /workspace/i })).toBeNull();
     const actionLink = screen.getByRole('link', { name: /View evaluation results for Operating Systems SLM/i });
     expect(actionLink).toBeDefined();
     expect(actionLink.getAttribute('href')).toBe('/evaluations/eval-targeted-1234');
     expect(actionLink.textContent).toBe('View results');
   });
-  it('renders scorecard link with text Scorecard when target_agent is explicitly all', () => {
+  it('preserves legacy all-domain context in run details and links to its exact result', () => {
     const mockData: HistoryListResponse = {
       items: [
         {
@@ -201,7 +201,8 @@ describe('EvaluationHistoryTable Component', () => {
 
     renderTable();
 
-    expect(screen.getByText('All Domains')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand details for Full Curriculum Bundle' }));
+    expect(screen.getByText('All domains')).toBeDefined();
     const scorecardLink = screen.getByRole('link', { name: /View evaluation results for Full Curriculum Bundle/i });
     expect(scorecardLink).toBeDefined();
     expect(scorecardLink.getAttribute('href')).toBe('/evaluations/eval-all-5678');
@@ -216,7 +217,7 @@ describe('EvaluationHistoryTable Component', () => {
     } as unknown as UseQueryResult<HistoryListResponse, Error>);
 
     renderTable();
-    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    const roleSelect = screen.getByRole('button', { name: 'Specialist' });
     fireEvent.click(roleSelect);
     fireEvent.click(screen.getByRole('option', { name: 'Gender & Development' }));
     expect(useHistorySpy).toHaveBeenCalledWith(
@@ -283,7 +284,7 @@ describe('EvaluationHistoryTable Component', () => {
     renderTable({ evaluatorPermissions: ['coordinator'] });
 
     // Single-desk users don't see a redundant role dropdown
-    expect(screen.queryByRole('button', { name: 'Role' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Specialist' })).toBeNull();
 
     // Query was triggered for coordinator
     expect(useHistorySpy).toHaveBeenCalledWith(
@@ -296,7 +297,7 @@ describe('EvaluationHistoryTable Component', () => {
   it('shows all role options when faculty has empty permissions (unrestricted default)', () => {
     renderTable({ evaluatorPermissions: [], userRole: 'faculty' });
 
-    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    const roleSelect = screen.getByRole('button', { name: 'Specialist' });
     expect(roleSelect).toBeDefined();
     fireEvent.click(roleSelect);
     expect(screen.getByRole('option', { name: 'Subject Matter Expert' })).toBeDefined();
@@ -307,7 +308,7 @@ describe('EvaluationHistoryTable Component', () => {
   it('shows all role options for admin user even if permissions are empty', () => {
     renderTable({ evaluatorPermissions: [], userRole: 'admin' });
 
-    const roleSelect = screen.getByRole('button', { name: 'Role' });
+    const roleSelect = screen.getByRole('button', { name: 'Specialist' });
     expect(roleSelect).toBeDefined();
     fireEvent.click(roleSelect);
     expect(screen.getByRole('option', { name: 'Subject Matter Expert' })).toBeDefined();
