@@ -179,7 +179,7 @@ describe("SpecialistScoreboardPage", () => {
 
     // Modules list is now in a modal, open it by clicking CTA
     const evaluateBtn = screen.getByRole("button", {
-      name: /Start New Evaluation/i,
+      name: /^Select module$/i,
     });
     expect(evaluateBtn).toBeDefined();
 
@@ -187,11 +187,11 @@ describe("SpecialistScoreboardPage", () => {
 
     // Modal opens
     await waitFor(() => {
-      expect(screen.getByText("Choose an unevaluated module")).toBeDefined();
+      expect(screen.getByRole("dialog", { name: "Select module" })).toBeDefined();
       expect(screen.getAllByText("Data Structures SLM").length).toBeGreaterThan(
         0,
       );
-      expect(screen.getByText("Ready")).toBeDefined();
+      expect(screen.getByText("Not evaluated")).toBeDefined();
     });
 
     // Click the document button
@@ -230,8 +230,8 @@ describe("SpecialistScoreboardPage", () => {
       expect(screen.getByText("No modules awaiting review")).toBeDefined();
     });
     expect(
-      screen.queryByRole("button", { name: /Start New Evaluation/i }),
-    ).toBeNull();
+      screen.getByRole("button", { name: /^Select module$/i }),
+    ).toBeDefined();
   });
 
   it("renders unevaluated launchpad when documentId is provided in route", async () => {
@@ -589,13 +589,13 @@ describe("SpecialistScoreboardPage", () => {
     });
 
     const evaluateBtn = screen.getByRole("button", {
-      name: /Start New Evaluation/i,
+      name: /^Select module$/i,
     });
     fireEvent.click(evaluateBtn);
 
     await waitFor(() => {
       expect(screen.getAllByText("Module 1 - Ready").length).toBeGreaterThan(0);
-      expect(screen.getByText("Ready")).toBeDefined();
+      expect(screen.getByText("Not evaluated")).toBeDefined();
     });
   });
   it.each(["COMPLETED", "FAILED"])("updates live progress and switches to %s even with a stale evaluating queue", async (terminalStatus) => {

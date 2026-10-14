@@ -37,7 +37,7 @@ export function SpecialistDirectoryView({
   validAgent,
   items,
 }: SpecialistDirectoryViewProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSelectingModule, setIsSelectingModule] = useState(false);
 
   const activeItems = useMemo(() => {
     return items.filter(
@@ -58,6 +58,22 @@ export function SpecialistDirectoryView({
     validAgent in ROLE_ICONS
       ? ROLE_ICONS[validAgent as TargetAgent]
       : GraduationCap;
+
+  const selectModuleButton = (
+    <button
+      type="button"
+      onClick={() => setIsSelectingModule(true)}
+      className={cn(
+        BUTTON_STYLES.base,
+        BUTTON_STYLES.variants.primary,
+        BUTTON_STYLES.sizes.md,
+        "mt-6 gap-2 rounded-sm px-5 text-sm font-semibold shadow-xs transition-all hover:shadow active:scale-[0.99]",
+      )}
+    >
+      <Plus className="size-4" weight="bold" aria-hidden="true" />
+      <span>Select module</span>
+    </button>
+  );
 
   return (
     <div className="w-full space-y-4">
@@ -139,11 +155,13 @@ export function SpecialistDirectoryView({
               </h2>
             </div>
           </div>
-          <span className="text-xs font-medium text-text-muted">
-            {hasUnevaluated
-              ? `${unevaluatedItems.length} ready for review`
-              : "All modules reviewed"}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-medium text-text-muted">
+              {hasUnevaluated
+                ? `${unevaluatedItems.length} awaiting review`
+                : "No pending reviews"}
+            </span>
+          </div>
         </div>
 
         <div className="grid min-h-[calc(100vh-18rem)] min-w-0 xl:grid-cols-[minmax(0,1fr)_19rem]">
@@ -157,24 +175,11 @@ export function SpecialistDirectoryView({
                   Choose a module to begin the {meta.shortLabel} review.
                 </h3>
                 <p className="mt-3 max-w-xl text-sm leading-relaxed text-text-muted">
-                  Select an unevaluated SLM from storage. The automated review
-                  will use this desk&apos;s rubric and keep the evidence
+                  Select an SLM from your library to open its review. New
+                  evaluations use this desk&apos;s rubric and keep the evidence
                   available for human confirmation.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(true)}
-                  aria-label="Start New Evaluation"
-                  className={cn(
-                    BUTTON_STYLES.base,
-                    BUTTON_STYLES.variants.primary,
-                    BUTTON_STYLES.sizes.md,
-                    "mt-6 gap-2 rounded-sm px-5 text-sm font-semibold shadow-xs transition-all hover:shadow active:scale-[0.99]",
-                  )}
-                >
-                  <Plus className="size-4" weight="bold" aria-hidden="true" />
-                  <span>Select module</span>
-                </button>
+                {selectModuleButton}
 
                 <div
                   className="mt-9 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] font-medium text-text-muted"
@@ -213,10 +218,11 @@ export function SpecialistDirectoryView({
                   No modules awaiting review
                 </h3>
                 <p className="mt-2 max-w-md text-sm leading-relaxed text-text-muted">
-                  Every module currently in storage has been evaluated by the{" "}
-                  {meta.shortLabel} desk. New uploads will appear here when they
-                  are ready.
+                  No new modules are waiting for the {meta.shortLabel} desk.
+                  Select a module to open previous results or follow an active
+                  evaluation.
                 </p>
+                <div>{selectModuleButton}</div>
                 <div className="mt-8 flex items-center gap-2 text-xs font-medium text-text-muted">
                   <span
                     className="size-2 rounded-full bg-success"
@@ -336,11 +342,11 @@ export function SpecialistDirectoryView({
       </div>
 
       {/* ── Selection Modal ── */}
-      {isModalOpen && (
+      {isSelectingModule && (
         <SelectModuleModal
           agentId={validAgent}
           items={items}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => setIsSelectingModule(false)}
         />
       )}
     </div>
