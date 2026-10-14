@@ -11,21 +11,21 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from server.modules.agents.contracts import (
+from equiped_harness.result_contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
     parse_advisory_output,
 )
-from server.modules.agents.contracts import (
+from equiped_harness.result_contracts import (
     CriterionScore as InputCriterionScore,
+)
+from equiped_harness.snapshot_contracts import (
+    EvaluationFormSnapshotDTO,
+    SnapshotIntegrityError,
 )
 from server.modules.documents.models import DocumentChunk
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.evaluations.models import EvaluationJob
-from server.modules.rubrics.snapshot_contracts import (
-    EvaluationFormSnapshotDTO,
-    SnapshotIntegrityError,
-)
 from server.modules.rubrics.snapshots import load_verified_evaluation_snapshots
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.models import (

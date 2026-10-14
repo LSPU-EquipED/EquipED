@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .contracts import ValidationReport
+    from equiped_harness.contracts import ValidationReport
 
 
 class RubricsError(Exception):

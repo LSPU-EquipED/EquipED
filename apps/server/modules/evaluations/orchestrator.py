@@ -1,9 +1,9 @@
 """
-BackgroundTask orchestrator for evaluations jobs.
+Durable FIFO worker orchestration for evaluation jobs.
 
-Phase 1 execution is sequential via FastAPI BackgroundTasks. The
-orchestrator generates a per-run execution token, atomically claims the
-job, heartbeats around major phases, and clears the token on terminal
+A single in-process worker drains admitted jobs in FIFO order. The
+orchestrator atomically claims each job with a per-run CAS execution token,
+heartbeats around major phases, and clears the token on terminal
 transitions. If the supervisor has already produced outputs for the
 evaluation (e.g. after a startup recovery), the orchestrator skips
 re-running the supervisor and resumes from synthesis/finalization.
@@ -18,15 +18,9 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from server.modules.agents import (
-    GAD,
-    ITSO,
-    SME,
-    AgentEvaluationResult,
-    Coordinator,
-    Supervisor,
-)
-from server.modules.agents.runtime.llm import error_reference
+from equiped_harness import GAD, ITSO, SME, AgentEvaluationResult, Coordinator
+from equiped_harness.exceptions import error_reference
+from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.curriculum_readiness import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
@@ -38,6 +32,7 @@ from server.modules.evaluations.exceptions import (
     EvaluationPipelineFailure,
     EvaluationPipelineUnavailableError,
 )
+from server.modules.evaluations.harness import Supervisor
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.service import (
     acquire_next_evaluation_execution,
@@ -46,7 +41,6 @@ from server.modules.evaluations.service import (
     seconds_until_stale_evaluation_execution,
     transition_evaluation_status,
 )
-from server.modules.rubrics.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.rubrics.snapshots import (
     load_verified_evaluation_snapshots,
     resolve_or_reuse_evaluation_snapshots,

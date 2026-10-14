@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from equiped_harness.result_contracts import CoordinatorAlignmentAdvisory
 from pydantic import BaseModel, Field
-from server.modules.agents.contracts import CoordinatorAlignmentAdvisory
 from server.modules.rubrics.presentation import (
     EvaluationFormCriterionPresentation,
     EvaluationFormDomainPresentation,

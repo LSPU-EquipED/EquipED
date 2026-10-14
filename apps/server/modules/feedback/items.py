@@ -3,7 +3,7 @@
 SME and Coordinator criteria using ``count_band``/``ratio_band`` never have
 the LLM output a score directly -- it only lists raw extracted items
 (instances, or units + which qualify), and code computes the score from
-that list (see ``server/modules/agents/sme/scoring.py``). Correcting a
+that list (see ``equiped_harness.sme.scoring``). Correcting a
 plain score for these criteria has no corresponding field in the model's
 own output; the only signal that maps to real model behavior is which
 extracted item was wrongly included or excluded. This module resolves
@@ -17,14 +17,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from server.modules.agents.contracts import CriterionScore as AgentCriterionScore
-from server.modules.agents.envelope_map import get_criterion_envelope_key
-from server.modules.agents.sme.scoring import score_criterion_measurement
-from server.modules.rubrics.contracts import (
+from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     RatioBandConfig,
 )
+from equiped_harness.result_contracts import CriterionScore as AgentCriterionScore
+from equiped_harness.scoring import score_criterion_measurement
+from server.modules.evaluations.harness import get_criterion_envelope_key
 from server.modules.synthesis.models import AgentResult
 
 from .exceptions import InvalidFeedbackTargetError

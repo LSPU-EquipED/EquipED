@@ -7,11 +7,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
-from server.core.config import get_settings
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-
-from .contracts import (
+from equiped_harness.contracts import (
     MAX_CODE_LENGTH,
     CriterionDefinition,
     DomainDefinition,
@@ -19,11 +15,15 @@ from .contracts import (
     ValidationReport,
     canonicalize_form,
 )
-from .exceptions import RubricValidationError
-from .manifests import (
+from equiped_harness.manifests import (
     get_agent_manifest,
     validate_form,
 )
+from server.core.config import get_settings
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from .exceptions import RubricValidationError
 from .models import (
     RubricAgentActivation,
     RubricCriterion,

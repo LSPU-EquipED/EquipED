@@ -376,6 +376,17 @@ wheels = [
 ]
 
 [[package]]
+name = "equiped-evaluation-harness"
+version = "0.1.0"
+source = { editable = "../../libs/evaluation-harness" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2" }]
+
+[[package]]
 name = "equiped-server"
 version = "0.1.0"
 source = { virtual = "." }
@@ -384,6 +395,7 @@ dependencies = [
     { name = "asyncpg" },
     { name = "boto3" },
     { name = "chromadb" },
+    { name = "equiped-evaluation-harness" },
     { name = "fastapi" },
     { name = "numpy" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
@@ -414,6 +426,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "boto3", specifier = ">=1.43.89" },
     { name = "chromadb", specifier = ">=0.5" },
+    { name = "equiped-evaluation-harness", editable = "../../libs/evaluation-harness" },
     { name = "fastapi", specifier = ">=0.111" },
     { name = "numpy", specifier = "<2" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'", specifier = "==1.18.1" },

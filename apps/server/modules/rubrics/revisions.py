@@ -6,9 +6,9 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
+from equiped_harness.contracts import ValidationReport
 from server.core.database import get_session_factory
 
-from .contracts import ValidationReport
 from .exceptions import (
     RubricConflictError,
     RubricNotFoundError,

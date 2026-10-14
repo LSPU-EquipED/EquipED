@@ -11,17 +11,21 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from types import MappingProxyType
 
-from server.core.config import get_settings
-from server.core.llm import get_llm_client_for_agent
-
-from ...rubrics.snapshot_contracts import (
+from equiped_harness import SPECIALIST_CLASSES, EvaluationRequest, evaluate
+from equiped_harness.exceptions import SupervisorExecutionError
+from equiped_harness.provenance import sanitize_provenance
+from equiped_harness.result_contracts import AgentEvaluationResult
+from equiped_harness.snapshot_contracts import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
     verify_evaluation_form_snapshot,
 )
-from ..contracts import AgentEvaluationResult
-from ..exceptions import SupervisorExecutionError
-from ..provenance import sanitize_provenance
+from server.core.config import get_settings
+from server.core.llm import get_llm_client_for_agent
+from server.modules.evaluations.harness.transport import (
+    HarnessModelClient,
+    execution_config_from_settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -205,7 +209,19 @@ class AgentDispatcher:
                 )
             if agent_name in {"sme", "coordinator"}:
                 kwargs["canonical_source_text"] = canonical_source_text
-            result = agent.run(**kwargs)
+            if type(agent) in SPECIALIST_CLASSES:
+                request_kwargs = {
+                    key: value
+                    for key, value in kwargs.items()
+                    if key not in {"llm_client", "llm_temperature"}
+                }
+                result = evaluate(
+                    EvaluationRequest(**request_kwargs),
+                    HarnessModelClient(client),
+                    execution_config_from_settings(get_settings()),
+                )
+            else:
+                result = agent.run(**kwargs)
             if not isinstance(result, AgentEvaluationResult):
                 raise TypeError("agent returned an invalid result contract")
             if (
