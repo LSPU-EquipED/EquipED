@@ -15,7 +15,7 @@
     "docker:prod": "docker compose -f docker-compose.prod.yml up",
     "docker:prod:build": "docker compose -f docker-compose.prod.yml up --build",
     "docker:prod:down": "docker compose -f docker-compose.prod.yml down",
-    "infra:chroma": "docker compose up -d chroma",
+    "infra:chroma": "docker compose -f docker-compose.dev.yml up -d chroma",
     "test:caddy": "pnpm --dir apps/faculty exec vitest run --config ../../vitest.caddy.config.ts",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",

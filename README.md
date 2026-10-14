@@ -191,12 +191,12 @@ Docker is optional for local infrastructure and smoke testing; it is not the
 canonical full-stack development workflow. To run the optional Chroma service:
 
 ```bash
-docker compose up --build chroma
+docker compose -f docker-compose.dev.yml up --build chroma
 ```
 
 The Compose file also provides optional `db`, `server`, and `server-smoke`
 services. Frontend container packaging remains deferred; run apps locally with `pnpm dev`.
-Refer to `docker-compose.yml` for infrastructure ports and environment overrides.
+Refer to `docker-compose.dev.yml` for development infrastructure ports and environment overrides.
 
 ## Repository guide
 

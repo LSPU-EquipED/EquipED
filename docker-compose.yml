@@ -1,4 +1,0 @@
-# Default to local development configuration
-# See docker-compose.dev.yml and docker-compose.prod.yml for environment-specific configs
-include:
-  - docker-compose.dev.yml
