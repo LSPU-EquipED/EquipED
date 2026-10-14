@@ -1,5 +1,4 @@
 import type { ClientDocument } from '@equiped/types';
-import type { SlmDisplayActionType } from '@/shared/utils/slmDisplayStatus';
 
 /**
  * Truncates a document ID to standard compact ledger notation (first 8 ... last 5).
@@ -40,28 +39,6 @@ export function getHumanReadableTitle(
     return `${doc.courseTitle} — ${doc.lessonTitle}`;
   }
   return doc.lessonTitle || doc.courseTitle || doc.title;
-}
-
-/**
- * Derives descriptive evaluation copy based on SLM actionType.
- */
-export function getEvaluationDescription(actionType: SlmDisplayActionType): string {
-  switch (actionType) {
-    case 'view_results':
-      return 'Multi-agent evaluation has been completed for this learning module. Review the consolidated findings, scores, evidence, and recommendations.';
-    case 'start_evaluation':
-      return 'This course module is indexed and ready for multi-agent evaluation by Subject Matter Expert (SME), Program Coordinator, GAD, and ITSO specialists.';
-    case 'view_progress':
-      return 'Specialist evaluation pipeline is actively running across domain rubrics.';
-    case 'processing':
-      return 'Document ingestion is in progress. Once indexing finishes, the module can be submitted for multi-agent evaluation.';
-    case 'upload_failed':
-      return 'Ingestion failed for this document. Please re-upload a clean, valid PDF.';
-    case 'inspect_failure':
-    case 'checking_status':
-    case 'status_unavailable':
-      return 'Multi-agent evaluation status for this module.';
-  }
 }
 
 /**

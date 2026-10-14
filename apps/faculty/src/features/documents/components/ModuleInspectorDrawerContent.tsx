@@ -1,11 +1,9 @@
-import { Check, Copy, FileText, Spinner, X } from '@phosphor-icons/react';
+import { Check, Copy, FileText, X } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
-import type { SlmDisplayStatus } from '@/shared/utils/slmDisplayStatus';
 import {
   truncateId,
   formatProcessingStatus,
-  getEvaluationDescription,
   formatInspectorDate,
 } from '../utils/moduleInspector.utils';
 
@@ -14,7 +12,6 @@ export interface ModuleInspectorDrawerContentProps {
   isAnimating: boolean;
   cachedDoc: ClientDocument;
   humanReadableTitle: string;
-  slmDisplay: SlmDisplayStatus;
   outline: NonNullable<ClientDocument['structuredOutline']>;
   isCopied: boolean;
   onClose: () => void;
@@ -26,7 +23,6 @@ export function ModuleInspectorDrawerContent({
   isAnimating,
   cachedDoc,
   humanReadableTitle,
-  slmDisplay,
   outline,
   isCopied,
   onClose,
@@ -64,25 +60,11 @@ export function ModuleInspectorDrawerContent({
               {humanReadableTitle}
             </h2>
             {cachedDoc.title !== humanReadableTitle && (
-              <p
-                className="mt-1 break-words text-xs text-text-muted"
-                title={cachedDoc.title}
-              >
+              <p className="mt-1 break-words text-xs text-text-muted" title={cachedDoc.title}>
                 {cachedDoc.title}
               </p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span
-                className={cn(
-                  'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold select-none',
-                  slmDisplay.badgeClass,
-                )}
-              >
-                {slmDisplay.showSpinner && (
-                  <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />
-                )}
-                {slmDisplay.badgeLabel}
-              </span>
               {cachedDoc.program && (
                 <span className="inline-flex items-center rounded-xs border border-border bg-surface-subtle px-2 py-0.5 font-mono text-xs font-semibold text-text select-none">
                   {cachedDoc.program}
@@ -129,7 +111,9 @@ export function ModuleInspectorDrawerContent({
                 </span>
               </div>
               <div className="p-3.5">
-                <span className="block text-[11px] font-medium text-text-muted">Processing status</span>
+                <span className="block text-[11px] font-medium text-text-muted">
+                  Processing status
+                </span>
                 <span className="mt-1 block truncate text-sm font-semibold text-text">
                   {formatProcessingStatus(cachedDoc.processingStatus)}
                 </span>
@@ -192,17 +176,6 @@ export function ModuleInspectorDrawerContent({
                 </dd>
               </div>
             </dl>
-          </div>
-
-          {/* Section 3: Multi-Agent Evaluation */}
-          <div className="space-y-3 rounded-sm border border-primary/20 bg-primary-soft/35 p-4">
-            <h3 className="text-[11px] font-medium tracking-[0.08em] text-text-muted">
-              Multi-agent evaluation
-            </h3>
-
-            <p className="text-xs leading-relaxed text-text-muted">
-              {getEvaluationDescription(slmDisplay.actionType)}
-            </p>
           </div>
 
           {/* Section 4: Document File */}

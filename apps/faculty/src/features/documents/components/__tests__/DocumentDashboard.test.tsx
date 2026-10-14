@@ -4,6 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { DocumentDashboard } from '../DocumentDashboard';
 
+const latestEvaluations = vi.fn();
+vi.mock('@/shared/hooks/useLatestEvaluations', () => ({
+  useLatestEvaluations: (...args: unknown[]) => latestEvaluations(...args),
+}));
+
 // Mock dependencies
 const mockUseSlmStorage = vi.fn();
 
@@ -37,9 +42,7 @@ function renderWithClient(ui: React.ReactElement) {
       },
     },
   });
-  return renderToStaticMarkup(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-  );
+  return renderToStaticMarkup(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 describe('DocumentDashboard - SLM Storage Repository', () => {
@@ -101,17 +104,19 @@ describe('DocumentDashboard - SLM Storage Repository', () => {
     mockUseSlmStorage.mockReturnValue(defaultStorageState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('SLM Storage Repository Ledger');
+    expect(markup).toContain('Module Library inventory');
     expect(markup).not.toContain('Indexed content');
     expect(markup).toContain('Network Systems Module');
     expect(markup).toContain('Upload SLM');
+    expect(markup).not.toContain('>Status<');
+    expect(latestEvaluations).not.toHaveBeenCalled();
   });
 
   it('renders flash success banner with accessible contrast colors', () => {
     mockUseSlmStorage.mockReturnValue(defaultStorageState);
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('Document uploaded successfully and is now indexed in SLM Storage.');
+    expect(markup).toContain('SLM uploaded to Module Library.');
     expect(markup).toContain('text-success');
     expect(markup).toContain('border-success/30');
     expect(markup).toContain('bg-success-soft');
@@ -133,7 +138,7 @@ describe('DocumentDashboard - SLM Storage Repository', () => {
     });
     const markup = renderWithClient(<DocumentDashboard />);
 
-    expect(markup).toContain('No SLMs in Storage Yet');
+    expect(markup).toContain('No SLMs in Module Library yet');
     expect(markup).toContain('Upload course learning modules in PDF format');
   });
 });

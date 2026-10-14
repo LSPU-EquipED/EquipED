@@ -1,49 +1,29 @@
-import { Spinner } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import { TableSkeleton } from '@equiped/ui';
 import type { ClientDocument } from '@equiped/types';
-import type { LatestEvaluationItem } from '@equiped/types';
-import type { TargetAgent } from '@equiped/types';
-import { getSlmDisplayStatus, type SlmStatusQueryState } from '@/shared/utils/slmDisplayStatus';
 import { formatDate, sourceTypeLabels } from '../utils/document.utils';
 import { DocumentActionsMenu } from './DocumentActionsMenu';
 
 interface DocumentTableProps {
   documents: ClientDocument[];
   flashId: string | null;
-  latestEvalsByDocId?: Record<string, LatestEvaluationItem>;
-  latestEvalsState?: SlmStatusQueryState;
-  targetAgent?: TargetAgent;
   onInspect?: (document: ClientDocument) => void;
 }
 
-export function DocumentTable({
-  documents,
-  flashId,
-  latestEvalsByDocId = {},
-  latestEvalsState = {},
-  targetAgent = 'sme',
-  onInspect,
-}: DocumentTableProps) {
+export function DocumentTable({ documents, flashId, onInspect }: DocumentTableProps) {
   const hasMultipleTypes = documents.some((d) => d.sourceType !== 'slm');
 
   return (
     <div className="overflow-x-auto min-w-0 w-full">
-      <table className="w-full min-w-[59rem] table-fixed border-collapse border-spacing-0 text-left">
+      <table className="w-full min-w-[49rem] table-fixed border-collapse border-spacing-0 text-left">
         <caption className="sr-only">Course module inventory</caption>
         <thead className="border-b border-border bg-surface-subtle text-[11px] font-medium tracking-[0.04em] text-text-muted">
           <tr>
             <th
               scope="col"
-              className="w-40 min-w-[10rem] py-3 pl-4 pr-3 text-left align-middle sm:pl-6"
-            >
-              Status
-            </th>
-            <th
-              scope="col"
               className={cn(
-                'py-3 px-3.5 text-left align-middle',
-                hasMultipleTypes ? 'w-[32%] min-w-[16rem]' : 'w-[36%] min-w-[16rem]',
+                'py-3 pl-4 pr-3.5 text-left align-middle sm:pl-6',
+                hasMultipleTypes ? 'w-[40%] min-w-[16rem]' : 'w-[44%] min-w-[16rem]',
               )}
             >
               Module Name
@@ -57,17 +37,11 @@ export function DocumentTable({
             >
               Course
             </th>
-            <th
-              scope="col"
-              className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]"
-            >
+            <th scope="col" className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]">
               Program
             </th>
             {hasMultipleTypes && (
-              <th
-                scope="col"
-                className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]"
-              >
+              <th scope="col" className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]">
                 Type
               </th>
             )}
@@ -75,58 +49,30 @@ export function DocumentTable({
               scope="col"
               className={cn(
                 'py-3 px-3.5 text-left align-middle',
-                  hasMultipleTypes ? 'w-32 min-w-[7rem]' : 'w-32 min-w-[8rem]',
+                hasMultipleTypes ? 'w-32 min-w-[7rem]' : 'w-32 min-w-[8rem]',
               )}
             >
               Uploaded
             </th>
-            <th
-              scope="col"
-              className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6"
-            >
+            <th scope="col" className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
               Actions
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border bg-surface">
           {documents.map((document) => {
-            const latestEval = latestEvalsByDocId[document.documentId];
-            const display = getSlmDisplayStatus(
-              document,
-              latestEval,
-              latestEvalsState,
-              targetAgent,
-            );
             const isFlashing = flashId === document.documentId;
 
             return (
               <tr
                 key={document.documentId}
-                className={cn(
-                  isFlashing && 'animate-ledger-flash-decay',
-                  !display.isClickable && 'bg-surface-subtle/30',
-                )}
+                className={cn(isFlashing && 'animate-ledger-flash-decay')}
               >
-                {/* 1. Status */}
-                <td className="w-40 min-w-[10rem] whitespace-nowrap py-3 pl-4 pr-3 align-middle sm:pl-6">
-                  <span
-                    className={cn(
-                    'inline-flex items-center rounded-xs px-2 py-0.5 text-xs font-semibold select-none whitespace-nowrap',
-                      display.badgeClass,
-                    )}
-                  >
-                    {display.showSpinner ? (
-                      <Spinner className="mr-1 size-3 animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {display.badgeLabel}
-                  </span>
-                </td>
-
                 {/* 2. Module Name */}
                 <td
                   className={cn(
-                    'py-3 px-3.5 align-middle',
-                    hasMultipleTypes ? 'w-[32%] min-w-[16rem]' : 'w-[36%] min-w-[16rem]',
+                    'py-3 pl-4 pr-3.5 align-middle sm:pl-6',
+                    hasMultipleTypes ? 'w-[40%] min-w-[16rem]' : 'w-[44%] min-w-[16rem]',
                   )}
                 >
                   <span
@@ -146,13 +92,16 @@ export function DocumentTable({
                 >
                   <span
                     className="block truncate text-xs sm:text-sm text-text-muted font-medium"
-                    title={[document.courseCode, document.courseTitle].filter(Boolean).join(' — ') || undefined}
+                    title={
+                      [document.courseCode, document.courseTitle].filter(Boolean).join(' — ') ||
+                      undefined
+                    }
                   >
                     {document.courseCode
                       ? document.courseTitle
                         ? `${document.courseCode} — ${document.courseTitle}`
                         : document.courseCode
-                      : document.courseTitle ?? 'Not specified'}
+                      : (document.courseTitle ?? 'Not specified')}
                   </span>
                 </td>
 
@@ -163,7 +112,9 @@ export function DocumentTable({
                       {document.program}
                     </span>
                   ) : (
-                    <span className="text-text-muted/60 select-none font-mono text-xs">Not specified</span>
+                    <span className="text-text-muted/60 select-none font-mono text-xs">
+                      Not specified
+                    </span>
                   )}
                 </td>
 
@@ -186,11 +137,7 @@ export function DocumentTable({
 
                 {/* 7. Actions */}
                 <td className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
-                  <DocumentActionsMenu
-                    document={document}
-                    display={display}
-                    onInspect={onInspect}
-                  />
+                  <DocumentActionsMenu document={document} onInspect={onInspect} />
                 </td>
               </tr>
             );
@@ -201,24 +148,30 @@ export function DocumentTable({
   );
 }
 
-export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipleTypes?: boolean }) {
+export function DocumentTableSkeleton({
+  hasMultipleTypes = false,
+}: {
+  hasMultipleTypes?: boolean;
+}) {
   const columns = [
     {
-      label: 'Status',
-      headerClassName: 'w-40 min-w-[10rem] pl-4 sm:pl-6 pr-3 align-middle',
-      cellClassName: 'w-40 min-w-[10rem] pl-4 sm:pl-6 pr-3 align-middle',
-      skeletonClassName: 'h-5 w-24',
-    },
-    {
       label: 'Module Name',
-      headerClassName: hasMultipleTypes ? 'w-[32%] min-w-[16rem] px-3.5 align-middle' : 'w-[36%] min-w-[16rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes ? 'w-[32%] min-w-[16rem] px-3.5 align-middle' : 'w-[36%] min-w-[16rem] px-3.5 align-middle',
+      headerClassName: hasMultipleTypes
+        ? 'w-[40%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle'
+        : 'w-[44%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle',
+      cellClassName: hasMultipleTypes
+        ? 'w-[40%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle'
+        : 'w-[44%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle',
       skeletonClassName: 'h-4 w-48',
     },
     {
       label: 'Course',
-      headerClassName: hasMultipleTypes ? 'w-[24%] min-w-[12rem] px-3.5 align-middle' : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes ? 'w-[24%] min-w-[12rem] px-3.5 align-middle' : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
+      headerClassName: hasMultipleTypes
+        ? 'w-[24%] min-w-[12rem] px-3.5 align-middle'
+        : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes
+        ? 'w-[24%] min-w-[12rem] px-3.5 align-middle'
+        : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
       skeletonClassName: 'h-4 w-36',
     },
     {
@@ -239,8 +192,12 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
       : []),
     {
       label: 'Uploaded',
-      headerClassName: hasMultipleTypes ? 'w-32 min-w-[7rem] px-3.5 align-middle' : 'w-32 min-w-[8rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes ? 'w-32 min-w-[7rem] px-3.5 align-middle' : 'w-32 min-w-[8rem] px-3.5 align-middle',
+      headerClassName: hasMultipleTypes
+        ? 'w-32 min-w-[7rem] px-3.5 align-middle'
+        : 'w-32 min-w-[8rem] px-3.5 align-middle',
+      cellClassName: hasMultipleTypes
+        ? 'w-32 min-w-[7rem] px-3.5 align-middle'
+        : 'w-32 min-w-[8rem] px-3.5 align-middle',
       skeletonClassName: 'h-4 w-20',
     },
     {
@@ -254,7 +211,7 @@ export function DocumentTableSkeleton({ hasMultipleTypes = false }: { hasMultipl
   return (
     <TableSkeleton
       ariaLabel="Loading document inventory"
-      tableClassName="table-fixed min-w-[59rem]"
+      tableClassName="table-fixed min-w-[49rem]"
       columns={columns}
     />
   );

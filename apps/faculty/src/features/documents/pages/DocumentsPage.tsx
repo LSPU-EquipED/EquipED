@@ -1,11 +1,9 @@
-import type { TargetAgent } from '@equiped/types';
-
 import { DocumentDashboard } from '../components/DocumentDashboard';
 
-export function DocumentsPage({ targetAgent = 'sme' }: { targetAgent?: TargetAgent }) {
+export function DocumentsPage() {
   return (
     <div className="w-full min-h-full bg-canvas">
-      <DocumentDashboard targetAgent={targetAgent} />
+      <DocumentDashboard />
     </div>
   );
 }

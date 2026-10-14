@@ -1,9 +1,12 @@
 import { ArrowCounterClockwise, SlidersHorizontal, SortAscending } from '@phosphor-icons/react';
 import { cn, Dropdown } from '@equiped/ui';
-import type { DocumentSortOption, StorageProgramFilter, StorageStatusFilter } from '../utils/storage.utils';
+import type {
+  DocumentSortOption,
+  StorageProgramFilter,
+  StorageStatusFilter,
+} from '../utils/storage.utils';
 
 export type { DocumentSortOption };
-
 
 interface StorageToolbarProps {
   programFilter: StorageProgramFilter;
@@ -42,11 +45,13 @@ export function StorageToolbar({
           aria-label="Filter modules by academic program"
           className="flex flex-wrap items-center gap-1.5"
         >
-          {([
-            { id: 'ALL' as const, label: 'All Modules', count: totalModules },
-            { id: 'BSCS' as const, label: 'BSCS', count: bscsCount },
-            { id: 'BSInfoTech' as const, label: 'BSInfoTech', count: bsInfoTechCount },
-          ] as const).map((tab) => {
+          {(
+            [
+              { id: 'ALL' as const, label: 'All Modules', count: totalModules },
+              { id: 'BSCS' as const, label: 'BSCS', count: bscsCount },
+              { id: 'BSInfoTech' as const, label: 'BSInfoTech', count: bsInfoTechCount },
+            ] as const
+          ).map((tab) => {
             const isActive = programFilter === tab.id;
             return (
               <button
@@ -122,8 +127,8 @@ export function StorageToolbar({
         {/* Status Filter Dropdown */}
         <Dropdown
           id="storage-status-filter"
-          aria-label="Filter by status"
-          label="Status:"
+          aria-label="Filter by file processing"
+          label="File status:"
           size="md"
           align="right"
           inlineLabel
@@ -131,10 +136,10 @@ export function StorageToolbar({
           value={statusFilter}
           onChange={(val) => setStatusFilter(val as StorageStatusFilter)}
           options={[
-            { value: 'all', label: 'All Statuses' },
-            { value: 'PROCESSED', label: 'Evaluated' },
+            { value: 'all', label: 'All files' },
+            { value: 'PROCESSED', label: 'Processed' },
             { value: 'PROCESSING', label: 'Processing' },
-            { value: 'FAILED', label: 'Failed' },
+            { value: 'FAILED', label: 'Upload failed' },
           ]}
         />
       </div>

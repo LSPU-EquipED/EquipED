@@ -3,7 +3,6 @@ import {
   truncateId,
   formatProcessingStatus,
   getHumanReadableTitle,
-  getEvaluationDescription,
   formatInspectorDate,
 } from '../moduleInspector.utils';
 
@@ -76,19 +75,6 @@ describe('moduleInspector.utils', () => {
           lessonTitle: null,
         }),
       ).toBe('raw-file.pdf');
-    });
-  });
-
-  describe('getEvaluationDescription', () => {
-    it('returns appropriate description for each actionType', () => {
-      expect(getEvaluationDescription('view_results')).toContain('completed for this learning module');
-      expect(getEvaluationDescription('start_evaluation')).toContain('indexed and ready for multi-agent evaluation');
-      expect(getEvaluationDescription('view_progress')).toContain('pipeline is actively running');
-      expect(getEvaluationDescription('processing')).toContain('ingestion is in progress');
-      expect(getEvaluationDescription('upload_failed')).toContain('Ingestion failed for this document');
-      expect(getEvaluationDescription('inspect_failure')).toBe('Multi-agent evaluation status for this module.');
-      expect(getEvaluationDescription('checking_status')).toBe('Multi-agent evaluation status for this module.');
-      expect(getEvaluationDescription('status_unavailable')).toBe('Multi-agent evaluation status for this module.');
     });
   });
 
