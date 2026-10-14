@@ -5,5 +5,8 @@ export function useTrainedAdapters(agentId: string) {
   return useQuery({
     queryKey: ['trainedAdapters', agentId],
     queryFn: () => trainingDataApi.listAdapters(agentId),
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
