@@ -3,6 +3,14 @@ export type TargetAgent = 'sme' | 'gad' | 'itso';
 // 'base', 'published', or an adapter id string.
 export type ModelChoice = string;
 
+export interface ModelValidationCriterionExplanation {
+  status: 'ok' | 'repaired' | 'fallback' | 'unavailable';
+  model_name: string | null;
+  evidence: string[] | null;
+  reasoning: string | null;
+  stored_justification: string | null;
+}
+
 export interface ModelValidationCriterionScore {
   expected_score_id: string;
   agent_id: string;
@@ -14,6 +22,7 @@ export interface ModelValidationCriterionScore {
   expected_score: number;
   actual_score: number | null;
   absolute_error: number | null;
+  explanation?: ModelValidationCriterionExplanation | null;
 }
 
 export interface ModelValidationBoundForm {
