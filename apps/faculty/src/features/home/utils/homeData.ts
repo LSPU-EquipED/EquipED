@@ -1,6 +1,6 @@
 import type { ClientDocument } from '@equiped/types';
 import type { LatestEvaluationItem } from '@equiped/types';
-import type { AttentionItem, FacultyHomeData, HomeEvaluationItem } from '../types';
+import type { FacultyHomeData, HomeEvaluationItem } from '../types';
 
 const dateOnlyFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -23,59 +23,11 @@ export const isActiveEvaluationStatus = (status: string): boolean => {
   );
 };
 
-export function deriveAttentionItems(
-  documents: ClientDocument[],
-  evaluations: HomeEvaluationItem[],
-): AttentionItem[] {
-  const items: AttentionItem[] = [];
-
-  for (const doc of documents) {
-    if (doc.processingStatus === 'FAILED') {
-      items.push({
-        id: `doc-${doc.documentId}`,
-        type: 'document_failed',
-        title: doc.title || 'Untitled SLM',
-        detail: 'Document processing failed during upload. Please upload again.',
-        timestamp: doc.uploadedAt,
-        targetUrl: '/documents',
-        actionLabel: 'View in My SLMs',
-      });
-    }
-  }
-
-  for (const ev of evaluations) {
-    if (ev.status.toUpperCase() === 'FAILED') {
-      items.push({
-        id: `eval-${ev.evaluation_id}`,
-        type: 'evaluation_failed',
-        title: ev.document_title || `Evaluation ${ev.evaluation_id.slice(0, 8)}`,
-        detail: ev.error_message || 'Automated evaluation failed.',
-        timestamp: ev.submitted_at,
-        targetUrl: `/evaluations/${ev.evaluation_id}`,
-        actionLabel: 'Inspect Failure',
-      });
-    }
-  }
-
-  // Sort combined recent issues newest-first
-  items.sort((a, b) => {
-    const timeA = new Date(a.timestamp).getTime();
-    const timeB = new Date(b.timestamp).getTime();
-    const safeA = isNaN(timeA) ? 0 : timeA;
-    const safeB = isNaN(timeB) ? 0 : timeB;
-    return safeB - safeA;
-  });
-
-  return items;
-}
-
 export function deriveFacultyHomeData(
   documents: ClientDocument[],
   evaluations: HomeEvaluationItem[],
   latestEvalsByDocId: Record<string, LatestEvaluationItem> = {},
 ): FacultyHomeData {
-  const recentIssues = deriveAttentionItems(documents, evaluations);
-
   // Active evaluation: first in-progress evaluation from evaluations list or from latestEvalsByDocId
   let activeEvaluation: HomeEvaluationItem | null =
     evaluations.find((e) => isActiveEvaluationStatus(e.status)) ?? null;
@@ -102,7 +54,6 @@ export function deriveFacultyHomeData(
   }
 
   return {
-    recentIssues,
     activeEvaluation,
   };
 }

@@ -3,7 +3,6 @@ import type { ClientDocument } from '@equiped/types';
 import type { LatestEvaluationItem } from '@equiped/types';
 import type { HomeEvaluationItem } from '../../types';
 import {
-  deriveAttentionItems,
   deriveFacultyHomeData,
   formatDateOnly,
   getEvaluationStatusBadge,
@@ -137,26 +136,9 @@ describe('homeData helpers', () => {
     expect(isActiveEvaluationStatus('FAILED')).toBe(false);
   });
 
-  it('derives attention items sorted newest-first without jargon', () => {
-    const attention = deriveAttentionItems(mockDocuments, mockEvaluations);
-    expect(attention).toHaveLength(2);
-
-    expect(attention[0].id).toBe('eval-eval-3');
-    expect(attention[0].type).toBe('evaluation_failed');
-    expect(attention[0].title).toBe('Software Engineering Module 1');
-    expect(attention[0].targetUrl).toBe('/evaluations/eval-3');
-
-    expect(attention[1].id).toBe('doc-doc-2');
-    expect(attention[1].type).toBe('document_failed');
-    expect(attention[1].title).toBe('Web Dev Module 2');
-    expect(attention[1].detail).toContain('Document processing failed during upload');
-    expect(attention[1].targetUrl).toBe('/documents');
-  });
-
   it('derives faculty home data without misleading global aggregate metrics', () => {
     const homeData = deriveFacultyHomeData(mockDocuments, mockEvaluations);
 
-    expect(homeData.recentIssues).toHaveLength(2);
     expect(homeData.activeEvaluation?.evaluation_id).toBe('eval-1');
   });
 
