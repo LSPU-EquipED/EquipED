@@ -13,6 +13,13 @@ from .authoring import (
     update_criterion,
     update_domain,
 )
+from .reset import (
+    COORDINATOR_AGENT_ID,
+    FRESH_V1_DRAFT_CONFIRMATION,
+    RESET_CONFIRMATION,
+    CoordinatorRubricResetReport,
+    reset_coordinator_rubric,
+)
 from .revisions import (
     _lock_parent_draft_rubric_set,
     activate_revision_by_id,
@@ -34,6 +41,10 @@ from .runtime import (
 __all__ = [
     "_UNSET",
     "_get_active_rubric_set",
+    "COORDINATOR_AGENT_ID",
+    "CoordinatorRubricResetReport",
+    "FRESH_V1_DRAFT_CONFIRMATION",
+    "RESET_CONFIRMATION",
     "activate_revision_by_id",
     "create_criterion",
     "create_domain",
@@ -49,6 +60,7 @@ __all__ = [
     "move_criterion",
     "publish_revision",
     "reorder_rubric_tree",
+    "reset_coordinator_rubric",
     "retire_revision_by_id",
     "update_criterion",
     "update_domain",

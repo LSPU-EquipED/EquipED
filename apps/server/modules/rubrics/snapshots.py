@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from .models import EvaluationFormSnapshot
+from .models import EvaluationFormSnapshot, EvaluationRubricProvenance
 from .repository import load_active_form_definitions, validate_form_definition
 
 
@@ -262,11 +262,38 @@ def persist_evaluation_form_snapshots(
 
     bind = session.get_bind()
     dialect_name = bind.dialect.name
+    provenance_records = [
+        {
+            "rubric_set_id": c.rubric_set_id,
+            "agent_id": c.agent_id,
+            "version_number": c.form.version_number,
+            "name": c.form.name,
+            "adapter_key": c.adapter_key,
+            "adapter_version": c.adapter_version,
+        }
+        for c in candidates
+    ]
     if dialect_name == "sqlite":
+        provenance_stmt = sqlite_insert(EvaluationRubricProvenance).values(
+            provenance_records
+        )
+        provenance_stmt = provenance_stmt.on_conflict_do_nothing(
+            index_elements=["rubric_set_id"]
+        )
+        session.execute(provenance_stmt)
+
         stmt = sqlite_insert(EvaluationFormSnapshot).values(records)
         stmt = stmt.on_conflict_do_nothing(index_elements=["evaluation_id", "agent_id"])
         session.execute(stmt)
     elif dialect_name == "postgresql":
+        provenance_stmt = pg_insert(EvaluationRubricProvenance).values(
+            provenance_records
+        )
+        provenance_stmt = provenance_stmt.on_conflict_do_nothing(
+            index_elements=["rubric_set_id"]
+        )
+        session.execute(provenance_stmt)
+
         stmt = pg_insert(EvaluationFormSnapshot).values(records)
         stmt = stmt.on_conflict_do_nothing(index_elements=["evaluation_id", "agent_id"])
         session.execute(stmt)
