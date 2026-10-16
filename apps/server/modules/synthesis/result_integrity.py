@@ -20,7 +20,11 @@ from equiped_harness.result_contracts import (
 from equiped_harness.result_contracts import (
     CriterionScore as InputCriterionScore,
 )
-from equiped_harness.scoring import validate_coordinator_coverage, validate_score_band
+from equiped_harness.scoring import (
+    validate_coordinator_coverage,
+    validate_current_coordinator_bundle,
+    validate_score_band,
+)
 from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 
@@ -394,7 +398,14 @@ def build_persistable_agent_result(
                 "Coordinator v3 requires scored curriculum advisory"
             )
         try:
-            validate_coordinator_coverage(result)
+            if (
+                isinstance(result.metadata, dict)
+                and result.metadata.get("execution_contract")
+                == "coordinator_current.v1"
+            ):
+                validate_current_coordinator_bundle(result)
+            else:
+                validate_coordinator_coverage(result)
         except (ValueError, TypeError, AttributeError, KeyError, StopIteration) as exc:
             raise EvaluationResultIntegrityError(
                 "Invalid Coordinator coverage/advisory payload"

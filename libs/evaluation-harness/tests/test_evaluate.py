@@ -199,9 +199,11 @@ def test_public_evaluate_runs_actual_specialist(agent):
     expected_temperature = (
         0.0 if agent == "gad" else config.get_agent_temperature(agent)
     )
-    assert all(
-        call[1] == expected_temperature and call[2] == 777 for call in client.calls
+    assert all(call[1] == expected_temperature for call in client.calls)
+    expected_budgets = (
+        [512, 777, 777] if agent == "coordinator" else [777] * len(client.calls)
     )
+    assert [call[2] for call in client.calls] == expected_budgets
     assert len(result.generations) == len(client.calls)
     if agent == "coordinator":
         assert len(result.criterion_scores) == 10
@@ -371,12 +373,10 @@ def test_concurrent_scopes_and_exception_reset_are_thread_local():
 @pytest.mark.parametrize(
     "prefix",
     [
-        "An unnumbered target about the module",
         "At the end of this module,",
-        "At the beginning of this module, students should be able to:",
     ],
 )
-def test_unsupported_objective_prefix_fails_before_model_calls(prefix):
+def test_incomplete_objective_prefix_fails_before_model_calls(prefix):
     request, _ = prepared_request("coordinator")
     source = f"Objectives:\n{prefix}\n1. Marked objective.\nAssessment:\nTask A.\n"
     request = replace(

@@ -10,12 +10,11 @@ from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, make_url, text
 from sqlalchemy.exc import DatabaseError, IntegrityError, InternalError
-
-from alembic import command
 
 _MIG_MOD = importlib.import_module(
     "server.alembic.versions.20260829_0004_dynamic_cid_forms"
@@ -149,7 +148,15 @@ def test_single_alembic_head_and_down_revision():
     script_dir = ScriptDirectory.from_config(config)
     heads = script_dir.get_heads()
     assert len(heads) == 1
-    assert heads[0] == "20260929_0001"
+    assert heads[0] == "20261015_0001"
+
+    provenance = script_dir.get_revision("20261011_0001")
+    assert provenance is not None
+    assert provenance.down_revision == "20261010_0002"
+
+    outcomes = script_dir.get_revision("20261015_0001")
+    assert outcomes is not None
+    assert outcomes.down_revision == provenance.revision
 
     coord_head = script_dir.get_revision("20260902_0001")
     assert coord_head is not None

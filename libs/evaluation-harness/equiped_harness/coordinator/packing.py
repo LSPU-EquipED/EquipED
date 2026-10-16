@@ -75,9 +75,6 @@ def pack_domains(
         raise AgentExecutionError("Coordinator snapshot contains no criteria")
 
     all_criteria: list[CriterionDefinition] = [c for d in non_empty for c in d.criteria]
-    if len(all_criteria) == 1 and all_criteria[0].criterion_code == "A-05":
-        return ((all_criteria[0],),)
-
     if all(
         _is_op_criterion(c)
         or _is_assessment_criterion(c)
@@ -87,12 +84,9 @@ def pack_domains(
         op_group = tuple(c for c in all_criteria if _is_op_criterion(c))
         assess_group = tuple(c for c in all_criteria if _is_assessment_criterion(c))
         curriculum_group = tuple(c for c in all_criteria if _is_curriculum_criterion(c))
-        envelopes = tuple(
+        return tuple(
             g for g in (op_group, assess_group, curriculum_group) if len(g) > 0
         )
-        if envelopes:
-            assert len(envelopes) <= 3
-            return envelopes
 
     n = len(non_empty)
     if n <= 3:

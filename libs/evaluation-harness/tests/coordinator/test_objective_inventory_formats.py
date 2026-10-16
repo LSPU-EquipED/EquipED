@@ -4,6 +4,92 @@ import pytest
 from equiped_harness.coordinator.objective_gauging import inventory_source
 from equiped_harness.exceptions import AgentExecutionError
 
+NUMBERED_PDF_OBJECTIVES = (
+    "Explain how sample channels support interaction, with\nemphasis on examples.",
+    "Describe sample processes and visual\nperception.",
+    "Distinguish two concepts and explain how they interact.",
+    "Apply sample principles when designing user\ninterfaces.",
+    "Use sample guidelines that support usability and\naccessibility.",
+    "Identify sample channels\nrelevant to a task and describe each.",
+    "Label parts of a sample diagram (first, second,\n"
+    "third) and state their functions.",
+    "Differentiate sample concepts by providing an original\nUI example for each.",
+    "Construct a sample palette that follows a\n"
+    "proportion rule and meets recommendations.",
+    "Evaluate a sample screen and list four\nimprovements.",
+)
+NUMBERED_PDF_SOURCE = (
+    "Learning Outcomes\nIntended\nLearning\nOutcomes\n"
+    "By the end of this module, you will be able to:\n"
+    + "".join(
+        f"{index}. {text}\n"
+        for index, text in enumerate(NUMBERED_PDF_OBJECTIVES[:5], 1)
+    )
+    + "Targets/\nObjectives\nAfter completing this module, you should be able to:\n"
+    + "".join(
+        f"{index}. {text}\n" + ("\n" if index == 4 else "")
+        for index, text in enumerate(NUMBERED_PDF_OBJECTIVES[5:], 1)
+    )
+    + "Student Learning Strategies\nOnline Activities\n"
+    "(Synchronous/\nAsynchronous)\nTeaching discussion only.\n"
+)
+
+
+def test_second_person_numbered_pdf_lists_preserve_all_ten_exact_spans():
+    inventory = inventory_source(NUMBERED_PDF_SOURCE)
+    assert tuple(o.text for o in inventory.objectives) == NUMBERED_PDF_OBJECTIVES
+    assert tuple(o.objective_id for o in inventory.objectives) == tuple(
+        f"OBJ-{index:04d}" for index in range(1, 11)
+    )
+    assert all(
+        NUMBERED_PDF_SOURCE[o.start : o.end] == o.text for o in inventory.objectives
+    )
+    assert inventory.assessment_sections == ()
+
+
+def test_second_person_numbered_pdf_runs_through_public_current_pipeline():
+    from equiped_harness import ExecutionConfig, evaluate
+    from equiped_harness.scoring import validate_coordinator_coverage
+    from test_coordinator_current_engine import CurrentFake, request
+
+    client = CurrentFake()
+    result = evaluate(
+        request(source=NUMBERED_PDF_SOURCE),
+        client,
+        ExecutionConfig(),
+    )
+    validate_coordinator_coverage(result)
+    assert result.success
+    assert len(result.criterion_scores) == 10
+    assert result.metadata["execution_contract"] == "coordinator_current.v1"
+    assert len(result.advisory_outputs.objective_matches) == 10
+    assert (
+        tuple(o.objective_text for o in result.advisory_outputs.objective_matches)
+        == NUMBERED_PDF_OBJECTIVES
+    )
+    assert (
+        next(s.score for s in result.criterion_scores if s.criterion_id == "A-05") == 1
+    )
+    assert client.calls == 10
+    assert "objective-assessment" not in result.metadata["group_responses"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "1. Describe a visual\nperception\n2. Explain a result.\nAssessment:\nQuiz.",
+        "1. Describe a visual\n\nperception.\nAssessment:\nQuiz.",
+        "1. Describe a finished idea.\nunmarked prose.\nAssessment:\nQuiz.",
+        "1. Describe a sample\nIdentify Another Target.\nAssessment:\nQuiz.",
+        "1. Describe a visual\nperception.",
+        "1. Describe a visual\nperception.\n3. Skip a target.\nAssessment:\nQuiz.",
+        "Before starting this module, you will be able to:\n1. Explain a result.",
+    ],
+)
+def test_new_numbered_wrap_support_keeps_incomplete_or_ambiguous_source_rejected(body):
+    with pytest.raises(AgentExecutionError):
+        inventory_source("Objectives:\n" + body + "\n")
+
 
 def test_institutional_heading_aliases_leadin_and_five_bullets_keep_exact_spans():
     source = (
