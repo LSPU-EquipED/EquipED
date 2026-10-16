@@ -70,18 +70,18 @@ _OTHER_HEADINGS = frozenset(
 _ENTRY = re.compile(r"^\s*(?:(?P<number>\d+)[.)]|[-*•·])\s+(?P<text>\S.*)$")
 _SPLIT_ENTRY = re.compile(r"^\s*(?P<marker>(?:\d+[.)]|[-*•·]))\s*$")
 _LEARNER_LEAD_IN = re.compile(
-    r"^(?:at the end of (?:this|the) (?:lesson|module|course)|"
+    r"^(?:(?:at|by) the end of (?:this|the) (?:lesson|module|course)|"
     r"after completing (?:this|the) (?:lesson|module|course)),\s*"
-    r"(?:the )?(?:students|learners)\s+(?:should|will)\s+be able to:?$",
+    r"(?:(?:the )?(?:students|learners)|you)\s+(?:should|will)\s+be able to:?$",
     re.I,
 )
 # Only word-boundary prefixes of these exact lead-ins can be buffered.
 _LEAD_INS = tuple(
     f"{opening} {determiner} {unit}, {learner} {modal} be able to"
-    for opening in ("at the end of", "after completing")
+    for opening in ("at the end of", "by the end of", "after completing")
     for determiner in ("this", "the")
     for unit in ("lesson", "module", "course")
-    for learner in ("students", "learners", "the students", "the learners")
+    for learner in ("students", "learners", "the students", "the learners", "you")
     for modal in ("should", "will")
 )
 _UNFINISHED = re.compile(
@@ -94,6 +94,8 @@ _TITLE_WRAP_PREFIX = re.compile(r"\bin the\s*$", re.I)
 # Confirmed wrap: a three-word title phrase whose first word is a -tion noun.
 # Do not accept generic capitalized sentences or unmarked imperative objectives.
 _TITLE_WRAP = re.compile(r"[A-Z][a-z]+tion(?: [A-Z][a-z]+){2}")
+_SENTENCE_END = re.compile(r"[.;:!?]\s*$")
+_ACRONYM_CONTINUATION = re.compile(r"^[A-Z]{2,}\s+[a-z]")
 _HEADING_PREFIX = re.compile(r"^\s*(?:#{1,6}\s+|[A-ZIVX]+[.)]\s+)")
 _UNIT_HEADING = re.compile(r"^(?:lesson|unit|module)\s+\d+(?:\s*[:.-].*)?$", re.I)
 
@@ -231,16 +233,20 @@ def inventory_source(source: str, *, max_chars: int = 200_000) -> ObjectiveSourc
     preface_lines: list[str] = []
     preface_complete = False
     unindented_wrap = False
+    numbered_wrap = False
     next_number = 1
     seen: set[str] = set()
 
     def flush_objective(*, bounded: bool = True, list_boundary: bool = False) -> None:
-        nonlocal start, unindented_wrap
+        nonlocal start, unindented_wrap, numbered_wrap
         if start is None:
             return
         raw = source[start:end]
         unfinished = bool(
-            _UNFINISHED.search(raw.rstrip()) or _TITLE_WRAP_PREFIX.search(raw.rstrip())
+            _UNFINISHED.search(raw.rstrip())
+            or _TITLE_WRAP_PREFIX.search(raw.rstrip())
+            or numbered_wrap
+            and not _SENTENCE_END.search(raw)
         )
         if (unfinished and not (list_boundary and _LIST_CONJUNCTION.search(raw))) or (
             unindented_wrap and not bounded
@@ -265,6 +271,7 @@ def inventory_source(source: str, *, max_chars: int = 200_000) -> ObjectiveSourc
         )
         start = None
         unindented_wrap = False
+        numbered_wrap = False
 
     for line, content in _structural_lines(source):
         if (
@@ -278,6 +285,8 @@ def inventory_source(source: str, *, max_chars: int = 200_000) -> ObjectiveSourc
                 and (
                     _UNFINISHED.search(source[start:end].rstrip())
                     or _TITLE_WRAP_PREFIX.search(source[start:end].rstrip())
+                    or numbered_wrap
+                    and not _SENTENCE_END.search(source[start:end])
                 )
             )
         ):
@@ -421,6 +430,20 @@ def inventory_source(source: str, *, max_chars: int = 200_000) -> ObjectiveSourc
             ):
                 end = offset + len(content)
                 unindented_wrap = True
+            elif (
+                start is not None
+                and numbered is True
+                and source[end:offset] in {"\n", "\r\n"}
+                and not _SENTENCE_END.search(source[start:end])
+                and (content[0].islower() or _ACRONYM_CONTINUATION.match(content))
+            ):
+                # PDF extraction may remove indentation inside a numbered row.
+                # Accept lowercase/acronym wraps only before sentence completion;
+                # flush_objective still requires punctuation and a list/heading
+                # boundary, so an unmarked target or trailing prose is not merged.
+                end = offset + len(content)
+                unindented_wrap = True
+                numbered_wrap = True
             else:
                 raise AgentExecutionError(
                     "Objective entries must be numbered/bulleted "

@@ -1,9 +1,7 @@
-"""Envelope LLM transport and repair execution for Coordinator.
+"""Historical Coordinator envelope transport and bounded response repair.
 
-Copy-adapted from ``server/modules/agents/sme/execution.py``. Differences:
-the ``curriculum_context`` positional, the ``agent_total_prompt_budget_chars``
-budget, the ``coordinator`` temperature/schema names, and the curriculum-context
-argument threaded into ``parse_and_validate_envelope_response``.
+Used by ``legacy.py`` for adapter-v1/v2 snapshots and legacy-shaped v3
+responses. Current per-criterion tasks execute in ``engine.py``.
 """
 
 from __future__ import annotations

@@ -1,0 +1,319 @@
+"""Historical Coordinator envelope execution and response replay.
+
+Adapter-v1/v2 snapshots and legacy-shaped v3 transports still use these
+contracts. Keep them separate from the current per-criterion task engine.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+import uuid
+from typing import Any
+
+from equiped_harness.contracts import DomainDefinition
+from equiped_harness.coordinator.execution import (
+    execute_envelope,
+    execute_objective_envelope,
+)
+from equiped_harness.coordinator.objective_gauging import (
+    inventory_source,
+    score_dimension,
+)
+from equiped_harness.coordinator.packing import pack_domains
+from equiped_harness.coordinator.summary import build_alignment_summary
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.manifests import get_agent_manifest, validate_form
+from equiped_harness.provenance import sanitize_provenance
+from equiped_harness.result_contracts import (
+    AgentEvaluationResult,
+    CapturedGeneration,
+    CoordinatorAlignmentAdvisory,
+    CriterionScore,
+    CurriculumObjectiveMatch,
+)
+from equiped_harness.runtime.llm import RunLLMClient
+from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.transport import CompletionResult, ModelClient
+
+
+def _validate_coordinator_snapshot(
+    form_snapshot: EvaluationFormSnapshotDTO,
+    evaluation_id: uuid.UUID,
+    agent_name: str,
+) -> tuple[DomainDefinition, ...]:
+    """Validate the snapshot against its exact Coordinator adapter contract."""
+    if not isinstance(form_snapshot, EvaluationFormSnapshotDTO):
+        raise AgentExecutionError(
+            "Coordinator requires a valid EvaluationFormSnapshotDTO"
+        )
+    if form_snapshot.agent_id != agent_name:
+        raise AgentExecutionError(
+            f"Snapshot agent_id '{form_snapshot.agent_id}' does not match "
+            f"'{agent_name}'"
+        )
+    if form_snapshot.evaluation_id != evaluation_id:
+        raise AgentExecutionError(
+            f"Snapshot evaluation_id '{form_snapshot.evaluation_id}' does not "
+            f"match '{evaluation_id}'"
+        )
+    if form_snapshot.adapter_key != agent_name:
+        raise AgentExecutionError(
+            f"Invalid snapshot adapter key '{form_snapshot.adapter_key}' or "
+            f"version {form_snapshot.adapter_version}"
+        )
+    try:
+        manifest = get_agent_manifest(agent_name, form_snapshot.adapter_version)
+    except ValueError as exc:
+        raise AgentExecutionError(
+            f"Unsupported Coordinator adapter version {form_snapshot.adapter_version}"
+        ) from exc
+    report = validate_form(form_snapshot.form, manifest)
+    if not report.is_valid:
+        codes = ", ".join(
+            issue.code for issue in report.issues if issue.severity == "error"
+        )
+        raise AgentExecutionError(
+            f"Coordinator snapshot violates adapter {form_snapshot.adapter_version}: "
+            f"{codes}"
+        )
+    return form_snapshot.form.domains
+
+
+def replay_client(first: CompletionResult, client: RunLLMClient) -> ModelClient:
+    used = False
+
+    class Replay:
+        model = client.model
+        requested_model = getattr(client, "requested_model", client.model)
+
+        def generate_result(self, prompt: Any, **kwargs: Any) -> CompletionResult:
+            nonlocal used
+            if not used:
+                used = True
+                return first
+            return client.generate_result(prompt, **kwargs)
+
+    return Replay()
+
+
+def run_legacy(
+    coordinator: Any,
+    *,
+    evaluation_id: uuid.UUID,
+    document_id: uuid.UUID,
+    form_snapshot: EvaluationFormSnapshotDTO,
+    chunk_infos: list[dict[str, Any]],
+    context_text: str | None = None,
+    prompt_version_id: uuid.UUID | None = None,
+    llm_client: Any | None = None,
+    reference_document_ids: dict[str, Any] | None = None,
+    canonical_source_text: str | None = None,
+    curriculum_id: uuid.UUID | None = None,
+    curriculum_context: str | None = None,
+    **kwargs: Any,
+) -> AgentEvaluationResult:
+    """Historical envelope runner; never used for a current bundle."""
+    del kwargs, context_text
+    domains = _validate_coordinator_snapshot(
+        form_snapshot, evaluation_id, coordinator.agent_name
+    )
+    if not chunk_infos:
+        raise AgentExecutionError("document chunks are required for evaluation")
+
+    full_text = canonical_source_text
+    if not full_text or not full_text.strip():
+        raise AgentExecutionError("canonical source text is required")
+
+    curriculum_id = curriculum_id or (reference_document_ids or {}).get("curriculum")
+    if (
+        curriculum_id is None
+        or not isinstance(curriculum_context, str)
+        or not curriculum_context.strip()
+    ):
+        raise AgentExecutionError(
+            "Coordinator requires curriculum_id and authoritative curriculum context"
+        )
+    curriculum_text = curriculum_context.strip()
+
+    client = llm_client or coordinator._default_llm_client
+    if client is None:
+        raise AgentExecutionError("Coordinator requires an assigned LLM client")
+    adapter = (
+        client
+        if isinstance(client, RunLLMClient)
+        else RunLLMClient(
+            client,
+            coordinator.agent_name,
+            requested_model=(getattr(client, "model", None) or "unknown"),
+        )
+    )
+
+    inventory = (
+        inventory_source(full_text) if form_snapshot.adapter_version == 3 else None
+    )
+    advisory = None
+    start = time.perf_counter()
+    envelopes = pack_domains(domains)
+    all_scores: list[CriterionScore] = []
+    envelope_prompts: dict[str, str] = {}
+    envelope_responses: dict[str, dict[str, Any]] = {}
+    any_repair = False
+    grounding_rejected = 0
+
+    envelope_status: dict[str, str] = {}
+    generations: list[CapturedGeneration] = []
+    for idx, env_criteria in enumerate(envelopes):
+        env_key = f"envelope_{idx}"
+        contract_key = "criterion_measurements.v1"
+        if (
+            inventory is not None
+            and len(env_criteria) == 1
+            and env_criteria[0].criterion_code == "A-05"
+        ):
+            prompt, parsed, repaired = execute_objective_envelope(
+                inventory,
+                adapter,
+                curriculum_text,
+            )
+            rows = parsed["objective_matches"]
+            score, justification, evidence = score_dimension(rows, "assessment")
+            scores = (
+                CriterionScore(
+                    criterion_id="A-05",
+                    criterion_title=env_criteria[0].title,
+                    score=score,
+                    justification=justification,
+                    evidence=evidence,
+                ),
+            )
+            c_score, c_justification, _ = score_dimension(rows, "curriculum")
+            advisory = CoordinatorAlignmentAdvisory(
+                contract="coordinator_alignment.v1",
+                criterion_id="C-01",
+                criterion_title="Curriculum Alignment",
+                advisory_only=True,
+                score=c_score,
+                justification=c_justification,
+                objective_matches=tuple(
+                    CurriculumObjectiveMatch(
+                        objective_id=r["objective_id"],
+                        objective_text=r["objective_text"],
+                        matched=r["curriculum_matched"],
+                        excerpt=r["curriculum_excerpt"],
+                        rejected=r["curriculum_rejected"],
+                    )
+                    for r in rows
+                ),
+            )
+            grounding_rejected += sum(
+                r["assessment_rejected"] + r["curriculum_rejected"] for r in rows
+            )
+            contract_key = "coordinator_objective_coverage.v1"
+        else:
+            scores, prompt, parsed, repaired = execute_envelope(
+                idx,
+                env_criteria,
+                adapter,
+                full_text,
+                curriculum_text,
+            )
+        all_scores.extend(scores)
+        envelope_prompts[env_key] = prompt.render_flat()
+        envelope_responses[env_key] = parsed
+        envelope_status[env_key] = "repaired" if repaired else "ok"
+        any_repair = any_repair or repaired
+        for m in parsed.get("criterion_measurements", []):
+            grounding_rejected += int(m.get("_grounding_rejected_count", 0))
+            # Strip the private grounding key so it never leaks into the
+            # serialised ``metadata["group_responses"]`` / DPO snapshot.
+            m.pop("_grounding_rejected_count", None)
+
+        generations.append(
+            CapturedGeneration(
+                unit_key=env_key,
+                criterion_ids=tuple(c.criterion_code for c in env_criteria),
+                prompt_text=prompt.render_flat(),
+                prompt_messages=(
+                    tuple(
+                        {"role": m.role, "content": m.content} for m in prompt.messages
+                    )
+                    if hasattr(prompt, "messages")
+                    else None
+                ),
+                response_text=json.dumps(parsed, ensure_ascii=False),
+                response_json=parsed,
+                response_contract_key=contract_key,
+                response_contract_version=1,
+                model_name=adapter.model,
+                envelope_status=envelope_status[env_key],
+            )
+        )
+
+    if inventory is not None and advisory is None:
+        raise AgentExecutionError(
+            "Coordinator v3 requires the curriculum alignment supplement"
+        )
+    criterion_scores = tuple(all_scores)
+    expected = tuple(c.criterion_code for d in domains for c in d.criteria)
+    if inventory is not None:
+        scores_by_id = {s.criterion_id: s for s in criterion_scores}
+        if len(criterion_scores) != len(expected) or set(scores_by_id) != set(expected):
+            raise AgentExecutionError("Coordinator v3 official criterion set mismatch")
+        criterion_scores = tuple(scores_by_id[cid] for cid in expected)
+    if tuple(s.criterion_id for s in criterion_scores) != expected:
+        raise AgentExecutionError(
+            "Coordinator scored criterion order does not match the frozen snapshot"
+        )
+    subtotal = sum(s.score for s in criterion_scores) / len(criterion_scores)
+    total_seconds = time.perf_counter() - start
+    actual_model = (
+        adapter.actual_model
+        if adapter.actual_model != "unknown"
+        else adapter.requested_model
+    )
+
+    provenance = {
+        "requested_model": adapter.requested_model,
+        "actual_model": actual_model,
+        "fallback_occurred": adapter.fallback_occurred,
+        "repair_occurred": any_repair,
+        "grouped_calls": len(envelopes),
+        "logical_calls": adapter.telemetry.get("call_count", 0),
+        "physical_attempts": adapter.telemetry.get("attempt_count", 0),
+        "input_tokens": adapter.telemetry.get("prompt_tokens", 0),
+        "output_tokens": adapter.telemetry.get("completion_tokens", 0),
+        "truncation_count": adapter.telemetry.get("cap_hit_count", 0),
+        "cap_hit_count": adapter.telemetry.get("cap_hit_count", 0),
+        "provider_seconds_ms": round(
+            adapter.telemetry.get("provider_seconds", 0) * 1000
+        ),
+        "grounding_rejected_count": grounding_rejected,
+    }
+
+    return AgentEvaluationResult(
+        agent_name=coordinator.agent_name,
+        evaluation_id=evaluation_id,
+        document_id=document_id,
+        subtotal=subtotal,
+        criterion_scores=criterion_scores,
+        summary=build_alignment_summary(
+            criterion_scores, adapter_version=form_snapshot.adapter_version
+        ),
+        model_name=actual_model,
+        processing_seconds=total_seconds,
+        token_count=len(full_text.split()),
+        prompt_version_id=prompt_version_id,
+        success=True,
+        metadata={
+            "group_prompts": envelope_prompts,
+            "group_responses": envelope_responses,
+            "envelope_status": envelope_status,
+        },
+        provenance=sanitize_provenance(provenance),
+        advisory_outputs=advisory,
+        generations=tuple(generations),
+    )
+
+
+__all__ = ["replay_client", "run_legacy"]
