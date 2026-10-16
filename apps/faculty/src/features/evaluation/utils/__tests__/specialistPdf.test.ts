@@ -134,6 +134,54 @@ describe('institutional specialist PDFs', () => {
     expect(fields).not.toContain('Curriculum Alignment');
   });
 
+  it('prints current Coordinator A-03 and A-04 scores with section totals and overall rating', async () => {
+    const data = result('coordinator');
+    data.criteria = [...data.criteria].reverse().map((row) => {
+      if (row.criterion_id === 'A-03') return {
+        ...row, score: 2,
+        description: 'The material keeps an ongoing record of student progress and allows teacher monitoring.',
+      };
+      if (row.criterion_id === 'A-04') return {
+        ...row, score: 1,
+        description: 'Positive meaningful feedback and prescriptive intervention guides are provided.',
+      };
+      return row;
+    });
+    const mapping = matchTemplateCriteria('coordinator', data.criteria);
+    expect(mapping.complete).toBe(true);
+    expect(mapping.matches[7]?.score).toBe(2);
+    expect(mapping.matches[8]?.score).toBe(1);
+    const fields = filledFields(await exportPdf(data));
+    const circleStarts = [...fields.matchAll(/^([\d.]+) ([\d.]+) m$/gm)]
+      .map(([, x, y]) => [Number(x), Number(y)]);
+    expect(circleStarts).toHaveLength(10);
+    const template = SPECIALIST_PDF_TEMPLATES.coordinator;
+    for (const [index, score] of [[7, 2], [8, 1]]) {
+      const [x, y] = template.rows[index].scoreCenters[4 - score];
+      expect(circleStarts.some(([startX, startY]) =>
+        Math.abs(startX - (x + 6)) < 0.01 && Math.abs(startY - (template.height - y)) < 0.01,
+      )).toBe(true);
+    }
+    expect(fields).toContain('(15) Tj');
+    expect(fields).toContain('(12) Tj');
+    expect(fields).toContain('(2.70) Tj');
+    expect(fields).toContain('(Satisfactory) Tj');
+    expect(fields).not.toContain('Unavailable or changed criteria');
+  });
+
+  it.each([
+    { criterion_id: 'A-04' },
+    { criterion_text: 'Revised criterion' },
+    { description: 'The module evaluates curriculum alignment.' },
+  ])('rejects Coordinator wording aliases with mismatched criterion identity: %j', (change) => {
+    const row = {
+      ...result('coordinator').criteria[7],
+      description: 'The material keeps an ongoing record of student progress and allows teacher monitoring.',
+      ...change,
+    };
+    expect(matchTemplateCriteria('coordinator', [row]).matches.every((match) => !match)).toBe(true);
+  });
+
   it('leaves revised criteria blank even when their IDs and positions are unchanged', () => {
     const data = result('coordinator');
     data.criteria = data.criteria.map((row, index) => index === 9
