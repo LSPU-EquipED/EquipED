@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" fill="none">
+<defs><pattern id="grain" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M4 8h2m15 3h1m14-6h2M11 28h2m18-7h1m9 13h2M3 43h1m20-4h2m10 8h1" stroke="#1b3b87" stroke-opacity=".13" stroke-width=".7"/><path d="M8 15h1m19 15h2m12-13h1M17 45h1" stroke="#fbfcfc" stroke-opacity=".7" stroke-width="1"/></pattern></defs><path fill="url(#grain)" d="M0 0h192v192H0z"/>
+</svg>
