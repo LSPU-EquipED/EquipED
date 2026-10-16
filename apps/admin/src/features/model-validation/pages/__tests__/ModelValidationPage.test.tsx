@@ -162,15 +162,17 @@ describe('ModelValidationPage', () => {
     const analyticsTab = screen.getByRole('tab', { name: 'Analytics' });
     const benchmarkTab = screen.getByRole('tab', { name: 'New benchmark' });
     const compareTab = screen.getByRole('tab', { name: 'Compare' });
+    const archiveTab = screen.getByRole('tab', { name: 'Fine-Tuning Results' });
 
     for (const [from, key, to] of [
       [historyTab, 'ArrowRight', analyticsTab],
       [analyticsTab, 'ArrowRight', benchmarkTab],
       [benchmarkTab, 'ArrowRight', compareTab],
-      [compareTab, 'ArrowRight', historyTab],
-      [historyTab, 'ArrowLeft', compareTab],
+      [compareTab, 'ArrowRight', archiveTab],
+      [archiveTab, 'ArrowRight', historyTab],
+      [historyTab, 'ArrowLeft', archiveTab],
       [compareTab, 'Home', historyTab],
-      [historyTab, 'End', compareTab],
+      [historyTab, 'End', archiveTab],
     ] as const) {
       fireEvent.keyDown(from, { key });
       expect(document.activeElement).toBe(to);
@@ -266,22 +268,32 @@ describe('ModelValidationPage', () => {
     renderPage();
 
     const openReview = () =>
-      fireEvent.click(screen.getByRole('button', { name: 'Open evaluation for Algorithms SLM' }));
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Open evaluation for Algorithms SLM',
+        }),
+      );
     openReview();
     expect(
-      screen.getByRole('region', { name: 'Validation details for Algorithms SLM' }),
+      screen.getByRole('region', {
+        name: 'Validation details for Algorithms SLM',
+      }),
     ).toBeDefined();
     expect(screen.getByText('eval-1')).toBeDefined();
     expect(screen.getByText('3.20 s')).toBeDefined();
     fireEvent.click(screen.getByRole('button', { name: 'Close validation details' }));
     expect(
-      screen.queryByRole('region', { name: 'Validation details for Algorithms SLM' }),
+      screen.queryByRole('region', {
+        name: 'Validation details for Algorithms SLM',
+      }),
     ).toBeNull();
 
     openReview();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(
-      screen.queryByRole('region', { name: 'Validation details for Algorithms SLM' }),
+      screen.queryByRole('region', {
+        name: 'Validation details for Algorithms SLM',
+      }),
     ).toBeNull();
   });
 });

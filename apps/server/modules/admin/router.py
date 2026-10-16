@@ -10,6 +10,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from server.core.config import get_settings
 from server.core.database import get_db_session
 from server.core.llm import probe_local_model_readiness
+from server.modules.admin.fine_tuning_archive import (
+    FineTuningArchive,
+    load_fine_tuning_archive,
+)
 from server.modules.admin.model_validation_service import (
     create_model_validation,
     get_admin_evaluation,
@@ -423,6 +427,13 @@ def get_summary(
 ):
     counts = get_system_summary(db)
     return SystemSummaryResponse(**counts)
+
+
+@router.get("/model-validations/fine-tuning-results", response_model=FineTuningArchive)
+def get_fine_tuning_results(
+    current_user: AuthenticatedUser = Depends(require_admin),
+):
+    return load_fine_tuning_archive()
 
 
 @router.get("/model-validations", response_model=ModelValidationListResponse)
