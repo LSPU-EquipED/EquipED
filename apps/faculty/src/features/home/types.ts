@@ -19,18 +19,7 @@ export interface HomeEvaluationsResponse {
   page_size: number;
 }
 
-export interface AttentionItem {
-  id: string;
-  type: 'document_failed' | 'evaluation_failed';
-  title: string;
-  detail: string;
-  timestamp: string;
-  targetUrl: string;
-  actionLabel: string;
-}
-
 export interface FacultyHomeData {
-  recentIssues: AttentionItem[];
   activeEvaluation: HomeEvaluationItem | null;
 }
 
