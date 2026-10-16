@@ -2,6 +2,7 @@
 
 from .models import (
     EvaluationFormSnapshot,
+    EvaluationRubricProvenance,
     RubricAgentActivation,
     RubricCriterion,
     RubricDomain,
@@ -22,6 +23,13 @@ from .repository import (
     retire_revision,
     validate_form_definition,
 )
+from .reset import (
+    COORDINATOR_AGENT_ID,
+    FRESH_V1_DRAFT_CONFIRMATION,
+    RESET_CONFIRMATION,
+    CoordinatorRubricResetReport,
+    reset_coordinator_rubric,
+)
 from .service import get_active_rubric_context
 from .snapshots import (
     load_verified_evaluation_snapshots,
@@ -31,6 +39,11 @@ from .snapshots import (
 
 __all__ = [
     "EvaluationFormSnapshot",
+    "EvaluationRubricProvenance",
+    "COORDINATOR_AGENT_ID",
+    "CoordinatorRubricResetReport",
+    "FRESH_V1_DRAFT_CONFIRMATION",
+    "RESET_CONFIRMATION",
     "RubricAgentActivation",
     "RubricCriterion",
     "RubricDomain",
@@ -50,6 +63,7 @@ __all__ = [
     "persist_evaluation_form_snapshots",
     "publish_draft_revision",
     "resolve_or_reuse_evaluation_snapshots",
+    "reset_coordinator_rubric",
     "retire_revision",
     "validate_form_definition",
 ]

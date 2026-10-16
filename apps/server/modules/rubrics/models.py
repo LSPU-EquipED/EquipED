@@ -151,6 +151,24 @@ class RubricAgentActivation(Base):
     )
 
 
+class EvaluationRubricProvenance(Base):
+    """Historical identity for a rubric referenced by an evaluation snapshot."""
+
+    __tablename__ = "evaluation_rubric_provenance"
+
+    rubric_set_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True
+    )
+    agent_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    adapter_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    adapter_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    archived_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class EvaluationFormSnapshot(Base):
     __tablename__ = "evaluation_form_snapshots"
     __table_args__ = (
@@ -167,7 +185,12 @@ class EvaluationFormSnapshot(Base):
     )
     agent_id: Mapped[str] = mapped_column(String(50), nullable=False)
     rubric_set_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("rubric_sets.rubric_set_id"), nullable=False
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "evaluation_rubric_provenance.rubric_set_id",
+            name="fk_eval_snapshots_rubric_provenance_id",
+        ),
+        nullable=False,
     )
     snapshot_payload: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False)
     snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -180,6 +203,7 @@ class EvaluationFormSnapshot(Base):
 
 __all__ = [
     "EvaluationFormSnapshot",
+    "EvaluationRubricProvenance",
     "RubricAgentActivation",
     "RubricCriterion",
     "RubricDomain",

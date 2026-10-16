@@ -638,6 +638,13 @@ def load_verified_persisted_agent_results(
             meta["group_responses"] = row.group_responses
         if row.envelope_status is not None:
             meta["envelope_status"] = row.envelope_status
+        if (
+            row.agent_name == "coordinator"
+            and isinstance(row.group_responses, dict)
+            and isinstance(row.group_responses.get("__current_bundle__"), dict)
+        ):
+            meta["execution_contract"] = "coordinator_current.v1"
+            meta["current_bundle"] = row.group_responses["__current_bundle__"]
 
         reconstructed_result = AgentEvaluationResult(
             agent_name=row.agent_name,

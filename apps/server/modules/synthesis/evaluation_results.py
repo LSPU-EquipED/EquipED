@@ -367,8 +367,17 @@ def get_evaluation_results(
             envelope_key_by_code: dict[str, str] = {}
             if agent_id in _ITEM_LEVEL_AGENTS:
                 try:
+                    current_contract = (
+                        "coordinator_current.v1"
+                        if (
+                            agent_id == "coordinator"
+                            and isinstance(result.group_responses, dict)
+                            and "__current_bundle__" in result.group_responses
+                        )
+                        else None
+                    )
                     envelope_map = envelope_criteria_map_from_snapshot(
-                        snapshot, agent_id
+                        snapshot, agent_id, execution_contract=current_contract
                     )
                     envelope_key_by_code = {
                         c.criterion_code: key
