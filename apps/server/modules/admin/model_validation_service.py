@@ -37,6 +37,7 @@ from server.modules.training_data.serving import (
     gguf_filename,
 )
 
+from .model_validation_explanations import get_criterion_explanations
 from .models import ModelValidation, ModelValidationCriterionScore
 from .schemas import (
     AdminEvaluationResponse,
@@ -45,6 +46,7 @@ from .schemas import (
     ModelValidationCreateRequest,
     ModelValidationCriteriaResponse,
     ModelValidationCriterionDefinition,
+    ModelValidationCriterionExplanationResponse,
     ModelValidationCriterionScoreResponse,
     ModelValidationDomainDefinition,
     ModelValidationMetricsResponse,
@@ -83,6 +85,8 @@ def _model_validation_response(
     snapshots: Sequence[EvaluationFormSnapshot] = (),
     *,
     db: Any = None,
+    explanations: dict[tuple[str, str], ModelValidationCriterionExplanationResponse]
+    | None = None,
 ) -> ModelValidationResponse:
     crit_meta: dict[
         tuple[str, str], tuple[uuid.UUID | None, uuid.UUID | None, int | None]
@@ -136,6 +140,7 @@ def _model_validation_response(
             absolute_error=(
                 float(row.absolute_error) if row.absolute_error is not None else None
             ),
+            explanation=(explanations or {}).get((row.agent_id, row.criterion_id)),
         )
         for row in criterion_rows
     ]
@@ -497,7 +502,13 @@ def get_model_validation_detail(
         .all()
     )
     return _model_validation_response(
-        validation, job, document, criterion_rows, snapshots, db=db
+        validation,
+        job,
+        document,
+        criterion_rows,
+        snapshots,
+        db=db,
+        explanations=get_criterion_explanations(db, job.evaluation_id),
     )
 
 
