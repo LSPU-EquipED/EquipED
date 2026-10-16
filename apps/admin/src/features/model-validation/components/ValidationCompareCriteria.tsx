@@ -2,6 +2,7 @@ import { CaretDown } from '@phosphor-icons/react';
 import { cn } from '@equiped/ui';
 import type { ModelValidationItem } from '../types';
 import { compareChipKey, type CompareChip } from '../utils/compare';
+import { ValidationCompareExplanations } from './ValidationCompareExplanations';
 
 interface ValidationCompareCriteriaProps {
   base: ModelValidationItem;
@@ -63,7 +64,7 @@ export function ValidationCompareCriteria({
               <div
                 key={chip.key}
                 className={cn(
-                  'grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_4rem_4rem_4rem] sm:items-center sm:gap-4 sm:px-5',
+                  'grid min-w-0 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_4rem_4rem_4rem] sm:items-center sm:gap-4 sm:px-5',
                   chip.skipped && 'bg-surface-subtle/30',
                 )}
               >
@@ -93,6 +94,9 @@ export function ValidationCompareCriteria({
                       <dd>{value ?? '—'}</dd>
                     </dl>
                   ))}
+                </div>
+                <div className="min-w-0 sm:col-span-4">
+                  <ValidationCompareExplanations base={base} adapter={adapter} chip={chip} />
                 </div>
               </div>
             );

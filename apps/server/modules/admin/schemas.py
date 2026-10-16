@@ -217,6 +217,14 @@ class ModelValidationCreateRequest(BaseModel):
         return self
 
 
+class ModelValidationCriterionExplanationResponse(BaseModel):
+    status: Literal["ok", "repaired", "fallback", "unavailable"] = "unavailable"
+    model_name: str | None = None
+    evidence: list[str] | None = None
+    reasoning: str | None = None
+    stored_justification: str | None = None
+
+
 class ModelValidationCriterionScoreResponse(BaseModel):
     expected_score_id: uuid.UUID
     agent_id: str
@@ -228,6 +236,7 @@ class ModelValidationCriterionScoreResponse(BaseModel):
     expected_score: int
     actual_score: int | None = None
     absolute_error: float | None = None
+    explanation: ModelValidationCriterionExplanationResponse | None = None
 
 
 class ModelValidationCriterionDefinition(BaseModel):
@@ -345,6 +354,7 @@ __all__ = [
     "ModelValidationCreateRequest",
     "ModelValidationExpectedScoreInput",
     "ModelValidationCriterionScoreResponse",
+    "ModelValidationCriterionExplanationResponse",
     "ModelValidationCriterionDefinition",
     "ModelValidationDomainDefinition",
     "ModelValidationAgentCriteria",
