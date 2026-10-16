@@ -10,12 +10,11 @@ from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect, make_url, text
 from sqlalchemy.exc import DatabaseError, IntegrityError, InternalError
-
-from alembic import command
 
 _MIG_MOD = importlib.import_module(
     "server.alembic.versions.20260829_0004_dynamic_cid_forms"
