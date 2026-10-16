@@ -19,12 +19,9 @@ To automate the initial quality-assurance review layer of Self-Paced Learning Mo
 ## Account Administration
 The user-management directory excludes the signed-in administrator from its records and counts. Administrators cannot deactivate or permanently delete their own account through the administrative delete endpoints. Permanent deletion in the interface requires typing the selected account's email before confirmation.
 
-## Model Training
-Admin training preparation freezes a full-response DPO package for the selected specialist. An administrator can activate an imported candidate package for future runs while retaining previous feedback and frozen packages for rollback. Candidate corrections remain provisional unless supported by recorded human review; training or adapter upload does not establish model quality or publish the adapter.
-
 ## Model Validation
 
-Administrators can inspect stored Base and fine-tuned evidence and captured model reasoning side by side for each compared criterion. Missing reasoning remains explicitly unavailable, and stored legacy or fallback justifications are labelled separately. This inspection reuses existing evaluations, does not rerun models, and preserves numerical comparison metrics.
+Fine-Tuning Results preserves curated research snapshots for SME adapters v7, v9, and v13 independently of live validation rows and adapter availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
 
 ## Anti-references
 * **Generic SaaS Templates**: Avoid low-contrast gray text on near-white backgrounds, huge spacious pads, floating ghost cards, decorative background stripes, and generic dashboard marketing widgets.

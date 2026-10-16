@@ -1,4 +1,5 @@
 import { requestJson } from '@equiped/api-client';
+import type { FineTuningArchive } from '../archiveTypes';
 import type {
   AdapterChoiceList,
   AdminEvaluationResponse,
@@ -10,6 +11,8 @@ import type {
 } from '../types';
 
 export const modelValidationApi = {
+  getFineTuningArchive: () =>
+    requestJson<FineTuningArchive>('/admin/model-validations/fine-tuning-results'),
   createModelValidation: (body: ModelValidationCreateBody) =>
     requestJson<ModelValidationItem>('/admin/model-validations', {
       method: 'POST',

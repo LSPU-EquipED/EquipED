@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { cn, PageContainer } from '@equiped/ui';
 import { AgentProgressPanel } from '../components/AgentProgressPanel';
+import { FineTuningResults } from '../components/FineTuningResults';
 import { ValidationCompareTab } from '../components/ValidationCompareTab';
 import { ValidationHistoryTable } from '../components/ValidationHistoryTable';
 import { ValidationPerformanceMetrics } from '../components/ValidationPerformanceMetrics';
@@ -12,17 +13,22 @@ import {
 } from '../hooks/useModelValidationQueries';
 import { terminalStatuses } from '../utils/helpers';
 
-export type ValidationTab = 'history' | 'analytics' | 'new-run' | 'compare';
+export type ValidationTab = 'history' | 'analytics' | 'new-run' | 'compare' | 'fine-tuning-results';
 
 const workspaceOptions = [
   { value: 'history' as const, label: 'History' },
   { value: 'analytics' as const, label: 'Analytics' },
   { value: 'new-run' as const, label: 'New benchmark' },
   { value: 'compare' as const, label: 'Compare' },
+  { value: 'fine-tuning-results' as const, label: 'Fine-Tuning Results' },
 ];
 
 export function ModelValidationPage() {
-  const [activeTab, setActiveTab] = useState<ValidationTab>('history');
+  const [activeTab, setActiveTab] = useState<ValidationTab>(() =>
+    new URLSearchParams(window.location.search).get('view') === 'fine-tuning-results'
+      ? 'fine-tuning-results'
+      : 'history',
+  );
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const history = useModelValidationHistory();
   const activeValidations =
@@ -58,7 +64,7 @@ export function ModelValidationPage() {
       <div
         role="tablist"
         aria-label="Validation workspace"
-        className="grid grid-cols-4 border-b border-border"
+        className="flex overflow-x-auto border-b border-border"
       >
         {workspaceOptions.map(({ value, label }, index) => (
           <button
@@ -75,7 +81,7 @@ export function ModelValidationPage() {
             onClick={() => setActiveTab(value)}
             onKeyDown={(event) => handleTabKeyDown(event, index)}
             className={cn(
-              '-mb-px min-h-10 min-w-0 cursor-pointer border-b-2 px-2 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none sm:px-6',
+              '-mb-px min-h-10 shrink-0 grow cursor-pointer border-b-2 px-3 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none sm:px-6',
               activeTab === value
                 ? 'border-primary bg-primary-soft text-primary'
                 : 'border-transparent text-text-muted hover:bg-surface-subtle hover:text-text',
@@ -85,6 +91,17 @@ export function ModelValidationPage() {
           </button>
         ))}
       </div>
+
+      {activeTab === 'fine-tuning-results' ? (
+        <div
+          id="validation-panel-fine-tuning-results"
+          role="tabpanel"
+          aria-labelledby="validation-tab-fine-tuning-results"
+          tabIndex={0}
+        >
+          <FineTuningResults />
+        </div>
+      ) : null}
 
       {activeTab === 'history' ? (
         <div
