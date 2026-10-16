@@ -12,6 +12,14 @@ export const SPECIALIST_PDF_TEMPLATES = {
   itso: { ...layouts.itso, url: itsoUrl },
 };
 
+// Known equivalent descriptions in the current Coordinator snapshot. Keep these
+// explicit: a reused code alone cannot establish that a revised criterion still
+// belongs on the printed institutional form.
+const COORDINATOR_DESCRIPTION_ALIASES: Readonly<Record<string, string>> = {
+  'A-03': 'The material keeps an ongoing record of student progress and allows teacher monitoring.',
+  'A-04': 'Positive meaningful feedback and prescriptive intervention guides are provided.',
+};
+
 // Prefer saved wording. Pre-snapshot results contain only a title and code;
 // require both canonical values before mapping those older results.
 function normalizeCriterion(text: string): string {
@@ -24,7 +32,12 @@ export function matchTemplateCriteria(agent: ExportAgentId, criteria: readonly C
     const expected = normalizeCriterion(row.text);
     const candidates = criteria.filter((criterion) => {
       if (criterion.description?.trim()) {
-        return normalizeCriterion(criterion.description) === expected;
+        const description = normalizeCriterion(criterion.description);
+        const alias = agent === 'coordinator' && COORDINATOR_DESCRIPTION_ALIASES[row.criterionCode];
+        return description === expected
+          || (alias && criterion.criterion_id === row.criterionCode
+            && normalizeCriterion(criterion.criterion_text) === normalizeCriterion(row.title)
+            && description === normalizeCriterion(alias));
       }
       return normalizeCriterion(criterion.criterion_text) === expected
         || (criterion.criterion_id === row.criterionCode

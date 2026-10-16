@@ -18,7 +18,9 @@ from the saved evaluation's rubric revision.
 Export preserves the source PDF as vector content and fills only its existing
 fields on one page. Match saved descriptions to printed wording; legacy results
 without descriptions require both a canonical code and title. Never map by row
-order or reuse a code when a saved description has changed. Complete sections
+order or reuse a code when a saved description has changed. The Coordinator's
+known equivalent shortened A-03/A-04 descriptions are accepted only with their
+canonical code and title; other revised wording remains unavailable. Complete sections
 receive totals; only a complete form match receives an average and its rating.
 Recorded scores flagged as ungrounded remain advisory scores, with a brief
 review notice in the original comments area. Unavailable/revised criteria stay

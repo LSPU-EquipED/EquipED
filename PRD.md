@@ -307,6 +307,15 @@ The backend uses each specialist's mean criterion score on the 1–4 scale. The 
 
 Coordinator adapter v3 restores official A-05 Objective Gauging and retains C-01 Curriculum Alignment as a separately scored advisory supplement, excluded from the ten-criterion mean, composite, and institutional PDF. Curriculum remains required. V3 fails ambiguous source objective inventories rather than accepting a model-selected denominator. Existing contracts and historical meanings remain unchanged; the default is still v2 pending an explicitly approved new rubric revision and activation. See the [v3 specification](docs/superpowers/specs/2026-10-05-coordinator-objective-gauging-advisory-alignment.md).
 
+Current Coordinator execution keeps source-verified objectives frozen before scoring.
+For unfamiliar readable layouts, the assigned model classifies every source line
+under a bounded schema and a separate verification pass; the harness constructs
+exact source spans and objective IDs. Unresolved disagreement or unreadable,
+missing or truncated objectives remains a failure. Scoring calls cannot choose a
+smaller denominator. Historical snapshot contracts and rubric activation remain
+unchanged; this is source preparation within Layer 3, not an additional layer.
+
+
 ---
 
 ## 10. Use Cases
