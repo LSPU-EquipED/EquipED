@@ -1,41 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "@tanstack/react-router";
 import {
   CheckCircle,
-  FileText,
   MagnifyingGlass,
   UploadSimple,
   Warning,
-} from '@phosphor-icons/react';
-
-import { getErrorMessage } from '@equiped/api-client';
-import { Button } from '@equiped/ui';
-import { useSlmStorage } from '../hooks/useSlmStorage';
-import { StorageToolbar } from './StorageToolbar';
-import { DocumentTable, DocumentTableSkeleton } from './DocumentTable';
-import { DocumentPagination } from './DocumentPagination';
-import { ModuleInspectorDrawer } from './ModuleInspectorDrawer';
-import { StorageUploadModal } from './StorageUploadModal';
-import { sortDocuments, type DocumentSortOption } from '../utils/storage.utils';
+} from "@phosphor-icons/react";
+import { getErrorMessage } from "@equiped/api-client";
+import { Button, Input } from "@equiped/ui";
+import { useSlmStorage } from "../hooks/useSlmStorage";
+import { StorageToolbar } from "./StorageToolbar";
+import { DocumentTable } from "./DocumentTable";
+import { DocumentTableSkeleton } from "./DocumentTableSkeleton";
+import { DocumentPagination } from "./DocumentPagination";
+import { ModuleInspectorDrawer } from "./ModuleInspectorDrawer";
+import { StorageUploadModal } from "./StorageUploadModal";
 
 export function DocumentDashboard() {
   const location = useLocation();
-
   const highlightId = useMemo(
-    () => new URLSearchParams(location.search).get('highlight'),
+    () => new URLSearchParams(location.search).get("highlight"),
     [location.search],
   );
   const openUploadFromDashboard = useMemo(
-    () => new URLSearchParams(location.search).get('upload') === 'true',
+    () => new URLSearchParams(location.search).get("upload") === "true",
     [location.search],
   );
   const [flashId, setFlashId] = useState<string | null>(highlightId ?? null);
-  const [sortOption, setSortOption] = useState<DocumentSortOption>('uploaded-desc');
-
   const {
     documents,
-    metrics,
-    stats,
     total,
     page,
     setPage,
@@ -43,23 +36,26 @@ export function DocumentDashboard() {
     setPageSize,
     totalPages,
     isLoading,
+    isFetching,
     error,
+    refetch,
     search,
     setSearch,
     programFilter,
     setProgramFilter,
     statusFilter,
     setStatusFilter,
+    sortOption,
+    setSortOption,
+    resetFilters,
     inspectingDoc,
     setInspectingDoc,
     isUploadOpen,
     setIsUploadOpen,
     handleUploadComplete,
   } = useSlmStorage();
-
-  const sortedDocuments = useMemo(() => {
-    return sortDocuments(documents, sortOption);
-  }, [documents, sortOption]);
+  const hasFilters =
+    Boolean(search.trim()) || programFilter !== "ALL" || statusFilter !== "all";
 
   useEffect(() => {
     if (flashId) {
@@ -67,137 +63,122 @@ export function DocumentDashboard() {
       return () => clearTimeout(timer);
     }
   }, [flashId]);
-
   useEffect(() => {
-    if (openUploadFromDashboard) {
-      setIsUploadOpen(true);
-    }
+    if (openUploadFromDashboard) setIsUploadOpen(true);
   }, [openUploadFromDashboard, setIsUploadOpen]);
 
   return (
-    <section className="mx-auto flex w-full max-w-[108rem] flex-col gap-7 px-4 py-6 sm:px-7 sm:py-8">
-      <h1 className="sr-only">Module Library</h1>
-
-      {/* ── Success Flash Banner ───────────────────────────────────── */}
-      {flashId ? (
+    <section className="mx-auto w-full max-w-[108rem] space-y-4 px-4 py-6 sm:px-7 sm:py-8">
+      <h1 className="sr-only">Module library</h1>
+      {flashId && (
         <div
-          className="flex items-center gap-2 rounded-sm border border-success/30 bg-success-soft px-4 py-3 text-xs sm:text-sm text-success font-semibold shrink-0 animate-ledger-banner-in"
           role="status"
+          className="flex items-center gap-2 rounded-sm border border-success/30 bg-success-soft px-4 py-3 text-sm text-success"
         >
-          <CheckCircle className="size-4 shrink-0 text-success" aria-hidden="true" />
-          <span>SLM uploaded to Module Library.</span>
+          <CheckCircle className="size-4 shrink-0" aria-hidden="true" />
+          SLM uploaded to Module library.
         </div>
-      ) : null}
-
-      {/* ── Error Alert ────────────────────────────────────────────── */}
-      {error ? (
-        <div
-          className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive-soft px-4 py-3 text-xs sm:text-sm text-destructive font-semibold shrink-0"
-          role="alert"
-        >
-          <Warning className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-          <span>{getErrorMessage(error, 'Unable to load SLM repository.')}</span>
-        </div>
-      ) : null}
-
-      {/* Search controls */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-lg">
-          <MagnifyingGlass
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            placeholder="Search course modules by title, code, or topic..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-10 w-full rounded-sm border border-input bg-surface pl-9 pr-4 text-sm text-text placeholder:text-text-muted focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Search course modules"
-          />
-        </div>
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => setIsUploadOpen(true)}
-          className="h-10 w-full shrink-0 gap-2 px-4 text-xs font-semibold sm:w-auto"
-        >
-          <UploadSimple className="size-4" aria-hidden="true" />
-          <span>Upload SLM</span>
-        </Button>
-      </div>
-
-      {/* Filter and sort controls */}
-      <div>
-        <StorageToolbar
-          programFilter={programFilter}
-          setProgramFilter={setProgramFilter}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          sortOption={sortOption}
-          setSortOption={setSortOption}
-          totalModules={total}
-          bscsCount={metrics.bscsCount}
-          bsInfoTechCount={metrics.bsInfoTechCount}
-          onResetFilters={() => {
-            setProgramFilter('ALL');
-            setStatusFilter('all');
-          }}
-        />
-      </div>
-
-      {/* Repository ledger */}
-      <div
-        className="flex flex-col rounded-sm border border-border bg-surface"
-        role="region"
-        aria-label="Module Library inventory"
-      >
-        <div className="min-w-0 w-full">
-          {isLoading && documents.length === 0 ? <DocumentTableSkeleton /> : null}
-
-          {!error && !isLoading && documents.length === 0 ? (
-            <div className="flex items-center justify-center px-6 py-16 text-center text-sm text-text-muted">
-              <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                <FileText className="size-8 text-text-muted/50" aria-hidden="true" />
-                <p className="font-semibold text-text text-base">
-                  {stats.total === 0
-                    ? 'No SLMs in Module Library yet'
-                    : 'No matching modules found'}
-                </p>
-                <p className="text-xs text-text-muted leading-relaxed">
-                  {stats.total === 0
-                    ? 'Upload course learning modules in PDF format to keep them in your library.'
-                    : 'Try changing your program filter or searching by course code or topic.'}
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {!error && documents.length > 0 ? (
-            <DocumentTable
-              documents={sortedDocuments}
-              flashId={flashId}
-              onInspect={(doc) => setInspectingDoc(doc)}
+      )}
+      <div className="rounded-md border border-border bg-surface">
+        <div className="flex flex-col gap-3 border-b border-border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="relative w-full sm:max-w-lg">
+            <MagnifyingGlass
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted"
+              aria-hidden="true"
             />
-          ) : null}
+            <Input
+              type="search"
+              placeholder="Search modules or course details…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search course modules"
+              className="pl-9"
+            />
+          </div>
+          <Button
+            onClick={() => setIsUploadOpen(true)}
+            className="shrink-0 gap-2"
+          >
+            <UploadSimple className="size-4" aria-hidden="true" />
+            Upload SLM
+          </Button>
         </div>
-
-        {!error && documents.length > 0 ? (
+        <div className="border-b border-border bg-surface-subtle/40 px-5 py-4 sm:px-6">
+          <StorageToolbar
+            programFilter={programFilter}
+            setProgramFilter={setProgramFilter}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            sortOption={sortOption}
+            setSortOption={setSortOption}
+          />
+        </div>
+        <div
+          role="region"
+          aria-label="Module Library inventory"
+          aria-busy={Boolean(isFetching)}
+        >
+          {error ? (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-6"
+            >
+              <p className="flex items-center gap-2 text-sm text-destructive">
+                <Warning className="size-4 shrink-0" aria-hidden="true" />
+                {getErrorMessage(error, "Unable to load modules.")}
+              </p>
+              <Button variant="secondary" onClick={() => void refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : isLoading && documents.length === 0 ? (
+            <DocumentTableSkeleton />
+          ) : documents.length === 0 ? (
+            <div className="px-5 py-12 text-center sm:px-6">
+              <h2 className="text-base font-semibold text-text">
+                {hasFilters ? "No matching modules" : "Your library is empty"}
+              </h2>
+              <p className="mt-2 text-sm text-text-muted">
+                {hasFilters
+                  ? "Try another search, program, or file status."
+                  : "Upload an SLM in PDF format to begin."}
+              </p>
+              {hasFilters && (
+                <Button
+                  variant="secondary"
+                  onClick={resetFilters}
+                  className="mt-5"
+                >
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          ) : (
+            <DocumentTable
+              documents={documents}
+              flashId={flashId}
+              onInspect={setInspectingDoc}
+            />
+          )}
+        </div>
+        {!error && !isLoading && (
           <DocumentPagination
             page={page}
             setPage={setPage}
             pageSize={pageSize}
             setPageSize={setPageSize}
             totalPages={totalPages}
+            total={total}
+            isFetching={isFetching}
+            hasFilters={hasFilters && documents.length > 0}
+            onResetFilters={resetFilters}
           />
-        ) : null}
+        )}
       </div>
-
-      {/* ── File Technical Inspector Drawer ────────────────────────── */}
-      <ModuleInspectorDrawer document={inspectingDoc} onClose={() => setInspectingDoc(null)} />
-
-      {/* ── In-Place SLM Upload Dialog ─────────────────────────────── */}
+      <ModuleInspectorDrawer
+        document={inspectingDoc}
+        onClose={() => setInspectingDoc(null)}
+      />
       <StorageUploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}

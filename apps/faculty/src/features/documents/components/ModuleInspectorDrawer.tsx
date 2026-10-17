@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
-import { usePresence } from '@equiped/ui';
-import type { ClientDocument } from '@equiped/types';
-import { getHumanReadableTitle } from '../utils/moduleInspector.utils';
-import { useClipboardCopy } from '../hooks/useClipboardCopy';
-import { ModuleInspectorDrawerContent } from './ModuleInspectorDrawerContent';
+import { useState } from "react";
+import { usePresence } from "@equiped/ui";
+import type { ClientDocument } from "@equiped/types";
+import { getHumanReadableTitle } from "../utils/moduleInspector.utils";
+import { useStorageDialog } from "../hooks/useStorageDialog";
+import { useClipboardCopy } from "../hooks/useClipboardCopy";
+import { ModuleInspectorDrawerContent } from "./ModuleInspectorDrawerContent";
 
 export interface ModuleInspectorDrawerProps {
   document: ClientDocument | null;
   onClose: () => void;
 }
 
-export function ModuleInspectorDrawer({ document, onClose }: ModuleInspectorDrawerProps) {
+export function ModuleInspectorDrawer({
+  document,
+  onClose,
+}: ModuleInspectorDrawerProps) {
   const isOpen = Boolean(document);
   const { isMounted, isAnimating } = usePresence({ isOpen, durationMs: 240 });
   const [cachedDoc, setCachedDoc] = useState<ClientDocument | null>(document);
@@ -20,15 +24,7 @@ export function ModuleInspectorDrawer({ document, onClose }: ModuleInspectorDraw
     setCachedDoc(document);
   }
 
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isMounted) {
-      window.addEventListener('keydown', handleKey);
-      return () => window.removeEventListener('keydown', handleKey);
-    }
-  }, [isMounted, onClose]);
+  const dialogRef = useStorageDialog({ isOpen, isMounted, onClose });
 
   if (!isMounted || !cachedDoc) return null;
 
@@ -40,10 +36,13 @@ export function ModuleInspectorDrawer({ document, onClose }: ModuleInspectorDraw
     void copy(cachedDoc.documentId);
   };
 
-  const isCopied = Boolean(cachedDoc.documentId && copiedValue === cachedDoc.documentId);
+  const isCopied = Boolean(
+    cachedDoc.documentId && copiedValue === cachedDoc.documentId,
+  );
 
   return (
     <ModuleInspectorDrawerContent
+      dialogRef={dialogRef}
       isOpen={isOpen}
       isAnimating={isAnimating}
       cachedDoc={cachedDoc}

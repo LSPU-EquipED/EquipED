@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { DocumentPagination } from '../DocumentPagination';
+import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DocumentPagination } from "../DocumentPagination";
 
-describe('DocumentPagination', () => {
-  it('renders accessible pagination navigation with aria-label', () => {
+describe("DocumentPagination", () => {
+  it("renders accessible pagination navigation with aria-label", () => {
     const markup = renderToStaticMarkup(
       <DocumentPagination
         page={1}
@@ -39,7 +39,7 @@ describe('DocumentPagination', () => {
     expect(markup).not.toMatch(/aria-label="Page 1"[^>]*aria-current="page"/);
   });
 
-  it('disables previous button on first page and next button on last page', () => {
+  it("disables previous button on first page and next button on last page", () => {
     const page1Markup = renderToStaticMarkup(
       <DocumentPagination
         page={1}
@@ -49,7 +49,9 @@ describe('DocumentPagination', () => {
         totalPages={3}
       />,
     );
-    expect(page1Markup).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Previous page"/);
+    expect(page1Markup).toMatch(
+      /<button[^>]*disabled=""[^>]*aria-label="Previous page"/,
+    );
 
     const page3Markup = renderToStaticMarkup(
       <DocumentPagination
@@ -60,7 +62,9 @@ describe('DocumentPagination', () => {
         totalPages={3}
       />,
     );
-    expect(page3Markup).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Next page"/);
+    expect(page3Markup).toMatch(
+      /<button[^>]*disabled=""[^>]*aria-label="Next page"/,
+    );
   });
 
   it('renders dots with aria-hidden="true" and accessible text-text-muted class when totalPages > 5', () => {
@@ -75,10 +79,10 @@ describe('DocumentPagination', () => {
     );
 
     expect(markup).toContain('aria-hidden="true"');
-    expect(markup).toContain('text-text-muted');
+    expect(markup).toContain("text-text-muted");
   });
 
-  it('renders page size selector with accessible label and options', () => {
+  it("renders page size selector with accessible label and options", () => {
     const markup = renderToStaticMarkup(
       <DocumentPagination
         page={1}
