@@ -1,30 +1,23 @@
-// Self-contained table -- deliberately NOT importing
-// history/components/EvaluationHistoryTable.tsx, since features must stay
-// self-contained (CLAUDE.md module boundaries). Visually mirrors it
-// (meta bar + status-badge table) so the two history views feel
-// consistent, but this is its own implementation.
-import { useEffect, useState } from 'react';
-import { Warning, ArrowSquareOut, Trash } from '@phosphor-icons/react';
-import { Badge } from '@equiped/ui';
-import { Button } from '@equiped/ui';
-import { TableSkeleton } from '@equiped/ui';
-import { cn } from '@equiped/ui';
-import { TABLE_STYLES } from '@equiped/ui';
-import { getErrorMessage } from '@equiped/api-client';
-import { useDeleteAlignmentCheck } from '../hooks/useDeleteAlignmentCheck';
-import { useAlignmentCheckHistory } from '../hooks/useAlignmentCheckHistory';
-import { ConfirmDeleteModal } from './ConfirmDeleteModal';
-import type { AlignmentCheckListItem } from '../types';
+import { useEffect, useState } from "react";
+import {
+  ArrowRight,
+  CaretLeft,
+  CaretRight,
+  Trash,
+  Warning,
+} from "@phosphor-icons/react";
+import { Button, Dropdown, Skeleton } from "@equiped/ui";
+import { getErrorMessage } from "@equiped/api-client";
+import { useDeleteAlignmentCheck } from "../hooks/useDeleteAlignmentCheck";
+import { useAlignmentCheckHistory } from "../hooks/useAlignmentCheckHistory";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import type { AlignmentCheckListItem } from "../types";
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
-}
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
 type AlignmentHistoryListProps = {
   onSelect: (item: AlignmentCheckListItem) => void;
@@ -33,239 +26,226 @@ type AlignmentHistoryListProps = {
 export function AlignmentHistoryList({ onSelect }: AlignmentHistoryListProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [pendingDelete, setPendingDelete] = useState<AlignmentCheckListItem | null>(null);
-  const { data, isLoading, isError, error } = useAlignmentCheckHistory(page, pageSize);
+  const [pendingDelete, setPendingDelete] =
+    useState<AlignmentCheckListItem | null>(null);
+  const history = useAlignmentCheckHistory(page, pageSize);
   const deleteCheck = useDeleteAlignmentCheck();
-
-  const items = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const items = history.data?.items ?? [];
+  const total = history.data?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / pageSize), 1);
 
-  // Auto-clamp to valid page when empty pagination occurs (stale page after delete)
   useEffect(() => {
-    if (!isLoading && items.length === 0 && page > 1) {
+    if (history.data && page > totalPages) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPage(Math.max(page - 1, 1));
+      setPage(totalPages);
     }
-  }, [isLoading, items.length, page]);
+  }, [history.data, page, totalPages]);
 
-  const handleConfirmDelete = () => {
+  function confirmDelete() {
     if (!pendingDelete) return;
     deleteCheck.mutate(pendingDelete.check_id, {
       onSuccess: () => setPendingDelete(null),
     });
-  };
+  }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-md border border-border bg-surface">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-subtle px-6 py-4">
-        <p className="text-sm font-medium text-text-muted">
-          {isLoading
-            ? 'Loading records…'
-            : `${total} check${total === 1 ? '' : 's'} found`}
-        </p>
-        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Advisory only.
-        </p>
+    <section aria-labelledby="curriculum-history-heading" className="min-w-0">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2
+          id="curriculum-history-heading"
+          className="text-base font-semibold text-text"
+        >
+          Previous checks
+        </h2>
+        {history.data && total > 0 && (
+          <span className="text-xs tabular-nums text-text-muted">
+            {total} check{total === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
-
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        {isError ? (
-          <div className="flex items-center gap-2 rounded-sm border border-destructive/20 bg-destructive-soft px-4 py-3 text-sm font-semibold text-destructive">
-            <Warning className="size-4 shrink-0" />
-            {getErrorMessage(error, 'Could not load check history.')}
+      <div className="rounded-md border border-border bg-surface">
+        {history.isError ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-6"
+          >
+            <p className="flex items-center gap-2 text-sm text-destructive">
+              <Warning className="size-4 shrink-0" aria-hidden="true" />
+              {getErrorMessage(history.error, "Could not load check history.")}
+            </p>
+            <Button variant="secondary" onClick={() => void history.refetch()}>
+              Try again
+            </Button>
           </div>
-        ) : null}
-
-        {isLoading ? (
-          <TableSkeleton
-            ariaLabel="Loading alignment check history"
-            columns={[
-              { label: 'Document / Course', skeletonClassName: 'h-5 w-full max-w-72' },
-              { label: 'Status', skeletonClassName: 'h-5 w-20' },
-              { label: 'Run at', skeletonClassName: 'h-4 w-28' },
-              { label: 'Action', skeletonClassName: 'h-8 w-24 ml-auto' },
-            ]}
-            rows={6}
-          />
-        ) : null}
-
-        {!isError && !isLoading && items.length === 0 ? (
-          <div className="grid gap-2 rounded-sm border border-dashed border-border px-6 py-12 text-center bg-surface">
-            <h3 className="text-lg font-semibold text-text">No checks yet</h3>
-            <p className="text-sm text-text-muted">
-              Pick a document and course above, then run a check to see it here.
+        ) : history.isLoading ? (
+          <div
+            role="status"
+            aria-label="Loading previous curriculum checks"
+            className="divide-y divide-border"
+          >
+            {Array.from({ length: 3 }, (_, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between gap-6 px-5 py-5 sm:px-6"
+              >
+                <div className="w-1/2 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="hidden h-10 w-28 sm:block" />
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="px-5 py-10 sm:px-6">
+            <h3 className="text-sm font-medium text-text">No checks yet</h3>
+            <p className="mt-1.5 text-sm text-text-muted">
+              Your saved checks will appear here.
             </p>
           </div>
-        ) : null}
-
-        {!isError && !isLoading && items.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className={TABLE_STYLES.table}>
-              <thead className={TABLE_STYLES.thead}>
-                <tr>
-                  <th className={cn(TABLE_STYLES.th, 'min-w-[20rem]')}>
-                    Document / Course
-                  </th>
-                  <th className={TABLE_STYLES.th}>Status</th>
-                  <th className={TABLE_STYLES.th}>Run at</th>
-                  <th className={cn(TABLE_STYLES.th, 'text-right')}>Action</th>
-                </tr>
-              </thead>
-              <tbody className={TABLE_STYLES.tbody}>
-                {items.map((item: AlignmentCheckListItem) => (
-                  <tr key={item.check_id} className={TABLE_STYLES.tr}>
-                    <td className={cn(TABLE_STYLES.td, 'font-semibold text-text')}>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="max-w-[22rem] truncate">{item.document_title}</span>
-                        <span className="text-xs font-medium text-text-muted">
-                          {item.course_title}
-                        </span>
-                      </div>
-                    </td>
-                    <td className={TABLE_STYLES.td}>
-                      <Badge variant={item.success ? 'success' : 'destructive'} withDot>
-                        {item.success ? 'Completed' : 'Failed'}
-                      </Badge>
-                    </td>
-                    <td className={cn(TABLE_STYLES.tdData, 'text-text-muted')}>
-                      {formatDate(item.run_at)}
-                    </td>
-                    <td className={cn(TABLE_STYLES.td, 'text-right')}>
-                      <div className="inline-flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onSelect(item)}
-                        >
-                          <span>View</span>
-                          <ArrowSquareOut className="ml-1.5 size-3" aria-hidden="true" />
-                        </Button>
-                        <button
-                          type="button"
-                          onClick={() => setPendingDelete(item)}
-                          disabled={deleteCheck.isPending}
-                          aria-label="Delete check"
-                          className="inline-flex size-8 items-center justify-center rounded-sm text-text-muted transition-colors hover:bg-destructive-soft hover:text-destructive focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Trash className="size-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+        ) : (
+          <>
+            <div
+              aria-hidden="true"
+              className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem] gap-6 border-b border-border px-6 py-3 text-xs font-medium text-text-muted sm:grid"
+            >
+              <span>Module / course</span>
+              <span>Check</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <ul
+              aria-label="Previous curriculum checks"
+              className="divide-y divide-border"
+            >
+              {items.map((item) => (
+                <li
+                  key={item.check_id}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-5 py-4 transition-colors hover:bg-surface-subtle/30 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem] sm:gap-6 sm:px-6"
+                >
+                  <div className="col-span-2 min-w-0 sm:col-span-1">
+                    <h3 className="break-words text-sm font-semibold leading-relaxed text-text">
+                      {item.document_title}
+                    </h3>
+                    <p className="mt-1 break-words text-xs leading-relaxed text-text-muted">
+                      {item.course_title}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p
+                      className={`text-sm font-medium ${item.success ? "text-success" : "text-destructive"}`}
+                    >
+                      {item.success ? "Completed" : "Failed"}
+                    </p>
+                    <time
+                      dateTime={item.run_at}
+                      title={new Date(item.run_at).toLocaleString()}
+                      className="mt-1 block text-xs tabular-nums text-text-muted"
+                    >
+                      {dateFormatter.format(new Date(item.run_at))}
+                    </time>
+                  </div>
+                  <div className="flex items-center justify-self-end gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => onSelect(item)}
+                      aria-label={`View check for ${item.document_title}`}
+                      className="gap-2 px-2 text-sm"
+                    >
+                      View check
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        deleteCheck.reset();
+                        setPendingDelete(item);
+                      }}
+                      disabled={deleteCheck.isPending}
+                      aria-label={`Delete check for ${item.document_title}`}
+                      title="Delete check"
+                      className="size-10 p-0 hover:bg-destructive-soft hover:text-destructive"
+                    >
+                      <Trash className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 sm:px-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <p
+                  role="status"
+                  className="text-xs tabular-nums text-text-muted"
+                >
+                  {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)}{" "}
+                  of {total} checks
+                </p>
+                <Dropdown
+                  aria-label="Checks per page"
+                  size="md"
+                  value={pageSize}
+                  onChange={(value) => {
+                    setPageSize(Number(value));
+                    setPage(1);
+                  }}
+                  options={[10, 25, 50].map((value) => ({
+                    value,
+                    label: `${value} rows`,
+                  }))}
+                />
+              </div>
+              {totalPages > 1 && (
+                <nav
+                  aria-label="Check history pagination"
+                  className="flex items-center gap-2"
+                >
+                  <Button
+                    variant="secondary"
+                    aria-label="Previous page"
+                    title="Previous page"
+                    disabled={page === 1 || history.isFetching}
+                    onClick={() => setPage((value) => Math.max(value - 1, 1))}
+                  >
+                    <CaretLeft className="size-4" aria-hidden="true" />
+                  </Button>
+                  <span className="text-xs tabular-nums text-text-muted">
+                    {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    aria-label="Next page"
+                    title="Next page"
+                    disabled={page === totalPages || history.isFetching}
+                    onClick={() =>
+                      setPage((value) => Math.min(value + 1, totalPages))
+                    }
+                  >
+                    <CaretRight className="size-4" aria-hidden="true" />
+                  </Button>
+                </nav>
+              )}
+            </footer>
+          </>
+        )}
       </div>
-
-      {pendingDelete ? (
+      {pendingDelete && (
         <ConfirmDeleteModal
           title="Delete this check?"
           message={`This will permanently delete the check for "${pendingDelete.document_title}" / "${pendingDelete.course_title}". This cannot be undone.`}
           isPending={deleteCheck.isPending}
           errorMessage={
             deleteCheck.isError
-              ? getErrorMessage(deleteCheck.error, 'Could not delete this check.')
+              ? getErrorMessage(
+                  deleteCheck.error,
+                  "Could not delete this check.",
+                )
               : null
           }
-          onConfirm={handleConfirmDelete}
+          onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
-      ) : null}
-
-      {items.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-surface-subtle px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Show</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="h-8 cursor-pointer rounded-sm border border-input bg-surface px-2 text-xs font-semibold text-text focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value={10}>10 rows</option>
-              <option value={25}>25 rows</option>
-              <option value={50}>50 rows</option>
-            </select>
-          </div>
-
-          <div className="text-xs font-semibold uppercase tracking-wider tabular-nums text-text-muted">
-            Page {page} of {totalPages}
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(p - 1, 1))}
-            >
-              Previous
-            </Button>
-
-            {Array.from({ length: totalPages }).map((_, idx) => {
-              const p = idx + 1;
-              const isCurrent = p === page;
-
-              if (totalPages > 5 && p !== 1 && p !== totalPages && Math.abs(p - page) > 1) {
-                if (p === 2 && page > 3) {
-                  return (
-                    <span
-                      key="dots-start"
-                      className="select-none px-1 text-xs font-semibold text-text-muted"
-                    >
-                      ...
-                    </span>
-                  );
-                }
-                if (p === totalPages - 1 && page < totalPages - 2) {
-                  return (
-                    <span
-                      key="dots-end"
-                      className="select-none px-1 text-xs font-semibold text-text-muted"
-                    >
-                      ...
-                    </span>
-                  );
-                }
-                return null;
-              }
-
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPage(p)}
-                  className={cn(
-                    'inline-flex size-8 items-center justify-center rounded-sm text-xs font-semibold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    isCurrent
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border bg-surface text-text hover:bg-surface-subtle',
-                  )}
-                >
-                  {p}
-                </button>
-              );
-            })}
-
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={page === totalPages}
-              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+      )}
+    </section>
   );
 }
