@@ -1,4 +1,4 @@
-import type { ClientDocument } from '@equiped/types';
+import type { ClientDocument } from "@equiped/types";
 
 /**
  * Truncates a document ID to standard compact ledger notation (first 8 ... last 5).
@@ -12,20 +12,22 @@ export function truncateId(id: string): string {
 /**
  * Converts backend document processing status enum into human-readable inspector label.
  */
-export function formatProcessingStatus(status: string | null | undefined): string {
+export function formatProcessingStatus(
+  status: string | null | undefined,
+): string {
   switch (status) {
-    case 'PROCESSED':
-      return 'Indexed';
-    case 'PROCESSING':
-      return 'Processing';
-    case 'PENDING':
-      return 'Pending';
-    case 'FAILED':
-      return 'Failed';
-    case 'CLEANUP_PENDING':
-      return 'Cleaning up';
+    case "PROCESSED":
+      return "Processed";
+    case "PROCESSING":
+      return "Processing";
+    case "PENDING":
+      return "Pending";
+    case "FAILED":
+      return "Failed";
+    case "CLEANUP_PENDING":
+      return "Cleaning up";
     default:
-      return status || 'Not specified';
+      return status || "Not specified";
   }
 }
 
@@ -33,7 +35,7 @@ export function formatProcessingStatus(status: string | null | undefined): strin
  * Computes a human-friendly title prioritizing Course Title + Lesson Title over raw filename/title.
  */
 export function getHumanReadableTitle(
-  doc: Pick<ClientDocument, 'title' | 'courseTitle' | 'lessonTitle'>,
+  doc: Pick<ClientDocument, "title" | "courseTitle" | "lessonTitle">,
 ): string {
   if (doc.courseTitle && doc.lessonTitle) {
     return `${doc.courseTitle} — ${doc.lessonTitle}`;
@@ -44,11 +46,13 @@ export function getHumanReadableTitle(
 /**
  * Formats uploaded timestamp for module inspector display.
  */
-export function formatInspectorDate(dateString: string | null | undefined): string {
-  if (!dateString) return 'Not specified';
+export function formatInspectorDate(
+  dateString: string | null | undefined,
+): string {
+  if (!dateString) return "Not specified";
   return new Date(dateString).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }

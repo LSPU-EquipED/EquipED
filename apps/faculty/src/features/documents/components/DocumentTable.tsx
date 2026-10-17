@@ -1,8 +1,7 @@
-import { cn } from '@equiped/ui';
-import { TableSkeleton } from '@equiped/ui';
-import type { ClientDocument } from '@equiped/types';
-import { formatDate, sourceTypeLabels } from '../utils/document.utils';
-import { DocumentActionsMenu } from './DocumentActionsMenu';
+import { cn } from "@equiped/ui";
+import type { ClientDocument } from "@equiped/types";
+import { formatDate, sourceTypeLabels } from "../utils/document.utils";
+import { DocumentActionsMenu } from "./DocumentActionsMenu";
 
 interface DocumentTableProps {
   documents: ClientDocument[];
@@ -10,51 +9,68 @@ interface DocumentTableProps {
   onInspect?: (document: ClientDocument) => void;
 }
 
-export function DocumentTable({ documents, flashId, onInspect }: DocumentTableProps) {
-  const hasMultipleTypes = documents.some((d) => d.sourceType !== 'slm');
+export function DocumentTable({
+  documents,
+  flashId,
+  onInspect,
+}: DocumentTableProps) {
+  const hasMultipleTypes = documents.some((d) => d.sourceType !== "slm");
 
   return (
     <div className="overflow-x-auto min-w-0 w-full">
-      <table className="w-full min-w-[49rem] table-fixed border-collapse border-spacing-0 text-left">
+      <table className="w-full sm:min-w-[44rem] table-fixed border-collapse border-spacing-0 text-left">
         <caption className="sr-only">Course module inventory</caption>
-        <thead className="border-b border-border bg-surface-subtle text-[11px] font-medium tracking-[0.04em] text-text-muted">
+        <thead className="border-b border-border bg-surface-subtle text-xs font-medium text-text-muted">
           <tr>
             <th
               scope="col"
               className={cn(
-                'py-3 pl-4 pr-3.5 text-left align-middle sm:pl-6',
-                hasMultipleTypes ? 'w-[40%] min-w-[16rem]' : 'w-[44%] min-w-[16rem]',
+                "py-3 pl-4 pr-3.5 text-left align-middle sm:pl-6",
+                hasMultipleTypes
+                  ? "sm:w-[40%] sm:min-w-[16rem]"
+                  : "sm:w-[44%] sm:min-w-[16rem]",
               )}
             >
-              Module Name
+              Module
             </th>
             <th
               scope="col"
               className={cn(
-                'py-3 px-3.5 text-left align-middle',
-                hasMultipleTypes ? 'w-[24%] min-w-[12rem]' : 'w-[28%] min-w-[13rem]',
+                "hidden py-3 px-3.5 text-left align-middle sm:table-cell",
+                hasMultipleTypes
+                  ? "w-[24%] min-w-[12rem]"
+                  : "w-[28%] min-w-[13rem]",
               )}
             >
               Course
             </th>
-            <th scope="col" className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]">
+            <th
+              scope="col"
+              className="hidden py-3 px-3.5 text-left align-middle sm:table-cell w-28 min-w-[6.5rem]"
+            >
               Program
             </th>
             {hasMultipleTypes && (
-              <th scope="col" className="py-3 px-3.5 text-left align-middle w-28 min-w-[6.5rem]">
+              <th
+                scope="col"
+                className="hidden py-3 px-3.5 text-left align-middle sm:table-cell w-28 min-w-[6.5rem]"
+              >
                 Type
               </th>
             )}
             <th
               scope="col"
               className={cn(
-                'py-3 px-3.5 text-left align-middle',
-                hasMultipleTypes ? 'w-32 min-w-[7rem]' : 'w-32 min-w-[8rem]',
+                "hidden py-3 px-3.5 text-left align-middle sm:table-cell",
+                hasMultipleTypes ? "w-32 min-w-[7rem]" : "w-32 min-w-[8rem]",
               )}
             >
               Uploaded
             </th>
-            <th scope="col" className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
+            <th
+              scope="col"
+              className="sticky right-0 w-20 bg-surface-subtle py-3 pl-2 pr-4 text-right align-middle"
+            >
               Actions
             </th>
           </tr>
@@ -66,13 +82,14 @@ export function DocumentTable({ documents, flashId, onInspect }: DocumentTablePr
             return (
               <tr
                 key={document.documentId}
-                className={cn(isFlashing && 'animate-ledger-flash-decay')}
+                className={cn(isFlashing && "animate-ledger-flash-decay")}
               >
-                {/* 2. Module Name */}
                 <td
                   className={cn(
-                    'py-3 pl-4 pr-3.5 align-middle sm:pl-6',
-                    hasMultipleTypes ? 'w-[40%] min-w-[16rem]' : 'w-[44%] min-w-[16rem]',
+                    "py-3 pl-4 pr-3.5 align-middle sm:pl-6",
+                    hasMultipleTypes
+                      ? "sm:w-[40%] sm:min-w-[16rem]"
+                      : "sm:w-[44%] sm:min-w-[16rem]",
                   )}
                 >
                   <span
@@ -81,34 +98,46 @@ export function DocumentTable({ documents, flashId, onInspect }: DocumentTablePr
                   >
                     {document.title}
                   </span>
+                  <p className="mt-1 text-xs leading-relaxed text-text-muted sm:hidden">
+                    {[
+                      document.courseCode || document.courseTitle,
+                      document.program,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    <span className="block tabular-nums">
+                      {formatDate(document.uploadedAt)}
+                    </span>
+                  </p>
                 </td>
 
-                {/* 3. Course */}
                 <td
                   className={cn(
-                    'py-3 px-3.5 align-middle',
-                    hasMultipleTypes ? 'w-[24%] min-w-[12rem]' : 'w-[28%] min-w-[13rem]',
+                    "hidden py-3 px-3.5 align-middle sm:table-cell",
+                    hasMultipleTypes
+                      ? "w-[24%] min-w-[12rem]"
+                      : "w-[28%] min-w-[13rem]",
                   )}
                 >
                   <span
                     className="block truncate text-xs sm:text-sm text-text-muted font-medium"
                     title={
-                      [document.courseCode, document.courseTitle].filter(Boolean).join(' — ') ||
-                      undefined
+                      [document.courseCode, document.courseTitle]
+                        .filter(Boolean)
+                        .join(" — ") || undefined
                     }
                   >
                     {document.courseCode
                       ? document.courseTitle
                         ? `${document.courseCode} — ${document.courseTitle}`
                         : document.courseCode
-                      : (document.courseTitle ?? 'Not specified')}
+                      : (document.courseTitle ?? "Not specified")}
                   </span>
                 </td>
 
-                {/* 4. Program */}
-                <td className="py-3 px-3.5 align-middle w-28 min-w-[6.5rem]">
+                <td className="hidden py-3 px-3.5 align-middle sm:table-cell w-28 min-w-[6.5rem]">
                   {document.program ? (
-                    <span className="inline-flex items-center rounded-xs border border-border bg-surface-subtle px-1.5 py-0.5 font-mono text-[11px] font-semibold text-text select-none">
+                    <span className="text-sm text-text-muted">
                       {document.program}
                     </span>
                   ) : (
@@ -118,26 +147,28 @@ export function DocumentTable({ documents, flashId, onInspect }: DocumentTablePr
                   )}
                 </td>
 
-                {/* 5. Type (conditionally rendered only if multiple types exist) */}
                 {hasMultipleTypes && (
-                  <td className="py-3 px-3.5 align-middle text-xs text-text-muted font-medium whitespace-nowrap w-28 min-w-[6.5rem]">
+                  <td className="hidden py-3 px-3.5 align-middle sm:table-cell text-xs text-text-muted font-medium whitespace-nowrap w-28 min-w-[6.5rem]">
                     {sourceTypeLabels[document.sourceType]}
                   </td>
                 )}
 
-                {/* 6. Uploaded */}
                 <td
                   className={cn(
-                    'py-3 px-3.5 align-middle text-xs text-text-muted font-medium whitespace-nowrap tabular-nums',
-                    hasMultipleTypes ? 'w-32 min-w-[7.5rem]' : 'w-36 min-w-[8.5rem]',
+                    "hidden py-3 px-3.5 align-middle sm:table-cell text-xs text-text-muted font-medium whitespace-nowrap tabular-nums",
+                    hasMultipleTypes
+                      ? "w-32 min-w-[7.5rem]"
+                      : "w-36 min-w-[8.5rem]",
                   )}
                 >
                   {formatDate(document.uploadedAt)}
                 </td>
 
-                {/* 7. Actions */}
-                <td className="w-28 py-3 pl-2 pr-4 text-right align-middle sm:pr-6">
-                  <DocumentActionsMenu document={document} onInspect={onInspect} />
+                <td className="sticky right-0 w-20 bg-surface py-3 pl-2 pr-4 text-right align-middle">
+                  <DocumentActionsMenu
+                    document={document}
+                    onInspect={onInspect}
+                  />
                 </td>
               </tr>
             );
@@ -145,74 +176,5 @@ export function DocumentTable({ documents, flashId, onInspect }: DocumentTablePr
         </tbody>
       </table>
     </div>
-  );
-}
-
-export function DocumentTableSkeleton({
-  hasMultipleTypes = false,
-}: {
-  hasMultipleTypes?: boolean;
-}) {
-  const columns = [
-    {
-      label: 'Module Name',
-      headerClassName: hasMultipleTypes
-        ? 'w-[40%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle'
-        : 'w-[44%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle',
-      cellClassName: hasMultipleTypes
-        ? 'w-[40%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle'
-        : 'w-[44%] min-w-[16rem] pl-4 sm:pl-6 pr-3.5 align-middle',
-      skeletonClassName: 'h-4 w-48',
-    },
-    {
-      label: 'Course',
-      headerClassName: hasMultipleTypes
-        ? 'w-[24%] min-w-[12rem] px-3.5 align-middle'
-        : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes
-        ? 'w-[24%] min-w-[12rem] px-3.5 align-middle'
-        : 'w-[28%] min-w-[13rem] px-3.5 align-middle',
-      skeletonClassName: 'h-4 w-36',
-    },
-    {
-      label: 'Program',
-      headerClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
-      cellClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
-      skeletonClassName: 'h-5 w-14',
-    },
-    ...(hasMultipleTypes
-      ? [
-          {
-            label: 'Type',
-            headerClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
-            cellClassName: 'w-28 min-w-[6.5rem] px-3.5 align-middle',
-            skeletonClassName: 'h-4 w-20',
-          },
-        ]
-      : []),
-    {
-      label: 'Uploaded',
-      headerClassName: hasMultipleTypes
-        ? 'w-32 min-w-[7rem] px-3.5 align-middle'
-        : 'w-32 min-w-[8rem] px-3.5 align-middle',
-      cellClassName: hasMultipleTypes
-        ? 'w-32 min-w-[7rem] px-3.5 align-middle'
-        : 'w-32 min-w-[8rem] px-3.5 align-middle',
-      skeletonClassName: 'h-4 w-20',
-    },
-    {
-      label: 'Actions',
-      headerClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 text-right align-middle',
-      cellClassName: 'w-24 min-w-[6rem] pl-2 pr-4 sm:pr-6 align-middle',
-      skeletonClassName: 'size-10 ml-auto',
-    },
-  ];
-
-  return (
-    <TableSkeleton
-      ariaLabel="Loading document inventory"
-      tableClassName="table-fixed min-w-[49rem]"
-      columns={columns}
-    />
   );
 }

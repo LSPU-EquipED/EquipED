@@ -1,56 +1,43 @@
-import { describe, expect, it, vi } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { StorageToolbar } from '../StorageToolbar';
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { StorageToolbar } from "../StorageToolbar";
+afterEach(cleanup);
 
-describe('StorageToolbar Component', () => {
-  it('renders module counts consistently in all tabs including 0 count', () => {
-    const markup = renderToStaticMarkup(
+describe("StorageToolbar", () => {
+  it("filters programs and file processing through shared dropdowns without unstable counts", () => {
+    const program = vi.fn();
+    const status = vi.fn();
+    render(
+      <StorageToolbar
+        programFilter="ALL"
+        setProgramFilter={program}
+        statusFilter="all"
+        setStatusFilter={status}
+      />,
+    );
+    expect(screen.queryByRole("tablist")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Program" }));
+    fireEvent.click(screen.getByRole("option", { name: "BSInfoTech" }));
+    expect(program).toHaveBeenCalledWith("BSInfoTech");
+    fireEvent.click(screen.getByRole("button", { name: "File status" }));
+    fireEvent.click(screen.getByRole("option", { name: "Upload failed" }));
+    expect(status).toHaveBeenCalledWith("FAILED");
+  });
+  it("requests whole-inventory sorting through its parent handler", () => {
+    const sort = vi.fn();
+    render(
       <StorageToolbar
         programFilter="ALL"
         setProgramFilter={vi.fn()}
         statusFilter="all"
         setStatusFilter={vi.fn()}
-        totalModules={5}
-        bscsCount={5}
-        bsInfoTechCount={0}
+        sortOption="uploaded-desc"
+        setSortOption={sort}
       />,
     );
-
-    expect(markup).toContain('All Modules');
-    expect(markup).toContain('5');
-    expect(markup).toContain('BSCS');
-    expect(markup).toContain('BSInfoTech');
-    // Verifies that BSInfoTech 0 count is explicitly rendered instead of hidden
-    expect(markup).toContain('0');
-  });
-
-  it('highlights the active program filter tab with primary background', () => {
-    const markup = renderToStaticMarkup(
-      <StorageToolbar
-        programFilter="BSCS"
-        setProgramFilter={vi.fn()}
-        statusFilter="all"
-        setStatusFilter={vi.fn()}
-        totalModules={10}
-        bscsCount={10}
-        bsInfoTechCount={0}
-      />,
-    );
-
-    expect(markup).toContain('bg-primary text-primary-foreground');
-  });
-
-  it('renders reset filter button when a filter is active', () => {
-    const markup = renderToStaticMarkup(
-      <StorageToolbar
-        programFilter="BSInfoTech"
-        setProgramFilter={vi.fn()}
-        statusFilter="all"
-        setStatusFilter={vi.fn()}
-        onResetFilters={vi.fn()}
-      />,
-    );
-
-    expect(markup).toContain('Reset');
+    fireEvent.click(screen.getByRole("button", { name: "Sort" }));
+    fireEvent.click(screen.getByRole("option", { name: "Oldest first" }));
+    expect(sort).toHaveBeenCalledWith("uploaded-asc");
   });
 });
