@@ -1,10 +1,10 @@
-import { Warning, CheckCircle, Clock, Spinner, ArrowLeft } from '@phosphor-icons/react';
-import { Badge, Skeleton, cn } from '@equiped/ui';
-import { AlignmentHistoryList } from '../components/AlignmentHistoryList';
-import { AlignmentCheckControls } from '../components/AlignmentCheckControls';
-import { AlignmentCheckMetrics } from '../components/AlignmentCheckMetrics';
-import { AlignmentCheckWorkbench } from '../components/AlignmentCheckWorkbench';
-import { useAlignmentCheckFeature } from '../hooks/useAlignmentCheckFeature';
+import { Warning, CheckCircle, Clock, ArrowLeft } from "@phosphor-icons/react";
+import { Badge, Skeleton, cn } from "@equiped/ui";
+import { AlignmentHistoryList } from "../components/AlignmentHistoryList";
+import { AlignmentCheckControls } from "../components/AlignmentCheckControls";
+import { AlignmentCheckMetrics } from "../components/AlignmentCheckMetrics";
+import { AlignmentCheckWorkbench } from "../components/AlignmentCheckWorkbench";
+import { useAlignmentCheckFeature } from "../hooks/useAlignmentCheckFeature";
 
 export function AlignmentCheckPage() {
   const {
@@ -12,7 +12,12 @@ export function AlignmentCheckPage() {
     courseId,
     activeCheckId,
     readingPaneRef,
+    documentsLoading,
     coursesLoading,
+    documentsError,
+    coursesError,
+    retryDocuments,
+    retryCourses,
     runCheck,
     activeCheck,
     pagesData,
@@ -28,7 +33,6 @@ export function AlignmentCheckPage() {
     isBoundedResult,
     coverageText,
     courseOptions,
-    selectedDocumentSupportNotice,
     handleRun,
     handleSelectHistoryItem,
     handleDocumentChange,
@@ -37,8 +41,8 @@ export function AlignmentCheckPage() {
   } = useAlignmentCheckFeature();
 
   return (
-    <div className="mx-auto flex h-full max-w-[108rem] flex-col gap-7 px-4 py-6 sm:px-7 sm:py-8">
-      {/* Integrated Control Toolbar */}
+    <div className="mx-auto flex min-w-0 max-w-[108rem] flex-col gap-6 px-4 py-6 sm:px-7 sm:py-8">
+      <h1 className="sr-only">Curriculum check</h1>
       <AlignmentCheckControls
         documentId={documentId}
         courseId={courseId}
@@ -46,55 +50,51 @@ export function AlignmentCheckPage() {
         selectedDocument={selectedDocument}
         selectedEligibility={selectedEligibility}
         courseOptions={courseOptions}
+        documentsLoading={documentsLoading}
         coursesLoading={coursesLoading}
+        documentsError={documentsError}
+        coursesError={coursesError}
+        onRetryDocuments={retryDocuments}
+        onRetryCourses={retryCourses}
         canRunCheck={canRunCheck}
         isPending={runCheck.isPending}
-        isChecking={runCheck.isPending}
         onDocumentChange={handleDocumentChange}
         onCourseChange={handleCourseChange}
         onRun={handleRun}
       />
 
-      {selectedDocumentSupportNotice ? (
-        <div className="flex items-center gap-2 rounded-xs border border-warning/30 bg-warning-soft px-4 py-2.5 text-xs font-medium text-warning">
-          <Clock className="size-4 shrink-0" aria-hidden="true" />
-          <span>{selectedDocumentSupportNotice}</span>
-        </div>
-      ) : null}
-
-      {!documentId || !courseId ? (
-        <div className="rounded-xs border border-border bg-surface-subtle/50 px-4 py-2.5 text-xs text-text-muted">
-          Pick a supported SLM document and a target course above to evaluate curriculum alignment.
-        </div>
-      ) : null}
-
       {runCheck.isPending ? (
-        <div className="flex items-center gap-2 rounded-xs border border-primary/25 bg-primary-soft/30 px-4 py-3 text-xs font-semibold text-primary">
-          <Spinner className="size-4 animate-spin shrink-0 text-primary" aria-hidden="true" />
-          <span>Running curriculum alignment check against syllabus objectives…</span>
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-sm border border-primary/25 bg-primary-soft/30 px-5 py-4 text-sm font-medium text-primary"
+        >
+          <Clock className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <span>Comparing the module with its mapped course objectives…</span>
         </div>
       ) : null}
 
       {runErrorState ? (
-        <div className="rounded-sm border border-destructive/25 bg-destructive-soft p-3.5 text-xs font-medium text-destructive">
+        <div
+          role="alert"
+          className="rounded-sm border border-destructive/25 bg-destructive-soft p-3.5 text-sm font-medium text-destructive"
+        >
           <div className="mb-1 flex items-center gap-2 font-semibold">
             <Warning className="size-4 shrink-0" aria-hidden="true" />
             <span>{runErrorState.title}</span>
           </div>
           <p>{runErrorState.message}</p>
-          {runErrorState.kind === 'rate_limited' && runErrorState.retryAfterSeconds !== null ? (
+          {runErrorState.kind === "rate_limited" &&
+          runErrorState.retryAfterSeconds !== null ? (
             <p className="mt-1 font-bold tabular-nums">
               Retry in {runErrorState.retryAfterSeconds} second
-              {runErrorState.retryAfterSeconds === 1 ? '' : 's'}.
+              {runErrorState.retryAfterSeconds === 1 ? "" : "s"}.
             </p>
           ) : null}
         </div>
       ) : null}
 
       {/* History View (When no check is active) */}
-      {!runCheck.isPending &&
-      !runErrorState &&
-      activeCheckId === null ? (
+      {!runCheck.isPending && !runErrorState && activeCheckId === null ? (
         <AlignmentHistoryList onSelect={handleSelectHistoryItem} />
       ) : null}
 
@@ -105,24 +105,22 @@ export function AlignmentCheckPage() {
             <button
               type="button"
               onClick={handleClearActiveCheck}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-text transition-colors focus-visible:outline-2 focus-visible:outline-ring rounded-xs"
+              className="inline-flex min-h-10 items-center gap-1.5 text-sm font-medium text-text-muted hover:text-text transition-colors focus-visible:outline-2 focus-visible:outline-ring rounded-xs"
             >
               <ArrowLeft className="size-3.5" aria-hidden="true" />
               <span>Back to history</span>
             </button>
 
             <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-text-muted">Advisory results</span>
               {isBoundedResult ? (
                 <Badge variant="warning">
-                  <CheckCircle className="size-3 mr-1" aria-hidden="true" /> Partial · bounded coverage
+                  <CheckCircle className="size-3 mr-1" aria-hidden="true" />{" "}
+                  Partial · bounded coverage
                 </Badge>
               ) : null}
 
-              {coverage ? (
-                <Badge variant="info">
-                  {coverageText}
-                </Badge>
-              ) : null}
+              {coverage ? <Badge variant="info">{coverageText}</Badge> : null}
             </div>
           </div>
 
@@ -139,7 +137,10 @@ export function AlignmentCheckPage() {
                 aria-hidden="true"
               >
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4">
+                  <div
+                    key={index}
+                    className="flex min-h-20 flex-col justify-between p-3.5 sm:p-4"
+                  >
                     <div className="flex items-center justify-between gap-1.5">
                       <Skeleton className="h-3 w-20" />
                       <Skeleton className="size-3.5 rounded-full" />
@@ -170,8 +171,12 @@ export function AlignmentCheckPage() {
                       <Skeleton
                         key={index}
                         className={cn(
-                          'h-3.5',
-                          index % 4 === 3 ? 'w-3/5' : index % 2 === 1 ? 'w-4/5' : 'w-full',
+                          "h-3.5",
+                          index % 4 === 3
+                            ? "w-3/5"
+                            : index % 2 === 1
+                              ? "w-4/5"
+                              : "w-full",
                         )}
                       />
                     ))}
@@ -214,7 +219,9 @@ export function AlignmentCheckPage() {
             <div className="flex items-center gap-2 rounded-sm border border-destructive/25 bg-destructive-soft p-3.5 text-xs font-medium text-destructive">
               <Warning className="size-4 shrink-0" aria-hidden="true" />
               <div>
-                <span className="font-semibold block">{activeLoadErrorState.title}</span>
+                <span className="font-semibold block">
+                  {activeLoadErrorState.title}
+                </span>
                 <p className="mt-0.5">{activeLoadErrorState.message}</p>
               </div>
             </div>
@@ -224,8 +231,12 @@ export function AlignmentCheckPage() {
             <div className="flex items-center gap-2 rounded-sm border border-destructive/25 bg-destructive-soft p-3.5 text-xs font-medium text-destructive">
               <Warning className="size-4 shrink-0" aria-hidden="true" />
               <div>
-                <span className="font-semibold block">{activeFailureState?.title ?? 'Alignment check failed'}</span>
-                <p className="mt-0.5">{activeFailureState?.message ?? 'Unknown failure'}</p>
+                <span className="font-semibold block">
+                  {activeFailureState?.title ?? "Alignment check failed"}
+                </span>
+                <p className="mt-0.5">
+                  {activeFailureState?.message ?? "Unknown failure"}
+                </p>
               </div>
             </div>
           ) : null}
@@ -243,7 +254,11 @@ export function AlignmentCheckPage() {
                 pages={pagesData?.pages ?? []}
                 checkData={activeCheck.data}
                 coverageScope={
-                  coverage?.kind === 'bounded' ? 'bounded' : coverage?.kind === 'legacy' ? 'legacy_unknown' : 'full'
+                  coverage?.kind === "bounded"
+                    ? "bounded"
+                    : coverage?.kind === "legacy"
+                      ? "legacy_unknown"
+                      : "full"
                 }
               />
             </>

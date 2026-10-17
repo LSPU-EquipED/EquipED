@@ -1,11 +1,11 @@
-import { useMemo, useRef, useReducer } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { documentsApi } from '@equiped/api-client';
-import type { DropdownOption } from '@equiped/ui';
-import { useCourses } from './useCourses';
-import { useRunAlignmentCheck } from './useRunAlignmentCheck';
-import { useAlignmentCheck } from './useAlignmentCheck';
-import { useDocumentPages } from './useDocumentPages';
+import { useMemo, useRef, useReducer } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { documentsApi, getErrorMessage } from "@equiped/api-client";
+import type { DropdownOption } from "@equiped/ui";
+import { useCourses } from "./useCourses";
+import { useRunAlignmentCheck } from "./useRunAlignmentCheck";
+import { useAlignmentCheck } from "./useAlignmentCheck";
+import { useDocumentPages } from "./useDocumentPages";
 import {
   alignmentSelectionReducer,
   buildCoverageBanner,
@@ -16,16 +16,16 @@ import {
   getAlignmentRequestErrorState,
   type AlignmentSelectionAction,
   type AlignmentSelectionState,
-} from '../utils/alignmentState';
-import type { AlignmentCheckListItem } from '../types';
-import type { SlmReadingPaneHandle } from '../components/SlmReadingPane';
+} from "../utils/alignmentState";
+import type { AlignmentCheckListItem } from "../types";
+import type { SlmReadingPaneHandle } from "../components/SlmReadingPane";
 
 export function useAlignmentCheckFeature() {
   const [{ documentId, courseId, activeCheckId }, dispatch] = useReducer(
     alignmentSelectionReducer,
     {
-      documentId: '',
-      courseId: '',
+      documentId: "",
+      courseId: "",
       activeCheckId: null,
     } as AlignmentSelectionState,
   );
@@ -33,8 +33,8 @@ export function useAlignmentCheckFeature() {
   const readingPaneRef = useRef<SlmReadingPaneHandle>(null);
   const queryClient = useQueryClient();
 
-  const { data: documentsData } = useQuery({
-    queryKey: ['curriculum-map', 'documents-for-picker'],
+  const documentsQuery = useQuery({
+    queryKey: ["curriculum-map", "documents-for-picker"],
     queryFn: async () => {
       const firstPage = await documentsApi.listDocuments({ pageSize: 100 });
       if (firstPage.total <= 100) {
@@ -43,13 +43,16 @@ export function useAlignmentCheckFeature() {
       const allItems = [...firstPage.items];
       const totalPages = Math.ceil(firstPage.total / 100);
       for (let page = 2; page <= totalPages; page++) {
-        const nextPage = await documentsApi.listDocuments({ page, pageSize: 100 });
+        const nextPage = await documentsApi.listDocuments({
+          page,
+          pageSize: 100,
+        });
         allItems.push(...nextPage.items);
       }
       return allItems;
     },
   });
-  const { data: coursesData, isLoading: coursesLoading } = useCourses();
+  const coursesQuery = useCourses();
   const runCheck = useRunAlignmentCheck();
   const activeCheck = useAlignmentCheck(activeCheckId);
   const { data: pagesData } = useDocumentPages(activeCheckId);
@@ -60,19 +63,26 @@ export function useAlignmentCheckFeature() {
     runCheck.reset();
   };
 
-  const documents = documentsData ?? [];
-  const courses = coursesData?.items;
+  const documents = documentsQuery.data ?? [];
+  const courses = coursesQuery.data?.items;
 
-  const selectedDocument = documents.find((doc) => doc.documentId === documentId) ?? null;
+  const selectedDocument =
+    documents.find((doc) => doc.documentId === documentId) ?? null;
   const selectedEligibility = useMemo(
     () => getAlignmentDocumentEligibility(selectedDocument),
     [selectedDocument],
   );
 
-  const pickerDocuments = documents.filter((doc) => getAlignmentDocumentEligibility(doc).eligible);
-  const canRunCheck = Boolean(documentId && courseId && selectedEligibility.eligible);
+  const pickerDocuments = documents.filter(
+    (doc) => getAlignmentDocumentEligibility(doc).eligible,
+  );
+  const canRunCheck = Boolean(
+    documentId && courseId && selectedEligibility.eligible,
+  );
 
-  const runErrorState = runCheck.isError ? getAlignmentRequestErrorState(runCheck.error) : null;
+  const runErrorState = runCheck.isError
+    ? getAlignmentRequestErrorState(runCheck.error)
+    : null;
   const activeLoadErrorState = activeCheck.isError
     ? getAlignmentRequestErrorState(activeCheck.error)
     : null;
@@ -86,21 +96,28 @@ export function useAlignmentCheckFeature() {
     return buildCoverageBanner(getCoverageMetadata(activeCheck.data));
   }, [activeCheck.data]);
 
-  const displayedSummary = activeCheck.data ? buildDisplayedSummary(activeCheck.data) : null;
-  const isBoundedResult = coverage?.kind === 'bounded';
-  const coverageText = coverage?.text ?? '';
+  const displayedSummary = activeCheck.data
+    ? buildDisplayedSummary(activeCheck.data)
+    : null;
+  const isBoundedResult = coverage?.kind === "bounded";
+  const coverageText = coverage?.text ?? "";
 
   const handleRun = () => {
     if (!canRunCheck) return;
 
-    dispatchSelection({ type: 'clearActiveCheck' });
+    dispatchSelection({ type: "clearActiveCheck" });
 
     runCheck.mutate(
       { documentId, courseId },
       {
         onSuccess: (data) => {
-          dispatchSelection({ type: 'runCheckSuccess', checkId: data.check_id });
-          queryClient.invalidateQueries({ queryKey: ['curriculum-map', 'checks'] });
+          dispatchSelection({
+            type: "runCheckSuccess",
+            checkId: data.check_id,
+          });
+          queryClient.invalidateQueries({
+            queryKey: ["curriculum-map", "checks"],
+          });
         },
       },
     );
@@ -108,26 +125,23 @@ export function useAlignmentCheckFeature() {
 
   const handleSelectHistoryItem = (item: AlignmentCheckListItem) => {
     dispatchSelection({
-      type: 'selectHistoryItem',
+      type: "selectHistoryItem",
       documentId: item.document_id,
       courseId: item.course_id,
       checkId: item.check_id,
     });
   };
 
-  const selectedDocumentSupportNotice =
-    documentId && !selectedEligibility.eligible ? selectedEligibility.message : null;
-
   const handleDocumentChange = (nextDocumentId: string) => {
-    dispatchSelection({ type: 'setDocument', documentId: nextDocumentId });
+    dispatchSelection({ type: "setDocument", documentId: nextDocumentId });
   };
 
   const handleCourseChange = (nextCourseId: string) => {
-    dispatchSelection({ type: 'setCourse', courseId: nextCourseId });
+    dispatchSelection({ type: "setCourse", courseId: nextCourseId });
   };
 
   const handleClearActiveCheck = () => {
-    dispatchSelection({ type: 'clearActiveCheck' });
+    dispatchSelection({ type: "clearActiveCheck" });
   };
 
   const courseOptions = useMemo<DropdownOption[]>(
@@ -144,7 +158,20 @@ export function useAlignmentCheckFeature() {
     courseId,
     activeCheckId,
     readingPaneRef,
-    coursesLoading,
+    documentsLoading: documentsQuery.isLoading,
+    coursesLoading: coursesQuery.isLoading,
+    documentsError: documentsQuery.isError
+      ? getErrorMessage(documentsQuery.error, "Unable to load modules.")
+      : null,
+    coursesError: coursesQuery.isError
+      ? getErrorMessage(coursesQuery.error, "Unable to load courses.")
+      : null,
+    retryDocuments: () => {
+      void documentsQuery.refetch();
+    },
+    retryCourses: () => {
+      void coursesQuery.refetch();
+    },
     runCheck,
     isChecking: runCheck.isPending,
     activeCheck,
@@ -161,7 +188,6 @@ export function useAlignmentCheckFeature() {
     isBoundedResult,
     coverageText,
     courseOptions,
-    selectedDocumentSupportNotice,
     handleRun,
     handleSelectHistoryItem,
     handleDocumentChange,
