@@ -15,9 +15,12 @@ import {
   type RawCurriculumSuggestionResponse,
 } from '@equiped/types';
 
+export type DocumentSort = 'uploaded-desc' | 'uploaded-asc' | 'title-asc' | 'title-desc' | 'course-asc' | 'pages-desc';
+
 export type DocumentApiStatus = 'ready' | 'processing' | 'failed';
 
 type ListDocumentsParams = {
+  sort?: DocumentSort;
   sourceType?: string;
   program?: string;
   page?: number;
@@ -59,6 +62,8 @@ function buildQuery(params: ListDocumentsParams) {
   if (params.status && params.status.trim()) {
     searchParams.set('status', params.status.trim());
   }
+
+  if (params.sort) searchParams.set('sort', params.sort);
 
   const query = searchParams.toString();
   return query ? `/documents?${query}` : '/documents';

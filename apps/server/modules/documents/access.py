@@ -22,6 +22,12 @@ from .schemas import (
     DocumentListStats,
     DocumentResponse,
 )
+from .sorting import (
+    DEFAULT_DOCUMENT_SORT,
+    document_ordering,
+    document_sort_key,
+    validate_document_sort,
+)
 
 
 def _escape_sql_like(term: str) -> str:
@@ -137,8 +143,10 @@ def list_documents(
     current_user_role: str,
     status: str | None = None,
     search: str | None = None,
+    sort: str = DEFAULT_DOCUMENT_SORT,
     db: Any | None = None,
 ) -> DocumentListResponse:
+    validate_document_sort(sort)
     if db is not None:
         query = db.query(Document)
         from sqlalchemy import select
@@ -233,6 +241,7 @@ def list_documents(
                 )
 
         total = query.count() if status else stats.total
+        ordering = document_ordering(sort)
         rows = (
             query.options(
                 load_only(
@@ -253,7 +262,7 @@ def list_documents(
                     Document.evaluation_readiness,
                 )
             )
-            .order_by(Document.uploaded_at.desc())
+            .order_by(*ordering)
             .offset((page - 1) * page_size)
             .limit(page_size)
             .all()
@@ -373,7 +382,7 @@ def list_documents(
                 "Allowed values: ready, processing, failed."
             )
 
-    mem_items.sort(key=lambda item: item.uploaded_at, reverse=True)
+    mem_items.sort(key=lambda item: document_sort_key(item, sort))
     filtered_total = len(mem_items)
     start = (page - 1) * page_size
     end = start + page_size

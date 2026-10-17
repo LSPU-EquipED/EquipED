@@ -71,6 +71,7 @@ from .service import (
     embed_document_chunks,
     process_document_ingestion,
 )
+from .sorting import DEFAULT_DOCUMENT_SORT, DOCUMENT_SORT_PATTERN
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +275,10 @@ def list_documents_endpoint(
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200),
+    sort: str = Query(
+        default=DEFAULT_DOCUMENT_SORT,
+        pattern=DOCUMENT_SORT_PATTERN,
+    ),
     _current_user: AuthenticatedUser = Depends(require_authenticated_user),
     db: Any = Depends(get_db_session),
 ) -> DocumentListResponse:
@@ -310,6 +315,7 @@ def list_documents_endpoint(
         current_user_role=_current_user.role.value,
         status=status_filter,
         search=search,
+        sort=sort,
         db=db,
     )
 

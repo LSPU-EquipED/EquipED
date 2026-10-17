@@ -65,11 +65,12 @@ describe('documentsApi.listDocuments', () => {
       page: 2,
       pageSize: 10,
       search: 'Operating Systems',
+      sort: 'title-asc',
       status: 'ready',
     });
 
     expect(spy).toHaveBeenCalledWith(
-      '/documents?source_type=slm&program=BSCS&page=2&page_size=10&search=Operating+Systems&status=ready',
+      '/documents?source_type=slm&program=BSCS&page=2&page_size=10&search=Operating+Systems&status=ready&sort=title-asc',
     );
     expect(result.total).toBe(25);
     expect(result.page).toBe(2);
