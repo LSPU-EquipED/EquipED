@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "@phosphor-icons/react";
 import { Skeleton } from "@equiped/ui";
 import type { DocumentStats } from "@equiped/types";
-import moduleFolio from "../../../assets/illustrations/module-folio.svg";
+import moduleCollection from "../../../assets/illustrations/module-collection.svg";
 
 export function FacultyModuleOverview({
   stats,
@@ -31,9 +31,9 @@ export function FacultyModuleOverview({
           <ArrowUpRight size={20} aria-hidden="true" />
         </Link>
       </div>
-      <dl aria-label="Module overview" aria-busy={isLoading}>
-        <div className="my-3 flex items-center justify-between gap-4">
-          <div className="flex flex-col-reverse gap-1">
+      <div className="dashboard-library-content">
+        <dl aria-label="Module overview" aria-busy={isLoading}>
+          <div className="flex flex-col-reverse gap-1.5">
             <dt className="text-sm text-text-muted">Total modules</dt>
             <dd className="text-3xl font-semibold tabular-nums text-text">
               {isLoading ? (
@@ -43,39 +43,33 @@ export function FacultyModuleOverview({
               )}
             </dd>
           </div>
-          <img
-            src={moduleFolio}
-            alt=""
-            width={80}
-            height={80}
-            className="size-16"
-          />
-        </div>
-        <div className="dashboard-library-counts">
-          {[
-            { label: "Processed", value: stats.ready, tone: "text-text" },
-            { label: "Processing", value: stats.processing, tone: "text-text" },
-            {
-              label: "Failed uploads",
-              value: stats.failed,
-              tone: stats.failed > 0 ? "text-destructive" : "text-text",
-            },
-          ].map(({ label, value, tone }) => (
-            <div key={label} className="min-w-0">
-              <dt className="text-xs leading-relaxed text-text-muted">
-                {label}
-              </dt>
-              <dd className={`mt-1 text-lg font-medium tabular-nums ${tone}`}>
-                {isLoading ? (
-                  <Skeleton className="h-6 w-6" />
-                ) : (
-                  value.toLocaleString()
-                )}
-              </dd>
-            </div>
-          ))}
-        </div>
-      </dl>
+        </dl>
+        <img
+          src={moduleCollection}
+          alt=""
+          width={320}
+          height={220}
+          className="dashboard-library-illustration"
+        />
+      </div>
+      {!isLoading && (stats.processing > 0 || stats.failed > 0) && (
+        <p
+          aria-label="Module processing updates"
+          className="flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums"
+        >
+          {stats.processing > 0 && (
+            <span className="text-text-muted">
+              {stats.processing.toLocaleString()} processing
+            </span>
+          )}
+          {stats.failed > 0 && (
+            <span className="text-destructive">
+              {stats.failed.toLocaleString()}{" "}
+              {stats.failed === 1 ? "failed upload" : "failed uploads"}
+            </span>
+          )}
+        </p>
+      )}
     </section>
   );
 }
