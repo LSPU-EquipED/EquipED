@@ -67,14 +67,26 @@ describe("FacultyHome", () => {
     expect(markup).toContain("Module overview");
   });
 
-  it("renders document processing metrics", () => {
+  it("keeps the library summary focused on the total when uploads need no attention", () => {
     mockUseFacultyHome.mockReturnValue(defaultHomeState);
     const markup = renderToStaticMarkup(<FacultyHome />);
 
     expect(markup).toContain("Total modules");
-    expect(markup).toContain("Processed");
-    expect(markup).toContain("Processing");
-    expect(markup).toContain("Failed uploads");
+    expect(markup).not.toContain("Processed");
+    expect(markup).not.toContain("Module processing updates");
+  });
+
+  it("keeps active upload processing and failures visible without the old metric strip", () => {
+    mockUseFacultyHome.mockReturnValue({
+      ...defaultHomeState,
+      stats: { total: 4, ready: 1, processing: 2, failed: 1 },
+    });
+    const markup = renderToStaticMarkup(<FacultyHome />);
+    const text = markup.replace(/<[^>]*>/g, "");
+    expect(text).toContain("2 processing");
+    expect(text).toContain("1 failed upload");
+    expect(markup).toContain("Module processing updates");
+    expect(markup).toContain('href="/documents"');
   });
 
   it("renders recent evaluation links instead of a searchable table", () => {
@@ -261,5 +273,6 @@ describe("FacultyHome", () => {
     expect(markup).not.toContain(">783<");
     expect(markup).not.toContain(">781<");
     expect(markup).not.toContain("Operating Systems Module");
+    expect(markup).not.toContain("Module processing updates");
   });
 });

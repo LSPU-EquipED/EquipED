@@ -22,7 +22,7 @@ no fonts or external resources.
 
 - `backgrounds/welcome-folds.svg`: scalable folded-paper composition for the greeting panel.
 - `textures/paper-grain.svg`: seamless 48px repeating micro-pattern for quiet surface texture.
-- `illustrations/module-folio.svg`: closed module illustration, used at 64px.
+- `illustrations/module-collection.svg`: folder-and-module collection for the library tile, designed for a 144–192px display width.
 - `illustrations/specialists/`: coherent specialist illustrations, used at 56–64px.
 - `illustrations/alignment/`: syllabus and curriculum illustrations, used at 40px.
 
@@ -39,3 +39,8 @@ unwanted shading/background pixels, and the raster texture has unverified repeat
 seams. The finished SVGs replace those concepts wherever the dashboard uses artwork;
 unselected character and object compositions remain archived rather than being
 presented as production assets.
+
+`explorations/faculty-dashboard/characters/` contains the transparent SME character
+study and its built-in image-generation prompt. This direction was not selected;
+the dashboard retains the specialist icon illustrations. The temporary character
+placement prototype has been removed, and this study remains unimported.
