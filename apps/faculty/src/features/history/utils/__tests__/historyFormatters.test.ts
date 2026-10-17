@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatDate,
+  formatSubmittedDate,
   formatDuration,
   formatStatus,
   getStatusVariant,
@@ -48,6 +49,13 @@ describe('historyFormatters', () => {
     });
   });
 
+  it('formats the submitted date without time while preserving full timestamps for details', () => {
+    const value = '2026-08-20T10:00:00Z';
+    expect(formatSubmittedDate(value)).toBe('Aug 20, 2026');
+    expect(formatDate(value)).toMatch(/^Aug 20, 2026, \d+:\d{2} [AP]M$/);
+    expect(formatSubmittedDate('invalid-date')).toBe('');
+  });
+
   describe('formatDuration', () => {
     it('formats seconds when provided directly', () => {
       expect(formatDuration(45)).toBe('45s');
@@ -71,7 +79,9 @@ describe('historyFormatters', () => {
   describe('formatStatus', () => {
     it('uses sentence case and preserves status qualifiers', () => {
       expect(formatStatus('COMPLETED')).toBe('Completed');
-      expect(formatStatus('COMPLETED_WITH_WARNINGS')).toBe('Completed with warnings');
+      expect(formatStatus('COMPLETED_WITH_WARNINGS')).toBe(
+        'Completed with warnings',
+      );
       expect(formatStatus('IN_PROGRESS')).toBe('In progress');
       expect(formatStatus('FAILED')).toBe('Failed');
     });

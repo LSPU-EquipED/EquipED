@@ -41,16 +41,17 @@ export function HistoryFilters({
   total,
 }: HistoryFiltersProps) {
   return (
-    <div className="grid min-w-0 gap-4 border-b border-border bg-surface px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] xl:items-end">
-      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-end">
+    <div className="grid min-w-0 gap-4 rounded-t-md border-b border-border bg-surface px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,24rem)] xl:items-end">
+      <div className="flex min-w-0 flex-wrap items-end gap-3">
         {allowedRoleTabs.length > 1 ? (
           <Dropdown
             id="history-role-filter"
             aria-label="Specialist"
             label="Specialist"
-            size="sm"
-            containerClassName="min-w-0"
+            size="md"
+            containerClassName="min-w-0 flex-[2_1_14rem]"
             className="w-full min-w-0"
+            menuClassName="w-full min-w-0"
             value={activeRole}
             onChange={(value) => onRoleChange(String(value))}
             options={allowedRoleTabs.map((tab) => ({
@@ -59,9 +60,9 @@ export function HistoryFilters({
             }))}
           />
         ) : (
-          <div className="min-w-0">
+          <div className="min-w-0 flex-[2_1_14rem]">
             <p className="text-xs font-medium text-text-muted">Specialist</p>
-            <p className="mt-1.5 flex min-h-8 items-center text-xs font-medium text-text">
+            <p className="mt-1.5 flex min-h-10 items-center text-sm font-medium text-text">
               {allowedRoleTabs.find((tab) => tab.id === activeRole)?.label ??
                 activeRole}
             </p>
@@ -72,9 +73,10 @@ export function HistoryFilters({
           id="history-status-filter"
           aria-label="Status"
           label="Status"
-          size="sm"
-          containerClassName="min-w-0"
+          size="md"
+          containerClassName="min-w-0 flex-[1_1_9rem]"
           className="w-full min-w-0"
+          menuClassName="w-full min-w-0"
           value={status}
           onChange={(value) => onStatusChange(String(value))}
           options={[...STATUS_OPTIONS]}
@@ -84,7 +86,7 @@ export function HistoryFilters({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex min-h-8 w-fit items-center text-xs font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="inline-flex min-h-10 w-fit items-center text-xs font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             Reset
           </button>
@@ -95,7 +97,7 @@ export function HistoryFilters({
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <label
             htmlFor="history-search"
-            className="text-xs font-medium text-text-muted"
+            className="text-xs font-semibold text-text"
           >
             Search this page
           </label>
@@ -124,7 +126,7 @@ export function HistoryFilters({
             placeholder="Module title or evaluation ID…"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="h-8 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-full rounded-sm border border-input bg-surface pl-8 pr-3 text-xs text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-ring sm:text-sm"
             aria-label="Search evaluations"
           />
         </div>
