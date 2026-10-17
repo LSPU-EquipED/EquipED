@@ -9,7 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import type { HistoryEvaluationItem } from '../../types';
-import { formatDate } from '../../utils/historyFormatters';
+import { formatDate, formatSubmittedDate } from '../../utils/historyFormatters';
 import { HistoryRows } from '../HistoryRows';
 
 vi.mock('@tanstack/react-router', () => ({
@@ -75,10 +75,15 @@ describe('simplified history rows', () => {
     expect(
       screen.getAllByRole('columnheader').map((header) => header.textContent),
     ).toEqual(['Module', 'Status', 'Submitted', 'Action']);
-    expect(screen.getByText('Completed')).toBeDefined();
-    expect(screen.getByText(formatDate(completed.submitted_at))).toBeDefined();
-    expect(screen.queryByText(completed.evaluation_id)).toBeNull();
-    expect(screen.queryByText('2m 0s')).toBeNull();
+    expect(screen.getAllByText('Completed').length).toBeGreaterThan(0);
+    expect(
+      screen
+        .getAllByLabelText(formatSubmittedDate(completed.submitted_at))
+        .every(
+          (time) => time.getAttribute('datetime') === completed.submitted_at,
+        ),
+    ).toBe(true);
+    expect(screen.queryByRole('region', { name: 'Run details' })).toBeNull();
     expect(
       screen.queryByRole('button', { name: 'Copy full evaluation ID' }),
     ).toBeNull();
@@ -107,19 +112,23 @@ describe('simplified history rows', () => {
     });
     fireEvent.click(expand);
     expect(expand.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByText('Run details')).toBeDefined();
+    const details = screen.getByRole('region', { name: 'Run details' });
+    expect(expand.getAttribute('aria-controls')).toBe(
+      details.closest('tr')?.id,
+    );
     for (const text of [
       completed.evaluation_id,
       completed.document_id,
       'syllabus-1',
       'curriculum-1',
       '2m 0s',
+      formatDate(completed.submitted_at),
       formatDate(completed.completed_at!),
     ]) {
       expect(screen.getByText(text)).toBeDefined();
     }
     expect(
-      screen.getByRole('link', { name: 'Module Library' }).getAttribute('href'),
+      screen.getByRole('link', { name: 'Module library' }).getAttribute('href'),
     ).toBe('/documents');
     expect(
       screen.getByRole('link', { name: 'SME workspace' }).getAttribute('href'),
@@ -130,7 +139,16 @@ describe('simplified history rows', () => {
     expect(writeText).toHaveBeenCalledWith('run-completed');
     expect(screen.getByText('Copied')).toBeDefined();
     fireEvent.click(expand);
-    expect(screen.queryByText('Run details')).toBeNull();
+    expect(details.isConnected).toBe(true);
+    expect(details.closest('[aria-hidden="true"]')?.hasAttribute('inert')).toBe(
+      true,
+    );
+    expect(screen.queryByRole('region', { name: 'Run details' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Copy full evaluation ID' }),
+    ).toBeNull();
+    fireEvent.click(expand);
+    expect(screen.getByRole('region', { name: 'Run details' })).toBe(details);
   });
 
   it('keeps failed and active runs truthful while linking to the recorded run', () => {
@@ -150,8 +168,8 @@ describe('simplified history rows', () => {
       duration_seconds: null,
     };
     renderRows([failed, active]);
-    expect(screen.getByText('Failed')).toBeDefined();
-    expect(screen.getByText('Evaluating')).toBeDefined();
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Evaluating').length).toBeGreaterThan(0);
     expect(
       screen
         .getByRole('link', {
@@ -173,21 +191,39 @@ describe('simplified history rows', () => {
     );
     expect(screen.getByText('Reference unavailable.')).toBeDefined();
     expect(screen.queryByText('In progress…')).toBeNull();
-    const completedField = screen.getByText('Completed').parentElement!;
+    const completedField = within(
+      screen.getByRole('region', { name: 'Run details' }),
+    ).getByText('Completed').parentElement!;
     expect(within(completedField).getByText('—')).toBeDefined();
   });
 
-  it('distinguishes repeat submissions by timestamp and keeps each result link exact', () => {
+  it('keeps repeat submission timestamps in run details and each result link exact', () => {
     const repeated = {
       ...completed,
       evaluation_id: 'run-repeated',
       submitted_at: '2026-10-01T10:15:00Z',
     };
     renderRows([completed, repeated]);
-    expect(screen.getByText(formatDate(completed.submitted_at))).toBeDefined();
-    expect(screen.getByText(formatDate(repeated.submitted_at))).toBeDefined();
     expect(
       screen.getAllByRole('link').map((link) => link.getAttribute('href')),
     ).toEqual(['/evaluations/run-completed', '/evaluations/run-repeated']);
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: `Expand details for ${completed.document_title}`,
+      })[0],
+    );
+    expect(
+      within(screen.getByRole('region', { name: 'Run details' })).getByText(
+        formatDate(completed.submitted_at),
+      ),
+    ).toBeDefined();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: `Expand details for ${completed.document_title}`,
+      }),
+    );
+    const details = within(screen.getByRole('region', { name: 'Run details' }));
+    expect(details.getByText(formatDate(repeated.submitted_at))).toBeDefined();
+    expect(details.queryByText(formatDate(completed.submitted_at))).toBeNull();
   });
 });

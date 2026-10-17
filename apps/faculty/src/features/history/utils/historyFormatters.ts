@@ -1,9 +1,16 @@
 export function getStatusVariant(status: string) {
   const normalizedStatus = status.toUpperCase();
-  if (normalizedStatus === 'FAILED' || normalizedStatus === 'ERROR') return 'destructive' as const;
+  if (normalizedStatus === 'FAILED' || normalizedStatus === 'ERROR')
+    return 'destructive' as const;
   if (normalizedStatus.startsWith('COMPLETED')) return 'success' as const;
-  if (['EVALUATING', 'PREPROCESSING', 'SYNTHESIZING', 'PROCESSING'].includes(normalizedStatus)) return 'info' as const;
-  if (['SUBMITTED', 'PENDING', 'QUEUED'].includes(normalizedStatus)) return 'warning' as const;
+  if (
+    ['EVALUATING', 'PREPROCESSING', 'SYNTHESIZING', 'PROCESSING'].includes(
+      normalizedStatus,
+    )
+  )
+    return 'info' as const;
+  if (['SUBMITTED', 'PENDING', 'QUEUED'].includes(normalizedStatus))
+    return 'warning' as const;
   return 'neutral' as const;
 }
 
@@ -14,6 +21,19 @@ const historyDateFormatter = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit',
 });
+
+const submissionDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+export function formatSubmittedDate(value: string): string {
+  try {
+    return submissionDateFormatter.format(new Date(value));
+  } catch {
+    return '';
+  }
+}
 
 export function formatDate(value: string): string {
   try {
@@ -35,7 +55,8 @@ export function formatDuration(
     return `${secs}s`;
   }
   if (submittedAt && completedAt) {
-    const diffMs = new Date(completedAt).getTime() - new Date(submittedAt).getTime();
+    const diffMs =
+      new Date(completedAt).getTime() - new Date(submittedAt).getTime();
     if (diffMs > 0) {
       const totalSecs = Math.round(diffMs / 1000);
       const mins = Math.floor(totalSecs / 60);
