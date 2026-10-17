@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from server.modules.auth.models import User, UserRole
@@ -642,6 +645,79 @@ def test_list_documents_pagination_and_totals(
     assert p4["total"] == 5
     assert p4["page"] == 4
     assert len(p4["items"]) == 0
+
+
+def test_list_documents_sorting_and_invalid_sort(
+    client: TestClient,
+    db_session,
+    seeded_user: User,
+) -> None:
+    uploaded_at = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        Document(
+            document_id=uuid.UUID(int=1),
+            title="Beta",
+            course_title="Zoology",
+            course_code="aA-200",
+            page_count=2,
+            source_type="slm",
+            file_path="/tmp/beta.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=uploaded_at,
+        ),
+        Document(
+            document_id=uuid.UUID(int=2),
+            title="Alpha",
+            course_title="Biology",
+            course_code="zZ-100",
+            page_count=8,
+            source_type="slm",
+            file_path="/tmp/alpha.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=uploaded_at,
+        ),
+        Document(
+            document_id=uuid.UUID(int=3),
+            title="Gamma",
+            course_title=None,
+            page_count=None,
+            source_type="slm",
+            file_path="/tmp/gamma.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=uploaded_at,
+        ),
+        Document(
+            document_id=uuid.UUID(int=4),
+            title="Delta",
+            course_title="Calculus",
+            course_code="  ",
+            page_count=4,
+            source_type="slm",
+            file_path="/tmp/delta.pdf",
+            uploaded_by=seeded_user.user_id,
+            uploaded_at=uploaded_at.replace(day=2),
+        ),
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    _login(client, seeded_user)
+
+    def titles(sort: str) -> list[str]:
+        response = client.get(f"/api/v1/documents?sort={sort}")
+        assert response.status_code == 200
+        return [item["title"] for item in response.json()["items"]]
+
+    assert titles("title-asc") == ["Alpha", "Beta", "Delta", "Gamma"]
+    assert titles("title-desc") == ["Gamma", "Delta", "Beta", "Alpha"]
+    assert titles("course-asc") == ["Beta", "Delta", "Alpha", "Gamma"]
+    assert titles("pages-desc") == ["Alpha", "Delta", "Beta", "Gamma"]
+    assert titles("uploaded-desc") == ["Delta", "Beta", "Alpha", "Gamma"]
+    assert titles("uploaded-asc") == ["Beta", "Alpha", "Gamma", "Delta"]
+    page_one = client.get("/api/v1/documents?sort=title-asc&page=1&page_size=2").json()
+    page_two = client.get("/api/v1/documents?sort=title-asc&page=2&page_size=2").json()
+    assert [item["title"] for item in page_one["items"]] == ["Alpha", "Beta"]
+    assert [item["title"] for item in page_two["items"]] == ["Delta", "Gamma"]
+    assert client.get("/api/v1/documents?sort=unknown").status_code == 422
 
 
 def test_list_documents_ownership_scoping_and_stats(

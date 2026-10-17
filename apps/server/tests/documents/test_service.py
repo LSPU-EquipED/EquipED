@@ -170,6 +170,59 @@ def test_in_memory_documents_respect_ownership_scoping() -> None:
     persistence._MEM_DOCUMENT_OWNERS.clear()
 
 
+def test_in_memory_list_documents_sorting_and_pagination() -> None:
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+    owner_id = uuid.uuid4()
+    uploaded_at = datetime(2026, 1, 1, tzinfo=UTC)
+    documents = [
+        (1, "Alpha", "  CS10 ", "Course", 3, uploaded_at),
+        (2, "Al", "cs10", "Course", 3, uploaded_at),
+        (3, "beta", "", "Biology", 8, uploaded_at),
+        (4, "Beta", None, " biology ", 8, uploaded_at),
+        (5, "", " ", " ", None, uploaded_at.replace(day=2)),
+    ]
+    for key, title, code, course_title, pages, timestamp in documents:
+        document_id = uuid.UUID(int=key)
+        persistence._MEM_DOCUMENTS[document_id] = DocumentResponse(
+            document_id=document_id,
+            title=title,
+            course_code=code,
+            course_title=course_title,
+            page_count=pages,
+            source_type="slm",
+            processing_status="PROCESSED",
+            has_ocr_pages=False,
+            uploaded_at=timestamp,
+            uploaded_by=owner_id,
+        )
+        persistence._MEM_DOCUMENT_OWNERS[document_id] = owner_id
+
+    def ids(sort: str, page: int = 1, page_size: int = 20) -> list[int]:
+        result = list_documents(
+            None, None, page, page_size, owner_id, "faculty", sort=sort, db=None
+        )
+        return [item.document_id.int for item in result.items]
+
+    assert ids("uploaded-desc") == [5, 1, 2, 3, 4]
+    assert ids("uploaded-asc") == [1, 2, 3, 4, 5]
+    assert ids("title-asc") == [5, 2, 1, 3, 4]
+    assert ids("title-desc") == [3, 4, 1, 2, 5]
+    assert ids("course-asc") == [3, 4, 1, 2, 5]
+    assert ids("pages-desc") == [3, 4, 1, 2, 5]
+    assert ids("title-asc", page=1, page_size=2) == [5, 2]
+    assert ids("title-asc", page=2, page_size=2) == [1, 3]
+    with pytest.raises(ValueError) as error:
+        list_documents(None, None, 1, 20, owner_id, "faculty", sort="unknown")
+    assert str(error.value) == (
+        "Invalid document sort. Allowed values: uploaded-desc, uploaded-asc, "
+        "title-asc, title-desc, course-asc, pages-desc."
+    )
+
+    persistence._MEM_DOCUMENTS.clear()
+    persistence._MEM_DOCUMENT_OWNERS.clear()
+
+
 def test_in_memory_list_documents_filtering_and_stats() -> None:
     persistence._MEM_DOCUMENTS.clear()
     persistence._MEM_DOCUMENT_OWNERS.clear()
