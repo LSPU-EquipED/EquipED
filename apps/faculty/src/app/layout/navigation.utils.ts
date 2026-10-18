@@ -125,7 +125,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/sme/')) {
     return [
       { label: 'Subject Matter Expert', to: '/specialists/sme' },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ];
   }
 
@@ -136,7 +136,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/coordinator/')) {
     return [
       { label: 'Program Coordinator', to: '/specialists/coordinator' },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ];
   }
 
@@ -147,7 +147,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/gad/')) {
     return [
       { label: 'Gender and Development', to: '/specialists/gad' },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ];
   }
 
@@ -158,7 +158,7 @@ export function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (cleanPath.startsWith('/specialists/itso/')) {
     return [
       { label: 'ITSO', to: '/specialists/itso' },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ];
   }
 

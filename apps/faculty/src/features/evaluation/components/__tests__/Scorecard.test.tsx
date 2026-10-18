@@ -85,7 +85,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
 
     renderScorecard();
 
-    expect(screen.getByRole('status').textContent).toContain('Preparing the SLM');
+    expect(screen.getByRole('status').textContent).toContain('Organizing the module text');
     expect(screen.getByText('Preparation').closest('li')?.getAttribute('aria-current')).toBe('step');
     expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
   });
@@ -104,7 +104,7 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
       isError: false,
     } as ReturnType<typeof useEvaluationModule.useEvaluation>);
     renderScorecard();
-    expect(screen.getByRole('heading', { name: 'Evaluation could not be completed' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'The evaluation couldn’t finish.' })).toBeDefined();
     expect(screen.queryByRole('list', { name: 'Evaluation stages' })).toBeNull();
     expect(evaluationApi.getEvaluationResults).not.toHaveBeenCalled();
   });
@@ -529,8 +529,8 @@ describe('Scorecard - Dynamic CID Forms & Ungrounded/Legacy Presentation', () =>
     fireEvent.click(reevaluateButton);
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /Confirm GAD Unit evaluation/i })).toBeDefined();
-      expect(screen.getByText('Confirm Targeted Evaluation')).toBeDefined();
+      expect(screen.getByRole('dialog', { name: /Start GAD evaluation\?/i })).toBeDefined();
+      expect(screen.getByRole('heading', { name: 'Start GAD evaluation?' })).toBeDefined();
     });
 
     const submitBtn = screen.getByRole('button', { name: /Run GAD Evaluation/i });
