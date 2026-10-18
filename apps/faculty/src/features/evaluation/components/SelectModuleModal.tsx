@@ -7,7 +7,7 @@ import {
   MagnifyingGlass,
   X,
 } from "@phosphor-icons/react";
-import { Button, Dropdown, cn } from "@equiped/ui";
+import { Button, Dropdown, Skeleton, cn } from "@equiped/ui";
 import { isTargetAgent, TARGET_AGENT_META } from "@equiped/types";
 import type { DeskQueueItem } from "../types";
 import { formatDateWithFallback } from "../utils/dateFormatting";
@@ -17,12 +17,18 @@ export interface SelectModuleModalProps {
   agentId: string;
   items: DeskQueueItem[];
   onClose: () => void;
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
 export function SelectModuleModal({
   agentId,
   items,
   onClose,
+  isLoading = false,
+  isError = false,
+  onRetry,
 }: SelectModuleModalProps) {
   const navigate = useNavigate();
   const titleId = useId();
@@ -177,7 +183,27 @@ export function SelectModuleModal({
           />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {filteredItems.length ? (
+          {isLoading ? (
+            <div
+              role="status"
+              aria-label="Loading modules"
+              className="space-y-6 p-6"
+            >
+              {[0, 1, 2].map((n) => (
+                <div key={n}>
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="mt-3 h-3 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : isError ? (
+            <div role="alert" className="space-y-4 p-6">
+              <p>Modules could not be loaded.</p>
+              <Button variant="secondary" onClick={onRetry}>
+                Retry modules
+              </Button>
+            </div>
+          ) : filteredItems.length ? (
             <ul className="divide-y divide-border px-5 sm:px-6">
               {filteredItems.map((item) => {
                 const state = specialistModuleState(item.my_status);
@@ -258,7 +284,11 @@ export function SelectModuleModal({
         </div>
         <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-5 py-3 sm:px-6">
           <p role="status" className="text-xs tabular-nums text-text-muted">
-            {filteredItems.length} of {items.length} modules
+            {isLoading
+              ? "Loading modules…"
+              : isError
+                ? "Modules unavailable"
+                : `${filteredItems.length} of ${items.length} modules`}
           </p>
           <Button variant="secondary" size="sm" onClick={onClose}>
             Cancel

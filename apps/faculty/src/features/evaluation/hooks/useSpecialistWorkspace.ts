@@ -59,6 +59,7 @@ export function useSpecialistWorkspace({
   const {
     data: queueData,
     isLoading: isLoadingQueue,
+    isError: isQueueError,
     refetch: refetchQueue,
   } = useSpecialistQueue(
     validAgent,
@@ -75,11 +76,7 @@ export function useSpecialistWorkspace({
   });
 
   // 3. If routeDocId is provided, fetch exact document through ownership-scoped getDocument
-  const {
-    data: exactDocData,
-    isLoading: isLoadingExactDoc,
-    isError: _isExactDocError,
-  } = useQuery({
+  const { data: exactDocData, isLoading: isLoadingExactDoc } = useQuery({
     queryKey: ["storage-document", routeDocId],
     queryFn: () => documentsApi.getDocument(routeDocId!),
     enabled: Boolean(routeDocId),
@@ -133,7 +130,7 @@ export function useSpecialistWorkspace({
   }, [routeDocId, allQueueItems]);
 
   useEffect(() => {
-    if (!routeDocId) return;
+    if (!routeDocId || isQueueError) return;
     if (isLoadingDocs || isLoadingQueue || isLoadingExactDoc) return;
 
     // If routeDocId is provided and the desk returns no item for that document, redirect to /specialists/$agentId
@@ -148,6 +145,7 @@ export function useSpecialistWorkspace({
     }
   }, [
     routeDocId,
+    isQueueError,
     allQueueItems,
     isLoadingDocs,
     isLoadingQueue,
@@ -349,6 +347,8 @@ export function useSpecialistWorkspace({
     isFailed,
     isEvaluating,
     isLoading,
+    isWorkspaceError: isQueueError && !queueData,
+    refetchWorkspace: refetchQueue,
     isLoadingResults,
     isResultsError,
     refetchResults,
