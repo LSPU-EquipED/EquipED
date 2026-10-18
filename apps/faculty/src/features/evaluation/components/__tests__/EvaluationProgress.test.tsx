@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TargetAgent } from "@equiped/types";
 import { EvaluationProgress } from "../EvaluationProgress";
@@ -8,10 +14,10 @@ afterEach(cleanup);
 
 describe("EvaluationProgress", () => {
   it.each([
-    ["SUBMITTED", "Queued", "Your evaluation is queued", 0],
-    ["PREPROCESSING", "Preparation", "Preparing your learning material", 1],
-    ["EVALUATING", "Specialist review", "Reviewing your learning material", 2],
-    ["SYNTHESIZING", "Finalizing", "Finalizing your evaluation", 3],
+    ["SUBMITTED", "Queued", "Your module is in the queue.", 0],
+    ["PREPROCESSING", "Preparation", "Preparing your module.", 1],
+    ["EVALUATING", "Specialist review", "A closer look at your material.", 2],
+    ["SYNTHESIZING", "Finalizing", "Bringing the findings together.", 3],
   ])(
     "shows only the server-reported %s stage",
     (status, label, heading, doneCount) => {
@@ -53,11 +59,7 @@ describe("EvaluationProgress", () => {
     ],
   ])("identifies only the selected %s specialist", (agent, label, focus) => {
     render(<EvaluationProgress targetAgent={agent} status="EVALUATING" />);
-    expect(
-      screen.getByRole("figure", {
-        name: `Module → ${label} specialist → Findings`,
-      }),
-    ).toBeDefined();
+    expect(screen.getByText(`${label} evaluation`)).toBeDefined();
     expect(screen.getByRole("status").textContent).toContain(focus);
     expect(screen.queryByText("Specialist team")).toBeNull();
   });
@@ -75,5 +77,23 @@ describe("EvaluationProgress", () => {
     );
     expect(screen.queryByText(", in progress")).toBeNull();
     expect(screen.queryByText(", done")).toBeNull();
+  });
+  it("keeps motion paused across stage changes and allows it to resume", () => {
+    const { rerender } = render(
+      <EvaluationProgress targetAgent="sme" status="SUBMITTED" />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pause animation" }));
+    rerender(<EvaluationProgress targetAgent="sme" status="PREPROCESSING" />);
+    expect(
+      screen
+        .getByRole("button", { name: "Resume animation" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Resume animation" }));
+    expect(
+      screen
+        .getByRole("button", { name: "Pause animation" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
   });
 });

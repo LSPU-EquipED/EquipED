@@ -144,7 +144,7 @@ describe('getBreadcrumbs', () => {
     expect(getBreadcrumbs(route)).toEqual([{ label }]);
     expect(getBreadcrumbs(`${route}/document-1`)).toEqual([
       { label, to: route },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ]);
   });
 
@@ -176,7 +176,7 @@ describe('getBreadcrumbs', () => {
     ]);
     expect(getBreadcrumbs('/specialists/sme/doc-1')).toEqual([
       { label: 'Subject Matter Expert', to: '/specialists/sme' },
-      { label: 'Evaluation results' },
+      { label: 'Module review' },
     ]);
     expect(getBreadcrumbs('/specialists/gad')).toEqual([
       { label: 'Gender and Development' },
