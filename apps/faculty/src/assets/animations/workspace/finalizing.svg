@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" fill="none" class="workspace-motion" role="img" aria-labelledby="title description">
+<title id="title">Saving the findings</title><desc id="description">Separate findings cards gather into a record sheet and descend into a folder. Saving does not constitute institutional approval.</desc>
+<style>
+.record-sheet{animation:file-record 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+.finding-one{animation:collect-one 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+.finding-two{animation:collect-two 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+@keyframes file-record{0%,10%,100%{transform:translateY(-52px)}50%,78%{transform:translateY(0)}}
+@keyframes collect-one{0%,10%,100%{transform:translate(95px,-17px);opacity:0}23%{opacity:1}48%,78%{transform:translate(0,0);opacity:1}}
+@keyframes collect-two{0%,20%,100%{transform:translate(122px,18px);opacity:0}32%{opacity:1}58%,78%{transform:translate(0,0);opacity:1}}
+@media(prefers-reduced-motion:reduce){.workspace-motion *{animation:none!important}}</style>
+<path d="M158 177h110l25 22h195v148H158Z" fill="#cad6da" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/>
+<g class="record-sheet"><g transform="translate(233 80)"><path d="M0 0h176l26 26v212H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M176 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h144" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h158m-158 16h140m-140 16h152" stroke="#91a5ad" stroke-width="4"/><path d="M20 122h157m-157 17h129m-129 17h143m-143 17h100" stroke="#91a5ad" stroke-width="4"/><path d="M20 199h93" stroke="#d9ad1d" stroke-width="5"/></g></g>
+<g class="finding-one"><g transform="translate(399 126) rotate(5 75 37)"><path d="M0 0h148v76H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5"/><path d="M15 19h87" stroke="#1b3b87" stroke-width="6"/><path d="M15 37h117m-117 15h96" stroke="#91a5ad" stroke-width="4"/></g></g>
+<g class="finding-two"><g transform="translate(393 216) rotate(-4 75 37)"><path d="M0 0h148v76H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5"/><path d="M15 19h87" stroke="#d9ad1d" stroke-width="6"/><path d="M15 37h117m-117 15h96" stroke="#91a5ad" stroke-width="4"/></g></g>
+<path d="M142 253h148l23 21h185l-19 84H161Z" fill="#1b3b87" stroke="#142f70" stroke-width="3" stroke-linejoin="round"/>
+<path d="M185 323h124" stroke="#fbfcfc" stroke-width="5"/><path d="M185 337h79" stroke="#91a5ad" stroke-width="3"/><path d="M148 372h357" stroke="#cad6da" stroke-width="2"/>
+</svg>

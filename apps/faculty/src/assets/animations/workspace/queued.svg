@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" fill="none" class="workspace-motion" role="img" aria-labelledby="title description">
+<title id="title">Waiting in the queue</title><desc id="description">A manuscript rests in a waiting tray beside a clock. Looping decorative motion does not estimate waiting time.</desc>
+<style>
+.waiting-paper{animation:waiting-paper 2.1s ease-in-out infinite both}
+.clock-hand{transform-origin:496px 182px;animation:waiting-hand 2.1s ease-in-out infinite both}
+@keyframes waiting-paper{0%,100%{transform:translateY(0)}50%{transform:translateY(-17px)}}
+@keyframes waiting-hand{0%,100%{transform:rotate(0deg)}50%{transform:rotate(32deg)}}
+@media(prefers-reduced-motion:reduce){.workspace-motion *{animation:none!important}}</style>
+<path d="m126 286 33-61h280l41 61v64H126Z" fill="#e7edef" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/>
+<path d="M159 225h280l41 61H126Z" fill="#cad6da"/>
+<g class="waiting-paper"><g transform="translate(188 96) rotate(-7 75 88)"><path d="M0 0h124l26 26v160H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M124 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h92" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h106m-106 16h88m-88 16h100" stroke="#91a5ad" stroke-width="4"/></g></g>
+<g transform="translate(228 128) rotate(8 75 80)"><path d="M0 0h119l26 26v144H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M119 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h87" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h101m-101 16h83m-83 16h95" stroke="#91a5ad" stroke-width="4"/></g>
+<path d="M126 286h109l15 23h106l15-23h109v64H126Z" fill="#1b3b87" stroke="#142f70" stroke-width="3" stroke-linejoin="round"/>
+<path d="M151 337h302" stroke="#142f70" stroke-width="4"/>
+<path d="M267 323h66" stroke="#fbfcfc" stroke-width="4"/>
+<circle cx="502" cy="189" r="69" fill="#142f70"/>
+<circle cx="496" cy="182" r="69" fill="#fbfcfc" stroke="#1b3b87" stroke-width="4"/>
+<path d="M496 126v10m56 46h-10m-46 56v-10m-56-46h10" stroke="#91a5ad" stroke-width="3"/>
+<g class="clock-hand"><path d="M496 182v-37m0 37 26 15" stroke="#1b3b87" stroke-width="5" stroke-linecap="round"/></g>
+<circle cx="496" cy="182" r="6" fill="#d9ad1d"/>
+<path d="M492 98h19m-9 0v11" stroke="#1b3b87" stroke-width="5"/>
+<path d="M142 363h349" stroke="#cad6da" stroke-width="2"/>
+</svg>

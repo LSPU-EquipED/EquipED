@@ -141,9 +141,29 @@ Whitespace should clarify the workflow, not look unfinished. When a page has no 
 
 ### Review and inspection
 
-Specialist launchpad whitespace should use a compact scorecard preview instead of a decorative illustration. Show the evidence layers that will be produced—source excerpts, rubric criteria, and the review record—with quiet bars and document glyphs. Keep the visual inside the launch surface, secondary to the action, and light enough to preserve the institutional surface language.
+Specialist workspaces use an asymmetric bento landing: one illustrated introduction
+and Select module action beside compact module counts and recent module actions.
+Active evaluations stay visible; completed modules remain selectable. Use the
+native SVG specialist scenes with folded-paper forms, royal-blue linework, and
+connected amber folds. Typography uses compact Public Sans titles, 15px supporting
+copy, and readable 13px metadata. Let desktop landing headings use the card width;
+allow natural wrapping on smaller screens.
 
-When a specialist queue is clear, let the workstation occupy the available viewport height. Use a small queue snapshot inside the empty state to make the space operationally useful; do not place a separate illustration below the workstation.
+Module setup pairs a separate document dossier, source metadata, and review focus
+with the existing admission controls. Use shared dropdowns. Coordinator requires
+a verified curriculum selected for the confirmed program; the other specialists
+review the SLM directly. Keep the confirmation before admission, existing request
+payloads, ownership checks, result pinning, review corrections, and PDF exports.
+Re-evaluation and retry retain their confirmation flow. Do not ship preview sample
+controls, records, permissions, or reference options.
+
+Progress uses the server-reported stage, a matching looping SVG, and a horizontal
+stage tracker. Offer pause/resume and respect reduced motion. Before status is
+known, show a static document without inventing a stage, percentage, or duration.
+Workspace and failed-run errors use dedicated recovery artwork. Failure details
+expand below the recovery content with shared collapse motion, leaving the
+illustration, heading, and action in place. The app shell owns breadcrumbs; the
+specialist document route is labeled Module review.
 
 Evaluation screens should privilege the document, criterion, and reviewer decision. Use split panes or clear sequential sections, persistent context, and explicit advisory labels for generated guidance. Human review remains authoritative.
 

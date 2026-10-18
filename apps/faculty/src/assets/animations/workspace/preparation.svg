@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" fill="none" class="workspace-motion" role="img" aria-labelledby="title description">
+<title id="title">Assembling the module</title><desc id="description">Separated pages move into an assembly frame as a scan line crosses the paper. Decorative preparation motion, not measured progress.</desc>
+<style>
+.page-left{animation:assemble-left 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+.page-right{animation:assemble-right 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+.page-center{animation:assemble-center 4.8s cubic-bezier(.2,.7,.2,1) infinite both}
+.scan-line{animation:scan-page 4.8s ease-in-out infinite both}
+@keyframes assemble-left{0%,10%,100%{transform:translate(-68px,28px);opacity:.45}42%,78%{transform:translate(0,0);opacity:1}}
+@keyframes assemble-right{0%,10%,100%{transform:translate(68px,-25px);opacity:.45}46%,78%{transform:translate(0,0);opacity:1}}
+@keyframes assemble-center{0%,10%,100%{transform:translateY(-34px)}42%,78%{transform:translateY(0)}}
+@keyframes scan-page{0%,42%,100%{transform:translateY(-112px);opacity:0}47%{opacity:1}72%{transform:translateY(96px);opacity:1}78%,90%{transform:translateY(96px);opacity:0}}
+@media(prefers-reduced-motion:reduce){.workspace-motion *{animation:none!important}}</style>
+<path d="M220 104V75h32m215 0h32v29m0 213v29h-32m-215 0h-32v-29" stroke="#1b3b87" stroke-width="4" stroke-linecap="square"/>
+<g class="page-left"><g transform="translate(189 130) rotate(-14 78 100)"><path d="M0 0h130l26 26v179H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M130 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h98" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h112m-112 16h94m-94 16h106" stroke="#91a5ad" stroke-width="4"/></g></g>
+<g class="page-right"><g transform="translate(385 116) rotate(13 78 100)"><path d="M0 0h130l26 26v179H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M130 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h98" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h112m-112 16h94m-94 16h106" stroke="#91a5ad" stroke-width="4"/></g></g>
+<g class="page-center"><g transform="translate(273 94)"><path d="M0 0h148l26 26v209H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M148 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h116" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h130m-130 16h112m-112 16h124" stroke="#91a5ad" stroke-width="4"/><rect x="15" y="119" width="144" height="31" rx="2" fill="#fbf3cf"/><path d="M22 130h119m-119 12h104" stroke="#d9ad1d" stroke-width="4"/><path d="M20 177h130m-130 16h103m-103 16h118" stroke="#91a5ad" stroke-width="4"/></g></g>
+<g class="scan-line"><path d="M253 211h214" stroke="#1b3b87" stroke-width="3"/><path d="M266 216h188" stroke="#1b3b87" stroke-opacity=".1" stroke-width="8"/><rect x="247" y="205" width="8" height="12" fill="#d9ad1d"/><rect x="465" y="205" width="8" height="12" fill="#d9ad1d"/></g>
+<path d="M272 363h176" stroke="#cad6da" stroke-width="2"/>
+</svg>
