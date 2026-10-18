@@ -1,35 +1,41 @@
 import type { TargetAgent } from "@equiped/types";
 
+/** Ordered server stages and their current workspace presentation. */
 export const EVALUATION_STAGES = [
   {
     status: "SUBMITTED",
     label: "Queued",
-    heading: "Your evaluation is queued",
-    description:
-      "Your module is waiting for evaluation to begin. This page updates automatically when the job starts.",
+    heading: "Your module is in the queue.",
+    description: "The evaluation will begin when the specialist is available.",
   },
   {
     status: "PREPROCESSING",
     label: "Preparation",
-    heading: "Preparing your learning material",
+    heading: "Preparing your module.",
     description:
-      "Preparing the SLM and evaluation context for specialist review.",
+      "Organizing the module text and the references needed for this review.",
   },
   {
     status: "EVALUATING",
     label: "Specialist review",
-    heading: "Reviewing your learning material",
+    heading: "A closer look at your material.",
+    description:
+      "Examining the module against the specialist rubric and collecting supporting evidence.",
   },
   {
     status: "SYNTHESIZING",
     label: "Finalizing",
-    heading: "Finalizing your evaluation",
+    heading: "Bringing the findings together.",
     description:
-      "Saving the evaluation findings and updating the monitoring matrix.",
+      "Saving the specialist findings and updating the monitoring record.",
   },
-];
+] as const;
 
-export function isActiveEvaluationStatus(status?: string): boolean {
+export type ActiveStage = (typeof EVALUATION_STAGES)[number]["status"];
+
+export function isActiveEvaluationStatus(
+  status?: string,
+): status is ActiveStage {
   return EVALUATION_STAGES.some((stage) => stage.status === status);
 }
 
