@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" fill="none" class="workspace-motion" role="img" aria-labelledby="title description">
+<title id="title">Examining the evidence</title><desc id="description">A large inspection lens travels over a highlighted passage and its evidence annotation. No score or decision is implied.</desc>
+<style>
+.inspection-lens{animation:inspect-passage 2.3s cubic-bezier(.45,0,.55,1) infinite both}
+.excerpt-callout{animation:show-excerpt 2.3s ease-in-out infinite both}
+@keyframes inspect-passage{0%,100%{transform:translate(0,0) rotate(0deg)}35%{transform:translate(-57px,-28px) rotate(-5deg)}70%{transform:translate(-22px,24px) rotate(3deg)}}
+@keyframes show-excerpt{0%,100%{opacity:1;transform:translateX(0)}35%{opacity:.35;transform:translateX(17px)}70%{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.workspace-motion *{animation:none!important}}</style>
+<g transform="translate(167 72) rotate(-6 116 135)"><path d="M0 0h206l26 26v252H0Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M206 0v26h26" fill="#d9ad1d" stroke="#1b3b87" stroke-width="3" stroke-linejoin="round"/><path d="M20 46h174" stroke="#1b3b87" stroke-width="8"/><path d="M20 68h188m-188 16h170m-170 16h182" stroke="#91a5ad" stroke-width="4"/><rect x="15" y="119" width="202" height="31" rx="2" fill="#fbf3cf"/><path d="M22 130h177m-177 12h162" stroke="#d9ad1d" stroke-width="4"/><path d="M20 179h184m-184 17h146m-146 17h176m-176 24h125" stroke="#91a5ad" stroke-width="4"/></g>
+<g class="excerpt-callout"><path d="M414 128h175v84H414Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5"/><path d="M429 148h90" stroke="#1b3b87" stroke-width="6"/><path d="M429 166h142m-142 14h119m-119 14h131" stroke="#91a5ad" stroke-width="4"/><path d="M414 170h-21v52" fill="none" stroke="#d9ad1d" stroke-width="3"/></g>
+<g class="inspection-lens"><path d="m410 283 68 68" stroke="#142f70" stroke-width="25" stroke-linecap="round"/><path d="m412 279 68 68" stroke="#1b3b87" stroke-width="18" stroke-linecap="round"/><circle cx="365" cy="232" r="74" fill="#fbfcfc" stroke="#142f70" stroke-width="11"/><circle cx="365" cy="232" r="63" fill="#e8eef9" stroke="#1b3b87" stroke-width="2"/><path d="M324 211h76m-76 18h84m-84 18h62" stroke="#1b3b87" stroke-width="6"/><path d="M324 229h84" stroke="#d9ad1d" stroke-width="9"/><path d="M324 247h62" stroke="#91a5ad" stroke-width="5"/><path d="M329 187a55 55 0 0 1 41-10" stroke="#fbfcfc" stroke-width="5" stroke-linecap="round"/></g>
+</svg>

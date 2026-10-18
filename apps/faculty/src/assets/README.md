@@ -9,7 +9,10 @@ Shared EquipED logos remain under `libs/ui/src/assets/brand/`.
 - `illustrations/`: standalone artwork, with specialist and alignment families in
   `specialists/` and `alignment/`.
 - `textures/`: repeatable surface patterns.
+- `animations/`: self-contained SVG motion assets with reduced-motion fallbacks.
 - `explorations/faculty-dashboard/`: dashboard concepts and their generation prompts.
+- `explorations/specialist-workspace/`: paper-and-annotation concepts and prompts.
+  The selected second direction informs the workspace asset family.
 
 Keep finished assets grouped by type rather than by the feature using them.
 Explorations remain part of the asset collection and are not imported by runtime code.
@@ -31,6 +34,36 @@ as specified in DESIGN.md. Update this family alongside the shared palette when
 the brand changes. Within the interface, labels convey meaning; artwork is
 decorative and has empty alternative text.
 
+## Specialist workspace asset set
+
+The workspace uses four self-contained SVG scenes under
+`illustrations/specialists/workspace/`: `content-inspection.svg` (manuscript and
+magnifier), `curriculum-planning.svg` (curriculum board),
+`inclusive-discussion.svg` (colleagues exchanging perspectives), and
+`innovation-workbench.svg` (prototype and source folio). Each scene has its own
+silhouette, with flat fills, consistent outlines, and the connected amber fold
+from the Folio identity. They remain distinct from the smaller dashboard icons.
+
+The earlier generated PNGs are preserved in
+`explorations/specialist-workspace/raster-studies/`, with their prompts in
+`distinct-asset-prompts.json`. They are visual studies and are not imported by
+the workspace. `explorations/specialist-workspace/workspace-folds.png` remains an unimported background
+exploration.
+
+`animations/workspace/` contains editable SVG compositions for queued,
+preparation, specialist review, and finalizing. The scenes are a waiting tray,
+an assembly frame, an inspection lens, and a findings folder. Larger paper and
+lens travel makes the action visible. Motion loops within each state; the workspace offers pause/resume
+controls, and reduced-motion preferences disable it. Each file depicts
+only one state and never advances automatically
+through the evaluation stages or implies a score, approval, or completion rate.
+The server-reported stage selects the matching asset.
+Accessible status text remains the interface's responsibility.
+
+Earlier repetitive illustrations and motion remain under
+`explorations/specialist-workspace/superseded/` for reference. The production
+specialist workspace uses the vector specialist scenes and evaluation state SVGs.
+
 ## Exploration archive
 
 `explorations/faculty-dashboard/` preserves the earlier AI-generated PNGs and their prompts as
@@ -44,3 +77,9 @@ presented as production assets.
 study and its built-in image-generation prompt. This direction was not selected;
 the dashboard retains the specialist icon illustrations. The temporary character
 placement prototype has been removed, and this study remains unimported.
+
+The specialist workspace also uses three dedicated, hand-authored SVGs
+under `illustrations/specialists/workspace/`: `module-dossier.svg` for setup,
+`workspace-unavailable.svg` for retrieval failures, and `review-interrupted.svg`
+for failed evaluations. They use the institutional palette and carry no fake
+scores, document content, approval marks, or progress indicators.

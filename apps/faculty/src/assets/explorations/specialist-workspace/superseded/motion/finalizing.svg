@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" fill="none" role="img" aria-labelledby="title description">
+  <title id="title">Saving the findings</title>
+  <desc id="description">An excerpt settles beside its source manuscript once. Decorative saving motion, without an approval or success symbol.</desc>
+  <style>
+    
+.excerpt { animation: excerpt-settle 1.1s .2s cubic-bezier(.2,.7,.2,1) both; }
+.evidence-link { animation: link-appear .7s .5s ease-out both; }
+@keyframes excerpt-settle { from { opacity: 0; transform: translate(0,14px); } to { opacity: 1; transform: translate(0,0); } }
+@keyframes link-appear { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) {
+      .rear-pages, .manuscript, .review-emphasis, .evidence-link, .excerpt { animation: none; }
+    }
+  </style>
+  <g id="ribbon" aria-hidden="true">
+    <path d="m72 304 98-76 279 50 170-104-74 129-348 46Z" fill="#1b3b87"/>
+    <path d="m72 304 125 45-27-121Z" fill="#142f70"/>
+    <path d="m449 278 170-104-74 129Z" fill="#142f70"/>
+    <path d="m197 349 252-71-61 51Z" fill="#cad6da"/>
+    <path d="m619 174 29 21-42 18Z" fill="#d9ad1d"/>
+  </g>
+  <g id="reference" aria-hidden="true" transform="rotate(8 475 230)">
+    <path d="M411 119h116l25 26v182H411Z" fill="#142f70"/>
+    <path d="M404 112h116l25 26v182H404Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M520 112v26h25" fill="#cad6da" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M426 163h87" stroke="#1b3b87" stroke-width="7"/>
+    <path d="M426 185h94m-94 15h80m-80 15h87m-87 15h62m-62 28h94m-94 15h79" stroke="#91a5ad" stroke-width="4"/>
+  </g>
+  <g id="rear-pages" class="rear-pages" aria-hidden="true">
+    <g transform="rotate(-9 304 210)">
+      <path d="M170 83h193l31 31v237H170Z" fill="#cad6da" stroke="#91a5ad" stroke-width="2"/>
+      <path d="M181 72h193l31 31v237H181Z" fill="#fbfcfc" stroke="#91a5ad" stroke-width="2"/>
+    </g>
+  </g>
+  <g id="manuscript" class="manuscript" aria-hidden="true">
+    <g transform="rotate(-9 304 210)">
+      <path d="M202 65h177l35 35v243H202Z" fill="#142f70"/>
+      <path d="M195 58h177l35 35v243H195Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M372 58v35h35" fill="#d9ad1d" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M220 112h119" stroke="#1b3b87" stroke-width="9"/>
+      <path d="M220 136h145m-145 15h124m-124 15h143" stroke="#91a5ad" stroke-width="4.5"/>
+      <path d="M214 185h165v52H214Z" fill="#fbf3cf" class="passage"/>
+      <path d="M220 199h139m-139 15h126" stroke="#d9ad1d" stroke-width="5"/>
+      <path d="M220 229h92m-92 32h140m-140 15h119m-119 15h143m-143 15h80" stroke="#91a5ad" stroke-width="4.5"/>
+      <path d="M211 182h-8v57h8m170-57h8v57h-8" fill="none" stroke="#1b3b87" stroke-width="2.5"/>
+      <rect class="review-emphasis" x="208" y="177" width="176" height="67" rx="2" fill="none" stroke="#d9ad1d" stroke-width="2" opacity=".55"/>
+    </g>
+  </g>
+  <g id="evidence-link" class="evidence-link" aria-hidden="true">
+    <path d="M396 194h32v57h50" fill="none" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="393" y="191" width="6" height="6" fill="#1b3b87"/>
+    <rect x="475" y="248" width="6" height="6" fill="#d9ad1d"/>
+  </g>
+  <g id="excerpt" class="excerpt" aria-hidden="true">
+    <g transform="rotate(6 523 299)">
+      <path d="M453 250h144v95H453Z" fill="#cad6da"/>
+      <path d="M446 243h144v68l-27 27H446Z" fill="#fbfcfc" stroke="#1b3b87" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M563 338v-27h27" fill="#cad6da"/>
+      <path d="M462 263h89" stroke="#1b3b87" stroke-width="7"/>
+      <path d="M462 282h109m-109 13h99m-99 13h73" stroke="#91a5ad" stroke-width="4"/>
+    </g>
+  </g>
+</svg>
