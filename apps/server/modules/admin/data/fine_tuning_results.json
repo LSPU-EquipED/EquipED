@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "archived_on": "2026-10-16",
+  "archived_on": "2026-10-19",
   "experiments": [
     {
       "id": "v7",
@@ -3598,6 +3598,1243 @@
               "audit_note": "Audit observation: citations are sometimes more complete, but v13 assigns 3 to all six documents despite zero, one, or three extension tasks."
             }
           ]
+        }
+      ]
+    },
+    {
+      "id": "gad-v5",
+      "title": "Quotation Grounding",
+      "adapter_label": "gad-v5",
+      "scope": "All 5 GAD criteria; 8 held-out synthetic SLMs",
+      "reference_kind": "AI-authored, user-reviewed synthetic targets; not faculty ground truth",
+      "pair_count": 6,
+      "dataset_note": "Six reviewed full-response DPO pairs from genuine, unrepaired Base evaluations; all six used for training. This archive includes all eight external held-out SLMs, covering five GAD criteria each. Training-document checks are excluded from these metrics.",
+      "summary": "The fine-tuned GAD model v5 increased exact quotation grounding from 82.5% to 97.5% (33 to 39 of 40 criterion responses), a gain of 15 percentage points across 8 held-out synthetic SLMs. This measures whether the evidence quote occurs verbatim in its cited source chunk, not whether it supports the score. Overall scoring did not improve: MAE changed from 0.625 to 0.650, and exact-score matches stayed at 25 of 40.",
+      "limitations": [
+        "One run per condition; generation variability was not measured. No repairs or fallback responses occurred in these paired comparisons.",
+        "Both models received identical initial prompts and complete extracted source packets. All eight held-out comparisons are retained, including worse and unchanged scores.",
+        "Exact quotation grounding is a mechanical substring check against the cited source chunk. It does not certify evidence relevance, completeness, or reasoning quality.",
+        "Targets are provisional AI-authored, user-reviewed references, not independent faculty scores. Several versus pervasive rubric levels remain qualitative.",
+        "Held-out topics and names differ from training, but share a synthetic template. This does not establish generalization to real SLMs. These documents are now evaluated benchmarks.",
+        "GAD-01 and GAD-03 scoring improved on this small set; GAD-02 and GAD-04 worsened, and GAD-05 stayed unchanged. Overall held-out MAE did not improve."
+      ],
+      "primary_criteria": null,
+      "training": {
+        "steps": 8,
+        "epochs": 4.0,
+        "first_loss": 0.6931471824645996,
+        "last_loss": 0.0027811313048005104,
+        "first_margin": 0.0,
+        "last_margin": 5.9247636795043945
+      },
+      "runs": [
+        {
+          "title": "GAD Study - Visitor Badge Check - 8671",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "b0f53345e28d226f6fd522884dafc07fda6cc78f902a34eb88e0fb0e087a442e"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text explicitly lists the names of participants, including several women and several men. There are no instances of gender stereotypes or biased portrayals.",
+                "stored_justification": "The text explicitly lists the names of participants, including several women and several men. There are no instances of gender stereotypes or biased portrayals.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text explicitly lists the participants by name, including gender, demonstrating a clear representation of both male and female individuals. No stereotypes are present.",
+                "stored_justification": "The text explicitly lists the participants by name, including gender, demonstrating a clear representation of both male and female individuals. No stereotypes are present.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text explicitly lists the names of participants, clearly distinguishing between male and female names. The representation is nearly equal, with 6 female and 6 male participants.",
+                "stored_justification": "The text explicitly lists the names of participants, clearly distinguishing between male and female names. The representation is nearly equal, with 6 female and 6 male participants.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text explicitly lists the participants by name, including gender, demonstrating a clear representation of both male and female individuals. There are 12 participants, 6 female and 6 male.",
+                "stored_justification": "The text explicitly lists the participants by name, including gender, demonstrating a clear representation of both male and female individuals. There are 12 participants, 6 female and 6 male.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Apply identical performance requirements to each participant irrespective of gender."
+                ],
+                "reasoning": "The text explicitly states that identical performance requirements should be applied to all participants, regardless of gender, ensuring equal respect and opportunity.",
+                "stored_justification": "The text explicitly states that identical performance requirements should be applied to all participants, regardless of gender, ensuring equal respect and opportunity.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Apply identical performance requirements to each participant irrespective of gender. Arrange an equivalent task or accessible format when a participant cannot use the default submission method."
+                ],
+                "reasoning": "The text explicitly states that identical performance requirements should be applied to all participants, regardless of gender, ensuring equal respect and opportunity. It also mentions providing an accessible format if needed.",
+                "stored_justification": "The text explicitly states that identical performance requirements should be applied to all participants, regardless of gender, ensuring equal respect and opportunity. It also mentions providing an accessible format if needed.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The instructor returns a comment identifying a missing requirement or test. Annotate the revision."
+                ],
+                "reasoning": "The text describes a process where the instructor provides feedback, and participants annotate revisions, suggesting an equal reflection of needs and experiences.",
+                "stored_justification": "The text describes a process where the instructor provides feedback, and participants annotate revisions, suggesting an equal reflection of needs and experiences.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text lists participants with their names and genders, providing an equal reflection of both male and female experiences. There is no assumption of gender-specific roles or activities.",
+                "stored_justification": "The text lists participants with their names and genders, providing an equal reflection of both male and female experiences. There is no assumption of gender-specific roles or activities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The text does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity.",
+                "stored_justification": "The text does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity. It focuses on a collaborative learning exercise with a diverse group of participants.",
+                "stored_justification": "The document does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity. It focuses on a collaborative learning exercise with a diverse group of participants.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "b23917ad-960e-4390-8169-a414e347eb42",
+          "base_evaluation_id": "15a9619a-5571-42eb-8d7b-f63157bb57af",
+          "adapter_validation_id": "153b3ed8-622f-46bc-96e3-1c268fb289a1",
+          "adapter_evaluation_id": "d9c4dd06-57ca-4455-823c-423b85ce3d8a"
+        },
+        {
+          "title": "GAD Study - Visitor Badge Check - 34A7",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "f71e6e9db87d6aec65ad49739c4e92db297d7f709511d8791fcad4154613efe1"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 3,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. For this project the women keep the written record, but only the men may make binding technical decisions."
+                ],
+                "reasoning": "This excerpt presents a gendered division of labor, with women primarily responsible for record-keeping and men for technical decisions. This reinforces a stereotype about women's roles in technical fields, receiving a score of 3.",
+                "stored_justification": "This excerpt presents a gendered division of labor, with women primarily responsible for record-keeping and men for technical decisions. This reinforces a stereotype about women's roles in technical fields, receiving a score of 3.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. For this project the women keep the written record, but only the men may make binding technical decisions."
+                ],
+                "reasoning": "This excerpt presents a gendered division of labor, assigning women the role of record-keeping and men the authority to make technical decisions. This reinforces a traditional gender role, representing a potential stereotype.",
+                "stored_justification": "This excerpt presents a gendered division of labor, assigning women the role of record-keeping and men the authority to make technical decisions. This reinforces a traditional gender role, representing a potential stereotype.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 2,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "There are 7 female participants and 6 male participants. This represents a noticeable imbalance in representation, receiving a score of 2.",
+                "stored_justification": "There are 7 female participants and 6 male participants. This represents a noticeable imbalance in representation, receiving a score of 2.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The list of participants includes seven women and five men. While not heavily skewed, the representation is noticeably imbalanced, suggesting a potential bias in the selection of examples.",
+                "stored_justification": "The list of participants includes seven women and five men. While not heavily skewed, the representation is noticeably imbalanced, suggesting a potential bias in the selection of examples.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 3,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The instructor returns a comment identifying a missing requirement or test. Annotate the revision."
+                ],
+                "reasoning": "The instruction to annotate a revision implies an equal opportunity for both genders to contribute to the process of identifying and addressing shortcomings, demonstrating equal respect and opportunity. No instances of one gender being diminished are present, receiving a score of 4.",
+                "stored_justification": "The instruction to annotate a revision implies an equal opportunity for both genders to contribute to the process of identifying and addressing shortcomings, demonstrating equal respect and opportunity. No instances of one gender being diminished are present, receiving a score of 4.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "For this project the women keep the written record, but only the men may make binding technical decisions."
+                ],
+                "reasoning": "This excerpt portrays women as primarily responsible for record-keeping and men as having the authority to make technical decisions, which could be interpreted as diminishing women's capabilities and limiting their opportunities.",
+                "stored_justification": "This excerpt portrays women as primarily responsible for record-keeping and men as having the authority to make technical decisions, which could be interpreted as diminishing women's capabilities and limiting their opportunities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 3,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "Learning Content Separate identifier validity from time validity. A known badge may be expired, and an active interval does not make an unknown identifier valid."
+                ],
+                "reasoning": "The learning content focuses on the validity of identifiers and time intervals, presenting a neutral scenario that does not inherently favor one gender's experiences. However, the instructions to 'prepare an initial artifact' could be interpreted as implicitly favoring the group that prepares the artifact, but this is not explicitly gendered, receiving a score of 3.",
+                "stored_justification": "The learning content focuses on the validity of identifiers and time intervals, presenting a neutral scenario that does not inherently favor one gender's experiences. However, the instructions to 'prepare an initial artifact' could be interpreted as implicitly favoring the group that prepares the artifact, but this is not explicitly gendered, receiving a score of 3.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The list of participants is dominated by male names, while female names are less frequent. This suggests that the examples and scenarios presented may disproportionately focus on male experiences and perspectives.",
+                "stored_justification": "The list of participants is dominated by male names, while female names are less frequent. This suggests that the examples and scenarios presented may disproportionately focus on male experiences and perspectives.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 3,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The instructor returns a comment identifying a missing requirement or test. Annotate the revision."
+                ],
+                "reasoning": "The instruction to annotate a revision, coupled with the instructor's role in providing feedback, suggests a commitment to equality and inclusivity, ensuring that all participants have an equal opportunity to contribute and receive support. No discriminatory or prejudicial content is present, receiving a score of 4.",
+                "stored_justification": "The instruction to annotate a revision, coupled with the instructor's role in providing feedback, suggests a commitment to equality and inclusivity, ensuring that all participants have an equal opportunity to contribute and receive support. No discriminatory or prejudicial content is present, receiving a score of 4.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity. The participants are listed with their names and genders, providing a balanced representation.",
+                "stored_justification": "The document does not contain any discriminatory, prejudicial, or exclusionary content related to gender, race, class, disability, religion, orientation, or ethnicity. The participants are listed with their names and genders, providing a balanced representation.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "befef56b-38f0-4c7d-a06a-e09597bfb3c8",
+          "base_evaluation_id": "fee5e093-a11c-4a17-b5ae-cb01b76b09f9",
+          "adapter_validation_id": "c2bb8189-cfe1-4def-9a44-46f64f89d2e9",
+          "adapter_evaluation_id": "36d57ff5-de0e-4e2f-a212-956b6cabac14"
+        },
+        {
+          "title": "GAD Study - Visitor Badge Check - 6826",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "49be671cc39ecd881172110bea40a3b581d211bf9fde361ddb4ae021d7fe2a8b"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices."
+                ],
+                "reasoning": "This excerpt contains a clear instance of gender bias, assigning note-taking to women and technical authority to men. This reinforces a stereotype about women's capabilities and limits their roles.",
+                "stored_justification": "This excerpt contains a clear instance of gender bias, assigning note-taking to women and technical authority to men. This reinforces a stereotype about women's capabilities and limits their roles.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices."
+                ],
+                "reasoning": "This excerpt demonstrates a gendered assignment of roles, specifically assigning note-taking to women and technical authority to men. This reinforces a stereotype of women's roles and capabilities, resulting in a score of 3.",
+                "stored_justification": "This excerpt demonstrates a gendered assignment of roles, specifically assigning note-taking to women and technical authority to men. This reinforces a stereotype of women's roles and capabilities, resulting in a score of 3.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 2,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices."
+                ],
+                "reasoning": "The roster lists 12 participants, 6 women and 6 men. This represents a noticeable imbalance in gender representation, leaning towards male representation.",
+                "stored_justification": "The roster lists 12 participants, 6 women and 6 men. This represents a noticeable imbalance in gender representation, leaning towards male representation.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 1,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices."
+                ],
+                "reasoning": "The roster lists 12 individuals, 6 women and 6 men. This represents a significant imbalance, with a clear skew toward male representation. The assignment of roles further reinforces this imbalance. This demonstrates a heavily skewed representation of genders.",
+                "stored_justification": "The roster lists 12 individuals, 6 women and 6 men. This represents a significant imbalance, with a clear skew toward male representation. The assignment of roles further reinforces this imbalance. This demonstrates a heavily skewed representation of genders.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 1,
+                "status": "ok",
+                "evidence": [
+                  "Treat men as naturally stronger diagnosticians than women and keep women out of fault investigation. Accept design approval from men only, on the assumption that women cannot reason as well as men. Keep women on catering duties while men have exclusive access to project equipment. If women and men disagree about a test, accept the men's conclusions regardless of the women's evidence."
+                ],
+                "reasoning": "This excerpt directly portrays women as less capable diagnosticians and denies them equal opportunity to participate in fault investigation, reinforcing a harmful stereotype about gender capabilities. The decision-making process also favors men's opinions.",
+                "stored_justification": "This excerpt directly portrays women as less capable diagnosticians and denies them equal opportunity to participate in fault investigation, reinforcing a harmful stereotype about gender capabilities. The decision-making process also favors men's opinions.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 1,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices. Treat men as naturally stronger diagnosticians than women and keep women out of fault investigation. Accept design approval from men only, on the assumption that women cannot reason as well as men. Keep women on catering duties while men have exclusive access to project equipment. If women and men disagree about a test, accept the men's conclusions regardless of the women's evidence."
+                ],
+                "reasoning": "This excerpt explicitly states that men are considered 'naturally stronger diagnosticians' and that women are excluded from fault investigation and design approval. It also dictates that men's conclusions are accepted over women's, demonstrating a clear bias and lack of respect for women's capabilities. This exemplifies frequent portrayal of one gender as less capable, respected, or deserving.",
+                "stored_justification": "This excerpt explicitly states that men are considered 'naturally stronger diagnosticians' and that women are excluded from fault investigation and design approval. It also dictates that men's conclusions are accepted over women's, demonstrating a clear bias and lack of respect for women's capabilities. This exemplifies frequent portrayal of one gender as less capable, respected, or deserving.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 1,
+                "status": "ok",
+                "evidence": [
+                  "Treat men as naturally stronger diagnosticians than women and keep women out of fault investigation. Accept design approval from men only, on the assumption that women cannot reason as well as men. Keep women on catering duties while men have exclusive access to project equipment. If women and men disagree about a test, accept the men's conclusions regardless of the women's evidence."
+                ],
+                "reasoning": "The material assumes that women are less capable than men in certain roles (diagnostics and design approval), and assigns them to less valued tasks (catering). This creates an unequal reflection of experiences and opportunities.",
+                "stored_justification": "The material assumes that women are less capable than men in certain roles (diagnostics and design approval), and assigns them to less valued tasks (catering). This creates an unequal reflection of experiences and opportunities.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 1,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices. Treat men as naturally stronger diagnosticians than women and keep women out of fault investigation. Accept design approval from men only, on the assumption that women cannot reason as well as men. Keep women on catering duties while men have exclusive access to project equipment. If women and men disagree about a test, accept the men's conclusions regardless of the women's evidence."
+                ],
+                "reasoning": "The instructions explicitly assign roles based on gender, assuming differences in capabilities and limiting opportunities for women. This creates an uneven reflection of experiences, favoring men and excluding women's perspectives. This demonstrates consistent exclusion of one gender's experiences.",
+                "stored_justification": "The instructions explicitly assign roles based on gender, assuming differences in capabilities and limiting opportunities for women. This creates an uneven reflection of experiences, favoring men and excluding women's perspectives. This demonstrates consistent exclusion of one gender's experiences.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The roster explicitly lists all participants by name, and all participants are identified by their gender. There is no discriminatory or prejudicial content related to gender.",
+                "stored_justification": "The roster explicitly lists all participants by name, and all participants are identified by their gender. There is no discriminatory or prejudicial content related to gender.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Allocate note-taking to the women and give the men sole authority over technical choices. Treat men as naturally stronger diagnosticians than women and keep women out of fault investigation. Accept design approval from men only, on the assumption that women cannot reason as well as men. Keep women on catering duties while men have exclusive access to project equipment. If women and men disagree about a test, accept the men's conclusions regardless of the women's evidence."
+                ],
+                "reasoning": "The material contains no content that promotes discrimination or inequality. Instead, it explicitly reinforces gender stereotypes and biases, creating an environment of exclusion and unequal treatment. This demonstrates a lack of discriminatory, prejudicial, or exclusionary content.",
+                "stored_justification": "The material contains no content that promotes discrimination or inequality. Instead, it explicitly reinforces gender stereotypes and biases, creating an environment of exclusion and unequal treatment. This demonstrates a lack of discriminatory, prejudicial, or exclusionary content.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "5a58e17f-c36b-49fd-8da0-9501998b9c03",
+          "base_evaluation_id": "9ce9f3bf-2176-450f-8d72-02496aaf2581",
+          "adapter_validation_id": "b4a4895d-38aa-4722-9546-0c008ea495cf",
+          "adapter_evaluation_id": "2976c710-2358-4f39-b546-412536cea047"
+        },
+        {
+          "title": "GAD Study - Visitor Badge Check - 78B3",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "497fbb06be3fd36a9617c19dc9bf14a59dc4bd69148b79bc5469a6472ce97192"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The list of participants includes six women and six men. This represents a fairly balanced representation, but there are isolated instances of gendered naming (e.g., 'Nora (woman)' - a direct gender assignment). This is a potential instance of gender stereotyping, though presented in a neutral context. Count: female_count=6, male_count=6.",
+                "stored_justification": "The list of participants includes six women and six men. This represents a fairly balanced representation, but there are isolated instances of gendered naming (e.g., 'Nora (woman)' - a direct gender assignment). This is a potential instance of gender stereotyping, though presented in a neutral context. Count: female_count=6, male_count=6.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The list of participants includes six women and six men. This represents a slight imbalance, with a few isolated instances of gendered naming, but not pervasive. The descriptor 'woman' and 'man' are used, but the context is instructional and does not reinforce stereotypes.",
+                "stored_justification": "The list of participants includes six women and six men. This represents a slight imbalance, with a few isolated instances of gendered naming, but not pervasive. The descriptor 'woman' and 'man' are used, but the context is instructional and does not reinforce stereotypes.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document explicitly lists the gender of each participant, demonstrating nearly equal representation of males and females. Count: female_count=6, male_count=6.",
+                "stored_justification": "The document explicitly lists the gender of each participant, demonstrating nearly equal representation of males and females. Count: female_count=6, male_count=6.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "There are six female and six male participants. This represents a fairly balanced representation, with only a modest difference. The counts are not equal, but the imbalance is not severe.",
+                "stored_justification": "There are six female and six male participants. This represents a fairly balanced representation, with only a modest difference. The counts are not equal, but the imbalance is not severe.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document presents an equal representation of males and females, with no instances of one gender being portrayed as less capable, respected, or deserving of opportunity. Count: female_count=6, male_count=6.",
+                "stored_justification": "The document presents an equal representation of males and females, with no instances of one gender being portrayed as less capable, respected, or deserving of opportunity. Count: female_count=6, male_count=6.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document presents a list of participants with equal representation of genders. There are no instances of one gender being portrayed as less capable, respected, or deserving of opportunity.",
+                "stored_justification": "The document presents a list of participants with equal representation of genders. There are no instances of one gender being portrayed as less capable, respected, or deserving of opportunity.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document reflects the needs and life experiences of both male and female students equally, with no exclusion or assumed gender-specific roles. Count: female_count=6, male_count=6.",
+                "stored_justification": "The document reflects the needs and life experiences of both male and female students equally, with no exclusion or assumed gender-specific roles. Count: female_count=6, male_count=6.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document lists participants with equal representation of genders. There are no instances of excluding one gender's experiences or assuming gender-specific roles.",
+                "stored_justification": "The document lists participants with equal representation of genders. There are no instances of excluding one gender's experiences or assuming gender-specific roles.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 2,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document does not contain any discriminatory, prejudicial, exclusionary, or inequality-promoting content related to gender, race, class, disability, religion, orientation, or ethnicity. Count: female_count=6, male_count=6.",
+                "stored_justification": "The document does not contain any discriminatory, prejudicial, exclusionary, or inequality-promoting content related to gender, race, class, disability, religion, orientation, or ethnicity. Count: female_count=6, male_count=6.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Nora (woman); Tala (woman); Mira (woman); Vera (woman); Elin (woman); Sena (woman); Ivo (man); Ciro (man); Enzo (man); Lino (man); Aldo (man); Nilo (man)."
+                ],
+                "reasoning": "The document lists participants with equal representation of genders. There is no discriminatory, prejudicial, or exclusionary content related to gender.",
+                "stored_justification": "The document lists participants with equal representation of genders. There is no discriminatory, prejudicial, or exclusionary content related to gender.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "5097c05a-b6f0-47f8-af3e-63d19b2bd1f3",
+          "base_evaluation_id": "d9be6af7-41e5-486e-a2d0-d431af2ff12b",
+          "adapter_validation_id": "65d882dc-86ba-41c0-a9ec-033e1b1ae66f",
+          "adapter_evaluation_id": "fc200218-1c12-43f6-aa1a-c3fd9f9cc510"
+        },
+        {
+          "title": "GAD Study - Computer Repair Queue - 2269",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "224b6514b1c777a9cbd9ae18d3953debe76bc1b03db49eebfc68c940297c89e4"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The text explicitly states that assessment requirements apply equally to all participants, regardless of gender, indicating a lack of gender-based role restrictions. However, the roster lists 12 female participants, suggesting a potential bias in representation. This is an isolated instance of potential bias.",
+                "stored_justification": "The text explicitly states that assessment requirements apply equally to all participants, regardless of gender, indicating a lack of gender-based role restrictions. However, the roster lists 12 female participants, suggesting a potential bias in representation. This is an isolated instance of potential bias.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Celia (woman); Yumi (woman); Zia (woman); Thea (woman); Luna (woman); Asha (woman); Kira (woman); Mina (woman); Vina (woman); Esme (woman); Lora (woman); Tess (woman)."
+                ],
+                "reasoning": "The text explicitly lists the names of all participants, including their gender, demonstrating a lack of gender stereotypes or biased portrayals. There are no assumptions or stereotypes related to gender roles or abilities.",
+                "stored_justification": "The text explicitly lists the names of all participants, including their gender, demonstrating a lack of gender stereotypes or biased portrayals. There are no assumptions or stereotypes related to gender roles or abilities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The roster lists 12 female participants and 0 male participants. This represents a significant imbalance in representation. While the text states equal assessment, the imbalance in the roster suggests a potential bias. This is a noticeable imbalance.",
+                "stored_justification": "The roster lists 12 female participants and 0 male participants. This represents a significant imbalance in representation. While the text states equal assessment, the imbalance in the roster suggests a potential bias. This is a noticeable imbalance.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The participants in this exercise are Celia (woman); Yumi (woman); Zia (woman); Thea (woman); Luna (woman); Asha (woman); Kira (woman); Mina (woman); Vina (woman); Esme (woman); Lora (woman); Tess (woman)."
+                ],
+                "reasoning": "The text explicitly lists the names of all participants, including their gender, demonstrating nearly equal representation. There are no assumptions or stereotypes related to gender roles or abilities.",
+                "stored_justification": "The text explicitly lists the names of all participants, including their gender, demonstrating nearly equal representation. There are no assumptions or stereotypes related to gender roles or abilities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The text explicitly states that assessment requirements are applied equally to all participants, irrespective of gender. This demonstrates equal respect, capability, and opportunity for all participants.",
+                "stored_justification": "The text explicitly states that assessment requirements are applied equally to all participants, irrespective of gender. This demonstrates equal respect, capability, and opportunity for all participants.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Project Instructions The roster and instructions below refer to the same single team and project throughout this module. Planning, construction, checking and presentation are shared through a rotation chosen by the participants. The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The instructions explicitly state that assessment requirements apply equally to all participants, regardless of gender, demonstrating equal respect, capability, and opportunity. There are no instances of one gender being diminished.",
+                "stored_justification": "The instructions explicitly state that assessment requirements apply equally to all participants, regardless of gender, demonstrating equal respect, capability, and opportunity. There are no instances of one gender being diminished.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The text explicitly states that assessment requirements are applied equally to all participants, irrespective of gender. This indicates that the material does not assume gender-specific roles or activities, reflecting the needs and experiences of all students equally.",
+                "stored_justification": "The text explicitly states that assessment requirements are applied equally to all participants, irrespective of gender. This indicates that the material does not assume gender-specific roles or activities, reflecting the needs and experiences of all students equally.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Planning, construction, checking and presentation are shared through a rotation chosen by the participants. The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The document reflects the needs and life experiences of both male and female students equally by ensuring shared roles and equal assessment criteria. There is no exclusion or assumed gender-specific roles.",
+                "stored_justification": "The document reflects the needs and life experiences of both male and female students equally by ensuring shared roles and equal assessment criteria. There is no exclusion or assumed gender-specific roles.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The focus is on equal opportunity and assessment.",
+                "stored_justification": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The focus is on equal opportunity and assessment.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The same assessment requirements apply to every participant without gender-based role restrictions."
+                ],
+                "reasoning": "The document promotes peace and equality by ensuring that assessment requirements are applied equally to all participants, regardless of gender. There is no discriminatory or exclusionary content.",
+                "stored_justification": "The document promotes peace and equality by ensuring that assessment requirements are applied equally to all participants, regardless of gender. There is no discriminatory or exclusionary content.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "6f9f13e1-55f8-4a4a-a2f0-21785d87c102",
+          "base_evaluation_id": "0769df7d-2fc0-422a-9d51-0a969c369aa7",
+          "adapter_validation_id": "83863261-480b-41f4-95f9-1a64dc4a5acf",
+          "adapter_evaluation_id": "ae26e2ac-7821-4082-9ad8-4b89e7893091"
+        },
+        {
+          "title": "GAD Study - Computer Repair Queue - BA39",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "b60575d383ee06570dcfcdd55fb15165fe7a1b86b852fca06e554ff5067c8484"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 2,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "This excerpt contains a gendered assignment of roles, specifically assigning record-keeping to women and technical decision-making to men. This reflects a stereotype of women being less capable troubleshooters than men, which constitutes a gender stereotype. The count of female/male representations is 7/5, respectively. The descriptor 'isolated instance' best fits the score.",
+                "stored_justification": "This excerpt contains a gendered assignment of roles, specifically assigning record-keeping to women and technical decision-making to men. This reflects a stereotype of women being less capable troubleshooters than men, which constitutes a gender stereotype. The count of female/male representations is 7/5, respectively. The descriptor 'isolated instance' best fits the score.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "This excerpt contains a gendered assignment of roles, specifically assigning record-keeping to women and technical decision-making to men. This reinforces a stereotype about women's and men's capabilities, suggesting women are less capable troubleshooters than men. The count of female representation is 6, and male representation is 6. The descriptor 'isolated instance' is appropriate given the single example.",
+                "stored_justification": "This excerpt contains a gendered assignment of roles, specifically assigning record-keeping to women and technical decision-making to men. This reinforces a stereotype about women's and men's capabilities, suggesting women are less capable troubleshooters than men. The count of female representation is 6, and male representation is 6. The descriptor 'isolated instance' is appropriate given the single example.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The roster lists seven women and five men. This represents a noticeable imbalance in representation. The descriptor 'noticeable imbalance' best fits the score.",
+                "stored_justification": "The roster lists seven women and five men. This represents a noticeable imbalance in representation. The descriptor 'noticeable imbalance' best fits the score.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The roster lists six women and six men. While the representation is equal, the assignment of roles based on gender reinforces a stereotype. The descriptor 'fairly balanced' is appropriate given the equal representation, but the assignment of roles introduces bias.",
+                "stored_justification": "The roster lists six women and six men. While the representation is equal, the assignment of roles based on gender reinforces a stereotype. The descriptor 'fairly balanced' is appropriate given the equal representation, but the assignment of roles introduces bias.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 2,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The instructions explicitly state that women are assigned record-keeping and men are given authority to settle technical choices, implying that men's reasoning is superior to women's. This suggests a lack of equal respect and opportunity. The count of female/male representations is 7/5, respectively. The descriptor 'several instances' best fits the score.",
+                "stored_justification": "The instructions explicitly state that women are assigned record-keeping and men are given authority to settle technical choices, implying that men's reasoning is superior to women's. This suggests a lack of equal respect and opportunity. The count of female/male representations is 7/5, respectively. The descriptor 'several instances' best fits the score.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men. Because women are assumed to be weaker troubleshooters than men, permit only men to investigate a fault."
+                ],
+                "reasoning": "This excerpt portrays women as less capable troubleshooters than men, explicitly stating that only men are permitted to investigate faults. This diminishes women's capabilities and suggests they are less deserving of opportunities. The count of female representation is 6, and male representation is 6. The descriptor 'several instances' is appropriate given the explicit statement about women's capabilities.",
+                "stored_justification": "This excerpt portrays women as less capable troubleshooters than men, explicitly stating that only men are permitted to investigate faults. This diminishes women's capabilities and suggests they are less deserving of opportunities. The count of female representation is 6, and male representation is 6. The descriptor 'several instances' is appropriate given the explicit statement about women's capabilities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 2,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 2,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The assignment of roles based on gender (women to record-keeping, men to technical decisions) implicitly favors one gender's experience and assumes different roles based on gender. This is not a balanced reflection of both genders' needs and experiences. The count of female/male representations is 7/5, respectively. The descriptor 'several instances' best fits the score.",
+                "stored_justification": "The assignment of roles based on gender (women to record-keeping, men to technical decisions) implicitly favors one gender's experience and assumes different roles based on gender. This is not a balanced reflection of both genders' needs and experiences. The count of female/male representations is 7/5, respectively. The descriptor 'several instances' best fits the score.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 3,
+                "status": "ok",
+                "evidence": [
+                  "Because women are assumed to be weaker troubleshooters than men, permit only men to investigate a fault."
+                ],
+                "reasoning": "This excerpt assumes that women are weaker troubleshooters than men, which is a gendered assumption about their abilities. This disproportionately favors men's experiences and opportunities. The count of female representation is 6, and male representation is 6. The descriptor 'several instances' is appropriate given the assumption about women's abilities.",
+                "stored_justification": "This excerpt assumes that women are weaker troubleshooters than men, which is a gendered assumption about their abilities. This disproportionately favors men's experiences and opportunities. The count of female representation is 6, and male representation is 6. The descriptor 'several instances' is appropriate given the assumption about women's abilities.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 2,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The instructions simply assign roles based on perceived skills, without promoting inequality. The count of female/male representations is 7/5, respectively. The descriptor 'none found' best fits the score.",
+                "stored_justification": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The instructions simply assign roles based on perceived skills, without promoting inequality. The count of female/male representations is 7/5, respectively. The descriptor 'none found' best fits the score.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Assign record-keeping to the women; reserve the authority to settle technical choices for the men."
+                ],
+                "reasoning": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The instructions simply assign roles based on perceived capabilities, not on gender identity or orientation. The count of female representation is 6, and male representation is 6. The descriptor 'none found' is appropriate.",
+                "stored_justification": "The material does not contain any discriminatory, prejudicial, or exclusionary content related to gender. The instructions simply assign roles based on perceived capabilities, not on gender identity or orientation. The count of female representation is 6, and male representation is 6. The descriptor 'none found' is appropriate.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "db4e7fcf-3757-467d-b310-ada702b9f235",
+          "base_evaluation_id": "a0542698-43fc-4776-8ef5-71c5a3cd2737",
+          "adapter_validation_id": "56b1c368-2731-4685-a655-bfa2179166f8",
+          "adapter_evaluation_id": "e1be3e89-0b31-427c-95bf-67dfec51a320"
+        },
+        {
+          "title": "GAD Study - Computer Repair Queue - AA42",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "7b311e5ba808d1fa7221b1d12f038d8bf9404f134fc73cfa0a3ae85d1e654bf4"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating a lack of gender stereotypes or bias in assigning roles or responsibilities. There are no instances of gendered assumptions or limitations.",
+                "stored_justification": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating a lack of gender stereotypes or bias in assigning roles or responsibilities. There are no instances of gendered assumptions or limitations.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The statement 'Men should lead; women should only write notes' is a discriminatory proposal to reject, never a project rule."
+                ],
+                "reasoning": "The material explicitly identifies a discriminatory statement and states it should be rejected. There are no instances of gender stereotypes or biased portrayals.",
+                "stored_justification": "The material explicitly identifies a discriminatory statement and states it should be rejected. There are no instances of gender stereotypes or biased portrayals.",
+                "quote_exact_in_claimed_chunk": false
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The roster lists participants by name, and all listed participants are female. There is no indication of any gender imbalance in the team composition. The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal representation.",
+                "stored_justification": "The roster lists participants by name, and all listed participants are female. There is no indication of any gender imbalance in the team composition. The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal representation.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Let each participant practice specification, implementation, verification and presentation through rotating duties. Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The roster includes 12 participants, all female. The instructions explicitly state that all participants should have the same performance requirements and no gender-based limits on responsibility. This demonstrates nearly equal representation.",
+                "stored_justification": "The roster includes 12 participants, all female. The instructions explicitly state that all participants should have the same performance requirements and no gender-based limits on responsibility. This demonstrates nearly equal representation.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal respect, capability, and opportunity. There are no instances of one gender being portrayed as less capable, respected, or deserving.",
+                "stored_justification": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal respect, capability, and opportunity. There are no instances of one gender being portrayed as less capable, respected, or deserving.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The text explicitly states that all participants should have the same performance requirements, with no gender-based limits. This ensures equal respect, capability, and opportunity for all.",
+                "stored_justification": "The text explicitly states that all participants should have the same performance requirements, with no gender-based limits. This ensures equal respect, capability, and opportunity for all.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Use the same performance requirements for all participants, with no gender-based limits on responsibility."
+                ],
+                "reasoning": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal reflection of both genders' needs and experiences. There is no assumption of gender-specific roles or activities.",
+                "stored_justification": "The text explicitly states that performance requirements are the same for all participants, regardless of gender, demonstrating equal reflection of both genders' needs and experiences. There is no assumption of gender-specific roles or activities.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Let each participant practice specification, implementation, verification and presentation through rotating duties."
+                ],
+                "reasoning": "The instructions for the project emphasize rotating duties among all participants, ensuring that all participants have an equal opportunity to contribute and experience the project. This reflects the needs and experiences of all participants equally.",
+                "stored_justification": "The instructions for the project emphasize rotating duties among all participants, ensuring that all participants have an equal opportunity to contribute and experience the project. This reflects the needs and experiences of all participants equally.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The statement 'Men should lead; women should only write notes' is a discriminatory proposal to reject, never a project rule. Explain the unfair allocation in that proposal and rewrite it so responsibility rotates according to demonstrated skills and preference."
+                ],
+                "reasoning": "The text directly addresses and rejects a discriminatory proposal, highlighting the importance of equality and fairness. It explicitly states that responsibility should rotate based on demonstrated skills and preference, not gender.",
+                "stored_justification": "The text directly addresses and rejects a discriminatory proposal, highlighting the importance of equality and fairness. It explicitly states that responsibility should rotate based on demonstrated skills and preference, not gender.",
+                "quote_exact_in_claimed_chunk": false
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The instructor returns a comment identifying a missing requirement or test. Annotate the revision."
+                ],
+                "reasoning": "The material promotes equality by providing feedback and encouraging revisions based on identified missing requirements or tests. There is no discriminatory content.",
+                "stored_justification": "The material promotes equality by providing feedback and encouraging revisions based on identified missing requirements or tests. There is no discriminatory content.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "b34fa1a2-4869-45e8-b78d-8cba766a320b",
+          "base_evaluation_id": "f0d61cb8-73bd-43ca-b48c-19132d908a29",
+          "adapter_validation_id": "c5b95ed4-380d-4efd-a2ae-bba94e5803d7",
+          "adapter_evaluation_id": "964b096b-626f-4ed6-a5ef-d1efe817966d"
+        },
+        {
+          "title": "GAD Study - Computer Repair Queue - 2622",
+          "prompt_hashes": [
+            {
+              "criteria": [
+                "GAD-01",
+                "GAD-02",
+                "GAD-03",
+                "GAD-04",
+                "GAD-05"
+              ],
+              "sha256": "97562cc0ac2e6829892a01ddd3dc705e3dc167939daf7a1dac98c9e72f5ba2c4"
+            }
+          ],
+          "criteria": [
+            {
+              "id": "GAD-01",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Free from Stereotypes",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result. Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, demonstrating a lack of gender stereotypes or biased portrayals. There are no instances of gendered assumptions or stereotypes.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, demonstrating a lack of gender stereotypes or biased portrayals. There are no instances of gendered assumptions or stereotypes.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result. Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, indicating a lack of gender stereotypes or biased portrayals. There are no instances of gendered assumptions or limitations.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, indicating a lack of gender stereotypes or biased portrayals. There are no instances of gendered assumptions or limitations.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-02",
+              "expected": 1,
+              "audit_note": null,
+              "title": "Equal Representation",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result."
+                ],
+                "reasoning": "The roster lists 12 male participants, and the instructions emphasize equal opportunity and rotation of roles, indicating a balanced representation of male participants. No female participants are mentioned, but the focus is on equal opportunity, not numerical representation.",
+                "stored_justification": "The roster lists 12 male participants, and the instructions emphasize equal opportunity and rotation of roles, indicating a balanced representation of male participants. No female participants are mentioned, but the focus is on equal opportunity, not numerical representation.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result."
+                ],
+                "reasoning": "The roster lists 12 male participants. There is no mention of female participants. The text emphasizes equal opportunity and rotation of roles, without any gendered assumptions. The lack of female representation is acknowledged, but the focus is on equal opportunity.",
+                "stored_justification": "The roster lists 12 male participants. There is no mention of female participants. The text emphasizes equal opportunity and rotation of roles, without any gendered assumptions. The lack of female representation is acknowledged, but the focus is on equal opportunity.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-03",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Equal Respect",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not influence eligibility for project roles, ensuring equal respect and opportunity for all participants. There are no instances of portraying one gender as less capable or deserving.",
+                "stored_justification": "The text explicitly states that gender does not influence eligibility for project roles, ensuring equal respect and opportunity for all participants. There are no instances of portraying one gender as less capable or deserving.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result. Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, indicating equal respect and opportunity for all participants. There are no instances of one gender being portrayed as less capable or deserving.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, indicating equal respect and opportunity for all participants. There are no instances of one gender being portrayed as less capable or deserving.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-04",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Reflects Experiences",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "The roster and instructions below refer to the same single team and project throughout this module. Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result."
+                ],
+                "reasoning": "The material reflects the needs and experiences of all participants equally by providing equal opportunities for all participants to contribute to the project, regardless of gender. There are no assumptions about gender-specific roles or activities.",
+                "stored_justification": "The material reflects the needs and experiences of all participants equally by providing equal opportunities for all participants to contribute to the project, regardless of gender. There are no assumptions about gender-specific roles or activities.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result. Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, indicating equal reflection of both genders' needs and experiences. There are no instances of excluding one gender's experiences or assuming gender-specific roles.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, indicating equal reflection of both genders' needs and experiences. There are no instances of excluding one gender's experiences or assuming gender-specific roles.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            },
+            {
+              "id": "GAD-05",
+              "expected": 4,
+              "audit_note": null,
+              "title": "Promotes Equality",
+              "base": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, indicating a commitment to equality and non-discrimination. There is no content promoting prejudice or inequality based on gender.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, indicating a commitment to equality and non-discrimination. There is no content promoting prejudice or inequality based on gender.",
+                "quote_exact_in_claimed_chunk": true
+              },
+              "adapter": {
+                "score": 4,
+                "status": "ok",
+                "evidence": [
+                  "Participants rotate responsibility for defining the task, producing the solution, verifying it and explaining the result. Assess the work using common requirements; gender does not determine eligibility for a project role."
+                ],
+                "reasoning": "The text explicitly states that gender does not determine eligibility for project roles, indicating no discriminatory, prejudicial, or exclusionary content related to gender. There are no instances of promoting inequality.",
+                "stored_justification": "The text explicitly states that gender does not determine eligibility for project roles, indicating no discriminatory, prejudicial, or exclusionary content related to gender. There are no instances of promoting inequality.",
+                "quote_exact_in_claimed_chunk": true
+              }
+            }
+          ],
+          "base_validation_id": "80df38d7-b69a-4117-84a3-4a7133b8aaa3",
+          "base_evaluation_id": "3639e067-58a8-4e25-bb6b-8f1e8c32ecdb",
+          "adapter_validation_id": "1b0ad56e-6d98-4854-ac2f-dd84801dcdae",
+          "adapter_evaluation_id": "8056f0d4-23e6-4331-9d6e-9dba16505d56"
         }
       ]
     }

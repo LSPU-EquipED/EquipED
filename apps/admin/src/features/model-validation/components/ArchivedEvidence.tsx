@@ -42,6 +42,14 @@ function Output({ label, value }: { label: string; value: ArchivedOutput }) {
             : (value.reasoning ?? 'Reasoning not stored.')}
         </p>
       </div>
+      {typeof value.quote_exact_in_claimed_chunk === 'boolean' ? (
+        <p className="text-xs text-text-muted">
+          Quote grounding:{' '}
+          {value.quote_exact_in_claimed_chunk
+            ? 'Exact quotation found in the cited source chunk.'
+            : 'Exact quotation not found in the cited source chunk.'}
+        </p>
+      ) : null}
       {!value.reasoning && value.stored_justification ? (
         <div>
           <h5 className="mb-2 text-xs font-semibold text-text">

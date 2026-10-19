@@ -2,7 +2,8 @@ import type { ArchivedExperiment } from '../archiveTypes';
 import { archiveMetrics } from './archiveMetrics';
 
 export function fineTunedModelLabel(label: string) {
-  return `Fine-tuned SME model ${label.split('-').at(-1) ?? label}`;
+  const agent = label.split('-')[0].toUpperCase();
+  return `Fine-tuned ${agent} model ${label.split('-').at(-1) ?? label}`;
 }
 
 export function experimentResultSummary(experiment: ArchivedExperiment) {

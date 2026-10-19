@@ -12,6 +12,7 @@ class ArchivedOutput(BaseModel):
     evidence: list[str] | None
     reasoning: str | None
     stored_justification: str | None
+    quote_exact_in_claimed_chunk: bool | None = None
 
 
 class ArchivedCriterion(BaseModel):

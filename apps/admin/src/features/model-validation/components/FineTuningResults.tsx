@@ -147,6 +147,38 @@ function Scores({ experiment }: { experiment: ArchivedExperiment }) {
   );
 }
 
+function QuotationGrounding({ experiment }: { experiment: ArchivedExperiment }) {
+  const criteria = experiment.runs.flatMap((run) => run.criteria);
+  const audited = criteria.filter(
+    (criterion) =>
+      typeof criterion.base.quote_exact_in_claimed_chunk === 'boolean' &&
+      typeof criterion.adapter.quote_exact_in_claimed_chunk === 'boolean',
+  );
+  if (!audited.length) return null;
+  const base = audited.filter((c) => c.base.quote_exact_in_claimed_chunk).length;
+  const tuned = audited.filter((c) => c.adapter.quote_exact_in_claimed_chunk).length;
+  const count = audited.length;
+  return (
+    <section aria-label="Quotation grounding results" className="border-b border-border pb-5">
+      <h4 className="text-sm font-semibold text-text">Exact quotation grounding</h4>
+      <p className="mt-2 flex items-center gap-3 text-2xl font-semibold tabular-nums text-text">
+        <span>{((base / count) * 100).toFixed(1)}%</span>
+        <ArrowRight size={18} className="text-text-muted" aria-label="to" />
+        <span>{((tuned / count) * 100).toFixed(1)}%</span>
+      </p>
+      <p className="mt-2 text-sm text-text">
+        {base}/{count} → {tuned}/{count} exact source quotations · Base →{' '}
+        {fineTunedModelLabel(experiment.adapter_label)}
+      </p>
+      <p className="mt-2 max-w-4xl text-xs leading-relaxed text-text-muted">
+        Evidence occurs verbatim in its cited source chunk. This checks quotation accuracy, not
+        whether the evidence supports the score or the reasoning is correct. Audited: {count} of{' '}
+        {criteria.length} criterion comparisons.
+      </p>
+    </section>
+  );
+}
+
 function Training({ experiment }: { experiment: ArchivedExperiment }) {
   const t = experiment.training;
   return (
@@ -194,7 +226,7 @@ function Training({ experiment }: { experiment: ArchivedExperiment }) {
         </>
       ) : (
         <p className="rounded-sm bg-surface-subtle p-4 text-sm text-text">
-          Training metrics were not captured for this fine-tuned SME model. No learning curve has been
+          Training metrics were not captured for this fine-tuned model. No learning curve has been
           reconstructed.
         </p>
       )}
@@ -246,7 +278,9 @@ function Method({
           <dl className="grid gap-2 px-3 pb-3 text-xs [overflow-wrap:anywhere]">
             <dt className="font-semibold">Base validation</dt>
             <dd>{run.base_validation_id}</dd>
-            <dt className="font-semibold">Fine-tuned SME model validation</dt>
+            <dt className="font-semibold">
+              {fineTunedModelLabel(experiment.adapter_label)} validation
+            </dt>
             <dd>{run.adapter_validation_id}</dd>
             {run.prompt_hashes.map((hash) => (
               <div key={hash.sha256}>
@@ -278,7 +312,7 @@ export function FineTuningResults() {
         <div>
           <h2 className="text-xl font-semibold text-text">Fine-Tuning Results</h2>
           <p className="mt-1 text-sm text-text-muted">
-            Recorded comparisons of Base and fine-tuned SME models.
+            Recorded comparisons of Base and fine-tuned SME and GAD models.
           </p>
         </div>
         <span className="rounded-sm border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted">
@@ -329,7 +363,8 @@ export function FineTuningResults() {
             </Button>
           </div>
           <p className="text-xs text-text-muted">
-            SME · {experiment.scope} · {experiment.runs.length} comparisons
+            {experiment.adapter_label.split('-')[0].toUpperCase()} · {experiment.scope} ·{' '}
+            {experiment.runs.length} comparisons
             {experiment.pair_count == null
               ? ''
               : ` · ${experiment.pair_count} exported training pairs`}
@@ -374,7 +409,10 @@ export function FineTuningResults() {
             </div>
             <div className="p-4 sm:p-5">
               {section === 'Scores' ? (
-                <Scores experiment={experiment} />
+                <div className="space-y-5">
+                  <QuotationGrounding experiment={experiment} />
+                  <Scores experiment={experiment} />
+                </div>
               ) : section === 'Evidence & reasoning' ? (
                 <ArchivedEvidence key={experiment.id} experiment={experiment} />
               ) : section === 'Training' ? (
