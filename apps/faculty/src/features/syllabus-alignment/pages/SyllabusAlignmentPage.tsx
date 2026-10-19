@@ -15,7 +15,7 @@ import {
   cn,
   type DropdownOption,
 } from "@equiped/ui";
-import syllabusIllustration from "../../../assets/illustrations/alignment/syllabus-check.svg";
+import syllabusIllustration from "../../../assets/illustrations/syllabus-check.svg";
 import { SyllabusModuleRow } from "../components/SyllabusModuleRow";
 import { useSyllabusAlignmentList } from "../hooks/useSyllabusAlignmentList";
 import type { StatusFilter } from "../utils/syllabusFiltering";

@@ -7,9 +7,9 @@ Shared EquipED logos, the LSPU emblem, and Public Sans fonts remain in
 
 ## Shared runtime assets
 
-- `illustrations/alignment/syllabus-check.svg`: used by the dashboard alignment
+- `illustrations/syllabus-check.svg`: used by the dashboard alignment
   shortcut and the Syllabus check page.
-- `illustrations/alignment/curriculum-check.svg`: used by the dashboard alignment
+- `illustrations/curriculum-check.svg`: used by the dashboard alignment
   shortcut and Curriculum check controls.
 - `textures/paper-grain.svg`: reusable 48px surface texture, currently used by the
   dashboard stylesheet.

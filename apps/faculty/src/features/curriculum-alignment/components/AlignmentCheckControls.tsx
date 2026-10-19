@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Button, Dropdown, type DropdownOption } from "@equiped/ui";
 import type { ClientDocument } from "@equiped/types";
-import curriculumIllustration from "../../../assets/illustrations/alignment/curriculum-check.svg";
+import curriculumIllustration from "../../../assets/illustrations/curriculum-check.svg";
 
 interface AlignmentCheckControlsProps {
   documentId: string;

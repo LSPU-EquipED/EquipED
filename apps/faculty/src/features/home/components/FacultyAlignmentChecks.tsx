@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "@phosphor-icons/react";
-import syllabusArtwork from "../../../assets/illustrations/alignment/syllabus-check.svg";
-import curriculumArtwork from "../../../assets/illustrations/alignment/curriculum-check.svg";
+import syllabusArtwork from "../../../assets/illustrations/syllabus-check.svg";
+import curriculumArtwork from "../../../assets/illustrations/curriculum-check.svg";
 
 export function FacultyAlignmentChecks() {
   return (
