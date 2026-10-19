@@ -57,6 +57,78 @@ def _make_criterion(
     )
 
 
+def test_absence_survives_sme_execution_and_saved_result_validation() -> None:
+    from server.modules.synthesis.result_integrity import build_persistable_agent_result
+
+    evaluation_id = uuid.uuid4()
+    criterion = _make_criterion(
+        "OP-05",
+        "Enhancement Activities",
+        LlmRubricGuidanceConfig(guidance="Judge enhancement activities."),
+    )
+    form = FormDefinition(
+        rubric_set_id=uuid.uuid4(),
+        agent_id="sme",
+        adapter_key="sme",
+        adapter_version=1,
+        version_number=1,
+        name="Absence Form",
+        domains=(
+            DomainDefinition(
+                rubric_domain_id=uuid.uuid4(),
+                code="OP",
+                title="Organization & Presentation",
+                display_order=0,
+                criteria=(criterion,),
+            ),
+        ),
+    )
+    snapshot = _make_snapshot(evaluation_id, form)
+    measurement = {
+        "criterion_id": "OP-05",
+        "criterion_title": "Enhancement Activities",
+        "score": 1,
+        "finding": "absent",
+        "evidence": None,
+        "reasoning": "The supplied text contains no enhancement task.",
+    }
+    client = EnvelopeFakeClient(
+        [
+            json.dumps(
+                {
+                    "summary": "No enhancement task found.",
+                    "criterion_measurements": [measurement],
+                }
+            )
+        ]
+    )
+    result = SME(llm_client=client).run(
+        evaluation_id=evaluation_id,
+        document_id=uuid.uuid4(),
+        form_snapshot=snapshot,
+        chunk_infos=[{"text": "PHP variables store values."}],
+        canonical_source_text="PHP variables store values.",
+    )
+
+    assert result.success is True
+    assert client.call_count == 1
+    assert result.metadata["envelope_status"] == {"envelope_0": "ok"}
+    assert result.generations[0].response_json["criterion_measurements"] == [
+        measurement
+    ]
+    saved = build_persistable_agent_result(result, snapshot)
+    assert saved.subtotal == 1.0
+    assert saved.criterion_scores[0].evidence_json is None
+    assert saved.criterion_scores[0].chunk_ids_raw == ()
+    assert saved.criterion_scores[0].justification == (
+        "Not found in the supplied source text. "
+        "The supplied text contains no enhancement task."
+    )
+    assert json.loads(saved.group_responses_json)["envelope_0"][
+        "criterion_measurements"
+    ] == [measurement]
+
+
 def _full_rev1_form() -> FormDefinition:
     d1_criteria = (
         _make_criterion(

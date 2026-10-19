@@ -108,6 +108,7 @@ Other academic departments and campuses within LSPU SCC are explicitly designate
 - **Evaluation Modes:** Faculty submits one specialist evaluation at a time (SME, Coordinator, GAD, or ITSO). Coordinator requires a ready authoritative curriculum; the syllabus is optional for specialist submissions. A successful job completes its selected domain, while the document-level monitoring matrix remains in progress until all four domains complete. Intentional partial-without-curriculum bundles remain available to Admin model-validation benchmarks and historical jobs, not new faculty submissions.
 - **Outputs & Management:** Generation of rubric-based scores, contextual document highlights, consolidated evaluation reports (D-03), web dashboard (D-05), and an Instructional Materials Monitoring Matrix (D-04).
 - **Feedback & Optimization:** Admin-only preference logging mechanism (D-06) capturing Accept / Reject / Edit feedback on agent outputs to support iterative prompt updates.
+- **Reviewed DPO Packages:** An active approved administrator may select a reviewed frozen package per agent using the local import script. Existing Admin training readiness and notebook jobs copy that package without mixing later feedback. Restoring feedback export preserves historical packages and corrections. Synthetic reference labels remain distinct from independent faculty judgments.
 
 ### 4.3 Reference Authority & Calibration Policy
 

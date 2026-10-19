@@ -12,6 +12,7 @@ from equiped_harness.contracts import (
     RatioBandConfig,
 )
 from equiped_harness.runtime.prompts import AgentPrompt, PromptEnvelopeBuilder
+from equiped_harness.sme.source_selection import select_source_text
 
 
 def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
@@ -33,7 +34,8 @@ def _criterion_prompt_block(criterion: CriterionDefinition) -> str:
                 lines.append(f"  - Score {desc.score}: {desc.descriptor}")
         lines.append(
             "Instructions: Assign an integer score from 1 to 4 and provide an "
-            "exact, verbatim evidence quote substring from the source text."
+            "exact, verbatim evidence quote substring from the source text with "
+            "finding='present', or follow the absence contract above."
         )
     elif isinstance(config, CountBandConfig):
         lines.append("Strategy: Grounded Count")
@@ -67,6 +69,7 @@ def _example_measurement(criterion: CriterionDefinition) -> dict[str, Any]:
             "criterion_id": criterion.criterion_code,
             "criterion_title": criterion.title,
             "score": 3,
+            "finding": "present",
             "evidence": (
                 "Exact verbatim quote from the source text supporting the score."
             ),
@@ -115,6 +118,11 @@ _SME_PREAMBLE_BASE = (
     "provided UNTRUSTED source text.\n"
     "- Ground all extractions: every evidence and excerpt MUST be an exact, "
     "verbatim substring of the source text.\n"
+    "- For rubric-guidance criteria, if required content is not found in the "
+    "supplied passages, use finding='absent', evidence=null and nonblank reasoning "
+    "explaining what is missing. Score using the rubric descriptors; never "
+    "invent a quote or change the score just to supply evidence. Absence applies "
+    "only to the supplied text, not omitted portions of the document.\n"
     "- Return a single JSON object with 'summary' and "
     "'criterion_measurements'.\n"
     "- 'criterion_measurements' must contain exactly one object per "
@@ -144,7 +152,10 @@ def _build_sme_preamble(criteria: tuple[CriterionDefinition, ...]) -> str:
 _GAP_MARKER_WARNING = (
     "The source text may contain '[...]' markers where document sections were "
     "omitted to fit the budget; do NOT quote across a '[...]' marker and do NOT "
-    "fabricate text to fill omitted sections."
+    "fabricate text to fill omitted sections. Passages are selected using section "
+    "and rubric-vocabulary hints; selection is not a complete-document review. "
+    "Do not infer whole-document absence, counts, ratios, or topic continuity "
+    "from incomplete coverage. Unrecognized headings do not prove absence."
 )
 
 
@@ -158,7 +169,8 @@ def build_envelope_prompt_and_source(
 
     The system instruction carries the SME preamble, criterion blocks, JSON
     schema example, and gap-marker warning. The user context carries the
-    downsampled untrusted source text.
+    rubric-selected untrusted source passages. Selection runs in memory and
+    adds no inference requests or persistent document state.
     """
     criteria_blocks = "\n\n".join(_criterion_prompt_block(c) for c in criteria)
     example = {
@@ -178,6 +190,20 @@ def build_envelope_prompt_and_source(
         canonical_source_text,
         managed_prompt=prompt_preamble,
     )
+    # Reuse the builder's exact source allowance, including fixed instructions
+    # and its repair reservation. Only SME replaces the uniform sample.
+    selected_source = select_source_text(
+        canonical_source_text, criteria, budget=len(source_packet)
+    )
+    if selected_source != source_packet:
+        prompt = AgentPrompt(
+            system_instruction=prompt.system_instruction,
+            user_context=(
+                f"=== UNTRUSTED SOURCE TEXT ===\n{selected_source}\n"
+                "=== END UNTRUSTED SOURCE TEXT ==="
+            ),
+        )
+        source_packet = selected_source
     return prompt, source_packet
 
 

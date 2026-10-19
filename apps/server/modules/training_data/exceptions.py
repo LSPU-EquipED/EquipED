@@ -21,6 +21,10 @@ class EmptyTrainingDatasetError(TrainingDataError):
     """Raised when no eligible preference pairs exist for a training job."""
 
 
+class InvalidTrainingSourceError(TrainingDataError, ValueError):
+    """An active or imported training package failed integrity validation."""
+
+
 class AdapterUploadError(TrainingDataError):
     """Raised when an uploaded adapter file fails size or extension checks."""
 
@@ -74,6 +78,7 @@ __all__ = [
     "InvalidAgentIdError",
     "TrainingJobNotFoundError",
     "EmptyTrainingDatasetError",
+    "InvalidTrainingSourceError",
     "AdapterUploadError",
     "HostKeyInvalidError",
 ]

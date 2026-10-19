@@ -7,26 +7,21 @@ import json
 import shutil
 import tempfile
 import zipfile
-from dataclasses import dataclass
 from pathlib import Path
 
 from server.modules.training_data.agents import validate_agent_id
-from server.modules.training_data.contracts import DpoPackageManifest
+from server.modules.training_data.contracts import DpoPackageManifest, FrozenJobPackage
 from server.modules.training_data.exporter import export_dpo_package
+from server.modules.training_data.sources import get_active_training_package
 from sqlalchemy.orm import Session
 
 
-@dataclass(frozen=True, slots=True)
-class FrozenJobPackage:
-    pairs_content: str
-    provenance_content: str
-    manifest_json: dict
-
-
 def freeze_job_dataset(session: Session, agent_id: str) -> FrozenJobPackage:
-    """Run export_dpo_package() to a scratch dir, read its output back as
-    content, then delete the scratch dir. export_dpo_package() itself is
-    not modified -- this only reads what it already writes."""
+    """Copy the active source, or freeze a fresh export of eligible feedback."""
+    validate_agent_id(agent_id)
+    active = get_active_training_package(session, agent_id)
+    if active is not None:
+        return active
     scratch_root = tempfile.mkdtemp(prefix=".dpo_job_freeze_")
     scratch_dir = Path(scratch_root) / "package"
     try:
@@ -49,6 +44,9 @@ def preview_dataset_manifest(session: Session, agent_id: str) -> DpoPackageManif
     """Dry-run the exporter: same manifest a job would freeze, nothing written."""
     validate_agent_id(agent_id)
     # output_dir is never touched when dry_run is True.
+    active = get_active_training_package(session, agent_id)
+    if active is not None:
+        return DpoPackageManifest.model_validate(active.manifest_json)
     return export_dpo_package(session, agent_id, Path("."), dry_run=True)
 
 

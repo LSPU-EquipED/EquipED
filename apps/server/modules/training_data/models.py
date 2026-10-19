@@ -35,6 +35,13 @@ class DpoTrainingJob(Base):
         ),
         Index("idx_dpo_training_jobs_agent_id", "agent_id"),
         Index("idx_dpo_training_jobs_created_at", sa.text("created_at DESC")),
+        Index(
+            "uq_dpo_training_jobs_active_source",
+            "agent_id",
+            unique=True,
+            postgresql_where=sa.column("is_active_training_source").is_(True),
+            sqlite_where=sa.column("is_active_training_source").is_(True),
+        ),
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
@@ -42,6 +49,9 @@ class DpoTrainingJob(Base):
     )
     agent_id: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    is_active_training_source: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     created_by: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.user_id", ondelete="RESTRICT"),

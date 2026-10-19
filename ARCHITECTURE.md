@@ -30,6 +30,8 @@ EquipED evaluates Self-Paced Learning Materials (SLMs) from Laguna State Polytec
 
 ## 2. Current Architecture (Implemented Monorepo)
 
+Reviewed DPO sources reuse `dpo_training_jobs`: a partial unique index permits one active source per agent. The training-data module validates imported package bytes, hashes and provenance, and copies the active package into each new job; without an active source it uses the existing feedback exporter. Administrative imports and source changes are transactional and retain earlier jobs and feedback. This adds no evaluation layer, external service or queue. The existing Admin training and notebook interfaces remain the execution path.
+
 The system operates as a unified **pnpm + uv monorepo** consisting of a single-process FastAPI modular monolith (`apps/server`), two feature-driven React Vite applications (`apps/faculty` and `apps/admin`), extracted shared workspace libraries (`libs/*`), and a reverse-proxy ingress (`infra/caddy/Caddyfile.dev`).
 
 ```mermaid

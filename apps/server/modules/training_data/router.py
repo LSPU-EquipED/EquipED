@@ -39,6 +39,7 @@ from server.modules.training_data.exceptions import (
     GgufUploadError,
     HostKeyInvalidError,
     InvalidAgentIdError,
+    InvalidTrainingSourceError,
     TrainingJobNotFoundError,
 )
 from server.modules.training_data.gguf_files import (
@@ -280,6 +281,11 @@ def start_training_job(
     except EmptyTrainingDatasetError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    except InvalidTrainingSourceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid training source; restore or import a valid package.",
         ) from exc
 
     download_path = (
@@ -577,6 +583,11 @@ def get_dataset_readiness(
     except InvalidAgentIdError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except InvalidTrainingSourceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid training source; restore or import a valid package.",
         ) from exc
     return TrainingDatasetReadinessResponse(
         agent_id=agent_id,

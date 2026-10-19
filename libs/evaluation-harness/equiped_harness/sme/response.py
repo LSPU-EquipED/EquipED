@@ -60,13 +60,31 @@ def _criterion_schema(criterion: CriterionDefinition) -> dict[str, Any]:
                 "criterion_id": {"const": criterion.criterion_code},
                 "criterion_title": {"const": criterion.title},
                 "score": {"type": "integer", "minimum": 1, "maximum": 4},
-                "evidence": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": SME_TEXT_MAX,
-                },
+                "finding": {"enum": ["present", "absent"]},
+                "evidence": _optional_string_schema(SME_TEXT_MAX),
                 "reasoning": _optional_string_schema(SME_TEXT_MAX),
             },
+            "anyOf": [
+                {
+                    "properties": {
+                        "finding": {"const": "present"},
+                        "evidence": {"type": "string"},
+                    },
+                },
+                {
+                    "required": ["finding", "reasoning"],
+                    "properties": {
+                        "finding": {"const": "absent"},
+                        "evidence": {"type": "null"},
+                        "reasoning": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": SME_TEXT_MAX,
+                            "pattern": r"^\S(?:[\s\S]*\S)?(?![\s\S])",
+                        },
+                    },
+                },
+            ],
         }
     elif isinstance(config, CountBandConfig):
         return {
@@ -288,6 +306,7 @@ def parse_and_validate_envelope_response(
                 "score",
                 "evidence",
                 "reasoning",
+                "finding",
             }
             extra = set(m) - allowed_keys
             if extra:
@@ -305,6 +324,23 @@ def parse_and_validate_envelope_response(
                     f"got {score!r}"
                 )
             evidence = m.get("evidence")
+            finding = m.get("finding", "present")
+            if finding not in ("present", "absent"):
+                raise AgentExecutionError(
+                    f"Measurement '{cid}' finding must be present or absent"
+                )
+            if finding == "absent":
+                if "evidence" not in m or evidence is not None:
+                    raise AgentExecutionError(
+                        f"Measurement '{cid}' absent finding requires null evidence"
+                    )
+                if not _is_strict_optional_text(m.get("reasoning"), SME_TEXT_MAX):
+                    raise AgentExecutionError(
+                        f"Measurement '{cid}' absent finding requires nonblank, "
+                        f"trimmed reasoning (max {SME_TEXT_MAX} chars)"
+                    )
+                validated_measurements.append(dict(m))
+                continue
             if (
                 not isinstance(evidence, str)
                 or not evidence.strip()

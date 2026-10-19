@@ -61,6 +61,19 @@ def build_authenticated_user(user: User) -> AuthenticatedUser:
     )
 
 
+def require_approved_admin(db: Session, user_id: UUID) -> AuthenticatedUser:
+    """Resolve an active approved administrator for local administrative work."""
+    user = db.get(User, user_id)
+    if (
+        user is None
+        or user.role != UserRole.ADMIN
+        or user.account_status != AccountStatus.APPROVED
+        or not user.is_active
+    ):
+        raise PermissionError("An active approved administrator is required")
+    return build_authenticated_user(user)
+
+
 def create_user(
     db: Session,
     *,
@@ -225,6 +238,7 @@ __all__ = [
     "hash_session_token",
     "logout_session",
     "resend_registration_otp",
+    "require_approved_admin",
     "revoke_active_sessions",
     "start_registration",
     "verify_password",
