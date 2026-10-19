@@ -433,18 +433,14 @@ describe("SpecialistScoreboardPage", () => {
 
     expect(screen.getAllByText("3.80 / 4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Very Satisfactory").length).toBeGreaterThan(0);
-    expect(screen.getByText(/95% of maximum score/i)).toBeDefined();
-    const summaryDetails = screen
-      .getByText("Specialist summary")
-      .closest("details")!;
-    expect(summaryDetails.open).toBe(false);
-    fireEvent.click(summaryDetails.querySelector("summary")!);
+    expect(screen.getByText("3.80")).toBeDefined();
+    expect(screen.queryByText(/% of maximum score/i)).toBeNull();
+    expect(screen.getByText("Specialist summary").closest("details")).toBeNull();
     expect(
       screen.getByText(
         /Strong discipline alignment and rigor across all data structure concepts\./i,
       ),
     ).toBeDefined();
-    fireEvent.click(summaryDetails.querySelector("summary")!);
 
     // Action Toolbar buttons
     expect(

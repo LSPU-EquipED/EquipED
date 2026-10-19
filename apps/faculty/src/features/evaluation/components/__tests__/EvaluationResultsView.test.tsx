@@ -47,7 +47,7 @@ describe('Coordinator result separation', () => {
   it('shows C-01 separately while passing only the ten official criteria to PDF export', () => {
     renderScoreboard(domain);
     expect(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).toBeTruthy();
-    expect(screen.getByText('1 / 4')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).getByText('1 / 4')).toBeTruthy();
     const exported = exportSpy.mock.calls[0][0] as ExportDomainData;
     expect(exported.criteria).toHaveLength(10);
     expect(exported.criteria.some((row) => row.criterion_id === 'C-01')).toBe(false);
@@ -62,7 +62,7 @@ describe('Coordinator result separation', () => {
       activeItem={null} activeDocument={null} onOpenReviewModal={vi.fn()} onOpenReevaluateModal={vi.fn()}
     />);
     expect(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).toBeTruthy();
-    expect(screen.getByText('1 / 4')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).getByText('1 / 4')).toBeTruthy();
   });
 
   it('does not invent a curriculum supplement for historical results', () => {
@@ -86,17 +86,25 @@ describe('Coordinator result separation', () => {
     expect(screen.getByText('Criterion 1')).toBeDefined();
   });
 
-  it('keeps context out of the metadata rail and leaves criterion counts in the filters', () => {
+  it('shows module context inline and moves record identifiers after the criteria', () => {
     renderScoreboard({ ...domain, version: 3 });
     expect(screen.queryByText('SLM Module')).toBeNull();
     expect(screen.queryByText('Rubric version')).toBeNull();
-    const metadata = within(screen.getByRole('complementary', { name: 'Evaluation metadata' }));
+    const metadata = within(screen.getByRole('region', { name: 'Evaluation metadata' }));
+    expect(screen.queryByText('Module details')).toBeNull();
+    expect(screen.queryByText('Record details')).toBeNull();
+    expect(screen.getAllByRole('link', { name: 'Module Library' })).toHaveLength(1);
+    const record = screen.getByRole('contentinfo', { name: 'Evaluation record' });
+    expect(within(record).getByText('evaluation')).toBeDefined();
+    expect(record.compareDocumentPosition(screen.getByText('Criterion 1')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(document.querySelector('details details')).toBeNull();
     for (const label of ['Course', 'Program', 'Evaluated', 'Desk']) expect(metadata.queryByText(label)).toBeNull();
     expect(metadata.getByText('Revision 3')).toBeDefined();
     const summary = within(screen.getByRole('region', { name: 'Program Coordinator performance score' }));
-    expect(summary.queryByText(/criteria|strong|need attention/i)).toBeNull();
+    expect(summary.queryByRole('button', { name: 'All (10)' })).toBeNull();
     expect(screen.getByRole('button', { name: 'All (10)' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Strong (10)' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'All (10)' }).getAttribute('aria-pressed')).toBe('true');
   });
 
   it('retains evidence warnings and source pages without repeating library links on each row', () => {
@@ -110,6 +118,84 @@ describe('Coordinator result separation', () => {
     expect(within(criterion).getByText('Page 2')).toBeDefined();
     expect(within(criterion).queryByRole('link')).toBeNull();
     expect(screen.queryByText('SLM Document')).toBeNull();
+  });
+
+  it('places the finding before complete, keyboard-accessible evidence and preserves corrections', () => {
+    const evidence = 'A long source passage. '.repeat(300) + 'Final source sentence.';
+    renderScoreboard({ ...domain, criteria: [{ ...domain.criteria[0], evidence,
+      reviewer_correction: { action: 'EDIT', score: 2, justification: 'Human reviewer rationale.' },
+    }] });
+    const criterion = screen.getByText('Criterion 1').closest('details')!;
+    fireEvent.click(criterion.querySelector('summary')!);
+    const source = within(criterion).getByRole('region', { name: 'OP-01 SLM evidence' });
+    expect(source.tabIndex).toBe(0);
+    expect(source.textContent).toContain(evidence);
+    const finding = within(criterion).getByText('Grounded evaluation.');
+    expect(finding.compareDocumentPosition(source) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(criterion).getByText('Human reviewer rationale.')).toBeDefined();
+    expect(within(criterion).getByText(/Override score: 2 \/ 4/)).toBeDefined();
+    expect(exportSpy.mock.calls[0][0].subtotal).toBe(3.9);
+  });
+
+  it('announces selected category and score filters and keeps empty score buckets disabled', () => {
+    renderScoreboard(domain);
+    const strong = screen.getByRole('button', { name: 'Strong (10)' });
+    fireEvent.click(strong);
+    expect(strong.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'All (10)' }).getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(strong);
+    expect(strong.getAttribute('aria-pressed')).toBe('false');
+    const score = screen.getByRole('button', { name: 'Score 3: 1 criteria' });
+    fireEvent.click(score);
+    expect(score.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByText('Criterion 1')).toBeNull();
+    fireEvent.click(score);
+    expect(score.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByText('Criterion 1')).toBeDefined();
+    expect((screen.getByRole('button', { name: 'Score 2: 0 criteria' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps the overview readable without opening disclosures', () => {
+    renderScoreboard({ ...domain, summary: 'Review the activities for stronger learner engagement.' });
+    const summary = screen.getByText('Review the activities for stronger learner engagement.');
+    expect(summary.closest('details')).toBeNull();
+    const advisory = screen.getByRole('region', { name: 'Advisory curriculum alignment' });
+    expect(advisory.closest('details')).toBeNull();
+    expect(advisory.compareDocumentPosition(screen.getByText('Objective Gauging')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    const objectiveDetails = within(advisory).getByText('Objective evidence (1)').closest('details')!;
+    fireEvent.click(objectiveDetails.querySelector('summary')!);
+    expect(within(objectiveDetails).getByText('An objective.')).toBeDefined();
+    expect(document.querySelector('details details')).toBeNull();
+  });
+
+  it('preserves an expanded criterion when a filter keeps the same row mounted', () => {
+    renderScoreboard(domain);
+    const criterion = screen.getByText('Criterion 1').closest('details')!;
+    fireEvent.click(criterion.querySelector('summary')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Strong (10)' }));
+    expect(screen.getByText('Criterion 1').closest('details')).toBe(criterion);
+    expect(criterion.open).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'All (10)' }));
+    expect(criterion.open).toBe(true);
+  });
+
+  it('retains historical criterion aliases, source pages, and missing finding fallbacks', () => {
+    const historical = { ...domain, criteria: [{ ...domain.criteria[0],
+      code: 'LEGACY-1', criterion_text: '', criterion: 'Historical criterion',
+      page_number: '7', justification: '', evidence: null,
+      reviewer_correction: { action: 'REJECT' as const, score: null, justification: null },
+    }] };
+    renderScoreboard(historical);
+    const criterion = screen.getByText('Historical criterion').closest('details')!;
+    fireEvent.click(criterion.querySelector('summary')!);
+    const row = within(criterion);
+    expect(row.getByText('LEGACY-1')).toBeDefined();
+    expect(row.getByText('Page 7')).toBeDefined();
+    expect(row.getByText('No specialist finding was returned.')).toBeDefined();
+    expect(row.getByText('No quoted evidence was returned.')).toBeDefined();
+    expect(row.getByText('Finding rejected by reviewer')).toBeDefined();
+    expect(row.queryByText(/Override score/)).toBeNull();
+    expect(row.queryByRole('region', { name: 'LEGACY-1 SLM evidence' })).toBeNull();
   });
 
 });

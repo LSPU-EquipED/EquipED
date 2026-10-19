@@ -8,12 +8,12 @@ import {
 export function EvaluationResultsLoading() {
   return (
     <section
-      className="min-w-0"
+      className="er-results"
       role="status"
       aria-label="Loading specialist results"
       aria-busy="true"
     >
-      {/* Header Skeleton matching EvaluationResultsView */}
+      {/* Match the full-width result layout while the saved run loads. */}
       <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border pb-3">
         <div className="min-w-0 flex-1 basis-72 space-y-2">
           <Skeleton className="h-3 w-28" />
@@ -27,115 +27,63 @@ export function EvaluationResultsLoading() {
         </div>
       </header>
 
-      {/* Two-column layout matching EvaluationResultsView */}
-      <div className="grid min-w-0 gap-4 pt-4 xl:grid-cols-[14rem_minmax(0,1fr)] xl:gap-6">
-        {/* Left Column: Module Details Dossier */}
-        <aside
-          className="hidden min-w-0 border-r border-border pr-5 xl:block space-y-4"
-          aria-label="Evaluation metadata loading"
-        >
-          <Skeleton className="h-3.5 w-24" />
-          <div className="space-y-4 py-3">
-            <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
-              <Skeleton className="h-5 w-20 rounded-xs" />
-              <Skeleton className="h-3.5 w-24" />
+      <div className="er-metadata">
+        <Skeleton className="h-4 w-28" />
+      </div>
+      <div className="er-score-summary">
+        <div className="er-score-layout er-score-layout-with-summary">
+          <div className="er-score-main space-y-3">
+            <Skeleton className="h-3 w-24" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-6 w-28" />
             </div>
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
+            <Skeleton className="h-3 w-48 max-w-full" />
+          </div>
+          <div className="er-summary-copy space-y-2">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-3/4" />
+          </div>
+          <div className="er-score-profile space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <div className="flex h-16 items-end gap-2">
+              {[70, 95, 45, 25].map((height, index) => (
+                <Skeleton
                   key={index}
-                  className="grid grid-cols-[5.25rem_minmax(0,1fr)] gap-2"
-                >
-                  <Skeleton className="h-3 w-14" />
-                  <Skeleton className="h-3 w-28" />
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 border-t border-border pt-3">
-              <Skeleton className="h-3.5 w-24" />
-            </div>
-          </div>
-        </aside>
-
-        {/* Right Column: Scorecard & Criteria Ledger */}
-        <section
-          className="min-w-0 space-y-4"
-          aria-label="Specialist scorecard loading"
-        >
-          {/* Score Summary Banner */}
-          <div className="border-b border-border pb-3">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_13rem] md:items-center">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-6 w-28 rounded-xs" />
-                <Skeleton className="h-3.5 w-28" />
-                <Skeleton className="h-3.5 w-36" />
-              </div>
-              <div className="border-t border-border pt-3 md:border-l md:border-t-0 md:pl-4 md:pt-0">
-                <Skeleton className="h-3.5 w-20 mb-2" />
-                <div className="flex h-12 items-end gap-2">
-                  {[70, 95, 45, 25].map((h, i) => (
-                    <div
-                      key={i}
-                      className="flex min-w-0 flex-1 flex-col items-center gap-1"
-                    >
-                      <div className="flex h-9 w-full items-end rounded-xs bg-surface-subtle px-1">
-                        <Skeleton
-                          className="w-full rounded-xs"
-                          style={{ height: `${h}%` }}
-                        />
-                      </div>
-                      <Skeleton className="h-2 w-2" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Specialist Summary Accordion Skeleton */}
-          <div className="border-b border-border py-2 flex items-center gap-2">
-            <Skeleton className="size-3.5 rounded-xs" />
-            <Skeleton className="h-3.5 w-32" />
-          </div>
-
-          {/* Criteria Breakdown Header & Triage Filter Tabs */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 py-1">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-56" />
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 pb-2">
-              <Skeleton className="h-6 w-16 rounded-xs" />
-              <Skeleton className="h-6 w-28 rounded-xs" />
-              <Skeleton className="h-6 w-20 rounded-xs" />
-            </div>
-
-            {/* Criteria Rows */}
-            <div className="divide-y divide-border border-y border-border">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 sm:px-4"
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <Skeleton className="size-3.5 shrink-0 rounded-xs" />
-                    <Skeleton className="h-3 w-12 shrink-0 font-mono" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <Skeleton
-                        className={cn(
-                          "h-4",
-                          index % 2 === 0 ? "w-3/4" : "w-1/2",
-                        )}
-                      />
-                    </div>
-                  </div>
-                  <Skeleton className="h-6 w-16 shrink-0 rounded-xs" />
-                </div>
+                  className="flex-1"
+                  style={{ height: `${height}%` }}
+                />
               ))}
             </div>
           </div>
-        </section>
+        </div>
+      </div>
+      <div className="er-criteria-toolbar">
+        <Skeleton className="h-4 w-36" />
+        <div className="flex flex-wrap gap-2">
+          {[16, 28, 20].map((width) => (
+            <Skeleton
+              key={width}
+              className="h-8"
+              style={{ width: `${width / 4}rem` }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="er-criteria-list divide-y divide-border">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="flex items-center gap-3 px-4 py-4">
+            <Skeleton className="h-3 w-12 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton
+                className={cn("h-4", index % 2 === 0 ? "w-3/4" : "w-1/2")}
+              />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+            <Skeleton className="h-7 w-16 shrink-0" />
+          </div>
+        ))}
       </div>
       <span className="sr-only">Loading the specialist results.</span>
     </section>

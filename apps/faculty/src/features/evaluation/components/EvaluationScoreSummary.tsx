@@ -1,12 +1,7 @@
-import { ChartBar } from "@phosphor-icons/react";
 import { cn } from "@equiped/ui";
 import type { TargetAgentMeta } from "@equiped/types";
 import type { DomainScoreBlock } from "../types";
-import {
-  formatScore,
-  monitoringPercentage,
-  getAdjectivalRatingClasses,
-} from "../utils/scoreHelpers";
+import { formatScore, getAdjectivalRatingClasses } from "../utils/scoreHelpers";
 import type {
   ScoreboardMetrics,
   CriterionFilterType,
@@ -30,58 +25,56 @@ export function EvaluationScoreSummary({
 }: EvaluationScoreSummaryProps) {
   const score = domainScore.subtotal;
   const maxScore = domainScore.max_score || 4;
-  const compliance = monitoringPercentage(score, maxScore);
   return (
     <section
       aria-labelledby="specialist-score-summary"
-      className="border-b border-border pb-4"
+      className="er-score-summary"
     >
       <h3 id="specialist-score-summary" className="sr-only">
         {meta.fullName} performance score
       </h3>
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem] md:items-center">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-text-muted">Generated score</p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div
+        className={cn(
+          "er-score-layout",
+          domainScore.summary && "er-score-layout-with-summary",
+        )}
+      >
+        <div className="er-score-main">
+          <p className="er-label">Generated score</p>
+          <div className="er-score-line">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-semibold tabular-nums text-text">
-                {formatScore(score)}
-              </span>
-              <span className="text-sm tabular-nums text-text-muted">
-                / {formatScore(maxScore)}
-              </span>
+              <span className="er-score-value">{formatScore(score)}</span>
+              <span className="er-score-scale">/ {formatScore(maxScore)}</span>
             </div>
             {domainScore.adjectival_rating && (
               <span
                 className={cn(
-                  "rounded-xs border px-2 py-1 text-xs font-medium",
+                  "er-rating",
                   getAdjectivalRatingClasses(domainScore.adjectival_rating),
                 )}
               >
                 {domainScore.adjectival_rating}
               </span>
             )}
-            <span className="text-xs tabular-nums text-text-muted">
-              {compliance}% of maximum score
-            </span>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-text-muted">
+          <p className="er-score-note">
             Automated assessment · Advisory
             {hasCorrections ? " · Corrections shown per criterion" : ""}
           </p>
         </div>
-        <div
-          className="border-t border-border pt-3 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0"
-          aria-label="Score profile"
-        >
-          <div className="flex items-center justify-between gap-1.5 text-xs font-medium text-text-muted">
-            <div className="flex items-center gap-1.5">
-              <ChartBar className="size-3.5 text-primary" aria-hidden="true" />
-              Score profile
-            </div>
+        {domainScore.summary && (
+          <div className="er-summary-copy">
+            <p className="er-label">Specialist summary</p>
+            <p>{domainScore.summary}</p>
+          </div>
+        )}
+        <div className="er-score-profile" aria-label="Score profile">
+          <div className="er-profile-heading">
+            <span>Score profile</span>
+            <span>Filter by score</span>
           </div>
           <div
-            className="mt-2 flex h-12 items-end gap-2"
+            className="er-score-buckets"
             role="region"
             aria-label="Criteria score distribution from 4 to 1"
           >
@@ -112,23 +105,21 @@ export function EvaluationScoreSummary({
                   aria-pressed={isSelected}
                   title={`Filter score ${bucket} (${count} criteria)`}
                   aria-label={`Score ${bucket}: ${count} criteria`}
-                  className={cn(
-                    "group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40",
-                    isSelected && "ring-2 ring-primary ring-offset-1",
-                  )}
+                  className={cn("er-score-bucket", isSelected && "is-selected")}
                 >
+                  <span className="er-bucket-count" aria-hidden="true">
+                    {count}
+                  </span>
                   <div
                     className={cn(
-                      "flex h-9 w-full items-end rounded-xs px-1 transition-colors",
-                      isSelected
-                        ? "bg-primary-soft"
-                        : "bg-surface-subtle group-hover:bg-surface-subtle/80",
+                      "er-bucket-track",
+                      isSelected ? "bg-primary-soft" : "bg-surface-subtle",
                     )}
                     aria-hidden="true"
                   >
                     <span
                       className={cn(
-                        "block w-full rounded-xs transition-all",
+                        "er-bucket-bar",
                         barColor,
                         isSelected && "brightness-110",
                       )}
@@ -137,10 +128,8 @@ export function EvaluationScoreSummary({
                   </div>
                   <span
                     className={cn(
-                      "text-xs tabular-nums transition-colors",
-                      isSelected
-                        ? "font-bold text-text"
-                        : "text-text-muted group-hover:text-text",
+                      "er-bucket-label",
+                      isSelected ? "font-bold text-text" : "text-text-muted",
                     )}
                   >
                     {bucket}
