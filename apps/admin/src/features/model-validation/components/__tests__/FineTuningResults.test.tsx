@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FineTuningResults } from '../FineTuningResults';
 import { modelValidationApi } from '../../api/modelValidation.api';
+import archive from '../../../../../../server/modules/admin/data/fine_tuning_results.json';
+import type { FineTuningArchive } from '../../archiveTypes';
 
 afterEach(() => {
   cleanup();
@@ -11,6 +13,34 @@ afterEach(() => {
 });
 
 describe('FineTuningResults', () => {
+  it('highlights GAD grounding while retaining all held-out scoring outcomes', async () => {
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
+      archive as FineTuningArchive,
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    const select = await screen.findByRole('combobox', { name: 'Experiment' });
+    fireEvent.change(select, { target: { value: 'gad-v5' } });
+    expect(screen.getByRole('heading', { name: 'Exact quotation grounding' })).toBeDefined();
+    expect(screen.getByText('82.5%')).toBeDefined();
+    expect(screen.getByText('97.5%')).toBeDefined();
+    expect(screen.getByText(/33\/40 → 39\/40/)).toBeDefined();
+    expect(
+      screen.getByRole('heading', { name: 'Result summary' }).parentElement?.textContent,
+    ).toContain('15 percentage points');
+    expect(screen.getByRole('option', { name: /Fine-tuned GAD model v5/ })).toBeDefined();
+    expect(screen.getAllByRole('row')).toHaveLength(9);
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence & reasoning' }));
+    expect(
+      screen.getByRole('region', {
+        name: 'Fine-tuned GAD model v5 archived explanation',
+      }),
+    ).toBeDefined();
+    expect(screen.getAllByText(/Quote grounding:/)).toHaveLength(2);
+  });
   it('keeps the archive readable when the live validation database is empty', async () => {
     vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue({
       schema_version: 1,

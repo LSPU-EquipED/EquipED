@@ -4,6 +4,7 @@ export interface ArchivedOutput {
   evidence: string[] | null;
   reasoning: string | null;
   stored_justification: string | null;
+  quote_exact_in_claimed_chunk?: boolean | null;
 }
 export interface ArchivedCriterion {
   id: string;

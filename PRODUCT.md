@@ -25,7 +25,7 @@ An active, approved administrator can import a reviewed frozen DPO package throu
 
 ## Model Validation
 
-Fine-Tuning Results preserves curated research snapshots for SME adapters v7, v9, and v13 independently of live validation rows and adapter availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
+Fine-Tuning Results preserves curated research snapshots for SME fine-tuned models v7, v9, and v13 and GAD v5 independently of live validation rows and model availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. GAD v5 retains all eight held-out synthetic comparisons and highlights exact quotation grounding (33/40 to 39/40), separately from scoring accuracy (MAE 0.625 to 0.650; exact matches 25/40 for both). Grounding checks verbatim occurrence in the cited source chunk, not semantic relevance or correctness. Historical experiments without grounding audits do not receive reconstructed metrics. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
 
 ## SME absence findings
 
