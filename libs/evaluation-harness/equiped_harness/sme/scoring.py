@@ -32,6 +32,28 @@ def score_criterion_measurement(
     config = criterion.strategy_config
 
     if isinstance(config, LlmRubricGuidanceConfig):
+        if measurement_dict.get("finding") == "absent":
+            score = measurement_dict["score"]
+            reasoning = measurement_dict.get("reasoning")
+            if (
+                type(score) is not int
+                or not 1 <= score <= 4
+                or "evidence" not in measurement_dict
+                or measurement_dict["evidence"] is not None
+                or not isinstance(reasoning, str)
+                or not reasoning.strip()
+                or reasoning != reasoning.strip()
+                or len(reasoning) > 2000
+            ):
+                raise AgentExecutionError("Invalid SME absence finding")
+            return CriterionScore(
+                criterion_id=criterion.criterion_code,
+                criterion_title=criterion.title,
+                score=score,
+                justification=f"Not found in the supplied source text. {reasoning}",
+                chunk_ids=(),
+                evidence=(),
+            )
         measurement = GroundedScoreMeasurement(
             score=measurement_dict["score"],
             evidence=measurement_dict["evidence"],

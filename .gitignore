@@ -36,6 +36,13 @@ dist/
 build/
 
 # Local runtime artifacts
+.pnpm-store/
+.test-artifacts/
+# Local benchmark inputs and human-reviewed experiment drafts
+/apps/expected_scores.csv
+/apps/train_ids.txt
+/apps/heldout_ids.txt
+/training/reviews/
 uploads/*
 !uploads/.gitkeep
 chroma_data/*

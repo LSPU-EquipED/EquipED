@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from server.modules.training_data.agents import VALID_AGENT_IDS, validate_agent_id
+from server.modules.training_data.contracts import FrozenJobPackage
 from server.modules.training_data.exceptions import (
     EmptyTrainingDatasetError,
     TrainingJobNotFoundError,
@@ -55,14 +56,23 @@ class TrainingJobCreated:
 
 
 def create_training_job(
-    session: Session, agent_id: str, created_by: uuid.UUID
+    session: Session,
+    agent_id: str,
+    created_by: uuid.UUID,
+    *,
+    package: FrozenJobPackage | None = None,
+    commit: bool = True,
 ) -> TrainingJobCreated:
     """Create a training job: freeze the current DPO dataset for agent_id
     and mint a single-use download token plus a single-use upload token,
     both scoped to the new job."""
     validate_agent_id(agent_id)
 
-    frozen = freeze_job_dataset(session, agent_id)
+    if package is not None:
+        from server.modules.training_data.sources import validate_training_package
+
+        validate_training_package(package, agent_id)
+    frozen = package if package is not None else freeze_job_dataset(session, agent_id)
     pair_count = frozen.manifest_json.get("pair_count")
     if not isinstance(pair_count, int) or pair_count <= 0:
         raise EmptyTrainingDatasetError(
@@ -90,7 +100,10 @@ def create_training_job(
         status_expires_at=now + _STATUS_TOKEN_LIFETIME,
     )
     session.add(job)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
 
     return TrainingJobCreated(
         job=job,

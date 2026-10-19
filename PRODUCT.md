@@ -19,9 +19,19 @@ To automate the initial quality-assurance review layer of Self-Paced Learning Mo
 ## Account Administration
 The user-management directory excludes the signed-in administrator from its records and counts. Administrators cannot deactivate or permanently delete their own account through the administrative delete endpoints. Permanent deletion in the interface requires typing the selected account's email before confirmation.
 
+## Reviewed DPO training sources
+
+An active, approved administrator can import a reviewed frozen DPO package through the local administrative script and select it as one agent's training source. The existing Admin readiness and Start Training Run workflow use that exact package, including its evidence and reasoning, until the administrator restores feedback export or selects another package. Historical feedback, evaluations, training jobs and fine-tuned models remain available. Package checks validate identity, hashes and provenance; they do not certify synthetic corrections as faculty judgments. Invalid active packages fail explicitly rather than silently selecting different data.
+
 ## Model Validation
 
 Fine-Tuning Results preserves curated research snapshots for SME adapters v7, v9, and v13 independently of live validation rows and adapter availability. Administrators can inspect synthetic-reference scores, captured evidence and reasoning, training measurements, limitations, and run provenance, and export each experiment as JSON. Archived excerpts are served through an authenticated administrator endpoint, never public frontend assets. The archive distinguishes training-objective progress from generated scoring accuracy and does not establish expert agreement or generalization.
+
+## SME absence findings
+
+For rubric-guidance criteria, SME can explicitly report required content as absent from the supplied source text, with a required explanation and no evidence quotation or document highlight. The result labels this finding “Not found in the supplied source text”; it does not establish absence from omitted portions of the SLM. Scores still follow the saved rubric. Findings that quote present content continue to require verbatim source evidence, and historical response shapes remain supported.
+
+SME prepares oversized source inputs using local section and task-pattern hints, guided by the frozen rubric's descriptions, guidance, and level descriptors rather than fixed criterion codes or page numbers. It preserves original passages in source order, prioritizes relevant objectives, tasks, assessments, and rubrics, and keeps unfamiliar content eligible through rubric-vocabulary matching or distributed fallback passages. Cover information is deprioritized unless relevant. The existing prompt and request-count limits remain in force; selected passages do not establish complete-document coverage. This preparation introduces no model requests, SLM vector storage, or database schema changes and does not modify the other specialists.
 
 ## Anti-references
 * **Generic SaaS Templates**: Avoid low-contrast gray text on near-white backgrounds, huge spacious pads, floating ghost cards, decorative background stripes, and generic dashboard marketing widgets.

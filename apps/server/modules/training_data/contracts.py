@@ -9,6 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 @dataclass(frozen=True, slots=True)
+class FrozenJobPackage:
+    pairs_content: str
+    provenance_content: str
+    manifest_json: dict
+
+
+@dataclass(frozen=True, slots=True)
 class DpoPair:
     """A single DPO preference pair ready for fine-tuning."""
 
@@ -45,6 +52,7 @@ class DpoPackageManifest(BaseModel):
 
 
 __all__ = [
+    "FrozenJobPackage",
     "DpoPackageManifest",
     "DpoPair",
 ]
