@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "@phosphor-icons/react";
 import { Skeleton } from "@equiped/ui";
 import type { DocumentStats } from "@equiped/types";
-import moduleCollection from "../../../assets/illustrations/module-collection.svg";
+import moduleCollection from "../assets/modules/module-collection.svg";
 
 export function FacultyModuleOverview({
   stats,

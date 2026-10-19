@@ -1,8 +1,8 @@
 import type { TargetAgent } from "@equiped/types";
-import contentArt from "../../../assets/illustrations/specialists/workspace/content-inspection.svg";
-import curriculumArt from "../../../assets/illustrations/specialists/workspace/curriculum-planning.svg";
-import inclusiveArt from "../../../assets/illustrations/specialists/workspace/inclusive-discussion.svg";
-import innovationArt from "../../../assets/illustrations/specialists/workspace/innovation-workbench.svg";
+import contentArt from "../assets/workspace/illustrations/content-inspection.svg";
+import curriculumArt from "../assets/workspace/illustrations/curriculum-planning.svg";
+import inclusiveArt from "../assets/workspace/illustrations/inclusive-discussion.svg";
+import innovationArt from "../assets/workspace/illustrations/innovation-workbench.svg";
 
 export const specialistPresentation: Record<
   TargetAgent,

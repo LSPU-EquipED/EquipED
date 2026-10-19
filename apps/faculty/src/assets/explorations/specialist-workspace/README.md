@@ -11,7 +11,7 @@ linework:
 
 - Four large PNG illustration studies in `raster-studies/`.
 - A folded-paper background in `workspace-folds.png`.
-- Four editable SVG state assets in `../../animations/workspace/`.
+- Four editable SVG state assets in `../../../features/evaluation/assets/workspace/animations/`.
 
 `distinct-asset-prompts.json` records the built-in image-generation prompts for
 the current PNG family: inspection desk, curriculum drafting board, inclusive

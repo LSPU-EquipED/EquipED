@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "@phosphor-icons/react";
 import type { TargetAgent } from "@equiped/types";
 import type { FacultyWorkspaceAccess } from "../types";
-import contentReview from "../../../assets/illustrations/specialists/content-review.svg";
-import curriculumReview from "../../../assets/illustrations/specialists/curriculum-review.svg";
-import inclusiveReview from "../../../assets/illustrations/specialists/inclusive-review.svg";
-import innovationReview from "../../../assets/illustrations/specialists/innovation-review.svg";
+import contentReview from "../assets/specialists/content-review.svg";
+import curriculumReview from "../assets/specialists/curriculum-review.svg";
+import inclusiveReview from "../assets/specialists/inclusive-review.svg";
+import innovationReview from "../assets/specialists/innovation-review.svg";
 
 const workspaces: {
   id: TargetAgent;

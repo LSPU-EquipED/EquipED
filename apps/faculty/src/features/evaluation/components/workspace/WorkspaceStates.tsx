@@ -2,8 +2,8 @@ import { useId, useState } from "react";
 import { ArrowClockwise, ArrowRight, CaretDown } from "@phosphor-icons/react";
 import { Button, Skeleton } from "@equiped/ui";
 import type { DeskQueueItem } from "../../types";
-import unavailableArt from "../../../../assets/illustrations/specialists/workspace/workspace-unavailable.svg";
-import interruptedArt from "../../../../assets/illustrations/specialists/workspace/review-interrupted.svg";
+import unavailableArt from "../../assets/workspace/illustrations/workspace-unavailable.svg";
+import interruptedArt from "../../assets/workspace/illustrations/review-interrupted.svg";
 
 export function WorkspaceLoading({
   label = "specialist workspace",

@@ -1,85 +1,48 @@
-# Faculty assets
+# Shared faculty assets
 
-Faculty-only visual assets live here, independent of feature implementation.
-Shared EquipED logos remain under `libs/ui/src/assets/brand/`.
+This folder owns artwork shared across faculty features, reusable surface textures,
+and archived design explorations. Feature-specific assets live with their feature.
+Shared EquipED logos, the LSPU emblem, and Public Sans fonts remain in
+`libs/ui/src/assets/`.
 
-## Organization
+## Shared runtime assets
 
-- `backgrounds/`: finished compositions used behind interface content.
-- `illustrations/`: standalone artwork, with specialist and alignment families in
-  `specialists/` and `alignment/`.
-- `textures/`: repeatable surface patterns.
-- `animations/`: self-contained SVG motion assets with reduced-motion fallbacks.
-- `explorations/faculty-dashboard/`: dashboard concepts and their generation prompts.
-- `explorations/specialist-workspace/`: paper-and-annotation concepts and prompts.
-  The selected second direction informs the workspace asset family.
+- `illustrations/syllabus-check.svg`: used by the dashboard alignment
+  shortcut and the Syllabus check page.
+- `illustrations/curriculum-check.svg`: used by the dashboard alignment
+  shortcut and Curriculum check controls.
+- `textures/paper-grain.svg`: reusable 48px surface texture, currently used by the
+  dashboard stylesheet.
 
-Keep finished assets grouped by type rather than by the feature using them.
-Explorations remain part of the asset collection and are not imported by runtime code.
+Keep assets used by multiple features here so features do not import from one
+another. Keep single-feature artwork in the owning feature's `assets/` directory,
+grouped by component purpose. Update existing references when promoting or moving
+an asset; do not duplicate the same artwork across features.
 
-## Finished SVGs
+## Feature-owned collections
 
-These are hand-authored vectors with transparent backgrounds, explicit view boxes,
-and the current royal blue, paper, neutral, and amber brand palette. They require
-no fonts or external resources.
+- [`../features/home/assets/`](../features/home/assets/README.md): welcome banner,
+  module overview, and dashboard specialist illustrations.
+- [`../features/evaluation/assets/workspace/`](../features/evaluation/assets/workspace/README.md):
+  specialist landing scenes, setup/recovery illustrations, and evaluation motion.
+- `../features/evaluation/assets/pdf-templates/`: the four institutional specialist
+  export templates and their measured layouts.
 
-- `backgrounds/welcome-folds.svg`: scalable folded-paper composition for the greeting panel.
-- `textures/paper-grain.svg`: seamless 48px repeating micro-pattern for quiet surface texture.
-- `illustrations/module-collection.svg`: folder-and-module collection for the library tile, designed for a 144–192px display width.
-- `illustrations/specialists/`: coherent specialist illustrations, used at 56–64px.
-- `illustrations/alignment/`: syllabus and curriculum illustrations, used at 40px.
-
-SVG colors are self-contained so assets also render outside the application,
-as specified in DESIGN.md. Update this family alongside the shared palette when
-the brand changes. Within the interface, labels convey meaning; artwork is
-decorative and has empty alternative text.
-
-## Specialist workspace asset set
-
-The workspace uses four self-contained SVG scenes under
-`illustrations/specialists/workspace/`: `content-inspection.svg` (manuscript and
-magnifier), `curriculum-planning.svg` (curriculum board),
-`inclusive-discussion.svg` (colleagues exchanging perspectives), and
-`innovation-workbench.svg` (prototype and source folio). Each scene has its own
-silhouette, with flat fills, consistent outlines, and the connected amber fold
-from the Folio identity. They remain distinct from the smaller dashboard icons.
-
-The earlier generated PNGs are preserved in
-`explorations/specialist-workspace/raster-studies/`, with their prompts in
-`distinct-asset-prompts.json`. They are visual studies and are not imported by
-the workspace. `explorations/specialist-workspace/workspace-folds.png` remains an unimported background
-exploration.
-
-`animations/workspace/` contains editable SVG compositions for queued,
-preparation, specialist review, and finalizing. The scenes are a waiting tray,
-an assembly frame, an inspection lens, and a findings folder. Larger paper and
-lens travel makes the action visible. Motion loops within each state; the workspace offers pause/resume
-controls, and reduced-motion preferences disable it. Each file depicts
-only one state and never advances automatically
-through the evaluation stages or implies a score, approval, or completion rate.
-The server-reported stage selects the matching asset.
-Accessible status text remains the interface's responsibility.
-
-Earlier repetitive illustrations and motion remain under
-`explorations/specialist-workspace/superseded/` for reference. The production
-specialist workspace uses the vector specialist scenes and evaluation state SVGs.
+Finished SVGs use transparent backgrounds, explicit view boxes, and the royal
+blue, paper, neutral, and amber palette. They require no fonts or external
+resources. Their colors remain self-contained for rendering outside the app.
+Interface text conveys meaning; decorative artwork uses empty alternative text.
 
 ## Exploration archive
 
-`explorations/faculty-dashboard/` preserves the earlier AI-generated PNGs and their prompts as
-design references. They are not imported by the dashboard. The icon sheet has
-unwanted shading/background pixels, and the raster texture has unverified repeat
-seams. The finished SVGs replace those concepts wherever the dashboard uses artwork;
-unselected character and object compositions remain archived rather than being
-presented as production assets.
+Explorations remain part of the asset collection and are not imported by runtime
+code. Preserve their generation prompts alongside them.
 
-`explorations/faculty-dashboard/characters/` contains the transparent SME character
-study and its built-in image-generation prompt. This direction was not selected;
-the dashboard retains the specialist icon illustrations. The temporary character
-placement prototype has been removed, and this study remains unimported.
-
-The specialist workspace also uses three dedicated, hand-authored SVGs
-under `illustrations/specialists/workspace/`: `module-dossier.svg` for setup,
-`workspace-unavailable.svg` for retrieval failures, and `review-interrupted.svg`
-for failed evaluations. They use the institutional palette and carry no fake
-scores, document content, approval marks, or progress indicators.
+- `explorations/faculty-dashboard/`: earlier generated illustrations, abstract
+  folds, banner background, icon concepts, and texture studies. The icon sheet
+  contains shading/background pixels and the raster texture has unverified repeat
+  seams; the dashboard uses finished SVGs instead.
+- `explorations/specialist-workspace/`: the original paper-and-annotation concepts,
+  distinct raster studies, and the unused `workspace-folds.png` background study.
+  Rejected repetitive artwork and motion remain under `superseded/`. The selected
+  second direction informed the current feature-owned vector family.

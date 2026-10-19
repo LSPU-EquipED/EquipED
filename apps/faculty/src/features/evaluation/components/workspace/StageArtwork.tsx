@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Pause, Play } from "@phosphor-icons/react";
-import queued from "../../../../assets/animations/workspace/queued.svg?raw";
-import preparation from "../../../../assets/animations/workspace/preparation.svg?raw";
-import review from "../../../../assets/animations/workspace/specialist-review.svg?raw";
-import finalizing from "../../../../assets/animations/workspace/finalizing.svg?raw";
+import queued from "../../assets/workspace/animations/queued.svg?raw";
+import preparation from "../../assets/workspace/animations/preparation.svg?raw";
+import review from "../../assets/workspace/animations/specialist-review.svg?raw";
+import finalizing from "../../assets/workspace/animations/finalizing.svg?raw";
 import type { ActiveStage } from "../../utils/evaluationProgress";
-import moduleDossier from "../../../../assets/illustrations/specialists/workspace/module-dossier.svg";
+import moduleDossier from "../../assets/workspace/illustrations/module-dossier.svg";
 
 const artwork: Record<ActiveStage, string> = {
   SUBMITTED: queued,

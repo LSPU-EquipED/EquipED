@@ -4,7 +4,7 @@ import { Button } from "@equiped/ui";
 import { TARGET_AGENT_META, type TargetAgent } from "@equiped/types";
 import { formatDateWithFallback } from "../../utils/dateFormatting";
 import { specialistPresentation } from "../../utils/workspacePresentation";
-import moduleDossier from "../../../../assets/illustrations/specialists/workspace/module-dossier.svg";
+import moduleDossier from "../../assets/workspace/illustrations/module-dossier.svg";
 interface ModuleSetupViewProps {
   agent: TargetAgent;
   item: {
