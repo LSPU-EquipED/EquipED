@@ -1,5 +1,5 @@
 import { useDashboardGreeting } from "../hooks/useDashboardGreeting";
-import welcomeFolds from "../../../assets/backgrounds/welcome-folds.svg";
+import welcomeFolds from "../assets/welcome/welcome-folds.svg";
 
 export function FacultyWelcomeBanner({
   displayName,
