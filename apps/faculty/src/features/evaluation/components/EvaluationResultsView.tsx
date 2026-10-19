@@ -1,14 +1,12 @@
 import { EvaluationCriteria } from "./EvaluationCriteria";
 import { EvaluationScoreSummary } from "./EvaluationScoreSummary";
-import { EvaluationResultMetadata } from "./EvaluationResultMetadata";
+import {
+  EvaluationResultMetadata,
+  EvaluationRecordMetadata,
+} from "./EvaluationResultMetadata";
 import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowsClockwise,
-  CaretDown,
-  NotePencil,
-} from "@phosphor-icons/react";
+import { ArrowLeft, ArrowsClockwise, NotePencil } from "@phosphor-icons/react";
 import { Button, CurriculumAlignmentSupplement } from "@equiped/ui";
 import type {
   TargetAgentMeta,
@@ -29,6 +27,8 @@ import {
   calculateScoreboardMetrics,
   type CriterionFilterType,
 } from "../utils/scoreboardMetrics";
+import { buildEvaluationResultExport } from "../utils/evaluationResultExport";
+import "../styles/evaluation-results.css";
 
 export interface EvaluationResultsViewProps {
   results: EvaluationResultsResponse;
@@ -79,7 +79,6 @@ export function EvaluationResultsView({
   const program =
     results.program || activeItem?.program || activeDocument?.program || "";
   const evaluationId = evaluation.evaluation_id;
-  const maxScore = domainScore?.max_score || 4;
   const metrics = useMemo(
     () => calculateScoreboardMetrics(criteria),
     [criteria],
@@ -91,7 +90,7 @@ export function EvaluationResultsView({
   );
 
   return (
-    <div className="min-w-0">
+    <div className="er-results">
       {newerEvaluationId && (
         <div
           role="status"
@@ -109,7 +108,7 @@ export function EvaluationResultsView({
           </Link>
         </div>
       )}
-      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border pb-3">
+      <header className="er-header">
         <div className="min-w-0 flex-1 basis-72">
           {context === "history" ? (
             <Link
@@ -129,10 +128,8 @@ export function EvaluationResultsView({
               Back to {meta.shortLabel} workspace
             </Link>
           )}
-          <h2 className="break-words text-lg font-semibold leading-snug text-text [overflow-wrap:anywhere]">
-            {displayTitle}
-          </h2>
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-relaxed text-text-muted">
+          <h2 className="er-title">{displayTitle}</h2>
+          <p className="er-context">
             <span>
               {[`${meta.shortLabel} review`, courseCode, program]
                 .filter(Boolean)
@@ -149,7 +146,7 @@ export function EvaluationResultsView({
             )}
           </p>
         </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
+        <div className="er-actions flex max-w-full flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="primary"
@@ -163,38 +160,15 @@ export function EvaluationResultsView({
           </Button>
           {domainScore ? (
             <SpecialistExportDownloadButton
-              domainData={{
+              domainData={buildEvaluationResultExport({
                 agentId: validAgent,
-                documentTitle:
-                  results.document_title ||
-                  activeItem?.title ||
-                  activeDocument?.title ||
-                  "Course Module",
-                program:
-                  results.program ||
-                  activeItem?.program ||
-                  activeDocument?.program ||
-                  null,
-                courseCode:
-                  activeItem?.course_code || activeDocument?.courseCode || null,
                 evaluationId,
-                isPartial: results.is_partial,
-                partialReason: results.partial_reason,
-                evaluationStatus: results.evaluation_status,
-                criteria,
-                subtotal: domainScore.subtotal,
-                max_score: maxScore,
-                status:
-                  domainScore.status ||
-                  results.evaluation_status ||
-                  "COMPLETED",
-                adjectival_rating: domainScore.adjectival_rating ?? undefined,
-                summary: domainScore.summary,
-                version: domainScore.version,
-                form_snapshot_id: domainScore.form_snapshot_id ?? undefined,
                 results,
-                document: activeDocument ?? null,
-              }}
+                domainScore,
+                criteria,
+                activeItem,
+                activeDocument,
+              })}
               agentId={validAgent}
               variant="secondary"
             />
@@ -214,60 +188,46 @@ export function EvaluationResultsView({
         </div>
       </header>
 
-      <div className="grid min-w-0 gap-4 pt-4 xl:grid-cols-[14rem_minmax(0,1fr)] xl:gap-6">
-        <EvaluationResultMetadata
-          evaluationId={evaluationId}
-          courseTitle={activeDocument?.courseTitle}
-          uploadedAt={activeItem?.uploaded_at || activeDocument?.uploadedAt}
-          rubricVersion={domainScore.version}
-          formSnapshotId={domainScore.form_snapshot_id}
-          requiresCurriculum={meta.requiresCurriculum}
+      <EvaluationResultMetadata
+        courseTitle={activeDocument?.courseTitle}
+        uploadedAt={activeItem?.uploaded_at || activeDocument?.uploadedAt}
+        rubricVersion={domainScore.version}
+        requiresCurriculum={meta.requiresCurriculum}
+      />
+
+      <section className="min-w-0" aria-label="Evaluation results">
+        <EvaluationScoreSummary
+          domainScore={domainScore}
+          meta={meta}
+          metrics={metrics}
+          selectedFilter={selectedFilter}
+          setSelectedFilter={setSelectedFilter}
+          hasCorrections={hasCorrections}
         />
 
-        <section className="min-w-0" aria-label="Evaluation results">
-          <EvaluationScoreSummary
-            domainScore={domainScore}
-            meta={meta}
-            metrics={metrics}
-            selectedFilter={selectedFilter}
-            setSelectedFilter={setSelectedFilter}
-            hasCorrections={hasCorrections}
-          />
-
-          {domainScore?.summary && (
-            <details className="group/summary border-b border-border py-2">
-              <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 text-xs font-medium text-text-muted focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-                <CaretDown
-                  className="size-3.5 -rotate-90 group-open/summary:rotate-0"
-                  aria-hidden="true"
-                />
-                Specialist summary
-              </summary>
-              <p className="pb-2 pt-1 text-sm leading-relaxed text-text [overflow-wrap:anywhere]">
-                {domainScore.summary}
-              </p>
-            </details>
-          )}
-
-          {results.legacy_notice && (
-            <p className="border-b border-border py-3 text-xs text-text-muted">
-              {results.legacy_notice}
-            </p>
-          )}
-          {validAgent === "coordinator" && domainScore?.advisory_outputs && (
+        {results.legacy_notice && (
+          <p className="border-b border-border py-3 text-xs text-text-muted">
+            {results.legacy_notice}
+          </p>
+        )}
+        <EvaluationCriteria
+          criteria={criteria}
+          selectedFilter={selectedFilter}
+          setSelectedFilter={setSelectedFilter}
+          metrics={metrics}
+        />
+        {validAgent === "coordinator" && domainScore.advisory_outputs && (
+          <div className="er-advisory">
             <CurriculumAlignmentSupplement
               advisory={domainScore.advisory_outputs}
             />
-          )}
-
-          <EvaluationCriteria
-            criteria={criteria}
-            selectedFilter={selectedFilter}
-            setSelectedFilter={setSelectedFilter}
-            metrics={metrics}
-          />
-        </section>
-      </div>
+          </div>
+        )}
+        <EvaluationRecordMetadata
+          evaluationId={evaluationId}
+          formSnapshotId={domainScore.form_snapshot_id}
+        />
+      </section>
     </div>
   );
 }
