@@ -22,7 +22,8 @@ describe('FineTuningResults', () => {
         <FineTuningResults />
       </QueryClientProvider>,
     );
-    const select = await screen.findByRole('combobox', { name: 'Experiment' });
+    fireEvent.click(await screen.findByRole('button', { name: 'GAD' }));
+    const select = screen.getByRole('combobox', { name: 'Experiment' });
     fireEvent.change(select, { target: { value: 'gad-v5' } });
     expect(screen.getByRole('heading', { name: 'Exact quotation grounding' })).toBeDefined();
     expect(screen.getByText('82.5%')).toBeDefined();
@@ -40,6 +41,39 @@ describe('FineTuningResults', () => {
       }),
     ).toBeDefined();
     expect(screen.getAllByText(/Quote grounding:/)).toHaveLength(2);
+  });
+  it('groups existing experiments by agent and distinguishes unassessed quality from results', async () => {
+    vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue(
+      archive as FineTuningArchive,
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FineTuningResults />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('button', { name: 'SME' });
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+    for (const name of ['Scoring accuracy', 'Evidence quality', 'Reasoning quality']) {
+      expect(screen.getByRole('heading', { name })).toBeDefined();
+    }
+    expect(screen.getByText('Quotation grounding not audited.')).toBeDefined();
+    expect(screen.getAllByText('Not yet formally assessed')).toHaveLength(2);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Experiment' }), {
+      target: { value: 'v13' },
+    });
+    expect(screen.getByText(/Only OP-05 contributes/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Coordinator' }));
+    expect(
+      screen.getByRole('heading', { name: 'No Coordinator experiments archived yet' }),
+    ).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Export results' })).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'ITSO' }));
+    expect(screen.getByRole('heading', { name: 'No ITSO experiments archived yet' })).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'SME' }));
+    expect((screen.getByRole('combobox', { name: 'Experiment' }) as HTMLSelectElement).value).toBe(
+      'v13',
+    );
   });
   it('keeps the archive readable when the live validation database is empty', async () => {
     vi.spyOn(modelValidationApi, 'getFineTuningArchive').mockResolvedValue({
