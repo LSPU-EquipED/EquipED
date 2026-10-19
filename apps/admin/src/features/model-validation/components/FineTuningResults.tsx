@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { DownloadSimple, ArrowRight } from '@phosphor-icons/react';
+import { DownloadSimple } from '@phosphor-icons/react';
 import { Button, cn, TABLE_STYLES } from '@equiped/ui';
 import { modelValidationApi } from '../api/modelValidation.api';
 import type { ArchivedExperiment, FineTuningArchive } from '../archiveTypes';
 import { archiveMetrics } from '../utils/archiveMetrics';
 import { experimentResultSummary, fineTunedModelLabel } from '../utils/archivePresentation';
 import { ArchivedEvidence } from './ArchivedEvidence';
+import { ExperimentOverview } from './ExperimentOverview';
 
-const sections = ['Scores', 'Evidence & reasoning', 'Training', 'Method'] as const;
+const sections = ['Comparisons', 'Evidence & reasoning', 'Training', 'Method'] as const;
 type Section = (typeof sections)[number];
 const format = (value: number | null) => (value == null ? 'Unavailable' : value.toFixed(2));
 
@@ -32,46 +33,6 @@ function Scores({ experiment }: { experiment: ArchivedExperiment }) {
   const metrics = archiveMetrics(experiment);
   return (
     <div className="space-y-5">
-      <div className="grid divide-y divide-border border-y border-border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className="py-4 sm:pr-5">
-          <p className="text-xs font-medium text-text-muted">
-            Mean absolute error · lower is better
-          </p>
-          <p className="mt-2 flex items-center gap-3 text-2xl font-semibold tabular-nums text-text">
-            {format(metrics.baseMae)}
-            <ArrowRight size={18} className="text-text-muted" aria-label="to" />
-            {format(metrics.adapterMae)}
-          </p>
-          <p
-            className={cn(
-              'mt-2 text-xs font-medium',
-              metrics.reduction != null && metrics.reduction > 0
-                ? 'text-success'
-                : 'text-text-muted',
-            )}
-          >
-            {metrics.reduction == null
-              ? 'Relative error change unavailable'
-              : metrics.reduction > 0
-                ? `${metrics.reduction.toFixed(0)}% lower error against synthetic targets`
-                : metrics.reduction === 0
-                  ? 'No overall change in scoring error'
-                  : `${Math.abs(metrics.reduction).toFixed(0)}% higher error against synthetic targets`}
-          </p>
-        </div>
-        <div className="py-4 sm:pl-5">
-          <p className="text-xs font-medium text-text-muted">Exact criterion-score matches</p>
-          <p className="mt-2 flex items-center gap-3 text-2xl font-semibold tabular-nums text-text">
-            {metrics.baseExact}/{metrics.count}
-            <ArrowRight size={18} className="text-text-muted" aria-label="to" />
-            {metrics.adapterExact}/{metrics.count}
-          </p>
-          <p className="mt-2 text-xs text-text-muted">
-            Base → {fineTunedModelLabel(experiment.adapter_label)} · {metrics.count} comparable
-            scores
-          </p>
-        </div>
-      </div>
       <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
         <span>
           <strong className="text-success">{metrics.closer}</strong> closer
@@ -140,42 +101,10 @@ function Scores({ experiment }: { experiment: ArchivedExperiment }) {
         Metrics use matching references and exclude fallback or unavailable responses. Repaired
         responses are included and identified under Evidence & reasoning.{' '}
         {experiment.primary_criteria
-          ? 'Only OP-05 contributes to these metrics; other criteria are stability controls.'
+          ? `Only ${experiment.primary_criteria.join(', ')} contributes to these metrics; other criteria are stability controls.`
           : 'These are historical synthetic-reference results, not expert-accuracy estimates.'}
       </p>
     </div>
-  );
-}
-
-function QuotationGrounding({ experiment }: { experiment: ArchivedExperiment }) {
-  const criteria = experiment.runs.flatMap((run) => run.criteria);
-  const audited = criteria.filter(
-    (criterion) =>
-      typeof criterion.base.quote_exact_in_claimed_chunk === 'boolean' &&
-      typeof criterion.adapter.quote_exact_in_claimed_chunk === 'boolean',
-  );
-  if (!audited.length) return null;
-  const base = audited.filter((c) => c.base.quote_exact_in_claimed_chunk).length;
-  const tuned = audited.filter((c) => c.adapter.quote_exact_in_claimed_chunk).length;
-  const count = audited.length;
-  return (
-    <section aria-label="Quotation grounding results" className="border-b border-border pb-5">
-      <h4 className="text-sm font-semibold text-text">Exact quotation grounding</h4>
-      <p className="mt-2 flex items-center gap-3 text-2xl font-semibold tabular-nums text-text">
-        <span>{((base / count) * 100).toFixed(1)}%</span>
-        <ArrowRight size={18} className="text-text-muted" aria-label="to" />
-        <span>{((tuned / count) * 100).toFixed(1)}%</span>
-      </p>
-      <p className="mt-2 text-sm text-text">
-        {base}/{count} → {tuned}/{count} exact source quotations · Base →{' '}
-        {fineTunedModelLabel(experiment.adapter_label)}
-      </p>
-      <p className="mt-2 max-w-4xl text-xs leading-relaxed text-text-muted">
-        Evidence occurs verbatim in its cited source chunk. This checks quotation accuracy, not
-        whether the evidence supports the score or the reasoning is correct. Audited: {count} of{' '}
-        {criteria.length} criterion comparisons.
-      </p>
-    </section>
   );
 }
 
@@ -302,17 +231,21 @@ export function FineTuningResults() {
     staleTime: Infinity,
     retry: false,
   });
+  const [agent, setAgent] = useState('sme');
   const [selected, setSelected] = useState('v7');
-  const [section, setSection] = useState<Section>('Scores');
+  const [section, setSection] = useState<Section>('Comparisons');
   const archive = query.data;
-  const experiment = archive?.experiments.find((e) => e.id === selected) ?? archive?.experiments[0];
+  const experiments =
+    archive?.experiments.filter((e) => e.adapter_label.split('-')[0] === agent) ?? [];
+  const experiment = experiments.find((e) => e.id === selected) ?? experiments[0];
+  const agentLabel = agent === 'coordinator' ? 'Coordinator' : agent.toUpperCase();
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-text">Fine-Tuning Results</h2>
           <p className="mt-1 text-sm text-text-muted">
-            Recorded comparisons of Base and fine-tuned SME and GAD models.
+            Compare scoring accuracy, source evidence, and rubric reasoning by agent.
           </p>
         </div>
         <span className="rounded-sm border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text-muted">
@@ -330,98 +263,145 @@ export function FineTuningResults() {
             Try again
           </Button>
         </div>
-      ) : !archive || !experiment ? (
+      ) : !archive || !archive.experiments.length ? (
         <p className="text-sm text-text-muted">No archived experiments are available.</p>
       ) : (
-        <div className="min-w-0 space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <label className="min-w-0 w-full space-y-2 text-xs font-semibold text-text sm:max-w-lg">
-              Experiment
-              <select
-                id="fine-tuning-experiment"
-                value={experiment.id}
-                onChange={(event) => {
-                  setSelected(event.target.value);
-                  setSection('Scores');
-                }}
-                className="block min-h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-normal text-text focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                {archive.experiments.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {fineTunedModelLabel(e.adapter_label)} — {e.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => downloadArchive(archive, experiment)}
-            >
-              <DownloadSimple size={16} aria-hidden="true" />
-              Export results
-            </Button>
-          </div>
-          <p className="text-xs text-text-muted">
-            {experiment.adapter_label.split('-')[0].toUpperCase()} · {experiment.scope} ·{' '}
-            {experiment.runs.length} comparisons
-            {experiment.pair_count == null
-              ? ''
-              : ` · ${experiment.pair_count} exported training pairs`}
-          </p>
-          <article className="min-w-0 rounded-md border border-border bg-surface">
-            <header className="space-y-2 rounded-t-md bg-primary-soft/60 p-4 sm:p-5">
-              <h3 className="text-lg font-semibold text-primary">Result summary</h3>
-              <p className="max-w-4xl text-sm leading-relaxed text-text">
-                {experimentResultSummary(experiment)
-                  .split(/(\b\d+(?:\.\d+)?\b)/g)
-                  .map((part, index) =>
-                    index % 2 === 1 ? (
-                      <strong key={index} className="font-semibold tabular-nums">
-                        {part}
-                      </strong>
-                    ) : (
-                      part
-                    ),
-                  )}
-              </p>
-            </header>
-            <div
-              aria-label="Experiment views"
-              className="flex gap-1 overflow-x-auto border-y border-border px-3"
-            >
-              {sections.map((s) => (
+        <div className="min-w-0 space-y-6">
+          <div
+            role="group"
+            aria-label="Agent"
+            className="grid grid-cols-2 gap-1 border-b border-border pb-3 sm:flex sm:flex-wrap"
+          >
+            {['sme', 'gad', 'coordinator', 'itso'].map((value) => {
+              const label = value === 'coordinator' ? 'Coordinator' : value.toUpperCase();
+              const count = archive.experiments.filter(
+                (e) => e.adapter_label.split('-')[0] === value,
+              ).length;
+              return (
                 <button
-                  key={s}
+                  key={value}
                   type="button"
-                  aria-pressed={section === s}
-                  onClick={() => setSection(s)}
+                  aria-label={label}
+                  aria-pressed={agent === value}
+                  onClick={() => {
+                    setAgent(value);
+                    setSection('Comparisons');
+                  }}
                   className={cn(
-                    'min-h-10 shrink-0 cursor-pointer border-b-2 px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring',
-                    section === s
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-text-muted hover:text-text',
+                    'min-h-10 cursor-pointer rounded-sm px-4 py-2 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-ring',
+                    agent === value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-text-muted hover:bg-surface-subtle hover:text-text',
                   )}
                 >
-                  {s}
+                  {label}
+                  <span aria-hidden="true" className="ml-2 font-normal tabular-nums">
+                    {count}
+                  </span>
                 </button>
-              ))}
-            </div>
-            <div className="p-4 sm:p-5">
-              {section === 'Scores' ? (
-                <div className="space-y-5">
-                  <QuotationGrounding experiment={experiment} />
-                  <Scores experiment={experiment} />
+              );
+            })}
+          </div>
+          {!experiment ? (
+            <section role="status" className="border-y border-border py-10 text-center">
+              <h3 className="text-lg font-semibold text-text">
+                No {agentLabel} experiments archived yet
+              </h3>
+              <p className="mx-auto mt-2 max-w-prose text-sm leading-relaxed text-text-muted">
+                Scoring accuracy, evidence quality, and reasoning quality will appear here when
+                reviewed results are archived. No measurements are available yet.
+              </p>
+            </section>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <label className="min-w-0 w-full space-y-2 text-xs font-semibold text-text sm:max-w-lg">
+                  Experiment
+                  <select
+                    id="fine-tuning-experiment"
+                    value={experiment.id}
+                    onChange={(event) => {
+                      setSelected(event.target.value);
+                      setSection('Comparisons');
+                    }}
+                    className="block min-h-10 w-full rounded-sm border border-input bg-surface px-3 text-sm font-normal text-text focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    {experiments.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {fineTunedModelLabel(e.adapter_label)} — {e.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => downloadArchive(archive, experiment)}
+                >
+                  <DownloadSimple size={16} aria-hidden="true" />
+                  Export results
+                </Button>
+              </div>
+              <p className="text-xs text-text-muted">
+                {experiment.adapter_label.split('-')[0].toUpperCase()} · {experiment.scope} ·{' '}
+                {experiment.runs.length} comparisons
+                {experiment.pair_count == null
+                  ? ''
+                  : ` · ${experiment.pair_count} exported training pairs`}
+              </p>
+              <article className="min-w-0 space-y-6">
+                <header className="space-y-2 border-l border-primary pl-4">
+                  <h3 className="text-lg font-semibold text-primary">Result summary</h3>
+                  <p className="max-w-4xl text-sm leading-relaxed text-text">
+                    {experimentResultSummary(experiment)
+                      .split(/(\b\d+(?:\.\d+)?\b)/g)
+                      .map((part, index) =>
+                        index % 2 === 1 ? (
+                          <strong key={index} className="font-semibold tabular-nums">
+                            {part}
+                          </strong>
+                        ) : (
+                          part
+                        ),
+                      )}
+                  </p>
+                </header>
+                <ExperimentOverview experiment={experiment} />
+                <div
+                  aria-label="Experiment views"
+                  className="flex gap-1 overflow-x-auto border-b border-border"
+                >
+                  {sections.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={section === s}
+                      onClick={() => setSection(s)}
+                      className={cn(
+                        'min-h-10 shrink-0 cursor-pointer border-b-2 px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring',
+                        section === s
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-text-muted hover:text-text',
+                      )}
+                    >
+                      {s}
+                    </button>
+                  ))}
                 </div>
-              ) : section === 'Evidence & reasoning' ? (
-                <ArchivedEvidence key={experiment.id} experiment={experiment} />
-              ) : section === 'Training' ? (
-                <Training experiment={experiment} />
-              ) : (
-                <Method experiment={experiment} archivedOn={archive.archived_on} />
-              )}
-            </div>
-          </article>
+                <div className="min-w-0">
+                  {section === 'Comparisons' ? (
+                    <Scores experiment={experiment} />
+                  ) : section === 'Evidence & reasoning' ? (
+                    <ArchivedEvidence key={experiment.id} experiment={experiment} />
+                  ) : section === 'Training' ? (
+                    <Training experiment={experiment} />
+                  ) : (
+                    <Method experiment={experiment} archivedOn={archive.archived_on} />
+                  )}
+                </div>
+              </article>
+            </>
+          )}
         </div>
       )}
     </div>
