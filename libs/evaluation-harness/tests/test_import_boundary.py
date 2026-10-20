@@ -1,4 +1,4 @@
-"""The installed pure package must not depend on backend or retrieval code."""
+"""Installed harness boundaries: host-independent, network I/O only in tools."""
 
 import ast
 import subprocess
@@ -17,11 +17,6 @@ def test_source_import_boundary():
         "fastapi",
         "os",
         "dotenv",
-        "requests",
-        "httpx",
-        "urllib",
-        "socket",
-        "aiohttp",
     }
     for source in root.rglob("*.py"):
         tree = ast.parse(source.read_text())
@@ -43,6 +38,17 @@ def test_source_import_boundary():
                     names = [node.args[0].value]
             for name in names:
                 assert name.split(".")[0] not in forbidden, (source, name)
+                if "tools" not in source.relative_to(root).parts:
+                    assert name.split(".")[0] not in {
+                        "requests",
+                        "httpx",
+                        "socket",
+                        "aiohttp",
+                    }, (source, name)
+                    assert not name.startswith(("urllib.request", "http.client")), (
+                        source,
+                        name,
+                    )
 
 
 def test_installed_import_without_backend_path(tmp_path):
@@ -55,7 +61,7 @@ def test_installed_import_without_backend_path(tmp_path):
             "from equiped_harness import SME, Coordinator, GAD, ITSO; "
             "import equiped_harness.contracts; "
             "import equiped_harness.manifests; "
-            "import equiped_harness.snapshot_contracts; "
+            "import equiped_harness.contracts.snapshots; "
             "import equiped_harness.strategies.calculators; "
             "import sys; assert 'server' not in sys.modules",
         ],

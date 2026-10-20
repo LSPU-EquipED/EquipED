@@ -32,7 +32,7 @@ def test_adapter_primary_failure_is_safe_and_does_not_use_global_fallback():
 
 
 def test_adapter_typed_served_model_and_multi_call_telemetry():
-    from equiped_harness.transport import CompletionResult
+    from equiped_harness.runtime.model import CompletionResult
 
     class Typed:
         model = "requested"

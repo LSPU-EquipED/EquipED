@@ -6,445 +6,36 @@ import json
 from types import MappingProxyType
 from typing import Any
 
-from pydantic import Field, field_validator, model_validator
-
-from .contracts import (
-    MAX_CODE_LENGTH,
+from equiped_harness.agents.coordinator.capabilities import (
+    COORDINATOR_MANIFEST_V1,
+    COORDINATOR_MANIFEST_V2,
+    COORDINATOR_MANIFEST_V3,
+)
+from equiped_harness.agents.gad.capabilities import GAD_MANIFEST_V1, GAD_MANIFEST_V2
+from equiped_harness.agents.itso.capabilities import (
+    ITSO_MANIFEST_V1,
+    ITSO_MANIFEST_V2,
+    ITSO_MANIFEST_V3,
+)
+from equiped_harness.agents.sme.capabilities import SME_MANIFEST_V1
+from equiped_harness.contracts import (
     MAX_FORM_JSON_BYTES,
     CountBandConfig,
     CriterionDefinition,
     FormDefinition,
-    FrozenContractModel,
     RatioBandConfig,
     ValidationIssue,
     ValidationReport,
-    _clean_non_empty_str,
-    _clean_optional_str,
     calculate_form_json_bytes,
 )
-
-# ---------------------------------------------------------------------------
-# Capability Mapping Models
-# ---------------------------------------------------------------------------
-
-
-class StrategyCapability(FrozenContractModel):
-    """Capability mapping a strategy and optional mode to a measurement shape."""
-
-    strategy: str
-    mode: str | None = None
-    measurement_shape: str
-
-    @field_validator("strategy")
-    @classmethod
-    def _validate_strategy(cls, value: str) -> str:
-        return _clean_non_empty_str(value, "strategy", MAX_CODE_LENGTH)
-
-    @field_validator("measurement_shape")
-    @classmethod
-    def _validate_shape(cls, value: str) -> str:
-        return _clean_non_empty_str(value, "measurement_shape", MAX_CODE_LENGTH)
-
-    @field_validator("mode")
-    @classmethod
-    def _validate_mode(cls, value: str | None) -> str | None:
-        return _clean_optional_str(value, "mode", MAX_CODE_LENGTH)
-
-
-# ---------------------------------------------------------------------------
-# Capability Manifest Definition
-# ---------------------------------------------------------------------------
-
-
-class AgentCapabilityManifest(FrozenContractModel):
-    """Pure, immutable capability manifest defining an agent's form constraints."""
-
-    agent_id: str
-    adapter_key: str
-    adapter_version: int
-    prompt_budget_setting: str
-    supported_strategies: tuple[str, ...]
-    supported_count_modes: tuple[str, ...] = ()
-    supported_ratio_modes: tuple[str, ...] = ()
-    capabilities: tuple[StrategyCapability, ...] = ()
-    supported_measurement_shapes: tuple[str, ...] = ()
-    min_criteria: int = Field(..., ge=1)
-    max_criteria: int = Field(..., ge=1)
-    default_prompt_budget_chars: int = Field(..., gt=0)
-    allowed_criterion_codes: tuple[str, ...] | None = None
-    required_criterion_strategies: tuple[tuple[str, str], ...] = ()
-
-    @field_validator(
-        "supported_strategies",
-        "supported_count_modes",
-        "supported_ratio_modes",
-        "capabilities",
-        "supported_measurement_shapes",
-        "allowed_criterion_codes",
-        "required_criterion_strategies",
-        mode="before",
-    )
-    @classmethod
-    def _convert_to_tuple(cls, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, (list, tuple, set)):
-            return tuple(value)
-        return value
-
-    @field_validator("prompt_budget_setting")
-    @classmethod
-    def _validate_prompt_budget_setting(cls, value: str) -> str:
-        return _clean_non_empty_str(value, "prompt_budget_setting", MAX_CODE_LENGTH)
-
-    @model_validator(mode="after")
-    def _validate_manifest_invariants(self) -> AgentCapabilityManifest:
-        if self.min_criteria > self.max_criteria:
-            raise ValueError(
-                f"min_criteria ({self.min_criteria}) cannot exceed "
-                f"max_criteria ({self.max_criteria})"
-            )
-
-        if len(self.supported_strategies) != len(set(self.supported_strategies)):
-            raise ValueError("supported_strategies must not contain duplicates")
-
-        if len(self.supported_count_modes) != len(set(self.supported_count_modes)):
-            raise ValueError("supported_count_modes must not contain duplicates")
-
-        if len(self.supported_ratio_modes) != len(set(self.supported_ratio_modes)):
-            raise ValueError("supported_ratio_modes must not contain duplicates")
-
-        if len(self.supported_measurement_shapes) != len(
-            set(self.supported_measurement_shapes)
-        ):
-            raise ValueError("supported_measurement_shapes must not contain duplicates")
-        if self.allowed_criterion_codes is not None:
-            if len(self.allowed_criterion_codes) != len(
-                set(self.allowed_criterion_codes)
-            ):
-                raise ValueError("allowed_criterion_codes must not contain duplicates")
-
-        required_codes: set[str] = set()
-        for code, strategy in self.required_criterion_strategies:
-            if code in required_codes:
-                raise ValueError(
-                    "required_criterion_strategies must not contain duplicate codes"
-                )
-            required_codes.add(code)
-            if (
-                self.allowed_criterion_codes is not None
-                and code not in self.allowed_criterion_codes
-            ):
-                raise ValueError(
-                    f"Required criterion code '{code}' is not in "
-                    "allowed_criterion_codes"
-                )
-            if strategy not in self.supported_strategies:
-                raise ValueError(f"Required strategy '{strategy}' is not supported")
-
-        seen_pairs: set[tuple[str, str | None]] = set()
-        capability_shapes: set[str] = set()
-
-        for cap in self.capabilities:
-            pair = (cap.strategy, cap.mode)
-            if pair in seen_pairs:
-                raise ValueError(
-                    f"Duplicate capability mapping for strategy '{cap.strategy}' "
-                    f"and mode '{cap.mode}'"
-                )
-            seen_pairs.add(pair)
-            capability_shapes.add(cap.measurement_shape)
-
-            if cap.strategy not in self.supported_strategies:
-                raise ValueError(
-                    f"Capability strategy '{cap.strategy}' not in "
-                    f"supported_strategies {self.supported_strategies}"
-                )
-            if cap.strategy == "count_band" and cap.mode is not None:
-                if cap.mode not in self.supported_count_modes:
-                    raise ValueError(
-                        f"Capability count mode '{cap.mode}' not in "
-                        f"supported_count_modes {self.supported_count_modes}"
-                    )
-            if cap.strategy == "ratio_band" and cap.mode is not None:
-                if cap.mode not in self.supported_ratio_modes:
-                    raise ValueError(
-                        f"Capability ratio mode '{cap.mode}' not in "
-                        f"supported_ratio_modes {self.supported_ratio_modes}"
-                    )
-            if cap.measurement_shape not in self.supported_measurement_shapes:
-                raise ValueError(
-                    f"Capability measurement shape '{cap.measurement_shape}' not "
-                    "in supported_measurement_shapes "
-                    f"{self.supported_measurement_shapes}"
-                )
-
-        # Ensure no unbacked measurement shapes listed
-        for shape in self.supported_measurement_shapes:
-            if shape not in capability_shapes:
-                raise ValueError(
-                    f"Listed measurement shape '{shape}' has no corresponding "
-                    "capability mapping"
-                )
-
-        # Check capabilities cover all supported strategies
-        for strat in self.supported_strategies:
-            if strat == "count_band":
-                for mode in self.supported_count_modes:
-                    if (strat, mode) not in seen_pairs:
-                        raise ValueError(
-                            f"Missing capability mapping for count_band mode '{mode}'"
-                        )
-            elif strat == "ratio_band":
-                for mode in self.supported_ratio_modes:
-                    if (strat, mode) not in seen_pairs:
-                        raise ValueError(
-                            f"Missing capability mapping for ratio_band mode '{mode}'"
-                        )
-            else:
-                if (strat, None) not in seen_pairs:
-                    raise ValueError(
-                        f"Missing capability mapping for strategy '{strat}'"
-                    )
-
-        return self
-
+from equiped_harness.contracts.capabilities import (
+    AgentCapabilityManifest,
+    StrategyCapability,
+)
 
 # ---------------------------------------------------------------------------
 # Exact Manifest Constants (V1)
 # ---------------------------------------------------------------------------
-
-SME_MANIFEST_V1 = AgentCapabilityManifest(
-    agent_id="sme",
-    adapter_key="sme",
-    adapter_version=1,
-    prompt_budget_setting="sme_total_prompt_budget_chars",
-    supported_strategies=("llm_rubric_guidance", "count_band", "ratio_band"),
-    supported_count_modes=("minimum_count",),
-    supported_ratio_modes=("coverage_percentage",),
-    capabilities=(
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            mode=None,
-            measurement_shape="grounded_score",
-        ),
-        StrategyCapability(
-            strategy="count_band",
-            mode="minimum_count",
-            measurement_shape="grounded_instances",
-        ),
-        StrategyCapability(
-            strategy="ratio_band",
-            mode="coverage_percentage",
-            measurement_shape="qualifying_units",
-        ),
-    ),
-    supported_measurement_shapes=(
-        "grounded_score",
-        "grounded_instances",
-        "qualifying_units",
-    ),
-    min_criteria=1,
-    max_criteria=20,
-    default_prompt_budget_chars=15000,
-)
-
-GAD_MANIFEST_V1 = AgentCapabilityManifest(
-    agent_id="gad",
-    adapter_key="gad",
-    adapter_version=1,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("count_band", "ratio_band"),
-    supported_count_modes=("maximum_count",),
-    supported_ratio_modes=("absolute_difference",),
-    capabilities=(
-        StrategyCapability(
-            strategy="count_band",
-            mode="maximum_count",
-            measurement_shape="grounded_instances",
-        ),
-        StrategyCapability(
-            strategy="ratio_band",
-            mode="absolute_difference",
-            measurement_shape="paired_counts",
-        ),
-    ),
-    supported_measurement_shapes=(
-        "grounded_instances",
-        "paired_counts",
-    ),
-    min_criteria=1,
-    max_criteria=10,
-    default_prompt_budget_chars=32000,
-)
-
-GAD_MANIFEST_V2 = AgentCapabilityManifest(
-    agent_id="gad",
-    adapter_key="gad",
-    adapter_version=2,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("llm_rubric_guidance",),
-    supported_count_modes=(),
-    supported_ratio_modes=(),
-    capabilities=(
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            mode=None,
-            measurement_shape="grounded_score",
-        ),
-    ),
-    supported_measurement_shapes=("grounded_score",),
-    min_criteria=1,
-    max_criteria=10,
-    default_prompt_budget_chars=32000,
-)
-
-ITSO_MANIFEST_V1 = AgentCapabilityManifest(
-    agent_id="itso",
-    adapter_key="itso",
-    adapter_version=1,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("llm_rubric_guidance",),
-    supported_count_modes=(),
-    supported_ratio_modes=(),
-    capabilities=(
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            mode=None,
-            measurement_shape="grounded_score",
-        ),
-    ),
-    supported_measurement_shapes=("grounded_score",),
-    min_criteria=1,
-    max_criteria=10,
-    default_prompt_budget_chars=32000,
-)
-
-ITSO_MANIFEST_V2 = AgentCapabilityManifest(
-    agent_id="itso",
-    adapter_key="itso",
-    adapter_version=2,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("evidence_verification",),
-    capabilities=(
-        StrategyCapability(
-            strategy="evidence_verification",
-            measurement_shape="itso_evidence",
-        ),
-    ),
-    supported_measurement_shapes=("itso_evidence",),
-    min_criteria=5,
-    max_criteria=5,
-    default_prompt_budget_chars=32000,
-    allowed_criterion_codes=("ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05"),
-    required_criterion_strategies=tuple(
-        (code, "evidence_verification")
-        for code in ("ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05")
-    ),
-)
-
-ITSO_MANIFEST_V3 = AgentCapabilityManifest(
-    agent_id="itso",
-    adapter_key="itso",
-    adapter_version=3,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("llm_rubric_guidance",),
-    capabilities=(
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            measurement_shape="grounded_score",
-        ),
-    ),
-    supported_measurement_shapes=("grounded_score",),
-    min_criteria=5,
-    max_criteria=5,
-    default_prompt_budget_chars=32000,
-    allowed_criterion_codes=("ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05"),
-    required_criterion_strategies=tuple(
-        (code, "llm_rubric_guidance")
-        for code in ("ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05")
-    ),
-)
-
-COORDINATOR_MANIFEST_V1 = AgentCapabilityManifest(
-    agent_id="coordinator",
-    adapter_key="coordinator",
-    adapter_version=1,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=("curriculum_alignment",),
-    capabilities=(
-        StrategyCapability(
-            strategy="curriculum_alignment",
-            mode=None,
-            measurement_shape="curriculum_alignment",
-        ),
-    ),
-    supported_measurement_shapes=("curriculum_alignment",),
-    min_criteria=1,
-    max_criteria=1,
-    default_prompt_budget_chars=32000,
-    allowed_criterion_codes=("A-05",),
-    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
-)
-
-COORDINATOR_MANIFEST_V2 = AgentCapabilityManifest(
-    agent_id="coordinator",
-    adapter_key="coordinator",
-    adapter_version=2,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=(
-        "curriculum_alignment",
-        "llm_rubric_guidance",
-        "count_band",
-        "ratio_band",
-    ),
-    supported_count_modes=("minimum_count",),
-    supported_ratio_modes=("coverage_percentage",),
-    capabilities=(
-        StrategyCapability(
-            strategy="curriculum_alignment",
-            mode=None,
-            measurement_shape="curriculum_alignment",
-        ),
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            mode=None,
-            measurement_shape="grounded_score",
-        ),
-        StrategyCapability(
-            strategy="count_band",
-            mode="minimum_count",
-            measurement_shape="grounded_instances",
-        ),
-        StrategyCapability(
-            strategy="ratio_band",
-            mode="coverage_percentage",
-            measurement_shape="qualifying_units",
-        ),
-    ),
-    supported_measurement_shapes=(
-        "curriculum_alignment",
-        "grounded_score",
-        "grounded_instances",
-        "qualifying_units",
-    ),
-    min_criteria=10,
-    max_criteria=10,
-    default_prompt_budget_chars=32000,
-    allowed_criterion_codes=(
-        "OP-01",
-        "OP-02",
-        "OP-03",
-        "OP-04",
-        "OP-05",
-        "A-01",
-        "A-02",
-        "A-03",
-        "A-04",
-        "A-05",
-    ),
-    required_criterion_strategies=(("A-05", "curriculum_alignment"),),
-)
 
 AGENT_MANIFEST_REGISTRY_V1: MappingProxyType[str, AgentCapabilityManifest] = (
     MappingProxyType(
@@ -455,65 +46,6 @@ AGENT_MANIFEST_REGISTRY_V1: MappingProxyType[str, AgentCapabilityManifest] = (
             "coordinator": COORDINATOR_MANIFEST_V2,
         }
     )
-)
-
-COORDINATOR_MANIFEST_V3 = AgentCapabilityManifest(
-    agent_id="coordinator",
-    adapter_key="coordinator",
-    adapter_version=3,
-    prompt_budget_setting="agent_total_prompt_budget_chars",
-    supported_strategies=(
-        "llm_rubric_guidance",
-        "count_band",
-        "ratio_band",
-        "objective_gauging",
-    ),
-    supported_count_modes=("minimum_count",),
-    supported_ratio_modes=("coverage_percentage",),
-    capabilities=(
-        StrategyCapability(
-            strategy="llm_rubric_guidance",
-            mode=None,
-            measurement_shape="grounded_score",
-        ),
-        StrategyCapability(
-            strategy="count_band",
-            mode="minimum_count",
-            measurement_shape="grounded_instances",
-        ),
-        StrategyCapability(
-            strategy="ratio_band",
-            mode="coverage_percentage",
-            measurement_shape="qualifying_units",
-        ),
-        StrategyCapability(
-            strategy="objective_gauging",
-            mode=None,
-            measurement_shape="objective_gauging",
-        ),
-    ),
-    supported_measurement_shapes=(
-        "grounded_score",
-        "grounded_instances",
-        "qualifying_units",
-        "objective_gauging",
-    ),
-    min_criteria=10,
-    max_criteria=10,
-    default_prompt_budget_chars=32000,
-    allowed_criterion_codes=(
-        "OP-01",
-        "OP-02",
-        "OP-03",
-        "OP-04",
-        "OP-05",
-        "A-01",
-        "A-02",
-        "A-03",
-        "A-04",
-        "A-05",
-    ),
-    required_criterion_strategies=(("A-05", "objective_gauging"),),
 )
 
 AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
@@ -531,6 +63,14 @@ AGENT_MANIFEST_VERSION_REGISTRY: MappingProxyType[
         ("coordinator", 3): COORDINATOR_MANIFEST_V3,
     }
 )
+
+
+def uses_managed_prompt(agent_id: str, adapter_version: int | None = None) -> bool:
+    """Whether this built-in specialist adapter consumes a managed prompt."""
+    del adapter_version
+    if agent_id not in {"sme", "coordinator", "gad", "itso"}:
+        raise ValueError(f"Unknown agent capability manifest for '{agent_id}'")
+    return agent_id in {"sme", "gad"}
 
 
 def get_agent_manifest(
@@ -920,6 +460,7 @@ __all__ = [
     "StrategyCapability",
     "estimate_prompt_budget_contribution",
     "get_agent_manifest",
+    "uses_managed_prompt",
     "resolve_criterion_measurement_shape",
     "resolve_measurement_shape",
     "validate_form",

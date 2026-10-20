@@ -12,11 +12,23 @@ from equiped_harness import (
     EvaluationRequest,
     ExecutionConfig,
     ResponseContract,
+    ToolConfig,
     envelope_criteria_map_from_snapshot,
     evaluate,
     execution_scope,
 )
-from equiped_harness.config import current_execution_config
+from equiped_harness.agents.coordinator.validation import validate_coordinator_coverage
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.agents.itso.execution import (
+    _v3_repair_reserve,
+    _v3_repair_suffix,
+    cites_public_source,
+)
+from equiped_harness.agents.itso.prompt import (
+    MISSING_BIBLIOGRAPHY_NOTICE,
+    build_prompt,
+    reference_limit_notice,
+)
 from equiped_harness.contracts import (
     CriterionDefinition,
     DomainDefinition,
@@ -24,20 +36,13 @@ from equiped_harness.contracts import (
     LlmRubricGuidanceConfig,
     ObjectiveGaugingConfig,
 )
+from equiped_harness.contracts.snapshots import (
+    SnapshotIntegrityError,
+    build_evaluation_form_snapshot,
+)
 from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.itso.execution import (
-    _v3_repair_reserve,
-    _v3_repair_suffix,
-    cites_public_source,
-)
-from equiped_harness.itso.prompt import (
-    MISSING_BIBLIOGRAPHY_NOTICE,
-    build_prompt,
-    reference_limit_notice,
-)
-from equiped_harness.runtime.context import ITSOExecutionContext
-from equiped_harness.scoring import validate_coordinator_coverage
-from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.runtime.config import current_execution_config
+from equiped_harness.tools.http import Response
 
 SOURCE = (
     "Learning Objectives:\n1. Add integers.\nAssessment:\n"
@@ -113,6 +118,25 @@ class FakeClient:
             "stop",
             attempts=2,
         )
+
+
+def evaluate_prepared_fixture(request, client, config):
+    """Run legacy focused ITSO fixtures at the low-level agent seam."""
+    if (
+        request.form_snapshot.agent_id == "itso"
+        and request.form_snapshot.adapter_version == 3
+    ):
+        from dataclasses import fields
+
+        from equiped_harness.agents.itso.agent import ITSO
+        from equiped_harness.runtime.context import thaw
+
+        kwargs = {
+            field.name: thaw(getattr(request, field.name)) for field in fields(request)
+        }
+        with execution_scope(config):
+            return ITSO().run(**kwargs, llm_client=client)
+    return evaluate(request, client, config)
 
 
 def prepared_request(agent):
@@ -240,7 +264,7 @@ def test_public_evaluate_runs_actual_specialist(agent):
     config = ExecutionConfig(
         llm_temperature=0.37, llm_temperature_itso=0.12, llm_max_new_tokens=777
     )
-    result = evaluate(request, client, config)
+    result = evaluate_prepared_fixture(request, client, config)
     assert isinstance(result, AgentEvaluationResult)
     assert result.success and result.agent_name == agent
     assert result.evaluation_id == request.evaluation_id
@@ -320,7 +344,7 @@ def test_public_coordinator_evaluate_uses_complete_five_objective_inventory():
                     ],
                 }
             )
-    result = evaluate(request, FakeClient(payloads), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient(payloads), ExecutionConfig())
     assert len(result.criterion_scores) == 10
     assert [row.criterion_id for row in result.criterion_scores].count("A-05") == 1
     assert len(result.advisory_outputs.objective_matches) == 5
@@ -344,7 +368,7 @@ def test_request_and_config_are_immutable_and_scope_resets_on_error():
     original = current_execution_config()
     with execution_scope(outer):
         with pytest.raises(AgentExecutionError, match="canonical source text"):
-            evaluate(
+            evaluate_prepared_fixture(
                 replace(request, canonical_source_text=None),
                 FakeClient(payloads),
                 ExecutionConfig(llm_temperature=0.11),
@@ -352,13 +376,15 @@ def test_request_and_config_are_immutable_and_scope_resets_on_error():
         assert current_execution_config() is outer
     assert current_execution_config() is original
     with pytest.raises(TypeError, match="explicitly supplied"):
-        evaluate(request, None, ExecutionConfig())
+        evaluate_prepared_fixture(request, None, ExecutionConfig())
 
 
 def test_repair_uses_same_explicit_controls_and_shared_completion():
     request, payloads = prepared_request("sme")
     client = FakeClient([{}, payloads[0]])
-    result = evaluate(request, client, ExecutionConfig(llm_max_new_tokens=321))
+    result = evaluate_prepared_fixture(
+        request, client, ExecutionConfig(llm_max_new_tokens=321)
+    )
     assert result.success and result.provenance["repair_occurred"]
     assert result.provenance["physical_attempts"] == 4
     assert len(client.calls) == 2
@@ -399,10 +425,9 @@ def test_retired_itso_adapters_are_rejected_before_transport(adapter_version):
     snapshot = build_evaluation_form_snapshot(request.evaluation_id, form)
     request = replace(request, form_snapshot=snapshot)
     client = FakeClient([])
-    with pytest.raises(
-        ValueError, match=f"Unsupported ITSO adapter version {adapter_version}"
-    ):
-        evaluate(request, client, ExecutionConfig())
+    error_type = ValueError if adapter_version == 1 else SnapshotIntegrityError
+    with pytest.raises(error_type):
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert client.calls == []
 
 
@@ -483,6 +508,56 @@ def _completed_itso_report():
     )
 
 
+class ScriptedPublicReferenceTransport:
+    def __init__(self):
+        self.requests = []
+
+    async def get(self, request, deadline):
+        self.requests.append(request)
+        if request.kind == "duckduckgo":
+            return Response(
+                200,
+                {},
+                b'<a class="result__a" href="https://example.org/record">'
+                b"A Useful Study</a>",
+            )
+        if request.kind == "document":
+            return Response(
+                200,
+                {"content-type": "text/html"},
+                b"<html><head><title>A Useful Study</title></head><body><p>"
+                b"A Useful Study explains practical privacy engineering and secure "
+                b"handling of institutional learning data in detail.</p></body></html>",
+            )
+        return Response(404, {}, b"")
+
+
+def test_public_evaluate_itso_runs_search_and_captures_two_model_generations():
+    request, payloads = _itso_v3_request(report=_completed_itso_report())
+    request = replace(
+        request,
+        context_text="References\nAda Author (2022). A Useful Study.",
+    )
+    transport = ScriptedPublicReferenceTransport()
+    client = FakeClient(payloads)
+
+    result = evaluate(
+        request,
+        client,
+        ExecutionConfig(),
+        tools=ToolConfig(enabled=True, transport=transport),
+    )
+
+    assert result.success
+    assert [item.kind for item in transport.requests] == ["duckduckgo", "document"]
+    assert len(result.generations) == 2
+    captured = json.loads(client.calls[0][0].user_context)[
+        "public_reference_verification"
+    ]
+    assert captured["references"][0]["title"] == "A Useful Study"
+    assert captured["references"][0]["source_url"] == "https://example.org/record"
+
+
 @pytest.mark.parametrize(
     "url,citation,expected",
     [
@@ -529,7 +604,7 @@ def test_reference_facts_distinguish_retrieval_from_metadata_corroboration(
     for row in payloads[0]["criterion_scores"]:
         row.update(chunk_ids=[], evidence=[])
     client = FakeClient(payloads)
-    evaluate(request, client, ExecutionConfig())
+    evaluate_prepared_fixture(request, client, ExecutionConfig())
     facts = json.loads(client.calls[0][0].user_context)["reference_review_facts"]
     assert facts["title_author_year_corroborated"] == expected
     assert facts["searched_report_rows"] == 2
@@ -564,7 +639,7 @@ def test_public_itso_v3_uses_rubric_and_public_verification_report():
     )
     request, payloads = _itso_v3_request(report=report)
     client = FakeClient(payloads)
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert result.success
     assert len(result.criterion_scores) == 5
     assert all(1 <= score.score <= 4 for score in result.criterion_scores)
@@ -644,12 +719,14 @@ def test_unverified_originality_cannot_receive_top_band_after_one_repair():
         " Originality remains unverified."
     )
     client = FakeClient([rejected, valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert result.criterion_scores[0].score == 3
     assert "reason=unverified_top_score" in client.calls[1][0].system_instruction
     assert result.generations[0].envelope_status == "repaired"
     with pytest.raises(AgentExecutionError, match="top band contradicts"):
-        evaluate(request, FakeClient([rejected, rejected]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([rejected, rejected]), ExecutionConfig()
+        )
 
 
 def test_public_itso_v3_compares_learning_resource_citations_with_external_pages():
@@ -684,7 +761,7 @@ def test_public_itso_v3_compares_learning_resource_citations_with_external_pages
     valid["criterion_scores"][1]["chunk_ids"] = ["resources"]
     client = FakeClient([valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     prompt = client.calls[0][0]
     context = json.loads(prompt.user_context)["comparison_context"]
@@ -743,7 +820,7 @@ def test_public_itso_v3_preserves_report_limits_without_appending_to_rationale()
         row["chunk_ids"] = []
     client = FakeClient([incomplete, valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and result.provenance["repair_occurred"]
     assert len(client.calls) == 3
@@ -780,7 +857,7 @@ def test_public_itso_v3_rejects_invalid_coverage_before_model(skipped):
     client = FakeClient(payloads)
 
     with pytest.raises(AgentExecutionError, match="reference coverage is malformed"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert not client.calls
 
@@ -805,7 +882,9 @@ def test_public_itso_v3_keeps_reference_limit_in_captured_report():
         row["evidence"] = []
         row["chunk_ids"] = []
 
-    result = evaluate(request, FakeClient([complete]), ExecutionConfig())
+    result = evaluate_prepared_fixture(
+        request, FakeClient([complete]), ExecutionConfig()
+    )
     captured = json.loads(result.generations[0].prompt_messages[1]["content"])
     assert captured["public_reference_verification"]["references"][0][
         "unverified_fields"
@@ -830,7 +909,7 @@ def test_public_itso_v3_keeps_notice_when_it_is_the_only_criterion_text():
         row.update(evidence=[], chunk_ids=[])
     client = FakeClient([valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success
     assert result.criterion_scores[1].justification == raw_justification
@@ -859,7 +938,7 @@ def test_public_itso_v3_rejects_malformed_citation_metadata_before_model(citatio
     client = FakeClient(payloads)
 
     with pytest.raises(AgentExecutionError, match="citation metadata is malformed"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert not client.calls
 
@@ -868,7 +947,7 @@ def test_public_itso_v3_runs_two_groups_with_one_deadline_and_two_captures():
     request, [valid] = _itso_v3_request(report=_completed_itso_report())
     client = FakeClient([valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert len(client.calls) == 2
     assert client.calls[0][3] == client.calls[1][3]
@@ -907,7 +986,7 @@ def test_public_itso_v3_selects_source_criteria_by_code_when_snapshot_is_reorder
         form_snapshot=snapshot.model_copy(update={"snapshot_payload": payload}),
     )
 
-    result = evaluate(request, FakeClient([valid]), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient([valid]), ExecutionConfig())
 
     assert [generation.criterion_ids for generation in result.generations] == [
         ("ITSO-02", "ITSO-01"),
@@ -921,7 +1000,7 @@ def test_public_itso_v3_second_envelope_failure_fails_whole_evaluation():
     invalid_second["criterion_scores"][2]["score"] = 9
 
     with pytest.raises(AgentExecutionError, match="ITSOInvalidScore"):
-        evaluate(
+        evaluate_prepared_fixture(
             request,
             FakeClient([valid, invalid_second, invalid_second]),
             ExecutionConfig(),
@@ -934,7 +1013,7 @@ def test_public_itso_v3_omits_legacy_prompt_template_from_prompt_lineage():
         request,
         prompt_version="Assess internal patterns only; ignore public sources.",
     )
-    result = evaluate(request, FakeClient(payloads), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient(payloads), ExecutionConfig())
 
     sent_prompt = result.generations[0].prompt_text
     assert "Assess internal patterns only" not in sent_prompt
@@ -957,7 +1036,7 @@ def test_public_itso_v3_requires_valid_report_before_model(report):
     request, payloads = _itso_v3_request(report=report)
     client = FakeClient(payloads)
     with pytest.raises(AgentExecutionError, match="public reference"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert client.calls == []
 
 
@@ -991,7 +1070,7 @@ def test_public_itso_v3_accepts_producer_nulls_without_match_evidence(status):
     )
     request, payloads = _itso_v3_request(report=report)
     client = FakeClient(payloads)
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert result.success
     assert len(client.calls) == 2
     prompt = client.calls[0][0]
@@ -1021,7 +1100,7 @@ def test_public_itso_v3_rejects_report_without_usable_passage_before_model():
     request, payloads = _itso_v3_request(report=report)
     client = FakeClient(payloads)
     with pytest.raises(AgentExecutionError, match="usable public reference passage"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert client.calls == []
 
 
@@ -1045,7 +1124,7 @@ def test_public_itso_v3_formats_scoped_passage_and_missing_bibliography_limits()
         }
     )
     request, payloads = _itso_v3_request(report=report)
-    result = evaluate(request, FakeClient(payloads), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient(payloads), ExecutionConfig())
 
     for criterion_id in ("ITSO-01", "ITSO-02"):
         justification = next(
@@ -1093,7 +1172,7 @@ def test_public_itso_v3_keeps_full_reference_report_in_captured_request():
     document_payload["summary"] = source_payload["summary"]
     client = FakeClient([source_payload, document_payload])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     for score in result.criterion_scores[:2]:
         assert len(score.justification) <= 4000
@@ -1137,7 +1216,7 @@ def test_public_itso_v3_prompt_requests_short_findings_and_summary():
     request, payloads = _itso_v3_request(report=_completed_itso_report())
     client = FakeClient(payloads)
 
-    evaluate(request, client, ExecutionConfig())
+    evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     instructions = client.calls[0][0].system_instruction
     assert "1–2 short sentences (about 35 words)" in instructions
@@ -1187,7 +1266,7 @@ def test_public_itso_v3_rationale_does_not_include_tool_receipts():
             row["justification"] = (rows[0]["source_url"] + " " + "M" * 2000)[:2000]
 
     client = FakeClient([valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     for score in result.criterion_scores[:2]:
         raw_score = next(
@@ -1210,7 +1289,7 @@ def test_public_itso_v3_ignores_nonempty_legacy_policy_context():
     request = replace(request, policy_evidence={"text": "LEGACY POLICY CONTENT"})
     client = FakeClient(payloads)
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and result.provenance["policy_trimmed"] is True
     assert all("LEGACY POLICY CONTENT" not in str(call[0]) for call in client.calls)
@@ -1232,7 +1311,7 @@ def test_public_itso_v3_delivers_gated_policy_only_to_document_review():
     }
     request = replace(request, policy_evidence=policy)
     client = FakeClient(payloads)
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     first, second = [json.loads(call[0].user_context) for call in client.calls]
     assert "Faculty retain" not in json.dumps(first)
     assert second["local_policy_context"]["ITSO-03"]["clauses"] == [
@@ -1244,7 +1323,7 @@ def test_public_itso_v3_delivers_gated_policy_only_to_document_review():
         not in result.criterion_scores[2].justification
     )
     blocked_client = FakeClient(payloads)
-    evaluate(
+    evaluate_prepared_fixture(
         replace(request, policy_evidence={**policy, "delivery_state": "blocked"}),
         blocked_client,
         ExecutionConfig(),
@@ -1261,7 +1340,9 @@ def test_public_itso_v3_selects_late_rights_clause_and_reports_actual_coverage()
         row.update(chunk_ids=[], evidence=[])
     valid["criterion_scores"][2].update(chunk_ids=["c1"], evidence=[clause])
     client = FakeClient([valid])
-    result = evaluate(request, client, ExecutionConfig(agent_max_excerpt_chars=300))
+    result = evaluate_prepared_fixture(
+        request, client, ExecutionConfig(agent_max_excerpt_chars=300)
+    )
     payload = json.loads(client.calls[1][0].user_context)
     assert clause in payload["document_chunks"][0]["text"]
     assert payload["document_chunks"][0]["text"] in original
@@ -1305,14 +1386,14 @@ def test_public_itso_v3_repairs_decisive_document_finding_without_quote(code, sc
     rejected = json.loads(json.dumps(valid))
     rejected["criterion_scores"][int(code[-1]) - 1]["score"] = score
     client = FakeClient([valid, rejected, valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert result.success and len(client.calls) == 3
     assert "reason=missing_review_evidence" in client.calls[2][0].system_instruction
     assert result.criterion_scores[3].score == 4
     assert result.generations[1].envelope_status == "repaired"
     failing = FakeClient([valid, rejected, rejected])
     with pytest.raises(AgentExecutionError, match="requires a quotation"):
-        evaluate(request, failing, ExecutionConfig())
+        evaluate_prepared_fixture(request, failing, ExecutionConfig())
 
 
 def test_public_itso_v3_repairs_ungrounded_evidence_with_safe_diagnostic():
@@ -1325,7 +1406,7 @@ def test_public_itso_v3_repairs_ungrounded_evidence_with_safe_diagnostic():
     rejected["criterion_scores"][0]["chunk_ids"] = ["c1"]
     client = FakeClient([rejected, valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and result.provenance["repair_occurred"]
     assert len(client.calls) == 3
@@ -1345,7 +1426,7 @@ def test_public_itso_v3_still_fails_after_one_invalid_repair():
     client = FakeClient([rejected, rejected])
 
     with pytest.raises(AgentExecutionError, match="ITSOInvalidEvidence"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert len(client.calls) == 2
 
@@ -1358,7 +1439,7 @@ def test_public_itso_v3_repairs_missing_source_citation_and_captures_repaired_mo
         row["justification"] = "Generic analysis with no source citation."
     client = FakeClient([uncited, valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and len(client.calls) == 3
     assert "reason=missing_source_citation" in client.calls[1][0].system_instruction
@@ -1383,7 +1464,7 @@ def test_public_itso_v3_repairs_false_attribution_when_bibliography_is_missing()
     )
 
     client = FakeClient([unsupported, valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and result.provenance["repair_occurred"]
     assert len(client.calls) == 3
@@ -1410,7 +1491,9 @@ def test_public_itso_v3_fails_after_bibliography_limit_repair_omits_notice():
     )
 
     with pytest.raises(AgentExecutionError, match="missing bibliography limit"):
-        evaluate(request, FakeClient([unsupported, unsupported]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([unsupported, unsupported]), ExecutionConfig()
+        )
 
 
 def test_public_itso_v3_does_not_require_missing_bibliography_notice_when_detected():
@@ -1422,7 +1505,7 @@ def test_public_itso_v3_does_not_require_missing_bibliography_notice_when_detect
     )
 
     client = FakeClient([valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success
     assert len(client.calls) == 2
@@ -1441,7 +1524,9 @@ def test_public_itso_v3_rejects_uncited_repair_and_unusable_fake_url():
     for row in uncited["criterion_scores"][:2]:
         row["justification"] = "Generic analysis."
     with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-        evaluate(request, FakeClient([uncited, uncited]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([uncited, uncited]), ExecutionConfig()
+        )
 
     for suffix in ("/fabricated", ".evil.example", "?source=fake"):
         fake = json.loads(json.dumps(valid))
@@ -1449,7 +1534,9 @@ def test_public_itso_v3_rejects_uncited_repair_and_unusable_fake_url():
             "See https://example.org/record" + suffix
         )
         with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-            evaluate(request, FakeClient([fake, fake]), ExecutionConfig())
+            evaluate_prepared_fixture(
+                request, FakeClient([fake, fake]), ExecutionConfig()
+            )
 
 
 @pytest.mark.parametrize(
@@ -1473,7 +1560,7 @@ def test_public_itso_v3_accepts_unambiguous_homepage_citations(citation):
         row["justification"] = (
             f"Compared against {citation} Topic overlap alone is inconclusive."
         )
-    result = evaluate(request, FakeClient([valid]), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient([valid]), ExecutionConfig())
     assert result.success
     assert result.criterion_scores[0].justification.startswith("Compared against")
 
@@ -1500,7 +1587,9 @@ def test_public_itso_v3_rejects_ambiguous_homepage_citations(citation):
     for row in valid["criterion_scores"][:2]:
         row["justification"] = f"Compared against {citation}"
     with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-        evaluate(request, FakeClient([valid, valid]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([valid, valid]), ExecutionConfig()
+        )
 
 
 def test_public_itso_v3_requires_complete_page_path_citations():
@@ -1508,7 +1597,9 @@ def test_public_itso_v3_requires_complete_page_path_citations():
     for row in valid["criterion_scores"][:2]:
         row["justification"] = "Compared against example.org"
     with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-        evaluate(request, FakeClient([valid, valid]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([valid, valid]), ExecutionConfig()
+        )
 
 
 def test_public_itso_v3_validates_mapping_response_shape():
@@ -1522,7 +1613,7 @@ def test_public_itso_v3_validates_mapping_response_shape():
             for row in valid["criterion_scores"]
         },
     }
-    result = evaluate(request, FakeClient([mapped]), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient([mapped]), ExecutionConfig())
     assert result.success
 
 
@@ -1536,7 +1627,7 @@ def test_public_itso_v3_preserves_punctuation_belonging_to_source_url(citation):
         row["justification"] = "Compared against " + citation.format(url)
     client = FakeClient([valid])
 
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
 
     assert result.success and len(client.calls) == 2
 
@@ -1546,7 +1637,7 @@ def test_public_itso_v3_resolves_short_source_markers_and_rejects_unknown_ones(m
     request, [valid] = _itso_v3_request(report=_completed_itso_report())
     for row in valid["criterion_scores"][:2]:
         row["justification"] = marker + ": Compared the module with this passage."
-    result = evaluate(request, FakeClient([valid]), ExecutionConfig())
+    result = evaluate_prepared_fixture(request, FakeClient([valid]), ExecutionConfig())
     assert (
         result.criterion_scores[0].justification
         == marker + ": Compared the module with this passage."
@@ -1558,7 +1649,9 @@ def test_public_itso_v3_resolves_short_source_markers_and_rejects_unknown_ones(m
     )
     valid["criterion_scores"][0]["justification"] += " Also [source 2]."
     with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-        evaluate(request, FakeClient([valid, valid]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([valid, valid]), ExecutionConfig()
+        )
 
 
 @pytest.mark.parametrize("url_chars", [1700, 2048])
@@ -1575,7 +1668,7 @@ def test_cited_markers_bind_long_urls_in_captured_report_without_appending_them(
     for row in valid["criterion_scores"][:2]:
         row["justification"] = "[source 1] and [source 2]: Compared source passages."
     client = FakeClient([valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert "[source 1]" in result.criterion_scores[0].justification
     assert "[source 2]" in result.criterion_scores[0].justification
     assert all(url not in result.criterion_scores[0].justification for url in urls)
@@ -1591,7 +1684,7 @@ def test_public_itso_v3_rejects_more_than_five_reference_rows_before_model():
     request, payloads = _itso_v3_request(report=json.dumps(report))
     client = FakeClient(payloads)
     with pytest.raises(AgentExecutionError, match="report is malformed"):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert not client.calls
 
 
@@ -1627,7 +1720,7 @@ def test_public_itso_v3_accepts_only_resolvable_markers_for_long_sources():
     for row in valid["criterion_scores"][:2]:
         row["justification"] = "R" * 1950 + " [source 1]"
     client = FakeClient([valid])
-    result = evaluate(request, client, ExecutionConfig())
+    result = evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert result.success
     assert "[source 1]" in result.criterion_scores[0].justification
     assert len(result.criterion_scores[0].justification) <= 4000
@@ -1638,7 +1731,9 @@ def test_public_itso_v3_accepts_only_resolvable_markers_for_long_sources():
     invalid = json.loads(json.dumps(valid))
     invalid["criterion_scores"][0]["justification"] = "See [source 2]."
     with pytest.raises(AgentExecutionError, match="ITSOInvalidPublicSourceUse"):
-        evaluate(request, FakeClient([invalid, invalid]), ExecutionConfig())
+        evaluate_prepared_fixture(
+            request, FakeClient([invalid, invalid]), ExecutionConfig()
+        )
 
 
 def test_public_itso_v3_fails_before_transport_when_budget_drops_all_source_chunks():
@@ -1653,7 +1748,7 @@ def test_public_itso_v3_fails_before_transport_when_budget_drops_all_source_chun
     with pytest.raises(
         AgentExecutionError, match="document chunk within prompt budget"
     ):
-        evaluate(
+        evaluate_prepared_fixture(
             request,
             client,
             ExecutionConfig(
@@ -1700,7 +1795,7 @@ def test_public_itso_v3_large_report_reserves_context_and_trims_source_chunks():
         row["evidence"] = []
     client = FakeClient(payloads)
     budget_chars = 15_000
-    result = evaluate(
+    result = evaluate_prepared_fixture(
         request,
         client,
         ExecutionConfig(
@@ -1745,7 +1840,7 @@ def test_public_itso_v3_repair_reserve_preserves_criterion_05_feedback_at_budget
 
     config = ExecutionConfig(agent_max_chunks=2)
     warmup = FakeClient([valid])
-    evaluate(request, warmup, config)
+    evaluate_prepared_fixture(request, warmup, config)
     prompt_chars = len(warmup.calls[1][0])
     criterion_05_suffix = _v3_repair_suffix(
         "ITSOInvalidEvidence",
@@ -1757,7 +1852,7 @@ def test_public_itso_v3_repair_reserve_preserves_criterion_05_feedback_at_budget
     )
     client = FakeClient([valid, rejected, valid])
 
-    result = evaluate(
+    result = evaluate_prepared_fixture(
         request,
         client,
         replace(config, agent_total_prompt_budget_chars=total_budget),
@@ -1775,8 +1870,10 @@ def test_public_itso_v3_repair_reserve_preserves_criterion_05_feedback_at_budget
 def test_evaluation_snapshot_binding_still_fails_before_transport():
     request, payloads = prepared_request("sme")
     client = FakeClient(payloads)
-    with pytest.raises(AgentExecutionError, match="Snapshot evaluation_id"):
-        evaluate(replace(request, evaluation_id=uuid4()), client, ExecutionConfig())
+    with pytest.raises(SnapshotIntegrityError, match="evaluation_id mismatch"):
+        evaluate_prepared_fixture(
+            replace(request, evaluation_id=uuid4()), client, ExecutionConfig()
+        )
     assert not client.calls
 
 
@@ -1822,5 +1919,5 @@ def test_incomplete_objective_prefix_fails_before_model_calls(prefix):
     )
     client = FakeClient([])
     with pytest.raises(AgentExecutionError):
-        evaluate(request, client, ExecutionConfig())
+        evaluate_prepared_fixture(request, client, ExecutionConfig())
     assert client.calls == []

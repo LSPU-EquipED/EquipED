@@ -13,7 +13,7 @@ from equiped_harness.contracts import (
     FormDefinition,
     LlmRubricGuidanceConfig,
 )
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     build_evaluation_form_snapshot,
     serialize_snapshot_payload,
 )

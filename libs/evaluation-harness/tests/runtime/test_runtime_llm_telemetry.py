@@ -2,7 +2,7 @@ import pytest
 from equiped_harness.exceptions import AgentLLMError
 from equiped_harness.provenance import sanitize_provenance
 from equiped_harness.runtime import llm
-from equiped_harness.transport import CompletionResult
+from equiped_harness.runtime.model import CompletionResult
 
 
 class TypedClient:
