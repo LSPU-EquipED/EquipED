@@ -1,57 +1,60 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import React from 'react';
-import { SpecialistInspectionPanel } from '../SpecialistInspectionPanel';
-import type { EvaluationFlagItem, MasterSynthesisPillar } from '../../types';
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import React from "react";
+import { SpecialistInspectionPanel } from "../SpecialistInspectionPanel";
+import type { EvaluationFlagItem, MasterSynthesisPillar } from "../../types";
 
 afterEach(() => {
   cleanup();
 });
 
-describe('SpecialistInspectionPanel', () => {
+describe("SpecialistInspectionPanel", () => {
   const mockPillar: MasterSynthesisPillar = {
     weight: 0.35,
     subtotal: 3.8,
-    status: 'COMPLETED',
+    status: "COMPLETED",
     criteria: [
       {
-        criterion_id: 'SME-1',
-        criterion_text: 'Topical and Technical Rigor',
-        description: 'Depth of concurrency and memory virtualization principles',
+        criterion_id: "SME-1",
+        criterion_text: "Topical and Technical Rigor",
+        description:
+          "Depth of concurrency and memory virtualization principles",
         score: 4,
-        justification: 'Exemplary coverage of thread synchronization primitives.',
-        evidence: 'Section 3.2 diagrams accurately depict semaphore invariants.',
+        justification:
+          "Exemplary coverage of thread synchronization primitives.",
+        evidence:
+          "Section 3.2 diagrams accurately depict semaphore invariants.",
       },
     ],
-    summary: 'Comprehensive pedagogical treatment of systems programming.',
+    summary: "Comprehensive pedagogical treatment of systems programming.",
     evaluator: {
-      user_id: 'user-eval-sme',
-      name: 'Dr. Evelyn Reed',
-      email: 'evelyn.reed@university.edu',
-      department: 'Systems Engineering',
+      user_id: "user-eval-sme",
+      name: "Dr. Evelyn Reed",
+      email: "evelyn.reed@university.edu",
+      department: "Systems Engineering",
     },
   };
 
   const mockFlags: EvaluationFlagItem[] = [
     {
-      flag_id: 'flag-sme-12345678',
-      evaluation_id: 'eval-1',
-      agent_id: 'sme',
-      severity: 'WARNING',
-      criterion_id: 'SME-1',
-      message: 'Potential outdated citation in chapter 4',
+      flag_id: "flag-sme-12345678",
+      evaluation_id: "eval-1",
+      agent_id: "sme",
+      severity: "WARNING",
+      criterion_id: "SME-1",
+      message: "Potential outdated citation in chapter 4",
     },
     {
-      flag_id: 'flag-other',
-      evaluation_id: 'eval-1',
-      agent_id: 'itso',
-      severity: 'WARNING',
-      message: 'ITSO flag',
+      flag_id: "flag-other",
+      evaluation_id: "eval-1",
+      agent_id: "itso",
+      severity: "WARNING",
+      message: "ITSO flag",
     },
   ];
 
-  it('renders tabpanel container with correct ARIA attributes and data-testid', () => {
+  it("renders tabpanel container with correct ARIA attributes and data-testid", () => {
     render(
       <SpecialistInspectionPanel
         activePillarId="sme"
@@ -60,14 +63,14 @@ describe('SpecialistInspectionPanel', () => {
       />,
     );
 
-    const panel = screen.getByRole('tabpanel');
-    expect(panel.getAttribute('id')).toBe('tab-content-sme');
-    expect(panel.getAttribute('aria-labelledby')).toBe('pillar-tab-sme');
-    expect(panel.getAttribute('data-testid')).toBe('tab-content-sme');
-    expect(panel.getAttribute('tabindex')).toBe('0');
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("id")).toBe("tab-content-sme");
+    expect(panel.getAttribute("aria-labelledby")).toBe("pillar-tab-sme");
+    expect(panel.getAttribute("data-testid")).toBe("tab-content-sme");
+    expect(panel.getAttribute("tabindex")).toBe("0");
   });
 
-  it('renders specialist overview, score, evaluator, summary, criteria, and filtered flags', () => {
+  it("renders specialist overview, score, evaluator, summary, criteria, and filtered flags", () => {
     render(
       <SpecialistInspectionPanel
         activePillarId="sme"
@@ -76,45 +79,158 @@ describe('SpecialistInspectionPanel', () => {
       />,
     );
 
-    const headings = screen.getAllByRole('heading', { level: 2, name: /content accuracy/i });
+    const headings = screen.getAllByRole("heading", {
+      level: 2,
+      name: /content accuracy/i,
+    });
     expect(headings.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Subject Matter Expert (SME)')).toBeTruthy();
-    expect(screen.getByText('3.80')).toBeTruthy();
+    expect(screen.getByText("Subject Matter Expert (SME)")).toBeTruthy();
+    expect(screen.getByText("3.80")).toBeTruthy();
     expect(screen.getByText(/evaluated by: dr\. evelyn reed/i)).toBeTruthy();
-    expect(screen.getByText('Comprehensive pedagogical treatment of systems programming.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Comprehensive pedagogical treatment of systems programming.",
+      ),
+    ).toBeTruthy();
 
     // Rubric criteria
-    expect(screen.getByText('Topical and Technical Rigor')).toBeTruthy();
+    expect(screen.getByText("Topical and Technical Rigor")).toBeTruthy();
 
     // Specialist flags (only active pillar flag rendered)
     expect(screen.getByText(/Specialist Compliance Flags \(1\)/)).toBeTruthy();
-    expect(screen.getByText('Potential outdated citation in chapter 4')).toBeTruthy();
-    expect(screen.queryByText('ITSO flag')).toBeNull();
+    expect(
+      screen.getByText("Potential outdated citation in chapter 4"),
+    ).toBeTruthy();
+    expect(screen.queryByText("ITSO flag")).toBeNull();
   });
 
-  it('shows Coordinator curriculum advice separately from the official score', () => {
-    render(<SpecialistInspectionPanel activePillarId="coordinator" pillar={{
-      ...mockPillar, subtotal: 3.9,
-      advisory_outputs: {
-        contract: 'coordinator_alignment.v1', criterion_id: 'C-01',
-        criterion_title: 'Curriculum Alignment', advisory_only: true,
-        score: 1, justification: 'No objectives supported by curriculum.',
-        objective_matches: [{ objective_id: 'OBJ-0001', objective_text: 'An objective.', matched: false, excerpt: '', rejected: false }],
-      },
-    }} />);
-    expect(screen.getByText('3.90')).toBeTruthy();
-    expect(screen.getByText('1 / 4')).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Advisory curriculum alignment' })).toBeTruthy();
-    expect(screen.getByText(/Excluded from the official subtotal/)).toBeTruthy();
+  it("shows Coordinator curriculum advice separately from the official score", () => {
+    render(
+      <SpecialistInspectionPanel
+        activePillarId="coordinator"
+        pillar={{
+          ...mockPillar,
+          subtotal: 3.9,
+          advisory_outputs: {
+            contract: "coordinator_alignment.v1",
+            criterion_id: "C-01",
+            criterion_title: "Curriculum Alignment",
+            advisory_only: true,
+            score: 1,
+            justification: "No objectives supported by curriculum.",
+            objective_matches: [
+              {
+                objective_id: "OBJ-0001",
+                objective_text: "An objective.",
+                matched: false,
+                excerpt: "",
+                rejected: false,
+              },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByText("3.90")).toBeTruthy();
+    expect(screen.getByText("1 / 4")).toBeTruthy();
+    expect(
+      screen.getByRole("region", { name: "Advisory curriculum alignment" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Excluded from the official subtotal/),
+    ).toBeTruthy();
   });
 
-  it('renders awaiting specialist review when evaluator is absent', () => {
+  it("renders the typed v2 master pillar as five evidence rows without legacy score assumptions", () => {
+    const v2Pillar: MasterSynthesisPillar = {
+      contract: "itso_evidence.v1",
+      evaluation_id: "owned-itso-run",
+      weight: 0.2,
+      subtotal: null,
+      status: "COMPLETED",
+      execution_status: "COMPLETED",
+      scoring_complete: false,
+      scored_count: 0,
+      unscored_count: 5,
+      issue_count: 1,
+      uncertainty_count: 2,
+      max_score: 4,
+      adjectival_rating: null,
+      summary: "",
+      evaluator: null,
+      criteria: ["ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05"].map(
+        (criterion_id, index) => ({
+          criterion_id: criterion_id as
+            "ITSO-01" | "ITSO-02" | "ITSO-03" | "ITSO-04" | "ITSO-05",
+          applicability: "unknown" as const,
+          applicability_reason: "Context requires authorized review",
+          evidence_state:
+            index === 0
+              ? ("observed" as const)
+              : ("none_supplied_or_located" as const),
+          verification: "unverified" as const,
+          evidence:
+            index === 0
+              ? [
+                  {
+                    fact_id: "fact-1",
+                    predicate: "citation_present",
+                    value: "Citation found",
+                    authority: "proposed_model" as const,
+                    source_spans: [
+                      {
+                        source_id: "source-1",
+                        start_offset: 5,
+                        end_offset: 14,
+                        page_number: 2,
+                        text_hash: "hash-1",
+                      },
+                    ],
+                    origin: "model_extraction",
+                    method_version: null,
+                    policy_version: null,
+                    reviewer_id: null,
+                    reviewed_at: null,
+                  },
+                ]
+              : [],
+          concerns: index === 0 ? ["Potential mismatch; requires review"] : [],
+          uncertainties: [],
+          score: null,
+          score_withheld_reason: "Insufficient authoritative evidence",
+          rule_version: null,
+        }),
+      ),
+    };
+
+    render(
+      <SpecialistInspectionPanel activePillarId="itso" pillar={v2Pillar} />,
+    );
+
+    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("Rubric criteria assessment")).toBeTruthy();
+    expect(screen.getAllByText("— / 4")).toHaveLength(5);
+    expect(
+      screen.getAllByText(
+        /Score withheld: Insufficient authoritative evidence/,
+      ),
+    ).toHaveLength(5);
+    expect(
+      screen.getByText(/Potential mismatch; requires review/),
+    ).toBeTruthy();
+    expect(screen.queryByText(/offsets 5–14/)).toBeNull();
+    expect(
+      screen.queryByText(/Strong|legal compliance|certification/i),
+    ).toBeNull();
+  });
+
+  it("renders awaiting specialist review when evaluator is absent", () => {
     const unreviewedPillar: MasterSynthesisPillar = {
       weight: 0.25,
       subtotal: null,
-      status: 'PENDING',
+      status: "PENDING",
       criteria: [],
-      summary: '',
+      summary: "",
       evaluator: null,
     };
 
@@ -125,8 +241,8 @@ describe('SpecialistInspectionPanel', () => {
       />,
     );
 
-    expect(screen.getByText('Awaiting specialist review')).toBeTruthy();
-    expect(screen.getByText('PENDING')).toBeTruthy();
-    expect(screen.getByText('—')).toBeTruthy();
+    expect(screen.getByText("Awaiting specialist review")).toBeTruthy();
+    expect(screen.getByText("PENDING")).toBeTruthy();
+    expect(screen.getByText("—")).toBeTruthy();
   });
 });

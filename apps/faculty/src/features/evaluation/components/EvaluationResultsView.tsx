@@ -151,7 +151,11 @@ export function EvaluationResultsView({
             type="button"
             variant="primary"
             size="sm"
-            disabled={!domainScore}
+            disabled={
+              !domainScore ||
+              domainScore.status === "HISTORICAL_UNSCORED" ||
+              domainScore.status === "ERROR"
+            }
             onClick={onOpenReviewModal}
             className="gap-1.5 text-xs font-semibold"
           >
@@ -187,6 +191,15 @@ export function EvaluationResultsView({
           </Button>
         </div>
       </header>
+
+      {results.evaluation_status === "FAILED" && (
+        <p
+          role="alert"
+          className="border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive"
+        >
+          Evaluation failed. Available findings are diagnostic only.
+        </p>
+      )}
 
       <EvaluationResultMetadata
         courseTitle={activeDocument?.courseTitle}

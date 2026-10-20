@@ -99,6 +99,30 @@ describe("SpecialistLaunchpad admission", () => {
   afterEach(() => {
     cleanup();
     vi.resetAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the existing ITSO confirmation with required online checks and no opt-out", async () => {
+    const { onSubmitted } = renderSetup("itso");
+    expect(screen.queryByText(/Prepare source/)).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(
+      screen.getByText(/criteria 1 and 2 on every evaluation/),
+    ).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Start evaluation" }));
+    expect(evaluationApi.submitEvaluation).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Run ITSO Evaluation" }),
+    );
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith("eval-1"));
+    expect(evaluationApi.submitEvaluation).toHaveBeenCalledTimes(1);
+    expect(evaluationApi.submitEvaluation).toHaveBeenCalledWith({
+      document_id: "doc-1",
+      target_agent: "itso",
+      confirmed_program: "BSCS",
+      partial_without_curriculum: false,
+    });
+    expect(documentsApi.getCurriculumSuggestion).not.toHaveBeenCalled();
   });
 
   it("requires verified curriculum and explicit confirmation before submitting the existing payload", async () => {
@@ -134,6 +158,29 @@ describe("SpecialistLaunchpad admission", () => {
       partial_without_curriculum: false,
     });
   });
+
+  it.each(["verification_disabled"])(
+    "explains missing ITSO search configuration without submitting an offline run: %s",
+    async (code) => {
+      vi.mocked(evaluationApi.submitEvaluation).mockRejectedValue(
+        new Error(code),
+      );
+      const { onSubmitted } = renderSetup("itso");
+      fireEvent.click(screen.getByRole("button", { name: "Start evaluation" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Run ITSO Evaluation" }),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("alert").textContent).toContain("server"),
+      );
+      expect(screen.getByRole("alert").textContent).not.toContain(
+        "administrator",
+      );
+      expect(screen.getByRole("alert").textContent).not.toContain(code);
+      expect(onSubmitted).not.toHaveBeenCalled();
+      expect(screen.queryByRole("checkbox")).toBeNull();
+    },
+  );
 
   it("clears the selected reference when the confirmed program changes", async () => {
     renderSetup();

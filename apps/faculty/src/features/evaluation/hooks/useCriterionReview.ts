@@ -87,7 +87,7 @@ export function useCriterionReview({
 
   function revertCriterion(criterion: CriterionScoreItem) {
     updateDraft(criterion.criterion_id, {
-      score: criterion.score,
+      score: criterion.score ?? undefined,
       justification: criterion.justification,
       rejected: false,
       expanded: false,

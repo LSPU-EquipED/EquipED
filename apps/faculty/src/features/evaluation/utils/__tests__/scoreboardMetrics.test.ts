@@ -29,6 +29,25 @@ describe("dateFormatting", () => {
 });
 
 describe("scoreboardMetrics", () => {
+  it("keeps unavailable historical scores out of numeric buckets and attention counts", () => {
+    const criteria: CriterionScoreItem[] = [
+      {
+        criterion_id: "ITSO-01",
+        criterion_text: "Archived review",
+        score: null,
+        justification: "Score withheld",
+      },
+    ];
+    const metrics = calculateScoreboardMetrics(criteria);
+    expect(metrics.attentionCount).toBe(0);
+    expect(metrics.strongCount).toBe(0);
+    expect(metrics.scoreBuckets.every((bucket) => bucket.count === 0)).toBe(
+      true,
+    );
+    expect(filterCriteria(criteria, "ATTENTION")).toEqual([]);
+    expect(filterCriteria(criteria, "ALL")).toEqual(criteria);
+  });
+
   const sampleCriteria: CriterionScoreItem[] = [
     {
       criterion_id: "C1",
@@ -125,19 +144,18 @@ describe("scoreboardMetrics", () => {
     });
 
     it("filters by exact rounded bucket number", () => {
-      expect(filterCriteria(sampleCriteria, 4).map((c) => c.criterion_id)).toEqual([
-        "C1",
-        "C5",
-      ]);
-      expect(filterCriteria(sampleCriteria, 3).map((c) => c.criterion_id)).toEqual([
-        "C2",
-      ]);
-      expect(filterCriteria(sampleCriteria, 2).map((c) => c.criterion_id)).toEqual([
-        "C3",
-      ]);
-      expect(filterCriteria(sampleCriteria, 1).map((c) => c.criterion_id)).toEqual([
-        "C4",
-      ]);
+      expect(
+        filterCriteria(sampleCriteria, 4).map((c) => c.criterion_id),
+      ).toEqual(["C1", "C5"]);
+      expect(
+        filterCriteria(sampleCriteria, 3).map((c) => c.criterion_id),
+      ).toEqual(["C2"]);
+      expect(
+        filterCriteria(sampleCriteria, 2).map((c) => c.criterion_id),
+      ).toEqual(["C3"]);
+      expect(
+        filterCriteria(sampleCriteria, 1).map((c) => c.criterion_id),
+      ).toEqual(["C4"]);
     });
   });
 });

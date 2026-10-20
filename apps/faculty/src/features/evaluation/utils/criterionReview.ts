@@ -8,6 +8,8 @@ function baselineFor(criterion: CriterionScoreItem): {
   score: number;
   justification: string;
 } {
+  if (criterion.score == null)
+    throw new Error("This archived criterion has no editable score.");
   if (criterion.reviewer_correction?.action === "EDIT") {
     return {
       score: criterion.reviewer_correction.score ?? criterion.score,
@@ -22,23 +24,25 @@ export function initialDrafts(
   criteria: readonly CriterionScoreItem[],
 ): Record<string, CriterionReviewDraft> {
   return Object.fromEntries(
-    criteria.map((c) => {
-      const baseline = baselineFor(c);
-      const isEditBaseline = c.reviewer_correction?.action === "EDIT";
-      return [
-        c.criterion_id,
-        {
-          score: baseline.score,
-          justification: baseline.justification,
-          rejected: c.reviewer_correction?.action === "REJECT",
-          expanded: isEditBaseline,
-          itemsExpanded: false,
-          itemRejections: Object.fromEntries(
-            (c.raw_items ?? []).map((item) => [item.item_id, item.rejected]),
-          ),
-        },
-      ];
-    }),
+    criteria
+      .filter((c) => c.score != null)
+      .map((c) => {
+        const baseline = baselineFor(c);
+        const isEditBaseline = c.reviewer_correction?.action === "EDIT";
+        return [
+          c.criterion_id,
+          {
+            score: baseline.score,
+            justification: baseline.justification,
+            rejected: c.reviewer_correction?.action === "REJECT",
+            expanded: isEditBaseline,
+            itemsExpanded: false,
+            itemRejections: Object.fromEntries(
+              (c.raw_items ?? []).map((item) => [item.item_id, item.rejected]),
+            ),
+          },
+        ];
+      }),
   );
 }
 

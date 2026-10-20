@@ -1,4 +1,6 @@
 import { ArrowsClockwise, WarningCircle } from "@phosphor-icons/react";
+import type { ITSOAssessment } from "@equiped/types";
+import { historicalITSOResults } from "../utils/historicalITSOResults";
 import { BUTTON_STYLES, Skeleton, cn } from "@equiped/ui";
 import {
   EvaluationResultsView,
@@ -127,6 +129,8 @@ interface EvaluationResultStateProps extends Omit<
   EvaluationResultsViewProps,
   "results" | "domainScore"
 > {
+  assessment?: ITSOAssessment;
+  isAssessmentPending?: boolean;
   results?: EvaluationResultsViewProps["results"] | null;
   domainScore?: EvaluationResultsViewProps["domainScore"] | null;
   isLoading: boolean;
@@ -135,13 +139,45 @@ interface EvaluationResultStateProps extends Omit<
 }
 export function EvaluationResultState({
   results,
+  assessment,
+  isAssessmentPending,
   domainScore,
   isLoading,
   isError,
   onRetry,
   ...props
 }: EvaluationResultStateProps) {
-  if (isError && !results) return <EvaluationResultsError onRetry={onRetry} />;
+  if (isError && !results && !assessment)
+    return <EvaluationResultsError onRetry={onRetry} />;
+  if (assessment) {
+    const archived = historicalITSOResults(assessment);
+    return (
+      <EvaluationResultsView
+        {...props}
+        results={archived}
+        domainScore={archived.domain_scores.itso}
+      />
+    );
+  }
+  if (isAssessmentPending)
+    return (
+      <section
+        role="status"
+        className="border border-border bg-surface p-4 text-sm text-text"
+      >
+        <p>
+          Assessment projection is not ready (202). No completed findings or
+          score are inferred.
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-2 font-semibold text-primary focus-visible:outline-2 focus-visible:outline-ring"
+        >
+          Refresh assessment
+        </button>
+      </section>
+    );
   if (isLoading || !results) return <EvaluationResultsLoading />;
   if (!domainScore)
     return (

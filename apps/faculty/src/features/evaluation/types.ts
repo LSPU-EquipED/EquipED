@@ -1,11 +1,25 @@
 import type {
+  EvaluationResultsResponse,
+  CriterionScoreItem,
+} from "@equiped/types";
+export type {
+  CriterionReviewerCorrection,
+  EvaluationFormCriterionPresentation,
+  EvaluationFormDomainPresentation,
+  EvaluationFormPresentation,
+  RawMeasurementItem,
+  CriterionScoreItem,
+  DomainScoreBlock,
+  EvaluationFlagItem,
+  EvaluationResultsResponse,
+} from "@equiped/types";
+import type {
   ClientDocument,
-  CoordinatorAlignmentAdvisory,
   TargetAgent,
   EvaluationListItem,
   EvaluationListResponse,
   EvaluationListStats,
-} from '@equiped/types';
+} from "@equiped/types";
 
 export type {
   TargetAgent,
@@ -14,15 +28,15 @@ export type {
   EvaluationListStats,
 };
 
-export type TargetAgentOrLegacy = TargetAgent | 'all';
+export type TargetAgentOrLegacy = TargetAgent | "all";
 
 export type EvaluationStatus =
-  | 'SUBMITTED'
-  | 'PREPROCESSING'
-  | 'EVALUATING'
-  | 'SYNTHESIZING'
-  | 'COMPLETED'
-  | 'FAILED';
+  | "SUBMITTED"
+  | "PREPROCESSING"
+  | "EVALUATING"
+  | "SYNTHESIZING"
+  | "COMPLETED"
+  | "FAILED";
 
 export interface EvaluationSubmitRequest {
   document_id: string;
@@ -38,12 +52,6 @@ export interface EvaluationSubmitRequest {
   partial_without_curriculum?: boolean;
 }
 
-export type CriterionReviewerCorrection = {
-  action: 'EDIT' | 'REJECT';
-  score: number | null;
-  justification: string | null;
-};
-
 export type CriterionReviewDraft = {
   score: number;
   justification: string;
@@ -54,84 +62,6 @@ export type CriterionReviewDraft = {
   /** item_id -> locally rejected? Only populated for criteria with raw_items. */
   itemRejections: Record<string, boolean>;
 };
-
-export interface EvaluationFormCriterionPresentation {
-  rubric_criterion_id: string;
-  criterion_code: string;
-  title: string;
-  description: string;
-  display_order: number;
-}
-
-export interface EvaluationFormDomainPresentation {
-  rubric_domain_id: string;
-  code: string;
-  title: string;
-  display_order: number;
-  criteria: EvaluationFormCriterionPresentation[];
-}
-
-export interface EvaluationFormPresentation {
-  form_snapshot_id: string;
-  rubric_set_id: string;
-  version: number;
-  snapshot_hash: string;
-  adapter_key: string;
-  adapter_version: number;
-  domains: EvaluationFormDomainPresentation[];
-}
-
-export interface RawMeasurementItem {
-  item_id: string;
-  text: string;
-  included: boolean;
-  rejected: boolean;
-}
-
-export interface CriterionScoreItem {
-  rubric_criterion_id?: string | null;
-  criterion_id: string;
-  criterion_text: string;
-  description?: string | null;
-  display_order?: number | null;
-  score: number;
-  justification: string;
-  evidence?: string | null;
-  is_ungrounded?: boolean;
-  reviewer_correction?: CriterionReviewerCorrection | null;
-  raw_items?: RawMeasurementItem[] | null;
-  corrected_score?: number | null;
-}
-
-export interface DomainScoreBlock {
-  advisory_outputs?: CoordinatorAlignmentAdvisory | null;
-  form_snapshot_id?: string | null;
-  rubric_set_id?: string | null;
-  version?: number | null;
-  snapshot_hash?: string | null;
-  adapter_key?: string | null;
-  adapter_version?: number | null;
-  domain_id?: string | null;
-  domain_name?: string | null;
-  domain_display_order?: number | null;
-  criteria: CriterionScoreItem[];
-  subtotal: number;
-  max_score: number;
-  status: string;
-  adjectival_rating?: string | null;
-  summary?: string;
-}
-
-export interface EvaluationFlagItem {
-  flag_id: string;
-  evaluation_id: string;
-  agent_id: string;
-  criterion_id: string;
-  criterion_text: string;
-  score: number;
-  justification?: string;
-  chunk_id?: string;
-}
 
 export interface EvaluationResponse {
   evaluation_id: string;
@@ -162,7 +92,7 @@ export interface EvaluationStatusResponse {
   duration_seconds?: number | null;
 }
 
-export type DeskQueueStatus = 'READY' | 'EVALUATING' | 'COMPLETED' | 'FAILED';
+export type DeskQueueStatus = "READY" | "EVALUATING" | "COMPLETED" | "FAILED";
 
 export interface DeskQueueItem {
   document_id: string;
@@ -182,35 +112,8 @@ export interface DeskQueueListResponse {
   total: number;
 }
 
-export interface EvaluationResultsResponse {
-  evaluation_id: string;
-  document_id: string;
-  syllabus_id?: string | null;
-  document_title?: string | null;
-  program?: string | null;
-  synthesized_score: number;
-  overall_score?: number | null;
-  adjectival_rating?: string | null;
-  domain_scores: Record<string, DomainScoreBlock>;
-  flags: EvaluationFlagItem[];
-  active_agents: string[];
-  failed_agents: string[];
-  is_partial: boolean;
-  partial_reason?: string | null;
-  evaluation_status: string;
-  submitted_at?: string | null;
-  completed_at?: string | null;
-  duration_seconds?: number | null;
-  forms?: Record<string, EvaluationFormPresentation>;
-  legacy_notice?: string | null;
-}
-
 export type CriterionFeedbackAction =
-  | 'ACCEPT'
-  | 'REJECT'
-  | 'EDIT'
-  | 'ITEM_REJECT'
-  | 'ITEM_ACCEPT';
+  "ACCEPT" | "REJECT" | "EDIT" | "ITEM_REJECT" | "ITEM_ACCEPT";
 
 export interface CriterionFeedbackRequest {
   agent_name: string;
@@ -234,7 +137,7 @@ export interface CriterionFeedbackResponse {
   created_at: string;
 }
 
-export type ExportAgentId = 'coordinator' | 'sme' | 'gad' | 'itso';
+export type ExportAgentId = "coordinator" | "sme" | "gad" | "itso";
 
 // Minimal domain block used by the per-agent export. The page that owns
 // the export builds this block from the full evaluation result. The metadata
@@ -258,7 +161,7 @@ export type ExportDomainData = {
   partialReason?: string | null;
   evaluationStatus?: string;
   criteria: ReadonlyArray<CriterionScoreItem>;
-  subtotal: number;
+  subtotal: number | null;
   max_score: number;
   status: string;
   adjectival_rating?: string;

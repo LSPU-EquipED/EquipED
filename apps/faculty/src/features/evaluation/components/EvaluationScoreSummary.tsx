@@ -1,7 +1,14 @@
 import { cn } from "@equiped/ui";
+import { useId, useState } from "react";
 import type { TargetAgentMeta } from "@equiped/types";
 import type { DomainScoreBlock } from "../types";
-import { formatScore, getAdjectivalRatingClasses } from "../utils/scoreHelpers";
+import {
+  boundNarrative,
+  cleanJustification,
+  formatScore,
+  getAdjectivalRatingClasses,
+} from "../utils/scoreHelpers";
+import { summarizeITSODocumentEvidence } from "../utils/criterionPresentation";
 import type {
   ScoreboardMetrics,
   CriterionFilterType,
@@ -25,6 +32,18 @@ export function EvaluationScoreSummary({
 }: EvaluationScoreSummaryProps) {
   const score = domainScore.subtotal;
   const maxScore = domainScore.max_score || 4;
+  const [showFullSummary, setShowFullSummary] = useState(false);
+  const summaryId = useId();
+  const summary = cleanJustification(domainScore.summary);
+  const preview = boundNarrative(summary, 440);
+  const { unquotedCodes, hasNoConfidentialityConcern, hasUnverifiedRights } =
+    summarizeITSODocumentEvidence(domainScore.criteria);
+  const hasSummary = Boolean(
+    summary ||
+    unquotedCodes.length ||
+    hasNoConfidentialityConcern ||
+    hasUnverifiedRights,
+  );
   return (
     <section
       aria-labelledby="specialist-score-summary"
@@ -36,7 +55,7 @@ export function EvaluationScoreSummary({
       <div
         className={cn(
           "er-score-layout",
-          domainScore.summary && "er-score-layout-with-summary",
+          hasSummary && "er-score-layout-with-summary",
         )}
       >
         <div className="er-score-main">
@@ -62,10 +81,37 @@ export function EvaluationScoreSummary({
             {hasCorrections ? " · Corrections shown per criterion" : ""}
           </p>
         </div>
-        {domainScore.summary && (
+        {hasSummary && (
           <div className="er-summary-copy">
             <p className="er-label">Specialist summary</p>
-            <p>{domainScore.summary}</p>
+            {summary && (
+              <p id={summaryId}>{showFullSummary ? summary : preview}</p>
+            )}
+            {preview !== summary && (
+              <button
+                type="button"
+                aria-expanded={showFullSummary}
+                aria-controls={summaryId}
+                onClick={() => setShowFullSummary(!showFullSummary)}
+                className="mt-2 text-xs font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                {showFullSummary ? "Show less" : "Show full summary"}
+              </button>
+            )}
+            {unquotedCodes.length > 0 && (
+              <p className="mt-2 text-sm text-text-muted">
+                No SLM quotations recorded: {unquotedCodes.join(", ")}. See each
+                finding for review limits.
+              </p>
+            )}
+            {(hasNoConfidentialityConcern || hasUnverifiedRights) && (
+              <p className="mt-2 text-sm text-text-muted">
+                {hasNoConfidentialityConcern &&
+                  "Confidentiality: no concern detected in reviewed text."}
+                {hasNoConfidentialityConcern && hasUnverifiedRights && " "}
+                {hasUnverifiedRights && "Rights and permissions: unverified."}
+              </p>
+            )}
           </div>
         )}
         <div className="er-score-profile" aria-label="Score profile">

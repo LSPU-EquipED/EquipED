@@ -33,6 +33,14 @@ export function EvaluationSetupFields({ setup }: { setup: SetupFieldsState }) {
               : "BSInfoTech · Information Technology",
         }))}
       />
+      {setup.meta.id === "itso" && (
+        <p className="text-xs text-text-muted">
+          ITSO searches public references and checks available source pages for
+          criteria 1 and 2 on every evaluation. Only public bibliography details
+          or lesson/topic names are sent to the search provider; body passages
+          and personal data stay local.
+        </p>
+      )}
       {setup.meta.requiresCurriculum &&
         (setup.isLoadingCurricula ? (
           <div role="status" aria-label="Loading verified curricula">

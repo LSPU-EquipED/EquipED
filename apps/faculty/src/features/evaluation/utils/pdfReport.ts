@@ -7,7 +7,7 @@
 // placeholders for missing metadata and explicit "skipped" / "failed"
 // sections for agents that did not produce a scorecard.
 
-import type { CriterionScoreItem, EvaluationResultsResponse } from '../types';
+import type { CriterionScoreItem, EvaluationResultsResponse } from "../types";
 import {
   CANONICAL_MAX_SCORE,
   EXPORT_CRITERION_NOTE_MAX_CHARS,
@@ -22,12 +22,18 @@ import {
   formatScore,
   monitoringPercentage,
   scoreTier,
-} from './scoreHelpers';
+} from "./scoreHelpers";
 
-export const REPORT_AGENT_ORDER = ['sme', 'coordinator', 'gad', 'itso'] as const;
+export const REPORT_AGENT_ORDER = [
+  "sme",
+  "coordinator",
+  "gad",
+  "itso",
+] as const;
 export type ReportAgentId = (typeof REPORT_AGENT_ORDER)[number];
 
-export type ReportAgentSectionState = 'available' | 'skipped_partial' | 'failed' | 'unavailable';
+export type ReportAgentSectionState =
+  "available" | "skipped_partial" | "failed" | "unavailable";
 
 export interface ReportAgentSection {
   agentId: ReportAgentId | string;
@@ -46,7 +52,7 @@ export interface ReportCriterion {
   criterionId: string;
   index: number;
   text: string;
-  score: number;
+  score: number | null;
   scaleLabel: string;
   tier: ReturnType<typeof scoreTier>;
   tierLabel: string;
@@ -90,16 +96,16 @@ export interface ReportModel {
 // Localized reason strings. Kept as constants so tests can assert on
 // the user-facing wording without coupling to a hard-coded literal.
 const REASON_FAILED_BY_STATUS =
-  'This agent reported an error. Other agent results may still be available.';
+  "This agent reported an error. Other agent results may still be available.";
 const REASON_FAILED_BY_LIST =
-  'This agent did not complete. The overall evaluation has been marked partial and the remaining agents were weighted accordingly.';
-const REASON_UNAVAILABLE = 'No agent output was recorded for this domain.';
+  "This agent did not complete. The overall evaluation has been marked partial and the remaining agents were weighted accordingly.";
+const REASON_UNAVAILABLE = "No agent output was recorded for this domain.";
 const REASON_COORDINATOR_SKIPPED_FALLBACK =
-  'Program Coordinator curriculum-grounded review was skipped because no curriculum reference was available.';
+  "Program Coordinator curriculum-grounded review was skipped because no curriculum reference was available.";
 
 function resolveAgentState(
   agentId: string,
-  domainBlock: EvaluationResultsResponse['domain_scores'][string] | undefined,
+  domainBlock: EvaluationResultsResponse["domain_scores"][string] | undefined,
   results: EvaluationResultsResponse,
 ): { state: ReportAgentSectionState; reason: string } {
   // 1. An agent is "failed" if either the server explicitly listed
@@ -108,10 +114,10 @@ function resolveAgentState(
   //    Coordinator is never misreported as a deliberate partial
   //    skip.
   const failedByList = results.failed_agents?.includes(agentId) ?? false;
-  const failedByBlock = domainBlock?.status === 'ERROR';
+  const failedByBlock = domainBlock?.status === "ERROR";
   if (failedByList || failedByBlock) {
     return {
-      state: 'failed',
+      state: "failed",
       reason: failedByBlock ? REASON_FAILED_BY_STATUS : REASON_FAILED_BY_LIST,
     };
   }
@@ -123,16 +129,16 @@ function resolveAgentState(
   //    crash (which the server finishes with `evaluation_status =
   //    'FAILED'`). We use that discriminator to decide what a
   //    missing domain block actually means.
-  const overallFailed = results.evaluation_status === 'FAILED';
+  const overallFailed = results.evaluation_status === "FAILED";
 
   // 2a. A missing Coordinator block under a FAILED evaluation must
   //     be reported as failed, not as a deliberate skip and not as
   //     "no output recorded". The server's FAILED status means
   //     something went wrong; if Coordinator is missing too, the
   //     honest read is that the agent did not complete.
-  if (agentId === 'coordinator' && !domainBlock && overallFailed) {
+  if (agentId === "coordinator" && !domainBlock && overallFailed) {
     return {
-      state: 'failed',
+      state: "failed",
       reason: REASON_FAILED_BY_LIST,
     };
   }
@@ -141,10 +147,13 @@ function resolveAgentState(
   //     evaluation is the deliberate no-curriculum path. Only this
   //     combination is allowed to render as `skipped_partial`.
   const isDeliberatePartialSkip =
-    agentId === 'coordinator' && !domainBlock && results.is_partial && !overallFailed;
+    agentId === "coordinator" &&
+    !domainBlock &&
+    results.is_partial &&
+    !overallFailed;
   if (isDeliberatePartialSkip) {
     return {
-      state: 'skipped_partial',
+      state: "skipped_partial",
       reason: results.partial_reason || REASON_COORDINATOR_SKIPPED_FALLBACK,
     };
   }
@@ -153,37 +162,41 @@ function resolveAgentState(
   //    skip: the agent simply produced no output we can report.
   if (!domainBlock) {
     return {
-      state: 'unavailable',
+      state: "unavailable",
       reason: REASON_UNAVAILABLE,
     };
   }
 
-  return { state: 'available', reason: '' };
+  return { state: "available", reason: "" };
 }
 
-function buildCriterionRows(criteria: ReadonlyArray<CriterionScoreItem>): ReportCriterion[] {
+function buildCriterionRows(
+  criteria: ReadonlyArray<CriterionScoreItem>,
+): ReportCriterion[] {
   return criteria.map((criterion, index) => {
     const isUngrounded = Boolean(criterion.is_ungrounded);
     const tier = scoreTier(criterion.score);
     const tierLabel = isUngrounded
-      ? 'Ungrounded'
-      : tier === 'strong'
-        ? 'Strong'
-        : tier === 'moderate'
-          ? 'Moderate'
-          : tier === 'weak'
-            ? 'Needs attention'
-            : 'Not available';
+      ? "Ungrounded"
+      : tier === "strong"
+        ? "Strong"
+        : tier === "moderate"
+          ? "Moderate"
+          : tier === "weak"
+            ? "Needs attention"
+            : "Not available";
     const note = boundNarrative(
-      criterion.justification || criterion.evidence || '',
+      criterion.justification || criterion.evidence || "",
       EXPORT_CRITERION_NOTE_MAX_CHARS,
     );
     return {
       criterionId: criterion.criterion_id,
       index: index + 1,
-      text: cleanJustification(criterion.criterion_text) || '(criterion text unavailable)',
+      text:
+        cleanJustification(criterion.criterion_text) ||
+        "(criterion text unavailable)",
       score: Number.isFinite(criterion.score) ? criterion.score : 0,
-      scaleLabel: '1-4',
+      scaleLabel: "1-4",
       tier,
       tierLabel,
       note,
@@ -194,11 +207,14 @@ function buildCriterionRows(criteria: ReadonlyArray<CriterionScoreItem>): Report
 }
 
 function resolveRevisionLabel(
-  domainBlock: EvaluationResultsResponse['domain_scores'][string] | undefined,
+  domainBlock: EvaluationResultsResponse["domain_scores"][string] | undefined,
   results: EvaluationResultsResponse,
 ): string | null {
-  if (results.legacy_notice || (domainBlock && domainBlock.form_snapshot_id == null)) {
-    return 'Legacy — form snapshot unavailable';
+  if (
+    results.legacy_notice ||
+    (domainBlock && domainBlock.form_snapshot_id == null)
+  ) {
+    return "Legacy — form snapshot unavailable";
   }
   if (domainBlock?.version != null) {
     return `Revision ${domainBlock.version}`;
@@ -206,7 +222,9 @@ function resolveRevisionLabel(
   return null;
 }
 
-export function buildReportModel(results: EvaluationResultsResponse): ReportModel {
+export function buildReportModel(
+  results: EvaluationResultsResponse,
+): ReportModel {
   const domainScores = results.domain_scores || {};
   const agents: ReportAgentSection[] = REPORT_AGENT_ORDER.map((agentId) => {
     const domain = domainScores[agentId];
@@ -248,10 +266,14 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
       stateReason: reason,
       subtotal: domain?.subtotal ?? null,
       maxScore: domain?.max_score ?? null,
-      adjectivalRating: domain?.adjectival_rating || adjectivalRating(domain?.subtotal ?? null),
+      adjectivalRating:
+        domain?.adjectival_rating || adjectivalRating(domain?.subtotal ?? null),
       monitoringPercent:
         domain?.subtotal != null && domain
-          ? monitoringPercentage(domain.subtotal, domain.max_score || CANONICAL_MAX_SCORE)
+          ? monitoringPercentage(
+              domain.subtotal,
+              domain.max_score || CANONICAL_MAX_SCORE,
+            )
           : null,
       criteria: domain ? buildCriterionRows(domain.criteria) : [],
     });
@@ -261,16 +283,19 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
     flagId: flag.flag_id,
     agentId: flag.agent_id,
     agentLabel: agentDisplayLabel(flag.agent_id),
-    criterionText: cleanJustification(flag.criterion_text) || '(criterion text unavailable)',
+    criterionText:
+      cleanJustification(flag.criterion_text) || "(criterion text unavailable)",
     score: Number.isFinite(flag.score) ? flag.score : null,
-    scaleLabel: '1-4',
+    scaleLabel: "1-4",
     reason: boundNarrative(flag.justification, EXPORT_FLAG_REASON_MAX_CHARS),
   }));
 
-  const hasOverall = typeof results.overall_score === 'number';
+  const hasOverall = typeof results.overall_score === "number";
   const overallScore = hasOverall ? (results.overall_score as number) : null;
   const monitoringPercent =
-    overallScore != null ? monitoringPercentage(overallScore, CANONICAL_MAX_SCORE) : null;
+    overallScore != null
+      ? monitoringPercentage(overallScore, CANONICAL_MAX_SCORE)
+      : null;
 
   return {
     header: {
@@ -278,12 +303,13 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
       documentId: results.document_id,
       documentTitle: results.document_title ?? null,
       program: results.program ?? null,
-      evaluationStatus: results.evaluation_status || 'UNKNOWN',
+      evaluationStatus: results.evaluation_status || "UNKNOWN",
       completedAt: results.completed_at ?? null,
       isPartial: Boolean(results.is_partial),
       partialReason: results.partial_reason ?? null,
       overallScore,
-      overallAdjectival: results.adjectival_rating || adjectivalRating(overallScore),
+      overallAdjectival:
+        results.adjectival_rating || adjectivalRating(overallScore),
       monitoringPercent,
       hasOverall,
       legacyNotice: results.legacy_notice ?? null,
@@ -293,31 +319,45 @@ export function buildReportModel(results: EvaluationResultsResponse): ReportMode
   };
 }
 
-export function formatHeaderField(value: string | null | undefined, fallback: string): string {
-  const trimmed = (value || '').trim();
+export function formatHeaderField(
+  value: string | null | undefined,
+  fallback: string,
+): string {
+  const trimmed = (value || "").trim();
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
 export function formatAgentSubtotalLabel(section: ReportAgentSection): string {
-  if (section.state !== 'available' || section.subtotal == null || section.maxScore == null) {
-    return '—';
+  if (
+    section.state !== "available" ||
+    section.subtotal == null ||
+    section.maxScore == null
+  ) {
+    return "—";
   }
   return `${formatScore(section.subtotal)} / ${formatScore(section.maxScore)}`;
 }
 
 export function formatAgentRatingLabel(section: ReportAgentSection): string {
-  if (section.state === 'available') return section.adjectivalRating || 'Not available';
-  if (section.state === 'skipped_partial') return 'Skipped';
-  if (section.state === 'failed') return 'Unavailable (failed)';
-  return 'Unavailable';
+  if (section.state === "available")
+    return section.adjectivalRating || "Not available";
+  if (section.state === "skipped_partial") return "Skipped";
+  if (section.state === "failed") return "Unavailable (failed)";
+  return "Unavailable";
 }
 
-export function formatAgentMonitoringLabel(section: ReportAgentSection): string {
-  if (section.state === 'skipped_partial') return 'Skipped';
-  if (section.state === 'failed') return 'Unavailable';
-  if (section.state === 'unavailable') return 'Unavailable';
-  if (section.subtotal == null || section.maxScore == null) return 'Unavailable';
-  return formatMonitoringPercent(section.subtotal, section.maxScore || CANONICAL_MAX_SCORE);
+export function formatAgentMonitoringLabel(
+  section: ReportAgentSection,
+): string {
+  if (section.state === "skipped_partial") return "Skipped";
+  if (section.state === "failed") return "Unavailable";
+  if (section.state === "unavailable") return "Unavailable";
+  if (section.subtotal == null || section.maxScore == null)
+    return "Unavailable";
+  return formatMonitoringPercent(
+    section.subtotal,
+    section.maxScore || CANONICAL_MAX_SCORE,
+  );
 }
 
 // Validate a piece of text against the jsPDF font in use. The built-in
@@ -337,17 +377,17 @@ const NON_WIN_ANSI_RANGES = [
 ];
 const NON_WIN_ANSI_PATTERN = NON_WIN_ANSI_RANGES.map(([start, end]) =>
   start === end
-    ? `\\u${start.toString(16).padStart(4, '0')}`
-    : `\\u${start.toString(16).padStart(4, '0')}-\\u${end.toString(16).padStart(4, '0')}`,
-).join('');
-const NON_WIN_ANSI = new RegExp(`[^${NON_WIN_ANSI_PATTERN}]`, 'g');
+    ? `\\u${start.toString(16).padStart(4, "0")}`
+    : `\\u${start.toString(16).padStart(4, "0")}-\\u${end.toString(16).padStart(4, "0")}`,
+).join("");
+const NON_WIN_ANSI = new RegExp(`[^${NON_WIN_ANSI_PATTERN}]`, "g");
 
 export function findUnsupportedChars(text: string): string {
-  if (!text) return '';
+  if (!text) return "";
   const matches = text.match(NON_WIN_ANSI) || [];
-  if (matches.length === 0) return '';
+  if (matches.length === 0) return "";
   // De-duplicate to keep the diagnostic readable.
-  return Array.from(new Set(matches)).join('');
+  return Array.from(new Set(matches)).join("");
 }
 
 export function requirePageBreak(
@@ -361,7 +401,7 @@ export function requirePageBreak(
   const pageHeight = pdf.internal.pageSize.getHeight();
   const guard = Math.min(pageBottomGuard, pageHeight - 12);
   if (nextY > guard) {
-    pdf.addPage('a4', 'portrait');
+    pdf.addPage("a4", "portrait");
     return PDF_PAGE_TOP_RESUME_MM;
   }
   return nextY;

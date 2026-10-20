@@ -46,6 +46,8 @@ export function SpecialistScoreboardPage(
     isResultsError,
     refetchResults,
     results,
+    assessment,
+    isAssessmentPending,
     domainScore,
     showConfirmModal,
     showReviewModal,
@@ -102,14 +104,14 @@ export function SpecialistScoreboardPage(
                 targetAgent={validAgent}
                 status={latestJob?.status}
               />
-            ) : isFailed ? (
+            ) : isFailed && !assessment ? (
               <SpecialistEvaluationFailure
                 key={latestJobId || activeDocId}
                 documentTitle={activeItem?.title || activeDocument?.title}
                 errorMessage={latestJob?.error_message}
                 onRetry={() => setShowConfirmModal(true)}
               />
-            ) : isCompleted ? (
+            ) : isCompleted || assessment ? (
               /* Completed State: Metadata + specialist results scorecard */
               latestJob && (
                 <EvaluationResultState
@@ -119,6 +121,8 @@ export function SpecialistScoreboardPage(
                   activeItem={activeItem}
                   activeDocument={activeDocument}
                   results={results}
+                  assessment={assessment}
+                  isAssessmentPending={isAssessmentPending}
                   domainScore={domainScore}
                   isLoading={isLoadingResults}
                   isError={isResultsError}
