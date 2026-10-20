@@ -54,7 +54,7 @@ from equiped_harness.contracts import (
     CriterionDefinition,
     LlmRubricGuidanceConfig,
 )
-from equiped_harness.prompts import build_envelope_prompt_and_source
+from equiped_harness.runtime.prompts import build_envelope_prompt_and_source
 from sqlalchemy.orm import Session
 
 from server.core.config import get_settings

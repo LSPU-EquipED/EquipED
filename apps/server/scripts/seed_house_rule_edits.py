@@ -47,7 +47,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from equiped_harness.contracts import LlmRubricGuidanceConfig
-from equiped_harness.snapshot_contracts import SnapshotIntegrityError
+from equiped_harness.contracts.snapshots import SnapshotIntegrityError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 

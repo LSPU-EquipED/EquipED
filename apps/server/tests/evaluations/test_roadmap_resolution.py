@@ -52,7 +52,7 @@ def _seed_roadmap(db_session) -> ProgramRoadmap:
 
 
 def _sme_result(evaluation_id, document_id):
-    from equiped_harness.result_contracts import AgentEvaluationResult, CriterionScore
+    from equiped_harness.contracts.results import AgentEvaluationResult, CriterionScore
 
     return AgentEvaluationResult(
         agent_name="sme",
@@ -132,11 +132,12 @@ def _run_orchestrator_capture(
     course_code: str | None,
     seed_roadmap: bool,
 ) -> dict:
+    from sqlalchemy.orm import sessionmaker
+
     from server.core import database as core_database
     from server.modules.documents.models import Document
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
-    from server.modules.evaluations.harness.result import SupervisorResult
-    from sqlalchemy.orm import sessionmaker
+    from server.modules.evaluations.execution_result import SupervisorResult
 
     owner = create_user(
         db_session,

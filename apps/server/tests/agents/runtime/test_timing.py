@@ -7,6 +7,7 @@ import time
 from uuid import uuid4
 
 from equiped_harness.runtime.timing import PhaseTimer
+
 from server.modules.admin.models import PromptVersion
 from server.tests.agents.helpers import (
     _BatchAgent,
@@ -89,7 +90,8 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
         for r in caplog.records
         if "EVAL_TIMING" in r.message and "agent=itso" in r.message
     ]
-    assert len(timing_records) == 1
+    # Adapter 3 emits one timing record for each prepared envelope.
+    assert len(timing_records) == 2
     msg = timing_records[0].message
     assert "retrieval=" in msg
     assert "prompt_build=" in msg
@@ -100,12 +102,12 @@ def test_agent_run_emits_timing_log(monkeypatch, caplog) -> None:
 
 def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
     """Supervisor run_evaluation should emit precompute and per-agent timing logs."""
-    from server.modules.evaluations.harness.supervisor import Supervisor
+    from server.modules.evaluations.runner import Supervisor
 
     for logger_name in (
-        "server.modules.evaluations.harness.context",
-        "server.modules.evaluations.harness.dispatch",
-        "server.modules.evaluations.harness.supervisor",
+        "server.modules.evaluations.context",
+        "server.modules.evaluations.dispatch",
+        "server.modules.evaluations.runner",
     ):
         caplog.set_level(logging.INFO, logger=logger_name)
 
@@ -116,17 +118,17 @@ def test_supervisor_emits_timing_logs(monkeypatch, caplog, db_session) -> None:
         lambda _model, _id: type("Document", (), {"file_path": "source.pdf"})(),
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.prepare_canonical_source",
+        "server.modules.evaluations.context.prepare_canonical_source",
         lambda _path: "canonical source",
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.resolve_document_pdf_path",
+        "server.modules.evaluations.context.resolve_document_pdf_path",
         lambda _path: _path,
     )
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
 
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.get_active_prompt",
+        "server.modules.evaluations.context.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
     agent = _BatchAgent()

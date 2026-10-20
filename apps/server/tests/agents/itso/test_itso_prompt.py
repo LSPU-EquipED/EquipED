@@ -3,8 +3,9 @@
 import json
 from uuid import uuid4
 
-from equiped_harness.itso.prompt import build_prompt, pack_itso_chunks
-from equiped_harness.runtime.context import ITSOExecutionContext
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.agents.itso.prompt import build_prompt, pack_itso_chunks
+
 from server.tests.agents.itso.conftest_helper import (
     make_itso_test_snapshot,
     public_reference_context,

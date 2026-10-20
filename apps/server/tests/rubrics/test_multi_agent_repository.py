@@ -7,7 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from equiped_harness.contracts import FormDefinition
-from equiped_harness.snapshot_contracts import SnapshotIntegrityError
+from equiped_harness.contracts.snapshots import SnapshotIntegrityError
+from sqlalchemy import event
+
 from server.modules.rubrics import (
     EvaluationFormSnapshot,
     RubricAgentActivation,
@@ -15,7 +17,6 @@ from server.modules.rubrics import (
     lock_and_load_requested_active_forms,
     persist_evaluation_form_snapshots,
 )
-from sqlalchemy import event
 
 from .helpers import seed_all_rubrics
 

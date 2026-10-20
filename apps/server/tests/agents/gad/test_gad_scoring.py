@@ -6,6 +6,23 @@ import json
 from uuid import uuid4
 
 import pytest
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.agents.gad.envelope import (
+    EXTRACTION_SCHEMA_VERSION,
+    extraction_schema,
+    parse_combined_response,
+)
+from equiped_harness.agents.gad.grounding import (
+    MAX_INSTANCES_PER_CRITERION,
+    ground_instances,
+)
+from equiped_harness.agents.gad.prompt import (
+    build_combined_prompt,
+)
+from equiped_harness.agents.gad.registry import (
+    REGISTRY_VERSION,
+    score_from_combined,
+)
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -15,25 +32,9 @@ from equiped_harness.contracts import (
     RatioBandConfig,
 )
 from equiped_harness.exceptions import AgentExecutionError, AgentLLMError
-from equiped_harness.gad.agent import GAD
-from equiped_harness.gad.envelope import (
-    EXTRACTION_SCHEMA_VERSION,
-    extraction_schema,
-    parse_combined_response,
-)
-from equiped_harness.gad.grounding import (
-    MAX_INSTANCES_PER_CRITERION,
-    ground_instances,
-)
-from equiped_harness.gad.prompt import (
-    build_combined_prompt,
-)
-from equiped_harness.gad.registry import (
-    REGISTRY_VERSION,
-    score_from_combined,
-)
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
 from equiped_harness.strategies.calculators import score_count, score_ratio
-from equiped_harness.transport import CompletionResult, ResponseContract
+
 from server.tests.agents.gad.conftest import (
     REVISION_1_GAD_CRITERIA,
     make_gad_snapshot,
@@ -753,7 +754,7 @@ def test_repair_attempt_recorded_before_transport_failure() -> None:
 
 
 def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
-    import equiped_harness.gad.registry as _sp
+    import equiped_harness.agents.gad.registry as _sp
 
     class _ScoreFailLLM(_TypedResultMixin):
         model = "test-model"
@@ -801,9 +802,10 @@ def test_scoring_failure_returns_failed_result_no_extra_call() -> None:
 def test_repair_budget_overhead_reserved_fails_before_transport(
     monkeypatch, harness_config
 ) -> None:
-    from equiped_harness.gad.pipeline import (
+    from equiped_harness.agents.gad.pipeline import (
         _REPAIR_OVERHEAD_RESERVE,
     )
+
     from server.core.config import Settings
 
     tiny_budget = _REPAIR_OVERHEAD_RESERVE - 1
@@ -1274,12 +1276,12 @@ def test_no_db_or_deleted_modules_imported_by_gad() -> None:
     """Ensure GAD modules never import database or deleted fixed-code modules."""
     import inspect
 
-    import equiped_harness.gad.agent as gad_agent
-    import equiped_harness.gad.envelope as gad_envelope
-    import equiped_harness.gad.grounding as gad_grounding
-    import equiped_harness.gad.pipeline as gad_pipeline
-    import equiped_harness.gad.prompt as gad_prompt
-    import equiped_harness.gad.registry as gad_registry
+    import equiped_harness.agents.gad.agent as gad_agent
+    import equiped_harness.agents.gad.envelope as gad_envelope
+    import equiped_harness.agents.gad.grounding as gad_grounding
+    import equiped_harness.agents.gad.pipeline as gad_pipeline
+    import equiped_harness.agents.gad.prompt as gad_prompt
+    import equiped_harness.agents.gad.registry as gad_registry
 
     banned_terms = (
         "get_session_factory",

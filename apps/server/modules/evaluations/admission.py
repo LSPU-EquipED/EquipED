@@ -7,6 +7,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import inspect
+
 from server.modules.auth.models import UserRole
 from server.modules.documents import persistence
 from server.modules.documents.curriculum_readiness import check_curriculum_readiness
@@ -25,7 +27,6 @@ from server.modules.evaluations.schemas import (
     EvaluationResponse,
     EvaluationSubmitRequest,
 )
-from sqlalchemy import inspect
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ def create_evaluation(
         from sqlalchemy.orm import Session
 
         if isinstance(db, Session):
-            from server.modules.evaluations.itso.exceptions import ITSOError
+            from server.modules.evaluations.exceptions import ITSOError
             from server.modules.rubrics import (
                 get_active_form_definition,
                 get_active_rubric_adapter_version,
@@ -103,13 +104,21 @@ def create_evaluation(
             itso_form = get_active_form_definition(db, "itso")
             if itso_form is None or itso_form.adapter_version != itso_adapter_version:
                 raise ITSOError("itso_harness_upgrade_required", 503)
-            from server.modules.evaluations.itso.reference_tools import (
+            from equiped_harness.agents.itso.tools.reference_search import (
                 ReferenceToolsUnavailable,
                 ensure_public_reference_tools_ready,
             )
 
+            from server.core.config import get_settings
+            from server.modules.evaluations.harness_adapter import (
+                tool_config_from_settings,
+            )
+
             try:
-                ensure_public_reference_tools_ready(needs_search=True)
+                ensure_public_reference_tools_ready(
+                    settings=tool_config_from_settings(get_settings()),
+                    needs_search=True,
+                )
             except ReferenceToolsUnavailable as exc:
                 raise ITSOError(exc.code.value, 503) from exc
 

@@ -2,9 +2,10 @@
 
 from uuid import uuid4
 
-from equiped_harness.itso.agent import ITSO
-from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
-from equiped_harness.transport import CompletionResult
+from equiped_harness.agents.itso.agent import ITSO
+from equiped_harness.agents.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.runtime.model import CompletionResult
+
 from server.tests.agents.itso.conftest_helper import (
     make_itso_test_snapshot,
     public_reference_context,
@@ -28,7 +29,7 @@ def test_repair_uses_sequential_responses_and_marks_repair(monkeypatch, harness_
             response = next(self.responses, self.last_response)
             self.last_response = response
             return CompletionResult(
-                v3_response_for_prompt(prompt, response),
+                v3_response_for_prompt(prompt, response, generate_valid_evidence=True),
                 "primary",
                 2,
                 3,

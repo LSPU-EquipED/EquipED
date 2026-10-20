@@ -7,11 +7,12 @@ from types import MappingProxyType
 from unittest.mock import MagicMock
 
 import pytest
+from equiped_harness.contracts.results import AgentEvaluationResult
+from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 from equiped_harness.exceptions import SupervisorExecutionError
-from equiped_harness.result_contracts import AgentEvaluationResult
-from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
-from server.modules.evaluations.harness import dispatch
-from server.modules.evaluations.harness.context import PromptSnapshot
+
+from server.modules.evaluations import dispatch
+from server.modules.evaluations.context import PromptSnapshot
 from server.tests.agents.helpers import _make_dummy_snapshot
 
 

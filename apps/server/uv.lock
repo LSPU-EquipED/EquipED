@@ -377,7 +377,7 @@ wheels = [
 
 [[package]]
 name = "equiped-evaluation-harness"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../../libs/evaluation-harness" }
 dependencies = [
     { name = "pydantic" },
@@ -385,6 +385,12 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "pydantic", specifier = ">=2" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "jsonschema", specifier = ">=4" },
+    { name = "pytest", specifier = ">=8.4.2" },
+]
 
 [[package]]
 name = "equiped-server"

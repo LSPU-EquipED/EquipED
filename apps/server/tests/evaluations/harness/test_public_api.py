@@ -1,28 +1,23 @@
 """Evaluation integration exposes supervision and explicit DB envelope helpers."""
 
 import pytest
-import server.modules.evaluations.harness as integration
-from server.modules.evaluations.harness.supervisor import Supervisor
+
+import server.modules.evaluations.runner as integration
+from server.modules.evaluations.runner import Supervisor
 
 
 def test_backend_public_api_is_evaluation_integration():
     assert integration.__all__ == [
         "Supervisor",
-        "get_criterion_envelope_key",
-        "get_envelope_criteria_map",
+        "SupervisorResult",
     ]
-    assert Supervisor.__module__ == "server.modules.evaluations.harness.supervisor"
+    assert Supervisor.__module__ == "server.modules.evaluations.runner"
     assert integration.Supervisor is Supervisor
-    from server.modules.evaluations.harness import envelope_map
+    from server.modules.rubrics import envelopes
 
-    assert (
-        integration.get_envelope_criteria_map is envelope_map.get_envelope_criteria_map
-    )
-    assert (
-        integration.get_criterion_envelope_key
-        is envelope_map.get_criterion_envelope_key
-    )
-    assert "envelope_criteria_map_from_snapshot" not in envelope_map.__all__
+    assert callable(envelopes.get_envelope_criteria_map)
+    assert callable(envelopes.get_criterion_envelope_key)
+    assert "envelope_criteria_map_from_snapshot" not in envelopes.__all__
     assert "__getattr__" not in vars(integration)
     for removed in ("SME", "Coordinator", "GAD", "ITSO", "AgentEvaluationResult"):
         with pytest.raises(AttributeError):
@@ -47,10 +42,10 @@ def test_harness_public_api_exposes_actual_pipelines():
     assert harness.EvaluationRequest.__dataclass_params__.frozen
     assert harness.ExecutionConfig.__dataclass_params__.frozen
     expected_modules = {
-        "SME": "equiped_harness.sme.agent",
-        "Coordinator": "equiped_harness.coordinator.agent",
-        "GAD": "equiped_harness.gad.agent",
-        "ITSO": "equiped_harness.itso.agent",
+        "SME": "equiped_harness.agents.sme.agent",
+        "Coordinator": "equiped_harness.agents.coordinator.agent",
+        "GAD": "equiped_harness.agents.gad.agent",
+        "ITSO": "equiped_harness.agents.itso.agent",
     }
     for name, module in expected_modules.items():
         assert name in harness.__all__

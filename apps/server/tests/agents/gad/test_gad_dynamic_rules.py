@@ -5,14 +5,15 @@ from __future__ import annotations
 import json
 import uuid
 
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.agents.gad.prompt import (
+    build_combined_prompt,
+)
 from equiped_harness.contracts import (
     CriterionDefinition,
 )
-from equiped_harness.gad.agent import GAD
-from equiped_harness.gad.prompt import (
-    build_combined_prompt,
-)
-from equiped_harness.transport import CompletionResult, ResponseContract
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
+
 from server.tests.agents.gad.conftest import (
     REVISION_1_GAD_CRITERIA,
     REVISION_1_GAD_RULES,

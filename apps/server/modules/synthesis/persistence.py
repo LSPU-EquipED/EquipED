@@ -11,18 +11,20 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
     parse_advisory_output,
 )
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     CriterionScore as InputCriterionScore,
 )
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
 )
+from sqlalchemy import or_
+
 from server.modules.documents.models import DocumentChunk
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.evaluations.models import EvaluationJob
@@ -41,7 +43,6 @@ from server.modules.synthesis.result_integrity import (
     derive_ungrounded_criterion_ids,
     grounding_eligible_criterion_ids,
 )
-from sqlalchemy import or_
 
 logger = logging.getLogger(__name__)
 

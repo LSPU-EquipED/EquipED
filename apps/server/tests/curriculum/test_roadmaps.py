@@ -12,6 +12,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.curriculum import service
@@ -21,8 +24,6 @@ from server.modules.curriculum.models import (
     RoadmapCourse,
     RoadmapYear,
 )
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 
 
 def _make_roadmap(

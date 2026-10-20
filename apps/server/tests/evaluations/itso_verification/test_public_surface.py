@@ -1,12 +1,13 @@
-from equiped_harness.itso.history_contracts import (
+from equiped_harness.agents.itso.compatibility.contracts import (
     SourceSpan,
     build_source_snapshot,
     text_hash,
 )
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from server.modules.evaluations.itso.assessment_service import _project_source_quotes
-from server.modules.evaluations.itso.router import router
+
+from server.modules.itso_assessments.router import router
+from server.modules.itso_assessments.service import _project_source_quotes
 
 
 def test_public_assessment_quote_is_exact_frozen_source_excerpt():

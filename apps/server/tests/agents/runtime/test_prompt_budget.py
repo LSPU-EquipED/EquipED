@@ -31,8 +31,9 @@ import json
 import logging
 from uuid import uuid4
 
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
 from equiped_harness.runtime.prompt_budget import enforce_total_prompt_budget
-from equiped_harness.transport import CompletionResult, ResponseContract
+
 from server.tests.agents.helpers import (
     _DummyAgent,
     _FakeLLM,
@@ -292,12 +293,10 @@ def _patch_retrieval(monkeypatch) -> None:
     pass
 
 
-def test_run_enforces_budget_when_prompt_oversized(
+def test_run_reports_budget_for_each_adapter3_envelope(
     monkeypatch, caplog, harness_config
 ) -> None:
-    """When the assembled prompt exceeds the total budget, run() should
-    call _enforce_total_prompt_budget and emit both EVAL_PROMPT_SIZE and
-    EVAL_PROMPT_BUDGET logs."""
+    """The prepared report and context fit each adapter-3 envelope cap."""
     caplog.set_level(logging.INFO)
     _patch_retrieval(monkeypatch)
 
@@ -306,7 +305,7 @@ def test_run_enforces_budget_when_prompt_oversized(
         monkeypatch,
         harness_config,
         agent_prompt_budget_chars=5000,
-        agent_total_prompt_budget_chars=3500,
+        agent_total_prompt_budget_chars=12000,
     )
 
     agent = _DummyAgent(
@@ -328,11 +327,11 @@ def test_run_enforces_budget_when_prompt_oversized(
     assert any(
         "agent=itso" in r.message and "prompt_chars=" in r.message for r in size_logs
     )
-    # And the budget-trim warning fired.
-    assert any(
-        "EVAL_PROMPT_BUDGET" in r.message and "agent=itso" in r.message
-        for r in caplog.records
-    )
+    # Adapter 3 budgets both envelopes independently; the prepared report and
+    # bounded reference inputs leave each prompt below this test's limit.
+    assert len(size_logs) == 2
+    assert all("trimmed=no" in r.message for r in size_logs)
+    assert all("budget=12000" in r.message for r in size_logs)
 
 
 def test_run_under_budget_logs_size_without_trim_warning(
@@ -345,7 +344,7 @@ def test_run_under_budget_logs_size_without_trim_warning(
     patch_settings(
         monkeypatch,
         harness_config,
-        agent_total_prompt_budget_chars=8000,
+        agent_total_prompt_budget_chars=12000,
     )
 
     agent = _DummyAgent(
@@ -369,9 +368,8 @@ def test_run_under_budget_logs_size_without_trim_warning(
     assert not any("EVAL_PROMPT_BUDGET" in r.message for r in caplog.records)
 
 
-def test_run_drops_overgrown_reference_context(monkeypatch, harness_config) -> None:
-    """Integration: run() should drop overgrown reference_context entries
-    when the prompt exceeds the total budget."""
+def test_run_bounds_both_adapter3_envelopes(monkeypatch, harness_config) -> None:
+    """Both prepared adapter-3 envelopes stay within the configured cap."""
     _patch_retrieval(monkeypatch)
 
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
@@ -379,7 +377,7 @@ def test_run_drops_overgrown_reference_context(monkeypatch, harness_config) -> N
         monkeypatch,
         harness_config,
         agent_prompt_budget_chars=5000,
-        agent_total_prompt_budget_chars=3500,
+        agent_total_prompt_budget_chars=12000,
     )
 
     captured_prompts: list[str] = []
@@ -399,10 +397,16 @@ def test_run_drops_overgrown_reference_context(monkeypatch, harness_config) -> N
             response_contract,
         ):
             assert response_contract == ResponseContract.json_object()
+            from server.tests.agents.itso.conftest_helper import v3_response_for_prompt
+
+            captured_prompts.append(prompt)
+            content = v3_response_for_prompt(
+                prompt,
+                json.dumps(itso_response()),
+                generate_valid_evidence=True,
+            )
             return CompletionResult(
-                self.generate(
-                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
-                ),
+                content,
                 "fake-model",
                 finish_reason="stop",
             )
@@ -418,13 +422,16 @@ def test_run_drops_overgrown_reference_context(monkeypatch, harness_config) -> N
         precomputed_context={"syllabus": long_refs},
     )
 
-    assert len(captured_prompts) == 1
-    final_prompt = captured_prompts[0]
-    # The prompt that reached the LLM fits within the total budget.
-    assert len(final_prompt) <= 3500
-    parsed = json.loads(final_prompt)
-    # At least one reference was dropped.
-    assert len(parsed["reference_context"]) < 3
+    assert len(captured_prompts) == 2
+    for prompt in captured_prompts:
+        assert len(prompt.render_flat()) <= 12000
+        payload = json.loads(prompt.user_context)
+        ids = {
+            row["criterion_id"]
+            for row in payload["response_example"]["criterion_scores"]
+        }
+        if ids <= {"ITSO-01", "ITSO-02"}:
+            assert payload["public_reference_verification"]["status"] == "completed"
 
 
 # ------------------------------------------------------------------
@@ -436,17 +443,16 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     monkeypatch,
     harness_config,
 ) -> None:
-    """When the prompt is trimmed, run() must record ``prompt_trimmed=True``
-    and the count of dropped reference entries in metadata."""
+    """Adapter-3 prompt metadata records the stable prepared reference inputs."""
     _patch_retrieval(monkeypatch)
 
-    # Long reference entries to force budget enforcement to drop them.
+    # These references fit with the mandatory report and repair reserve.
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
     patch_settings(
         monkeypatch,
         harness_config,
         agent_prompt_budget_chars=5000,
-        agent_total_prompt_budget_chars=3500,
+        agent_total_prompt_budget_chars=12000,
     )
 
     agent = _DummyAgent(
@@ -465,11 +471,10 @@ def test_run_metadata_records_prompt_trimmed_and_dropped_count(
     )
 
     # Metadata must include the new observability fields.
-    assert result.metadata["prompt_trimmed"] is True
-    # All 3 reference entries were dropped.
-    assert result.metadata["reference_context_dropped"] == 3
+    assert result.metadata["prompt_trimmed"] is False
+    assert result.metadata["reference_context_dropped"] == 0
     # The pre-trim context sizes are still recorded (as the original sizes).
-    assert result.metadata["reference_context_size"] == 3
+    assert result.metadata["reference_context_size"] == 4
 
 
 def test_run_metadata_records_no_trim_when_under_budget(
@@ -482,7 +487,7 @@ def test_run_metadata_records_no_trim_when_under_budget(
     patch_settings(
         monkeypatch,
         harness_config,
-        agent_total_prompt_budget_chars=8000,
+        agent_total_prompt_budget_chars=12000,
     )
 
     agent = _DummyAgent(
@@ -504,12 +509,11 @@ def test_run_metadata_records_no_trim_when_under_budget(
     assert result.metadata["reference_context_dropped"] == 0
 
 
-def test_run_metadata_partial_drop_counts_only_actually_dropped(
+def test_run_metadata_counts_prepared_reference_report(
     monkeypatch,
     harness_config,
 ) -> None:
-    """When only some reference entries are dropped, the count must reflect
-    only the actual removals (not the surviving entries)."""
+    """Metadata counts only references actually removed by adapter-3 packing."""
     _patch_retrieval(monkeypatch)
 
     long_refs = [f"reference entry {i} " + ("X" * 500) for i in range(3)]
@@ -517,7 +521,7 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
         monkeypatch,
         harness_config,
         agent_prompt_budget_chars=5000,
-        agent_total_prompt_budget_chars=3500,
+        agent_total_prompt_budget_chars=12000,
     )
 
     agent = _DummyAgent(
@@ -535,9 +539,7 @@ def test_run_metadata_partial_drop_counts_only_actually_dropped(
         precomputed_context={"syllabus": long_refs},
     )
 
-    # Trim fired (prompt was over budget).
-    assert result.metadata["prompt_trimmed"] is True
-    # Exactly 3 reference entries were dropped (the step clears all refs).
-    assert result.metadata["reference_context_dropped"] == 3
+    assert result.metadata["prompt_trimmed"] is False
+    assert result.metadata["reference_context_dropped"] == 0
     # The original count is still tracked separately.
-    assert result.metadata["reference_context_size"] == 3
+    assert result.metadata["reference_context_size"] == 4

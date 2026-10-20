@@ -4,16 +4,18 @@ import json
 from dataclasses import replace
 from types import SimpleNamespace
 
-from equiped_harness.itso.document_review import unquoted_review_status
-from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
-from equiped_harness.result_contracts import (
+from equiped_harness.agents.itso.document_review import unquoted_review_status
+from equiped_harness.agents.itso.reporting import usable_source as _usable_itso_source
+from equiped_harness.agents.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     CapturedGeneration,
     UngroundedCriterionAdvisory,
 )
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     CriterionScore as HarnessCriterionScore,
 )
+
 from server.modules.rubrics.models import EvaluationFormSnapshot
 from server.modules.synthesis.evaluation_results import (
     _captured_criterion_justification,
@@ -22,7 +24,6 @@ from server.modules.synthesis.evaluation_results import (
     _itso_result_evidence_status,
     _itso_v3_summary,
     _public_itso_sources,
-    _usable_itso_source,
 )
 from server.modules.synthesis.models import EvaluationFlag
 from server.modules.synthesis.schemas import CriterionScoreItem

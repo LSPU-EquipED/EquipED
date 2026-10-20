@@ -6,13 +6,14 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from equiped_harness.coordinator.agent import Coordinator
-from equiped_harness.gad.agent import GAD
-from equiped_harness.itso import execution as itso_execution
-from equiped_harness.runtime.context import ITSOExecutionContext
+from equiped_harness.agents.coordinator.agent import Coordinator
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.agents.itso import execution as itso_execution
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.agents.sme.agent import SME
+from equiped_harness.agents.sme.packing import pack_domains
 from equiped_harness.runtime.llm import RunLLMClient
-from equiped_harness.sme.agent import SME
-from equiped_harness.sme.packing import pack_domains
+
 from server.core.llm import get_llm_model_name
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob
@@ -26,7 +27,10 @@ from server.tests.agents.coordinator.test_coordinator_agent import (
     _envelope_response,
 )
 from server.tests.agents.helpers import SequencedFakeClient, make_coordinator_snapshot
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+)
 from server.tests.agents.itso.test_itso_execution import (
     _LLM,
     _context,
@@ -193,7 +197,7 @@ def test_gad_emits_generations():
 
 def test_itso_emits_generations(harness_config):
     harness_config(_settings())
-    client = _LLM([_response("ok")])
+    client = _LLM([_response("ok"), _response("ok")])
     eval_id = uuid4()
     snapshot = make_itso_test_snapshot(evaluation_id=eval_id)
     context = _context(client, form_snapshot=snapshot, evaluation_id=eval_id)
@@ -201,17 +205,20 @@ def test_itso_emits_generations(harness_config):
     result = itso_execution.execute(context)
 
     assert result.success is True
-    assert len(result.generations) == 1
-    g = result.generations[0]
-    assert g.unit_key == "envelope_0"
-    assert g.criterion_ids == tuple(s.criterion_id for s in result.criterion_scores)
-    assert g.response_contract_key == "itso_scores.v1"
-    assert g.response_contract_version == 1
-    assert g.envelope_status == "ok"
-    assert g.model_name == client.model
-    assert len(g.prompt_text) > 0
-    assert g.response_json is not None
-    assert g.response_text == json.dumps(g.response_json, ensure_ascii=False)
+    assert len(result.generations) == 2
+    assert [g.unit_key for g in result.generations] == ["envelope_0", "envelope_1"]
+    assert [g.criterion_ids for g in result.generations] == [
+        ("ITSO-01", "ITSO-02"),
+        ("ITSO-03", "ITSO-04", "ITSO-05"),
+    ]
+    for g in result.generations:
+        assert g.response_contract_key == "itso_scores.v1"
+        assert g.response_contract_version == 1
+        assert g.envelope_status == "ok"
+        assert g.model_name == client.model
+        assert len(g.prompt_text) > 0
+        assert g.response_json is not None
+        assert g.response_text == json.dumps(g.response_json, ensure_ascii=False)
 
 
 def test_persist_agent_outputs_persists_generations_for_all_four_agents(
@@ -354,7 +361,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
         form_snapshot=snapshots["gad"],
     )
 
-    # 4. ITSO
+    # 4. ITSO adapter 3 runs source verification and document review envelopes.
     itso_payload = {
         "summary": "ok",
         "criterion_scores": [
@@ -377,6 +384,7 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
         chunk_infos=({"chunk_id": chunk_id_str, "page_number": 1, "text": "security"},),
         form_snapshot=snapshots["itso"],
         llm_client=itso_client,
+        precomputed_context=public_reference_context(),
     )
     itso_res = itso_execution.execute(itso_ctx)
 
@@ -394,8 +402,8 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
         .all()
     )
 
-    # SME: 2, Coordinator: 3, GAD: 1, ITSO: 1 => total 7
-    assert len(gens) == 7
+    # SME: 2, Coordinator: 3, GAD: 1, ITSO: 2 => total 8
+    assert len(gens) == 8
 
     by_agent: dict[str, list[AgentGeneration]] = {}
     for g in gens:
@@ -424,9 +432,9 @@ def test_persist_agent_outputs_persists_generations_for_all_four_agents(
     assert gad_gen.unit_key == "envelope_0"
     assert gad_gen.envelope_status == "ok"
 
-    assert len(by_agent["itso"]) == 1
-    itso_gen = by_agent["itso"][0]
-    assert itso_gen.response_contract_key == "itso_scores.v1"
-    assert itso_gen.response_contract_version == 1
-    assert itso_gen.unit_key == "envelope_0"
-    assert itso_gen.envelope_status == "ok"
+    assert len(by_agent["itso"]) == 2
+    for idx, itso_gen in enumerate(by_agent["itso"]):
+        assert itso_gen.response_contract_key == "itso_scores.v1"
+        assert itso_gen.response_contract_version == 1
+        assert itso_gen.unit_key == f"envelope_{idx}"
+        assert itso_gen.envelope_status == "ok"

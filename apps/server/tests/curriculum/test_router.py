@@ -7,11 +7,11 @@ import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from server.modules import curriculum_alignment as alignment_curriculum
+from server.modules.alignment import curriculum as alignment_curriculum
+from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.curriculum.models import Course
-from server.modules.curriculum_alignment.models import CurriculumAlignmentCheck
 from server.modules.documents.models import Document
 
 
@@ -72,7 +72,7 @@ def test_run_check_returns_404_for_unknown_course(
     client, db_session, monkeypatch
 ) -> None:
     """Unknown course id returns 404 once the document gate has passed."""
-    from server.modules.curriculum_alignment import workflow as workflow_module
+    from server.modules.alignment.curriculum import workflow as workflow_module
 
     user = _login(client, db_session)
     document = Document(
@@ -103,10 +103,10 @@ def test_run_check_returns_422_for_unmapped_course(
 ) -> None:
     """A BSIT course with no mapped objectives is 422 once the document gate
     has passed and the document has usable persisted text."""
-    from server.modules.curriculum_alignment import (
+    from server.modules.alignment.curriculum import (
         document_text as doc_text_module,
     )
-    from server.modules.curriculum_alignment import workflow as workflow_module
+    from server.modules.alignment.curriculum import workflow as workflow_module
 
     user = _login(client, db_session)
     course = Course(course_code="IT999", course_title="Unmapped", program="BSIT")

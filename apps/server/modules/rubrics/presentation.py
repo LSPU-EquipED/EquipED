@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 from pydantic import BaseModel, ConfigDict
 
 

@@ -2,29 +2,39 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 import uuid
 from typing import Any
-from urllib.parse import urlsplit
 
 from equiped_harness import envelope_criteria_map_from_snapshot
+from equiped_harness.agents.itso.reporting import (
+    captured_context,
+    captured_criterion_justification,
+    present_justification,
+)
+from equiped_harness.agents.itso.reporting import (
+    public_sources as _public_itso_sources,
+)
+from equiped_harness.agents.itso.reporting import (
+    reference_check_note as _itso_reference_check_note,
+)
+from equiped_harness.agents.itso.reporting import (
+    result_evidence_status as _itso_result_evidence_status,
+)
+from equiped_harness.agents.itso.reporting import (
+    review_summary as _itso_v3_summary,
+)
+from equiped_harness.agents.sme.scoring import score_criterion_measurement
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     RatioBandConfig,
 )
-from equiped_harness.itso.document_review import unquoted_review_status
-from equiped_harness.itso.execution import (
-    cites_public_source,
-    readable_reference_justification,
-)
-from equiped_harness.scoring import score_criterion_measurement
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     SnapshotIntegrityError,
 )
+
 from server.modules.documents.models import Document
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.feedback.items import (
@@ -68,316 +78,24 @@ from server.modules.synthesis.schemas import (
 
 logger = logging.getLogger(__name__)
 
-_ITSO_SOURCE_MARKER = re.compile(r"\[\s*source\s+([1-9][0-9]*)\s*\]", re.I)
-_ITSO_RECEIPT_MARKERS = (
-    "Tool-derived public reference verification (",
-    " Reviewed extracted-text coverage:",
-)
 
-
-def _captured_itso_context(
-    generations: list[AgentGeneration],
-) -> tuple[dict | None, dict | None]:
-    """Combine saved source-check and document-review facts from user JSON."""
-    report = None
-    presentation_payload: dict[str, Any] = {}
-    for generation in generations:
-        if generation.agent_id != "itso" or not isinstance(
-            generation.prompt_messages, list
-        ):
-            continue
-        for message in generation.prompt_messages:
-            if not isinstance(message, dict) or message.get("role") != "user":
-                continue
-            content = message.get("content")
-            if not isinstance(content, str):
-                continue
-            try:
-                payload = json.loads(content)
-            except (TypeError, ValueError):
-                continue
-            candidate_report = (
-                payload.get("public_reference_verification")
-                if isinstance(payload, dict)
-                else None
-            )
-            if (
-                report is None
-                and isinstance(candidate_report, dict)
-                and isinstance(candidate_report.get("references"), list)
-            ):
-                report = candidate_report
-            if isinstance(payload, dict):
-                if isinstance(payload.get("document_review_coverage"), dict):
-                    presentation_payload["document_review_coverage"] = payload[
-                        "document_review_coverage"
-                    ]
-                if payload.get("local_policy_status") in {"available", "unavailable"}:
-                    presentation_payload["local_policy_status"] = payload[
-                        "local_policy_status"
-                    ]
-    return report, presentation_payload if presentation_payload else None
-
-
-def _usable_itso_source(row: Any) -> bool:
-    if not isinstance(row, dict):
-        return False
-    if str(row.get("status", "")).strip().casefold() not in {
-        "matched",
-        "ambiguous",
-        "mismatch",
-        "mismatched",
-    }:
-        return False
-    url = row.get("source_url")
-    excerpt = row.get("excerpt")
-    if (
-        not isinstance(url, str)
-        or not url
-        or not isinstance(excerpt, str)
-        or not excerpt.strip()
-    ):
-        return False
-    try:
-        parsed = urlsplit(url)
-        return (
-            parsed.scheme.casefold() == "https"
-            and bool(parsed.hostname)
-            and parsed.username is None
-            and parsed.password is None
-        )
-    except ValueError:
-        return False
-
-
-def _public_itso_sources(
-    report: dict | None, model_justification: str
-) -> list[dict[str, Any]]:
-    """Project only cited, usable passages, preserving report position numbers."""
-    if report is None:
-        return []
-    refs = report.get("references")
-    if not isinstance(refs, list):
-        return []
-    cited = {int(value) for value in _ITSO_SOURCE_MARKER.findall(model_justification)}
-    cited.update(
-        index
-        for index, row in enumerate(refs, 1)
-        if isinstance(row, dict)
-        and isinstance(row.get("source_url"), str)
-        and cites_public_source(model_justification, row["source_url"])
+def _captured_itso_context(generations: list[AgentGeneration]):
+    return captured_context(
+        [
+            {"agent_id": row.agent_id, "prompt_messages": row.prompt_messages}
+            for row in generations
+        ]
     )
-    projected: list[dict[str, Any]] = []
-    for number in sorted(cited):
-        if number < 1 or number > len(refs) or len(projected) >= 5:
-            continue
-        row = refs[number - 1]
-        if not _usable_itso_source(row):
-            continue
-        title = row.get("title")
-        projected.append(
-            {
-                "number": number,
-                "title": title[:300] if isinstance(title, str) else None,
-                "url": row["source_url"],
-                "excerpt": row["excerpt"].strip()[:700],
-            }
-        )
-    return projected
-
-
-def _pre_receipt_justification(justification: str) -> str:
-    positions = [
-        position
-        for marker in _ITSO_RECEIPT_MARKERS
-        if (position := justification.find(marker)) >= 0
-    ]
-    return justification[: min(positions)].rstrip() if positions else justification
 
 
 def _captured_criterion_justification(
     generations: list[AgentGeneration], criterion_id: str, saved_justification: str
 ) -> str:
-    """Return this criterion's original model rationale, never its receipt."""
-    found_response_shape = False
-    for generation in generations:
-        response = generation.response_json
-        if not isinstance(response, dict):
-            continue
-        rows = response.get("criterion_scores")
-        if isinstance(rows, dict):
-            found_response_shape = True
-            row = rows.get(criterion_id)
-            if row is None:
-                continue
-        elif isinstance(rows, list):
-            found_response_shape = True
-            row = next(
-                (
-                    item
-                    for item in rows
-                    if isinstance(item, dict)
-                    and item.get("criterion_id") == criterion_id
-                ),
-                None,
-            )
-            if row is None:
-                continue
-        else:
-            continue
-        return (
-            row["justification"]
-            if isinstance(row, dict) and isinstance(row.get("justification"), str)
-            else ""
-        )
-    # Captures predating the criterion response shape can still be read safely:
-    # only rationale preceding the known appended receipt markers is eligible.
-    return (
-        "" if found_response_shape else _pre_receipt_justification(saved_justification)
+    return captured_criterion_justification(
+        [{"response_json": row.response_json} for row in generations],
+        criterion_id,
+        saved_justification,
     )
-
-
-def _has_saved_items(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        if not value.strip():
-            return False
-        try:
-            decoded = json.loads(value)
-        except ValueError:
-            return True
-        return bool(decoded) if isinstance(decoded, list) else bool(decoded)
-    if isinstance(value, (list, tuple, set, dict)):
-        return bool(value)
-    return bool(value)
-
-
-def _itso_result_evidence_status(
-    criterion: CriterionDefinition,
-    *,
-    score: int,
-    evidence: Any,
-    chunk_ids: Any,
-    justification: str,
-    is_itso_v3: bool,
-) -> str | None:
-    if (
-        not is_itso_v3
-        or criterion.criterion_code not in {"ITSO-04", "ITSO-05"}
-        or not justification.strip()
-        or _has_saved_items(evidence)
-        or _has_saved_items(chunk_ids)
-    ):
-        return None
-    return unquoted_review_status(criterion, score)
-
-
-def _itso_reference_check_note(report: dict | None) -> str | None:
-    if report is None:
-        return None
-    rows = report.get("references")
-    if not isinstance(rows, list):
-        return None
-    usable_count = sum(_usable_itso_source(row) for row in rows)
-    searched_count = len(rows)
-    if not searched_count:
-        return None
-    sentence = (
-        f"Readable source text was found for {usable_count} of {searched_count} "
-        f"searched reference{'s' if searched_count != 1 else ''}."
-    )
-    coverage = report.get("coverage")
-    skipped = coverage.get("skipped") if isinstance(coverage, dict) else None
-    if type(skipped) is int and skipped > 0:
-        verb = "was" if skipped == 1 else "were"
-        sentence += (
-            f" {skipped} additional reference{'s' if skipped != 1 else ''} "
-            f"{verb} not searched."
-        )
-    fields = {
-        field
-        for row in rows
-        if isinstance(row, dict)
-        for field in (row.get("unverified_fields") or [])
-        if field in {"author", "year"}
-    }
-    if fields:
-        names = " and ".join(name for name in ("author", "year") if name in fields)
-        sentence += f" {names.capitalize()} details remain unconfirmed."
-    return sentence
-
-
-def _itso_v3_summary(report: dict | None, payload: dict | None) -> str | None:
-    """Build readable presentation from the complete saved v3 review facts."""
-    coverage = payload.get("document_review_coverage") if payload else None
-    local_status = payload.get("local_policy_status") if payload else None
-    rows = report.get("references") if report else None
-    if (
-        not isinstance(coverage, dict)
-        or not isinstance(rows, list)
-        or local_status not in {"available", "unavailable"}
-    ):
-        return None
-    reviewed = coverage.get("reviewed_chunk_count")
-    supplied = coverage.get("supplied_chunk_count")
-    reviewed_chars = coverage.get("reviewed_text_characters")
-    supplied_chars = coverage.get("supplied_text_characters")
-    if not all(
-        type(value) is int and value >= 0
-        for value in (reviewed, supplied, reviewed_chars, supplied_chars)
-    ):
-        return None
-    parts = []
-    searched = len(rows)
-    usable = sum(_usable_itso_source(row) for row in rows)
-    parts.append(
-        f"Public reference checks found readable source text for {usable} of "
-        f"{searched} searched references."
-    )
-    report_coverage = report.get("coverage")
-    skipped = (
-        report_coverage.get("skipped") if isinstance(report_coverage, dict) else None
-    )
-    if type(skipped) is int and skipped > 0:
-        parts.append(
-            f"{skipped} additional detected reference"
-            f"{' was' if skipped == 1 else 's were'} not searched."
-        )
-    unverified = {
-        field
-        for row in rows
-        if isinstance(row, dict)
-        for field in (row.get("unverified_fields") or [])
-        if field in {"author", "year"}
-    }
-    if unverified:
-        names = " and ".join(name for name in ("author", "year") if name in unverified)
-        parts.append(f"{names.capitalize()} details remain unconfirmed.")
-    parts.append(
-        f"Document review covered {reviewed} of {supplied} text sections "
-        f"({reviewed_chars} of {supplied_chars} characters). Images and "
-        "missing extracted text were not assessed."
-    )
-    parts.append(
-        "Institutional policy text was "
-        f"{local_status}; ownership and permissions require human review."
-    )
-    return " ".join(parts)
-
-
-def _clean_itso_justification(
-    justification: str, *, strip_reference: bool, strip_coverage: bool
-) -> str:
-    markers = ((_ITSO_RECEIPT_MARKERS[0],) if strip_reference else ()) + (
-        (_ITSO_RECEIPT_MARKERS[1],) if strip_coverage else ()
-    )
-    positions = [
-        position for marker in markers if (position := justification.find(marker)) >= 0
-    ]
-    if positions:
-        justification = justification[: min(positions)]
-    return justification.rstrip()
 
 
 # Item-level correction display (raw item checklist + live-recomputed score)
@@ -796,40 +514,14 @@ def get_evaluation_results(
                     )
                     justification = score_row.justification
                     if is_itso_v3:
-                        # Receipts were appended to the persisted audit string in
-                        # the old adapter. Keep them if the capture needed to
-                        # reconstruct the source bindings is unavailable.
-                        has_reference_receipt = any(
-                            marker in justification
-                            for marker in _ITSO_RECEIPT_MARKERS[:1]
+                        justification = present_justification(
+                            justification,
+                            criterion_id=snap_crit.criterion_code,
+                            report=itso_report,
+                            sources=public_sources,
+                            has_coverage=itso_summary is not None,
+                            reference_note=itso_reference_note,
                         )
-                        if not has_reference_receipt or public_sources:
-                            justification = _clean_itso_justification(
-                                justification,
-                                strip_reference=bool(public_sources),
-                                strip_coverage=itso_summary is not None,
-                            )
-                            if (
-                                snap_crit.criterion_code == "ITSO-02"
-                                and itso_reference_note
-                                and itso_report
-                            ):
-                                justification = readable_reference_justification(
-                                    justification, itso_report
-                                )
-                            projected_numbers = {
-                                source["number"] for source in public_sources
-                            }
-                            leading_source = re.match(
-                                r"^\s*\[\s*source\s+([1-9][0-9]*)\s*\]\s*:?\s*",
-                                justification,
-                                re.I,
-                            )
-                            if (
-                                leading_source
-                                and int(leading_source.group(1)) in projected_numbers
-                            ):
-                                justification = justification[leading_source.end() :]
                     evidence_status = _itso_result_evidence_status(
                         snap_crit,
                         score=score_row.score,

@@ -7,12 +7,13 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CriterionScore,
     UngroundedCriterionAdvisory,
 )
+
 from server.modules.auth.models import User, UserRole
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
@@ -2124,7 +2125,7 @@ def test_real_itso_producer_to_persistence_flow(db_session) -> None:
     """Producer-to-persistence test using real ITSO parser and DTOs."""
     import json
 
-    from equiped_harness.itso.response import (
+    from equiped_harness.agents.itso.response import (
         collect_advisory_outputs,
         criterion_scores,
         parse_response,
@@ -2238,12 +2239,13 @@ def test_orchestrator_recovery_rejects_null_snapshot_and_fails_job_without_rerun
     db_session, monkeypatch
 ) -> None:
     """Orchestrator recovery fails closed when persisted row has NULL snapshot ID."""
+    from sqlalchemy.orm import sessionmaker
+
     from server.core import database as core_database
     from server.modules.evaluations.exceptions import EvaluationPipelineFailure
     from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
     from server.modules.evaluations.service import acquire_evaluation_execution
     from server.modules.synthesis.models import MonitoringMatrix
-    from sqlalchemy.orm import sessionmaker
 
     owner, doc, job, _ = _setup_evaluation(db_session, partial_without_curriculum=False)
 
@@ -2314,7 +2316,7 @@ def test_dispatch_sanitizer_clears_prompt_text_and_fits_persistence_contract(
     db_session,
 ) -> None:
     """Sanitizer in dispatch strips prompt, raw, advisory, groups for failed results."""
-    from server.modules.evaluations.harness.dispatch import AgentDispatcher
+    from server.modules.evaluations.dispatch import AgentDispatcher
     from server.modules.synthesis.result_integrity import build_persistable_agent_result
 
     owner, doc, job, _ = _setup_evaluation(db_session)

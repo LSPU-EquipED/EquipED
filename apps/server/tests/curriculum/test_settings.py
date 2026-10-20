@@ -1,6 +1,7 @@
 """Settings coverage for curriculum-alignment limiter controls."""
 
 import pytest
+
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
 

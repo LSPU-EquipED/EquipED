@@ -13,22 +13,17 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from server.modules.curriculum import service as curriculum_map_service
-from server.modules.curriculum.models import (
-    Course,
-    CurriculumMapCell,
-    CurriculumObjective,
-)
-from server.modules.curriculum_alignment.admission import (
+
+from server.modules.alignment.curriculum.admission import (
     validate_course_program,
 )
-from server.modules.curriculum_alignment.alignment_check import (
+from server.modules.alignment.curriculum.alignment_check import (
     PROMPT_VERSION,
     AlignmentCheckOutcome,
     AlignmentProvenance,
     AlignmentResultItem,
 )
-from server.modules.curriculum_alignment.exceptions import (
+from server.modules.alignment.curriculum.exceptions import (
     AlignmentCheckCooldownError,
     AlignmentCheckNotFoundError,
     CourseNotFoundError,
@@ -41,17 +36,23 @@ from server.modules.curriculum_alignment.exceptions import (
     NoCurriculumMapError,
     NoUsableDocumentTextError,
 )
-from server.modules.curriculum_alignment.models import CurriculumAlignmentCheck
-from server.modules.curriculum_alignment.queries import (
+from server.modules.alignment.curriculum.models import CurriculumAlignmentCheck
+from server.modules.alignment.curriculum.queries import (
     get_alignment_check,
     get_coverage_metadata,
     get_document_pages_for_check,
     list_alignment_checks,
 )
-from server.modules.curriculum_alignment.repository import delete_alignment_check
-from server.modules.curriculum_alignment.workflow import (
+from server.modules.alignment.curriculum.repository import delete_alignment_check
+from server.modules.alignment.curriculum.workflow import (
     _MAX_SLM_TEXT_CHARS,
     run_curriculum_alignment_check,
+)
+from server.modules.curriculum import service as curriculum_map_service
+from server.modules.curriculum.models import (
+    Course,
+    CurriculumMapCell,
+    CurriculumObjective,
 )
 from server.modules.documents.models import Document, DocumentChunk
 
@@ -881,7 +882,8 @@ def test_prompt_input_uses_only_evaluated_pages(db_session, monkeypatch) -> None
             ]
         )
 
-    from server.modules.curriculum_alignment import workflow
+    from server.modules.alignment.curriculum import workflow
+
     monkeypatch.setattr(workflow, "run_alignment_check", _stub)
     check = run_curriculum_alignment_check(
         document_id=document.document_id,

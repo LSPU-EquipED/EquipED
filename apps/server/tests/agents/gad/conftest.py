@@ -15,7 +15,7 @@ from equiped_harness.contracts import (
     LlmScoreDescriptor,
     RatioBandConfig,
 )
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )

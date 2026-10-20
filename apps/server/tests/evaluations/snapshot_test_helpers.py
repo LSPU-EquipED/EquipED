@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID, uuid4
 
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CriterionScore,
 )
+
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.tests.rubrics.helpers import seed_all_rubrics
@@ -150,7 +151,7 @@ def make_agent_result(
             if not s.chunk_ids or not s.evidence or not s.justification.strip()
         ]
         if un_cids:
-            from equiped_harness.result_contracts import UngroundedCriterionAdvisory
+            from equiped_harness.contracts.results import UngroundedCriterionAdvisory
 
             advisory_outputs = AdvisoryOutput(
                 ungrounded_criteria=tuple(

@@ -1204,7 +1204,8 @@ def test_get_agent_manifest_success_and_unknown_failure():
 
 
 def test_no_duplicate_public_manifest_registry_remains():
-    import equiped_harness.snapshot_contracts as snap
+    import equiped_harness.contracts.snapshots as snap
+
     import server.modules.rubrics as pkg
     import server.modules.rubrics.repository as repo
 

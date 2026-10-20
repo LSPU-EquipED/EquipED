@@ -6,16 +6,17 @@ import json
 import uuid
 
 import pytest
+from equiped_harness.agents.coordinator.agent import Coordinator
 from equiped_harness.contracts import (
     CriterionDefinition,
     CurriculumAlignmentConfig,
     DomainDefinition,
     FormDefinition,
 )
-from equiped_harness.coordinator.agent import Coordinator
+from equiped_harness.contracts.snapshots import build_evaluation_form_snapshot
 from equiped_harness.exceptions import AgentExecutionError
 from equiped_harness.runtime.llm import RunLLMClient
-from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
+
 from server.core.llm import get_llm_model_name
 from server.tests.agents.helpers import SequencedFakeClient, make_coordinator_snapshot
 

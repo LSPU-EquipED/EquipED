@@ -13,7 +13,7 @@ ValidAgentName = Literal["sme", "coordinator", "gad", "itso"]
 # Item-level corrections (toggling a single extracted instance/qualifying
 # unit) are only meaningful for agents whose score is code-computed from a
 # list of LLM-extracted items -- SME and Coordinator today. See
-# server/modules/evaluations/harness/envelope_map.py for why these two specifically.
+# server/modules/rubrics/envelopes.py for why these two specifically.
 ITEM_LEVEL_AGENTS = ("sme", "coordinator")
 
 FeedbackAction = Literal["ACCEPT", "REJECT", "EDIT", "ITEM_REJECT", "ITEM_ACCEPT"]

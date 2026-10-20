@@ -1,14 +1,33 @@
 """Real matrix response validation against sealed persisted synthetic v2 runs."""
 
 import copy
+from uuid import UUID
 
 import pytest
-from server.modules.evaluations.itso.models import ITSOAssessment
-from server.modules.synthesis.itso_projection import merge_itso_projection
-from server.modules.synthesis.models import MonitoringMatrix
 from sqlalchemy import select, update
 
+from server.modules.itso_assessments.models import ITSOAssessment
+from server.modules.synthesis.itso_projection import project_itso_domain
+from server.modules.synthesis.matrix import upsert_monitoring_matrix
+from server.modules.synthesis.models import MonitoringMatrix
+
 from .conftest import make_document, seed_historical_assessment
+
+
+def merge_itso_projection(db, *, result):
+    """Seed historical matrix fixtures without exposing a production writer."""
+    domain = project_itso_domain(result)
+    upsert_monitoring_matrix(
+        db,
+        document_id=UUID(result.document_id),
+        evaluation_id=UUID(result.evaluation_id),
+        evaluation_status=(
+            "IN_PROGRESS" if result.execution_status == "COMPLETED" else "FAILED"
+        ),
+        domain_scores={"itso": domain},
+        flag_count=domain["issue_count"],
+        target_agent="itso",
+    )
 
 
 def seed_matrix(http, db, actors, owned, factory):
@@ -140,7 +159,9 @@ def test_matrix_readers_reject_unsealed_or_misbound_data(
             update(ITSOAssessment).values(effective_policy_hash="f" * 64)
         )
     elif tamper == "seal":
-        from server.modules.evaluations.itso.workflow_models import AssessmentEvidence
+        from server.modules.itso_assessments.workflow_models import (
+            AssessmentEvidence,
+        )
 
         for row in db_session.scalars(select(AssessmentEvidence)):
             if "result_seal" in row.payload:
@@ -258,6 +279,7 @@ def test_projection_dto_strict_union_never_weakens_legacy(
     http, db_session, actors, owned, factory
 ):
     from pydantic import TypeAdapter, ValidationError
+
     from server.modules.synthesis.itso_projection import project_itso_domain
     from server.modules.synthesis.schemas import MatrixDomainScoreBlock
 

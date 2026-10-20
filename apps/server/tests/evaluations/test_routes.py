@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
@@ -70,12 +71,13 @@ def test_no_api_path_can_fake_completed(
 def test_submit_evaluation_runs_honest_lifecycle_to_failed(
     client: TestClient, db_session, monkeypatch
 ) -> None:
-    from equiped_harness.result_contracts import AgentEvaluationResult, CriterionScore
+    from equiped_harness.contracts.results import AgentEvaluationResult, CriterionScore
+    from sqlalchemy.orm import sessionmaker
+
     from server.core import database as core_database
     from server.modules.evaluations import orchestrator as evaluation_orchestrator
     from server.modules.evaluations import router as evaluations_router
-    from server.modules.evaluations.harness.result import SupervisorResult
-    from sqlalchemy.orm import sessionmaker
+    from server.modules.evaluations.execution_result import SupervisorResult
 
     faculty = create_user(
         db_session,

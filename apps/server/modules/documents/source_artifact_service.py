@@ -6,15 +6,16 @@ import hashlib
 import json
 import uuid
 
-from equiped_harness.itso.history_contracts import (
+from equiped_harness.agents.itso.compatibility.contracts import (
     CanonicalSourceSnapshot,
     ReferenceCandidate,
     SourcePage,
 )
-from server.modules.documents.models import Document, UserDocument
-from server.modules.documents.source_artifacts import DocumentSourceSnapshot
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+from server.modules.documents.models import Document, UserDocument
+from server.modules.documents.source_artifacts import DocumentSourceSnapshot
 
 
 def require_owned_source_document(

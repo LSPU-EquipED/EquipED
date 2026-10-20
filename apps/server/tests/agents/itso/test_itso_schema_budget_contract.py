@@ -7,9 +7,9 @@ import json
 from uuid import uuid4
 
 import pytest
-from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.itso.execution import execute as run_itso_execution
-from equiped_harness.itso.response import (
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.agents.itso.execution import execute as run_itso_execution
+from equiped_harness.agents.itso.response import (
     ITSO_CHUNK_ID_MAX,
     ITSO_CRITERIA,
     ITSO_CRITERIA_TITLES,
@@ -18,12 +18,13 @@ from equiped_harness.itso.response import (
     build_response_schema,
     criterion_scores,
 )
-from equiped_harness.itso.response import (
+from equiped_harness.agents.itso.response import (
     parse_response as parse_itso_response,
 )
-from equiped_harness.runtime.context import ITSOExecutionContext
-from equiped_harness.transport import CompletionResult
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.runtime.model import CompletionResult
 from jsonschema import Draft202012Validator
+
 from server.tests.agents.itso.conftest_helper import (
     make_itso_test_snapshot,
     public_reference_context,

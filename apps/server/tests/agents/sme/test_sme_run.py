@@ -6,6 +6,7 @@ import json
 import uuid
 
 import pytest
+from equiped_harness.agents.sme.agent import SME
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -13,10 +14,9 @@ from equiped_harness.contracts import (
     FormDefinition,
     RatioBandConfig,
 )
+from equiped_harness.contracts.snapshots import build_evaluation_form_snapshot
 from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.sme.agent import SME
-from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
-from equiped_harness.transport import CompletionResult
+from equiped_harness.runtime.model import CompletionResult
 
 _CHUNK_INFOS = [{"chunk_id": "chunk-1", "page_number": 1, "text": "SLM chunk"}]
 _SOURCE = (

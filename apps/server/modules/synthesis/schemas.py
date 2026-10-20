@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from equiped_harness.itso.history_contracts import CriterionAssessment
-from equiped_harness.result_contracts import CoordinatorAlignmentAdvisory
+from equiped_harness.agents.coordinator.contracts import CoordinatorAlignmentAdvisory
+from equiped_harness.agents.itso.compatibility.contracts import CriterionAssessment
 from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+
 from server.modules.rubrics.presentation import (
     EvaluationFormCriterionPresentation,
     EvaluationFormDomainPresentation,

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from equiped_harness.itso.agent import ITSO
-from equiped_harness.transport import CompletionResult
+from equiped_harness.agents.itso.agent import ITSO
+from equiped_harness.runtime.model import CompletionResult
+
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
 from server.tests.agents.helpers import _mock_settings

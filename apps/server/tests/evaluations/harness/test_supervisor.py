@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from server.modules.admin.models import PromptVersion
 from server.modules.documents.models import DocumentChunk
-from server.modules.evaluations.harness.supervisor import Supervisor
+from server.modules.evaluations.runner import Supervisor
 from server.tests.agents.helpers import (
     _BatchAgent,
     _FailingAgent,
@@ -34,11 +34,11 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
         ),
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.resolve_document_pdf_path",
+        "server.modules.evaluations.context.resolve_document_pdf_path",
         lambda _path: Path("/owned/uploads/source.pdf"),
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.prepare_canonical_source",
+        "server.modules.evaluations.context.prepare_canonical_source",
         lambda path: (assert_path(path), "canonical source")[1],
     )
     prompt_row = db_session.query(PromptVersion).filter_by(agent_id="sme").one()
@@ -84,7 +84,7 @@ def test_supervisor_passes_all_chunks_and_loads_active_prompts(
     ]
 
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.get_active_prompt",
+        "server.modules.evaluations.context.get_active_prompt",
         lambda agent_id, db: prompt_row,
     )
 
@@ -116,11 +116,11 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
         ),
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.resolve_document_pdf_path",
+        "server.modules.evaluations.context.resolve_document_pdf_path",
         lambda _path: Path("/owned/uploads/source.pdf"),
     )
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.prepare_canonical_source",
+        "server.modules.evaluations.context.prepare_canonical_source",
         lambda path: (assert_path(path), "canonical source")[1],
     )
     failing_agent = _FailingAgent()
@@ -133,7 +133,7 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
     }
 
     monkeypatch.setattr(
-        "server.modules.evaluations.harness.context.get_active_prompt",
+        "server.modules.evaluations.context.get_active_prompt",
         lambda agent_id, db: prompt_rows[agent_id],
     )
 
@@ -187,9 +187,9 @@ def test_supervisor_continues_after_one_agent_failure(monkeypatch, db_session) -
 
 
 def test_precomputed_context_references() -> None:
-    """ITSO execution _references extracts syllabus/curriculum context."""
-    from equiped_harness.itso import execution
-    from equiped_harness.runtime.context import ITSOExecutionContext
+    """Institutional context cannot substitute for required ITSO public evidence."""
+    from equiped_harness.agents.itso import execution
+    from equiped_harness.agents.itso.contracts import ITSOExecutionContext
 
     precomputed = {
         "syllabus": ["syllabus-context-1", "syllabus-context-2"],
@@ -204,17 +204,17 @@ def test_precomputed_context_references() -> None:
         reference_document_ids={"syllabus": uuid4()},
         precomputed_context=precomputed,
     )
-    assert execution._references(context) == [
-        "syllabus-context-1",
-        "syllabus-context-2",
-        "curriculum-context",
-    ]
+    import pytest
+    from equiped_harness.exceptions import AgentExecutionError
+
+    with pytest.raises(AgentExecutionError, match="public reference verification"):
+        execution._references(context)
 
 
 def test_precomputed_context_references_empty_when_missing() -> None:
-    """ITSO execution _references returns empty list when no syllabus or curriculum."""
-    from equiped_harness.itso import execution
-    from equiped_harness.runtime.context import ITSOExecutionContext
+    """Missing public evidence fails before ITSO model execution."""
+    from equiped_harness.agents.itso import execution
+    from equiped_harness.agents.itso.contracts import ITSOExecutionContext
 
     context = ITSOExecutionContext(
         evaluation_id=uuid4(),
@@ -223,7 +223,11 @@ def test_precomputed_context_references_empty_when_missing() -> None:
         reference_document_ids={},
         precomputed_context={},
     )
-    assert execution._references(context) == []
+    import pytest
+    from equiped_harness.exceptions import AgentExecutionError
+
+    with pytest.raises(AgentExecutionError, match="public reference verification"):
+        execution._references(context)
 
 
 def test_prepared_context_loads_authoritative_curriculum_text(
@@ -233,7 +237,7 @@ def test_prepared_context_loads_authoritative_curriculum_text(
     from server.modules.auth.models import UserRole
     from server.modules.auth.service import create_user
     from server.modules.documents.models import Document
-    from server.modules.evaluations.harness.context import EvaluationContextBuilder
+    from server.modules.evaluations.context import EvaluationContextBuilder
 
     monkeypatch.setattr(
         "server.modules.documents.curriculum_readiness.check_chroma_availability",
@@ -298,10 +302,11 @@ def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
     """Unready curriculum (e.g. non-admin, missing chroma, not PROCESSED) raises SupervisorExecutionError."""  # noqa: E501
     import pytest
     from equiped_harness.exceptions import SupervisorExecutionError
+
     from server.modules.auth.models import UserRole
     from server.modules.auth.service import create_user
     from server.modules.documents.models import Document
-    from server.modules.evaluations.harness.context import EvaluationContextBuilder
+    from server.modules.evaluations.context import EvaluationContextBuilder
 
     faculty = create_user(
         db_session,
@@ -344,9 +349,9 @@ def test_prepared_context_unready_curriculum_raises_supervisor_execution_error(
 
 def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
     """Default supervisor includes Coordinator for full; explicit partial agent list excludes Coordinator."""  # noqa: E501
-    from equiped_harness.gad.agent import GAD
-    from equiped_harness.itso.agent import ITSO
-    from equiped_harness.sme.agent import SME
+    from equiped_harness.agents.gad.agent import GAD
+    from equiped_harness.agents.itso.agent import ITSO
+    from equiped_harness.agents.sme.agent import SME
 
     # Full intent (default agents)
     full_supervisor = Supervisor(db=db_session)
@@ -364,10 +369,11 @@ def test_supervisor_agent_composition_full_vs_partial(db_session) -> None:
 def test_context_builder_rejects_legacy_fixed_criterion_prompts(db_session) -> None:
     """EvaluationContextBuilder rejects active prompt text with legacy identifiers."""
     import pytest
+    from equiped_harness.agents.gad.agent import GAD
+    from equiped_harness.agents.itso.agent import ITSO
     from equiped_harness.exceptions import SupervisorExecutionError
-    from equiped_harness.gad.agent import GAD
-    from equiped_harness.itso.agent import ITSO
-    from server.modules.evaluations.harness.context import EvaluationContextBuilder
+
+    from server.modules.evaluations.context import EvaluationContextBuilder
 
     # Seed GAD with legacy GAD-01 identifier
     gad_legacy = PromptVersion(
@@ -404,10 +410,9 @@ def test_context_builder_rejects_legacy_fixed_criterion_prompts(db_session) -> N
     db_session.commit()
 
     builder_itso = EvaluationContextBuilder(db=db_session, agents=[ITSO()])
-    with pytest.raises(SupervisorExecutionError) as exc_info:
-        builder_itso._load_active_prompt_versions()
-    assert "legacy fixed criterion identifiers" in str(exc_info.value)
-    assert "itso" in str(exc_info.value)
+    prompts = builder_itso._load_active_prompt_versions()
+    assert prompts["itso"].version_id is None
+    assert prompts["itso"].prompt_text == ""
 
     # Deactivate legacy ITSO and set generic ITSO
     itso_legacy.is_active = False
@@ -429,9 +434,7 @@ def test_context_builder_rejects_legacy_fixed_criterion_prompts(db_session) -> N
         prompts["gad"].prompt_text
         == "Generic GAD role prompt with runtime criteria only."
     )
-    assert (
-        prompts["itso"].prompt_text
-        == "Generic ITSO role prompt with runtime criteria only."
-    )
+    assert prompts["itso"].prompt_text == ""
+    assert prompts["itso"].version_id is None
     assert prompts["gad"].version_id == gad_generic.version_id
-    assert prompts["itso"].version_id == itso_generic.version_id
+    assert prompts["itso"].version_id is None

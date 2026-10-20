@@ -1,6 +1,6 @@
 """Typed ITSO-v2 domain projection; never coerce withheld scores to zero."""
 
-from equiped_harness.itso.history_contracts import ITSOAssessmentResult
+from equiped_harness.agents.itso.compatibility.contracts import ITSOAssessmentResult
 
 
 def project_itso_domain(result: ITSOAssessmentResult) -> dict:
@@ -21,58 +21,20 @@ def project_itso_domain(result: ITSOAssessmentResult) -> dict:
     }
 
 
-def merge_itso_projection(db, *, result: ITSOAssessmentResult) -> None:
-    from uuid import UUID
-
-    from server.modules.synthesis.matrix import upsert_monitoring_matrix
-
-    domain = project_itso_domain(result)
-    upsert_monitoring_matrix(
-        db,
-        document_id=UUID(result.document_id),
-        evaluation_id=UUID(result.evaluation_id),
-        evaluation_status=(
-            "IN_PROGRESS" if result.execution_status == "COMPLETED" else "FAILED"
-        ),
-        domain_scores={"itso": domain},
-        flag_count=domain["issue_count"],
-        target_agent="itso",
-    )
-
-
 def load_verified_itso_domain(db, *, domain: dict, document_id) -> dict:
     """Matrix JSON is an index, not authority for v2 facts or identities."""
     from uuid import UUID
 
-    from server.modules.evaluations.itso.assessment_service import (
-        find_assessment,
-        verified_assessment_result,
-    )
-    from server.modules.evaluations.itso.exceptions import ITSOError
-    from server.modules.evaluations.itso.workflow_models import AssessmentRevision
-    from sqlalchemy import select
+    from server.modules.evaluations.exceptions import ITSOError
+    from server.modules.itso_assessments.service import verified_result_for_matrix
 
     try:
-        parent = find_assessment(db, UUID(domain["evaluation_id"]))
-    except (KeyError, ValueError, TypeError):
-        raise ITSOError("assessment_integrity_failed") from None
-    if parent is None or parent.document_id != document_id:
-        raise ITSOError("assessment_integrity_failed")
-    revision = (
-        db.scalar(
-            select(AssessmentRevision).where(
-                AssessmentRevision.assessment_id == parent.assessment_id,
-                AssessmentRevision.revision == parent.review_revision,
-            )
+        result = verified_result_for_matrix(
+            db,
+            evaluation_id=UUID(domain["evaluation_id"]),
+            document_id=document_id,
         )
-        if parent.review_revision
-        else None
-    )
-    if parent.review_revision and revision is None:
-        raise ITSOError("assessment_integrity_failed")
-    try:
-        result = verified_assessment_result(db, parent, revision=revision)
-    except (ValueError, LookupError):
+    except (KeyError, ValueError, TypeError):
         raise ITSOError("assessment_integrity_failed") from None
     projection = project_itso_domain(result)
     if domain != projection:
