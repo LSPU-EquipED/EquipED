@@ -7,10 +7,11 @@ import logging
 from uuid import uuid4
 
 import pytest
-from equiped_harness.gad.agent import GAD
-from equiped_harness.itso.agent import ITSO
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.agents.itso.agent import ITSO
+from equiped_harness.agents.sme.agent import SME
 from equiped_harness.runtime.prompt_budget import pack_chunks, select_chunks
-from equiped_harness.sme.agent import SME
+
 from server.tests.agents.helpers import (
     _FakeLLM,
     _make_chunk_infos,
@@ -19,7 +20,10 @@ from server.tests.agents.helpers import (
     _PackingCaptureAgent,
     patch_settings,
 )
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+)
 from server.tests.agents.runtime.response_helpers import itso_response
 
 
@@ -313,7 +317,8 @@ def test_note_present_when_chunks_dropped(monkeypatch, harness_config) -> None:
         harness_config,
         agent_max_chunks=2,
         agent_max_excerpt_chars=800,
-        agent_prompt_budget_chars=5000,
+        agent_prompt_budget_chars=20000,
+        agent_total_prompt_budget_chars=20000,
         agent_small_doc_threshold=1,
     )
 
@@ -338,10 +343,11 @@ def test_note_present_when_chunks_dropped(monkeypatch, harness_config) -> None:
         chunk_infos=chunks,
         form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
+        precomputed_context=public_reference_context(),
     )
 
-    assert len(captured_prompt) == 1
-    payload = json.loads(captured_prompt[0])
+    assert len(captured_prompt) == 2
+    payload = json.loads(captured_prompt[0].user_context)
     assert "note" in payload
     assert "subset of chunks" in payload["note"]
 
@@ -353,7 +359,8 @@ def test_note_present_when_text_excerpted(monkeypatch, harness_config) -> None:
         harness_config,
         agent_max_chunks=12,
         agent_max_excerpt_chars=30,  # Very short, forces excerpting
-        agent_prompt_budget_chars=5000,
+        agent_prompt_budget_chars=20000,
+        agent_total_prompt_budget_chars=20000,
         agent_small_doc_threshold=1,
     )
 
@@ -378,10 +385,11 @@ def test_note_present_when_text_excerpted(monkeypatch, harness_config) -> None:
         chunk_infos=chunks,
         form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
+        precomputed_context=public_reference_context(),
     )
 
-    assert len(captured_prompt) == 1
-    payload = json.loads(captured_prompt[0])
+    assert len(captured_prompt) == 2
+    payload = json.loads(captured_prompt[0].user_context)
     assert "note" in payload
     assert "excerpted" in payload["note"]
 
@@ -414,10 +422,11 @@ def test_note_absent_for_small_unchanged_docs(monkeypatch) -> None:
         chunk_infos=chunks,
         form_snapshot=make_itso_test_snapshot(eval_id),
         context_text="query",
+        precomputed_context=public_reference_context(),
     )
 
-    assert len(captured_prompt) == 1
-    payload = json.loads(captured_prompt[0])
+    assert len(captured_prompt) == 2
+    payload = json.loads(captured_prompt[0].user_context)
     assert "note" not in payload
 
 

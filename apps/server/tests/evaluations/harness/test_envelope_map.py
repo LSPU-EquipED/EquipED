@@ -13,8 +13,9 @@ from equiped_harness.contracts import (
     FormDefinition,
     RatioBandConfig,
 )
-from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
-from server.modules.evaluations.harness.envelope_map import (
+from equiped_harness.contracts.snapshots import build_evaluation_form_snapshot
+
+from server.modules.rubrics.envelopes import (
     get_criterion_envelope_key,
     get_envelope_criteria_map,
 )
@@ -85,7 +86,7 @@ def test_get_envelope_criteria_map_reconstructs_sme_envelopes():
     snapshot = _sme_snapshot(eval_id)
 
     with patch(
-        "server.modules.evaluations.harness.envelope_map.load_verified_agent_snapshot",
+        "server.modules.rubrics.envelopes.load_verified_agent_snapshot",
         return_value=snapshot,
     ):
         envelope_map = get_envelope_criteria_map(
@@ -112,7 +113,7 @@ def test_get_envelope_criteria_map_succeeds_with_multi_agent_evaluation():
         raise AssertionError(f"Unexpected agent requested: {agent_id}")
 
     with patch(
-        "server.modules.evaluations.harness.envelope_map.load_verified_agent_snapshot",
+        "server.modules.rubrics.envelopes.load_verified_agent_snapshot",
         side_effect=fake_load_verified_agent_snapshot,
     ):
         envelope_map = get_envelope_criteria_map(
@@ -128,7 +129,7 @@ def test_get_criterion_envelope_key_finds_containing_envelope():
     snapshot = _sme_snapshot(eval_id)
 
     with patch(
-        "server.modules.evaluations.harness.envelope_map.load_verified_agent_snapshot",
+        "server.modules.rubrics.envelopes.load_verified_agent_snapshot",
         return_value=snapshot,
     ):
         key = get_criterion_envelope_key(

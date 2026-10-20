@@ -18,8 +18,7 @@ from equiped_harness.contracts import (
     LlmRubricGuidanceConfig,
     RatioBandConfig,
 )
-from equiped_harness.manifests import get_agent_manifest
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotPayload,
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
@@ -27,7 +26,9 @@ from equiped_harness.snapshot_contracts import (
     serialize_snapshot_payload,
     verify_evaluation_form_snapshot,
 )
+from equiped_harness.manifests import get_agent_manifest
 from pydantic import ValidationError
+
 from server.modules.rubrics.repository import validate_form_definition
 from server.modules.rubrics.snapshots import load_verified_agent_snapshot
 
@@ -815,7 +816,7 @@ def test_verifier_does_not_swallow_programming_defects(monkeypatch):
         raise RuntimeError("Unexpected internal crash / defect")
 
     monkeypatch.setattr(
-        "equiped_harness.snapshot_contracts.validate_form",
+        "equiped_harness.contracts.snapshots.validate_form",
         _buggy_validate,
     )
 

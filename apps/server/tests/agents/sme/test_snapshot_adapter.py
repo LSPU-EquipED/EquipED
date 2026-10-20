@@ -7,6 +7,16 @@ import uuid
 from typing import Any
 
 import pytest
+from equiped_harness.agents.sme.agent import SME
+from equiped_harness.agents.sme.packing import pack_domains
+from equiped_harness.agents.sme.prompt import build_envelope_prompt_and_source
+from equiped_harness.agents.sme.response import (
+    build_envelope_schema,
+    parse_and_validate_envelope_response,
+)
+from equiped_harness.agents.sme.scoring import (
+    score_criterion_measurement,
+)
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -17,26 +27,16 @@ from equiped_harness.contracts import (
     RatioBandConfig,
     ShortSampleConfig,
 )
+from equiped_harness.contracts.snapshots import (
+    EvaluationFormSnapshotDTO,
+    build_evaluation_form_snapshot,
+)
 from equiped_harness.exceptions import AgentExecutionError, AgentLLMError
+from equiped_harness.runtime.model import CompletionResult
 from equiped_harness.runtime.prompts import (
     AgentPrompt,
     build_diagnostic_repair_prompt,
 )
-from equiped_harness.sme.agent import SME
-from equiped_harness.sme.packing import pack_domains
-from equiped_harness.sme.prompt import build_envelope_prompt_and_source
-from equiped_harness.sme.response import (
-    build_envelope_schema,
-    parse_and_validate_envelope_response,
-)
-from equiped_harness.sme.scoring import (
-    score_criterion_measurement,
-)
-from equiped_harness.snapshot_contracts import (
-    EvaluationFormSnapshotDTO,
-    build_evaluation_form_snapshot,
-)
-from equiped_harness.transport import CompletionResult
 
 
 def _make_criterion(
@@ -1001,7 +1001,7 @@ def test_sme_gate_accepts_any_registered_adapter_version(monkeypatch) -> None:
     from types import MappingProxyType
 
     from equiped_harness import manifests
-    from equiped_harness.sme.pipeline import validate_sme_snapshot
+    from equiped_harness.agents.sme.pipeline import validate_sme_snapshot
 
     v2 = manifests.SME_MANIFEST_V1.model_copy(update={"adapter_version": 2})
     monkeypatch.setattr(
@@ -1019,7 +1019,7 @@ def test_sme_gate_accepts_any_registered_adapter_version(monkeypatch) -> None:
 
 
 def test_sme_gate_rejects_unregistered_adapter_version() -> None:
-    from equiped_harness.sme.pipeline import validate_sme_snapshot
+    from equiped_harness.agents.sme.pipeline import validate_sme_snapshot
 
     eval_id = uuid.uuid4()
     form = _full_rev1_form().model_copy(update={"adapter_version": 99})

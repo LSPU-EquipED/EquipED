@@ -1,4 +1,4 @@
-"""Durable, protected canonical source artifacts for ITSO-only workflows."""
+"""Immutable source artifacts retained for historical ITSO assessments."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from server.core.database import Base
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -21,6 +20,8 @@ from sqlalchemy import (
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column
+
+from server.core.database import Base
 
 
 class DocumentSourceSnapshot(Base):
@@ -104,7 +105,4 @@ class DocumentSourcePreparation(Base):
     )
 
 
-# Compatibility re-export for the initial, unapplied storage foundation.
-from server.modules.evaluations.itso.models import ITSOAssessment  # noqa: E402
-
-__all__ = ["DocumentSourceSnapshot", "DocumentSourcePreparation", "ITSOAssessment"]
+__all__ = ["DocumentSourceSnapshot", "DocumentSourcePreparation"]

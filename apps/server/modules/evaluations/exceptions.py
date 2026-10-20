@@ -7,6 +7,15 @@ class EvaluationsError(Exception):
     """Base error for evaluations module operations."""
 
 
+class ITSOError(RuntimeError):
+    """Bounded ITSO error shared by current admission and historical reads."""
+
+    def __init__(self, code: str, status: int = 409):
+        self.code = code
+        self.status = status
+        super().__init__(code)
+
+
 class EvaluationNotFoundError(EvaluationsError):
     """Raised when the evaluation job id does not exist."""
 
@@ -49,4 +58,5 @@ __all__ = [
     "InvalidEvaluationTargetError",
     "EvaluationExecutionOwnershipError",
     "EvaluationPipelineFailure",
+    "ITSOError",
 ]

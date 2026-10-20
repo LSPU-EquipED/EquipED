@@ -18,9 +18,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from equiped_harness import GAD, ITSO, SME, AgentEvaluationResult, Coordinator
+from equiped_harness import AgentEvaluationResult
+from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
 from equiped_harness.exceptions import error_reference
-from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.registry import get_agent_class
+
 from server.modules.curriculum.service import resolve_roadmap_course_context
 from server.modules.documents.curriculum_readiness import check_curriculum_readiness
 from server.modules.documents.exceptions import DocumentNotFoundError
@@ -32,8 +34,8 @@ from server.modules.evaluations.exceptions import (
     EvaluationPipelineFailure,
     EvaluationPipelineUnavailableError,
 )
-from server.modules.evaluations.harness import Supervisor
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
+from server.modules.evaluations.runner import Supervisor
 from server.modules.evaluations.service import (
     acquire_next_evaluation_execution,
     heartbeat_evaluation_execution,
@@ -75,46 +77,6 @@ def _serving_adapter_request(request: Any) -> Any:
 def _safe_failure(exc: BaseException) -> tuple[str, str]:
     """Return bounded, non-sensitive failure attribution."""
     return type(exc).__name__[:64], error_reference(exc)
-
-
-def _build_itso_v3_reference_report(query_text: str) -> dict[str, Any]:
-    """Always run mandatory public-reference verification for adapter 3."""
-    import asyncio
-
-    from server.modules.evaluations.itso.reference_tools import (
-        build_public_reference_report,
-    )
-
-    report = asyncio.run(build_public_reference_report(query_text, enabled=True))
-    # Report aggregate retrieval health before dispatch. Failed input validation
-    # runs before model capture, so its opaque reference alone cannot explain an
-    # empty search. Never log source queries, passages, URLs or module text.
-    statuses = {
-        status: sum(row.get("status") == status for row in report["references"])
-        for status in (
-            "matched",
-            "ambiguous",
-            "mismatched",
-            "unverified",
-            "unavailable",
-        )
-    }
-    usable = sum(
-        row.get("status") in {"matched", "ambiguous", "mismatch", "mismatched"}
-        and bool(row.get("source_url") and row.get("excerpt"))
-        for row in report["references"]
-    )
-    attempts = report.get("attempts", {})
-    log = logger.info if usable else logger.warning
-    log(
-        "[ITSO_REFERENCE_CHECK] search_attempts=%s | page_requests=%s | "
-        "usable_sources=%d | reference_statuses=%s",
-        attempts.get("search", 0),
-        attempts.get("source", 0),
-        usable,
-        statuses,
-    )
-    return report
 
 
 def _scheduled_ids_for_job(job: Any) -> tuple[str, ...]:
@@ -353,20 +315,6 @@ def _execute_claimed_evaluation(
             except Exception:
                 roadmap_ctx = None
 
-            public_reference_verification = None
-            itso_v3 = any(
-                snapshot.agent_id == "itso" and snapshot.adapter_version == 3
-                for snapshot in verified_snapshots
-            )
-            if itso_v3:
-                # External access is done by the sequential worker before the
-                # supervisor starts its parallel agent dispatch. Release the SQL
-                # transaction first and pass only immutable JSON into that work.
-                session.commit()
-                public_reference_verification = _build_itso_v3_reference_report(
-                    slm_text
-                )
-
             def owner_heartbeat() -> None:
                 if not heartbeat_evaluation_execution(
                     session, evaluation_id, execution_token
@@ -390,11 +338,6 @@ def _execute_claimed_evaluation(
                     },
                     **({"roadmap": roadmap_ctx} if roadmap_ctx else {}),
                     "confirmed_program": job.confirmed_program,
-                    **(
-                        {"public_reference_verification": public_reference_verification}
-                        if public_reference_verification is not None
-                        else {}
-                    ),
                 },
                 heartbeat_callback=owner_heartbeat,
                 lora_by_agent=lora_by_agent,
@@ -595,14 +538,7 @@ def _execute_claimed_evaluation(
 
 
 def _build_supervisor_agents(scheduled_ids: tuple[str, ...]) -> list[Any]:
-    """Build specialist agent instances matching the exact scheduled IDs and order."""
-    agent_factories: dict[str, Any] = {
-        "sme": SME,
-        "coordinator": Coordinator,
-        "gad": GAD,
-        "itso": ITSO,
-    }
-    return [agent_factories[agent_id]() for agent_id in scheduled_ids]
+    return [get_agent_class(agent_id)() for agent_id in scheduled_ids]
 
 
 def _prepare_snapshots_and_enter_evaluating(

@@ -8,8 +8,9 @@ from __future__ import annotations
 import json
 import uuid
 
-from equiped_harness.gad.agent import GAD
-from equiped_harness.transport import CompletionResult, ResponseContract
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
+
 from server.tests.agents.gad.conftest import make_gad_snapshot, make_gad_snapshot_v2
 
 _CHUNKS = [

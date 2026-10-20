@@ -9,10 +9,11 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import create_engine, inspect
+
 from server.core.config import Settings
 from server.core.database import Base
 from server.db.metadata import import_model_modules
-from sqlalchemy import create_engine, inspect
 
 
 def test_fresh_metadata_registers_alignment_table_once() -> None:
@@ -50,7 +51,7 @@ def test_startup_recovery_calls_service_facade(
     monkeypatch.setattr(main, "get_settings", lambda: settings)
     monkeypatch.setattr(main, "get_session_factory", lambda: "factory")
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.service.fail_interrupted_syllabus_alignments",
+        "server.modules.alignment.syllabus.service.fail_interrupted_syllabus_alignments",
         lambda factory: calls.append(factory) or 0,
     )
 
@@ -71,7 +72,7 @@ def test_app_registers_syllabus_alignment_routes() -> None:
 
 def test_new_module_has_independent_import_boundary() -> None:
     root = Path(__file__).resolve().parents[3]
-    package = root / "server" / "modules" / "syllabus_alignment"
+    package = root / "server" / "modules" / "alignment" / "syllabus"
     forbidden = {"server.modules.evaluations", "server.modules.evaluations.harness"}
     for source_path in package.glob("*.py"):
         tree = ast.parse(source_path.read_text(), filename=str(source_path))
@@ -83,22 +84,27 @@ def test_new_module_has_independent_import_boundary() -> None:
             if isinstance(node, ast.Import):
                 assert not any(alias.name in forbidden for alias in node.names)
 
+    assert not (root / "server" / "modules" / "syllabus_alignment").exists()
+    assert not (root / "server" / "modules" / "curriculum_alignment").exists()
+
     script = """
 import importlib
 for name in (
-    'server.modules.syllabus_alignment.router',
-    'server.modules.syllabus_alignment.service',
-    'server.modules.curriculum_alignment.service',
-    'server.modules.syllabus_alignment.admission',
-    'server.modules.syllabus_alignment.repository',
-    'server.modules.syllabus_alignment.commands',
-    'server.modules.syllabus_alignment.jobs',
-    'server.modules.syllabus_alignment.queries',
-    'server.modules.syllabus_alignment.evaluator',
-    'server.modules.syllabus_alignment.models',
+    'server.modules.alignment.syllabus.router',
+    'server.modules.alignment.syllabus.service',
+    'server.modules.alignment.curriculum.service',
+    'server.modules.alignment.syllabus.admission',
+    'server.modules.alignment.syllabus.repository',
+    'server.modules.alignment.syllabus.commands',
+    'server.modules.alignment.syllabus.jobs',
+    'server.modules.alignment.syllabus.queries',
+    'server.modules.alignment.syllabus.evaluator',
+    'server.modules.alignment.syllabus.models',
 ):
     importlib.import_module(name)
 for name in (
+    'server.modules.syllabus_alignment.router',
+    'server.modules.curriculum_alignment.service',
     'server.modules.evaluations.alignment_router',
     'server.modules.evaluations.alignment_service',
     'server.modules.evaluations.alignment_schemas',

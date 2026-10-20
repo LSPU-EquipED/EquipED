@@ -21,6 +21,7 @@ from fastapi import (
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+
 from server.core.database import get_db_session
 from server.core.exceptions import InfrastructureUnavailableError
 from server.core.llm import probe_local_model_readiness
@@ -34,8 +35,8 @@ from server.modules.evaluations.exceptions import (
     EvaluationPipelineUnavailableError,
     ForbiddenEvaluationAccessError,
     InvalidEvaluationTargetError,
+    ITSOError,
 )
-from server.modules.evaluations.itso.exceptions import ITSOError
 from server.modules.evaluations.orchestrator import drain_evaluation_queue
 from server.modules.evaluations.schemas import (
     DeskQueueListResponse,

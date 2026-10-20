@@ -5,7 +5,8 @@ import json
 from uuid import uuid4
 
 import pytest
-from equiped_harness.itso.history_contracts import build_source_snapshot
+from equiped_harness.agents.itso.compatibility.contracts import build_source_snapshot
+
 from server.modules.auth.models import User, UserRole
 from server.modules.documents.models import Document, UserDocument
 from server.modules.documents.source_artifact_service import load_owned_source_snapshot

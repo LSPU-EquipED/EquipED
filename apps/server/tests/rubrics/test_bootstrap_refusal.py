@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
 from server.modules.rubrics.models import (
     RubricAgentActivation,
     RubricCriterion,
@@ -79,12 +80,12 @@ def test_fresh_seed_populates_published_and_activations(db_session):
     assert gad_form.version_number == 1
     assert len(gad_form.domains[0].criteria) == 5
 
-    # ITSO evidence verification v2 published and active
+    # Current scored ITSO v3 published and active
     itso_form = get_active_form_definition(db_session, "itso")
     assert itso_form is not None
-    assert itso_form.version_number == 2
+    assert itso_form.version_number == 3
     assert itso_form.adapter_key == "itso"
-    assert itso_form.adapter_version == 2
+    assert itso_form.adapter_version == 3
     itso_criteria = [
         criterion for domain in itso_form.domains for criterion in domain.criteria
     ]
@@ -96,7 +97,7 @@ def test_fresh_seed_populates_published_and_activations(db_session):
         "ITSO-05",
     }
     assert all(
-        criterion.strategy_config.strategy == "evidence_verification"
+        criterion.strategy_config.strategy == "llm_rubric_guidance"
         for criterion in itso_criteria
     )
 

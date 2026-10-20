@@ -12,8 +12,12 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from dataclasses import dataclass
-from typing import Any, Final, Literal
+from typing import Any, Final
+
+from equiped_harness.contracts.references import (
+    PolicyEvidenceChunk,
+    PolicyRetrievalResult,
+)
 
 from server.core.chroma import get_chroma_client
 from server.modules.embeddings.collections import COL_POLICY_ALL
@@ -24,73 +28,29 @@ logger = logging.getLogger(__name__)
 _LOG_CAT_ALLOWLIST: Final[str] = "policy:allowlist"
 _LOG_CAT_QUERY: Final[str] = "policy:chroma_query"
 _LOG_CAT_VALIDATION: Final[str] = "policy:post_validation"
-_LOG_CAT_MAP: Final[str] = "policy:criteria"
 _LOG_CAT_COLLECTION: Final[str] = "policy:collection"
 
-ITSO_POLICY_MAP: Final[dict[str, tuple[str, ...]]] = {
-    "ITSO-03": ("intellectual_property", "general_itso"),
-    "ITSO-04": ("data_privacy", "general_itso"),
-    "ITSO-05": ("academic_rights", "general_itso"),
-}
-
 _DEFAULT_MAX_CHUNKS_PER_CRITERION: Final[int] = 5
-
-# Immutable result contracts
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyEvidenceChunk:
-    """A single policy chunk bound for prompt-time evidence."""
-
-    chunk_id: str
-    document_id: str
-    text: str
-    policy_area: str
-    page_number: int | None
-    token_count: int | None
-    distance: float
-
-
-@dataclass(frozen=True, slots=True)
-class PolicyRetrievalResult:
-    """Structured policy retrieval outcome for one criterion.
-
-    ``provenance_hash`` is a deterministic SHA-256 hash over all returned
-    chunk text, metadata, and identifiers in sorted order. Output retains
-    only the opaque hex digest — no raw identifiers or text.
-    """
-
-    policy_area: str
-    status: Literal["available", "unavailable"]
-    chunks: tuple[PolicyEvidenceChunk, ...]
-    provenance_hash: str
-
-    @property
-    def chunk_count(self) -> int:
-        return len(self.chunks)
 
 
 # Core retrieval
 
 
 def retrieve_policy_context(
-    itso_criterion_id: str,
+    policy_areas: tuple[str, ...],
     query_embedding: list[float],
     db: Any | None = None,
     *,
     max_chunks: int = _DEFAULT_MAX_CHUNKS_PER_CRITERION,
 ) -> PolicyRetrievalResult:
-    """Retrieve bounded policy context for an ITSO criterion.
+    """Retrieve bounded policy context for explicitly supplied policy areas.
 
-    Maps the criterion to its policy area(s), delegates to the document
-    service for a health allowlist, then queries Chroma with metadata
-    filters. Validates candidate chunk IDs post-query against the same
-    contract. Returns structured evidence with an opaque provenance hash.
+    Delegates to the document service for a health allowlist, then queries
+    Chroma with metadata filters. Validates candidate chunk IDs post-query
+    against the same contract. Returns structured evidence with an opaque hash.
     All errors fail open to ``unavailable``.
     """
-    policy_areas = ITSO_POLICY_MAP.get(itso_criterion_id)
     if not policy_areas:
-        logger.warning("%s unknown criterion", _LOG_CAT_MAP)
         return _unavailable_result(policy_area="unknown")
 
     if db is None:
@@ -291,7 +251,6 @@ def _unavailable_result(policy_area: str) -> PolicyRetrievalResult:
 
 
 __all__ = [
-    "ITSO_POLICY_MAP",
     "PolicyEvidenceChunk",
     "PolicyRetrievalResult",
     "retrieve_policy_context",

@@ -5,13 +5,13 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from equiped_harness.agents.coordinator.execution import execute_envelope
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
     CurriculumAlignmentConfig,
     RatioBandConfig,
 )
-from equiped_harness.coordinator.execution import execute_envelope
 from equiped_harness.exceptions import AgentExecutionError
 from equiped_harness.runtime.llm import RunLLMClient
 from equiped_harness.runtime.prompts import (
@@ -19,6 +19,7 @@ from equiped_harness.runtime.prompts import (
     build_diagnostic_repair_prompt,
 )
 from equiped_harness.runtime.slicing import GAP_MARKER, downsample_source_text
+
 from server.core.config import get_settings
 from server.core.llm import get_llm_model_name
 from server.tests.agents.helpers import SequencedFakeClient

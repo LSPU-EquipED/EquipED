@@ -9,23 +9,24 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+from equiped_harness.agents.coordinator.contracts import CoordinatorAlignmentAdvisory
+from equiped_harness.agents.coordinator.validation import (
+    validate_coordinator_coverage,
+    validate_current_coordinator_bundle,
+)
 from equiped_harness.contracts import LlmRubricGuidanceConfig
-from equiped_harness.provenance import sanitize_provenance
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
     CapturedGeneration,
-    CoordinatorAlignmentAdvisory,
 )
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     CriterionScore as InputCriterionScore,
 )
-from equiped_harness.scoring import (
-    validate_coordinator_coverage,
-    validate_current_coordinator_bundle,
-    validate_score_band,
-)
-from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
+from equiped_harness.provenance import sanitize_provenance
+from equiped_harness.runtime.scoring import validate_score_band
+
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 
 ERROR_MESSAGE_PATTERN = re.compile(

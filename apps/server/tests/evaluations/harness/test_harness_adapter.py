@@ -2,12 +2,14 @@
 
 import pytest
 from equiped_harness import CompletionResult, ResponseContract
+
 from server.core.config import Settings
 from server.core.exceptions import ConfigurationError
 from server.core.llm import ResponseContract as CoreResponseContract
-from server.modules.evaluations.harness.transport import (
+from server.modules.evaluations.harness_adapter import (
     HarnessModelClient,
     execution_config_from_settings,
+    tool_config_from_settings,
 )
 
 
@@ -104,3 +106,18 @@ def test_config_translation_does_not_tighten_backend_values():
         config.agent_total_prompt_budget_chars
         == settings.agent_total_prompt_budget_chars
     )
+
+
+@pytest.mark.parametrize("value", [None, "false", False, 1])
+def test_public_tool_authorization_fails_closed(value):
+    settings = type("Settings", (), {"itso_verification_enabled": value})()
+
+    config = tool_config_from_settings(settings)
+
+    assert config.enabled is False
+
+
+def test_public_tool_authorization_requires_explicit_true():
+    assert tool_config_from_settings(object()).enabled is False
+    settings = type("Settings", (), {"itso_verification_enabled": True})()
+    assert tool_config_from_settings(settings).enabled is True

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from server.modules.evaluations.harness.context import EvaluationContextBuilder
+from server.modules.evaluations.context import EvaluationContextBuilder
 
 
 def test_builder_compute_embedding_returns_none_for_empty() -> None:

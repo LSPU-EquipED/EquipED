@@ -5,11 +5,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
-from server.modules.evaluations.exceptions import EvaluationNotFoundError
-from server.modules.evaluations.itso.assessment_service import reject_legacy_v2_read
-from server.modules.evaluations.itso.exceptions import ITSOError
+from server.modules.evaluations.exceptions import EvaluationNotFoundError, ITSOError
+from server.modules.itso_assessments.service import reject_legacy_v2_read
 from server.modules.synthesis.exceptions import (
     EvaluationResultIntegrityError,
     EvaluationResultsNotFoundError,

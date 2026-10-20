@@ -7,14 +7,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi.testclient import TestClient
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.admission import create_evaluation
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
-from server.modules.evaluations.itso.models import ITSOAssessment
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
 from server.modules.evaluations.schemas import EvaluationSubmitRequest
+from server.modules.itso_assessments.models import ITSOAssessment
 from server.modules.rubrics.models import EvaluationFormSnapshot, RubricSet
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import (
@@ -31,7 +32,7 @@ def test_itso_v3_submission_freezes_form_without_workflow_assessment(
     db_session, monkeypatch
 ):
     monkeypatch.setattr(
-        "server.modules.evaluations.itso.reference_tools.ensure_public_reference_tools_ready",
+        "equiped_harness.agents.itso.tools.reference_search.ensure_public_reference_tools_ready",
         lambda **kwargs: None,
     )
     faculty = create_user(

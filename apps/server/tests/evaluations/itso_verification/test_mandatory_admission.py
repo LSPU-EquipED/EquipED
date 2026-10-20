@@ -3,11 +3,12 @@
 import uuid
 
 import pytest
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document, DocumentChunk
 from server.modules.evaluations.admission import create_evaluation
-from server.modules.evaluations.itso.exceptions import ITSOError
+from server.modules.evaluations.exceptions import ITSOError
 from server.modules.evaluations.models import EvaluationJob
 from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.tests.rubrics.helpers import seed_all_rubrics
@@ -19,11 +20,11 @@ def test_itso_v3_admission_checks_readiness_and_freezes_true(
 ):
     readiness_checks = []
 
-    def ready(*, needs_search=True):
+    def ready(*, settings, needs_search=True):
         readiness_checks.append(needs_search)
 
     monkeypatch.setattr(
-        "server.modules.evaluations.itso.reference_tools.ensure_public_reference_tools_ready",
+        "equiped_harness.agents.itso.tools.reference_search.ensure_public_reference_tools_ready",
         ready,
     )
     faculty = create_user(
@@ -80,17 +81,17 @@ def test_itso_v3_admission_checks_readiness_and_freezes_true(
 def test_itso_v3_admission_fails_closed_when_tools_are_unready(
     db_session, monkeypatch, verification
 ):
-    from server.modules.evaluations.itso.reference_tools import (
+    from equiped_harness.agents.itso.tools.contracts import Code
+    from equiped_harness.agents.itso.tools.reference_search import (
         ReferenceToolsUnavailable,
     )
-    from server.modules.evaluations.itso.verification.contracts import Code
 
-    def unavailable(*, needs_search=True):
+    def unavailable(*, settings, needs_search=True):
         assert needs_search
         raise ReferenceToolsUnavailable(Code.DISABLED)
 
     monkeypatch.setattr(
-        "server.modules.evaluations.itso.reference_tools.ensure_public_reference_tools_ready",
+        "equiped_harness.agents.itso.tools.reference_search.ensure_public_reference_tools_ready",
         unavailable,
     )
     faculty = create_user(
@@ -187,7 +188,7 @@ def test_admission_rejects_missing_or_retired_itso_activation(
         pytest.fail("retired activation reached public tools")
 
     monkeypatch.setattr(
-        "server.modules.evaluations.itso.reference_tools.ensure_public_reference_tools_ready",
+        "equiped_harness.agents.itso.tools.reference_search.ensure_public_reference_tools_ready",
         unexpected_tools,
     )
     with pytest.raises(ITSOError, match="itso_harness_upgrade_required") as error:

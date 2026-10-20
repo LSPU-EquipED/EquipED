@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 from equiped_harness import ExecutionConfig, evaluate
-from equiped_harness.snapshot_contracts import verify_evaluation_form_snapshot
+from equiped_harness.contracts.snapshots import verify_evaluation_form_snapshot
+
 from server.modules.rubrics.models import EvaluationFormSnapshot
 from server.modules.synthesis.exceptions import EvaluationResultIntegrityError
 from server.modules.synthesis.matrix import (

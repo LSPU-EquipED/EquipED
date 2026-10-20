@@ -8,6 +8,7 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import Any
 
+from equiped_harness.agents.itso.agent import ITSO
 from equiped_harness.contracts import (
     CountBandConfig,
     CriterionDefinition,
@@ -18,14 +19,14 @@ from equiped_harness.contracts import (
     RatioBandConfig,
     ShortSampleConfig,
 )
-from equiped_harness.itso.agent import ITSO
-from equiped_harness.result_contracts import AgentEvaluationResult
-from equiped_harness.runtime.prompt_budget import pack_chunks
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.results import AgentEvaluationResult
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )
-from equiped_harness.transport import CompletionResult, ResponseContract
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
+from equiped_harness.runtime.prompt_budget import pack_chunks
+
 from server.core.llm import get_llm_model_name
 from server.modules.admin.models import PromptVersion
 
@@ -496,6 +497,9 @@ class _FakeLLM:
         content = self.generate(
             prompt, temperature=temperature, max_new_tokens=max_new_tokens
         )
+        from server.tests.agents.itso.conftest_helper import v3_response_for_prompt
+
+        content = v3_response_for_prompt(prompt, content, generate_valid_evidence=True)
         return CompletionResult(
             content=content,
             served_model="fake-model",
@@ -520,12 +524,19 @@ class _DummyAgent:
         self.llm_client = llm_client
 
     def run(self, **kwargs):
+        from server.tests.agents.itso.conftest_helper import public_reference_context
+
         if "form_snapshot" not in kwargs:
             from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
 
             kwargs["form_snapshot"] = make_itso_test_snapshot(
                 kwargs.get("evaluation_id")
             )
+        precomputed = public_reference_context()
+        supplied = kwargs.get("precomputed_context") or {}
+        for key, values in supplied.items():
+            precomputed[key] = tuple(values) if isinstance(values, list) else values
+        kwargs["precomputed_context"] = precomputed
         result = ITSO(llm_client=self.llm_client).run(**kwargs)
         return replace(result, agent_name=self.agent_name)
 
@@ -746,7 +757,7 @@ def patch_settings(monkeypatch, harness_config, **overrides) -> None:
     harness_config(mock)
     for target in (
         "server.core.llm.get_settings",
-        "server.modules.evaluations.harness.dispatch.get_settings",
+        "server.modules.evaluations.dispatch.get_settings",
         "server.core.database.get_settings",
     ):
         monkeypatch.setattr(target, lambda: mock)

@@ -148,7 +148,7 @@ def test_single_alembic_head_and_down_revision():
     script_dir = ScriptDirectory.from_config(config)
     heads = script_dir.get_heads()
     assert len(heads) == 1
-    assert heads[0] == "20261015_0001"
+    assert heads[0] == "20261020_0003"
 
     provenance = script_dir.get_revision("20261011_0001")
     assert provenance is not None

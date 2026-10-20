@@ -20,11 +20,12 @@ from typing import Any
 from urllib import error as urllib_error
 
 import pytest
+
 from server.core.exceptions import ConfigurationError, InfrastructureUnavailableError
 from server.core.llm import LocalLLMClient
-from server.modules.curriculum_alignment import alignment_check as ac
-from server.modules.curriculum_alignment import alignment_runtime as rt
-from server.modules.curriculum_alignment.alignment_check import (
+from server.modules.alignment.curriculum import alignment_check as ac
+from server.modules.alignment.curriculum import alignment_runtime as rt
+from server.modules.alignment.curriculum.alignment_check import (
     MAX_EVIDENCE_CHARS,
     MAX_NEW_TOKENS,
     PROMPT_VERSION,
@@ -32,7 +33,6 @@ from server.modules.curriculum_alignment.alignment_check import (
     AlignmentProvenance,
     build_prompt,
     run_alignment_check,
-    run_alignment_llm,
 )
 
 OBJECTIVES = [{"code": "IT08", "description": "Teamwork"}]
@@ -324,7 +324,6 @@ class TestStrictParsing:
         outcome = run_alignment_check(FakeClient(_payload()), objectives, "text")
         assert outcome.success is False
         assert outcome.results == ()
-        assert run_alignment_llm(FakeClient(_payload()), objectives, "text") == []
 
     def test_results_ordered_by_input_objectives(self) -> None:
         objectives = [
@@ -605,41 +604,13 @@ class TestProvenanceSafety:
         assert "http_429" in provenance.error_detail
 
 
-class TestLegacyWrapper:
-    def test_returns_service_compatible_dict_shape(self) -> None:
-        results = run_alignment_llm(FakeClient(_payload()), OBJECTIVES, "text")
-        assert results == [
-            {
-                "objective_code": "IT08",
-                "is_addressed": True,
-                "observed_level": "I",
-                "evidence": "students work in pairs",
-            }
-        ]
-
-    def test_empty_objectives_returns_empty_without_calling_llm(self) -> None:
+class TestTypedOutcome:
+    def test_empty_objectives_do_not_call_the_model(self) -> None:
         client = FakeClient(_payload())
-        assert run_alignment_llm(client, [], "text") == []
+        outcome = run_alignment_check(client, [], "text")
+        assert outcome.success is False
+        assert outcome.results == ()
         assert client.calls == []
-
-    def test_llm_failure_returns_empty_list(self) -> None:
-        client = FakeClient("not valid json")
-        assert run_alignment_llm(client, OBJECTIVES, "text") == []
-
-    def test_not_addressed_result_preserved(self) -> None:
-        results = run_alignment_llm(
-            FakeClient(_payload(addressed=False, level=None, evidence=None)),
-            OBJECTIVES,
-            "text",
-        )
-        assert results == [
-            {
-                "objective_code": "IT08",
-                "is_addressed": False,
-                "observed_level": None,
-                "evidence": None,
-            }
-        ]
 
     def test_outcome_is_typed(self) -> None:
         outcome = run_alignment_check(FakeClient(_payload()), OBJECTIVES, "text")

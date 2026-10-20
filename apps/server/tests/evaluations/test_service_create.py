@@ -9,6 +9,7 @@ Evaluations support optional curriculum references:
 from __future__ import annotations
 
 import pytest
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
@@ -822,9 +823,10 @@ def test_create_evaluation_primary_document_masking_precedes_program_validation(
 
     assert db_session.query(EvaluationJob).count() == 0
 
+
 @pytest.mark.parametrize("target_agent", ["sme", "gad", "itso"])
 def test_create_evaluation_single_agent_succeeds_without_curriculum(
-    db_session, target_agent: str
+    db_session, monkeypatch, target_agent: str
 ) -> None:
     """Non-coordinator agents execute immediately with zero curriculum gating."""
     owner = create_user(
@@ -836,6 +838,14 @@ def test_create_evaluation_single_agent_succeeds_without_curriculum(
     )
     db_session.commit()
     slm_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    if target_agent == "itso":
+        from server.tests.rubrics.helpers import seed_all_rubrics
+
+        seed_all_rubrics(db_session)
+        monkeypatch.setattr(
+            "equiped_harness.agents.itso.tools.reference_search.ensure_public_reference_tools_ready",
+            lambda **kwargs: None,
+        )
     response = create_evaluation(
         EvaluationSubmitRequest(
             document_id=slm_id,

@@ -5,7 +5,11 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from equiped_harness.result_contracts import AgentEvaluationResult
+from equiped_harness.contracts.results import AgentEvaluationResult
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
 from server.core.database import Base
 from server.db.metadata import import_model_modules
 from server.modules.auth.models import User, UserRole
@@ -20,9 +24,6 @@ from server.tests.evaluations.snapshot_test_helpers import (
     make_agent_result,
     prepare_test_snapshots,
 )
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 
 def _factory():

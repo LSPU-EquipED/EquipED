@@ -5,23 +5,24 @@ from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from server.modules.auth.models import UserRole
-from server.modules.auth.service import create_user
-from server.modules.documents.models import Document, DocumentChunk
-from server.modules.syllabus_alignment.commands import (
+from sqlalchemy.orm import sessionmaker
+
+from server.modules.alignment.syllabus.commands import (
     create_syllabus_alignment,
 )
-from server.modules.syllabus_alignment.exceptions import SyllabusAlignmentNotFoundError
-from server.modules.syllabus_alignment.jobs import (
+from server.modules.alignment.syllabus.exceptions import SyllabusAlignmentNotFoundError
+from server.modules.alignment.syllabus.jobs import (
     fail_interrupted_syllabus_alignments,
     run_syllabus_alignment_job,
 )
-from server.modules.syllabus_alignment.models import SyllabusAlignmentRun
-from server.modules.syllabus_alignment.queries import (
+from server.modules.alignment.syllabus.models import SyllabusAlignmentRun
+from server.modules.alignment.syllabus.queries import (
     get_current_syllabus_alignment,
     list_alignment_slms,
 )
-from sqlalchemy.orm import sessionmaker
+from server.modules.auth.models import UserRole
+from server.modules.auth.service import create_user
+from server.modules.documents.models import Document, DocumentChunk
 
 
 class CapturedBackgroundTasks:
@@ -93,7 +94,7 @@ def test_standalone_run_persists_without_evaluation_or_agent_result(
         lambda _document, _db: (True, 2),
     )
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.admission.is_syllabus_reference_ready",
+        "server.modules.alignment.syllabus.admission.is_syllabus_reference_ready",
         lambda _document, _db: (True, 2),
     )
 
@@ -115,7 +116,7 @@ def test_standalone_run_persists_without_evaluation_or_agent_result(
     assert not hasattr(row, "agent_result_id")
 
     from server.core import database, llm
-    from server.modules.syllabus_alignment import evaluator as syllabus_alignment
+    from server.modules.alignment.syllabus import evaluator as syllabus_alignment
 
     session_factory = sessionmaker(bind=db_session.get_bind(), autoflush=False)
     monkeypatch.setattr(database, "get_session_factory", lambda: session_factory)
@@ -162,7 +163,7 @@ def test_active_start_is_idempotent_and_terminal_rerun_replaces_result(
 ):
     slm_id, syllabus_id = _documents(db_session, seeded_user.user_id)
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.admission.is_syllabus_reference_ready",
+        "server.modules.alignment.syllabus.admission.is_syllabus_reference_ready",
         lambda _document, _db: (True, 1),
     )
     background = CapturedBackgroundTasks()
@@ -310,11 +311,11 @@ def test_standalone_routes_are_owner_scoped_and_do_not_require_evaluation(
     db_session.commit()
 
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.admission.is_syllabus_reference_ready",
+        "server.modules.alignment.syllabus.admission.is_syllabus_reference_ready",
         lambda _document, _db: (True, 2),
     )
     monkeypatch.setattr(
-        "server.modules.syllabus_alignment.commands.run_syllabus_alignment_job",
+        "server.modules.alignment.syllabus.commands.run_syllabus_alignment_job",
         lambda _alignment_id: None,
     )
 

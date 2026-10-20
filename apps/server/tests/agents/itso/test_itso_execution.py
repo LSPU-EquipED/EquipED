@@ -6,23 +6,24 @@ import json
 from uuid import uuid4
 
 import pytest
-from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.itso import execution
-from equiped_harness.itso.response import (
+from equiped_harness.agents.itso import execution
+from equiped_harness.agents.itso.contracts import ITSOExecutionContext
+from equiped_harness.agents.itso.response import (
     ITSO_CRITERIA,
     ITSO_CRITERIA_TITLES,
     collect_advisory_outputs,
     criterion_scores,
     parse_response,
 )
-from equiped_harness.result_contracts import (
+from equiped_harness.contracts.results import (
     AdvisoryOutput,
     AgentEvaluationResult,
     UngroundedCriterionAdvisory,
 )
-from equiped_harness.runtime.context import ITSOExecutionContext
-from equiped_harness.transport import CompletionResult
-from server.modules.evaluations.harness.dispatch import AgentDispatcher
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.runtime.model import CompletionResult
+
+from server.modules.evaluations.dispatch import AgentDispatcher
 from server.tests.agents.itso.conftest_helper import (
     make_itso_test_snapshot,
     public_reference_context,
@@ -999,6 +1000,25 @@ def test_valid_exact_quote_passes(monkeypatch, harness_config):
             " Public source [source 1]. "
             "No bibliography was detected in the supplied text."
         )
+    for row in payload["criterion_scores"][2:]:
+        if row["criterion_id"] == "ITSO-04":
+            row.update(
+                score=4,
+                justification=(
+                    "The source states that security credentials must be encrypted, "
+                    "supporting the scoped confidentiality control."
+                ),
+            )
+        else:
+            row.update(
+                score=3,
+                justification=(
+                    "No concrete rights concern is identified; ownership and "
+                    "permissions remain unverified."
+                ),
+                chunk_ids=[],
+                evidence=[],
+            )
     resp = json.dumps(payload)
     client = _LLM([resp])
     context = ITSOExecutionContext(
@@ -1019,7 +1039,10 @@ def test_valid_exact_quote_passes(monkeypatch, harness_config):
     assert len(result.criterion_scores) == 5
     assert result.criterion_scores[0].evidence == (exact_quote,)
     assert result.criterion_scores[0].chunk_ids == ("c1",)
-    assert result.advisory_outputs is None
+    assert result.advisory_outputs is not None
+    assert {
+        item.criterion_id for item in result.advisory_outputs.ungrounded_criteria
+    } == {"ITSO-03", "ITSO-05"}
 
 
 @pytest.mark.parametrize(

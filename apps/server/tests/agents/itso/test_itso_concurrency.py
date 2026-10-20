@@ -5,8 +5,9 @@ from threading import Barrier, Thread
 from uuid import uuid4
 
 from equiped_harness import ExecutionConfig, execution_scope
-from equiped_harness.itso.agent import ITSO
-from equiped_harness.transport import CompletionResult
+from equiped_harness.agents.itso.agent import ITSO
+from equiped_harness.runtime.model import CompletionResult
+
 from server.tests.agents.itso.conftest_helper import v3_response_for_prompt
 
 
@@ -21,7 +22,9 @@ class BarrierClient:
         previous = self.prompts.get(self.model, "")
         self.prompts[self.model] = previous + str(prompt)
         self.barrier.wait(timeout=3)
-        return v3_response_for_prompt(prompt, _response(self.summary))
+        return v3_response_for_prompt(
+            prompt, _response(self.summary), generate_valid_evidence=True
+        )
 
     def generate_result(
         self,
@@ -50,7 +53,7 @@ def _response(summary):
                 {
                     "criterion_id": f"ITSO-0{i}",
                     "criterion_title": __import__(
-                        "equiped_harness.itso.response",
+                        "equiped_harness.agents.itso.response",
                         fromlist=["ITSO_CRITERIA_TITLES"],
                     ).ITSO_CRITERIA_TITLES[f"ITSO-0{i}"],
                     "score": 3,

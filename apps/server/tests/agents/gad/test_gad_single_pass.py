@@ -20,25 +20,26 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
-from equiped_harness.exceptions import AgentExecutionError
-from equiped_harness.gad.agent import GAD
-from equiped_harness.gad.envelope import (
+from equiped_harness.agents.gad.agent import GAD
+from equiped_harness.agents.gad.envelope import (
     EXTRACTION_SCHEMA_VERSION,
     parse_combined_response,
 )
-from equiped_harness.gad.grounding import (
+from equiped_harness.agents.gad.grounding import (
     MAX_INSTANCES_PER_CRITERION,
     ground_instances,
 )
-from equiped_harness.gad.prompt import (
+from equiped_harness.agents.gad.prompt import (
     build_combined_prompt,
     build_combined_repair_prompt,
 )
-from equiped_harness.gad.registry import (
+from equiped_harness.agents.gad.registry import (
     REGISTRY_VERSION,
     score_from_combined,
 )
-from equiped_harness.transport import CompletionResult, ResponseContract
+from equiped_harness.exceptions import AgentExecutionError
+from equiped_harness.runtime.model import CompletionResult, ResponseContract
+
 from server.tests.agents.gad.conftest import make_gad_snapshot
 from server.tests.agents.gad.gad_comparison_harness import (
     GADComparisonHarness,

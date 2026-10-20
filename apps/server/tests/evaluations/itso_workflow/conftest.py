@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from equiped_harness.itso.history_contracts import (
+from equiped_harness.agents.itso.compatibility.contracts import (
     ITSO_CRITERION_IDS,
     CriterionAssessment,
     EvidenceFact,
@@ -15,9 +15,15 @@ from equiped_harness.itso.history_contracts import (
     build_source_snapshot,
     text_hash,
 )
-from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
+from equiped_harness.agents.itso.compatibility.verification import (
+    Profile,
+    VerificationPlan,
+)
+from equiped_harness.contracts.snapshots import build_evaluation_form_snapshot
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
+
 from server.core.config import Settings, get_settings
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_authenticated_user
@@ -25,25 +31,20 @@ from server.modules.auth.models import User, UserRole
 from server.modules.auth.service import build_authenticated_user
 from server.modules.documents.models import Document
 from server.modules.documents.source_artifacts import DocumentSourceSnapshot
-from server.modules.evaluations.itso.attachment_context import attachment_scope_hash
-from server.modules.evaluations.itso.models import ITSOAssessment
-from server.modules.evaluations.itso.policy_service import digest
-from server.modules.evaluations.itso.router import router
-from server.modules.evaluations.itso.verification.contracts import (
-    Profile,
-    VerificationPlan,
-)
-from server.modules.evaluations.itso.workflow_models import (
+from server.modules.evaluations.models import EvaluationJob
+from server.modules.itso_assessments.attachment_context import attachment_scope_hash
+from server.modules.itso_assessments.models import ITSOAssessment
+from server.modules.itso_assessments.policy_service import digest
+from server.modules.itso_assessments.router import router
+from server.modules.itso_assessments.workflow_models import (
     AssessmentEvidence,
     PreflightAuthorization,
 )
-from server.modules.evaluations.models import EvaluationJob
 from server.modules.rubrics.models import (
     EvaluationFormSnapshot,
     EvaluationRubricProvenance,
 )
 from server.modules.synthesis.router import router as synthesis_router
-from sqlalchemy.orm import sessionmaker
 
 TEXT = (
     "Faculty ownership instrument; student consent and confidential rights license.\n"
@@ -333,7 +334,7 @@ def seed_historical_assessment(db, doc, owner, source_row):
     payload = result.model_dump(mode="json", exclude={"generations"})
     parent.result_payload = payload
     db.flush()
-    from server.modules.evaluations.itso.mechanical_facts import ledger_fingerprint
+    from server.modules.itso_assessments.mechanical_facts import ledger_fingerprint
 
     verification_hash = ledger_fingerprint(db, parent, source)
     db.add(

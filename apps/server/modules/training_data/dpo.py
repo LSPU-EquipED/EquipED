@@ -35,10 +35,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
-from server.modules.evaluations.harness import get_envelope_criteria_map
 from server.modules.feedback.items import apply_item_rejections
 from server.modules.feedback.models import PreferenceLog
 from server.modules.feedback.state import get_effective_criterion_corrections
+from server.modules.rubrics.envelopes import get_envelope_criteria_map
 from server.modules.synthesis.models import AgentResult
 
 logger = logging.getLogger(__name__)
@@ -225,7 +225,7 @@ def _is_score_shaped(measurement: dict[str, Any]) -> bool:
 
     Guards against ever substituting a score into a count_band/ratio_band
     measurement (no "score" field there by design -- see
-    equiped_harness.sme.response's score-field blocklist) --
+    equiped_harness.agents.sme.response's score-field blocklist) --
     relevant for historical SME evaluations scored before the criteria
     were converted to llm_rubric_guidance, and for other agents (e.g.
     Coordinator) still on the calculator strategies.
@@ -243,7 +243,7 @@ def export_score_level_dpo_pairs(
     """Yield one DpoPair per envelope with an active score-level EDIT.
 
     Applies only to llm_rubric_guidance criteria, where the LLM outputs
-    the score itself -- see equiped_harness.sme.prompt. A plain
+    the score itself -- see equiped_harness.agents.sme.prompt. A plain
     score+justification correction (the EDIT action) is real, valid model
     output to pair against for these criteria, unlike SME/Coordinator's
     count_band/ratio_band criteria (see export_item_level_dpo_pairs).

@@ -6,6 +6,7 @@ import json
 from typing import Any
 from uuid import UUID, uuid4
 
+from equiped_harness.agents.itso.response import ITSO_CRITERIA_TITLES
 from equiped_harness.contracts import (
     CriterionDefinition,
     DomainDefinition,
@@ -13,8 +14,7 @@ from equiped_harness.contracts import (
     LlmRubricGuidanceConfig,
     LlmScoreDescriptor,
 )
-from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     EvaluationFormSnapshotDTO,
     build_evaluation_form_snapshot,
 )
@@ -42,8 +42,15 @@ def public_reference_context() -> dict[str, tuple[str, ...]]:
     return {"public_reference_verification": (json.dumps(report),)}
 
 
-def v3_response_for_prompt(prompt: Any, response: str) -> str:
-    """Narrow legacy five-row fixtures to the adapter-3 envelope in a prompt."""
+def v3_response_for_prompt(
+    prompt: Any, response: str, *, generate_valid_evidence: bool = False
+) -> str:
+    """Narrow legacy fixtures and fill absent grounding from prompt examples.
+
+    Supplied chunk IDs and evidence are left untouched by default so malformed
+    model outputs still exercise the real pipeline validators. Legacy fixtures
+    may opt into prompt-derived evidence when they intentionally omit evidence.
+    """
     try:
         payload = json.loads(response)
         scores = payload["criterion_scores"]
@@ -67,18 +74,38 @@ def v3_response_for_prompt(prompt: Any, response: str) -> str:
             ]
             output_rows = payload["criterion_scores"]
         if expected_ids <= {"ITSO-01", "ITSO-02"}:
+            from equiped_harness.agents.itso.prompt import MISSING_BIBLIOGRAPHY_NOTICE
+
             for row in output_rows:
-                if row.get("justification") == "justification":
-                    row["justification"] = (
-                        "Verified public reference [source 1]. "
-                        "No bibliography was detected in the supplied text."
-                    )
-        excerpts = json.loads(prompt.user_context)["document_chunks"]
-        if excerpts:
+                justification = str(row.get("justification") or "")
+                if not any(
+                    marker in justification.casefold() for marker in ("[source 1]",)
+                ):
+                    justification = f"{justification} [source 1]".strip()
+                if row.get("criterion_id") == "ITSO-02":
+                    if (
+                        MISSING_BIBLIOGRAPHY_NOTICE.casefold()
+                        not in justification.casefold()
+                    ):
+                        justification = f"{justification} {MISSING_BIBLIOGRAPHY_NOTICE}"
+                row["justification"] = justification
+        user_context = json.loads(prompt.user_context)
+        excerpts = user_context["document_chunks"]
+        evidence_options = user_context.get("module_evidence_options", {})
+        if generate_valid_evidence and excerpts:
             for row in output_rows:
-                if not row.get("chunk_ids") or not row.get("evidence"):
+                options = evidence_options.get(row["criterion_id"], [])
+                if options:
+                    row["chunk_ids"] = [options[0]["chunk_id"]]
+                    row["evidence"] = [options[0]["quote"]]
+                elif row["criterion_id"] in {"ITSO-01", "ITSO-02"}:
                     row["chunk_ids"] = [excerpts[0]["chunk_id"]]
                     row["evidence"] = [excerpts[0]["text"]]
+                elif row["criterion_id"] not in {"ITSO-01", "ITSO-02"}:
+                    row["chunk_ids"] = []
+                    row["evidence"] = []
+                    if row["criterion_id"] == "ITSO-04":
+                        row["score"] = 4
         return json.dumps(payload)
     except (AttributeError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return response

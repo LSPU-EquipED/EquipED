@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from equiped_harness.itso.response import ITSO_CRITERIA_TITLES
+from equiped_harness.agents.itso.response import ITSO_CRITERIA_TITLES
 
 
 def itso_response(*, chunk_ids: tuple[str, ...] = ("c1",), score: int = 3) -> dict:
@@ -14,7 +14,11 @@ def itso_response(*, chunk_ids: tuple[str, ...] = ("c1",), score: int = 3) -> di
                 "criterion_id": criterion_id,
                 "criterion_title": title,
                 "score": score,
-                "justification": "Evidence supports the assigned score.",
+                "justification": (
+                    "Compared with the retrieved public reference [source 1]."
+                    if criterion_id in {"ITSO-01", "ITSO-02"}
+                    else "Evidence supports the assigned score."
+                ),
                 "chunk_ids": list(chunk_ids),
                 "evidence": [],
             }

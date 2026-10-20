@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+
 from server.modules.admin.model_validation_service import (
     assess_model_validation_toxicity,
     sync_model_validation_criterion_results,
@@ -105,7 +106,6 @@ def _seed_active_rubrics(
     codes = {
         "sme": "SME-1",
         "gad": "GAD-1",
-        "itso": "ITSO-1",
     }
     configs = {
         "sme": {
@@ -122,10 +122,6 @@ def _seed_active_rubrics(
             "threshold_3": 1,
             "threshold_2": 3,
         },
-        "itso": {
-            "strategy": "llm_rubric_guidance",
-            "guidance": "ITSO guidance",
-        },
     }
     now = datetime.now(UTC)
     for agent_id in ("sme", "gad", "itso", "coordinator"):
@@ -137,7 +133,7 @@ def _seed_active_rubrics(
             version_number=3 if is_coordinator else 1,
             status="published",
             adapter_key=agent_id,
-            adapter_version=2 if is_coordinator else 1,
+            adapter_version=(2 if is_coordinator else 3 if agent_id == "itso" else 1),
             published_at=now,
         )
         db_session.add(rubric_set)
@@ -171,26 +167,40 @@ def _seed_active_rubrics(
         )
         db_session.add(domain)
         db_session.flush()
-        criterion = RubricCriterion(
-            rubric_domain_id=domain.rubric_domain_id,
-            criterion_code=codes[agent_id],
-            title=f"{agent_id} criterion",
-            description=f"Expected {agent_id} behavior",
-            scoring_strategy=configs[agent_id]["strategy"],
-            strategy_config=configs[agent_id],
-            display_order=1,
+        criterion_codes = (
+            tuple(f"ITSO-0{index}" for index in range(1, 6))
+            if agent_id == "itso"
+            else (codes[agent_id],)
         )
-        db_session.add(criterion)
-        db_session.flush()
-        if agent_id in target_agents:
-            expected_scores.append(
-                {
-                    "agent_id": agent_id,
-                    "rubric_set_id": str(rubric_set.rubric_set_id),
-                    "rubric_criterion_id": str(criterion.rubric_criterion_id),
-                    "expected_score": scores[agent_id],
-                }
+        for order, criterion_code in enumerate(criterion_codes, start=1):
+            criterion = RubricCriterion(
+                rubric_domain_id=domain.rubric_domain_id,
+                criterion_code=criterion_code,
+                title=f"{agent_id} criterion {criterion_code}",
+                description=f"Expected {agent_id} behavior",
+                scoring_strategy=(
+                    "llm_rubric_guidance"
+                    if agent_id == "itso"
+                    else configs[agent_id]["strategy"]
+                ),
+                strategy_config=(
+                    {"strategy": "llm_rubric_guidance", "guidance": "ITSO guidance"}
+                    if agent_id == "itso"
+                    else configs[agent_id]
+                ),
+                display_order=order,
             )
+            db_session.add(criterion)
+            db_session.flush()
+            if agent_id in target_agents:
+                expected_scores.append(
+                    {
+                        "agent_id": agent_id,
+                        "rubric_set_id": str(rubric_set.rubric_set_id),
+                        "rubric_criterion_id": str(criterion.rubric_criterion_id),
+                        "expected_score": scores[agent_id],
+                    }
+                )
     db_session.commit()
     return expected_scores
 
@@ -335,6 +345,7 @@ def _one_expected_score(agent: str = "sme") -> dict[str, object]:
 
 def test_all_target_is_rejected() -> None:
     from pydantic import ValidationError
+
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     with pytest.raises(ValidationError):
@@ -350,6 +361,7 @@ def test_all_target_is_rejected() -> None:
 
 def test_target_agent_is_required() -> None:
     from pydantic import ValidationError
+
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     with pytest.raises(ValidationError):
@@ -363,6 +375,7 @@ def test_target_agent_is_required() -> None:
 
 def test_adapter_variant_requires_adapter_id_and_base_forbids_it() -> None:
     from pydantic import ValidationError
+
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     base = {
@@ -688,8 +701,8 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_response = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_response.status_code == 200
-    # 1 each for sme/gad/itso + 10 for the Coordinator v3 rubric.
-    assert criteria_response.json()["total_criteria"] == 13
+    # 1 each for SME/GAD, 5 for ITSO v3, and 10 for Coordinator v3.
+    assert criteria_response.json()["total_criteria"] == 17
 
     # Regression check: higher version published rubric is ignored if not activated.
     sme_v2 = RubricSet(
@@ -732,7 +745,7 @@ def test_admin_creates_validation_without_leaking_expected_score_into_job(
 
     criteria_resp_v2 = client.get("/api/v1/admin/model-validations/criteria")
     assert criteria_resp_v2.status_code == 200
-    assert criteria_resp_v2.json()["total_criteria"] == 13
+    assert criteria_resp_v2.json()["total_criteria"] == 17
     sme_group = next(
         g for g in criteria_resp_v2.json()["agents"] if g["agent_id"] == "sme"
     )
@@ -1434,6 +1447,7 @@ def test_create_model_validation_rejects_unknown_fields(
 
 def test_target_agent_rejects_invalid_value() -> None:
     from pydantic import ValidationError
+
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     with pytest.raises(ValidationError):
@@ -1456,6 +1470,7 @@ def test_target_agent_rejects_invalid_value() -> None:
 
 def test_target_agent_single_agent_rejects_partial_without_curriculum() -> None:
     from pydantic import ValidationError
+
     from server.modules.admin.schemas import ModelValidationCreateRequest
 
     with pytest.raises(ValidationError):

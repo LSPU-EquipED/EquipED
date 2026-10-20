@@ -14,10 +14,12 @@ from equiped_harness.contracts import (
     DomainDefinition,
     FormDefinition,
 )
-from equiped_harness.snapshot_contracts import (
+from equiped_harness.contracts.snapshots import (
     SnapshotIntegrityError,
     build_evaluation_form_snapshot,
 )
+from sqlalchemy import event
+
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
 from server.modules.documents.models import Document
@@ -30,7 +32,6 @@ from server.modules.rubrics import (
     load_verified_evaluation_snapshots,
     resolve_or_reuse_evaluation_snapshots,
 )
-from sqlalchemy import event
 
 from .conftest import _seed_all_rubrics
 
@@ -663,7 +664,8 @@ def test_prepare_snapshots_and_enter_evaluating_atomic_success_full(
     job.execution_token = token
     db_session.commit()
 
-    from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+    from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
+
     from server.modules.evaluations.agent_schedule import scheduled_agent_ids
     from server.modules.evaluations.orchestrator import (
         _prepare_snapshots_and_enter_evaluating,
@@ -715,7 +717,8 @@ def test_prepare_snapshots_and_enter_evaluating_atomic_success_partial(
     job.partial_without_curriculum = True
     db_session.commit()
 
-    from equiped_harness.snapshot_contracts import EvaluationFormSnapshotDTO
+    from equiped_harness.contracts.snapshots import EvaluationFormSnapshotDTO
+
     from server.modules.evaluations.agent_schedule import scheduled_agent_ids
     from server.modules.evaluations.orchestrator import (
         _prepare_snapshots_and_enter_evaluating,
@@ -1108,10 +1111,11 @@ def test_execute_claimed_evaluation_fails_before_supervisor_on_missing_snapshot(
     db_session, monkeypatch
 ) -> None:
     """Missing active form aborts before supervisor construction/dispatch."""
+    from sqlalchemy.orm import sessionmaker
+
     from server.core import database as core_database
     from server.modules.evaluations.exceptions import EvaluationPipelineFailure
     from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
-    from sqlalchemy.orm import sessionmaker
 
     _seed_all_rubrics(db_session)
     eval_id = _create_evaluation_job(db_session)
@@ -1183,11 +1187,12 @@ def test_execute_claimed_evaluation_existing_results_missing_snapshots_uses_reus
     db_session, monkeypatch
 ) -> None:
     """Existing results with missing snapshots uses reuse-only and skips supervisor."""
+    from sqlalchemy.orm import sessionmaker
+
     from server.core import database as core_database
     from server.modules.evaluations.exceptions import EvaluationPipelineFailure
     from server.modules.evaluations.orchestrator import _execute_claimed_evaluation
     from server.modules.synthesis.models import AgentResult
-    from sqlalchemy.orm import sessionmaker
 
     _seed_all_rubrics(db_session)
     eval_id = _create_evaluation_job(db_session)

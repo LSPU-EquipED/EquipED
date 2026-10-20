@@ -14,7 +14,7 @@ from types import MappingProxyType
 from urllib import error, request
 from urllib.parse import urlsplit
 
-from equiped_harness.transport import CompletionResult, parse_json_payload
+from equiped_harness.runtime.model import CompletionResult, parse_json_payload
 
 from .config import get_settings
 from .endpoint_security import is_private_endpoint

@@ -1,7 +1,8 @@
-from server.modules.auth.service import build_authenticated_user
-from server.modules.evaluations.itso.models import ITSOAssessment
-from server.modules.evaluations.itso.workflow_models import AssessmentEvidence
 from sqlalchemy import select, update
+
+from server.modules.auth.service import build_authenticated_user
+from server.modules.itso_assessments.models import ITSOAssessment
+from server.modules.itso_assessments.workflow_models import AssessmentEvidence
 
 from .conftest import seed_historical_assessment
 
