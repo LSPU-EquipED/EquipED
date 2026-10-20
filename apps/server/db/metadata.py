@@ -17,7 +17,17 @@ def import_model_modules() -> None:
         models as _curriculum_alignment_models,  # noqa: F401
     )
     from server.modules.documents import models as _document_models  # noqa: F401
+    from server.modules.documents import (
+        source_artifacts as _source_artifact_models,  # noqa: F401
+    )
     from server.modules.evaluations import models as _evaluation_models  # noqa: F401
+    from server.modules.evaluations.itso import models as _itso_models  # noqa: F401
+    from server.modules.evaluations.itso import (
+        tool_models as _itso_tool_models,  # noqa: F401
+    )
+    from server.modules.evaluations.itso import (
+        workflow_models as _itso_workflow_models,  # noqa: F401
+    )
     from server.modules.feedback import models as _feedback_models  # noqa: F401
     from server.modules.rubrics import models as _rubric_models  # noqa: F401
     from server.modules.syllabus_alignment import (
