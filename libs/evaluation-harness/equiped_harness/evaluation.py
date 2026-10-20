@@ -62,6 +62,13 @@ def evaluate(
         raise TypeError("request must be EvaluationRequest")
     if client is None:
         raise TypeError("client must be explicitly supplied")
+    if (
+        request.form_snapshot.agent_id == "itso"
+        and request.form_snapshot.adapter_version != 3
+    ):
+        raise ValueError(
+            f"Unsupported ITSO adapter version {request.form_snapshot.adapter_version}"
+        )
     cls = _EVALUATORS.get(request.form_snapshot.agent_id)
     if cls is None:
         raise ValueError("Unsupported specialist")

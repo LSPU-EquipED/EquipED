@@ -287,12 +287,20 @@ class ObjectiveGaugingConfig(FrozenStrategyConfig):
     strategy: Literal["objective_gauging"] = "objective_gauging"
 
 
+class EvidenceVerificationConfig(FrozenStrategyConfig):
+    """ITSO v2 interpretation plus closed, separately approved numeric rules."""
+
+    strategy: Literal["evidence_verification"] = "evidence_verification"
+    rule_catalog: Literal["itso.draft.v1"] = "itso.draft.v1"
+
+
 StrategyConfig = Annotated[
     LlmRubricGuidanceConfig
     | CountBandConfig
     | RatioBandConfig
     | CurriculumAlignmentConfig
-    | ObjectiveGaugingConfig,
+    | ObjectiveGaugingConfig
+    | EvidenceVerificationConfig,
     Field(discriminator="strategy"),
 ]
 
@@ -758,6 +766,7 @@ __all__ = [
     "CriterionDefinition",
     "CurriculumAlignmentConfig",
     "ObjectiveGaugingConfig",
+    "EvidenceVerificationConfig",
     "CurriculumAlignmentMeasurement",
     "DomainDefinition",
     "FormDefinition",

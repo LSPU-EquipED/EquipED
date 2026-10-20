@@ -7,7 +7,6 @@ from .envelope_map import envelope_criteria_map_from_snapshot
 from .evaluation import SPECIALIST_CLASSES, EvaluationRequest, evaluate
 from .gad import GAD
 from .itso import ITSO
-from .itso.precheck import run_itso_precheck
 from .result_contracts import (
     AdvisoryOutput,
     AgentEvaluationResult,
@@ -45,7 +44,6 @@ __all__ = [
     "UngroundedCriterionAdvisory",
     "parse_advisory_output",
     "envelope_criteria_map_from_snapshot",
-    "run_itso_precheck",
     "COORDINATOR_SCORING_RULES",
     "CompletionResult",
     "ResponseContract",

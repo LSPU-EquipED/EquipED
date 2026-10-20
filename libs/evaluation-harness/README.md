@@ -36,7 +36,7 @@ call them inside `execution_scope(config)` when explicit helper controls are nee
 Scopes reset on success/failure and are thread-local; workers must install their
 own scope. Request mappings are recursively copied and frozen.
 
-Public helpers include `envelope_criteria_map_from_snapshot`, `run_itso_precheck`,
+Public helpers include `envelope_criteria_map_from_snapshot`,
 `COORDINATOR_SCORING_RULES`, and `equiped_harness.scoring` for result consumers.
 Snapshot UUID binding, versions, provenance, repair and failure behavior are
 preserved. Coordinator v3 retains official A-05 and advisory-only C-01; extraction
@@ -67,7 +67,7 @@ are partitioned into bounded exact spans, preserving later content. Absent
 count/ratio evidence scores 1, and stored ratio facts retain short-sample settings
 for deterministic replay. C-01 remains advisory and excluded from the official mean.
 
-Historical execution remains isolated in `legacy.py`, using `execution.py`,
+Historical SME/GAD execution remains isolated in `legacy.py`, using `execution.py`,
 `prompt.py`, `response.py`, `scoring.py` and `packing.py`. These are still required
 by adapter-v1/v2 recovery and legacy-shaped v3 responses; no supported historical
 contract, snapshot hash, manifest default or rubric activation is removed.
@@ -102,3 +102,7 @@ Tests cover actual four-specialist fake-client execution, deep immutability,
 configuration/thread isolation, repair, frozen JSON/hash compatibility and
 installed-package imports without the backend path. Do not add server, ORM,
 retrieval, network or environment dependencies here.
+
+Current ITSO scored execution uses adapter 3 only. Adapters 1 and 2 remain in the manifest registry for immutable historical snapshot validation; the harness does not execute them. The read-only `itso.history_contracts` module preserves historical source hashes, spans, evidence facts, and stored-result validation. The v3 pipeline uses the existing rubric-guidance pipeline and two fixed role-separated requests under one model deadline: criteria 1–2 receive locally selected verbatim module excerpts and independent public sources; criteria 3–5 receive module text. Required backend public-reference tools supply a bounded completed report through `precomputed_context.public_reference_verification`; the pure harness owns no network calls. Missing or unusable reports fail before model transport. Both groups must pass before the canonical five-score result completes, and both actual model generations retain the existing score response contract. Legacy internal-only templates and local precheck signals are not part of current ITSO execution.
+
+ITSO source citations may use a full retrieved URL or a resolvable `[source N]` report index; every cited index retains a URL mapping in the bounded saved reasoning, with one repair before failure if mappings cannot fit. Reports contain at most five rows. With defined scoring rules, source comparison and detected source acknowledgements/authorship require verbatim module quotations. The document envelope receives validated advisory source findings, selected exact rights/privacy passages, actual excerpt coverage, and available residency-gated local policy clauses. No detected confidentiality concern yields advisory 4 for reviewed extracted text; incomplete ownership or rights evidence supports provisional 3. Quotes for concrete concerns remain mandatory. Policy unavailability is a disclosed limitation and does not block normal evaluation.

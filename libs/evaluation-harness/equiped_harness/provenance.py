@@ -16,7 +16,7 @@ from typing import Any
 
 PROVENANCE_ALLOWLIST: frozenset[str] = frozenset(
     {
-        # Phase 1 — frozen before dispatch
+        # Historical ITSO precheck fields remain safe for saved-result replay.
         "precheck_version",
         "precheck_result_hash",
         "bibliography_found",
