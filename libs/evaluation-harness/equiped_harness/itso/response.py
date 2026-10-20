@@ -20,9 +20,21 @@ from equiped_harness.runtime.grounding import find_verbatim_substring
 logger = logging.getLogger(__name__)
 
 
-def _failure(category: str, value: Any) -> AgentExecutionError:
+def _failure(
+    category: str,
+    value: Any,
+    *,
+    criterion_id: str | None = None,
+    reason: str | None = None,
+) -> AgentExecutionError:
     reference = hashlib.sha256(str(value).encode()).hexdigest()[:16]
-    return AgentExecutionError(f"{category} (reference: {reference})")
+    error = AgentExecutionError(f"{category} (reference: {reference})")
+    # Internal repair metadata is deliberately separate from the public, hashed
+    # exception message so rejected model content can never enter a repair prompt.
+    error.itso_diagnostic_category = category
+    error.itso_criterion_id = criterion_id
+    error.itso_reason = reason
+    return error
 
 
 ITSO_RESPONSE_SCHEMA_VERSION = "itso-response-v1"
@@ -236,6 +248,7 @@ def parse_response(
     expected_titles: dict[str, str] | None = None,
     known_chunk_ids: Iterable[str] = (),
     packed_chunk_map: dict[str, str] | None = None,
+    strict_cited_grounding: bool = False,
 ) -> dict[str, Any]:
     if not isinstance(raw, str):
         raise _failure("ITSOResponseTypeError", type(raw).__name__)
@@ -283,6 +296,7 @@ def parse_response(
         expected_titles=expected_titles,
         known_chunk_ids=known_chunk_ids,
         packed_chunk_map=packed_chunk_map,
+        strict_cited_grounding=strict_cited_grounding,
     )
     return parsed
 
@@ -295,6 +309,7 @@ def criterion_scores(
     expected_titles: dict[str, str] | None = None,
     known_chunk_ids: Iterable[str] = (),
     packed_chunk_map: dict[str, str] | None = None,
+    strict_cited_grounding: bool = False,
 ) -> tuple[CriterionScore, ...]:
     raw = parsed["criterion_scores"]
     expected = tuple(expected_ids)
@@ -389,6 +404,8 @@ def criterion_scores(
                 raw_evidence,
                 chunk_ids=norm_chunk_ids,
                 packed_chunk_map=packed_chunk_map,
+                criterion_id=cid,
+                strict_cited_grounding=strict_cited_grounding,
             )
 
         result.append(
@@ -536,6 +553,8 @@ def _normalize_evidence(
     value: Any,
     chunk_ids: tuple[str, ...],
     packed_chunk_map: dict[str, str] | None = None,
+    criterion_id: str | None = None,
+    strict_cited_grounding: bool = False,
 ) -> tuple[str, ...]:
     if isinstance(value, str):
         value = [value]
@@ -576,7 +595,7 @@ def _normalize_evidence(
                         if matched:
                             matched_chunk_ev = matched
                             break
-                if not matched_chunk_ev:
+                if not matched_chunk_ev and not strict_cited_grounding:
                     for cid, text in packed_chunk_map.items():
                         matched = find_verbatim_substring(
                             ev, text, max_chars=ITSO_TEXT_MAX
@@ -585,10 +604,13 @@ def _normalize_evidence(
                             matched_chunk_ev = matched
                             break
                 if not matched_chunk_ev:
-                    logger.warning(
-                        "ITSO_UNMATCHED_EVIDENCE: %r (chunk_ids=%r)", ev, chunk_ids
+                    logger.warning("ITSO_UNMATCHED_EVIDENCE: ungrounded evidence")
+                    raise _failure(
+                        "ITSOInvalidEvidence",
+                        "ungrounded_evidence",
+                        criterion_id=criterion_id,
+                        reason="ungrounded_evidence",
                     )
-                    raise _failure("ITSOInvalidEvidence", "ungrounded_evidence")
                 resolved_normalized.append(matched_chunk_ev)
             normalized = resolved_normalized
     return tuple(normalized)
