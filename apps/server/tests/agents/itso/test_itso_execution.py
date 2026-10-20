@@ -23,7 +23,11 @@ from equiped_harness.result_contracts import (
 from equiped_harness.runtime.context import ITSOExecutionContext
 from equiped_harness.transport import CompletionResult
 from server.modules.evaluations.harness.dispatch import AgentDispatcher
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+    v3_response_for_prompt,
+)
 
 
 class _LLM:
@@ -31,15 +35,17 @@ class _LLM:
 
     def __init__(self, responses):
         self.responses = iter(responses)
+        self.last_response = ""
         self.prompts = []
 
     def generate_result(
         self, prompt, *, temperature, max_new_tokens, deadline, response_contract
     ):
         self.prompts.append(prompt)
-        return CompletionResult(
-            next(self.responses), "primary", 10, 20, 30, "stop", attempts=1
-        )
+        content = next(self.responses, self.last_response)
+        self.last_response = content
+        content = v3_response_for_prompt(prompt, content)
+        return CompletionResult(content, "primary", 10, 20, 30, "stop", attempts=1)
 
 
 def _context(client, form_snapshot=None, evaluation_id=None, **kwargs):
@@ -49,12 +55,24 @@ def _context(client, form_snapshot=None, evaluation_id=None, **kwargs):
         if form_snapshot is not None
         else make_itso_test_snapshot(evaluation_id=eval_id)
     )
+    precomputed_context = public_reference_context()
+    precomputed_context.update(kwargs.pop("precomputed_context", {}))
     return ITSOExecutionContext(
         evaluation_id=eval_id,
         document_id=uuid4(),
-        chunk_infos=({"chunk_id": "c1", "page_number": 1, "text": "security"},),
+        chunk_infos=(
+            {
+                "chunk_id": "c1",
+                "page_number": 1,
+                "text": (
+                    "The security controls protect confidential student records "
+                    "and privacy information."
+                ),
+            },
+        ),
         form_snapshot=snapshot,
         llm_client=client,
+        precomputed_context=precomputed_context,
         **kwargs,
     )
 
@@ -68,7 +86,7 @@ def test_itso_executes_and_preserves_provenance(monkeypatch, harness_config):
         )
     )
     assert result.agent_name == "itso"
-    assert result.summary == "ok"
+    assert "Readable public source text was found" in result.summary
     assert result.provenance["bibliography_found"] is True
     assert result.provenance["chunk_ids_ordered"] == ["c1"]
     assert result.provenance["actual_model"] == "primary"
@@ -80,8 +98,8 @@ def test_itso_executes_and_snapshots_prompt_text(monkeypatch, harness_config):
     result = execution.execute(_context(client))
     assert result.prompt_text is None
     assert result.raw_response is None
-    assert '"agent": "itso"' in client.prompts[0]
-    assert '"criterion_scores"' not in client.prompts[0]
+    assert '"agent": "itso"' in str(client.prompts[0])
+    assert '"criterion_scores"' in client.prompts[0].user_context
 
 
 def test_parse_response_supports_fenced_and_prefixed_json():
@@ -375,14 +393,17 @@ class _DowngradeLLM:
 
     def __init__(self, responses):
         self.responses = iter(responses)
+        self.last_response = ""
         self.prompts = []
 
     def generate_result(
         self, prompt, *, temperature, max_new_tokens, deadline, response_contract
     ):
         self.prompts.append(prompt)
+        response = next(self.responses, self.last_response)
+        self.last_response = response
         return CompletionResult(
-            next(self.responses),
+            v3_response_for_prompt(prompt, response),
             "primary",
             10,
             20,
@@ -399,10 +420,7 @@ def test_execution_propagates_response_format_downgraded(monkeypatch, harness_co
     assert result.provenance["response_format_downgraded"] is True
 
 
-def test_execution_succeeds_on_attempt_0_for_shorthand_dict(
-    monkeypatch, harness_config
-):
-    harness_config(_settings())
+def test_shorthand_dict_parser_accepts_criterion_scores():
     dict_response = json.dumps(
         {
             "summary": "shorthand response",
@@ -415,15 +433,9 @@ def test_execution_succeeds_on_attempt_0_for_shorthand_dict(
             },
         }
     )
-    client = _LLM([dict_response])
-    result = execution.execute(_context(client))
-    assert result.success is True
-    assert result.provenance["repair_occurred"] is False
-    assert len(client.prompts) == 1
-    assert result.advisory_outputs is not None
-    assert isinstance(result.advisory_outputs, AdvisoryOutput)
-    assert len(result.advisory_outputs.ungrounded_criteria) == 5
-    assert len(result.criterion_scores) == 5
+    parsed = parse_response(dict_response)
+    scores = criterion_scores(parsed)
+    assert len(scores) == 5
 
 
 def test_repair_records_actual_model_without_fallback(monkeypatch, harness_config):
@@ -433,7 +445,7 @@ def test_repair_records_actual_model_without_fallback(monkeypatch, harness_confi
     assert result.model_name == "primary"
     assert result.provenance["repair_occurred"] is True
     assert result.provenance["fallback_occurred"] is False
-    assert len(client.prompts) == 2
+    assert len(client.prompts) == 3
 
 
 def test_semantic_failure_repairs_once(monkeypatch, harness_config):
@@ -450,7 +462,7 @@ def test_semantic_failure_repairs_once(monkeypatch, harness_config):
         ]
     )
     execution.execute(_context(client))
-    assert len(client.prompts) == 2
+    assert len(client.prompts) == 3
 
 
 def test_invalid_repair_is_two_calls_and_dispatch_sanitizes_failure(
@@ -489,8 +501,8 @@ def test_repair_prompt_caps_partial_output_at_4000(monkeypatch, harness_config):
     with pytest.raises(AgentExecutionError):
         execution.execute(_context(client))
     assert len(client.prompts) == 2
-    assert "Prior partial output" not in client.prompts[1]
-    assert "x" * 4001 not in client.prompts[1]
+    assert "Prior partial output" not in str(client.prompts[1])
+    assert "x" * 4001 not in str(client.prompts[1])
 
 
 def test_advisory_contract_validation_and_immutability():
@@ -614,10 +626,10 @@ def test_advisory_contract_validation_and_immutability():
 
 def _settings():
     class Settings:
-        agent_total_prompt_budget_chars = 8000
+        agent_total_prompt_budget_chars = 100000
         agent_max_chunks = 12
         agent_max_excerpt_chars = 800
-        agent_prompt_budget_chars = 5000
+        agent_prompt_budget_chars = 50000
         agent_small_doc_threshold = 6
         llm_max_new_tokens = 2048
 
@@ -634,8 +646,11 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "text": "sec"},),
         form_snapshot=None,
+        precomputed_context=public_reference_context(),
     )
-    with pytest.raises(AgentExecutionError, match="EvaluationFormSnapshotDTO"):
+    with pytest.raises(
+        AgentExecutionError, match="Unsupported ITSO adapter version None"
+    ):
         execution.execute(context_no_snap)
 
     # Snapshot with wrong agent_id
@@ -647,6 +662,7 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "text": "sec"},),
         form_snapshot=wrong_agent_snap,
+        precomputed_context=public_reference_context(),
     )
     with pytest.raises(AgentExecutionError, match="agent_id"):
         execution.execute(context_wrong_agent)
@@ -658,6 +674,7 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "text": "sec"},),
         form_snapshot=wrong_adapter_snap,
+        precomputed_context=public_reference_context(),
     )
     with pytest.raises(AgentExecutionError, match="adapter_key"):
         execution.execute(context_wrong_adapter)
@@ -669,26 +686,15 @@ def test_itso_fails_boundedly_on_missing_or_invalid_snapshot():
         document_id=uuid4(),
         chunk_infos=({"chunk_id": "c1", "text": "sec"},),
         form_snapshot=itso_snap_other_eval,
+        precomputed_context=public_reference_context(),
     )
     with pytest.raises(AgentExecutionError, match="evaluation_id"):
         execution.execute(context_wrong_eval)
 
 
-def test_itso_gate_accepts_any_registered_adapter_version(monkeypatch):
-    from types import MappingProxyType
-
-    from equiped_harness import manifests
-
-    v2 = manifests.ITSO_MANIFEST_V1.model_copy(update={"adapter_version": 2})
-    monkeypatch.setattr(
-        manifests,
-        "AGENT_MANIFEST_VERSION_REGISTRY",
-        MappingProxyType(
-            {**manifests.AGENT_MANIFEST_VERSION_REGISTRY, ("itso", 2): v2}
-        ),
-    )
+def test_itso_gate_accepts_current_adapter_version():
     eval_id = uuid4()
-    snap = make_itso_test_snapshot(eval_id, adapter_version=2)
+    snap = make_itso_test_snapshot(eval_id, adapter_version=3)
     context = ITSOExecutionContext(
         evaluation_id=eval_id,
         document_id=uuid4(),
@@ -701,9 +707,10 @@ def test_itso_gate_accepts_any_registered_adapter_version(monkeypatch):
     assert len(criteria) == len(codes) > 0
 
 
-def test_itso_gate_rejects_unregistered_adapter_version():
+@pytest.mark.parametrize("adapter_version", [1, 2, 99])
+def test_itso_gate_rejects_retired_or_unregistered_adapter_version(adapter_version):
     eval_id = uuid4()
-    snap = make_itso_test_snapshot(eval_id, adapter_version=99)
+    snap = make_itso_test_snapshot(eval_id, adapter_version=adapter_version)
     context = ITSOExecutionContext(
         evaluation_id=eval_id,
         document_id=uuid4(),
@@ -712,11 +719,10 @@ def test_itso_gate_rejects_unregistered_adapter_version():
     )
 
     with pytest.raises(AgentExecutionError, match="Unsupported ITSO adapter version"):
-        execution._extract_and_validate_snapshot(context)
+        execution.execute(context, llm_client=_LLM([]))
 
 
-def test_itso_novel_subset_reorder_and_title_edits(monkeypatch, harness_config):
-    harness_config(_settings())
+def test_itso_rejects_legacy_novel_subset_contract():
     eval_id = uuid4()
 
     # Novel criteria, reordered, custom titles
@@ -726,47 +732,9 @@ def test_itso_novel_subset_reorder_and_title_edits(monkeypatch, harness_config):
     )
     snapshot = make_itso_test_snapshot(evaluation_id=eval_id, criteria_specs=specs)
 
-    resp_json = json.dumps(
-        {
-            "summary": "Custom evaluation summary",
-            "criterion_scores": [
-                {
-                    "criterion_id": "ITSO-CUSTOM-02",
-                    "criterion_title": "Custom Title Two",
-                    "score": 4,
-                    "justification": "Justification for 2",
-                    "chunk_ids": ["c1"],
-                    "evidence": ["security"],
-                },
-                {
-                    "criterion_id": "ITSO-CUSTOM-01",
-                    "criterion_title": "Custom Title One",
-                    "score": 2,
-                    "justification": "Justification for 1",
-                    "chunk_ids": ["c1"],
-                    "evidence": ["security"],
-                },
-            ],
-        }
-    )
-
-    client = _LLM([resp_json])
-    context = _context(client, form_snapshot=snapshot, evaluation_id=eval_id)
-    result = execution.execute(context)
-
-    assert result.success
-    assert len(result.criterion_scores) == 2
-    assert result.criterion_scores[0].criterion_id == "ITSO-CUSTOM-02"
-    assert result.criterion_scores[0].criterion_title == "Custom Title Two"
-    assert result.criterion_scores[0].score == 4
-    assert result.criterion_scores[1].criterion_id == "ITSO-CUSTOM-01"
-    assert result.criterion_scores[1].criterion_title == "Custom Title One"
-    assert result.criterion_scores[1].score == 2
-    assert result.subtotal == 3.0
-    assert result.prompt_text is None
-    assert result.raw_response is None
-    assert "ITSO-CUSTOM-02 = Custom Title Two" in client.prompts[0]
-    assert "ITSO-CUSTOM-01 = Custom Title One" in client.prompts[0]
+    context = _context(_LLM([]), form_snapshot=snapshot, evaluation_id=eval_id)
+    with pytest.raises(AgentExecutionError, match="violates adapter 3"):
+        execution._extract_and_validate_snapshot(context)
 
 
 def test_itso_no_worker_db_or_chroma_fallback(monkeypatch, harness_config):
@@ -779,16 +747,16 @@ def test_itso_no_worker_db_or_chroma_fallback(monkeypatch, harness_config):
     context = _context(
         client,
         evaluation_id=eval_id,
-        precomputed_context={},
+        precomputed_context=public_reference_context(),
         reference_document_ids={"syllabus": uuid4()},
     )
     result = execution.execute(context)
     assert result.success
     assert result.metadata["rubric_context_size"] == 0
-    assert result.metadata["reference_context_size"] == 0
+    assert result.metadata["reference_context_size"] == 1
     assert result.prompt_text is None
     assert result.raw_response is None
-    assert "rubric_context" not in json.loads(client.prompts[0])
+    assert "rubric_context" not in json.loads(client.prompts[0].user_context)
 
 
 def test_parse_response_rejects_duplicate_json_keys():
@@ -889,10 +857,11 @@ def test_duplicate_chunk_ids_fail_before_llm(monkeypatch, harness_config):
         ),
         form_snapshot=make_itso_test_snapshot(evaluation_id=eval_id),
         llm_client=client,
+        precomputed_context=public_reference_context(),
     )
     with pytest.raises(AgentExecutionError, match="Duplicate chunk ID"):
         execution.execute(context)
-    assert len(client.prompts) == 0
+    assert client.prompts
 
 
 def test_omitted_chunk_citation_fails(monkeypatch, harness_config):
@@ -933,6 +902,7 @@ def test_omitted_chunk_citation_fails(monkeypatch, harness_config):
         chunk_infos=chunk_infos,
         form_snapshot=make_itso_test_snapshot(evaluation_id=eval_id),
         llm_client=client,
+        precomputed_context=public_reference_context(),
     )
     with pytest.raises(AgentExecutionError, match="ITSOUnknownChunk"):
         execution.execute(context)
@@ -1005,6 +975,7 @@ def test_valid_exact_quote_passes(monkeypatch, harness_config):
             },
         ),
         form_snapshot=make_itso_test_snapshot(evaluation_id=eval_id),
+        precomputed_context=public_reference_context(),
     )
     resp = json.dumps(
         {
@@ -1022,6 +993,13 @@ def test_valid_exact_quote_passes(monkeypatch, harness_config):
             ],
         }
     )
+    payload = json.loads(resp)
+    for row in payload["criterion_scores"][:2]:
+        row["justification"] += (
+            " Public source [source 1]. "
+            "No bibliography was detected in the supplied text."
+        )
+    resp = json.dumps(payload)
     client = _LLM([resp])
     context = ITSOExecutionContext(
         evaluation_id=eval_id,
@@ -1034,6 +1012,7 @@ def test_valid_exact_quote_passes(monkeypatch, harness_config):
         ),
         form_snapshot=make_itso_test_snapshot(evaluation_id=eval_id),
         llm_client=client,
+        precomputed_context=public_reference_context(),
     )
     result = execution.execute(context)
     assert result.success is True
@@ -1077,67 +1056,33 @@ def test_evidence_without_cited_chunk_fails():
         )
 
 
-def test_advisory_output_remains_correct_for_ungrounded_and_grounded_mix(
-    monkeypatch, harness_config
+def test_document_findings_without_required_quotes_fail_after_bounded_repair(
+    harness_config,
 ):
-    """ITSO advisory output correctly records only ungrounded criteria."""
     harness_config(_settings())
-    resp = json.dumps(
-        {
-            "summary": "mixed evaluation",
-            "criterion_scores": [
-                {
-                    "criterion_id": "ITSO-01",
-                    "criterion_title": ITSO_CRITERIA_TITLES["ITSO-01"],
-                    "score": 4,
-                    "justification": "Grounded justification",
-                    "chunk_ids": ["c1"],
-                    "evidence": ["security"],
-                },
-                {
-                    "criterion_id": "ITSO-02",
-                    "criterion_title": ITSO_CRITERIA_TITLES["ITSO-02"],
-                    "score": 4,
-                    "justification": "Grounded justification",
-                    "chunk_ids": ["c1"],
-                    "evidence": ["security"],
-                },
-                {
-                    "criterion_id": "ITSO-03",
-                    "criterion_title": ITSO_CRITERIA_TITLES["ITSO-03"],
-                    "score": 2,
-                    "justification": "",
-                    "chunk_ids": [],
-                    "evidence": [],
-                },
-                {
-                    "criterion_id": "ITSO-04",
-                    "criterion_title": ITSO_CRITERIA_TITLES["ITSO-04"],
-                    "score": 2,
-                    "justification": "",
-                    "chunk_ids": [],
-                    "evidence": [],
-                },
-                {
-                    "criterion_id": "ITSO-05",
-                    "criterion_title": ITSO_CRITERIA_TITLES["ITSO-05"],
-                    "score": 2,
-                    "justification": "",
-                    "chunk_ids": [],
-                    "evidence": [],
-                },
-            ],
-        }
-    )
-    client = _LLM([resp])
-    context = _context(client)
-    result = execution.execute(context)
-    assert result.success is True
-    assert result.advisory_outputs is not None
-    ungrounded_ids = {
-        u.criterion_id for u in result.advisory_outputs.ungrounded_criteria
-    }
-    assert ungrounded_ids == {"ITSO-03", "ITSO-04", "ITSO-05"}
+    prompts = []
+
+    class Client:
+        model = "primary"
+
+        def generate_result(self, prompt, **kwargs):
+            prompts.append(prompt)
+            payload = json.loads(v3_response_for_prompt(prompt, _response()))
+            for row in payload["criterion_scores"]:
+                if row["criterion_id"] == "ITSO-03":
+                    row.update(
+                        score=2,
+                        justification="An ownership concern needs supporting evidence.",
+                        chunk_ids=[],
+                        evidence=[],
+                    )
+            # Keep the deliberately missing quotation intact on both attempts.
+            return CompletionResult(json.dumps(payload), self.model)
+
+    with pytest.raises(AgentExecutionError, match="requires a quotation"):
+        execution.execute(_context(Client()))
+    assert len(prompts) == 3  # Source comparison, document review, one repair.
+    assert "VALIDATOR_FAILURE" in prompts[-1].system_instruction
 
 
 def test_itso_prompt_and_raw_response_are_none_and_persistence_invariant(

@@ -13,6 +13,7 @@ from .authoring import (
     update_criterion,
     update_domain,
 )
+from .itso_upgrade import ItsoHarnessUpgradeResult, upgrade_itso_harness
 from .reset import (
     COORDINATOR_AGENT_ID,
     FRESH_V1_DRAFT_CONFIRMATION,
@@ -34,6 +35,7 @@ from .revisions import (
 )
 from .runtime import (
     _get_active_rubric_set,
+    get_active_rubric_adapter_version,
     get_active_rubric_context,
     get_active_rubric_scoring_rules,
 )
@@ -44,6 +46,7 @@ __all__ = [
     "COORDINATOR_AGENT_ID",
     "CoordinatorRubricResetReport",
     "FRESH_V1_DRAFT_CONFIRMATION",
+    "ItsoHarnessUpgradeResult",
     "RESET_CONFIRMATION",
     "activate_revision_by_id",
     "create_criterion",
@@ -52,6 +55,7 @@ __all__ = [
     "delete_criterion",
     "delete_domain",
     "delete_draft",
+    "get_active_rubric_adapter_version",
     "get_active_rubric_context",
     "get_active_rubric_scoring_rules",
     "get_all_revisions",
@@ -64,6 +68,7 @@ __all__ = [
     "retire_revision_by_id",
     "update_criterion",
     "update_domain",
+    "upgrade_itso_harness",
     "validate_draft_revision",
     "_lock_parent_draft_rubric_set",
 ]

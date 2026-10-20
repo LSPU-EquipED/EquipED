@@ -34,7 +34,18 @@ def _duration_seconds(
     completed_at: datetime | None,
 ) -> float | None:
     if completed_at is not None and submitted_at is not None:
-        return (completed_at - submitted_at).total_seconds()
+        # SQLite returns naive UTC values while fresh lifecycle timestamps are aware.
+        start = (
+            submitted_at.replace(tzinfo=UTC)
+            if submitted_at.tzinfo is None
+            else submitted_at
+        )
+        end = (
+            completed_at.replace(tzinfo=UTC)
+            if completed_at.tzinfo is None
+            else completed_at
+        )
+        return (end - start).total_seconds()
     return None
 
 

@@ -27,7 +27,7 @@ from equiped_harness.contracts import (
 from equiped_harness.manifests import (
     COORDINATOR_MANIFEST_V1,
     GAD_MANIFEST_V1,
-    ITSO_MANIFEST_V1,
+    ITSO_MANIFEST_V3,
     SME_MANIFEST_V1,
     AgentCapabilityManifest,
 )
@@ -51,7 +51,7 @@ DEFAULT_INPUT = ROOT / "server" / "data" / "rubrics" / "rubrics.json"
 MANIFEST_BY_AGENT: dict[str, AgentCapabilityManifest] = {
     "sme": SME_MANIFEST_V1,
     "gad": GAD_MANIFEST_V1,
-    "itso": ITSO_MANIFEST_V1,
+    "itso": ITSO_MANIFEST_V3,
     "coordinator": COORDINATOR_MANIFEST_V1,
 }
 

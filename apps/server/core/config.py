@@ -90,6 +90,9 @@ class Settings:
     database_url: str | None = None
     database_echo: bool = False
 
+    # External access is deployment-configured; current ITSO requires it.
+    itso_verification_enabled: bool = False
+
     session_cookie_name: str = "equiped_session"
     session_ttl_hours: int = 24
     bootstrap_admin_email: str | None = None
@@ -549,6 +552,7 @@ def get_settings() -> Settings:
         cors_allow_credentials=_bool_env("CORS_ALLOW_CREDENTIALS", True),
         database_url=_env("DATABASE_URL"),
         database_echo=_bool_env("DATABASE_ECHO", False),
+        itso_verification_enabled=_bool_env("ITSO_VERIFICATION_ENABLED", False),
         session_cookie_name=_env("SESSION_COOKIE_NAME", "equiped_session")
         or "equiped_session",
         session_ttl_hours=parsed_session_ttl_hours,

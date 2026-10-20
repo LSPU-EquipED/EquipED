@@ -1,5 +1,6 @@
 """Contract tests for ITSO policy evidence."""
 
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -84,9 +85,7 @@ def test_blocked_policy_does_no_embedding_or_retrieval(monkeypatch, settings):
     monkeypatch.setattr(
         "server.modules.evaluations.harness.evidence.retrieve_policy_context", fail
     )
-    snapshot = ITSOEvidenceBuilder(db=object()).build(
-        [{"chunk_id": "x", "text": "text"}]
-    )
+    snapshot = ITSOEvidenceBuilder(db=object()).build_policy_context()
     assert snapshot.policy_evidence is None
     assert snapshot.provenance["policy_delivery_state"] == "blocked"
     assert snapshot.provenance["policy_retrieval_version"] == "1"
@@ -108,7 +107,7 @@ def test_enabled_delivery_without_db_is_blocked_from_retrieval(monkeypatch):
         "server.modules.evaluations.harness.evidence.get_settings",
         lambda: _settings(True),
     )
-    snapshot = ITSOEvidenceBuilder(db=None).build([{"chunk_id": "x", "text": "text"}])
+    snapshot = ITSOEvidenceBuilder(db=None).build_policy_context()
     assert snapshot.policy_evidence is None
     assert snapshot.provenance["policy_delivery_state"] == "enabled"
     assert set(snapshot.provenance["policy_evidence"]) == set(CRITERIA)
@@ -151,13 +150,13 @@ def test_enabled_delivery_groups_concrete_clauses(monkeypatch):
         for key, value in snapshot_evidence["evidence"]["criteria"].items()
     } == CRITERIA
     test_snapshot = make_itso_test_snapshot()
-    criteria = [c for d in test_snapshot.form.domains for c in d.criteria]
+    criteria = [c for d in test_snapshot.form.domains for c in d.criteria][2:]
     prompt = build_prompt(
         _context(snapshot_evidence["evidence"]),
         ordered_criteria=criteria,
         reference_context=[],
     )
-    assert all("approved " + cid in prompt for cid in CRITERIA)
+    assert all("approved " + cid in str(prompt) for cid in CRITERIA)
 
 
 def test_one_embedding_object_is_reused_for_all_retrievals(monkeypatch):
@@ -182,7 +181,7 @@ def test_one_embedding_object_is_reused_for_all_retrievals(monkeypatch):
     monkeypatch.setattr(
         "server.modules.evaluations.harness.evidence.retrieve_policy_context", retrieve
     )
-    builder.build([{"chunk_id": "x", "text": "text"}])
+    builder.build_policy_context()
     assert len(embeddings) == 1
     assert len(retrievals) == 3
     assert all(embedding is embeddings[0] for _, embedding in retrievals)
@@ -225,12 +224,13 @@ def test_provenance_is_opaque_exact_schema():
 def test_blocked_and_unavailable_prompt_has_no_clause_text():
     policy = _available_snapshot()["evidence"] | {"delivery_state": "blocked"}
     test_snapshot = make_itso_test_snapshot()
-    criteria = [c for d in test_snapshot.form.domains for c in d.criteria]
+    criteria = [c for d in test_snapshot.form.domains for c in d.criteria][2:]
     prompt = build_prompt(
         _context(policy), ordered_criteria=criteria, reference_context=[]
     )
-    assert not any("clause " + cid in prompt for cid in CRITERIA)
-    assert "delivery_blocked" in prompt
+    assert not any("clause " + cid in str(prompt) for cid in CRITERIA)
+    assert json.loads(prompt.user_context)["local_policy_status"] == "unavailable"
+    assert json.loads(prompt.user_context)["local_policy_context"] == {}
     unavailable = {
         "delivery_state": "enabled",
         "criteria": {
@@ -238,9 +238,11 @@ def test_blocked_and_unavailable_prompt_has_no_clause_text():
             for cid in CRITERIA
         },
     }
-    assert "UNAVAILABLE" in build_prompt(
+    prompt = build_prompt(
         _context(unavailable), ordered_criteria=criteria, reference_context=[]
     )
+    assert json.loads(prompt.user_context)["local_policy_status"] == "unavailable"
+    assert json.loads(prompt.user_context)["local_policy_context"] == {}
 
 
 def test_builder_snapshot_is_recursively_immutable(monkeypatch):
@@ -260,12 +262,29 @@ def test_builder_snapshot_is_recursively_immutable(monkeypatch):
             "d" * 64,
         ),
     )
-    snapshot = ITSOEvidenceBuilder(db=object()).build(
-        [{"chunk_id": "x", "text": "text"}]
-    )
+    snapshot = ITSOEvidenceBuilder(db=object()).build_policy_context()
     with pytest.raises(TypeError):
         snapshot.policy_evidence["criteria"] = {}
     with pytest.raises(TypeError):
         snapshot.policy_evidence["criteria"]["ITSO-03"]["status"] = "x"
     with pytest.raises(AttributeError):
         snapshot.policy_evidence["criteria"]["ITSO-03"]["chunks"].append({})
+
+
+def test_policy_context_returns_only_policy_provenance(monkeypatch):
+    monkeypatch.setattr(
+        "server.modules.evaluations.harness.evidence.get_settings",
+        lambda: _settings(False),
+    )
+    snapshot = ITSOEvidenceBuilder(db=object()).build_policy_context()
+    assert set(snapshot.provenance) == {
+        "policy_delivery_state",
+        "policy_evidence",
+        "policy_retrieval_version",
+        "policy_trimmed",
+    }
+    assert snapshot.policy_evidence is None
+    with pytest.raises(TypeError):
+        snapshot.provenance["policy_delivery_state"] = "enabled"
+    with pytest.raises(TypeError):
+        snapshot.provenance["policy_evidence"]["ITSO-03"]["status"] = "available"

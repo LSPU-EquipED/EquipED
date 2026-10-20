@@ -45,8 +45,15 @@ FROM dev AS smoke
 # Production target: runs uvicorn server.main:app without reload (single worker)
 FROM base AS prod
 
+# Run the application without root privileges.
+RUN useradd --uid 10001 --create-home equiped \
+    && mkdir -p /app/uploads /app/chroma_data \
+    && chown equiped:equiped /app/uploads /app/chroma_data
+USER equiped
+ENV HOME=/home/equiped
+
 WORKDIR /app/apps
 
 EXPOSE 8000
 
-CMD ["uv", "run", "--project", "server", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["uv", "run", "--project", "server", "--frozen", "--no-sync", "uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

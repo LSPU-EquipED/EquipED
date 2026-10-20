@@ -39,6 +39,11 @@ def _thaw(value):
     return value
 
 
+def _uses_legacy_prompt(agent, agent_name) -> bool:
+    """Adapter-3 ITSO runs through a pure pipeline with no managed prompt."""
+    return not (type(agent) in SPECIALIST_CLASSES and agent_name == "itso")
+
+
 class AgentDispatcher:
     HEARTBEAT_INTERVAL_SECONDS = 5.0
 
@@ -176,6 +181,9 @@ class AgentDispatcher:
     ):
         started = time.perf_counter()
         client = None
+        uses_legacy_prompt = _uses_legacy_prompt(agent, agent_name)
+        prompt_version = prompt_row.prompt_text if uses_legacy_prompt else None
+        prompt_version_id = prompt_row.version_id if uses_legacy_prompt else None
         try:
             client = get_llm_client_for_agent(agent_name)
             if lora is not None:
@@ -189,8 +197,8 @@ class AgentDispatcher:
                 # PromptSnapshot is captured before workers start. Pass both
                 # identity fields so the agent cannot re-resolve a prompt in
                 # its worker-owned execution path.
-                "prompt_version": prompt_row.prompt_text,
-                "prompt_version_id": prompt_row.version_id,
+                "prompt_version": prompt_version,
+                "prompt_version_id": prompt_version_id,
                 "reference_document_ids": _thaw(reference_document_ids),
                 "precomputed_context": _thaw(precomputed_context),
                 "llm_client": client,
@@ -228,9 +236,7 @@ class AgentDispatcher:
                 result.agent_name != agent_name
                 or result.evaluation_id != evaluation_id
                 or result.document_id != document_id
-                or (
-                    result.success and result.prompt_version_id != prompt_row.version_id
-                )
+                or (result.success and result.prompt_version_id != prompt_version_id)
             ):
                 raise ValueError("agent returned an invalid result identity")
             if not result.success:
@@ -255,7 +261,7 @@ class AgentDispatcher:
                 agent_name=agent_name,
                 evaluation_id=evaluation_id,
                 document_id=document_id,
-                prompt_id=prompt_row.version_id,
+                prompt_id=prompt_version_id,
                 started=started,
                 client=client,
                 error_telemetry=getattr(exc, "telemetry", None),
@@ -356,6 +362,11 @@ class AgentDispatcher:
                     raise SupervisorExecutionError(
                         f"No active prompt found for agent {name}"
                     )
+                prompt_id = (
+                    prompt.version_id
+                    if prompt is not None and _uses_legacy_prompt(agent, name)
+                    else None
+                )
                 started = time.perf_counter()
                 future = pool.submit(
                     self._run_single_agent,
@@ -380,7 +391,7 @@ class AgentDispatcher:
                     authoritative_curriculum_text=authoritative_curriculum_text,
                     lora=(lora_by_agent or {}).get(name),
                 )
-                pending[future] = (name, prompt, started)
+                pending[future] = (name, prompt_id, started)
             if heartbeat_callback:
                 try:
                     heartbeat_callback()
@@ -405,7 +416,7 @@ class AgentDispatcher:
                             "evaluation heartbeat failed"
                         ) from exc
                 for future in done:
-                    name, prompt, started = pending[future]
+                    name, prompt_id, started = pending[future]
                     try:
                         result = future.result()
                     except Exception as exc:
@@ -413,7 +424,7 @@ class AgentDispatcher:
                             agent_name=name,
                             evaluation_id=evaluation_id,
                             document_id=document_id,
-                            prompt_id=prompt.version_id,
+                            prompt_id=prompt_id,
                             started=started,
                             provenance=(
                                 snapshots["provenance"] if name == "itso" else None
@@ -425,7 +436,7 @@ class AgentDispatcher:
                             agent_name=name,
                             evaluation_id=evaluation_id,
                             document_id=document_id,
-                            prompt_id=prompt.version_id,
+                            prompt_id=prompt_id,
                             started=started,
                             provenance=(
                                 snapshots["provenance"] if name == "itso" else None

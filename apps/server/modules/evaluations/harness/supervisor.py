@@ -55,8 +55,12 @@ class Supervisor:
         prepared = EvaluationContextBuilder(self.db, self.agents).build(
             chunks=chunks, query_text=query_text, context=context
         )
-        if any(getattr(agent, "agent_name", "") == "itso" for agent in self.agents):
-            evidence = ITSOEvidenceBuilder(self.db).build(prepared.chunk_infos)
+        itso_snapshot = next(
+            (snapshot for snapshot in form_snapshots if snapshot.agent_id == "itso"),
+            None,
+        )
+        if itso_snapshot is not None and itso_snapshot.adapter_version == 3:
+            evidence = ITSOEvidenceBuilder(self.db).build_policy_context()
         else:
             evidence = ITSOEvidenceSnapshot(
                 provenance=MappingProxyType({}), policy_evidence=MappingProxyType({})

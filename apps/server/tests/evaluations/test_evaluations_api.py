@@ -9,9 +9,12 @@ from typing import Any
 from fastapi.testclient import TestClient
 from server.modules.auth.models import UserRole
 from server.modules.auth.service import create_user
-from server.modules.documents.models import Document
+from server.modules.documents.models import Document, DocumentChunk
+from server.modules.evaluations.admission import create_evaluation
 from server.modules.evaluations.agent_schedule import scheduled_agent_ids
+from server.modules.evaluations.itso.models import ITSOAssessment
 from server.modules.evaluations.models import EvaluationJob, EvaluationStatus
+from server.modules.evaluations.schemas import EvaluationSubmitRequest
 from server.modules.rubrics.models import EvaluationFormSnapshot, RubricSet
 from server.modules.rubrics.snapshots import resolve_or_reuse_evaluation_snapshots
 from server.modules.synthesis.models import (
@@ -22,6 +25,70 @@ from server.modules.synthesis.models import (
 from server.modules.synthesis.service import persist_agent_outputs
 from server.tests.evaluations.snapshot_test_helpers import make_agent_result
 from server.tests.rubrics.helpers import seed_all_rubrics
+
+
+def test_itso_v3_submission_freezes_form_without_workflow_assessment(
+    db_session, monkeypatch
+):
+    monkeypatch.setattr(
+        "server.modules.evaluations.itso.reference_tools.ensure_public_reference_tools_ready",
+        lambda **kwargs: None,
+    )
+    faculty = create_user(
+        db_session,
+        name="ITSO v3 Faculty",
+        email="itso-v3-submit@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    db_session.commit()
+    document = Document(
+        document_id=uuid.uuid4(),
+        title="ITSO v3 module",
+        program="BSCS",
+        source_type="slm",
+        file_path="/tmp/itso-v3.pdf",
+        uploaded_by=faculty.user_id,
+        processing_status="PROCESSED",
+    )
+    db_session.add(document)
+    db_session.flush()
+    db_session.add(
+        DocumentChunk(
+            document_id=document.document_id,
+            source_type="slm",
+            agent_domain="itso",
+            page_number=1,
+            text="References\n[1] A Example. 2024. Open research methods.",
+            chunk_index=0,
+        )
+    )
+    seed_all_rubrics(db_session)
+
+    submitted = create_evaluation(
+        EvaluationSubmitRequest(
+            document_id=document.document_id,
+            target_agent="itso",
+            confirmed_program="BSCS",
+            external_verification=False,
+        ),
+        submitted_by=faculty.user_id,
+        submitted_by_role=UserRole.FACULTY.value,
+        db=db_session,
+    )
+    job = db_session.get(EvaluationJob, submitted.evaluation_id)
+    snapshots = db_session.query(EvaluationFormSnapshot).filter_by(
+        evaluation_id=submitted.evaluation_id
+    )
+    snapshot = snapshots.one()
+    assert snapshot.adapter_version == 3
+    assert job.adapter_request == {"itso_reference_verification": True}
+    assert (
+        db_session.query(ITSOAssessment)
+        .filter_by(evaluation_id=submitted.evaluation_id)
+        .count()
+        == 0
+    )
 
 
 def _safe_prepare_test_snapshots(
@@ -213,6 +280,9 @@ def test_faculty_results_returns_allowlisted_presentation_and_no_private_keys(
         assert block["status"] == "OK"
         assert "adjectival_rating" in block
         assert "summary" in block
+        # The public schema permits typed Coordinator alignment advisories;
+        # these fixtures do not supply one. Raw generation metadata stays private.
+        assert block["advisory_outputs"] is None
 
     # Assert recursive absolute absence of private/internal keys
     # and non-allowlisted identity
@@ -224,7 +294,6 @@ def test_faculty_results_returns_allowlisted_presentation_and_no_private_keys(
         "raw_response",
         "group_prompts",
         "group_responses",
-        "advisory_outputs",
         "provenance",
         "chunk_ids",
     }

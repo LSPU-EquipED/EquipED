@@ -30,6 +30,38 @@ from sqlalchemy.pool import StaticPool
 from .conftest import _add_document, _seed_active_prompts, _seed_all_rubrics
 
 
+@pytest.fixture(autouse=True)
+def _stub_public_reference_verification(monkeypatch):
+    """Keep all v3 bundle tests synthetic while exercising mandatory dispatch."""
+    calls = []
+    report = {
+        "status": "completed",
+        "scope": ["ITSO-01", "ITSO-02"],
+        "references": [
+            {
+                "query": "Ada Author 2024 Public study",
+                "status": "matched",
+                "source_url": "https://example.org/public-study",
+                "title": "Public study",
+                "excerpt": "A public study with source context.",
+                "matched_fields": ["title"],
+                "mismatches": [],
+            }
+        ],
+        "coverage": {"found": 1, "checked": 1, "skipped": 0, "total": 1},
+    }
+
+    async def build_report(query_text, *, enabled):
+        calls.append((query_text, enabled))
+        return report
+
+    monkeypatch.setattr(
+        "server.modules.evaluations.itso.reference_tools.build_public_reference_report",
+        build_report,
+    )
+    return calls, report
+
+
 def _run_claimed(evaluation_id, session_factory):
     token = uuid4()
     with session_factory() as session:
@@ -43,7 +75,10 @@ def _run_claimed(evaluation_id, session_factory):
         return None
 
 
-def test_orchestrator_layer3_honesty(monkeypatch) -> None:
+def test_orchestrator_layer3_honesty(
+    monkeypatch, _stub_public_reference_verification
+) -> None:
+    verification_calls, reference_report = _stub_public_reference_verification
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -95,6 +130,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
         submitted_at=datetime.now(UTC),
         completed_at=None,
         confirmed_program="BSCS",
+        adapter_request={"itso_reference_verification": False},
     )
     session.add(job)
     session.commit()
@@ -172,6 +208,7 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
                 "curriculum": curriculum_id,
             },
             "confirmed_program": "BSCS",
+            "public_reference_verification": reference_report,
         }
         return SupervisorResult(
             evaluation_id=evaluation_id,
@@ -241,7 +278,9 @@ def test_orchestrator_layer3_honesty(monkeypatch) -> None:
             "curriculum": curriculum_id,
         },
         "confirmed_program": "BSCS",
+        "public_reference_verification": reference_report,
     }
+    assert verification_calls == [("chunk for slm", True)]
 
 
 def test_orchestrator_partial_without_curriculum_completes(
@@ -1360,3 +1399,58 @@ def test_orchestrator_clears_a_stale_resolution_when_a_retry_fails_to_resolve(
     assert seen["lora_by_agent"] == {}
     assert job.status == EvaluationStatus.COMPLETED.value
     assert job.adapter_resolution is None
+
+
+@pytest.mark.parametrize("adapter_version", [1, 2])
+def test_retired_itso_job_fails_before_tools_or_models(
+    db_session, monkeypatch, _stub_public_reference_verification, adapter_version
+):
+    from types import SimpleNamespace
+
+    owner = create_user(
+        db_session,
+        name="Retired Harness Owner",
+        email=f"retired-harness-{uuid4()}@lspu.edu.ph",
+        password="password123",
+        role=UserRole.FACULTY,
+    )
+    document_id = _add_document(db_session, owner_id=owner.user_id, source_type="slm")
+    job = EvaluationJob(
+        evaluation_id=uuid4(),
+        document_id=document_id,
+        target_agent="itso",
+        status=EvaluationStatus.SUBMITTED.value,
+        submitted_by=owner.user_id,
+        submitted_at=datetime.now(UTC),
+    )
+    db_session.add(job)
+    db_session.commit()
+    session_factory = sessionmaker(
+        bind=db_session.get_bind(), autoflush=False, autocommit=False
+    )
+    # Snapshot integrity has its own tests; exercise the worker's retirement gate
+    # after snapshot loading, including durable failure and lease release.
+    monkeypatch.setattr(
+        "server.modules.evaluations.orchestrator.resolve_or_reuse_evaluation_snapshots",
+        lambda *args, **kwargs: (
+            SimpleNamespace(agent_id="itso", adapter_version=adapter_version),
+        ),
+    )
+
+    def unexpected_execution(*args, **kwargs):
+        pytest.fail("retired harness reached execution preparation")
+
+    monkeypatch.setattr(
+        "server.modules.evaluations.orchestrator.get_document_chunks",
+        unexpected_execution,
+    )
+    _run_claimed(job.evaluation_id, session_factory)
+    db_session.expire_all()
+    saved = db_session.get(EvaluationJob, job.evaluation_id)
+    assert saved.status == EvaluationStatus.FAILED.value
+    assert saved.error_message.startswith(
+        "EvaluationPipelineUnavailableError (reference:"
+    )
+    assert saved.execution_token is None and saved.admission_slot is None
+    assert _stub_public_reference_verification[0] == []
+    assert db_session.query(AgentResult).count() == 0

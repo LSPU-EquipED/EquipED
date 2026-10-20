@@ -7,6 +7,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from server.core.database import get_db_session
 from server.modules.auth.dependencies import require_admin, require_authenticated_user
+from server.modules.evaluations.exceptions import EvaluationNotFoundError
+from server.modules.evaluations.itso.assessment_service import reject_legacy_v2_read
+from server.modules.evaluations.itso.exceptions import ITSOError
 from server.modules.synthesis.exceptions import (
     EvaluationResultIntegrityError,
     EvaluationResultsNotFoundError,
@@ -43,6 +46,13 @@ def get_evaluation_results(
             if hasattr(current_user.role, "value")
             else str(current_user.role)
         )
+        reject_legacy_v2_read(
+            db,
+            evaluation_id=evaluation_id,
+            actor_id=current_user.id,
+            role=user_role,
+            evaluator_permissions=getattr(current_user, "evaluator_permissions", None),
+        )
         return service_get_evaluation_results(
             evaluation_id,
             current_user.id,
@@ -50,7 +60,9 @@ def get_evaluation_results(
             evaluator_permissions=getattr(current_user, "evaluator_permissions", None),
             current_user_role=user_role,
         )
-    except EvaluationResultsNotFoundError:
+    except ITSOError as exc:
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code})
+    except (EvaluationResultsNotFoundError, EvaluationNotFoundError):
         raise HTTPException(status_code=404, detail="Evaluation not found")
     except EvaluationResultIntegrityError:
         raise HTTPException(
@@ -72,6 +84,8 @@ def get_monitoring_matrix(
         return service_get_monitoring_matrix(
             program, status, page, page_size, db=db, search=search
         )
+    except ITSOError as exc:
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code})
     except UnsupportedProgramFilterError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -84,6 +98,8 @@ def get_master_synthesis_detail(
 ) -> MasterSynthesisDetailResponse:
     try:
         return service_get_master_synthesis_detail(db=db, document_id=document_id)
+    except ITSOError as exc:
+        raise HTTPException(status_code=exc.status, detail={"code": exc.code})
     except MonitoringMatrixNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

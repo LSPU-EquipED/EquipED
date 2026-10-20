@@ -97,6 +97,9 @@ def export_dpo_package(
     Atomically writes to output_dir using a temp folder and atomic rename unless
     dry_run is True.
     """
+    from .itso_guard import reject_itso_v2_export
+
+    reject_itso_v2_export(session, agent_id=agent_id, since=since, until=until)
     query = (
         session.query(AgentGeneration)
         .filter(

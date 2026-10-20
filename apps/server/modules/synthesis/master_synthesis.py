@@ -24,6 +24,7 @@ from server.modules.synthesis.schemas import (
     CriterionScoreItem,
     EvaluationFlagItem,
     EvaluatorAttribution,
+    ITSOMasterSynthesisPillar,
     MasterSynthesisDetailResponse,
     MasterSynthesisPillar,
     score_to_adjectival,
@@ -136,7 +137,12 @@ def get_master_synthesis_detail(
     domain_scores_json = (
         matrix.domain_scores_json if isinstance(matrix.domain_scores_json, dict) else {}
     )
-    pillars: dict[str, MasterSynthesisPillar] = {}
+    from server.modules.synthesis.itso_projection import verified_matrix_domains
+
+    domain_scores_json = verified_matrix_domains(
+        db, domains=domain_scores_json, document_id=document_id
+    )
+    pillars = {}
     for agent in PROGRESSIVE_AGENT_IDS:
         weight = AGENT_WEIGHTS.get(agent, 0.0)
         domain_data = (
@@ -144,6 +150,17 @@ def get_master_synthesis_detail(
             if isinstance(domain_scores_json, dict)
             else None
         )
+
+        if (
+            isinstance(domain_data, dict)
+            and domain_data.get("contract") == "itso_evidence.v1"
+        ):
+            pillars[agent] = ITSOMasterSynthesisPillar(
+                **(domain_data | {"status": domain_data["execution_status"]}),
+                weight=weight,
+                evaluator=evaluator_by_agent.get(agent) or fallback_bundle_evaluator,
+            )
+            continue
 
         if domain_data is not None and isinstance(domain_data, dict):
             subtotal_raw = domain_data.get("subtotal")

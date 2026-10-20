@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
+from equiped_harness.itso.history_contracts import CriterionAssessment
 from equiped_harness.result_contracts import CoordinatorAlignmentAdvisory
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 from server.modules.rubrics.presentation import (
     EvaluationFormCriterionPresentation,
     EvaluationFormDomainPresentation,
@@ -32,6 +33,13 @@ class RawMeasurementItemOut(BaseModel):
     rejected: bool = False
 
 
+class ITSOResultPublicSource(BaseModel):
+    number: int
+    title: str | None = None
+    url: str
+    excerpt: str
+
+
 class CriterionScoreItem(BaseModel):
     rubric_criterion_id: UUID | None = None
     criterion_id: str
@@ -42,6 +50,9 @@ class CriterionScoreItem(BaseModel):
     justification: str
     evidence: str | None = None
     is_ungrounded: bool = False
+    evidence_status: Literal["no_concern_detected", "rights_unverified"] | None = None
+    public_sources: list[ITSOResultPublicSource] = Field(default_factory=list)
+    reference_check_note: str | None = None
     reviewer_correction: ReviewerCorrection | None = None
     raw_items: list[RawMeasurementItemOut] | None = None
     corrected_score: int | None = None
@@ -83,6 +94,41 @@ class DomainScoreBlock(BaseModel):
     status: str  # "OK" | "ERROR"
     adjectival_rating: str | None = None
     summary: str = ""
+
+
+class ITSODomainScoreBlock(BaseModel):
+    """Public whitelist: pure criteria contain facts, never model generations."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+    contract: Literal["itso_evidence.v1"]
+    evaluation_id: str
+    criteria: list[CriterionAssessment] = Field(min_length=5, max_length=5)
+    subtotal: float | None
+    max_score: Literal[4]
+    status: Literal["OK", "ERROR"]
+    execution_status: Literal["COMPLETED", "FAILED"]
+    scoring_complete: bool
+    scored_count: int = Field(ge=0)
+    unscored_count: int = Field(ge=0)
+    issue_count: int = Field(ge=0)
+    uncertainty_count: int = Field(ge=0)
+    adjectival_rating: None = None
+
+
+def _projection_version(value):
+    contract = (
+        value.get("contract")
+        if isinstance(value, dict)
+        else getattr(value, "contract", None)
+    )
+    return contract or "legacy.v1"
+
+
+MatrixDomainScoreBlock = Annotated[
+    Annotated[DomainScoreBlock, Tag("legacy.v1")]
+    | Annotated[ITSODomainScoreBlock, Tag("itso_evidence.v1")],
+    Discriminator(_projection_version),
+]
 
 
 class EvaluationFlagItem(BaseModel):
@@ -137,7 +183,7 @@ class MatrixRowItem(BaseModel):
     evaluation_status: str
     synthesized_score: float | None = None
     adjectival_rating: str | None = None
-    domain_scores: dict[str, DomainScoreBlock] | None = None
+    domain_scores: dict[str, MatrixDomainScoreBlock] | None = None
     flag_count: int = 0
     feedback_status: str = "NO_FEEDBACK"
     last_updated: datetime
@@ -168,6 +214,20 @@ class MasterSynthesisPillar(BaseModel):
     evaluator: EvaluatorAttribution | None = None
 
 
+class ITSOMasterSynthesisPillar(ITSODomainScoreBlock):
+    status: Literal["COMPLETED", "FAILED"]
+    weight: float
+    evaluator: EvaluatorAttribution | None = None
+    summary: str = ""
+
+
+MasterPillar = Annotated[
+    Annotated[MasterSynthesisPillar, Tag("legacy.v1")]
+    | Annotated[ITSOMasterSynthesisPillar, Tag("itso_evidence.v1")],
+    Discriminator(_projection_version),
+]
+
+
 class MasterSynthesisDetailResponse(BaseModel):
     document_id: UUID
     document_title: str | None = None
@@ -180,7 +240,7 @@ class MasterSynthesisDetailResponse(BaseModel):
     adjectival_rating: str | None = None
     evaluation_status: str
     last_updated: datetime | None = None
-    pillars: dict[str, MasterSynthesisPillar]
+    pillars: dict[str, MasterPillar]
     flags: list[EvaluationFlagItem] = Field(default_factory=list)
     can_certify: bool
 

@@ -8,7 +8,9 @@ from dataclasses import FrozenInstanceError
 from types import MappingProxyType
 
 import pytest
+from equiped_harness.itso.agent import ITSO
 from equiped_harness.result_contracts import AgentEvaluationResult
+from equiped_harness.snapshot_contracts import build_evaluation_form_snapshot
 from server.modules.evaluations.harness import dispatch
 from server.modules.evaluations.harness.context import (
     PreparedEvaluationContext,
@@ -57,6 +59,7 @@ def _dispatch(
     policy=None,
     roadmap=None,
     temperature=0.17,
+    adapter_version=1,
 ):
     evaluation_id, document_id = uuid.uuid4(), uuid.uuid4()
     clients = {
@@ -74,6 +77,18 @@ def _dispatch(
     form_snapshots = tuple(
         _make_dummy_snapshot(a.agent_name, evaluation_id) for a in agents
     )
+    if adapter_version != 1:
+        form_snapshots = tuple(
+            build_evaluation_form_snapshot(
+                evaluation_id,
+                snapshot.snapshot_payload.form.model_copy(
+                    update={"adapter_version": adapter_version}
+                ),
+            )
+            if snapshot.agent_id == "itso"
+            else snapshot
+            for snapshot in form_snapshots
+        )
     result = dispatch.AgentDispatcher(agents).dispatch(
         evaluation_id=evaluation_id,
         document_id=document_id,
@@ -92,6 +107,74 @@ def _dispatch(
     return result, clients, evaluation_id, document_id
 
 
+@pytest.mark.parametrize(
+    "returned_prompt_id, accepted", [(None, True), ("rogue", False)]
+)
+def test_builtin_itso_v3_omits_legacy_prompt_and_validates_null_identity(
+    monkeypatch, returned_prompt_id, accepted
+):
+    from equiped_harness import EvaluationRequest
+
+    captured = {}
+
+    def evaluate(request, *_args):
+        captured["request"] = request
+        return _result(
+            "itso", request.evaluation_id, request.document_id, returned_prompt_id
+        )
+
+    monkeypatch.setattr(dispatch, "evaluate", evaluate)
+    monkeypatch.setattr(dispatch, "execution_config_from_settings", lambda _: object())
+    # Keep this dispatcher contract test independent of the separate five-item
+    # adapter-3 manifest validation contract.
+    monkeypatch.setattr(dispatch, "verify_evaluation_form_snapshot", lambda **_: None)
+    (results, failures), _, _, _ = _dispatch(monkeypatch, [ITSO()], adapter_version=3)
+    request = captured["request"]
+    assert isinstance(request, EvaluationRequest)
+    assert request.prompt_version is None
+    assert request.prompt_version_id is None
+    assert results[0].success is accepted
+    assert ("itso" not in failures) is accepted
+    if accepted:
+        assert results[0].prompt_version_id is None
+    else:
+        assert failures["itso"].startswith("ValueError (reference:")
+
+
+@pytest.mark.parametrize("adapter_version", [1, 2])
+def test_retired_itso_adapters_reject_before_transport(adapter_version):
+    from equiped_harness import EvaluationRequest, evaluate
+
+    evaluation_id, document_id = uuid.uuid4(), uuid.uuid4()
+    snapshot = _make_dummy_snapshot("itso", evaluation_id)
+    snapshot = build_evaluation_form_snapshot(
+        evaluation_id,
+        snapshot.snapshot_payload.form.model_copy(
+            update={"adapter_version": adapter_version}
+        ),
+    )
+    request = EvaluationRequest(
+        evaluation_id=evaluation_id,
+        document_id=document_id,
+        form_snapshot=snapshot,
+        chunk_infos=(),
+    )
+
+    class Client:
+        calls = 0
+
+        def generate_result(self, *args, **kwargs):
+            self.calls += 1
+            pytest.fail("retired ITSO adapters must be rejected before transport")
+
+    client = Client()
+    with pytest.raises(
+        ValueError, match=f"Unsupported ITSO adapter version {adapter_version}"
+    ):
+        evaluate(request, client, object())
+    assert client.calls == 0
+
+
 def test_itso_snapshot_recursively_freezes_nested_evidence():
     snapshot = _frozen_snapshot()
     with pytest.raises(TypeError):
@@ -102,9 +185,9 @@ def test_itso_snapshot_recursively_freezes_nested_evidence():
         snapshot.provenance = None
 
 
-@pytest.mark.parametrize("include_itso, expected", [(True, 1), (False, 0)])
-def test_supervisor_builds_itso_evidence_once_only_when_included(
-    monkeypatch, include_itso, expected
+@pytest.mark.parametrize("include_itso", [True, False])
+def test_supervisor_skips_evidence_builder_for_legacy_rubric_runs(
+    monkeypatch, include_itso
 ):
     class Agent:
         def __init__(self, name):
@@ -155,7 +238,82 @@ def test_supervisor_builds_itso_evidence_once_only_when_included(
         chunks=[],
         form_snapshots=form_snapshots,
     )
-    assert calls["count"] == expected
+    assert calls["count"] == 0
+
+
+def test_supervisor_uses_policy_only_snapshot_for_adapter3(monkeypatch):
+    class Agent:
+        agent_name = "itso"
+
+    agent = Agent()
+    prepared = PreparedEvaluationContext(
+        chunk_infos=(),
+        query_text="",
+        prompt_versions=MappingProxyType({"itso": _prompt("itso")}),
+        reference_document_ids=MappingProxyType({}),
+        precomputed_context=MappingProxyType({}),
+        canonical_source_text="canonical source",
+        authoritative_curriculum_text=None,
+    )
+    monkeypatch.setattr(
+        "server.modules.evaluations.harness.supervisor.EvaluationContextBuilder.build",
+        lambda *a, **k: prepared,
+    )
+
+    builder_calls = {}
+
+    def legacy_build(self, chunks):
+        builder_calls["legacy"] = builder_calls.get("legacy", 0) + 1
+        return _frozen_snapshot()
+
+    def policy_build(self):
+        builder_calls["policy"] = builder_calls.get("policy", 0) + 1
+        return _frozen_snapshot()
+
+    builder = type(
+        "Builder",
+        (),
+        {"build": legacy_build, "build_policy_context": policy_build},
+    )()
+    monkeypatch.setattr(
+        "server.modules.evaluations.harness.supervisor.ITSOEvidenceBuilder",
+        lambda db: builder,
+    )
+
+    captured = {}
+
+    def capture_dispatch(self, **kwargs):
+        captured.update(kwargs)
+        evaluation_id = kwargs["evaluation_id"]
+        document_id = kwargs["document_id"]
+        return ([_result("itso", evaluation_id, document_id, None)], {})
+
+    monkeypatch.setattr(
+        "server.modules.evaluations.harness.supervisor.AgentDispatcher.dispatch",
+        capture_dispatch,
+    )
+    evaluation_id = uuid.uuid4()
+    snapshot = _make_dummy_snapshot("itso", evaluation_id)
+    snapshot = build_evaluation_form_snapshot(
+        evaluation_id,
+        snapshot.snapshot_payload.form.model_copy(update={"adapter_version": 3}),
+    )
+
+    Supervisor(agents=[agent]).run_evaluation(
+        evaluation_id=evaluation_id,
+        document_id=uuid.uuid4(),
+        chunks=[],
+        form_snapshots=(snapshot,),
+    )
+
+    assert builder_calls == {"policy": 1}
+    assert captured["provenance"] is not None
+    assert captured["policy_evidence"] is not None
+    assert captured["policy_evidence"]["criteria"]["ITSO-03"] == ("clause",)
+    with pytest.raises(TypeError):
+        captured["policy_evidence"]["criteria"]["ITSO-03"] = ("changed",)
+    with pytest.raises(TypeError):
+        captured["provenance"]["nested"]["items"][0]["v"] = 2
 
 
 def test_dispatch_passes_exact_role_specific_keys(monkeypatch):

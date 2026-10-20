@@ -5,11 +5,15 @@ from __future__ import annotations
 from uuid import uuid4
 
 from equiped_harness.itso.agent import ITSO
-from equiped_harness.transport import CompletionResult, ResponseContract
+from equiped_harness.transport import CompletionResult
 from server.core.config import get_settings
 from server.core.exceptions import ConfigurationError
 from server.tests.agents.helpers import _mock_settings
-from server.tests.agents.itso.conftest_helper import make_itso_test_snapshot
+from server.tests.agents.itso.conftest_helper import (
+    make_itso_test_snapshot,
+    public_reference_context,
+    v3_response_for_prompt,
+)
 from server.tests.agents.itso.test_itso_execution import _response
 
 _OK_RESPONSE = _response()
@@ -119,15 +123,23 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch, harness_config) -> No
             deadline=None,
             response_contract=None,
         ):
-            assert response_contract == ResponseContract.json_object()
+            assert response_contract.mode == "json_object"
+            response = self.generate(
+                prompt, temperature=temperature, max_new_tokens=max_new_tokens
+            )
             return CompletionResult(
-                content=self.generate(
-                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
-                ),
+                content=v3_response_for_prompt(prompt, response),
                 served_model=self.model,
             )
 
-    harness_config(_mock_settings(llm_temperature=0.5, llm_temperature_itso=0.0))
+    harness_config(
+        _mock_settings(
+            llm_temperature=0.5,
+            llm_temperature_itso=0.0,
+            agent_total_prompt_budget_chars=32000,
+            agent_prompt_budget_chars=16000,
+        )
+    )
 
     agent = ITSO(llm_client=_TempCaptureLLM())
     eval_id = uuid4()
@@ -138,21 +150,25 @@ def test_itso_agent_run_uses_itso_temperature(monkeypatch, harness_config) -> No
             {
                 "chunk_id": "c1",
                 "page_number": 1,
-                "text": "security text with citations (Author, 2020)",
+                "text": (
+                    "The module contains information security controls "
+                    "and citations (Author, 2020)."
+                ),
             }
         ],
         form_snapshot=make_itso_test_snapshot(eval_id),
+        precomputed_context=public_reference_context(),
         llm_temperature=0.0,
     )
 
     # The explicit llm_temperature=0.0 should be used for ITSO.
-    assert captured_temps == [0.0]
+    assert captured_temps == [0.0, 0.0]
     assert result.success
     assert result.provenance is not None
     assert result.provenance["requested_temperature"] == 0.0
 
 
-def test_itso_agent_records_requested_vs_actual_model() -> None:
+def test_itso_agent_records_requested_vs_actual_model(harness_config) -> None:
     """Provenance should capture both requested_model and actual_model."""
     requested_model = "test-model"
 
@@ -171,21 +187,35 @@ def test_itso_agent_records_requested_vs_actual_model() -> None:
             deadline=None,
             response_contract=None,
         ):
-            assert response_contract == ResponseContract.json_object()
+            assert response_contract.mode == "json_object"
+            response = self.generate(
+                prompt, temperature=temperature, max_new_tokens=max_new_tokens
+            )
             return CompletionResult(
-                content=self.generate(
-                    prompt, temperature=temperature, max_new_tokens=max_new_tokens
-                ),
+                content=v3_response_for_prompt(prompt, response),
                 served_model=self.model,
             )
 
+    harness_config(
+        _mock_settings(
+            agent_total_prompt_budget_chars=32000,
+            agent_prompt_budget_chars=16000,
+        )
+    )
     agent = ITSO(llm_client=_ModelTrackingLLM())
     eval_id = uuid4()
     result = agent.run(
         evaluation_id=eval_id,
         document_id=uuid4(),
-        chunk_infos=[{"chunk_id": "c1", "page_number": 1, "text": "security content"}],
+        chunk_infos=[
+            {
+                "chunk_id": "c1",
+                "page_number": 1,
+                "text": "The module contains information security controls.",
+            }
+        ],
         form_snapshot=make_itso_test_snapshot(eval_id),
+        precomputed_context=public_reference_context(),
     )
 
     assert result.provenance is not None
