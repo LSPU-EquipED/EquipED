@@ -39,19 +39,19 @@ const SpecialistScoreboardPage = lazyRouteComponent(
   'SpecialistScoreboardPage',
 );
 const AlignmentCheckPage = lazyRouteComponent(
-  () => import('../features/curriculum-alignment/pages/AlignmentCheckPage'),
+  () => import('../features/alignment/curriculum/pages/AlignmentCheckPage'),
   'AlignmentCheckPage',
 );
 const SyllabusAlignmentPage = lazyRouteComponent(
-  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentPage'),
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentPage'),
   'SyllabusAlignmentPage',
 );
 const SyllabusAlignmentWorkspacePage = lazyRouteComponent(
-  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentWorkspacePage'),
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentWorkspacePage'),
   'SyllabusAlignmentWorkspacePage',
 );
 const SyllabusAlignmentReportPage = lazyRouteComponent(
-  () => import('../features/syllabus-alignment/pages/SyllabusAlignmentReportPage'),
+  () => import('../features/alignment/syllabus/pages/SyllabusAlignmentReportPage'),
   'SyllabusAlignmentReportPage',
 );
 

@@ -173,7 +173,6 @@ export function useAlignmentCheckFeature() {
       void coursesQuery.refetch();
     },
     runCheck,
-    isChecking: runCheck.isPending,
     activeCheck,
     pagesData,
     selectedDocument,

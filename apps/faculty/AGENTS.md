@@ -6,7 +6,8 @@
 ## Frontend Boundaries
 
 - Features (`src/features/*`) are self-contained: each feature owns its components, hooks, API calls, types, utilities, and tests.
-- Faculty owns non-admin features: home, documents, evaluation, history, curriculum-alignment, syllabus-alignment, plus public login/registration page composition.
+- Faculty owns non-admin features: home, documents, evaluation, history, alignment/curriculum, alignment/syllabus, plus public login/registration page composition.
+- `features/alignment/` is an organizational namespace. Its curriculum and syllabus children remain self-contained features and follow the same sibling import boundaries as top-level features.
 - Never import across features (`features/A` must not import from `features/B`).
 - Shared domain contracts, HTTP clients, UI primitives, and session management live in workspace libraries (`@equiped/types`, `@equiped/api-client`, `@equiped/ui`, `@equiped/auth`).
 - `src/app/` is the composition root for router configuration, global providers, session management, and layout shell. `app` may import entry points from features.

@@ -28,10 +28,12 @@ function wrapper() {
 describe("current results hook version integration", () => {
   it("keeps a 202 pending projection out of legacy data and later reads typed five-row v2", async () => {
     let calls = 0;
-    const fetcher = vi.fn(async (_url: string) =>
-      ++calls === 1
-        ? json({ detail: { code: "assessment_not_ready" } }, 202)
-        : json(assessmentFixture()),
+    const fetcher = vi.fn(async (url: string) =>
+      url.endsWith("/results")
+        ? json({ detail: { code: "unsupported_version" } }, 409)
+        : ++calls === 1
+          ? json({ detail: { code: "assessment_not_ready" } }, 202)
+          : json(assessmentFixture()),
     );
     vi.stubGlobal("fetch", fetcher);
     const provider = wrapper();
@@ -52,14 +54,17 @@ describe("current results hook version integration", () => {
     );
     expect(hook.result.current.assessment?.subtotal).toBeNull();
     expect(hook.result.current.data).toBeUndefined();
-    expect(
-      fetcher.mock.calls.every(([url]) => url.endsWith("/assessment")),
-    ).toBe(true);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/evaluations/evaluation-1/results",
+      "/api/v1/evaluations/evaluation-1/assessment",
+      "/api/v1/evaluations/evaluation-1/results",
+      "/api/v1/evaluations/evaluation-1/assessment",
+    ]);
     provider.client.clear();
   });
-  it("unwraps legacy ITSO history unchanged without projecting null scores into legacy", async () => {
-    const legacy = {
-      evaluation_id: "legacy-run",
+  it("reads scored ITSO results directly without requesting the historical endpoint", async () => {
+    const results = {
+      evaluation_id: "scored-run",
       domain_scores: {
         itso: {
           subtotal: 3,
@@ -67,19 +72,43 @@ describe("current results hook version integration", () => {
         },
       },
     };
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => json({ contract: "legacy.v1", result: legacy })),
-    );
+    const fetcher = vi.fn(async (_url: string) => json(results));
+    vi.stubGlobal("fetch", fetcher);
     const provider = wrapper();
     const hook = renderHook(
-      () => useEvaluationResults("legacy-run", "COMPLETED", "itso"),
+      () => useEvaluationResults("scored-run", "COMPLETED", "itso"),
       { wrapper: provider.wrapper },
     );
-    await waitFor(() => expect(hook.result.current.data).toEqual(legacy));
+    await waitFor(() => expect(hook.result.current.data).toEqual(results));
     expect(hook.result.current.assessment).toBeUndefined();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0][0]).toBe(
+      "/api/v1/evaluations/scored-run/results",
+    );
     provider.client.clear();
   });
+  it.each([
+    [403, "forbidden"],
+    [404, "not_found"],
+    [500, "assessment_integrity_failed"],
+    [409, "assessment_integrity_failed"],
+  ])(
+    "preserves a %s error without trying a different reader",
+    async (status, code) => {
+      const fetcher = vi.fn(async () => json({ detail: { code } }, status));
+      vi.stubGlobal("fetch", fetcher);
+      const provider = wrapper();
+      const hook = renderHook(
+        () => useEvaluationResults("evaluation-1", "COMPLETED", "itso"),
+        { wrapper: provider.wrapper },
+      );
+      await waitFor(() => expect(hook.result.current.isError).toBe(true));
+      expect(hook.result.current.data).toBeUndefined();
+      expect(hook.result.current.assessment).toBeUndefined();
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      provider.client.clear();
+    },
+  );
   it("leaves SME requests on the existing results route", async () => {
     const fetcher = vi.fn(async (_url: string) =>
       json({ evaluation_id: "sme-run", domain_scores: {} }),

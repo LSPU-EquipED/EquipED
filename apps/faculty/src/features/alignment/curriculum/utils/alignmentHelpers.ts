@@ -1,6 +1,4 @@
-// Single source of truth for status -> label/color, mirroring the pattern
-// evaluation/utils/scoreHelpers.ts uses for adjectival ratings (avoids the
-// duplicated color logic Scorecard.tsx and MonitoringTable.tsx currently have).
+// Shared labels and badge classes for curriculum check results.
 import type { AlignmentStatus } from '../types';
 
 const STATUS_LABELS: Record<AlignmentStatus, string> = {
