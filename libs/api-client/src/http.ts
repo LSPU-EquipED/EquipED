@@ -4,7 +4,7 @@ const API_BASE_URL =
 export { API_BASE_URL };
 
 type ApiErrorPayload = {
-  detail?: string;
+  detail?: unknown;
   error?: {
     message?: string;
   };
@@ -81,6 +81,11 @@ function extractErrorDetail(payload: unknown): string | null {
 
   if (typeof candidate.detail === 'string') {
     return candidate.detail;
+  }
+  // ITSO intentionally returns bounded codes, never echoed private inputs.
+  if (candidate.detail && typeof candidate.detail === 'object' && 'code' in candidate.detail
+    && typeof candidate.detail.code === 'string') {
+    return candidate.detail.code;
   }
 
   return candidate.error?.message ?? null;
