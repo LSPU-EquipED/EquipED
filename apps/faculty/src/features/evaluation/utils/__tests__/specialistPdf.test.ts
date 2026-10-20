@@ -211,6 +211,23 @@ describe('institutional specialist PDFs', () => {
     expect(fields).toContain('Evidence requires review: GAD-01.');
   });
 
+  it('describes permitted ITSO absence findings without a generic missing-evidence warning', async () => {
+    const data = result('itso');
+    data.summary = '';
+    data.criteria = data.criteria.map((row) => row.criterion_id === 'ITSO-04'
+      ? { ...row, score: 4, is_ungrounded: true, evidence_status: 'no_concern_detected' as const }
+      : row.criterion_id === 'ITSO-05'
+        ? { ...row, score: 3, is_ungrounded: true, evidence_status: 'rights_unverified' as const }
+        : row);
+    const pdf = await exportPdf(data);
+    const fields = filledFields(pdf);
+    expect(pdf.getPageCount()).toBe(1);
+    expect(fields).not.toContain('Evidence requires review');
+    expect(fields).toContain('No confidentiality concern detected');
+    expect(fields).toContain('Teacher/student rights remain');
+    expect(fields).toContain('unverified; score is provisional.');
+  });
+
   it('fills complete section totals but leaves the overall rating blank for changed criteria', async () => {
     const data = result('coordinator');
     data.criteria = data.criteria.map((row, index) => index === 9

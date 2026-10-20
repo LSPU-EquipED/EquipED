@@ -261,12 +261,13 @@ export function LegacyEvaluationResults({
               const isSkipped =
                 isPartial && domain === "coordinator" && !domainData;
               const isSelected = domain === effectiveDomainId;
-              const percent = domainData
-                ? monitoringPercentage(
-                    domainData.subtotal,
-                    domainData.max_score || 4,
-                  )
-                : 0;
+              const percent =
+                domainData && domainData.subtotal != null
+                  ? monitoringPercentage(
+                      domainData.subtotal,
+                      domainData.max_score || 4,
+                    )
+                  : 0;
 
               if (isSkipped) {
                 return (
@@ -484,7 +485,8 @@ export function LegacyEvaluationResults({
               <div className="divide-y divide-border bg-surface">
                 {sortedCriteria.map((criterion, idx) => {
                   const isUngrounded = Boolean(criterion.is_ungrounded);
-                  const isPassing = criterion.score >= 3.0;
+                  const isPassing =
+                    criterion.score != null && criterion.score >= 3.0;
 
                   return (
                     <div

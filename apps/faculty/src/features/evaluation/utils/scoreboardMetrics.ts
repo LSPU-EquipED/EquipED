@@ -23,7 +23,8 @@ export function calculateScoreboardMetrics(
   let count1 = 0;
 
   for (const criterion of criteria) {
-    const score = criterion.score ?? 0;
+    const score = criterion.score;
+    if (score == null || !Number.isFinite(score)) continue;
     if (score < 3) {
       attentionCount += 1;
     } else {
@@ -59,14 +60,7 @@ export function calculateScoreboardMetrics(
 }
 
 export type CriterionFilterType =
-  | "ALL"
-  | "ATTENTION"
-  | "STRONG"
-  | "CORRECTED"
-  | 4
-  | 3
-  | 2
-  | 1;
+  "ALL" | "ATTENTION" | "STRONG" | "CORRECTED" | 4 | 3 | 2 | 1;
 
 export function filterCriteria(
   criteria: CriterionScoreItem[],
@@ -74,9 +68,13 @@ export function filterCriteria(
 ): CriterionScoreItem[] {
   switch (filter) {
     case "ATTENTION":
-      return criteria.filter((criterion) => (criterion.score ?? 0) < 3);
+      return criteria.filter(
+        (criterion) => criterion.score != null && criterion.score < 3,
+      );
     case "STRONG":
-      return criteria.filter((criterion) => (criterion.score ?? 0) >= 3);
+      return criteria.filter(
+        (criterion) => criterion.score != null && criterion.score >= 3,
+      );
     case "CORRECTED":
       return criteria.filter((criterion) =>
         Boolean(criterion.reviewer_correction),
@@ -86,7 +84,8 @@ export function filterCriteria(
     case 2:
     case 1:
       return criteria.filter(
-        (criterion) => Math.round(criterion.score ?? 0) === filter,
+        (criterion) =>
+          criterion.score != null && Math.round(criterion.score) === filter,
       );
     case "ALL":
     default:

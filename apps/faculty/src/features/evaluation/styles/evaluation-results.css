@@ -204,7 +204,7 @@
   grid-area: summary;
   min-width: 0;
 }
-.er-summary-copy > p:last-child {
+.er-summary-copy > p:not(.er-label) {
   max-width: 65ch;
   margin-top: 8px;
   overflow-wrap: anywhere;

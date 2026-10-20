@@ -1,13 +1,14 @@
-import { Fragment, useRef } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Fragment, useRef } from "react";
+import { Link } from "@tanstack/react-router";
+import { CaretRight, FilePdf, User, Warning } from "@phosphor-icons/react";
 import {
-  CaretRight,
-  FilePdf,
-  User,
-  Warning,
-} from '@phosphor-icons/react';
-import { Badge, CollapsibleRow, TABLE_STYLES, cn, getEvaluationStatusVariant } from '@equiped/ui';
-import type { MonitoringMatrixRow as MonitoringMatrixRowType } from '../types';
+  Badge,
+  CollapsibleRow,
+  TABLE_STYLES,
+  cn,
+  getEvaluationStatusVariant,
+} from "@equiped/ui";
+import type { MonitoringMatrixRow as MonitoringMatrixRowType } from "../types";
 import {
   domainShortLabel,
   formatDomainScore,
@@ -17,7 +18,7 @@ import {
   getRatingVariant,
   isDomainBlockEvaluated,
   TARGET_DOMAIN_ORDER,
-} from '../utils';
+} from "../utils";
 
 export interface MonitoringMatrixRowProps {
   row: MonitoringMatrixRowType;
@@ -56,8 +57,8 @@ export function MonitoringMatrixRow({
       <tr
         className={cn(
           TABLE_STYLES.tr,
-          'hover:bg-surface-subtle transition-colors group',
-          isExpanded && 'bg-surface-subtle/40 border-b-transparent',
+          "hover:bg-surface-subtle transition-colors group",
+          isExpanded && "bg-surface-subtle/40 border-b-transparent",
         )}
       >
         {/* Expand / Collapse Caret Toggle */}
@@ -68,13 +69,13 @@ export function MonitoringMatrixRow({
             onClick={handleToggle}
             aria-expanded={isExpanded}
             aria-controls={drawerId}
-            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for ${row.document_title || 'module'}`}
+            aria-label={`${isExpanded ? "Collapse" : "Expand"} details for ${row.document_title || "module"}`}
             className="inline-flex size-7 items-center justify-center rounded-xs text-text-muted hover:text-text hover:bg-surface-subtle transition-colors cursor-pointer"
           >
             <CaretRight
               className={cn(
-                'size-3.5 transition-transform duration-150',
-                isExpanded && 'rotate-90 text-primary',
+                "size-3.5 transition-transform duration-150",
+                isExpanded && "rotate-90 text-primary",
               )}
               aria-hidden="true"
             />
@@ -82,19 +83,22 @@ export function MonitoringMatrixRow({
         </td>
 
         {/* SLM Title & Faculty Member & Inline Program Badge */}
-        <td className={cn(TABLE_STYLES.td, 'min-w-[18rem] sm:min-w-[22rem]')}>
+        <td className={cn(TABLE_STYLES.td, "min-w-[18rem] sm:min-w-[22rem]")}>
           <div className="flex items-start gap-2.5">
-            <FilePdf className="size-4 text-primary shrink-0 mt-0.5" aria-hidden="true" />
+            <FilePdf
+              className="size-4 text-primary shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   to="/admin/synthesis/$documentId"
                   params={{ documentId: row.document_id }}
                   className="truncate font-semibold text-sm text-text hover:text-primary transition-colors cursor-pointer"
-                  title={row.document_title || 'Untitled SLM'}
+                  title={row.document_title || "Untitled SLM"}
                   data-testid={`module-title-link-${row.document_id}`}
                 >
-                  {row.document_title || 'Untitled SLM'}
+                  {row.document_title || "Untitled SLM"}
                 </Link>
                 {row.program && (
                   <span className="inline-flex items-center rounded-xs border border-border bg-surface-subtle px-1.5 py-0.2 font-mono text-[10px] font-semibold text-text select-none shrink-0">
@@ -104,7 +108,10 @@ export function MonitoringMatrixRow({
               </div>
               {row.faculty_name ? (
                 <div className="flex items-center gap-1 text-[11px] font-normal text-text-muted truncate mt-0.5">
-                  <User className="size-3 text-text-muted shrink-0" aria-hidden="true" />
+                  <User
+                    className="size-3 text-text-muted shrink-0"
+                    aria-hidden="true"
+                  />
                   <span>Faculty: {row.faculty_name}</span>
                 </div>
               ) : null}
@@ -113,15 +120,26 @@ export function MonitoringMatrixRow({
         </td>
 
         {/* Evaluation Status */}
-        <td className={cn(TABLE_STYLES.td, 'w-44 min-w-[11rem] whitespace-nowrap')}>
-          <Badge variant={getEvaluationStatusVariant(row.evaluation_status)} withDot className="whitespace-nowrap">
+        <td
+          className={cn(
+            TABLE_STYLES.td,
+            "w-44 min-w-[11rem] whitespace-nowrap",
+          )}
+        >
+          <Badge
+            variant={getEvaluationStatusVariant(row.evaluation_status)}
+            withDot
+            className="whitespace-nowrap"
+          >
             {formatProgressStatus(row.evaluation_status, row.domain_scores)}
           </Badge>
         </td>
 
         {/* Rating */}
-        <td className={cn(TABLE_STYLES.td, 'w-36 min-w-[8rem] whitespace-nowrap')}>
-          {row.adjectival_rating ? (
+        <td
+          className={cn(TABLE_STYLES.td, "w-36 min-w-[8rem] whitespace-nowrap")}
+        >
+          {row.synthesized_score !== null && row.adjectival_rating ? (
             <Badge variant={getRatingVariant(row.adjectival_rating)}>
               {row.adjectival_rating}
             </Badge>
@@ -131,7 +149,12 @@ export function MonitoringMatrixRow({
         </td>
 
         {/* Actions / Drilldown */}
-        <td className={cn(TABLE_STYLES.td, 'text-right w-36 min-w-[8.5rem] whitespace-nowrap pr-6')}>
+        <td
+          className={cn(
+            TABLE_STYLES.td,
+            "text-right w-36 min-w-[8.5rem] whitespace-nowrap pr-6",
+          )}
+        >
           <Link
             to="/admin/synthesis/$documentId"
             params={{ documentId: row.document_id }}
@@ -143,7 +166,10 @@ export function MonitoringMatrixRow({
             data-testid={`view-synthesis-${row.document_id}`}
           >
             <span>View Synthesis</span>
-            <CaretRight className="size-3.5 transition-transform group-hover/action:translate-x-0.5" aria-hidden="true" />
+            <CaretRight
+              className="size-3.5 transition-transform group-hover/action:translate-x-0.5"
+              aria-hidden="true"
+            />
           </Link>
         </td>
       </tr>
@@ -167,21 +193,27 @@ export function MonitoringMatrixRow({
             {TARGET_DOMAIN_ORDER.map((domainId) => {
               const block = row.domain_scores?.[domainId];
               const isEvaluated = isDomainBlockEvaluated(block);
-              const normalizedStatus = typeof block?.status === 'string' ? block.status.toUpperCase() : '';
-              const isFailed = !isEvaluated && (normalizedStatus === 'ERROR' || normalizedStatus === 'FAILED');
+              const normalizedStatus =
+                typeof block?.status === "string"
+                  ? block.status.toUpperCase()
+                  : "";
+              const isFailed =
+                !isEvaluated &&
+                (normalizedStatus === "ERROR" || normalizedStatus === "FAILED");
 
-              let borderBgClass = 'border-border/60 bg-surface/50 text-text-muted';
+              let borderBgClass =
+                "border-border/60 bg-surface/50 text-text-muted";
               if (isEvaluated) {
-                borderBgClass = 'border-success/30 bg-surface text-text';
+                borderBgClass = "border-success/30 bg-surface text-text";
               } else if (isFailed) {
-                borderBgClass = 'border-destructive/30 bg-surface text-text';
+                borderBgClass = "border-destructive/30 bg-surface text-text";
               }
 
               return (
                 <div
                   key={domainId}
                   className={cn(
-                    'rounded-sm border p-2.5 flex flex-col justify-between transition-colors',
+                    "rounded-sm border p-2.5 flex flex-col justify-between transition-colors",
                     borderBgClass,
                   )}
                 >
@@ -191,7 +223,10 @@ export function MonitoringMatrixRow({
                     </span>
                     {isEvaluated ? (
                       <span className="text-[10px] font-bold text-success bg-success-soft px-1.5 py-0.5 rounded-xs">
-                        Evaluated
+                        {block?.contract === "itso_evidence.v1" &&
+                        !block.scoring_complete
+                          ? "Execution complete · unscored"
+                          : "Evaluated"}
                       </span>
                     ) : isFailed ? (
                       <span className="text-[10px] font-bold text-destructive bg-destructive-soft px-1.5 py-0.5 rounded-xs">
@@ -211,7 +246,10 @@ export function MonitoringMatrixRow({
                           ? `${domainShortLabel(domainId)} Failed`
                           : `${domainShortLabel(domainId)} Pending`}
                     </span>
-                    {isEvaluated && block && block.max_score != null && Number.isFinite(block.max_score) ? (
+                    {isEvaluated &&
+                    block &&
+                    block.max_score != null &&
+                    Number.isFinite(block.max_score) ? (
                       <span className="text-[11px] text-text-muted">
                         / {formatDomainScore(block.max_score)}
                       </span>
@@ -239,7 +277,9 @@ export function MonitoringMatrixRow({
             {row.flag_count > 0 && (
               <div className="flex items-center gap-1 text-warning font-semibold">
                 <Warning className="size-3.5" aria-hidden="true" />
-                <span>{row.flag_count} issue flag{row.flag_count > 1 ? 's' : ''}</span>
+                <span>
+                  {row.flag_count} issue flag{row.flag_count > 1 ? "s" : ""}
+                </span>
               </div>
             )}
           </div>

@@ -33,12 +33,12 @@ const domain: DomainScoreBlock = {
     objective_matches: [{ objective_id: 'OBJ-0001', objective_text: 'An objective.', matched: false, excerpt: '', rejected: false }],
   },
 };
-function renderScoreboard(block: DomainScoreBlock) {
+function renderScoreboard(block: DomainScoreBlock, agent: 'coordinator' | 'itso' = 'coordinator') {
   render(<EvaluationResultsView evaluation={{ evaluation_id: "evaluation", document_id: "document", submitted_at: "2026-10-05" }}
     results={{ evaluation_id: 'evaluation', document_id: 'document', synthesized_score: 97.5,
       domain_scores: { coordinator: block }, flags: [], active_agents: ['coordinator'],
       failed_agents: [], is_partial: false, evaluation_status: 'COMPLETED' }}
-    domainScore={block} meta={TARGET_AGENT_META.coordinator} validAgent="coordinator"
+    domainScore={block} meta={TARGET_AGENT_META[agent]} validAgent={agent}
     activeItem={null} activeDocument={null} onOpenReviewModal={vi.fn()} onOpenReevaluateModal={vi.fn()}
   />);
 }
@@ -198,4 +198,104 @@ describe('Coordinator result separation', () => {
     expect(row.queryByRole('region', { name: 'LEGACY-1 SLM evidence' })).toBeNull();
   });
 
+});
+
+describe('Concise specialist findings and evidence limits', () => {
+  const itsoDomain: DomainScoreBlock = {
+    subtotal: 3.5, max_score: 4, status: 'OK', summary: 'Review rights and permissions.',
+    criteria: [
+      { criterion_id: 'ITSO-04', criterion_text: 'Student confidentiality', score: 4, justification: 'No concern detected in reviewed excerpts.', evidence: '[]' },
+      { criterion_id: 'ITSO-05', criterion_text: 'Teacher and student rights', score: 3, justification: 'Permissions remain unverified.', evidence: '   ' },
+    ],
+  };
+
+  it('replaces empty serialized evidence with explicit limits and reflects them in the summary', () => {
+    renderScoreboard(itsoDomain, 'itso');
+    expect(screen.getByText('No SLM quotations recorded: ITSO-04, ITSO-05. See each finding for review limits.')).toBeDefined();
+    for (const title of ['Student confidentiality', 'Teacher and student rights']) {
+      const row = screen.getByText(title).closest('details')!;
+      fireEvent.click(row.querySelector('summary')!);
+      expect(row.querySelector('blockquote')).toBeNull();
+    }
+    expect(screen.getByText('No SLM quotation was recorded for the confidentiality check. This does not confirm that the entire module is clear.')).toBeDefined();
+    expect(screen.getByText('No SLM quotation establishes teacher/student permissions or protections. Confirm these provisions during review.')).toBeDefined();
+  });
+
+  it('shows full saved narratives and source receipts on demand without truncating quoted evidence', () => {
+    const justification = 'Verification remains incomplete. ' + 'Reference details require review. '.repeat(30) + 'Source: https://example.org/complete-receipt';
+    const summary = 'Ownership remains provisional. ' + 'Reference coverage is incomplete. '.repeat(30) + 'Final summary limit.';
+    renderScoreboard({ ...domain, summary, criteria: [{ ...domain.criteria[0], justification, evidence: '["Actual SLM passage."]' }] });
+    const row = screen.getByText('Criterion 1').closest('details')!;
+    fireEvent.click(row.querySelector('summary')!);
+    expect(row.textContent).not.toContain('https://example.org/complete-receipt');
+    expect(row.querySelector('blockquote')!.textContent).toBe('“Actual SLM passage.”');
+    expect(screen.queryByText(/No SLM quotations recorded:/)).toBeNull();
+    const findingButton = within(row).getByRole('button', { name: 'Show full finding and source checks' });
+    expect(findingButton.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(findingButton);
+    expect(within(row).getByText(justification)).toBeDefined();
+    expect(findingButton.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById(findingButton.getAttribute('aria-controls')!)!.textContent).toBe(justification);
+    expect(screen.queryByText(summary)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show full summary' }));
+    expect(screen.getByText(summary)).toBeDefined();
+    fireEvent.click(within(row).getByRole('button', { name: 'Show less' }));
+    expect(row.textContent).not.toContain('https://example.org/complete-receipt');
+    expect(document.querySelector('details details')).toBeNull();
+  });
+
+  it('keeps missing quotation notices visible when no model summary was saved', () => {
+    renderScoreboard({ ...itsoDomain, summary: '' }, 'itso');
+    expect(screen.getByText('Specialist summary')).toBeDefined();
+    expect(screen.getByText(/No SLM quotations recorded: ITSO-04, ITSO-05/)).toBeDefined();
+  });
+
+  it('labels permitted unquoted ITSO findings without asking for nonexistent quotation evidence', () => {
+    const block: DomainScoreBlock = { ...itsoDomain, criteria: [
+      { ...itsoDomain.criteria[0], is_ungrounded: true, evidence_status: 'no_concern_detected' },
+      { ...itsoDomain.criteria[1], is_ungrounded: true, evidence_status: 'rights_unverified' },
+    ] };
+    renderScoreboard(block, 'itso');
+    for (const title of ['Student confidentiality', 'Teacher and student rights']) {
+      const row = screen.getByText(title).closest('details')!;
+      fireEvent.click(row.querySelector('summary')!);
+      expect(within(row).queryByText('Check evidence')).toBeNull();
+      expect(within(row).queryByText('Evidence requires reviewer confirmation.')).toBeNull();
+      expect(row.querySelector('blockquote')).toBeNull();
+    }
+    expect(screen.getByText('No concern detected in reviewed text')).toBeDefined();
+    expect(screen.getByText('Rights unverified')).toBeDefined();
+    expect(screen.getByText('Rights and permissions remain unverified from the reviewed text. This score is provisional.')).toBeDefined();
+    expect(screen.getByText('Confidentiality: no concern detected in reviewed text. Rights and permissions: unverified.')).toBeDefined();
+    expect(screen.queryByText(/No SLM quotations recorded:/)).toBeNull();
+  });
+
+  it('retains evidence warnings for unsupported scores and missing reasoning', () => {
+    renderScoreboard({ ...itsoDomain, criteria: [
+      { ...itsoDomain.criteria[0], score: 2, is_ungrounded: true, evidence_status: 'no_concern_detected' },
+      { ...itsoDomain.criteria[1], justification: '', is_ungrounded: true, evidence_status: 'rights_unverified' },
+    ] }, 'itso');
+    expect(screen.getAllByText('Check evidence')).toHaveLength(2);
+    expect(screen.queryByText('Rights unverified')).toBeNull();
+  });
+
+  it('shows a plain ITSO finding with source links and actual page passages separately', () => {
+    const finding = 'Originality could not be confirmed from the available sources.';
+    const note = 'Readable text was found for two of five references. Author and year details remain unconfirmed.';
+    const excerpt = 'The retrieved page describes the fundamentals of human-computer interaction.';
+    renderScoreboard({ ...itsoDomain, criteria: [{
+      criterion_id: 'ITSO-01', criterion_text: 'Originality', score: 3, justification: finding,
+      evidence: '["A real module quotation."]', reference_check_note: note,
+      public_sources: [{ number: 3, title: 'Human-Computer Interaction', url: 'https://example.org/book', excerpt }],
+    }] }, 'itso');
+    const row = screen.getByText('Originality').closest('details')!;
+    fireEvent.click(row.querySelector('summary')!);
+    expect(within(row).getByText(finding).textContent).toBe(finding);
+    expect(within(row).getByText(note)).toBeDefined();
+    expect(within(row).getByRole('link', { name: 'Source 3: Human-Computer Interaction' }).getAttribute('href')).toBe('https://example.org/book');
+    expect(within(row).getByRole('region', { name: 'ITSO-01 source 3 passage' }).textContent).toBe(excerpt);
+    expect(within(row).getByRole('region', { name: 'ITSO-01 SLM evidence' }).textContent).toContain('A real module quotation.');
+    expect(within(row).queryByRole('button', { name: 'Show full finding and source checks' })).toBeNull();
+    expect(row.textContent).not.toContain('Tool-derived');
+  });
 });

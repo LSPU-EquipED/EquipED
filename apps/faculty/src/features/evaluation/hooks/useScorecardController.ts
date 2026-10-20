@@ -40,10 +40,12 @@ export function useScorecardController() {
 
   const {
     data: results,
+    assessment,
+    isAssessmentPending,
     isLoading: isLoadingResults,
     isError: isResultsError,
     refetch: refetchResults,
-  } = useEvaluationResults(id, evaluation?.status);
+  } = useEvaluationResults(id, evaluation?.status, evaluation?.target_agent);
 
   const isPartial = Boolean(
     results?.is_partial || evaluation?.partial_without_curriculum,
@@ -156,6 +158,8 @@ export function useScorecardController() {
     isLoading,
     isError,
     results,
+    assessment,
+    isAssessmentPending,
     isLoadingResults,
     isResultsError,
     refetchResults,

@@ -9,6 +9,11 @@ import {
 import { useSubmitEvaluation } from "./useSubmitEvaluation";
 import { buildEvaluationSubmitPayload } from "../utils/setupState";
 
+const ITSO_SETUP_ERRORS: Record<string, string> = {
+  verification_disabled:
+    "Online reference search is disabled on the server. ITSO evaluation cannot start.",
+};
+
 export interface EvaluationSetupOptions {
   documentId: string;
   detectedProgram: string | null;
@@ -72,6 +77,9 @@ export function useEvaluationSetup({
       },
     );
   };
+  const submissionError = submission.error
+    ? getErrorMessage(submission.error, "Unable to submit evaluation.")
+    : null;
   return {
     meta,
     program,
@@ -88,9 +96,10 @@ export function useEvaluationSetup({
     canSubmit,
     isPending: submission.isPending,
     submit,
-    error: submission.error
-      ? getErrorMessage(submission.error, "Unable to submit evaluation.")
-      : null,
+    error:
+      targetAgent === "itso" && submissionError
+        ? (ITSO_SETUP_ERRORS[submissionError] ?? submissionError)
+        : submissionError,
   };
 }
 export type EvaluationSetupState = ReturnType<typeof useEvaluationSetup>;

@@ -1,20 +1,30 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
-import type { UseQueryResult } from '@tanstack/react-query';
-import React from 'react';
-import { MasterSynthesisPage } from '../MasterSynthesisPage';
-import * as useMasterSynthesisDetailModule from '../../hooks/useMasterSynthesisDetail';
-import type { MasterSynthesisDetailResponse } from '../../types';
-import { downloadApprovalSheetPdf } from '../../utils/approvalSheetPdf';
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
+import type { UseQueryResult } from "@tanstack/react-query";
+import React from "react";
+// The owned v2 workflows have separate fake-HTTP integration coverage.
+import { MasterSynthesisPage } from "../MasterSynthesisPage";
+import * as useMasterSynthesisDetailModule from "../../hooks/useMasterSynthesisDetail";
+import type { MasterSynthesisDetailResponse } from "../../types";
+import { downloadApprovalSheetPdf } from "../../utils/approvalSheetPdf";
 
-vi.mock('../../utils/approvalSheetPdf', () => ({ downloadApprovalSheetPdf: vi.fn() }));
+vi.mock("../../utils/approvalSheetPdf", () => ({
+  downloadApprovalSheetPdf: vi.fn(),
+}));
 
 const mockNavigate = vi.fn();
 
-vi.mock('@tanstack/react-router', () => ({
+vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
-  useParams: () => ({ documentId: 'doc-456' }),
+  useParams: () => ({ documentId: "doc-456" }),
   Link: ({
     to,
     children,
@@ -31,127 +41,133 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 const mockSynthesisDetail: MasterSynthesisDetailResponse = {
-  document_id: 'doc-456',
-  document_title: 'Advanced Operating Systems Module',
-  course_code: 'CS401',
-  program: 'BSCS',
+  document_id: "doc-456",
+  document_title: "Advanced Operating Systems Module",
+  course_code: "CS401",
+  program: "BSCS",
   author: {
-    user_id: 'user-author-1',
-    name: 'Dr. Alan Turing',
-    email: 'alan.turing@university.edu',
-    department: 'Department of Computer Science',
+    user_id: "user-author-1",
+    name: "Dr. Alan Turing",
+    email: "alan.turing@university.edu",
+    department: "Department of Computer Science",
   },
   synthesized_score: 90.75,
-  adjectival_rating: 'Very Satisfactory',
-  evaluation_status: 'COMPLETED',
-  last_updated: '2026-06-01T14:30:00Z',
+  adjectival_rating: "Very Satisfactory",
+  evaluation_status: "COMPLETED",
+  last_updated: "2026-06-01T14:30:00Z",
   pillars: {
     sme: {
       weight: 0.35,
       subtotal: 3.8,
-      status: 'COMPLETED',
+      status: "COMPLETED",
       criteria: [
         {
-          criterion_id: 'SME-1',
-          criterion_text: 'Topical and Technical Rigor',
-          description: 'Depth of concurrency and memory virtualization principles',
+          criterion_id: "SME-1",
+          criterion_text: "Topical and Technical Rigor",
+          description:
+            "Depth of concurrency and memory virtualization principles",
           score: 4,
-          justification: 'Exemplary coverage of thread synchronization primitives.',
-          evidence: 'Section 3.2 diagrams accurately depict semaphore invariants.',
+          justification:
+            "Exemplary coverage of thread synchronization primitives.",
+          evidence:
+            "Section 3.2 diagrams accurately depict semaphore invariants.",
         },
       ],
-      summary: 'Comprehensive pedagogical treatment of systems programming.',
+      summary: "Comprehensive pedagogical treatment of systems programming.",
       evaluator: {
-        user_id: 'user-eval-sme',
-        name: 'Dr. Evelyn Reed',
-        email: 'evelyn.reed@university.edu',
-        department: 'Systems Engineering',
+        user_id: "user-eval-sme",
+        name: "Dr. Evelyn Reed",
+        email: "evelyn.reed@university.edu",
+        department: "Systems Engineering",
       },
     },
     coordinator: {
-      weight: 0.30,
+      weight: 0.3,
       subtotal: 3.5,
-      status: 'COMPLETED',
+      status: "COMPLETED",
       criteria: [
         {
-          criterion_id: 'PC-1',
-          criterion_text: 'Syllabus Alignment & Credit Hours',
-          description: 'Topic mapping matches 14-week curriculum schedule',
+          criterion_id: "PC-1",
+          criterion_text: "Syllabus Alignment & Credit Hours",
+          description: "Topic mapping matches 14-week curriculum schedule",
           score: 3,
-          justification: 'Aligned well with CLO 2 and CLO 4.',
-          evidence: 'Module syllabus mapping table in Appendix B.',
+          justification: "Aligned well with CLO 2 and CLO 4.",
+          evidence: "Module syllabus mapping table in Appendix B.",
         },
       ],
-      summary: 'Meets program requirements with solid schedule alignment.',
+      summary: "Meets program requirements with solid schedule alignment.",
       evaluator: {
-        user_id: 'user-eval-pc',
-        name: 'Prof. Marcus Vance',
-        email: 'marcus.vance@university.edu',
-        department: 'Computer Science Curriculum Committee',
+        user_id: "user-eval-pc",
+        name: "Prof. Marcus Vance",
+        email: "marcus.vance@university.edu",
+        department: "Computer Science Curriculum Committee",
       },
     },
     gad: {
-      weight: 0.20,
+      weight: 0.2,
       subtotal: 3.7,
-      status: 'COMPLETED',
+      status: "COMPLETED",
       criteria: [
         {
-          criterion_id: 'GAD-1',
-          criterion_text: 'Gender-Fair Language & Inclusivity',
-          description: 'Non-discriminatory framing and diverse examples',
+          criterion_id: "GAD-1",
+          criterion_text: "Gender-Fair Language & Inclusivity",
+          description: "Non-discriminatory framing and diverse examples",
           score: 4,
-          justification: 'Adheres strictly to CHED GAD guidelines.',
-          evidence: 'Equal gender representation in historical case studies.',
+          justification: "Adheres strictly to CHED GAD guidelines.",
+          evidence: "Equal gender representation in historical case studies.",
         },
       ],
-      summary: 'Excellent adherence to inclusive curriculum guidelines.',
+      summary: "Excellent adherence to inclusive curriculum guidelines.",
       evaluator: {
-        user_id: 'user-eval-gad',
-        name: 'Dr. Patricia Chen',
-        email: 'patricia.chen@university.edu',
-        department: 'Gender and Development Focal Point',
+        user_id: "user-eval-gad",
+        name: "Dr. Patricia Chen",
+        email: "patricia.chen@university.edu",
+        department: "Gender and Development Focal Point",
       },
     },
     itso: {
       weight: 0.15,
       subtotal: 3.4,
-      status: 'COMPLETED',
+      status: "COMPLETED",
       criteria: [
         {
-          criterion_id: 'ITSO-1',
-          criterion_text: 'Copyright & Citation Integrity',
-          description: 'Attribution for third-party figures and open-source licenses',
+          criterion_id: "ITSO-1",
+          criterion_text: "Copyright & Citation Integrity",
+          description:
+            "Attribution for third-party figures and open-source licenses",
           score: 3,
-          justification: 'All diagram licenses verified with attribution footnotes.',
-          evidence: 'Creative Commons CC-BY attribution noted on page 14.',
+          justification:
+            "All diagram licenses verified with attribution footnotes.",
+          evidence: "Creative Commons CC-BY attribution noted on page 14.",
         },
       ],
-      summary: 'IP and citation compliance verified with minor formatting notes.',
+      summary:
+        "IP and citation compliance verified with minor formatting notes.",
       evaluator: {
-        user_id: 'user-eval-itso',
-        name: 'Atty. Sofia Ramos',
-        email: 'sofia.ramos@university.edu',
-        department: 'Innovation and Technology Support Office',
+        user_id: "user-eval-itso",
+        name: "Atty. Sofia Ramos",
+        email: "sofia.ramos@university.edu",
+        department: "Innovation and Technology Support Office",
       },
     },
   },
   flags: [
     {
-      flag_id: 'flag-101',
-      evaluation_id: 'eval-456',
-      agent_id: 'itso',
-      criterion_id: 'ITSO-1',
-      criterion_text: 'Copyright & Citation Integrity',
+      flag_id: "flag-101",
+      evaluation_id: "eval-456",
+      agent_id: "itso",
+      criterion_id: "ITSO-1",
+      criterion_text: "Copyright & Citation Integrity",
       score: 3,
-      justification: 'Verify license badge resolution on diagram 4',
+      justification: "Verify license badge resolution on diagram 4",
       chunk_id: null,
-      message: 'License icon slightly low resolution in print view',
+      message: "License icon slightly low resolution in print view",
     },
   ],
   can_certify: true,
 };
 
-describe('MasterSynthesisPage', () => {
+describe("MasterSynthesisPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -160,8 +176,11 @@ describe('MasterSynthesisPage', () => {
     cleanup();
   });
 
-  it('renders loading skeleton when detail is loading', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("renders loading skeleton when detail is loading", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
@@ -169,12 +188,15 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    expect(screen.getByTestId('master-synthesis-loading')).toBeDefined();
+    expect(screen.getByTestId("master-synthesis-loading")).toBeDefined();
   });
 
-  it('renders error state with retry and back link on failure', () => {
+  it("renders error state with retry and back link on failure", () => {
     const mockRefetch = vi.fn();
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
@@ -183,16 +205,21 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    expect(screen.getByTestId('master-synthesis-error')).toBeDefined();
-    expect(screen.getByText(/Unable to Load Master Synthesis Scorecard/i)).toBeDefined();
+    expect(screen.getByTestId("master-synthesis-error")).toBeDefined();
+    expect(
+      screen.getByText(/Unable to Load Master Synthesis Scorecard/i),
+    ).toBeDefined();
 
-    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    const retryBtn = screen.getByRole("button", { name: /retry/i });
     fireEvent.click(retryBtn);
     expect(mockRefetch).toHaveBeenCalled();
   });
 
-  it('renders executive header with document metadata and course details', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("renders executive header with document metadata and course details", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -201,15 +228,76 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    expect(screen.getByText('Advanced Operating Systems Module')).toBeDefined();
-    expect(screen.getByText('BSCS')).toBeDefined();
-    expect(screen.getByText('Course: CS401')).toBeDefined();
-    expect(screen.getAllByText('COMPLETED').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Advanced Operating Systems Module")).toBeDefined();
+    expect(screen.getByText("BSCS")).toBeDefined();
+    expect(screen.getByText("Course: CS401")).toBeDefined();
+    expect(screen.getAllByText("COMPLETED").length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders COMPLETED_PARTIAL status badge with warning variant in header', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
-      data: { ...mockSynthesisDetail, evaluation_status: 'COMPLETED_PARTIAL' },
+  it("passes the server v2 ITSO pillar through the master-detail contract without coercion", () => {
+    const v2Pillar = {
+      contract: "itso_evidence.v1" as const,
+      evaluation_id: "itso-run-1",
+      weight: 0.15,
+      subtotal: null,
+      status: "COMPLETED",
+      execution_status: "COMPLETED" as const,
+      scoring_complete: false,
+      scored_count: 0,
+      unscored_count: 5,
+      issue_count: 1,
+      uncertainty_count: 2,
+      max_score: 4 as const,
+      adjectival_rating: null,
+      summary: "",
+      evaluator: null,
+      criteria: ["ITSO-01", "ITSO-02", "ITSO-03", "ITSO-04", "ITSO-05"].map(
+        (criterion_id) => ({
+          criterion_id: criterion_id as
+            "ITSO-01" | "ITSO-02" | "ITSO-03" | "ITSO-04" | "ITSO-05",
+          applicability: "unknown" as const,
+          applicability_reason: "Context requires authorized review",
+          evidence_state: "none_supplied_or_located" as const,
+          verification: "unverified" as const,
+          evidence: [],
+          concerns: [],
+          uncertainties: [],
+          score: null,
+          score_withheld_reason: "Insufficient authoritative evidence",
+          rule_version: null,
+        }),
+      ),
+    };
+    const detail: MasterSynthesisDetailResponse = {
+      ...mockSynthesisDetail,
+      pillars: { ...mockSynthesisDetail.pillars, itso: v2Pillar },
+      synthesized_score: null,
+      adjectival_rating: null,
+      can_certify: false,
+    };
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
+      data: detail,
+      isLoading: false,
+      isError: false,
+    } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
+
+    render(<MasterSynthesisPage />);
+    fireEvent.click(screen.getByTestId("pillar-card-itso"));
+
+    expect(screen.getByText("Rubric criteria assessment")).toBeTruthy();
+    expect(screen.getAllByText("— / 4")).toHaveLength(5);
+    expect(screen.queryByText("Copyright & Citation Integrity")).toBeNull();
+  });
+
+  it("renders COMPLETED_PARTIAL status badge with warning variant in header", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
+      data: { ...mockSynthesisDetail, evaluation_status: "COMPLETED_PARTIAL" },
       isLoading: false,
       isError: false,
       refetch: vi.fn(),
@@ -217,14 +305,17 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const badge = screen.getByText('COMPLETED PARTIAL');
+    const badge = screen.getByText("COMPLETED PARTIAL");
     expect(badge).toBeDefined();
-    expect(badge.className).toContain('bg-warning-soft');
-    expect(badge.className).toContain('text-warning');
+    expect(badge.className).toContain("bg-warning-soft");
+    expect(badge.className).toContain("text-warning");
   });
 
-  it('renders composite score banner with rating and pillar convergence progress pill', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("renders composite score banner with rating and pillar convergence progress pill", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -232,33 +323,45 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const banner = screen.getByTestId('composite-score-banner');
+    const banner = screen.getByTestId("composite-score-banner");
     expect(banner).toBeDefined();
-    expect(within(banner).getByText('90.75%')).toBeDefined();
+    expect(within(banner).getByText("90.75%")).toBeDefined();
     expect(within(banner).queryByText(/\/ 4\.00/)).toBeNull();
     expect(screen.getAllByText(/\/ 4.00/).length).toBeGreaterThan(0);
-    expect(screen.getByText('Very Satisfactory')).toBeDefined();
-    expect(screen.getByTestId('pillar-progress-pill').textContent).toContain('4/4 Pillars Complete');
+    expect(screen.getByText("Very Satisfactory")).toBeDefined();
+    expect(screen.getByTestId("pillar-progress-pill").textContent).toContain(
+      "4/4 Pillars Complete",
+    );
   });
 
-  it('shows a synthesized score of 79 as a percentage, not a four-point score', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
-      data: { ...mockSynthesisDetail, synthesized_score: 79, adjectival_rating: 'Satisfactory' },
+  it("shows a synthesized score of 79 as a percentage, not a four-point score", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
+      data: {
+        ...mockSynthesisDetail,
+        synthesized_score: 79,
+        adjectival_rating: "Satisfactory",
+      },
       isLoading: false,
       isError: false,
     } as unknown as UseQueryResult<MasterSynthesisDetailResponse, Error>);
 
     render(<MasterSynthesisPage />);
 
-    const banner = within(screen.getByTestId('composite-score-banner'));
-    expect(banner.getByText('Overall weighted score')).toBeDefined();
-    expect(banner.getByText('79%')).toBeDefined();
+    const banner = within(screen.getByTestId("composite-score-banner"));
+    expect(banner.getByText("Overall weighted score")).toBeDefined();
+    expect(banner.getByText("79%")).toBeDefined();
     expect(banner.queryByText(/\/ 4\.00/)).toBeNull();
     expect(screen.getAllByText(/\/ 4\.00/).length).toBeGreaterThan(0);
   });
 
-  it('renders 4-pillar executive strip with evaluator signature chips', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("renders 4-pillar executive strip with evaluator signature chips", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -266,24 +369,26 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const strip = screen.getByTestId('four-pillar-executive-strip');
+    const strip = screen.getByTestId("four-pillar-executive-strip");
     expect(strip).toBeDefined();
 
     // 4 domain cards
-    expect(screen.getByTestId('pillar-card-sme')).toBeDefined();
-    expect(screen.getByTestId('pillar-card-coordinator')).toBeDefined();
-    expect(screen.getByTestId('pillar-card-gad')).toBeDefined();
-    expect(screen.getByTestId('pillar-card-itso')).toBeDefined();
+    expect(screen.getByTestId("pillar-card-sme")).toBeDefined();
+    expect(screen.getByTestId("pillar-card-coordinator")).toBeDefined();
+    expect(screen.getByTestId("pillar-card-gad")).toBeDefined();
+    expect(screen.getByTestId("pillar-card-itso")).toBeDefined();
 
     // Evaluator signature chips
-    expect(screen.getByTestId('evaluator-chip-sme')).toBeDefined();
-    expect(screen.getAllByText(/Evaluated by: Dr. Evelyn Reed/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId("evaluator-chip-sme")).toBeDefined();
+    expect(
+      screen.getAllByText(/Evaluated by: Dr. Evelyn Reed/i).length,
+    ).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Evaluated by: Prof. Marcus Vance/i)).toBeDefined();
     expect(screen.getByText(/Evaluated by: Dr. Patricia Chen/i)).toBeDefined();
     expect(screen.getByText(/Evaluated by: Atty. Sofia Ramos/i)).toBeDefined();
   });
 
-  it('displays dynamic pillar weights from data response instead of hardcoded constants', () => {
+  it("displays dynamic pillar weights from data response instead of hardcoded constants", () => {
     const customWeightsData: MasterSynthesisDetailResponse = {
       ...mockSynthesisDetail,
       pillars: {
@@ -307,7 +412,10 @@ describe('MasterSynthesisPage', () => {
       },
     };
 
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: customWeightsData,
       isLoading: false,
       isError: false,
@@ -315,13 +423,21 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    expect(screen.getByTestId('pillar-card-sme').textContent).toContain('40% weight');
-    expect(screen.getByTestId('pillar-card-coordinator').textContent).toContain('30% weight');
-    expect(screen.getByTestId('pillar-card-gad').textContent).toContain('20% weight');
-    expect(screen.getByTestId('pillar-card-itso').textContent).toContain('10% weight');
+    expect(screen.getByTestId("pillar-card-sme").textContent).toContain(
+      "40% weight",
+    );
+    expect(screen.getByTestId("pillar-card-coordinator").textContent).toContain(
+      "30% weight",
+    );
+    expect(screen.getByTestId("pillar-card-gad").textContent).toContain(
+      "20% weight",
+    );
+    expect(screen.getByTestId("pillar-card-itso").textContent).toContain(
+      "10% weight",
+    );
   });
 
-  it('displays awaiting review chip when a pillar is not yet evaluated', () => {
+  it("displays awaiting review chip when a pillar is not yet evaluated", () => {
     const partialData: MasterSynthesisDetailResponse = {
       ...mockSynthesisDetail,
       synthesized_score: null,
@@ -332,15 +448,18 @@ describe('MasterSynthesisPage', () => {
         itso: {
           weight: 0.15,
           subtotal: null,
-          status: 'PENDING',
+          status: "PENDING",
           criteria: [],
-          summary: '',
+          summary: "",
           evaluator: null,
         },
       },
     };
 
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: partialData,
       isLoading: false,
       isError: false,
@@ -348,12 +467,17 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    expect(screen.getByTestId('awaiting-review-itso')).toBeDefined();
-    expect(screen.getByTestId('pillar-progress-pill').textContent).toContain('3/4 Pillars Complete');
+    expect(screen.getByTestId("awaiting-review-itso")).toBeDefined();
+    expect(screen.getByTestId("pillar-progress-pill").textContent).toContain(
+      "3/4 Pillars Complete",
+    );
   });
 
-  it('supports tabbed pillar inspection to view criteria, justification, evidence, and flags', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("supports tabbed pillar inspection to view criteria, justification, evidence, and flags", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -362,25 +486,42 @@ describe('MasterSynthesisPage', () => {
     render(<MasterSynthesisPage />);
 
     // Default active tab is SME
-    expect(screen.getByTestId('tab-content-sme')).toBeDefined();
-    expect(screen.getByText('Topical and Technical Rigor')).toBeDefined();
-    expect(screen.getByText('Exemplary coverage of thread synchronization primitives.')).toBeDefined();
-    expect(screen.getByText('"Section 3.2 diagrams accurately depict semaphore invariants."')).toBeDefined();
+    expect(screen.getByTestId("tab-content-sme")).toBeDefined();
+    expect(screen.getByText("Topical and Technical Rigor")).toBeDefined();
+    expect(
+      screen.getByText(
+        "Exemplary coverage of thread synchronization primitives.",
+      ),
+    ).toBeDefined();
+    expect(
+      screen.getByText(
+        '"Section 3.2 diagrams accurately depict semaphore invariants."',
+      ),
+    ).toBeDefined();
 
     // Switch to ITSO tab
-    const itsoTabBtn = screen.getByTestId('pillar-card-itso');
+    const itsoTabBtn = screen.getByTestId("pillar-card-itso");
     fireEvent.click(itsoTabBtn);
 
-    expect(screen.getByTestId('tab-content-itso')).toBeDefined();
-    expect(screen.getByText('Copyright & Citation Integrity')).toBeDefined();
-    expect(screen.getByText('All diagram licenses verified with attribution footnotes.')).toBeDefined();
+    expect(screen.getByTestId("tab-content-itso")).toBeDefined();
+    expect(screen.getByText("Copyright & Citation Integrity")).toBeDefined();
+    expect(
+      screen.getByText(
+        "All diagram licenses verified with attribution footnotes.",
+      ),
+    ).toBeDefined();
 
     // Verify ITSO flag is displayed
-    expect(screen.getByText(/License icon slightly low resolution in print view/i)).toBeDefined();
+    expect(
+      screen.getByText(/License icon slightly low resolution in print view/i),
+    ).toBeDefined();
   });
 
-  it('renders accreditation signatory block with read-only clearance status', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("renders accreditation signatory block with read-only clearance status", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -388,21 +529,28 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const signatoryBlock = screen.getByTestId('accreditation-signatory-block');
+    const signatoryBlock = screen.getByTestId("accreditation-signatory-block");
     expect(signatoryBlock).toBeDefined();
-    expect(screen.getByText(/Director, Center for Instructional Development/i)).toBeDefined();
+    expect(
+      screen.getByText(/Director, Center for Instructional Development/i),
+    ).toBeDefined();
 
-    const indicator = screen.getByTestId('certify-readiness-indicator');
+    const indicator = screen.getByTestId("certify-readiness-indicator");
     expect(indicator).toBeDefined();
-    expect(indicator.textContent).toContain('Accreditation Sign-off Ready (Read-only)');
+    expect(indicator.textContent).toContain(
+      "Accreditation Sign-off Ready (Read-only)",
+    );
     expect(screen.getByText(/Ready for Sign-off/i)).toBeDefined();
-    expect(screen.queryByTestId('certify-button')).toBeNull();
+    expect(screen.queryByTestId("certify-button")).toBeNull();
     expect(screen.queryByText(/Certified for Accreditation/i)).toBeNull();
     expect(screen.queryByText(/Accreditation Sealed/i)).toBeNull();
   });
 
-  it('provides accessible tablist navigation with roving tabindex and keyboard controls', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("provides accessible tablist navigation with roving tabindex and keyboard controls", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -410,58 +558,63 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const tablist = screen.getByRole('tablist', { name: /Specialist desks/i });
+    const tablist = screen.getByRole("tablist", { name: /Specialist desks/i });
     expect(tablist).toBeDefined();
 
-    const smeTab = screen.getByRole('tab', { name: /Content Accuracy/i });
-    const coordTab = screen.getByRole('tab', { name: /Curriculum Alignment/i });
-    const gadTab = screen.getByRole('tab', { name: /Gender & Inclusivity/i });
-    const itsoTab = screen.getByRole('tab', { name: /Citations & IP/i });
+    const smeTab = screen.getByRole("tab", { name: /Content Accuracy/i });
+    const coordTab = screen.getByRole("tab", { name: /Curriculum Alignment/i });
+    const gadTab = screen.getByRole("tab", { name: /Gender & Inclusivity/i });
+    const itsoTab = screen.getByRole("tab", { name: /Citations & IP/i });
 
     // Initial state: SME selected
-    expect(smeTab.getAttribute('aria-selected')).toBe('true');
-    expect(smeTab.getAttribute('tabindex')).toBe('0');
-    expect(coordTab.getAttribute('aria-selected')).toBe('false');
-    expect(coordTab.getAttribute('tabindex')).toBe('-1');
+    expect(smeTab.getAttribute("aria-selected")).toBe("true");
+    expect(smeTab.getAttribute("tabindex")).toBe("0");
+    expect(coordTab.getAttribute("aria-selected")).toBe("false");
+    expect(coordTab.getAttribute("tabindex")).toBe("-1");
 
     // Tabpanel linkage
-    const panel = screen.getByRole('tabpanel');
-    expect(panel.getAttribute('id')).toBe('tab-content-sme');
-    expect(panel.getAttribute('aria-labelledby')).toBe('pillar-tab-sme');
-    expect(smeTab.getAttribute('aria-controls')).toBe('tab-content-sme');
+    const panel = screen.getByRole("tabpanel");
+    expect(panel.getAttribute("id")).toBe("tab-content-sme");
+    expect(panel.getAttribute("aria-labelledby")).toBe("pillar-tab-sme");
+    expect(smeTab.getAttribute("aria-controls")).toBe("tab-content-sme");
 
     // Arrow navigation: Right/Down moves to next tab
-    fireEvent.keyDown(smeTab, { key: 'ArrowRight' });
-    expect(coordTab.getAttribute('aria-selected')).toBe('true');
-    expect(coordTab.getAttribute('tabindex')).toBe('0');
-    expect(smeTab.getAttribute('aria-selected')).toBe('false');
-    expect(smeTab.getAttribute('tabindex')).toBe('-1');
-    expect(screen.getByRole('tabpanel').getAttribute('id')).toBe('tab-content-coordinator');
+    fireEvent.keyDown(smeTab, { key: "ArrowRight" });
+    expect(coordTab.getAttribute("aria-selected")).toBe("true");
+    expect(coordTab.getAttribute("tabindex")).toBe("0");
+    expect(smeTab.getAttribute("aria-selected")).toBe("false");
+    expect(smeTab.getAttribute("tabindex")).toBe("-1");
+    expect(screen.getByRole("tabpanel").getAttribute("id")).toBe(
+      "tab-content-coordinator",
+    );
 
     // Arrow navigation: Down moves to GAD
-    fireEvent.keyDown(coordTab, { key: 'ArrowDown' });
-    expect(gadTab.getAttribute('aria-selected')).toBe('true');
-    expect(gadTab.getAttribute('tabindex')).toBe('0');
+    fireEvent.keyDown(coordTab, { key: "ArrowDown" });
+    expect(gadTab.getAttribute("aria-selected")).toBe("true");
+    expect(gadTab.getAttribute("tabindex")).toBe("0");
 
     // Arrow navigation: Left/Up moves backwards
-    fireEvent.keyDown(gadTab, { key: 'ArrowLeft' });
-    expect(coordTab.getAttribute('aria-selected')).toBe('true');
-    fireEvent.keyDown(coordTab, { key: 'ArrowUp' });
-    expect(smeTab.getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(gadTab, { key: "ArrowLeft" });
+    expect(coordTab.getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(coordTab, { key: "ArrowUp" });
+    expect(smeTab.getAttribute("aria-selected")).toBe("true");
 
     // End key moves to last tab
-    fireEvent.keyDown(smeTab, { key: 'End' });
-    expect(itsoTab.getAttribute('aria-selected')).toBe('true');
-    expect(itsoTab.getAttribute('tabindex')).toBe('0');
+    fireEvent.keyDown(smeTab, { key: "End" });
+    expect(itsoTab.getAttribute("aria-selected")).toBe("true");
+    expect(itsoTab.getAttribute("tabindex")).toBe("0");
 
     // Home key moves to first tab
-    fireEvent.keyDown(itsoTab, { key: 'Home' });
-    expect(smeTab.getAttribute('aria-selected')).toBe('true');
-    expect(smeTab.getAttribute('tabindex')).toBe('0');
+    fireEvent.keyDown(itsoTab, { key: "Home" });
+    expect(smeTab.getAttribute("aria-selected")).toBe("true");
+    expect(smeTab.getAttribute("tabindex")).toBe("0");
   });
 
-  it('resets criteria expanded state when switching between tabs', () => {
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+  it("resets criteria expanded state when switching between tabs", () => {
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -470,20 +623,23 @@ describe('MasterSynthesisPage', () => {
     render(<MasterSynthesisPage />);
 
     // Default SME criteria is shown
-    expect(screen.getByText('Topical and Technical Rigor')).toBeDefined();
+    expect(screen.getByText("Topical and Technical Rigor")).toBeDefined();
 
     // Switch to coordinator tab
-    const coordTab = screen.getByTestId('pillar-card-coordinator');
+    const coordTab = screen.getByTestId("pillar-card-coordinator");
     fireEvent.click(coordTab);
 
-    expect(screen.getByText('Syllabus Alignment & Credit Hours')).toBeDefined();
-    expect(screen.queryByText('Topical and Technical Rigor')).toBeNull();
+    expect(screen.getByText("Syllabus Alignment & Credit Hours")).toBeDefined();
+    expect(screen.queryByText("Topical and Technical Rigor")).toBeNull();
   });
 
-  it('downloads the institutional approval sheet instead of printing the app screen', async () => {
-    const printSpy = vi.spyOn(window, 'print').mockImplementation(() => {});
+  it("downloads the institutional approval sheet instead of printing the app screen", async () => {
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
 
-    vi.spyOn(useMasterSynthesisDetailModule, 'useMasterSynthesisDetail').mockReturnValue({
+    vi.spyOn(
+      useMasterSynthesisDetailModule,
+      "useMasterSynthesisDetail",
+    ).mockReturnValue({
       data: mockSynthesisDetail,
       isLoading: false,
       isError: false,
@@ -491,11 +647,15 @@ describe('MasterSynthesisPage', () => {
 
     render(<MasterSynthesisPage />);
 
-    const exportBtn = screen.getByTestId('export-pdf-button');
+    const exportBtn = screen.getByTestId("export-pdf-button");
     expect(exportBtn).toBeDefined();
 
     fireEvent.click(exportBtn);
-    await waitFor(() => expect(downloadApprovalSheetPdf).toHaveBeenCalledWith(mockSynthesisDetail));
+    await waitFor(() =>
+      expect(downloadApprovalSheetPdf).toHaveBeenCalledWith(
+        mockSynthesisDetail,
+      ),
+    );
     expect(printSpy).not.toHaveBeenCalled();
     printSpy.mockRestore();
   });

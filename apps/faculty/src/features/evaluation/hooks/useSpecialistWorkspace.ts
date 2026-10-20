@@ -264,10 +264,12 @@ export function useSpecialistWorkspace({
   // Fetch completed evaluation results for the specialist desk
   const {
     data: results,
+    assessment,
+    isAssessmentPending,
     isLoading: isLoadingResults,
     isError: isResultsError,
     refetch: refetchResults,
-  } = useEvaluationResults(latestJobId, latestJob?.status);
+  } = useEvaluationResults(latestJobId, latestJob?.status, validAgent);
 
   const domainScore: DomainScoreBlock | undefined = useMemo(() => {
     if (!results?.domain_scores) return undefined;
@@ -353,6 +355,8 @@ export function useSpecialistWorkspace({
     isResultsError,
     refetchResults,
     results,
+    assessment,
+    isAssessmentPending,
     domainScore,
     showConfirmModal,
     showReviewModal,

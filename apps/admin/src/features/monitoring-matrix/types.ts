@@ -1,11 +1,12 @@
 import type {
+  ITSOCriterionAssessment,
   MatrixCriterionScoreItem,
   MatrixDomainScoreBlock,
   MatrixListResponse,
   MatrixMetrics,
   MonitoringMatrixRow,
   CoordinatorAlignmentAdvisory,
-} from '@equiped/types';
+} from "@equiped/types";
 
 export type {
   MatrixCriterionScoreItem,
@@ -36,15 +37,37 @@ export interface EvaluationFlagItem {
   message?: string | null;
 }
 
-export interface MasterSynthesisPillar {
-  advisory_outputs?: CoordinatorAlignmentAdvisory | null;
+interface MasterSynthesisPillarBase {
   weight: number;
   subtotal: number | null;
   status: string;
-  criteria: MatrixCriterionScoreItem[];
   summary: string;
   evaluator: EvaluatorAttribution | null;
 }
+
+export interface LegacyMasterSynthesisPillar extends MasterSynthesisPillarBase {
+  /** Legacy response omits contract; the discriminator is retained when present. */
+  contract?: "legacy.v1";
+  advisory_outputs?: CoordinatorAlignmentAdvisory | null;
+  criteria: MatrixCriterionScoreItem[];
+}
+
+export interface ITSOMasterSynthesisPillar extends MasterSynthesisPillarBase {
+  contract: "itso_evidence.v1";
+  evaluation_id: string;
+  criteria: ITSOCriterionAssessment[];
+  max_score: 4;
+  execution_status: "COMPLETED" | "FAILED";
+  scoring_complete: boolean;
+  scored_count: number;
+  unscored_count: number;
+  issue_count: number;
+  uncertainty_count: number;
+  adjectival_rating: null;
+}
+
+export type MasterSynthesisPillar =
+  LegacyMasterSynthesisPillar | ITSOMasterSynthesisPillar;
 
 export interface MasterSynthesisDetailResponse {
   document_id: string;

@@ -20,6 +20,8 @@ export function Scorecard() {
     isLoading,
     isError,
     results,
+    assessment,
+    isAssessmentPending,
     isLoadingResults,
     isResultsError,
     refetchResults,
@@ -95,7 +97,7 @@ export function Scorecard() {
               targetAgent={singleAgentMeta.id}
               status={evaluation.status}
             />
-          ) : isFailed ? (
+          ) : isFailed && !assessment ? (
             <SpecialistEvaluationFailure
               errorMessage={evaluation.error_message}
               onRetry={handleOpenReevaluate}
@@ -104,6 +106,8 @@ export function Scorecard() {
             <EvaluationResultState
               evaluation={evaluation}
               results={results}
+              assessment={assessment}
+              isAssessmentPending={isAssessmentPending}
               meta={singleAgentMeta}
               validAgent={singleAgentMeta.id}
               domainScore={activeDomainData}
@@ -154,8 +158,10 @@ export function Scorecard() {
       {showReevaluateModal && isTargetAgent(evaluation.target_agent) && (
         <EvaluationConfirmModal
           documentId={evaluation.document_id}
-          documentTitle={results?.document_title || evaluation.document_id}
-          detectedProgram={results?.program ?? null}
+          documentTitle={
+            results?.document_title || activeDocument?.title || "Course module"
+          }
+          detectedProgram={results?.program || activeDocument?.program || null}
           targetAgent={evaluation.target_agent}
           onClose={handleCloseReevaluate}
           onSubmitted={handleReevaluateSubmitted}
